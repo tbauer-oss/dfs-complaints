@@ -8,12 +8,8 @@ on:
       - 'vercel.json'
       - '.vercelignore'
       - '.github/workflows/backend.yml'
-  workflow_dispatch:
-    inputs:
-      api_base:
-        description: 'API base URL'
-        required: false
-        default: 'https://dfs-complaints.vercel.app'
+  workflow_dispatch: {}
+
 jobs:
   deploy_vercel_backend:
     runs-on: ubuntu-latest
