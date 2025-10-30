@@ -1,0 +1,12 @@
+{
+  "type": "module",
+  "engines": { "node": "22.x" },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^6.9.14",
+    "xmlbuilder2": "^3.1.1",
+    "@upstash/redis": "^1.28.3"
+  }
+}
