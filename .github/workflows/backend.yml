@@ -5,8 +5,7 @@ on:
     branches: [ main ]
     paths:
       - 'api/**'
-      - 'vercel.json'
-      - '.vercelignore'
+      - 'api/vercel.json'
       - '.github/workflows/backend.yml'
   workflow_dispatch: {}
 
