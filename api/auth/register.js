@@ -17,6 +17,9 @@ function setCors(req, res) {
 }
 function validEmail(s){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s||'')); }
 
+// am Anfang bleibt alles wie in deiner funktionierenden Version (CORS etc.)
+const isPreview = process.env.VERCEL_ENV !== 'production';
+
 export default async function handler(req, res){
   setCors(req, res);
   if (req.method === 'OPTIONS') { res.statusCode = 204; return res.end(); }
@@ -24,41 +27,28 @@ export default async function handler(req, res){
 
   try {
     const b = typeof req.body === 'object' ? req.body : JSON.parse(req.body ?? '{}');
-    const required = ['email','password','password2','company','contact','street','zip','city','country','privacy'];
-    for (const k of required) if (!b[k]) { res.statusCode=400; return res.end(JSON.stringify({ error:`missing ${k}` })); }
-    if (!validEmail(b.email))            { res.statusCode=400; return res.end(JSON.stringify({ error:'invalid email' })); }
-    if (b.password !== b.password2)      { res.statusCode=400; return res.end(JSON.stringify({ error:'password mismatch' })); }
+    // … deine Validierungen …
 
-    // ⚠️ Store erst JETZT laden (verhindert Preflight-Crash)
+    // Store ERST JETZT laden (lazy!)
     const { pendingByEmail, pendingSave } = await import('../_lib/store.js');
 
-    if (await pendingByEmail(b.email))   { res.statusCode=409; return res.end(JSON.stringify({ error:'already pending' })); }
+    if (await pendingByEmail(b.email)) { res.statusCode=409; return res.end(JSON.stringify({ error:'already pending' })); }
 
-    const hash = await bcrypt.hash(b.password, 10);
-    const pending = {
-      email: String(b.email).toLowerCase(),
-      passhash: hash,
-      company: b.company, contact: b.contact,
-      street: b.street, zip: b.zip, city: b.city, country: b.country,
-      phone: b.phone || '', createdAt: Date.now(), status: 'pending'
-    };
-    await pendingSave(pending);
-
-    // Antwort zuerst
+    // … Hash + pendingSave …
     res.statusCode = 200;
     res.end(JSON.stringify({ ok: true }));
 
-    // Mails NACHGELAGERT laden & senden (falls Mail-Setup fehlt, crasht es nicht den Request)
-    import('../_lib/mail.js')
-      .then(({ send, notifyQM, tpl }) => Promise.allSettled([
-        send(pending.email, tpl.afterRegisterToCustomer(pending.contact || pending.company)),
-        notifyQM(tpl.afterRegisterToQM(pending.email)),
-      ]))
-      .catch(err => console.error('mail-load/send failed:', err));
+    // Mails nachgelagert
+    import('../_lib/mail.js').then(({ send, notifyQM, tpl }) => Promise.allSettled([
+      send(pending.email, tpl.afterRegisterToCustomer(pending.contact || pending.company)),
+      notifyQM(tpl.afterRegisterToQM(pending.email)),
+    ])).catch(err => console.error('mail-load/send failed:', err));
 
   } catch (err) {
-    console.error('register.js error:', err);
+    console.error('register.js fatal:', err);
     res.statusCode = 500;
-    res.end(JSON.stringify({ error: 'internal error' }));
+    // In Preview/Dev zeigen wir die Ursache, in Prod nur generic
+    const msg = isPreview ? (err?.message || String(err)) : 'internal error';
+    return res.end(JSON.stringify({ error: msg }));
   }
 }
