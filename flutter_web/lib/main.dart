@@ -8,7 +8,7 @@ import 'pages/auth_page.dart';
 import 'pages/dashboard_page.dart';
 
 void main() {
-  runApp(const AppRoot());
+  runApp(const DFSApp());
 }
 
 class DFSApp extends StatefulWidget {
