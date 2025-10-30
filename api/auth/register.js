@@ -38,11 +38,17 @@ export default async function handler(req, res){
     res.statusCode = 200;
     res.end(JSON.stringify({ ok: true }));
 
-    // Mails nachgelagert
-    import('../_lib/mail.js').then(({ send, notifyQM, tpl }) => Promise.allSettled([
-      send(pending.email, tpl.afterRegisterToCustomer(pending.contact || pending.company)),
-      notifyQM(tpl.afterRegisterToQM(pending.email)),
-    ])).catch(err => console.error('mail-load/send failed:', err));
+    const lang = (b.lang || 'de').toLowerCase();
+
+    res.statusCode = 200;
+    res.end(JSON.stringify({ ok: true }));
+
+    import('../_lib/mail.js')
+      .then(({ send, notifyQM, tpl }) => Promise.allSettled([
+        send(pending.email, tpl.afterRegisterToCustomer(pending.contact || pending.company, lang)),
+        notifyQM(tpl.afterRegisterToQM(pending.email, lang)),
+      ]))
+      .catch(console.error);
 
   } catch (err) {
     console.error('register.js fatal:', err);
