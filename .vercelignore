@@ -1,7 +1,0 @@
-# ok:
-.git
-node_modules
-*.log
-dist
-build
-web_dist
