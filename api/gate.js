@@ -1,5 +1,5 @@
 import { setCors, noContent, methodNotAllowed } from './_lib/http.js';
-export const config = { runtime: 'nodejs' };
+export const config = { runtime: 'nodejs22.x' };
 
 export default function handler(req, res) {
   setCors(req, res);
