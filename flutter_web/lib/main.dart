@@ -19,21 +19,12 @@ class DFSApp extends StatefulWidget {
 class _DFSAppState extends State<DFSApp> {
   final api = ApiClient();
   Locale _locale = const Locale('de');
+  bool _unlocked = false; // <--- neu
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      locale: _locale,
-      supportedLocales: const [
-        Locale('de'), Locale('en'), Locale('es'), Locale('fr'), Locale('it')
-      ],
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-      ],
-      onGenerateTitle: (ctx) => AppLocalizations.of(ctx)!.appTitle,
+      // ... wie gehabt ...
       home: Builder(
         builder: (context) {
           final t = AppLocalizations.of(context)!;
@@ -41,31 +32,36 @@ class _DFSAppState extends State<DFSApp> {
             appBar: AppBar(
               title: Text(t.appTitle),
               actions: [
-                DropdownButtonHideUnderline(
-                  child: DropdownButton<Locale>(
-                    value: _locale,
-                    items: const [
-                      DropdownMenuItem(value: Locale('de'), child: Text('DE')),
-                      DropdownMenuItem(value: Locale('en'), child: Text('EN')),
-                      DropdownMenuItem(value: Locale('es'), child: Text('ES')),
-                      DropdownMenuItem(value: Locale('fr'), child: Text('FR')),
-                      DropdownMenuItem(value: Locale('it'), child: Text('IT')),
-                    ],
-                    onChanged: (v){ if (v!=null) setState(()=>_locale=v); },
-                  ),
-                ),
+                // ... dein Locale-Dropdown ...
               ],
             ),
             body: Navigator(
               pages: [
-                MaterialPage(child: GatePage(api: api, onUnlocked: ()=>setState((){}))),
-                if (api.gate != null) MaterialPage(child: AuthPage(api: api, onLoggedIn: ()=>setState((){}))),
-                if (api.token != null) MaterialPage(child: DashboardPage(api: api)),
+                // 1) GatePage
+                MaterialPage(
+                  child: GatePage(
+                    api: api,
+                    onUnlocked: () => setState(() => _unlocked = true), // <--- hier umschalten
+                  ),
+                ),
+
+                // 2) Nach Gate freigeschaltet: AuthPage anzeigen
+                if (_unlocked)
+                  MaterialPage(
+                    child: AuthPage(
+                      api: api,
+                      onLoggedIn: () => setState((){}),
+                    ),
+                  ),
+
+                // 3) Nach Login: Dashboard
+                if (api.token != null)
+                  MaterialPage(child: DashboardPage(api: api)),
               ],
               onPopPage: (route, result) => route.didPop(result),
             ),
           );
-        }
+        },
       ),
     );
   }
