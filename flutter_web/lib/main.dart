@@ -19,6 +19,7 @@ class DFSApp extends StatefulWidget {
 class _DFSAppState extends State<DFSApp> {
   final api = ApiClient();
   Locale _locale = const Locale('de');
+  bool _unlocked = false; // <-- wichtiges Flag
 
   @override
   Widget build(BuildContext context) {
@@ -58,9 +59,31 @@ class _DFSAppState extends State<DFSApp> {
             ),
             body: Navigator(
               pages: [
-                MaterialPage(child: GatePage(api: api, onUnlocked: ()=>setState((){}))),
-                if (api.gate != null) MaterialPage(child: AuthPage(api: api, onLoggedIn: ()=>setState((){}))),
-                if (api.token != null) MaterialPage(child: DashboardPage(api: api)),
+                // 1) GatePage immer zuerst
+                MaterialPage(
+                  key: const ValueKey('page-gate'),
+                  child: GatePage(
+                    api: api,
+                    onUnlocked: () => setState(() => _unlocked = true), // <—
+                  ),
+                ),
+
+                // 2) Nach Gate freigeschaltet: AuthPage
+                if (_unlocked && api.token == null)
+                  MaterialPage(
+                    key: const ValueKey('page-auth'),
+                    child: AuthPage(
+                      api: api,
+                      onLoggedIn: () => setState((){}),
+                    ),
+                  ),
+
+                // 3) Nach Login: Dashboard
+                if (api.token != null)
+                  MaterialPage(
+                    key: const ValueKey('page-dash'),
+                    child: DashboardPage(api: api),
+                  ),
               ],
               onPopPage: (route, result) => route.didPop(result),
             ),
