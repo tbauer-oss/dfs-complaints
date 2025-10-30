@@ -1,7 +1,7 @@
+# ok:
 .git
-.github
-flutter_web
-web_dist
 node_modules
-*.md
 *.log
+dist
+build
+web_dist
