@@ -11,7 +11,7 @@ on:
       api_base:
         description: 'API base URL'
         required: false
-        default: 'https://dfs-complaints.vercel.app'
+        default: 'https://dfs-complaints-backend.vercel.app'
 
 jobs:
   build_flutter_web:
@@ -52,7 +52,7 @@ jobs:
           API_BASE: ${{ github.event_name == 'workflow_dispatch'
                         && github.event.inputs.api_base != '' 
                         && github.event.inputs.api_base 
-                        || vars.API_BASE || 'https://dfs-complaints.vercel.app' }}
+                        || vars.API_BASE || 'https://dfs-complaints-backend.vercel.app' }}
         run: |
           echo "Using API_BASE=${API_BASE}"
           flutter build web --release --web-renderer canvaskit --dart-define=API_BASE=${API_BASE}
