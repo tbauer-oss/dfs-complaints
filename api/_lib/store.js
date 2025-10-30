@@ -1,8 +1,20 @@
 // api/_lib/store.js  (ESM)
 import { Redis } from '@upstash/redis';
 
-const redis = (process.env.REDIS_URL && process.env.REDIS_TOKEN)
-  ? new Redis({ url: process.env.REDIS_URL, token: process.env.REDIS_TOKEN })
+// ---- Upstash-ENV-Namen sauber abgreifen ----
+// (nimm NICHT den READ_ONLY_TOKEN für Schreibzugriffe!)
+const REDIS_URL =
+  process.env.UPSTASH_REDIS_REST_KV_REST_API_URL ||   // von Vercel-Connect (KV)
+  process.env.UPSTASH_REDIS_REST_URL ||               // klassisch
+  process.env.REDIS_URL;                              // fallback, falls manuell gesetzt
+
+const REDIS_TOKEN =
+  process.env.UPSTASH_REDIS_REST_KV_REST_API_TOKEN || // von Vercel-Connect (KV)
+  process.env.UPSTASH_REDIS_REST_TOKEN ||             // klassisch
+  process.env.REDIS_TOKEN;                            // fallback
+
+const redis = (REDIS_URL && REDIS_TOKEN)
+  ? new Redis({ url: REDIS_URL, token: REDIS_TOKEN })
   : null;
 
 const P = 'dfs:';                      // Redis Prefix
