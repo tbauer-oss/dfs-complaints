@@ -1,1 +1,4 @@
-export default (req, res) => res.status(200).json({ ok: true, t: Date.now() });
+export default function handler(req, res) {
+  res.setHeader('Content-Type', 'application/json');
+  res.status(200).end(JSON.stringify({ ok: true, endpoint: 'hello' }));
+}
