@@ -1,7 +1,7 @@
 {
   "version": 2,
   "functions": {
-    "**/*.[jt]s": { "runtime": "nodejs22.x" }
+    "api/*.[jt]s": { "runtime": "nodejs22.x" }
   },
   "routes": [
     { "src": "/api/(.*)", "dest": "/$1" }
