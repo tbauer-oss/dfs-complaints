@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 
 // ==== Absender / QM (via ENV übersteuerbar) ====
-const FROM     = process.env.MAIL_FROM || 'DFS Complaints <no-reply_dfs-complaints@gmx.de>';
+const FROM     = process.env.MAIL_FROM || 'DFS Complaints <no-reply_dfs-complaints@gmx.net>';
 const REPLY_TO = process.env.MAIL_REPLY_TO || 'complaint@dfs-diamon.de';
 const QM       = process.env.MAIL_QM || 'complaint@dfs-diamon.de';
 
