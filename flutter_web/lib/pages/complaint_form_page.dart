@@ -118,10 +118,8 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
               TextField(
                 controller: batch,
                 decoration: InputDecoration(
-                  labelText: isDentist ? t.batch : '${t.batch} (optional)',
+                  labelText: isDentist ? '${t.batch} *' : t.batch,
                   border: const OutlineInputBorder(),
-                  // optional: Sternchen explizit unterdrücken
-                  floatingLabelBehavior: FloatingLabelBehavior.auto,
                 ),
               ),
               // --------------------------------------------------------------
