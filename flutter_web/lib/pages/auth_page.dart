@@ -59,59 +59,6 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
-  // -------------------- Admin: Navigation --------------------
-  void _gotoAdmin() {
-    Navigator.of(context).pushNamed('/admin');
-  }
-
-  // -------------------- Admin: Secret-Dialog + Speichern --------------------
-  Future<void> _saveAdminSecretAndGoto() async {
-    final ctrl = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Admin-Secret eingeben'),
-          content: TextField(
-            controller: ctrl,
-            obscureText: true,
-            decoration: const InputDecoration(
-              labelText: 'X-Admin-Secret',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Abbrechen'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Weiter'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (ok != true) return;
-
-    final secret = ctrl.text.trim();
-    if (secret.isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bitte ein Secret eingeben.')),
-      );
-      return;
-    }
-
-    // Persistieren für AdminPage/AdminService (Web: localStorage)
-    html.window.localStorage['admin_secret'] = secret;
-
-    if (!mounted) return;
-    _gotoAdmin();
-  }
-
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
@@ -258,28 +205,6 @@ class _AuthPageState extends State<AuthPage> {
                     )
                   : Text(isLogin ? t.auth_login : t.auth_register),
             ),
-
-            // -------- Admin-Buttons (neu) --------
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.admin_panel_settings),
-                    onPressed: _gotoAdmin,
-                    label: const Text('Adminbereich'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.vpn_key),
-                    onPressed: _saveAdminSecretAndGoto,
-                    label: const Text('Admin-Secret speichern…'),
-                  ),
-                ),
-              ],
-            ),
           ],
         ),
       ),
@@ -325,7 +250,7 @@ class _AuthPageState extends State<AuthPage> {
         'country': _country.text,
         'phone': _phone.text,
         'privacy': true,
-        'lang': _langCode(context), // <<<<<< Sprache mitgeben
+        'lang': _langCode(context), // Sprache mitgeben
       });
 
       if (!mounted) return;
