@@ -1,22 +1,19 @@
 // api/_lib/store.js  (ESM)
 import { Redis } from '@upstash/redis';
 
-// === ENV sauber abgreifen =====================================
-// Vercel KV: KV_REST_API_URL / KV_REST_API_TOKEN
-// Upstash Redis: UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN
+// === ENV sauber abgreifen (alle Varianten, zuerst deine) ===========
 const REDIS_URL =
-  process.env.UPSTASH_REDIS_REST_URL ||                       // klassisch Upstash
-  process.env.UPSTASH_REDIS_REST_KV_REST_API_URL ||           // Vercel "Connect Store"
-  process.env.KV_REST_API_URL ||                              // Vercel KV (direkt)
-  process.env.REDIS_URL ||                                    // Fallback
+  process.env.UPSTASH_REDIS_REST_KV_REST_API_URL ||   // <— bei dir vorhanden
+  process.env.UPSTASH_REDIS_REST_URL ||               // klassisch Upstash
+  process.env.KV_REST_API_URL ||                      // Vercel KV direkt
+  process.env.REDIS_URL ||                            // Fallback
   null;
 
 const REDIS_TOKEN =
-  process.env.UPSTASH_REDIS_REST_TOKEN ||                     // klassisch Upstash
-  process.env.UPSTASH_REDIS_REST_KV_REST_API_TOKEN ||         // Vercel "Connect Store"
-  process.env.KV_REST_API_TOKEN ||                            // Vercel KV (direkt)
-  process.env.REDIS_TOKEN ||                                  // Fallback
-  process.env.UPSTASH_REDIS_REST_KV_REST_API_READ_ONLY_TOKEN || // Notfall (READ ONLY!)
+  process.env.UPSTASH_REDIS_REST_KV_REST_API_TOKEN || // <— bei dir vorhanden (WRITE!)
+  process.env.UPSTASH_REDIS_REST_TOKEN ||             // klassisch Upstash
+  process.env.KV_REST_API_TOKEN ||                    // Vercel KV direkt
+  process.env.REDIS_TOKEN ||                          // Fallback
   null;
 
 // Lazy-Initialisierung (kein Crash bei Preflight/CORS)
