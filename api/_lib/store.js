@@ -5,16 +5,19 @@ import { Redis } from '@upstash/redis';
 // Vercel KV: KV_REST_API_URL / KV_REST_API_TOKEN
 // Upstash Redis: UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN
 const REDIS_URL =
-  process.env.UPSTASH_REDIS_REST_URL ||
-  process.env.UPSTASH_REDIS_REST_KV_REST_API_URL ||   // <— hinzugefügt
-  process.env.KV_REST_API_URL ||
-  process.env.REDIS_URL || null;
+  process.env.UPSTASH_REDIS_REST_URL ||                       // klassisch Upstash
+  process.env.UPSTASH_REDIS_REST_KV_REST_API_URL ||           // Vercel "Connect Store"
+  process.env.KV_REST_API_URL ||                              // Vercel KV (direkt)
+  process.env.REDIS_URL ||                                    // Fallback
+  null;
 
 const REDIS_TOKEN =
-  process.env.UPSTASH_REDIS_REST_TOKEN ||
-  process.env.UPSTASH_REDIS_REST_KV_REST_API_TOKEN || // <— hinzugefügt
-  process.env.KV_REST_API_TOKEN ||
-  process.env.REDIS_TOKEN || null;
+  process.env.UPSTASH_REDIS_REST_TOKEN ||                     // klassisch Upstash
+  process.env.UPSTASH_REDIS_REST_KV_REST_API_TOKEN ||         // Vercel "Connect Store"
+  process.env.KV_REST_API_TOKEN ||                            // Vercel KV (direkt)
+  process.env.REDIS_TOKEN ||                                  // Fallback
+  process.env.UPSTASH_REDIS_REST_KV_REST_API_READ_ONLY_TOKEN || // Notfall (READ ONLY!)
+  null;
 
 // Lazy-Initialisierung (kein Crash bei Preflight/CORS)
 let _redis = null;
