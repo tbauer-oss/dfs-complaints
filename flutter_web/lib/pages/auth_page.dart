@@ -101,15 +101,12 @@ class _AuthPageState extends State<AuthPage> {
                 } else if (r.statusCode == 409) {
                   final body = r.body?.toString() ?? '';
                   if (body.contains('user_exists')) {
-                    setState(()=> _err = t.user_exists);
-                  } else if (body.contains('pending_exists') || body.contains('resent')) {
-                    setState(()=> _err = t.pending_exists); // "Mail erneut gesendet …"
+                    setState(()=> _err = 'E-Mail ist bereits registriert.');
+                  } else if (body.contains('pending') || body.contains('resent')) {
+                    setState(()=> _err = 'Registrierung liegt bereits vor. Bestätigungs-E-Mail wurde erneut gesendet.');
                   } else {
                     setState(()=> _err = t.register_failed(body));
                   }
-                } else {
-                  setState(()=> _err = t.register_failed(r.body));
-                }
               } // <-- schließt das else { ... } der Registrierung
             } catch(e) {
               if (!mounted) return;
