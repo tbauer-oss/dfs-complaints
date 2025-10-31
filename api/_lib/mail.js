@@ -1,42 +1,62 @@
-// /api/_lib/mail.js
+// /api/_lib/mail.js  (robust, lazy transport, 465/587 Auto)
 import nodemailer from 'nodemailer';
 import fs from 'fs';
 import path from 'path';
 
-// ==== Absender / QM (deine Defaults, via ENV übersteuerbar) ====
-const FROM = process.env.MAIL_FROM || 'DFS Complaints <no-reply_dfs-complaints@gmx.de>';
-const QM   = process.env.MAIL_QM   || 'complaint@dfs-diamon.de';
+// ==== Absender / QM (via ENV übersteuerbar) ====
+const FROM     = process.env.MAIL_FROM || 'DFS Complaints <no-reply_dfs-complaints@gmx.de>';
+const REPLY_TO = process.env.MAIL_REPLY_TO || 'complaint@dfs-diamon.de';
+const QM       = process.env.MAIL_QM || 'complaint@dfs-diamon.de';
 
-// ==== Transport (GMX etc.) ====
-export const mailer = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,         // z.B. mail.gmx.net
-  port: Number(process.env.SMTP_PORT || 587),
-  secure: false,                        // 587 = STARTTLS (TLS wird automatisch ausgehandelt)
-  auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-  tls: { minVersion: 'TLSv1.2' }
-});
+// ==== SMTP-ENV ====
+const SMTP_HOST = process.env.SMTP_HOST;           // z.B. mail.gmx.net / smtp.office365.com
+const SMTP_PORT = Number(process.env.SMTP_PORT || 587); // 587 = STARTTLS, 465 = SMTPS
+const SMTP_USER = process.env.SMTP_USER;
+const SMTP_PASS = process.env.SMTP_PASS;
 
-export async function verifyTransport(){ return mailer.verify(); }
+let _transporter = null;
+
+function ensureEnv() {
+  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
+    throw new Error('SMTP env missing (SMTP_HOST, SMTP_USER, SMTP_PASS)');
+  }
+}
+
+function getTransport() {
+  if (_transporter) return _transporter;
+  ensureEnv();
+  _transporter = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_PORT === 465,   // 465 = SMTPS, sonst STARTTLS
+    auth: { user: SMTP_USER, pass: SMTP_PASS },
+    tls: { minVersion: 'TLSv1.2' },
+    // leichte Robustheit:
+    pool: true,
+    maxConnections: 2,
+    maxMessages: 20,
+  });
+  return _transporter;
+}
+
+export async function verifyTransport() {
+  const tx = getTransport();
+  return tx.verify();
+}
 
 // ---------------------------------------------------------------
 //                 HTML-Layout (automatisch aus "text")
 // ---------------------------------------------------------------
-const CI = {
-  blue:  '#0b6bae',
-  dark:  '#1a1a1a',
-  light: '#f6f8fb',
-  border:'#e6ebf2'
-};
+const CI = { blue:'#0b6bae', dark:'#1a1a1a', light:'#f6f8fb', border:'#e6ebf2' };
 
-// Mini-HTML-Renderer: macht aus deinem Plaintext schöne Absätze
 function textToParagraphs(txt=''){
   const blocks = String(txt).trim().split(/\n\s*\n/g);
   return blocks.map(s => `<p class="p">${escapeHtml(s).replace(/\n/g,'<br>')}</p>`).join('');
 }
 
-function htmlShell({ title, bodyHtml }){
+function htmlShell({ title, bodyHtml, lang = 'de' }){
   return `<!doctype html>
-<html lang="de"><head>
+<html lang="${lang}"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeHtml(title || '')}</title>
 <style>
@@ -92,7 +112,7 @@ function logoAttachment(){
 }
 
 // ---------------------------------------------------------------
-//                  I18N – DEINE TEXTE 1:1 ÜBERNOMMEN
+//                  I18N – unverändert zu deiner Logik
 // ---------------------------------------------------------------
 const SUPPORTED = new Set(['de','en','fr','it','es']);
 const L = (lang) => SUPPORTED.has(lang) ? lang : 'de';
@@ -116,7 +136,7 @@ Your account has been created and is pending review.
 We will notify you by e-mail once it is approved.
 
 Kind regards
-DFS-Diamon GmbH – Quality Management` }),
+DFS-DIAMON GmbH – Quality Management` }),
     fr: (name)=>({ subject: 'Votre inscription chez DFS-Diamon', text:
 `Bonjour ${name || ''},
 
@@ -134,7 +154,7 @@ Il suo account è stato creato ed è in fase di verifica.
 La informeremo via e-mail non appena sarà approvato.
 
 Cordiali saluti
-DFS-Diamon GmbH – Quality Management` }),
+DFS-DIAMON GmbH – Quality Management` }),
     es: (name)=>({ subject: 'Su registro en DFS-Diamon', text:
 `Hola ${name || ''},
 
@@ -143,7 +163,7 @@ Su cuenta ha sido creada y está en revisión.
 Le notificaremos por correo cuando sea aprobada.
 
 Saludos cordiales
-DFS-Diamon GmbH – Quality Management` }),
+DFS-DIAMON GmbH – Quality Management` }),
   },
 
   afterRegisterToQM: {
@@ -162,7 +182,7 @@ Ihr Kundenkonto bei der DFS-Diamon GmbH wurde soeben freigeschaltet.
 Sie können sich ab sofort anmelden und Reklamationen online übermitteln.
 
 Mit freundlichen Grüßen
-DFS-Diamon GmbH – Quality Management` }),
+DFS-DIAMON GmbH – Quality Management` }),
     en: (name)=>({ subject:'Your DFS account has been approved', text:
 `Dear ${name || 'customer'},
 
@@ -170,7 +190,7 @@ your account at DFS-Diamon GmbH has just been approved.
 You can now log in and submit complaints online.
 
 Kind regards
-DFS-Diamon GmbH – Quality Management` }),
+DFS-DIAMON GmbH – Quality Management` }),
     fr: (name)=>({ subject:`Votre compte DFS a été activé`, text:
 `Bonjour ${name || ''},
 
@@ -178,7 +198,7 @@ votre compte chez DFS-Diamon GmbH vient d’être activé.
 Vous pouvez maintenant vous connecter et soumettre des réclamations en ligne.
 
 Cordialement
-DFS-Diamon GmbH – Quality Management` }),
+DFS-DIAMON GmbH – Quality Management` }),
     it: (name)=>({ subject:`Il suo account DFS è stato attivato`, text:
 `Gentile ${name || ''},
 
@@ -186,7 +206,7 @@ il suo account presso DFS-Diamon GmbH è stato approvato.
 Può ora effettuare l’accesso e inviare reclami online.
 
 Cordiali saluti
-DFS-Diamon GmbH – Quality Management` }),
+DFS-DIAMON GmbH – Quality Management` }),
     es: (name)=>({ subject:`Su cuenta de DFS ha sido activada`, text:
 `Hola ${name || ''},
 
@@ -194,7 +214,7 @@ su cuenta en DFS-Diamon GmbH ha sido aprobada.
 Ya puede iniciar sesión y enviar reclamaciones en línea.
 
 Saludos cordiales
-DFS-Diamon GmbH – Quality Management` }),
+DFS-DIAMON GmbH – Quality Management` }),
   },
 
   complaintCustomer: {
@@ -221,27 +241,29 @@ Le informaremos si cambia el estado.` }),
   },
 };
 
-// ---- API-kompatibel wie bei dir: tpl.* gibt {subject, text} zurück ----
 export const tpl = {
-  afterRegisterToCustomer: (name, lang='de') => TEXTS.afterRegisterToCustomer[L(lang)](name),
-  afterRegisterToQM:       (email, lang='de') => TEXTS.afterRegisterToQM[L(lang)](email),
-  approved:                (name, lang='de') => TEXTS.approved[L(lang)](name),
+  afterRegisterToCustomer: (name, lang='de')   => TEXTS.afterRegisterToCustomer[L(lang)](name),
+  afterRegisterToQM:       (email, lang='de')  => TEXTS.afterRegisterToQM[L(lang)](email),
+  approved:                (name, lang='de')   => TEXTS.approved[L(lang)](name),
   complaintCustomer:       (ticket, lang='de') => TEXTS.complaintCustomer[L(lang)](ticket),
 };
 
-// ---- Senden: nimmt dein {subject,text} und baut automatisch HTML + Logo ----
-export async function send(to, { subject, text }, attachments = []) {
-  const html = htmlShell({ title: subject, bodyHtml: textToParagraphs(text) });
+// ---- Senden: nimmt {subject,text}, baut HTML+Logo, nutzt lazy Transport ----
+export async function send(to, { subject, text, lang = 'de' }, attachments = []) {
+  const html = htmlShell({ title: subject, bodyHtml: textToParagraphs(text), lang: L(lang) });
   const atts = [...logoAttachment(), ...attachments];
-  return mailer.sendMail({
+
+  const info = await getTransport().sendMail({
     from: FROM,
     to,
     subject,
-    text,   // Plain-Text Fallback
-    html,   // Schöne HTML-Version im DFS-Stil
-    replyTo: FROM,
+    text,   // Plaintext-Fallback
+    html,   // HTML im DFS-Stil
+    replyTo: REPLY_TO || FROM,
     attachments: atts
   });
+  console.log('mail: sent', { to, messageId: info.messageId });
+  return info;
 }
 
 export async function notifyQM(msg) {
