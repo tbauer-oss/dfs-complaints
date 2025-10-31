@@ -31,6 +31,14 @@ function readJson(req) {
   try { return JSON.parse(req.body ?? '{}'); } catch { return {}; }
 }
 
+// ---- Sprach-Normalisierung: "de-DE" -> "de", Fallback "de"
+const LANGS = new Set(['de','en','fr','it','es']);
+function normLang(x) {
+  const lc = String(x || '').toLowerCase();
+  const two = lc.split(/[-_]/)[0];
+  return LANGS.has(two) ? two : 'de';
+}
+
 export default async function handler(req, res) {
   setCors(req, res);
   if (req.method === 'OPTIONS') { res.statusCode = 204; return res.end(); }
@@ -61,9 +69,10 @@ export default async function handler(req, res) {
     if (!pendingGet || !pendingSave) throw new Error('store not ready (pendingGet/pendingSave missing)');
 
     const email = String(b.email).toLowerCase();
-    const lang = (b.lang || 'de').toLowerCase();
+    // Sprache aus Body oder (optional) Header ableiten
+    const lang = normLang(b.lang || req.headers['accept-language']);
 
-    // Prüfen, ob schon pending -> Mail erneut senden und 409 zurückgeben (Frontend zeigt passenden Text)
+    // Bereits pending? -> Mails erneut senden, 409 + "resent"
     const existing = await pendingGet(email);
     if (existing) {
       try {
@@ -96,7 +105,7 @@ export default async function handler(req, res) {
     };
     await pendingSave(pending);
 
-    // >>> WICHTIG: Mails JETZT senden (vor res.end), nicht "fire & forget"
+    // Mails VOR der Response senden (sonst killt Serverless den Job)
     try {
       const { send, notifyQM, tpl, verifyTransport } = await import('../_lib/mail.js');
       await verifyTransport().catch(()=>{});
@@ -107,13 +116,11 @@ export default async function handler(req, res) {
       console.log('register: mail results', results.map(r => r.status));
     } catch (e) {
       console.error('register: initial mail failed:', e);
-      // wir antworten trotzdem 200 – Registrierung ist gespeichert
+      // Registrierung bleibt erfolgreich; wir schicken trotzdem 200
     }
 
-    // Antwort
     res.statusCode = 200;
     return res.end(JSON.stringify({ ok: true }));
-
   } catch (err) {
     console.error('register.js fatal:', err);
     res.statusCode = 500;
