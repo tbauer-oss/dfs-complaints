@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:html' as html;
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
-import '../models/country.dart'; // <— NEU: Country & kCountries
+import '../models/country.dart'; // Country & kCountries
 
 class AuthPage extends StatefulWidget {
   final ApiClient api;
@@ -19,14 +19,15 @@ class _AuthPageState extends State<AuthPage> {
   final _pw = TextEditingController();
   final _pw2 = TextEditingController();
   final _company = TextEditingController();
-  final _contact = TextEditingController();
+  // final _contact = TextEditingController(); // entfällt: jetzt first/last
+  final _firstName = TextEditingController();
+  final _lastName  = TextEditingController();
   final _street = TextEditingController();
   final _zip = TextEditingController();
   final _city = TextEditingController();
-  // final _country = TextEditingController(text: 'Germany');  // <-- ENTFERNT
   final _phone = TextEditingController();
 
-  // NEU: Auswahl statt freier Texteingabe
+  // Auswahl statt freier Landeingabe
   Country? _countrySel;
 
   bool _privacy = false;
@@ -49,11 +50,11 @@ class _AuthPageState extends State<AuthPage> {
     _pw.dispose();
     _pw2.dispose();
     _company.dispose();
-    _contact.dispose();
+    _firstName.dispose();
+    _lastName.dispose();
     _street.dispose();
     _zip.dispose();
     _city.dispose();
-    // _country.dispose(); // <-- ENTFERNT
     _phone.dispose();
     super.dispose();
   }
@@ -94,6 +95,8 @@ class _AuthPageState extends State<AuthPage> {
             const SizedBox(height: 16),
             TextField(
               controller: _email,
+              keyboardType: TextInputType.emailAddress,
+              autofillHints: const [AutofillHints.email],
               decoration: InputDecoration(
                 labelText: t.email,
                 border: const OutlineInputBorder(),
@@ -127,13 +130,32 @@ class _AuthPageState extends State<AuthPage> {
                 ),
               ),
               const SizedBox(height: 8),
-              TextField(
-                controller: _contact,
-                decoration: InputDecoration(
-                  labelText: t.contact,
-                  border: const OutlineInputBorder(),
-                ),
+
+              // NEU: Vorname / Nachname nebeneinander
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _firstName,
+                      decoration: InputDecoration(
+                        labelText: '${t.contact} – Vorname',
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _lastName,
+                      decoration: InputDecoration(
+                        labelText: '${t.contact} – Nachname',
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                ],
               ),
+
               const SizedBox(height: 8),
               TextField(
                 controller: _street,
@@ -168,7 +190,7 @@ class _AuthPageState extends State<AuthPage> {
               ),
               const SizedBox(height: 8),
 
-              // ====== NEU: COUNTRY-DROPDOWN ======
+              // COUNTRY-DROPDOWN
               DropdownButtonFormField<Country>(
                 value: _countrySel,
                 isExpanded: true,
@@ -263,21 +285,35 @@ class _AuthPageState extends State<AuthPage> {
         return;
       }
 
+      // Minimalvalidierung: Vor- & Nachname müssen befüllt sein
+      if (_firstName.text.trim().isEmpty || _lastName.text.trim().isEmpty) {
+        if (!mounted) return;
+        setState(() => _err = 'Bitte Vor- und Nachname angeben.');
+        return;
+      }
+
       // Sicherheitsnetz: falls _countrySel aus irgendeinem Grund null wäre
       final selected = _countrySel ?? kCountries.first;
+
+      final contactCombined =
+          '${_firstName.text.trim()} ${_lastName.text.trim()}'.trim();
 
       final r = await widget.api.register({
         'email': _email.text.trim(),
         'password': _pw.text,
         'password2': _pw2.text,
         'company': _company.text.trim(),
-        'contact': _contact.text.trim(),
+        // neue Felder
+        'firstName': _firstName.text.trim(),
+        'lastName' : _lastName.text.trim(),
+        // kompatibel bleiben – zusätzlich kombinierter Kontakt
+        'contact'  : contactCombined,
         'street': _street.text.trim(),
         'zip': _zip.text.trim(),
         'city': _city.text.trim(),
-        // Wichtig: Kompatibel bleiben — country bleibt lesbarer Name
+        // lesbarer Name
         'country': selected.label(context),
-        // Zusätzlich ISO-Alpha-2 (optional vom Backend zu nutzen)
+        // ISO-Alpha-2
         'countryCode': selected.code,
         'phone': _phone.text.trim(),
         'privacy': true,
