@@ -125,7 +125,8 @@ export default async function handler(req, res) {
       mailError = e?.message || String(e);
       console.error('register: initial mail failed:', mailError);
     }
-
+    
+    await new Promise(r => setTimeout(r, 500)); // kleine Verzögerung (500 ms)
     res.statusCode = 200;
     return res.end(JSON.stringify({ ok: true, mailSent, mailError }));
   } catch (err) {
