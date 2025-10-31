@@ -39,6 +39,10 @@
   "first_name": "Prénom",
   "last_name": "Nom",
   "name_required": "Veuillez saisir le prénom et le nom.",
+  "email_exists": "Cette adresse e-mail est déjà enregistrée.",
+  "@email_exists": { "description": "Affiché si l’utilisateur essaie de s’inscrire avec un e-mail déjà utilisé." },
+  "register_pending_resent": "Une inscription existe déjà. L’e-mail de confirmation a été renvoyé.",
+  "@register_pending_resent": { "description": "Inscription en attente existante ; e-mail de confirmation renvoyé." }
 
   "tab_complaint": "Soumettre une réclamation",
   "tab_my_complaints": "Mes réclamations",
