@@ -3,9 +3,9 @@ export const config = { runtime: 'nodejs' };
 
 import bcrypt from 'bcryptjs';
 
-// === CORS (dein Block, unverändert) ===
 const PROD_FE  = 'https://dfs-complaints-web.vercel.app';
 const PREVIEW  = /^https:\/\/dfs-complaints-web-[a-z0-9-]+(?:-[a-z0-9-]+)?\.vercel\.app$/i;
+
 function setCors(req, res) {
   const origin = req.headers?.origin || '';
   const allow = origin && (origin === PROD_FE || PREVIEW.test(origin)) ? origin : PROD_FE;
@@ -17,7 +17,6 @@ function setCors(req, res) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 }
 
-// === Helpers ===
 const isPreview = process.env.VERCEL_ENV !== 'production';
 const validEmail = s => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || ''));
 
@@ -28,7 +27,6 @@ function toBool(v) {
 }
 
 function readJson(req) {
-  // Vercel/Node liefert in vielen Fällen req.body bereits als Objekt.
   if (req.body && typeof req.body === 'object') return req.body;
   try { return JSON.parse(req.body ?? '{}'); } catch { return {}; }
 }
@@ -41,12 +39,11 @@ export default async function handler(req, res) {
   try {
     const b = readJson(req);
 
-    // Pflichtfelder prüfen
+    // Pflichtfelder
     const required = ['email','password','password2','company','contact','street','zip','city','country'];
     for (const k of required) {
       if (!b[k]) { res.statusCode = 400; return res.end(JSON.stringify({ error:`missing ${k}` })); }
     }
-
     if (!validEmail(b.email)) {
       res.statusCode = 400; return res.end(JSON.stringify({ error: 'invalid email' }));
     }
@@ -57,23 +54,33 @@ export default async function handler(req, res) {
       res.statusCode = 400; return res.end(JSON.stringify({ error: 'privacy not accepted' }));
     }
 
-    // Store lazy laden (crasht nicht bei Preflight)
+    // Store laden
     const store = await import('../_lib/store.js');
-    const pendingGet  = store.pendingGet  || store.pendingByEmail; // Fallback, falls alter Name
-    const pendingSave = store.pendingSave;
-
-    if (!pendingGet || !pendingSave) {
-      throw new Error('store not ready (pendingGet/pendingSave missing)');
-    }
+    const { pendingGet: _pendingGet, pendingByEmail, pendingSave } = store;
+    const pendingGet = _pendingGet || pendingByEmail;
+    if (!pendingGet || !pendingSave) throw new Error('store not ready (pendingGet/pendingSave missing)');
 
     const email = String(b.email).toLowerCase();
+    const lang = (b.lang || 'de').toLowerCase();
 
-    // Doppelte Registrierung verhindern
-    if (await pendingGet(email)) {
-      res.statusCode = 409; return res.end(JSON.stringify({ error:'already pending' }));
+    // Prüfen, ob schon pending -> Mail erneut senden und 409 zurückgeben (Frontend zeigt passenden Text)
+    const existing = await pendingGet(email);
+    if (existing) {
+      try {
+        const { send, notifyQM, tpl, verifyTransport } = await import('../_lib/mail.js');
+        await verifyTransport().catch(()=>{});
+        await Promise.allSettled([
+          send(existing.email, tpl.afterRegisterToCustomer(existing.contact || existing.company, lang)),
+          notifyQM(tpl.afterRegisterToQM(existing.email, lang)),
+        ]);
+      } catch (e) {
+        console.error('register: resend mail failed:', e);
+      }
+      res.statusCode = 409;
+      return res.end(JSON.stringify({ error: 'pending_exists', status: 'resent' }));
     }
 
-    // Hash erzeugen & Pending-Objekt speichern
+    // Neu anlegen
     const pending = {
       email,
       passhash: await bcrypt.hash(String(b.password), 10),
@@ -87,21 +94,25 @@ export default async function handler(req, res) {
       createdAt: Date.now(),
       status: 'pending',
     };
-
     await pendingSave(pending);
 
-    // Sofortige Antwort (UI wird nicht vom Mailversand blockiert)
-    res.statusCode = 200;
-    res.end(JSON.stringify({ ok: true }));
-
-    // Mails "fire & forget"
-    const lang = (b.lang || 'de').toLowerCase();
-    import('../_lib/mail.js')
-      .then(({ send, notifyQM, tpl }) => Promise.allSettled([
+    // >>> WICHTIG: Mails JETZT senden (vor res.end), nicht "fire & forget"
+    try {
+      const { send, notifyQM, tpl, verifyTransport } = await import('../_lib/mail.js');
+      await verifyTransport().catch(()=>{});
+      const results = await Promise.allSettled([
         send(pending.email, tpl.afterRegisterToCustomer(pending.contact || pending.company, lang)),
         notifyQM(tpl.afterRegisterToQM(pending.email, lang)),
-      ]))
-      .catch(console.error);
+      ]);
+      console.log('register: mail results', results.map(r => r.status));
+    } catch (e) {
+      console.error('register: initial mail failed:', e);
+      // wir antworten trotzdem 200 – Registrierung ist gespeichert
+    }
+
+    // Antwort
+    res.statusCode = 200;
+    return res.end(JSON.stringify({ ok: true }));
 
   } catch (err) {
     console.error('register.js fatal:', err);
