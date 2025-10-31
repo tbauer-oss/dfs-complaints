@@ -1,0 +1,6 @@
+arb-dir: lib/l10n
+template-arb-file: intl_de.arb   # oder intl_en.arb – je nach deiner Templatesprache
+output-localization-file: app_localizations.dart
+untranslated-messages-file: l10n_untranslated.json
+# optional, wenn dich die Warnungen nerven:
+# suppress-warnings: true
