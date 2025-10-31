@@ -7,11 +7,11 @@ const FROM = process.env.MAIL_FROM || 'no-reply_dfs-complaints@outlook.com';
 const QM   = process.env.MAIL_QM   || 'qualitymanagement@dfs-diamon.de';
 
 export const mailer = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT || 587),
-  secure: toBool(process.env.SMTP_SECURE),
+  host: process.env.SMTP_HOST,                 // smtp-mail.outlook.com
+  port: Number(process.env.SMTP_PORT || 587),  // 587
+  secure: false,                               // STARTTLS
   auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-  authMethod: 'LOGIN',
+  tls: { minVersion: 'TLSv1.2', servername: 'smtp-mail.outlook.com' } // hilft gegen SNI/TLS Zicken
 });
 
 export async function verifyTransport(){ return mailer.verify(); }
