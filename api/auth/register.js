@@ -13,11 +13,12 @@ function setCors(req, res) {
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Secret');
+  // X-Gate hinzugefügt (Gate-Flow)
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Secret, X-Gate');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 }
 
-const isPreview = process.env.VERCEL_ENV !== 'production';
+const isPreview  = process.env.VERCEL_ENV !== 'production';
 const validEmail = s => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || ''));
 
 function toBool(v) {
@@ -47,11 +48,12 @@ export default async function handler(req, res) {
   try {
     const b = readJson(req);
 
-    // Pflichtfelder (wie gehabt)
-    const required = ['email','password','password2','company','contact','street','zip','city','country'];
+    // Pflichtfelder (ohne 'contact'; wir erlauben entweder contact ODER first+last)
+    const required = ['email','password','password2','company','street','zip','city','country'];
     for (const k of required) {
       if (!b[k]) { res.statusCode = 400; return res.end(JSON.stringify({ error:`missing ${k}` })); }
     }
+
     if (!validEmail(b.email)) {
       res.statusCode = 400; return res.end(JSON.stringify({ error: 'invalid email' }));
     }
@@ -62,14 +64,36 @@ export default async function handler(req, res) {
       res.statusCode = 400; return res.end(JSON.stringify({ error: 'privacy not accepted' }));
     }
 
+    // Kontakt-Pflicht: entweder "contact" ODER (firstName & lastName)
+    const hasOldContact = !!b.contact;
+    const hasSplitNames = !!b.firstName && !!b.lastName;
+    if (!hasOldContact && !hasSplitNames) {
+      res.statusCode = 400;
+      return res.end(JSON.stringify({ error: 'missing contact or first/last name' }));
+    }
+
     // Store laden
     const store = await import('../_lib/store.js');
     const { pendingGet: _pendingGet, pendingByEmail, pendingSave } = store;
     const pendingGet = _pendingGet || pendingByEmail;
     if (!pendingGet || !pendingSave) throw new Error('store not ready (pendingGet/pendingSave missing)');
 
-    const email = String(b.email).toLowerCase();
-    const lang  = normLang(b.lang || req.headers['accept-language']);
+    // Normalisieren/Trimmen
+    const email       = String(b.email).trim().toLowerCase();
+    const lang        = normLang(b.lang || req.headers['accept-language']);
+    const firstName   = String(b.firstName || '').trim();
+    const lastName    = String(b.lastName  || '').trim();
+    const company     = String(b.company   || '').trim();
+    const street      = String(b.street    || '').trim();
+    const zip         = String(b.zip       || '').trim();
+    const city        = String(b.city      || '').trim();
+    const phone       = String(b.phone     || '').trim();
+    const countryLbl  = String(b.country   || '').trim();
+    const countryCode = (String(b.countryCode || '').trim().toUpperCase().slice(0,2) || undefined);
+
+    const contact = hasOldContact
+      ? String(b.contact).trim()
+      : `${firstName} ${lastName}`.trim();
 
     // Bereits pending? -> Mails erneut senden, 409 + "resent"
     const existing = await pendingGet(email);
@@ -92,7 +116,7 @@ export default async function handler(req, res) {
 
         console.log('register: mail results', results.map(r => r.status), 'duration', Date.now() - start, 'ms');
 
-        // >>> entscheidend: Transport flushen + minimale Wartezeit
+        // Transport flushen + kurze Wartezeit
         await new Promise(r => setTimeout(r, 750));
       } catch (e) {
         mailError = e?.message || String(e);
@@ -106,14 +130,17 @@ export default async function handler(req, res) {
     const pending = {
       email,
       passhash: await bcrypt.hash(String(b.password), 10),
-      company: b.company,
-      contact: b.contact,
-      street: b.street,
-      zip: b.zip,
-      city: b.city,
-      country: b.country,
-      phone: b.phone || '',
-      lang,                        // <<<<<< speichern
+      company,
+      contact,                  // zusammengeführt für Legacy
+      firstName: firstName || undefined,
+      lastName:  lastName  || undefined,
+      street,
+      zip,
+      city,
+      country: countryLbl,      // lesbarer Name (Dropdown-Label)
+      countryCode,              // optionaler ISO-2 Code
+      phone,
+      lang,                     // Sprache speichern
       createdAt: Date.now(),
       status: 'pending',
     };
@@ -135,7 +162,7 @@ export default async function handler(req, res) {
 
       console.log('register: mail results', results.map(r => r.status), 'duration', Date.now() - start, 'ms');
 
-      // >>> entscheidend: Transport flushen + minimale Wartezeit
+      // Transport flushen + minimale Wartezeit
       await new Promise(r => setTimeout(r, 750));
     } catch (e) {
       mailError = e?.message || String(e);
