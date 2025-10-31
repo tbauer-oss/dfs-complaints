@@ -49,7 +49,7 @@
   "segment_dentist": "Zahnarzt",
   "segment_lab": "Zahntechnik",
   "article": "Artikelnummer*",
-  "batch": "Charge*",
+  "batch": "Charge",
   "qty": "Menge",
   "expiry": "Ablaufdatum (falls relevant)",
   "problem_desc": "Problembeschreibung*",
