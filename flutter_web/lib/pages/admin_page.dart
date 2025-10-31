@@ -88,13 +88,15 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   Future<void> _reject(String email) async {
-    final ok = await _confirm('Anmeldung ablehnen', 'Soll $email wirklich abgelehnt werden?');
+    final ok = await _confirm('Anmeldung ablehnen',
+        'Soll $email wirklich abgelehnt werden?\n\nDer Eintrag wird dabei wie beim Löschen vollständig entfernt.');
     if (ok != true) return;
+
     try {
-      await _api.rejectPending(email);
+      await _api.deleteUser(email); // ⬅️ identische Logik wie Löschen
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Eintrag verworfen: $email')),
+        SnackBar(content: Text('Eintrag abgelehnt und gelöscht: $email')),
       );
       await _refreshAll();
     } catch (e) {
