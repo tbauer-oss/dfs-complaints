@@ -3,15 +3,14 @@ import nodemailer from 'nodemailer';
 
 function toBool(v){ if(typeof v==='boolean')return v; const s=String(v??'').toLowerCase(); return s==='1'||s==='true'||s==='yes'; }
 
-const FROM = process.env.MAIL_FROM || 'no-reply_dfs-complaints@outlook.com';
-const QM   = process.env.MAIL_QM   || 'qualitymanagement@dfs-diamon.de';
+const FROM = process.env.MAIL_FROM || 'no-reply_dfs-complaints@gmx.net';
+const QM   = process.env.MAIL_QM   || 'complaint@dfs-diamon.de';
 
 export const mailer = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,                 // smtp-mail.outlook.com
-  port: Number(process.env.SMTP_PORT || 587),  // 587
-  secure: false,                               // STARTTLS
-  auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-  tls: { minVersion: 'TLSv1.2', servername: 'smtp-mail.outlook.com' } // hilft gegen SNI/TLS Zicken
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT || 587),
+  secure: false,
+  auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
 });
 
 export async function verifyTransport(){ return mailer.verify(); }
