@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'dart:html' as html;
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
-import '../models/country.dart'; // Country & kCountries
+import '../models/country.dart';
+
+enum Salutation { mr, ms, diverse }
 
 class AuthPage extends StatefulWidget {
   final ApiClient api;
@@ -19,7 +21,6 @@ class _AuthPageState extends State<AuthPage> {
   final _pw = TextEditingController();
   final _pw2 = TextEditingController();
   final _company = TextEditingController();
-  // final _contact = TextEditingController(); // entfällt: jetzt first/last
   final _firstName = TextEditingController();
   final _lastName  = TextEditingController();
   final _street = TextEditingController();
@@ -27,8 +28,8 @@ class _AuthPageState extends State<AuthPage> {
   final _city = TextEditingController();
   final _phone = TextEditingController();
 
-  // Auswahl statt freier Landeingabe
   Country? _countrySel;
+  Salutation _salutation = Salutation.mr;
 
   bool _privacy = false;
   String? _err;
@@ -37,7 +38,6 @@ class _AuthPageState extends State<AuthPage> {
   @override
   void initState() {
     super.initState();
-    // Default-Land: Deutschland (falls vorhanden), sonst erstes Element
     _countrySel = kCountries.firstWhere(
       (c) => c.code == 'DE',
       orElse: () => kCountries.first,
@@ -59,7 +59,6 @@ class _AuthPageState extends State<AuthPage> {
     super.dispose();
   }
 
-  // -------- Sprache aus aktueller UI ableiten (nur zulässige Codes) --------
   String _langCode(BuildContext ctx) {
     final lc = Localizations.localeOf(ctx).languageCode.toLowerCase();
     switch (lc) {
@@ -71,6 +70,15 @@ class _AuthPageState extends State<AuthPage> {
         return lc;
       default:
         return 'de';
+    }
+  }
+
+  String _salutationLabel(BuildContext context, Salutation s) {
+    final t = AppLocalizations.of(context)!;
+    switch (s) {
+      case Salutation.mr:     return t.salutation_mr;      // z. B. „Herr“
+      case Salutation.ms:     return t.salutation_ms;      // z. B. „Frau“
+      case Salutation.diverse:return t.salutation_diverse; // z. B. „Divers“
     }
   }
 
@@ -86,13 +94,14 @@ class _AuthPageState extends State<AuthPage> {
           children: [
             ToggleButtons(
               isSelected: [isLogin, !isLogin],
-              onPressed: (i) => setState(() => isLogin = i == 0),
+              onPressed: (i) => setState(() => isLogin = (i == 0)),
               children: [
                 Padding(padding: const EdgeInsets.all(8), child: Text(t.auth_login)),
                 Padding(padding: const EdgeInsets.all(8), child: Text(t.auth_register)),
               ],
             ),
             const SizedBox(height: 16),
+
             TextField(
               controller: _email,
               keyboardType: TextInputType.emailAddress,
@@ -103,6 +112,7 @@ class _AuthPageState extends State<AuthPage> {
               ),
             ),
             const SizedBox(height: 8),
+
             TextField(
               controller: _pw,
               obscureText: true,
@@ -111,6 +121,7 @@ class _AuthPageState extends State<AuthPage> {
                 border: const OutlineInputBorder(),
               ),
             ),
+
             if (!isLogin) ...[
               const SizedBox(height: 8),
               TextField(
@@ -122,6 +133,7 @@ class _AuthPageState extends State<AuthPage> {
                 ),
               ),
               const SizedBox(height: 8),
+
               TextField(
                 controller: _company,
                 decoration: InputDecoration(
@@ -129,16 +141,43 @@ class _AuthPageState extends State<AuthPage> {
                   border: const OutlineInputBorder(),
                 ),
               ),
+
+              // ===== Ansprechpartner-Block =====
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  t.contact_person, // „Ansprechpartner“
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
               const SizedBox(height: 8),
 
-              // NEU: Vorname / Nachname nebeneinander
+              // Anrede
+              DropdownButtonFormField<Salutation>(
+                value: _salutation,
+                isExpanded: true,
+                decoration: InputDecoration(
+                  labelText: t.salutation, // „Anrede“
+                  border: const OutlineInputBorder(),
+                ),
+                items: [
+                  DropdownMenuItem(value: Salutation.mr, child: Text(_salutationLabel(context, Salutation.mr))),
+                  DropdownMenuItem(value: Salutation.ms, child: Text(_salutationLabel(context, Salutation.ms))),
+                  DropdownMenuItem(value: Salutation.diverse, child: Text(_salutationLabel(context, Salutation.diverse))),
+                ],
+                onChanged: (v) => setState(() => _salutation = v ?? Salutation.mr),
+              ),
+              const SizedBox(height: 8),
+
+              // Vorname / Nachname
               Row(
                 children: [
                   Expanded(
                     child: TextField(
                       controller: _firstName,
                       decoration: InputDecoration(
-                        labelText: '${t.contact} – Vorname',
+                        labelText: t.first_name, // „Vorname“
                         border: const OutlineInputBorder(),
                       ),
                     ),
@@ -148,7 +187,7 @@ class _AuthPageState extends State<AuthPage> {
                     child: TextField(
                       controller: _lastName,
                       decoration: InputDecoration(
-                        labelText: '${t.contact} – Nachname',
+                        labelText: t.last_name, // „Nachname“
                         border: const OutlineInputBorder(),
                       ),
                     ),
@@ -156,7 +195,8 @@ class _AuthPageState extends State<AuthPage> {
                 ],
               ),
 
-              const SizedBox(height: 8),
+              const SizedBox(height: 16),
+
               TextField(
                 controller: _street,
                 decoration: InputDecoration(
@@ -165,6 +205,7 @@ class _AuthPageState extends State<AuthPage> {
                 ),
               ),
               const SizedBox(height: 8),
+
               Row(
                 children: [
                   Expanded(
@@ -190,7 +231,6 @@ class _AuthPageState extends State<AuthPage> {
               ),
               const SizedBox(height: 8),
 
-              // COUNTRY-DROPDOWN
               DropdownButtonFormField<Country>(
                 value: _countrySel,
                 isExpanded: true,
@@ -216,6 +256,7 @@ class _AuthPageState extends State<AuthPage> {
                 ),
               ),
               const SizedBox(height: 8),
+
               Row(
                 children: [
                   Checkbox(
@@ -233,23 +274,18 @@ class _AuthPageState extends State<AuthPage> {
                 ],
               ),
             ],
+
             if (_err != null)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  _err!,
-                  style: const TextStyle(color: Colors.red),
-                ),
+                child: Text(_err!, style: const TextStyle(color: Colors.red)),
               ),
+
             const SizedBox(height: 12),
             ElevatedButton(
               onPressed: _busy ? null : () async => _handlePress(context),
               child: _busy
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
+                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
                   : Text(isLogin ? t.auth_login : t.auth_register),
             ),
           ],
@@ -278,46 +314,37 @@ class _AuthPageState extends State<AuthPage> {
         return;
       }
 
-      // Registrierung
       if (!_privacy) {
         if (!mounted) return;
         setState(() => _err = t.privacy_required);
         return;
       }
-
-      // Minimalvalidierung: Vor- & Nachname müssen befüllt sein
       if (_firstName.text.trim().isEmpty || _lastName.text.trim().isEmpty) {
         if (!mounted) return;
-        setState(() => _err = 'Bitte Vor- und Nachname angeben.');
+        setState(() => _err = t.name_required); // „Bitte Vor- und Nachname angeben.“
         return;
       }
 
-      // Sicherheitsnetz: falls _countrySel aus irgendeinem Grund null wäre
       final selected = _countrySel ?? kCountries.first;
-
-      final contactCombined =
-          '${_firstName.text.trim()} ${_lastName.text.trim()}'.trim();
+      final contactCombined = '${_firstName.text.trim()} ${_lastName.text.trim()}'.trim();
 
       final r = await widget.api.register({
         'email': _email.text.trim(),
         'password': _pw.text,
         'password2': _pw2.text,
         'company': _company.text.trim(),
-        // neue Felder
         'firstName': _firstName.text.trim(),
         'lastName' : _lastName.text.trim(),
-        // kompatibel bleiben – zusätzlich kombinierter Kontakt
-        'contact'  : contactCombined,
+        'salutation': _salutation.name, // "mr" | "ms" | "diverse"
+        'contact'  : contactCombined,   // Legacy/Kompatibilität
         'street': _street.text.trim(),
         'zip': _zip.text.trim(),
         'city': _city.text.trim(),
-        // lesbarer Name
         'country': selected.label(context),
-        // ISO-Alpha-2
         'countryCode': selected.code,
         'phone': _phone.text.trim(),
         'privacy': true,
-        'lang': _langCode(context), // Sprache mitgeben
+        'lang': _langCode(context),
       });
 
       if (!mounted) return;
@@ -330,9 +357,9 @@ class _AuthPageState extends State<AuthPage> {
       } else if (r.statusCode == 409) {
         final body = r.body?.toString() ?? '';
         if (body.contains('user_exists')) {
-          setState(() => _err = 'E-Mail ist bereits registriert.');
+          setState(() => _err = t.email_exists);
         } else if (body.contains('pending') || body.contains('resent')) {
-          setState(() => _err = 'Registrierung liegt bereits vor. Bestätigungs-E-Mail wurde erneut gesendet.');
+          setState(() => _err = t.register_pending_resent);
         } else {
           setState(() => _err = t.register_failed(body));
         }
