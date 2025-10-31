@@ -40,9 +40,7 @@
   "last_name": "Apellido",
   "name_required": "Introduzca nombre y apellido.",
   "email_exists": "Este correo electrónico ya está registrado.",
-  "@email_exists": { "description": "Mensaje al intentar registrarse con un correo ya existente." },
   "register_pending_resent": "Ya existe un registro. Se ha reenviado el correo de confirmación.",
-  "@register_pending_resent": { "description": "Registro pendiente existente; correo de confirmación reenviado." },
 
   "tab_complaint": "Enviar reclamación",
   "tab_my_complaints": "Mis reclamaciones",
