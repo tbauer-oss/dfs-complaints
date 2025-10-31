@@ -642,7 +642,6 @@ class ComplaintsResult {
 }
 
 // ---------- API Helper ----------
-
 class AdminApi {
   String _secret = '';
 
@@ -678,41 +677,54 @@ class AdminApi {
     if (res.status != 200) {
       throw 'pending GET: HTTP ${res.status} ${res.responseText}';
     }
-    final List data = jsonDecode(res.responseText ?? '[]');
-    return data.map((e) => PendingUser.fromJson(e as Map<String, dynamic>)).toList();
+    final txt = res.responseText ?? '';
+    if (txt.trim().isEmpty) return <PendingUser>[];
+    final List data = jsonDecode(txt);
+    return data
+        .map((e) => PendingUser.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
-  // ---- Pending ----
-  Future<List<PendingUser>> fetchPending() async {
+  Future<void> approvePending(String email, {String? lang}) async {
+    final body = jsonEncode(
+      {'email': email, 'action': 'approve', if (lang != null) 'lang': lang},
+    );
     final res = await html.HttpRequest.request(
-     _u('/api/admin/pending').toString(),
-     method: 'GET',
-     requestHeaders: _headersJson(),
-     withCredentials: true,
-   );
-   if (res.status != 200) {
-     throw 'pending GET: HTTP ${res.status} ${res.responseText}';
-   }
-   final txt = res.responseText ?? '';
-   if (txt.trim().isEmpty) return <PendingUser>[];
-   final List data = jsonDecode(txt);
-   return data.map((e) => PendingUser.fromJson(e as Map<String, dynamic>)).toList();
- }
+      _u('/api/admin/pending').toString(),
+      method: 'POST',
+      requestHeaders: _headersJson(),
+      sendData: body,
+      withCredentials: true,
+    );
+    // 204 zulassen
+    if (res.status != 200 && res.status != 204) {
+      throw 'pending POST approve: HTTP ${res.status} ${res.responseText}';
+    }
+  }
 
- Future<void> approvePending(String email, {String? lang}) async {
-   final body = jsonEncode({'email': email, 'action': 'approve', if (lang != null) 'lang': lang});
-   final res = await html.HttpRequest.request(
-     _u('/api/admin/pending').toString(),
-     method: 'POST',
-     requestHeaders: _headersJson(),
-     sendData: body,
-     withCredentials: true,
-   );
-   // ⬇︎ 204 zulassen
-   if (res.status != 200 && res.status != 204) {
-     throw 'pending POST approve: HTTP ${res.status} ${res.responseText}';
-   }
- }
+  Future<void> rejectPending(String email) async {
+    // 1) DELETE ?email=...
+    try {
+      final res = await html.HttpRequest.request(
+        _u('/api/admin/pending', {'email': email}).toString(),
+        method: 'DELETE',
+        requestHeaders: _headersJson(),
+        withCredentials: true,
+      );
+      if (res.status == 200 || res.status == 204) return;
+    } catch (_) {}
+    // 2) Fallback: POST action=reject
+    final res = await html.HttpRequest.request(
+      _u('/api/admin/pending').toString(),
+      method: 'POST',
+      requestHeaders: _headersJson(),
+      sendData: jsonEncode({'action': 'reject', 'email': email}),
+      withCredentials: true,
+    );
+    if (res.status != 200 && res.status != 204) {
+      throw 'pending reject failed: HTTP ${res.status} ${res.responseText}';
+    }
+  }
 
   // ---- Users ----
   Future<List<ActiveUser>> fetchUsers() async {
@@ -728,7 +740,9 @@ class AdminApi {
     final txt = res.responseText ?? '';
     if (txt.trim().isEmpty) return <ActiveUser>[];
     final List data = jsonDecode(txt);
-    return data.map((e) => ActiveUser.fromJson(e as Map<String, dynamic>)).toList();
+    return data
+        .map((e) => ActiveUser.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<void> deleteUser(String email) async {
@@ -771,7 +785,7 @@ class AdminApi {
     }
   }
 
-  // ---- Complaints (optional gleicher Guard) ----
+  // ---- Complaints ----
   Future<List<String>> fetchComplaintsFor(String email) async {
     final res = await html.HttpRequest.request(
       _u('/api/admin/complaints', {'email': email}).toString(),
@@ -787,3 +801,4 @@ class AdminApi {
     final List data = jsonDecode(txt);
     return data.map((e) => e.toString()).toList();
   }
+}
