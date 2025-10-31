@@ -40,7 +40,9 @@
   "last_name": "Nachname",
   "name_required": "Bitte Vor- und Nachname angeben.",
   "email_exists": "E-Mail ist bereits registriert.",
+  "@email_exists": { "description": "Zeigt, wenn ein Benutzer versucht, sich mit einer E-Mail-Adresse zu registrieren, die bereits ein Konto hat." },
   "register_pending_resent": "Registrierung liegt bereits vor. Bestätigungs-E-Mail wurde erneut gesendet.",
+  "@register_pending_resent": { "description": "Zeigt, wenn eine ausstehende Registrierung vorliegt und die Bestätigungs-E-Mail erneut gesendet wurde.." }
 
   "tab_complaint": "Reklamation melden",
   "tab_my_complaints": "Meine Reklamationen",
