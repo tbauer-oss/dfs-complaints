@@ -2,20 +2,21 @@
 import 'package:flutter/widgets.dart';
 
 class Country {
-  final String code;                 // ISO 3166-1 alpha-2 (DE, AT, GB, US, ...)
-  final Map<String, String> names;   // only 'en' entries
+  final String code;                 // ISO 3166-1 alpha-2 (z. B. "DE")
+  final Map<String, String> names;   // Lokalisierte Anzeigenamen
 
   const Country({required this.code, required this.names});
 
   String label(BuildContext context) {
-    // Always English (fallback-ready if you ever add more locales later)
-    return names['en'] ?? names.values.first;
+    final lang = Localizations.localeOf(context).languageCode.toLowerCase();
+    return names[lang] ?? names['en'] ?? names.values.first;
   }
 }
 
 // ---- Master list (English only) ----
 // Coverage: all UN members + commonly used territories (HK, MO, TW, XK, etc.)
 final List<Country> kCountries = (() {
+  // WICHTIG: keine doppelten Keys!
   const Map<String, String> data = {
     // EUROPE (incl. microstates & extras)
     'AL':'Albania','AD':'Andorra','AM':'Armenia','AT':'Austria','AZ':'Azerbaijan',
@@ -61,11 +62,13 @@ final List<Country> kCountries = (() {
     'ZM':'Zambia','ZW':'Zimbabwe',
 
     // MIDDLE EAST & CENTRAL ASIA
-    'AE':'United Arab Emirates','AF':'Afghanistan','AM':'Armenia','AZ':'Azerbaijan','BH':'Bahrain',
-    'GE':'Georgia','IL':'Israel','IQ':'Iraq','IR':'Iran','JO':'Jordan','KG':'Kyrgyzstan','KW':'Kuwait',
-    'KZ':'Kazakhstan','LB':'Lebanon','OM':'Oman','PK':'Pakistan','PS':'Palestine, State of',
-    'QA':'Qatar','SA':'Saudi Arabia','SY':'Syria','TJ':'Tajikistan','TM':'Turkmenistan',
-    'TR':'Türkiye','UZ':'Uzbekistan','YE':'Yemen',
+    'AE':'United Arab Emirates','AF':'Afghanistan',
+    // 'AM':'Armenia',        // <— entfernt: bereits oben gelistet
+    // 'AZ':'Azerbaijan',     // <— entfernt: bereits oben gelistet
+    'BH':'Bahrain','GE':'Georgia','IL':'Israel','IQ':'Iraq','IR':'Iran','JO':'Jordan',
+    'KG':'Kyrgyzstan','KW':'Kuwait','KZ':'Kazakhstan','LB':'Lebanon','OM':'Oman','PK':'Pakistan',
+    'PS':'Palestine, State of','QA':'Qatar','SA':'Saudi Arabia','SY':'Syria','TJ':'Tajikistan',
+    'TM':'Turkmenistan','TR':'Türkiye','UZ':'Uzbekistan','YE':'Yemen',
 
     // SOUTH & EAST ASIA
     'BD':'Bangladesh','BN':'Brunei','BT':'Bhutan','CC':'Cocos (Keeling) Islands','CN':'China',
