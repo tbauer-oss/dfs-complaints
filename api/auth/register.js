@@ -79,10 +79,13 @@ export default async function handler(req, res) {
         const { send, notifyQM, tpl, verifyTransport } = await import('../_lib/mail.js');
         const start = Date.now();
 
-        await verifyTransport().catch(()=>{});
+        await verifyTransport().catch(() => {});
         const results = await Promise.allSettled([
-          send(pending.email, tpl.afterRegisterToCustomer(pending.contact || pending.company, lang)),
-          notifyQM(tpl.afterRegisterToQM(pending.email, lang)),
+          send(
+            existing.email,
+            tpl.afterRegisterToCustomer(existing.contact || existing.company, existing.lang || lang)
+          ),
+          notifyQM(tpl.afterRegisterToQM(existing.email, existing.lang || lang)),
         ]);
         mailSent = results.some(r => r.status === 'fulfilled');
         if (!mailSent) mailError = 'all mail attempts failed';
@@ -93,7 +96,7 @@ export default async function handler(req, res) {
         await new Promise(r => setTimeout(r, 750));
       } catch (e) {
         mailError = e?.message || String(e);
-        console.error('register: initial mail failed:', mailError);
+        console.error('register: resend mail failed:', mailError);
       }
       res.statusCode = 409;
       return res.end(JSON.stringify({ error: 'pending_exists', status: 'resent', mailSent, mailError }));
@@ -120,6 +123,8 @@ export default async function handler(req, res) {
     let mailSent = false, mailError = null;
     try {
       const { send, notifyQM, tpl, verifyTransport } = await import('../_lib/mail.js');
+      const start = Date.now();
+
       await verifyTransport().catch(()=>{});
       const results = await Promise.allSettled([
         send(pending.email, tpl.afterRegisterToCustomer(pending.contact || pending.company, lang)),
@@ -127,7 +132,11 @@ export default async function handler(req, res) {
       ]);
       mailSent = results.some(r => r.status === 'fulfilled');
       if (!mailSent) mailError = 'all mail attempts failed';
-      console.log('register: mail results', results.map(r => r.status));
+
+      console.log('register: mail results', results.map(r => r.status), 'duration', Date.now() - start, 'ms');
+
+      // >>> entscheidend: Transport flushen + minimale Wartezeit
+      await new Promise(r => setTimeout(r, 750));
     } catch (e) {
       mailError = e?.message || String(e);
       console.error('register: initial mail failed:', mailError);
