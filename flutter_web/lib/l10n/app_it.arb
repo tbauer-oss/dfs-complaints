@@ -40,9 +40,7 @@
   "last_name": "Cognome",
   "name_required": "Inserisci nome e cognome.",
   "email_exists": "Questo indirizzo e-mail è già registrato.",
-  "@email_exists": { "description": "Mostrato quando l’utente usa un’email già presente." },
   "register_pending_resent": "Una registrazione esiste già. L'e-mail di conferma è stata reinviata.",
-  "@register_pending_resent": { "description": "Registrazione pendente esistente; e-mail di conferma reinviata." },
 
   "tab_complaint": "Invia reclamo",
   "tab_my_complaints": "I miei reclami",
