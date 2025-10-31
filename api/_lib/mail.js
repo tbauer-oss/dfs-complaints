@@ -25,13 +25,16 @@ function ensureEnv() {
 function getTransport() {
   if (_transporter) return _transporter;
   ensureEnv();
+
+  const isSmtps = SMTP_PORT === 465;   // 465 = SMTPS (direct TLS), 587 = STARTTLS
+
   _transporter = nodemailer.createTransport({
     host: SMTP_HOST,
     port: SMTP_PORT,
-    secure: SMTP_PORT === 465,   // 465 = SMTPS, sonst STARTTLS
+    secure: isSmtps,            // ✅ nur bei 465 true, sonst false
     auth: { user: SMTP_USER, pass: SMTP_PASS },
+    requireTLS: !isSmtps,       // ✅ bei 587 STARTTLS erzwingen
     tls: { minVersion: 'TLSv1.2' },
-    // leichte Robustheit:
     pool: true,
     maxConnections: 2,
     maxMessages: 20,
