@@ -1,3 +1,9 @@
+// lib/pages/auth_page.dart
+import 'package:flutter/material.dart';
+import 'dart:html' as html;
+import '../api/client.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+
 class AuthPage extends StatefulWidget {
   final ApiClient api; 
   final VoidCallback onLoggedIn;
