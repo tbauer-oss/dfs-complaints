@@ -14,7 +14,7 @@ const REDIS_TOKEN =
   process.env.UPSTASH_REDIS_REST_TOKEN ||
   process.env.REDIS_TOKEN || null;
 
-// Lazy-Initialisierung, damit Preflight/CORS nie crasht
+// Lazy-Initialisierung (kein Crash bei Preflight/CORS)
 let _redis = null;
 function getRedis() {
   if (_redis) return _redis;
@@ -33,12 +33,21 @@ const mem = {
   counters: { ticket: 1 },
 };
 
-// ---------- Helpers ----------
-async function rget(key)   { const r = getRedis(); if (!r) return null; return await r.get(key); }
-async function rset(key,v) { const r = getRedis(); if (!r) return null; return await r.set(key, v); }
-async function rdel(key)   { const r = getRedis(); if (!r) return null; return await r.del(key); }
+// ---------- Helpers (robust) ----------
+async function rget(key) {
+  try { const r = getRedis(); if (!r) return null; return await r.get(key); }
+  catch (e) { console.error('KV GET failed:', key, e?.message || e); return null; }
+}
+async function rset(key, v) {
+  try { const r = getRedis(); if (!r) return null; return await r.set(key, v); }
+  catch (e) { console.error('KV SET failed:', key, e?.message || e); return null; }
+}
+async function rdel(key) {
+  try { const r = getRedis(); if (!r) return null; return await r.del(key); }
+  catch (e) { console.error('KV DEL failed:', key, e?.message || e); return null; }
+}
 
-// Versuch, Keys zu listen (Keys oder Scan; bei REST kann KEYS fehlen)
+// Keys/Scan – REST-Client kann KEYS oder SCAN
 async function rkeys(pattern) {
   const r = getRedis();
   if (!r) return [];
@@ -46,28 +55,56 @@ async function rkeys(pattern) {
     try { return await r.keys(pattern); } catch { /* fallthrough */ }
   }
   if (typeof r.scan === 'function') {
-    // einfache Scan-Schleife
     let cursor = 0, out = [];
     do {
       const res = await r.scan(cursor, { match: pattern, count: 1000 });
-      // Upstash { cursor, members }, ioredis-kompatibel [cursor, keys]
       if (Array.isArray(res)) { cursor = Number(res[0]); out.push(...(res[1]||[])); }
-      else { cursor = Number(res.cursor || 0); out.push(...(res.members || [])); }
+      else { cursor = Number(res.cursor || 0); out.push(...(res.members || res.keys || [])); }
     } while (cursor !== 0);
     return out;
   }
-  return []; // kein Listing verfügbar
+  return [];
 }
+
+/* --------- NEU: Diagnose für /api/diag/kv ---------- */
+export async function kvStatus() {
+  const r = getRedis();
+  if (!r) {
+    return {
+      ok: true,
+      useRedis: false,
+      reason: 'missing Upstash ENV',
+      needed: ['KV_REST_API_URL/KV_REST_API_TOKEN', 'oder', 'UPSTASH_REDIS_REST_URL/UPSTASH_REDIS_REST_TOKEN'],
+    };
+  }
+  const t0 = Date.now();
+  try {
+    const pong = await r.ping();                 // erwartet "PONG"
+    const pingMs = Date.now() - t0;
+    const prefix = P;
+    const keys = await rkeys(`${prefix}*`);
+    const counts = {
+      users:      keys.filter(k => k.startsWith(`${prefix}user:`)).length,
+      pending:    keys.filter(k => k.startsWith(`${prefix}pending:`)).length,
+      complaints: keys.filter(k => k.startsWith(`${prefix}complaint:`)).length,
+      total: keys.length,
+    };
+    return { ok: true, useRedis: true, ping: pong, pingMs, prefix, counts };
+  } catch (e) {
+    return { ok: false, useRedis: true, error: e?.message || String(e) };
+  }
+}
+/* --------- Ende Diagnose ---------- */
 
 // ---------- Tickets ----------
 export async function nextTicket() {
   const r = getRedis();
   if (r) {
     const n = await r.incr(`${P}counter:ticket`);
-    return `DFS_CP${String(n).padStart(6,'0')}`;
+    return `DFS_CP${String(n).padStart(6, '0')}`;
   }
   const n = mem.counters.ticket++;
-  return `DFS_CP${String(n).padStart(6,'0')}`;
+  return `DFS_CP${String(n).padStart(6, '0')}`;
 }
 
 // ---------- Users ----------
@@ -126,10 +163,8 @@ export async function pendingGet(email) {
   return mem.pending.get(email) ?? null;
 }
 
-// ✅ Alias für deinen register.js-Aufruf
-export async function pendingByEmail(email) {
-  return pendingGet(email);
-}
+// Alias (falls dein register.js noch darauf zugreift)
+export async function pendingByEmail(email) { return pendingGet(email); }
 
 export async function pendingDelete(email) {
   email = String(email || '').toLowerCase();
@@ -166,6 +201,6 @@ export async function complaintsByEmail(email) {
     const keys = await rkeys(`${P}complaint:*`);
     const vals = await Promise.all(keys.map(k => rget(k)));
     return vals.filter(v => v?.email?.toLowerCase() === email);
-  }
+    }
   return Array.from(mem.complaints.values()).filter(v => v?.email?.toLowerCase() === email);
 }
