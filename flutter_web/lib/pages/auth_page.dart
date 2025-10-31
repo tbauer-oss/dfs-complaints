@@ -1,28 +1,39 @@
 // lib/pages/auth_page.dart
 import 'package:flutter/material.dart';
 import 'dart:html' as html;
+
+// Falls du eine eigene ApiClient-Datei hast, Pfad so lassen:
 import '../api/client.dart';
+
+// WICHTIG: hier je nach Projektstruktur den korrekten L10N-Import verwenden.
+// Wenn du "flutter gen-l10n" nutzt, ist es meist:
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+// Falls du stattdessen eine eigene Datei nutzt, dann DIESE hier aktivieren
+// und die Zeile oben auskommentieren:
+// import '../l10n/app_localizations.dart';
 
 class AuthPage extends StatefulWidget {
-  final ApiClient api; 
+  final ApiClient api;
   final VoidCallback onLoggedIn;
+
   const AuthPage({super.key, required this.api, required this.onLoggedIn});
 
-  @override 
+  @override
   State<AuthPage> createState() => _AuthPageState();
 }
 
 class _AuthPageState extends State<AuthPage> {
   bool isLogin = true;
+
   final _email = TextEditingController(), _pw = TextEditingController();
   final _pw2 = TextEditingController(), _company = TextEditingController();
   final _contact = TextEditingController(), _street = TextEditingController();
   final _zip = TextEditingController(), _city = TextEditingController();
   final _country = TextEditingController(text: 'Germany');
   final _phone = TextEditingController();
-  bool _privacy = false; 
-  String? _err; 
+
+  bool _privacy = false;
+  String? _err;
   bool _busy = false;
 
   Future<void> _doLogin(BuildContext context) async {
@@ -48,14 +59,14 @@ class _AuthPageState extends State<AuthPage> {
   Future<void> _doRegister(BuildContext context) async {
     final t = AppLocalizations.of(context)!;
 
-    // --- leichte Client-Validierungen ---
+    // leichte Client-Validierungen
     final email = _email.text.trim();
     final pw    = _pw.text;
     final pw2   = _pw2.text;
 
     String? vErr;
     if (email.isEmpty || !email.contains('@')) vErr = t.email_invalid;
-    else if (pw.length < 8) vErr = t.password_policy;          // z. B. "mind. 8 Zeichen"
+    else if (pw.length < 8) vErr = t.password_policy;          // mind. 8 Zeichen
     else if (pw != pw2) vErr = t.password_mismatch;
     else if (!_privacy) vErr = t.privacy_required;
 
@@ -85,11 +96,11 @@ class _AuthPageState extends State<AuthPage> {
       if (r.statusCode == 200) {
         setState(() {
           isLogin = true;
-          _err = t.registration_received; // „Registrierung eingegangen – bitte E-Mail prüfen …“
+          _err = t.registration_received; // Erfolgsmeldung
         });
       } else {
         setState(() {
-          _err = t.register_failed(r.body); // Body zeigt Server-Fehlertext
+          _err = t.register_failed(r.body);
         });
       }
     } catch (e) {
@@ -97,7 +108,7 @@ class _AuthPageState extends State<AuthPage> {
       setState(() => _err = 'Network/CORS error: $e');
     } finally {
       if (!mounted) return;
-      setState(() => _busy = false); // << immer entsperren
+      setState(() => _busy = false); // immer entsperren
     }
   }
 
@@ -172,7 +183,6 @@ class _AuthPageState extends State<AuthPage> {
               onPressed: _busy
                   ? null
                   : () {
-                      // Doppelklick-Schutz bleibt: _busy sperrt den Button
                       if (isLogin) {
                         _doLogin(context);
                       } else {
