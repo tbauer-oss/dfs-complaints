@@ -39,6 +39,7 @@ export default async function handler(req, res) {
       if (!email) return bad(res, 'missing email', 400);
 
       await userDelete(email);
+      try { await pendingDelete(email); } catch(_) {}
       return ok(res, { deleted: true, email });
     }
 
