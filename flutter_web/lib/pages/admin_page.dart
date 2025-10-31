@@ -108,24 +108,57 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
-  Future<void> _deleteUser(String email) async {
-    final ok = await _confirm('Nutzer löschen', 'Soll der aktive Nutzer $email wirklich gelöscht werden?');
-    if (ok != true) return;
+  Future<void> deleteUser(String email) async {
+    final urlQ = _u('/api/admin/users', {'email': email}).toString();
+    final url = _u('/api/admin/users').toString();
+
+    // 1) Versuch: DELETE ?email=...
     try {
-      await _api.deleteUser(email);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Nutzer gelöscht: $email')),
+      final res = await html.HttpRequest.request(
+        urlQ,
+        method: 'DELETE',
+        requestHeaders: _headersJson(),
+        withCredentials: true,
       );
-      await _refreshAll();
+      if (res.status == 200 || res.status == 204) return;
+      // Wenn 4xx/5xx – weiter probieren
+      // ignore: avoid_print
+      print('DELETE ?email failed: ${res.status} ${res.responseText}');
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fehler beim Löschen: $e')),
+      // ignore: avoid_print
+      print('DELETE ?email threw: $e');
+    }
+
+    // 2) Versuch: DELETE mit JSON-Body (manche Backends erwarten Body)
+    try {
+      final res = await html.HttpRequest.request(
+        url,
+        method: 'DELETE',
+        requestHeaders: _headersJson(),
+        sendData: jsonEncode({'email': email}),
+        withCredentials: true,
       );
+      if (res.status == 200 || res.status == 204) return;
+      // ignore: avoid_print
+      print('DELETE body failed: ${res.status} ${res.responseText}');
+    } catch (e) {
+      // ignore: avoid_print
+      print('DELETE body threw: $e');
+    }
+
+    // 3) Fallback: POST mit action=delete (serverseitig als Delete behandeln)
+    final body = jsonEncode({'action': 'delete', 'email': email});
+    final res = await html.HttpRequest.request(
+      url,
+      method: 'POST',
+      requestHeaders: _headersJson(),
+      sendData: body,
+      withCredentials: true,
+    );
+    if (res.status != 200 && res.status != 204) {
+      throw 'users DELETE/POST(delete) failed: HTTP ${res.status} ${res.responseText}';
     }
   }
-
   Future<bool?> _confirm(String title, String message) async {
     return showDialog<bool>(
       context: context,
