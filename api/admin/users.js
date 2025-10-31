@@ -1,7 +1,7 @@
 export const config = { runtime: 'nodejs' };
 
 import { setCors, noContent, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
-import { usersList, userSave, userDelete } from '../_lib/store.js';
+import { usersList, userSave, userDelete, pendingDelete } from '../_lib/store.js';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 const isAdmin = (req) => ADMIN_SECRET && req.headers?.['x-admin-secret'] === ADMIN_SECRET;
