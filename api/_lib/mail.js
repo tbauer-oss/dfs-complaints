@@ -9,9 +9,9 @@ const REPLY_TO = process.env.MAIL_REPLY_TO || 'complaint@dfs-diamon.de';
 const QM       = process.env.MAIL_QM || 'complaint@dfs-diamon.de';
 
 // ==== SMTP-ENV ====
-const SMTP_HOST = process.env.SMTP_HOST;           // z.B. mail.gmx.net / smtp.office365.com
-const SMTP_PORT = Number(process.env.SMTP_PORT || 587); // 587 = STARTTLS, 465 = SMTPS
-const SMTP_USER = process.env.SMTP_USER;
+const SMTP_HOST = process.env.SMTP_HOST;                // z.B. mail.gmx.net
+const SMTP_PORT = Number(process.env.SMTP_PORT || 587); // 587=STARTTLS, 465=SMTPS
+const SMTP_USER = process.env.SMTP_USER;                // z.B. no-reply_dfs-complaints@gmx.net
 const SMTP_PASS = process.env.SMTP_PASS;
 
 let _transporter = null;
@@ -25,19 +25,13 @@ function ensureEnv() {
 function getTransport() {
   if (_transporter) return _transporter;
   ensureEnv();
-
-  const isSmtps = SMTP_PORT === 465;   // 465 = SMTPS (direct TLS), 587 = STARTTLS
-
   _transporter = nodemailer.createTransport({
     host: SMTP_HOST,
     port: SMTP_PORT,
-    secure: isSmtps,            // ✅ nur bei 465 true, sonst false
+    secure: SMTP_PORT === 465,           // <-- Korrekt: NUR 465 ist "secure:true"
     auth: { user: SMTP_USER, pass: SMTP_PASS },
-    requireTLS: !isSmtps,       // ✅ bei 587 STARTTLS erzwingen
-    tls: { minVersion: 'TLSv1.2' },
-    pool: true,
-    maxConnections: 2,
-    maxMessages: 20,
+    tls: { minVersion: 'TLSv1.2', servername: SMTP_HOST },
+    pool: true, maxConnections: 2, maxMessages: 20,
   });
   return _transporter;
 }
