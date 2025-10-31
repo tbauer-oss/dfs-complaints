@@ -3,7 +3,7 @@ import nodemailer from 'nodemailer';
 
 function toBool(v){ if(typeof v==='boolean')return v; const s=String(v??'').toLowerCase(); return s==='1'||s==='true'||s==='yes'; }
 
-const FROM = process.env.MAIL_FROM || 'complaint@dfs-diamon.de';
+const FROM = process.env.MAIL_FROM || 'no-reply_dfs-complaints@outlook.com';
 const QM   = process.env.MAIL_QM   || 'qualitymanagement@dfs-diamon.de';
 
 export const mailer = nodemailer.createTransport({
