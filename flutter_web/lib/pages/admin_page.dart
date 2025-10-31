@@ -427,7 +427,7 @@ class _PendingTileState extends State<_PendingTile> {
 
 class _UserTile extends StatefulWidget {
   final ActiveUser data;
-  final VoidCallback onDelete;
+  final Future<void> Function() onDelete;
   final VoidCallback onLoadComplaints;
   final ComplaintsResult? complaints;
   const _UserTile({
