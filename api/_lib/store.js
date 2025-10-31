@@ -5,13 +5,15 @@ import { Redis } from '@upstash/redis';
 // Vercel KV: KV_REST_API_URL / KV_REST_API_TOKEN
 // Upstash Redis: UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN
 const REDIS_URL =
-  process.env.KV_REST_API_URL ||
   process.env.UPSTASH_REDIS_REST_URL ||
+  process.env.UPSTASH_REDIS_REST_KV_REST_API_URL ||   // <— hinzugefügt
+  process.env.KV_REST_API_URL ||
   process.env.REDIS_URL || null;
 
 const REDIS_TOKEN =
-  process.env.KV_REST_API_TOKEN ||
   process.env.UPSTASH_REDIS_REST_TOKEN ||
+  process.env.UPSTASH_REDIS_REST_KV_REST_API_TOKEN || // <— hinzugefügt
+  process.env.KV_REST_API_TOKEN ||
   process.env.REDIS_TOKEN || null;
 
 // Lazy-Initialisierung (kein Crash bei Preflight/CORS)
