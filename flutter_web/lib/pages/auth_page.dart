@@ -1,3 +1,4 @@
+// lib/pages/auth_page.dart
 import 'package:flutter/material.dart';
 import 'dart:html' as html;
 import '../api/client.dart';
@@ -76,9 +77,9 @@ class _AuthPageState extends State<AuthPage> {
   String _salutationLabel(BuildContext context, Salutation s) {
     final t = AppLocalizations.of(context)!;
     switch (s) {
-      case Salutation.mr:     return t.salutation_mr;      // z. B. „Herr“
-      case Salutation.ms:     return t.salutation_ms;      // z. B. „Frau“
-      case Salutation.diverse:return t.salutation_diverse; // z. B. „Divers“
+      case Salutation.mr:      return t.salutation_mr;
+      case Salutation.ms:      return t.salutation_ms;
+      case Salutation.diverse: return t.salutation_diverse;
     }
   }
 
@@ -86,209 +87,246 @@ class _AuthPageState extends State<AuthPage> {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
 
-    return Center(
-      child: SizedBox(
-        width: 480,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ToggleButtons(
-              isSelected: [isLogin, !isLogin],
-              onPressed: (i) => setState(() => isLogin = (i == 0)),
-              children: [
-                Padding(padding: const EdgeInsets.all(8), child: Text(t.auth_login)),
-                Padding(padding: const EdgeInsets.all(8), child: Text(t.auth_register)),
-              ],
-            ),
-            const SizedBox(height: 16),
+    return Scaffold(
+      resizeToAvoidBottomInset: true, // wichtig für Mobile + Tastatur
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(), // Tap-outside -> Tastatur zu
+        behavior: HitTestBehavior.translucent,
+        child: LayoutBuilder(
+          builder: (ctx, constraints) {
+            return SafeArea(
+              child: SingleChildScrollView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 480),
+                      child: Card(
+                        elevation: 1.5,
+                        surfaceTintColor: Theme.of(context).colorScheme.surfaceTint,
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              ToggleButtons(
+                                isSelected: [isLogin, !isLogin],
+                                onPressed: (i) => setState(() => isLogin = (i == 0)),
+                                children: [
+                                  Padding(padding: const EdgeInsets.all(8), child: Text(t.auth_login)),
+                                  Padding(padding: const EdgeInsets.all(8), child: Text(t.auth_register)),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
 
-            TextField(
-              controller: _email,
-              keyboardType: TextInputType.emailAddress,
-              autofillHints: const [AutofillHints.email],
-              decoration: InputDecoration(
-                labelText: t.email,
-                border: const OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 8),
+                              TextField(
+                                controller: _email,
+                                keyboardType: TextInputType.emailAddress,
+                                textInputAction: TextInputAction.next,
+                                autofillHints: const [AutofillHints.email],
+                                decoration: InputDecoration(
+                                  labelText: t.email,
+                                  border: const OutlineInputBorder(),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
 
-            TextField(
-              controller: _pw,
-              obscureText: true,
-              decoration: InputDecoration(
-                labelText: t.password,
-                border: const OutlineInputBorder(),
-              ),
-            ),
+                              TextField(
+                                controller: _pw,
+                                obscureText: true,
+                                textInputAction: isLogin ? TextInputAction.done : TextInputAction.next,
+                                decoration: InputDecoration(
+                                  labelText: t.password,
+                                  border: const OutlineInputBorder(),
+                                ),
+                              ),
 
-            if (!isLogin) ...[
-              const SizedBox(height: 8),
-              TextField(
-                controller: _pw2,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: t.password_repeat,
-                  border: const OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 8),
+                              if (!isLogin) ...[
+                                const SizedBox(height: 8),
+                                TextField(
+                                  controller: _pw2,
+                                  obscureText: true,
+                                  textInputAction: TextInputAction.next,
+                                  decoration: InputDecoration(
+                                    labelText: t.password_repeat,
+                                    border: const OutlineInputBorder(),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
 
-              TextField(
-                controller: _company,
-                decoration: InputDecoration(
-                  labelText: t.company,
-                  border: const OutlineInputBorder(),
-                ),
-              ),
+                                TextField(
+                                  controller: _company,
+                                  textInputAction: TextInputAction.next,
+                                  decoration: InputDecoration(
+                                    labelText: t.company,
+                                    border: const OutlineInputBorder(),
+                                  ),
+                                ),
 
-              // ===== Ansprechpartner-Block =====
-              const SizedBox(height: 16),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  t.contact_person, // „Ansprechpartner“
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
-              const SizedBox(height: 8),
+                                // ===== Ansprechpartner =====
+                                const SizedBox(height: 16),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    t.contact_person,
+                                    style: const TextStyle(fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
 
-              // Anrede
-              DropdownButtonFormField<Salutation>(
-                value: _salutation,
-                isExpanded: true,
-                decoration: InputDecoration(
-                  labelText: t.salutation, // „Anrede“
-                  border: const OutlineInputBorder(),
-                ),
-                items: [
-                  DropdownMenuItem(value: Salutation.mr, child: Text(_salutationLabel(context, Salutation.mr))),
-                  DropdownMenuItem(value: Salutation.ms, child: Text(_salutationLabel(context, Salutation.ms))),
-                  DropdownMenuItem(value: Salutation.diverse, child: Text(_salutationLabel(context, Salutation.diverse))),
-                ],
-                onChanged: (v) => setState(() => _salutation = v ?? Salutation.mr),
-              ),
-              const SizedBox(height: 8),
+                                DropdownButtonFormField<Salutation>(
+                                  value: _salutation,
+                                  isExpanded: true,
+                                  decoration: InputDecoration(
+                                    labelText: t.salutation,
+                                    border: const OutlineInputBorder(),
+                                  ),
+                                  items: [
+                                    DropdownMenuItem(value: Salutation.mr, child: Text(_salutationLabel(context, Salutation.mr))),
+                                    DropdownMenuItem(value: Salutation.ms, child: Text(_salutationLabel(context, Salutation.ms))),
+                                    DropdownMenuItem(value: Salutation.diverse, child: Text(_salutationLabel(context, Salutation.diverse))),
+                                  ],
+                                  onChanged: (v) => setState(() => _salutation = v ?? Salutation.mr),
+                                ),
+                                const SizedBox(height: 8),
 
-              // Vorname / Nachname
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _firstName,
-                      decoration: InputDecoration(
-                        labelText: t.first_name, // „Vorname“
-                        border: const OutlineInputBorder(),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextField(
+                                        controller: _firstName,
+                                        textInputAction: TextInputAction.next,
+                                        decoration: InputDecoration(
+                                          labelText: t.first_name,
+                                          border: const OutlineInputBorder(),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: TextField(
+                                        controller: _lastName,
+                                        textInputAction: TextInputAction.next,
+                                        decoration: InputDecoration(
+                                          labelText: t.last_name,
+                                          border: const OutlineInputBorder(),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+
+                                const SizedBox(height: 16),
+
+                                TextField(
+                                  controller: _street,
+                                  textInputAction: TextInputAction.next,
+                                  decoration: InputDecoration(
+                                    labelText: t.street,
+                                    border: const OutlineInputBorder(),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextField(
+                                        controller: _zip,
+                                        textInputAction: TextInputAction.next,
+                                        decoration: InputDecoration(
+                                          labelText: t.zip,
+                                          border: const OutlineInputBorder(),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: TextField(
+                                        controller: _city,
+                                        textInputAction: TextInputAction.next,
+                                        decoration: InputDecoration(
+                                          labelText: t.city,
+                                          border: const OutlineInputBorder(),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+
+                                DropdownButtonFormField<Country>(
+                                  value: _countrySel,
+                                  isExpanded: true,
+                                  decoration: InputDecoration(
+                                    labelText: t.country,
+                                    border: const OutlineInputBorder(),
+                                  ),
+                                  items: kCountries.map((c) {
+                                    return DropdownMenuItem<Country>(
+                                      value: c,
+                                      child: Text(c.label(context)),
+                                    );
+                                  }).toList(),
+                                  onChanged: (val) => setState(() => _countrySel = val),
+                                ),
+
+                                const SizedBox(height: 8),
+                                TextField(
+                                  controller: _phone,
+                                  textInputAction: TextInputAction.done,
+                                  decoration: InputDecoration(
+                                    labelText: t.phone,
+                                    border: const OutlineInputBorder(),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Checkbox(
+                                      value: _privacy,
+                                      onChanged: (v) => setState(() => _privacy = v ?? false),
+                                    ),
+                                    Expanded(child: Text(t.privacy_agree)),
+                                    TextButton(
+                                      onPressed: () => html.window.open(
+                                        'https://www.dfs-diamon.de/datenschutz',
+                                        '_blank',
+                                      ),
+                                      child: Text(t.privacy_link),
+                                    ),
+                                  ],
+                                ),
+                              ],
+
+                              if (_err != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Text(_err!, style: const TextStyle(color: Colors.red)),
+                                ),
+
+                              const SizedBox(height: 12),
+                              FilledButton(
+                                onPressed: _busy ? null : () async => _handlePress(context),
+                                child: _busy
+                                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                                    : Text(isLogin ? t.auth_login : t.auth_register),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _lastName,
-                      decoration: InputDecoration(
-                        labelText: t.last_name, // „Nachname“
-                        border: const OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 16),
-
-              TextField(
-                controller: _street,
-                decoration: InputDecoration(
-                  labelText: t.street,
-                  border: const OutlineInputBorder(),
                 ),
               ),
-              const SizedBox(height: 8),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _zip,
-                      decoration: InputDecoration(
-                        labelText: t.zip,
-                        border: const OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _city,
-                      decoration: InputDecoration(
-                        labelText: t.city,
-                        border: const OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-
-              DropdownButtonFormField<Country>(
-                value: _countrySel,
-                isExpanded: true,
-                decoration: InputDecoration(
-                  labelText: t.country,
-                  border: const OutlineInputBorder(),
-                ),
-                items: kCountries.map((c) {
-                  return DropdownMenuItem<Country>(
-                    value: c,
-                    child: Text(c.label(context)),
-                  );
-                }).toList(),
-                onChanged: (val) => setState(() => _countrySel = val),
-              ),
-
-              const SizedBox(height: 8),
-              TextField(
-                controller: _phone,
-                decoration: InputDecoration(
-                  labelText: t.phone,
-                  border: const OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              Row(
-                children: [
-                  Checkbox(
-                    value: _privacy,
-                    onChanged: (v) => setState(() => _privacy = v ?? false),
-                  ),
-                  Expanded(child: Text(t.privacy_agree)),
-                  TextButton(
-                    onPressed: () => html.window.open(
-                      'https://www.dfs-diamon.de/datenschutz',
-                      '_blank',
-                    ),
-                    child: Text(t.privacy_link),
-                  ),
-                ],
-              ),
-            ],
-
-            if (_err != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(_err!, style: const TextStyle(color: Colors.red)),
-              ),
-
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: _busy ? null : () async => _handlePress(context),
-              child: _busy
-                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                  : Text(isLogin ? t.auth_login : t.auth_register),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
@@ -321,7 +359,7 @@ class _AuthPageState extends State<AuthPage> {
       }
       if (_firstName.text.trim().isEmpty || _lastName.text.trim().isEmpty) {
         if (!mounted) return;
-        setState(() => _err = t.name_required); // „Bitte Vor- und Nachname angeben.“
+        setState(() => _err = t.name_required);
         return;
       }
 
@@ -336,7 +374,7 @@ class _AuthPageState extends State<AuthPage> {
         'firstName': _firstName.text.trim(),
         'lastName' : _lastName.text.trim(),
         'salutation': _salutation.name, // "mr" | "ms" | "diverse"
-        'contact'  : contactCombined,   // Legacy/Kompatibilität
+        'contact'  : contactCombined,   // Legacy
         'street': _street.text.trim(),
         'zip': _zip.text.trim(),
         'city': _city.text.trim(),
