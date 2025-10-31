@@ -91,14 +91,23 @@ class _AuthPageState extends State<AuthPage> {
                   'privacy': true
                 });
                 if (!mounted) return;
-                if (r.statusCode==200) {
-                  setState(()=>isLogin=true);
-                  _err = t.registration_received;
+                if (r.statusCode == 200) {
+                  setState(() {
+                    isLogin = true;
+                    _err = t.registration_received; // oder spezieller Text bei "resent"
+                  });
+                } else if (r.statusCode == 409) {
+                  final body = r.body?.toString() ?? '';
+                  if (body.contains('user_exists')) {
+                    setState(()=> _err = t.user_exists);
+                  } else if (body.contains('pending_exists') || body.contains('resent')) {
+                    setState(()=> _err = t.pending_exists); // "Mail erneut gesendet …"
+                  } else {
+                    setState(()=> _err = t.register_failed(body));
+                  }
                 } else {
-                  _err = t.register_failed(r.body);
+                  setState(()=> _err = t.register_failed(r.body));
                 }
-                setState((){});
-              }
             } catch(e){
               if (!mounted) return;
               setState(()=>_err='Network/CORS error: $e');
