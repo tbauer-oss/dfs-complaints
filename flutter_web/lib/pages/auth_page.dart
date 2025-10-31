@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:html' as html;
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
+import '../models/country.dart'; // <— NEU: Country & kCountries
 
 class AuthPage extends StatefulWidget {
   final ApiClient api;
@@ -22,12 +23,25 @@ class _AuthPageState extends State<AuthPage> {
   final _street = TextEditingController();
   final _zip = TextEditingController();
   final _city = TextEditingController();
-  final _country = TextEditingController(text: 'Germany');
+  // final _country = TextEditingController(text: 'Germany');  // <-- ENTFERNT
   final _phone = TextEditingController();
+
+  // NEU: Auswahl statt freier Texteingabe
+  Country? _countrySel;
 
   bool _privacy = false;
   String? _err;
   bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Default-Land: Deutschland (falls vorhanden), sonst erstes Element
+    _countrySel = kCountries.firstWhere(
+      (c) => c.code == 'DE',
+      orElse: () => kCountries.first,
+    );
+  }
 
   @override
   void dispose() {
@@ -39,7 +53,7 @@ class _AuthPageState extends State<AuthPage> {
     _street.dispose();
     _zip.dispose();
     _city.dispose();
-    _country.dispose();
+    // _country.dispose(); // <-- ENTFERNT
     _phone.dispose();
     super.dispose();
   }
@@ -153,13 +167,24 @@ class _AuthPageState extends State<AuthPage> {
                 ],
               ),
               const SizedBox(height: 8),
-              TextField(
-                controller: _country,
+
+              // ====== NEU: COUNTRY-DROPDOWN ======
+              DropdownButtonFormField<Country>(
+                value: _countrySel,
+                isExpanded: true,
                 decoration: InputDecoration(
                   labelText: t.country,
                   border: const OutlineInputBorder(),
                 ),
+                items: kCountries.map((c) {
+                  return DropdownMenuItem<Country>(
+                    value: c,
+                    child: Text(c.label(context)),
+                  );
+                }).toList(),
+                onChanged: (val) => setState(() => _countrySel = val),
               ),
+
               const SizedBox(height: 8),
               TextField(
                 controller: _phone,
@@ -238,17 +263,23 @@ class _AuthPageState extends State<AuthPage> {
         return;
       }
 
+      // Sicherheitsnetz: falls _countrySel aus irgendeinem Grund null wäre
+      final selected = _countrySel ?? kCountries.first;
+
       final r = await widget.api.register({
-        'email': _email.text,
+        'email': _email.text.trim(),
         'password': _pw.text,
         'password2': _pw2.text,
-        'company': _company.text,
-        'contact': _contact.text,
-        'street': _street.text,
-        'zip': _zip.text,
-        'city': _city.text,
-        'country': _country.text,
-        'phone': _phone.text,
+        'company': _company.text.trim(),
+        'contact': _contact.text.trim(),
+        'street': _street.text.trim(),
+        'zip': _zip.text.trim(),
+        'city': _city.text.trim(),
+        // Wichtig: Kompatibel bleiben — country bleibt lesbarer Name
+        'country': selected.label(context),
+        // Zusätzlich ISO-Alpha-2 (optional vom Backend zu nutzen)
+        'countryCode': selected.code,
+        'phone': _phone.text.trim(),
         'privacy': true,
         'lang': _langCode(context), // Sprache mitgeben
       });
