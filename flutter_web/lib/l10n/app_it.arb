@@ -49,7 +49,7 @@
   "segment_dentist": "Dentista",
   "segment_lab": "Laboratorio odontotecnico",
   "article": "Numero articolo*",
-  "batch": "Lotto*",
+  "batch": "Lotto",
   "qty": "Quantità",
   "expiry": "Data di scadenza (se rilevante)",
   "problem_desc": "Descrizione del problema*",
