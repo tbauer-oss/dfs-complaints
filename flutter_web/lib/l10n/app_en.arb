@@ -49,7 +49,7 @@
   "segment_dentist": "Dentist",
   "segment_lab": "Dental lab",
   "article": "Article number*",
-  "batch": "Batch*",
+  "batch": "Batch",
   "qty": "Quantity",
   "expiry": "Expiry date (if relevant)",
   "problem_desc": "Problem description*",
