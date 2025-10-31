@@ -44,6 +44,21 @@ class _AuthPageState extends State<AuthPage> {
     super.dispose();
   }
 
+  // -------- Sprache aus aktueller UI ableiten (nur zulässige Codes) --------
+  String _langCode(BuildContext ctx) {
+    final lc = Localizations.localeOf(ctx).languageCode.toLowerCase();
+    switch (lc) {
+      case 'de':
+      case 'en':
+      case 'fr':
+      case 'it':
+      case 'es':
+        return lc;
+      default:
+        return 'de';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
@@ -235,6 +250,7 @@ class _AuthPageState extends State<AuthPage> {
         'country': _country.text,
         'phone': _phone.text,
         'privacy': true,
+        'lang': _langCode(context), // <<<<<< Sprache mitgeben
       });
 
       if (!mounted) return;
@@ -242,15 +258,13 @@ class _AuthPageState extends State<AuthPage> {
       if (r.statusCode == 200) {
         setState(() {
           isLogin = true;
-          _err = t.registration_received; // bei "resent" passt der Text weiterhin
+          _err = t.registration_received;
         });
       } else if (r.statusCode == 409) {
         final body = r.body?.toString() ?? '';
         if (body.contains('user_exists')) {
-          // Fester Text statt fehlender t.user_exists
           setState(() => _err = 'E-Mail ist bereits registriert.');
         } else if (body.contains('pending') || body.contains('resent')) {
-          // Fester Text statt fehlender t.pending_exists
           setState(() => _err = 'Registrierung liegt bereits vor. Bestätigungs-E-Mail wurde erneut gesendet.');
         } else {
           setState(() => _err = t.register_failed(body));
