@@ -65,9 +65,10 @@ class _AuthPageState extends State<AuthPage> {
         const SizedBox(height: 12),
         ElevatedButton(
           onPressed: _busy ? null : () async {
-            setState(()=>_busy=true); _err=null;
+            setState(()=>_busy=true); 
+            _err=null;
             try {
-              if (isLogin){
+              if (isLogin) {
                 final ok = await widget.api.login(_email.text, _pw.text);
                 if (!mounted) return;
                 if (ok) {
@@ -91,6 +92,7 @@ class _AuthPageState extends State<AuthPage> {
                   'privacy': true
                 });
                 if (!mounted) return;
+
                 if (r.statusCode == 200) {
                   setState(() {
                     isLogin = true;
@@ -108,14 +110,17 @@ class _AuthPageState extends State<AuthPage> {
                 } else {
                   setState(()=> _err = t.register_failed(r.body));
                 }
-            } catch(e){
+              } // <-- schließt das else { ... } der Registrierung
+            } catch(e) {
               if (!mounted) return;
               setState(()=>_err='Network/CORS error: $e');
             } finally {
               if (mounted) setState(()=>_busy=false);
             }
           },
-          child: _busy ? const CircularProgressIndicator() : Text(isLogin ? t.auth_login : t.auth_register),
+          child: _busy 
+              ? const CircularProgressIndicator() 
+              : Text(isLogin ? t.auth_login : t.auth_register),
         )
       ])),
     );
