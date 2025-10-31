@@ -47,7 +47,7 @@ export default async function handler(req, res) {
   try {
     const b = readJson(req);
 
-    // Pflichtfelder
+    // Pflichtfelder (wie gehabt)
     const required = ['email','password','password2','company','contact','street','zip','city','country'];
     for (const k of required) {
       if (!b[k]) { res.statusCode = 400; return res.end(JSON.stringify({ error:`missing ${k}` })); }
@@ -69,27 +69,30 @@ export default async function handler(req, res) {
     if (!pendingGet || !pendingSave) throw new Error('store not ready (pendingGet/pendingSave missing)');
 
     const email = String(b.email).toLowerCase();
-    // Sprache aus Body oder (optional) Header ableiten
-    const lang = normLang(b.lang || req.headers['accept-language']);
+    const lang  = normLang(b.lang || req.headers['accept-language']);
 
     // Bereits pending? -> Mails erneut senden, 409 + "resent"
     const existing = await pendingGet(email);
     if (existing) {
+      let mailSent = false, mailError = null;
       try {
         const { send, notifyQM, tpl, verifyTransport } = await import('../_lib/mail.js');
         await verifyTransport().catch(()=>{});
-        await Promise.allSettled([
-          send(existing.email, tpl.afterRegisterToCustomer(existing.contact || existing.company, lang)),
-          notifyQM(tpl.afterRegisterToQM(existing.email, lang)),
+        const results = await Promise.allSettled([
+          send(existing.email, tpl.afterRegisterToCustomer(existing.contact || existing.company, existing.lang || lang)),
+          notifyQM(tpl.afterRegisterToQM(existing.email, existing.lang || lang)),
         ]);
+        mailSent = results.some(r => r.status === 'fulfilled');
+        if (!mailSent) mailError = 'all mail attempts failed';
       } catch (e) {
-        console.error('register: resend mail failed:', e);
+        mailError = e?.message || String(e);
+        console.error('register: resend mail failed:', mailError);
       }
       res.statusCode = 409;
-      return res.end(JSON.stringify({ error: 'pending_exists', status: 'resent' }));
+      return res.end(JSON.stringify({ error: 'pending_exists', status: 'resent', mailSent, mailError }));
     }
 
-    // Neu anlegen
+    // Neu anlegen (+ Sprache SPEICHERN)
     const pending = {
       email,
       passhash: await bcrypt.hash(String(b.password), 10),
@@ -100,12 +103,14 @@ export default async function handler(req, res) {
       city: b.city,
       country: b.country,
       phone: b.phone || '',
+      lang,                        // <<<<<< speichern
       createdAt: Date.now(),
       status: 'pending',
     };
     await pendingSave(pending);
 
     // Mails VOR der Response senden (sonst killt Serverless den Job)
+    let mailSent = false, mailError = null;
     try {
       const { send, notifyQM, tpl, verifyTransport } = await import('../_lib/mail.js');
       await verifyTransport().catch(()=>{});
@@ -113,14 +118,16 @@ export default async function handler(req, res) {
         send(pending.email, tpl.afterRegisterToCustomer(pending.contact || pending.company, lang)),
         notifyQM(tpl.afterRegisterToQM(pending.email, lang)),
       ]);
+      mailSent = results.some(r => r.status === 'fulfilled');
+      if (!mailSent) mailError = 'all mail attempts failed';
       console.log('register: mail results', results.map(r => r.status));
     } catch (e) {
-      console.error('register: initial mail failed:', e);
-      // Registrierung bleibt erfolgreich; wir schicken trotzdem 200
+      mailError = e?.message || String(e);
+      console.error('register: initial mail failed:', mailError);
     }
 
     res.statusCode = 200;
-    return res.end(JSON.stringify({ ok: true }));
+    return res.end(JSON.stringify({ ok: true, mailSent, mailError }));
   } catch (err) {
     console.error('register.js fatal:', err);
     res.statusCode = 500;
