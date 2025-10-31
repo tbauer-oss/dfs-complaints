@@ -1,16 +1,8 @@
 // lib/pages/auth_page.dart
-import 'package:flutter/material.dart';
-import 'dart:html' as html;
-
-// Falls du eine eigene ApiClient-Datei hast, Pfad so lassen:
-import '../api/client.dart';
-
-// WICHTIG: hier je nach Projektstruktur den korrekten L10N-Import verwenden.
-// Wenn du "flutter gen-l10n" nutzt, ist es meist:
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
-// Falls du stattdessen eine eigene Datei nutzt, dann DIESE hier aktivieren
-// und die Zeile oben auskommentieren:
-// import '../l10n/app_localizations.dart';
+import 'package:flutter/material.dart'; 
+import 'dart:html' as html; 
+import '../api/client.dart'; 
+import '../l10n/app_localizations.dart';
 
 class AuthPage extends StatefulWidget {
   final ApiClient api;
