@@ -42,7 +42,7 @@
   "email_exists": "This email address is already registered.",
   "@email_exists": { "description": "Shown when a user tries to register with an email that already has an account." },
   "register_pending_resent": "A registration already exists. The confirmation email has been resent.",
-  "@register_pending_resent": { "description": "Shown when a pending registration exists and the confirmation mail was re-sent." }
+  "@register_pending_resent": { "description": "Shown when a pending registration exists and the confirmation mail was re-sent." },
 
   "tab_complaint": "Submit complaint",
   "tab_my_complaints": "My complaints",
