@@ -247,17 +247,25 @@ export const tpl = {
 
 // ---- Senden: nimmt {subject,text}, baut HTML+Logo, nutzt lazy Transport ----
 export async function send(to, { subject, text, lang = 'de' }, attachments = []) {
-  const html = htmlShell({ title: subject, bodyHtml: textToParagraphs(text), lang: L(lang) });
+  const html = htmlShell({ title: subject, bodyHtml: textToParagraphs(text), lang });
   const atts = [...logoAttachment(), ...attachments];
 
+  const VISIBLE_FROM = 'DFS-DIAMON QM <complaint@dfs-diamon.de>';
+  const GMX_LOGIN   = process.env.SMTP_USER; // z.B. no-reply_dfs-complaints@gmx.net
+
   const info = await getTransport().sendMail({
-    from: FROM,
+    from: VISIBLE_FROM,          // sichtbarer From (was der Kunde sieht)
+    sender: GMX_LOGIN,           // RFC 5322 "Sender" (wer technisch sendet)
+    replyTo: 'complaint@dfs-diamon.de', // Antworten hierhin
+    envelope: {                  // SMTP-Envelope (MAIL FROM) = GMX (verhindert Ablehnung)
+      from: GMX_LOGIN,
+      to: Array.isArray(to) ? to : [to],
+    },
     to,
     subject,
-    text,   // Plaintext-Fallback
-    html,   // HTML im DFS-Stil
-    replyTo: REPLY_TO || FROM,
-    attachments: atts
+    text,
+    html,
+    attachments: atts,
   });
   console.log('mail: sent', { to, messageId: info.messageId });
   return info;
