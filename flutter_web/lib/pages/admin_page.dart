@@ -1,12 +1,11 @@
-// lib/pages/admin_page.dart
 import 'dart:convert';
 import 'dart:html' as html;
 import 'package:flutter/material.dart';
 
-import '../api/client.dart'; // nur für den Konstruktor-Typ, nicht zwingend genutzt
+import '../api/client.dart';
 
 class AdminPage extends StatefulWidget {
-  final ApiClient? api; // optional – wir nutzen primär API_BASE/env
+  final ApiClient? api; // optional
   const AdminPage({super.key, this.api});
 
   @override
@@ -15,36 +14,30 @@ class AdminPage extends StatefulWidget {
 
 class _AdminPageState extends State<AdminPage> {
   late final AdminApi _api;
-  final _secretCtrl = TextEditingController();
 
   bool _loadingPending = false;
   bool _loadingUsers = false;
-  String? _err;
+  String? _fatalErr; // Ungültiges/missing Secret -> blockiert
+  String? _err;      // Nicht-blockierende Fehlermeldungen
 
   List<PendingUser> _pending = [];
   List<ActiveUser> _users = [];
-
-  // Email -> Liste von Tickets (lazy loaded)
   final Map<String, ComplaintsResult> _complaints = {};
 
   @override
   void initState() {
     super.initState();
     _api = AdminApi();
-    // Secret aus localStorage laden
-    final s = html.window.localStorage['admin_secret'] ?? '';
-    _secretCtrl.text = s;
-    _api.setSecret(s);
-    // Beim Start gleich laden, wenn Secret vorhanden
-    if (s.isNotEmpty) {
-      _refreshAll();
-    }
-  }
 
-  @override
-  void dispose() {
-    _secretCtrl.dispose();
-    super.dispose();
+    final secret = html.window.localStorage['admin_secret'] ?? '';
+    _api.setSecret(secret);
+
+    if (secret.isEmpty) {
+      _fatalErr = 'Kein Admin-Secret gefunden. Bitte über den Admin-Button (Startseite) öffnen.';
+      return;
+    }
+
+    _refreshAll();
   }
 
   Future<void> _refreshAll() async {
@@ -63,8 +56,12 @@ class _AdminPageState extends State<AdminPage> {
         _users = both[1] as List<ActiveUser>;
       });
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _err = '$e');
+      // 401 → Secret ungültig
+      if (e.toString().contains('401')) {
+        setState(() => _fatalErr = 'Admin-Secret ungültig. Bitte erneut über den Admin-Button (Startseite) mit richtigem Secret öffnen.');
+      } else {
+        setState(() => _err = '$e');
+      }
     } finally {
       if (!mounted) return;
       setState(() {
@@ -108,69 +105,22 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
-  Future<void> deleteUser(String email) async {
-    final urlQ = _u('/api/admin/users', {'email': email}).toString();
-    final url = _u('/api/admin/users').toString();
-
-    // 1) Versuch: DELETE ?email=...
+  Future<void> _deleteUser(String email) async {
+    final ok = await _confirm('Nutzer löschen', 'Soll der aktive Nutzer $email wirklich gelöscht werden?');
+    if (ok != true) return;
     try {
-      final res = await html.HttpRequest.request(
-        urlQ,
-        method: 'DELETE',
-        requestHeaders: _headersJson(),
-        withCredentials: true,
+      await _api.deleteUser(email);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Nutzer gelöscht: $email')),
       );
-      if (res.status == 200 || res.status == 204) return;
-      // Wenn 4xx/5xx – weiter probieren
-      // ignore: avoid_print
-      print('DELETE ?email failed: ${res.status} ${res.responseText}');
+      await _refreshAll();
     } catch (e) {
-      // ignore: avoid_print
-      print('DELETE ?email threw: $e');
-    }
-
-    // 2) Versuch: DELETE mit JSON-Body (manche Backends erwarten Body)
-    try {
-      final res = await html.HttpRequest.request(
-        url,
-        method: 'DELETE',
-        requestHeaders: _headersJson(),
-        sendData: jsonEncode({'email': email}),
-        withCredentials: true,
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fehler beim Löschen: $e')),
       );
-      if (res.status == 200 || res.status == 204) return;
-      // ignore: avoid_print
-      print('DELETE body failed: ${res.status} ${res.responseText}');
-    } catch (e) {
-      // ignore: avoid_print
-      print('DELETE body threw: $e');
     }
-
-    // 3) Fallback: POST mit action=delete (serverseitig als Delete behandeln)
-    final body = jsonEncode({'action': 'delete', 'email': email});
-    final res = await html.HttpRequest.request(
-      url,
-      method: 'POST',
-      requestHeaders: _headersJson(),
-      sendData: body,
-      withCredentials: true,
-    );
-    if (res.status != 200 && res.status != 204) {
-      throw 'users DELETE/POST(delete) failed: HTTP ${res.status} ${res.responseText}';
-    }
-  }
-  Future<bool?> _confirm(String title, String message) async {
-    return showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('OK')),
-        ],
-      ),
-    );
   }
 
   Future<void> _loadComplaints(String email) async {
@@ -192,14 +142,56 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  Future<bool?> _confirm(String title, String message) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('OK')),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    if (_fatalErr != null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Adminbereich – DFS Customer Complaint')),
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.lock, size: 48),
+                  const SizedBox(height: 12),
+                  Text(
+                    _fatalErr!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton(
+                    onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
+                    child: const Text('Zurück'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
+    final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Adminbereich – DFS Customer Complaint'),
-      ),
+      appBar: AppBar(title: const Text('Adminbereich – DFS Customer Complaint')),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1100),
@@ -207,36 +199,11 @@ class _AdminPageState extends State<AdminPage> {
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                // Zeile 1: Admin-Secret + Laden
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _secretCtrl,
-                        obscureText: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Admin-Secret (X-Admin-Secret)',
-                          border: OutlineInputBorder(),
-                        ),
-                        onSubmitted: (_) => _applySecret(),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    FilledButton.icon(
-                      onPressed: _applySecret,
-                      icon: const Icon(Icons.key),
-                      label: const Text('Übernehmen & Laden'),
-                    ),
-                  ],
-                ),
                 if (_err != null)
                   Padding(
-                    padding: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.only(bottom: 8),
                     child: Text(_err!, style: TextStyle(color: theme.colorScheme.error)),
                   ),
-
-                const SizedBox(height: 16),
-
                 Expanded(
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -371,16 +338,9 @@ class _AdminPageState extends State<AdminPage> {
       ),
     );
   }
-
-  void _applySecret() {
-    final s = _secretCtrl.text.trim();
-    _api.setSecret(s);
-    html.window.localStorage['admin_secret'] = s;
-    _refreshAll();
-  }
 }
 
-// -------------------- UI Widgets --------------------
+// ---------- UI Tiles ----------
 
 class _Field extends StatelessWidget {
   final String label;
@@ -453,19 +413,12 @@ class _PendingTileState extends State<_PendingTile> {
                 },
                 icon: Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
               ),
-              FilledButton(
-                onPressed: widget.onApprove,
-                child: const Text('Freigeben'),
-              ),
-              OutlinedButton(
-                onPressed: widget.onReject,
-                child: const Text('Ablehnen'),
-              ),
+              FilledButton(onPressed: widget.onApprove, child: const Text('Freigeben')),
+              OutlinedButton(onPressed: widget.onReject, child: const Text('Ablehnen')),
             ],
           ),
         ),
-        if (_expanded)
-          _ComplaintsView(email: d.email, result: widget.complaints),
+        if (_expanded) _ComplaintsView(email: d.email, result: widget.complaints),
         const Divider(height: 1),
       ],
     );
@@ -490,6 +443,7 @@ class _UserTile extends StatefulWidget {
 
 class _UserTileState extends State<_UserTile> {
   bool _expanded = false;
+  bool _busy = false;
 
   @override
   Widget build(BuildContext context) {
@@ -523,14 +477,21 @@ class _UserTileState extends State<_UserTile> {
                 icon: Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
               ),
               OutlinedButton(
-                onPressed: widget.onDelete,
-                child: const Text('Löschen'),
+                onPressed: _busy
+                    ? null
+                    : () async {
+                        setState(() => _busy = true);
+                        await widget.onDelete();
+                        if (mounted) setState(() => _busy = false);
+                      },
+                child: _busy
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('Löschen'),
               ),
             ],
           ),
         ),
-        if (_expanded)
-          _ComplaintsView(email: d.email, result: widget.complaints),
+        if (_expanded) _ComplaintsView(email: d.email, result: widget.complaints),
         const Divider(height: 1),
       ],
     );
@@ -578,7 +539,8 @@ class _ComplaintsView extends StatelessWidget {
           const Text('Reklamationen (Tickets):', style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
           Wrap(
-            spacing: 8, runSpacing: 6,
+            spacing: 8,
+            runSpacing: 6,
             children: r.tickets.map((t) => Chip(label: Text(t))).toList(),
           ),
         ],
@@ -587,7 +549,7 @@ class _ComplaintsView extends StatelessWidget {
   }
 }
 
-// -------------------- Models --------------------
+// ---------- Models ----------
 
 class PendingUser {
   final String email;
@@ -598,7 +560,7 @@ class PendingUser {
   final String city;
   final String country;
   final String phone;
-  final String lang;       // 'de' | 'en' | 'fr' | 'it' | 'es'
+  final String lang;
   final String? createdAt;
 
   PendingUser({
@@ -615,17 +577,17 @@ class PendingUser {
   });
 
   factory PendingUser.fromJson(Map<String, dynamic> j) => PendingUser(
-    email: j['email'] ?? '',
-    company: j['company'] ?? '',
-    contact: j['contact'] ?? '',
-    street: j['street'] ?? '',
-    zip: j['zip'] ?? '',
-    city: j['city'] ?? '',
-    country: j['country'] ?? '',
-    phone: j['phone'] ?? '',
-    lang: (j['lang'] ?? 'de').toString(),
-    createdAt: j['createdAt']?.toString(),
-  );
+        email: j['email'] ?? '',
+        company: j['company'] ?? '',
+        contact: j['contact'] ?? '',
+        street: j['street'] ?? '',
+        zip: j['zip'] ?? '',
+        city: j['city'] ?? '',
+        country: j['country'] ?? '',
+        phone: j['phone'] ?? '',
+        lang: (j['lang'] ?? 'de').toString(),
+        createdAt: j['createdAt']?.toString(),
+      );
 }
 
 class ActiveUser {
@@ -654,17 +616,17 @@ class ActiveUser {
   });
 
   factory ActiveUser.fromJson(Map<String, dynamic> j) => ActiveUser(
-    email: j['email'] ?? '',
-    company: j['company'] ?? '',
-    contact: j['contact'] ?? '',
-    street: j['street'] ?? '',
-    zip: j['zip'] ?? '',
-    city: j['city'] ?? '',
-    country: j['country'] ?? '',
-    phone: j['phone'] ?? '',
-    lang: (j['lang'] ?? 'de').toString(),
-    createdAt: j['createdAt']?.toString(),
-  );
+        email: j['email'] ?? '',
+        company: j['company'] ?? '',
+        contact: j['contact'] ?? '',
+        street: j['street'] ?? '',
+        zip: j['zip'] ?? '',
+        city: j['city'] ?? '',
+        country: j['country'] ?? '',
+        phone: j['phone'] ?? '',
+        lang: (j['lang'] ?? 'de').toString(),
+        createdAt: j['createdAt']?.toString(),
+      );
 }
 
 class ComplaintsResult {
@@ -677,21 +639,10 @@ class ComplaintsResult {
   factory ComplaintsResult.ok(List<String> t) => ComplaintsResult._(false, null, t);
 }
 
-// -------------------- API Helper --------------------
+// ---------- API Helper ----------
 
 class AdminApi {
   String _secret = '';
-  final String _base;
-
-  AdminApi() : _base = const String.fromEnvironment('API_BASE', defaultValue: '') {
-    // Fallback, falls nicht über --dart-define gesetzt:
-    if (_base.isEmpty) {
-      // auf das gleiche Origin zeigen (falls Backend dort erreichbar ist)
-      // oder auf ein Default – passe ggf. an
-      // ignore: avoid_print
-      print('API_BASE (env) leer – nutze window.location.origin als Fallback.');
-    }
-  }
 
   void setSecret(String s) {
     _secret = s;
@@ -700,19 +651,19 @@ class AdminApi {
   String get baseUrl {
     final b = const String.fromEnvironment('API_BASE', defaultValue: '');
     if (b.isNotEmpty) return b;
-    return html.window.location.origin; // Fallback
+    return html.window.location.origin;
   }
 
   Map<String, String> _headersJson() => {
-    'Content-Type': 'application/json; charset=utf-8',
-    if (_secret.isNotEmpty) 'X-Admin-Secret': _secret,
-  };
+        'Content-Type': 'application/json; charset=utf-8',
+        if (_secret.isNotEmpty) 'X-Admin-Secret': _secret,
+      };
 
   Uri _u(String path, [Map<String, String>? q]) {
     final uri = Uri.parse('$baseUrl$path');
     if (q == null || q.isEmpty) return uri;
     return uri.replace(queryParameters: q);
-    }
+  }
 
   // ---- Pending ----
   Future<List<PendingUser>> fetchPending() async {
@@ -729,7 +680,6 @@ class AdminApi {
     return data.map((e) => PendingUser.fromJson(e as Map<String, dynamic>)).toList();
   }
 
-  /// Approve pending user. Backend soll daraufhin Bestätigungsmail (DE/EN/FR/IT/ES) anhand `lang` versenden.
   Future<void> approvePending(String email, {String? lang}) async {
     final body = jsonEncode({'email': email, 'action': 'approve', if (lang != null) 'lang': lang});
     final res = await html.HttpRequest.request(
@@ -745,14 +695,26 @@ class AdminApi {
   }
 
   Future<void> rejectPending(String email) async {
+    // Try DELETE ?email
+    try {
+      final res = await html.HttpRequest.request(
+        _u('/api/admin/pending', {'email': email}).toString(),
+        method: 'DELETE',
+        requestHeaders: _headersJson(),
+        withCredentials: true,
+      );
+      if (res.status == 200 || res.status == 204) return;
+    } catch (_) {}
+    // Fallback: POST action=reject
     final res = await html.HttpRequest.request(
-      _u('/api/admin/pending', {'email': email}).toString(),
-      method: 'DELETE',
+      _u('/api/admin/pending').toString(),
+      method: 'POST',
       requestHeaders: _headersJson(),
+      sendData: jsonEncode({'action': 'reject', 'email': email}),
       withCredentials: true,
     );
-    if (res.status != 200) {
-      throw 'pending DELETE: HTTP ${res.status} ${res.responseText}';
+    if (res.status != 200 && res.status != 204) {
+      throw 'pending reject failed: HTTP ${res.status} ${res.responseText}';
     }
   }
 
@@ -772,14 +734,42 @@ class AdminApi {
   }
 
   Future<void> deleteUser(String email) async {
+    final urlQ = _u('/api/admin/users', {'email': email}).toString();
+    final url = _u('/api/admin/users').toString();
+
+    // 1) DELETE ?email=...
+    try {
+      final res = await html.HttpRequest.request(
+        urlQ,
+        method: 'DELETE',
+        requestHeaders: _headersJson(),
+        withCredentials: true,
+      );
+      if (res.status == 200 || res.status == 204) return;
+    } catch (_) {}
+
+    // 2) DELETE Body
+    try {
+      final res = await html.HttpRequest.request(
+        url,
+        method: 'DELETE',
+        requestHeaders: _headersJson(),
+        sendData: jsonEncode({'email': email}),
+        withCredentials: true,
+      );
+      if (res.status == 200 || res.status == 204) return;
+    } catch (_) {}
+
+    // 3) POST action=delete
     final res = await html.HttpRequest.request(
-      _u('/api/admin/users', {'email': email}).toString(),
-      method: 'DELETE',
+      url,
+      method: 'POST',
       requestHeaders: _headersJson(),
+      sendData: jsonEncode({'action': 'delete', 'email': email}),
       withCredentials: true,
     );
-    if (res.status != 200) {
-      throw 'users DELETE: HTTP ${res.status} ${res.responseText}';
+    if (res.status != 200 && res.status != 204) {
+      throw 'users DELETE/POST(delete) failed: HTTP ${res.status} ${res.responseText}';
     }
   }
 
@@ -795,7 +785,6 @@ class AdminApi {
       throw 'complaints GET: HTTP ${res.status} ${res.responseText}';
     }
     final List data = jsonDecode(res.responseText ?? '[]');
-    // Expect list of ticket strings like ["DFS_CP000001", ...]
     return data.map((e) => e.toString()).toList();
   }
 }
