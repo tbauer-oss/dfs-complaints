@@ -6,6 +6,7 @@ import 'api/client.dart';
 import 'pages/gate_page.dart';
 import 'pages/auth_page.dart';
 import 'pages/dashboard_page.dart';
+import 'pages/admin_page.dart';
 
 void main() {
   runApp(const DFSApp());
@@ -13,17 +14,19 @@ void main() {
 
 class DFSApp extends StatefulWidget {
   const DFSApp({super.key});
-  @override State<DFSApp> createState() => _DFSAppState();
+  @override
+  State<DFSApp> createState() => _DFSAppState();
 }
 
 class _DFSAppState extends State<DFSApp> {
   final api = ApiClient();
   Locale _locale = const Locale('de');
-  bool _unlocked = false; // <-- wichtiges Flag
+  bool _unlocked = false; // Gate freigeschaltet?
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       locale: _locale,
       supportedLocales: const [
         Locale('de'), Locale('en'), Locale('es'), Locale('fr'), Locale('it')
@@ -35,6 +38,12 @@ class _DFSAppState extends State<DFSApp> {
         GlobalWidgetsLocalizations.delegate,
       ],
       onGenerateTitle: (ctx) => AppLocalizations.of(ctx)!.appTitle,
+
+      // <<< NEU: Named Routes für Admin (Root-Navigator) >>>
+      routes: {
+        '/admin': (ctx) => AdminPage(api: api),
+      },
+
       home: Builder(
         builder: (context) {
           final t = AppLocalizations.of(context)!;
@@ -52,11 +61,15 @@ class _DFSAppState extends State<DFSApp> {
                       DropdownMenuItem(value: Locale('fr'), child: Text('FR')),
                       DropdownMenuItem(value: Locale('it'), child: Text('IT')),
                     ],
-                    onChanged: (v){ if (v!=null) setState(()=>_locale=v); },
+                    onChanged: (v) {
+                      if (v != null) setState(() => _locale = v);
+                    },
                   ),
                 ),
               ],
             ),
+
+            // Innerer Navigator für Gate/Auth/Dashboard
             body: Navigator(
               pages: [
                 // 1) GatePage immer zuerst
@@ -64,7 +77,7 @@ class _DFSAppState extends State<DFSApp> {
                   key: const ValueKey('page-gate'),
                   child: GatePage(
                     api: api,
-                    onUnlocked: () => setState(() => _unlocked = true), // <—
+                    onUnlocked: () => setState(() => _unlocked = true),
                   ),
                 ),
 
@@ -74,7 +87,7 @@ class _DFSAppState extends State<DFSApp> {
                     key: const ValueKey('page-auth'),
                     child: AuthPage(
                       api: api,
-                      onLoggedIn: () => setState((){}),
+                      onLoggedIn: () => setState(() {}),
                     ),
                   ),
 
@@ -88,7 +101,7 @@ class _DFSAppState extends State<DFSApp> {
               onPopPage: (route, result) => route.didPop(result),
             ),
           );
-        }
+        },
       ),
     );
   }
