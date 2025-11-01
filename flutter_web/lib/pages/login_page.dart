@@ -1,13 +1,13 @@
+// lib/pages/login_page.dart
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
-import '../widgets/lang_action.dart';
 
 class LoginPage extends StatefulWidget {
   final ApiClient api;
   final VoidCallback onLoggedIn;
-  final VoidCallback onOpenRegister; // <- NEU: muss beim Aufruf gesetzt werden
-  final VoidCallback onOpenAdmin;    // <- NEU: muss beim Aufruf gesetzt werden
+  final VoidCallback onOpenRegister;
+  final VoidCallback onOpenAdmin;
 
   const LoginPage({
     super.key,
@@ -23,31 +23,21 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final _email = TextEditingController();
-  final _pw = TextEditingController();
+  final _pw    = TextEditingController();
   bool _busy = false;
   String? _err;
 
-  @override
-  void dispose() {
-    _email.dispose();
-    _pw.dispose();
-    super.dispose();
-  }
-
   Future<void> _doLogin() async {
-    final t = AppLocalizations.of(context)!;
     setState(() { _busy = true; _err = null; });
     try {
       final ok = await widget.api.login(_email.text.trim(), _pw.text);
-      if (!mounted) return;
       if (ok) {
         widget.onLoggedIn();
       } else {
-        setState(() => _err = t.login_failed);
+        setState(() => _err = 'Login fehlgeschlagen.');
       }
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _err = 'Network/CORS error: $e');
+      setState(() => _err = '$e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -55,73 +45,72 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    final t = AppLocalizations.of(context)!;
+    final t = AppLocalizations.of(context);
+    String tx(String? s, String fb) => (s == null || s.isEmpty) ? fb : s;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Login'),
-        actions: const [LangAction()],
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 460),
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              // Admin-Button ÜBER dem Login
-              Align(
-                alignment: Alignment.centerRight,
-                child: OutlinedButton.icon(
-                  onPressed: _busy ? null : widget.onOpenAdmin,
-                  icon: const Icon(Icons.admin_panel_settings),
-                  // FIX: kein t.admin_area (nicht vorhanden)
-                  label: const Text('Adminbereich'),
-                ),
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 460),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Adminbereich (oben)
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.admin_panel_settings_outlined),
+                label: Text(tx(t?.admin_area, 'Adminbereich')),
+                onPressed: _busy ? null : widget.onOpenAdmin,
               ),
-              const SizedBox(height: 16),
+            ),
+            const SizedBox(height: 12),
 
-              TextField(
-                controller: _email,
-                keyboardType: TextInputType.emailAddress,
-                autofillHints: const [AutofillHints.email],
-                decoration: InputDecoration(
-                  labelText: t.email,
-                  border: const OutlineInputBorder(),
-                ),
+            // Login-Form
+            TextField(
+              controller: _email,
+              keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(
+                labelText: tx(t?.email, 'E-Mail*'),
+                border: const OutlineInputBorder(),
               ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _pw,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: t.password,
-                  border: const OutlineInputBorder(),
-                ),
-                onSubmitted: (_) => _busy ? null : _doLogin(),
+              enabled: !_busy,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _pw,
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: tx(t?.password, 'Passwort*'),
+                border: const OutlineInputBorder(),
               ),
-              if (_err != null) ...[
-                const SizedBox(height: 8),
-                Text(_err!, style: const TextStyle(color: Colors.red)),
-              ],
-              const SizedBox(height: 12),
-              ElevatedButton(
+              enabled: !_busy,
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
                 onPressed: _busy ? null : _doLogin,
                 child: _busy
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                    : Text(t.auth_login),
+                    ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : Text(tx(t?.login, 'Login')),
               ),
+            ),
 
-              const SizedBox(height: 24),
-              // Registrieren-Button UNTER dem Login
-              Center(
-                child: TextButton.icon(
-                  onPressed: _busy ? null : widget.onOpenRegister,
-                  icon: const Icon(Icons.person_add_alt_1),
-                  label: Text(t.auth_register),
-                ),
-              ),
+            // Fehlermeldung
+            if (_err != null) ...[
+              const SizedBox(height: 8),
+              Text(_err!, style: const TextStyle(color: Colors.red)),
             ],
-          ),
+
+            const SizedBox(height: 16),
+
+            // Registrieren (unten)
+            TextButton.icon(
+              icon: const Icon(Icons.person_add_alt),
+              label: Text(tx(t?.register, 'Registrieren')),
+              onPressed: _busy ? null : widget.onOpenRegister,
+            ),
+          ],
         ),
       ),
     );
