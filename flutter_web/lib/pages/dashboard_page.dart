@@ -75,7 +75,7 @@ class DashboardPage extends StatelessWidget {
               Row(mainAxisSize: MainAxisSize.min, children: [dot(Colors.yellow.shade700), const SizedBox(width: 6), lbl('in Bearbeitung')]),
               Row(mainAxisSize: MainAxisSize.min, children: [dot(Colors.orange), const SizedBox(width: 6), lbl('Rückfrage erforderlich')]),
               Row(mainAxisSize: MainAxisSize.min, children: [dot(Colors.lightGreen), const SizedBox(width: 6), lbl('angenommen')]),
-              Row(mainAxisSize: MainSize.min, children: [dot(Colors.red), const SizedBox(width: 6), lbl('abgelehnt')]),
+              Row(mainAxisSize: MainAxisSize.min, children: [dot(Colors.red), const SizedBox(width: 6), lbl('abgelehnt')]), // <- FIX
               Row(mainAxisSize: MainAxisSize.min, children: [dot(Colors.amber), const SizedBox(width: 6), lbl('in Nacharbeit')]),
               Row(mainAxisSize: MainAxisSize.min, children: [dot(Colors.green), const SizedBox(width: 6), lbl('abgeschlossen')]),
             ],
@@ -123,7 +123,6 @@ class DashboardPage extends StatelessWidget {
             title: 'Mein Account',
             subtitle: 'Daten ändern, Passwort ändern, Account löschen',
             onTap: () {
-              // Inline-Seite, wenn du noch keine eigene AccountPage hast
               Navigator.of(context).push(MaterialPageRoute(builder: (_) {
                 return _InlineAccountPage(api: api);
               }));
@@ -136,7 +135,6 @@ class DashboardPage extends StatelessWidget {
             title: 'DFS Support',
             subtitle: 'Allgemein, Reklamation, Technik, Account, Datenschutz, Feedback',
             onTap: () {
-              // Inline-Seite, wenn du noch keine eigene SupportPage hast
               Navigator.of(context).push(MaterialPageRoute(builder: (_) {
                 return _InlineSupportPage(api: api);
               }));
@@ -282,7 +280,6 @@ class _InlineAccountPageState extends State<_InlineAccountPage> {
           ..._data.entries.map((e) {
             final key = e.key;
             final val = (e.value ?? '').toString();
-            // einfache Textfelder – du kannst hier spezifische Felder hübscher machen
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: TextField(
