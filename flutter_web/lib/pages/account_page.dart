@@ -1,32 +1,18 @@
+// lib/pages/account_page.dart
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 
 class AccountPage extends StatefulWidget {
   final ApiClient api;
   const AccountPage({super.key, required this.api});
-
   @override
   State<AccountPage> createState() => _AccountPageState();
 }
 
 class _AccountPageState extends State<AccountPage> {
-  bool loading = true;
+  bool busy = true;
   String? err;
-
-  // Accountfelder
-  final _company = TextEditingController();
-  final _first = TextEditingController();
-  final _last  = TextEditingController();
-  final _street= TextEditingController();
-  final _zip   = TextEditingController();
-  final _city  = TextEditingController();
-  final _phone = TextEditingController();
-  String email = '';
-
-  // PW Felder
-  final _oldPw = TextEditingController();
-  final _newPw = TextEditingController();
-  final _newPw2= TextEditingController();
+  Map<String, dynamic>? acc;
 
   @override
   void initState() {
@@ -35,179 +21,248 @@ class _AccountPageState extends State<AccountPage> {
   }
 
   Future<void> _load() async {
+    setState(() { busy = true; err = null; });
     try {
-      final u = await widget.api.accountGet();
-      setState(() {
-        email = u['email'] ?? '';
-        _company.text = u['company'] ?? '';
-        _first.text   = u['firstName'] ?? '';
-        _last.text    = u['lastName'] ?? '';
-        _street.text  = u['street'] ?? '';
-        _zip.text     = u['zip'] ?? '';
-        _city.text    = u['city'] ?? '';
-        _phone.text   = u['phone'] ?? '';
-        err = null;
-        loading = false;
-      });
+      acc = await widget.api.accountGet();
     } catch (e) {
-      setState(() { err = '$e'; loading = false; });
-    }
-  }
-
-  Future<void> _saveAccount() async {
-    setState(()=> loading = true);
-    try {
-      await widget.api.accountUpdate({
-        'company': _company.text,
-        'firstName': _first.text,
-        'lastName': _last.text,
-        'street': _street.text,
-        'zip': _zip.text,
-        'city': _city.text,
-        'phone': _phone.text,
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Gespeichert. E-Mail-Benachrichtigung gesendet.'))
-        );
+      final s = e.toString();
+      if (s.contains('401')) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sitzung abgelaufen. Bitte neu anmelden.')));
+          Navigator.of(context).pop();
+        }
+        return;
       }
-      await _load();
-    } catch (e) {
-      setState(()=> loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
-    }
-  }
-
-  Future<void> _changePw() async {
-    if (_newPw.text != _newPw2.text) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Passwörter stimmen nicht überein.')));
-      return;
-    }
-    setState(()=> loading = true);
-    try {
-      await widget.api.accountChangePassword(_oldPw.text, _newPw.text);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Passwort geändert. E-Mail-Benachrichtigung gesendet.'))
-        );
-      }
-      setState(()=> loading = false);
-      _oldPw.clear(); _newPw.clear(); _newPw2.clear();
-    } catch (e) {
-      setState(()=> loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
-    }
-  }
-
-  Future<void> _deleteAccountFlow() async {
-    final q1 = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Account löschen?'),
-        content: const Text('Bist du sicher? Diese Aktion kann nicht rückgängig gemacht werden.'),
-        actions: [
-          TextButton(onPressed: ()=> Navigator.pop(context, false), child: const Text('Abbrechen')),
-          FilledButton(onPressed: ()=> Navigator.pop(context, true), child: const Text('Weiter')),
-        ],
-      ),
-    );
-    if (q1 != true) return;
-
-    final pwCtrl = TextEditingController();
-    final doDelete = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Passwort bestätigen'),
-        content: TextField(
-          controller: pwCtrl, obscureText: true, decoration: const InputDecoration(labelText: 'Passwort'),
-        ),
-        actions: [
-          TextButton(onPressed: ()=> Navigator.pop(context, false), child: const Text('Abbrechen')),
-          FilledButton(onPressed: ()=> Navigator.pop(context, true), child: const Text('Account löschen')),
-        ],
-      ),
-    );
-    if (doDelete != true) return;
-
-    setState(()=> loading = true);
-    try {
-      await widget.api.accountDelete(pwCtrl.text);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Account gelöscht. E-Mail-Benachrichtigung gesendet.'))
-        );
-      }
-      if (mounted) Navigator.of(context).pop(); // zurück in Kundenbereich
-    } catch (e) {
-      setState(()=> loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      err = s;
+    } finally {
+      if (mounted) setState(() => busy = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Mein Account')),
-      body: loading
-        ? const Center(child: CircularProgressIndicator())
-        : err != null
-          ? Center(child: Text(err!))
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+    final body = () {
+      if (busy) return const Center(child: CircularProgressIndicator());
+      if (err != null) return Center(child: Text(err!));
+      if (acc == null) return const Center(child: Text('Keine Daten.'));
 
-                  // Daten ändern
-                  Text('Daten ändern', style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 8),
-                  Text('E-Mail (fest): $email'),
-                  const SizedBox(height: 8),
-
-                  Wrap(spacing: 16, runSpacing: 8, children: [
-                    SizedBox(width: 320, child: TextField(controller: _company, decoration: const InputDecoration(labelText: 'Firma'))),
-                    SizedBox(width: 320, child: TextField(controller: _first, decoration: const InputDecoration(labelText: 'Vorname'))),
-                    SizedBox(width: 320, child: TextField(controller: _last,  decoration: const InputDecoration(labelText: 'Nachname'))),
-                    SizedBox(width: 320, child: TextField(controller: _street,decoration: const InputDecoration(labelText: 'Adresse'))),
-                    SizedBox(width: 160, child: TextField(controller: _zip,   decoration: const InputDecoration(labelText: 'PLZ'))),
-                    SizedBox(width: 320, child: TextField(controller: _city,  decoration: const InputDecoration(labelText: 'Ort'))),
-                    SizedBox(width: 320, child: TextField(controller: _phone, decoration: const InputDecoration(labelText: 'Telefon'))),
-                  ]),
-                  const SizedBox(height: 12),
-                  Row(children: [
-                    FilledButton(onPressed: _saveAccount, child: const Text('Speichern')),
-                    const SizedBox(width: 8),
-                    OutlinedButton(onPressed: _load, child: const Text('Abbrechen')),
-                  ]),
-
-                  const Divider(height: 32),
-
-                  // Passwort ändern
-                  Text('Passwort ändern', style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 8),
-                  SizedBox(width: 320, child: TextField(controller: _oldPw, obscureText: true, decoration: const InputDecoration(labelText: 'Altes Passwort'))),
-                  SizedBox(width: 320, child: TextField(controller: _newPw, obscureText: true, decoration: const InputDecoration(labelText: 'Neues Passwort'))),
-                  SizedBox(width: 320, child: TextField(controller: _newPw2, obscureText: true, decoration: const InputDecoration(labelText: 'Neues Passwort (Wiederholung)'))),
-                  const SizedBox(height: 12),
-                  Row(children: [
-                    FilledButton(onPressed: _changePw, child: const Text('Speichern')),
-                    const SizedBox(width: 8),
-                    OutlinedButton(onPressed: () { _oldPw.clear(); _newPw.clear(); _newPw2.clear(); }, child: const Text('Abbrechen')),
-                  ]),
-
-                  const Divider(height: 32),
-
-                  // Account löschen
-                  Text('Account löschen', style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 8),
-                  FilledButton.tonal(
-                    style: FilledButton.styleFrom(backgroundColor: Colors.red),
-                    onPressed: _deleteAccountFlow,
-                    child: const Text('Account löschen'),
-                  ),
-                ],
+      return Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Text('E-Mail: ${acc!['email'] ?? ''}'),
+              Text('Firma: ${acc!['company'] ?? ''}'),
+              Text('Ansprechpartner: ${acc!['contact'] ?? ''}'),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                icon: const Icon(Icons.edit),
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => _AccountEditPage(api: widget.api, initial: acc!),
+                )).then((_) => _load()),
+                label: const Text('Daten ändern'),
               ),
-            ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                icon: const Icon(Icons.lock),
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => _PasswordPage(api: widget.api),
+                )),
+                label: const Text('Passwort ändern'),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.delete_forever, color: Colors.red),
+                label: const Text('Account löschen', style: TextStyle(color: Colors.red)),
+                onPressed: () async {
+                  final sure = await showDialog<bool>(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      title: const Text('Account löschen?'),
+                      content: const Text('Bist du sicher? Dieser Vorgang kann nicht rückgängig gemacht werden.'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+                        FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Weiter')),
+                      ],
+                    ),
+                  );
+                  if (sure != true) return;
+
+                  final pwd = await showDialog<String>(
+                    context: context,
+                    builder: (_) {
+                      final ctrl = TextEditingController();
+                      return AlertDialog(
+                        title: const Text('Passwort bestätigen'),
+                        content: TextField(controller: ctrl, obscureText: true, decoration: const InputDecoration(labelText: 'Passwort')),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
+                          FilledButton(onPressed: () => Navigator.pop(context, ctrl.text), child: const Text('Account löschen')),
+                        ],
+                      );
+                    },
+                  );
+                  if (pwd == null || pwd.isEmpty) return;
+
+                  try {
+                    await widget.api.accountDelete(pwd);
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Account gelöscht.')));
+                    Navigator.of(context).pop(); // zurück ins Dashboard
+                  } catch (e) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    }();
+
+    return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.of(context).pop()),
+        title: const Text('Mein Account'),
+      ),
+      body: body,
+    );
+  }
+}
+
+// ===== Unterseiten =====
+
+class _AccountEditPage extends StatefulWidget {
+  final ApiClient api;
+  final Map<String,dynamic> initial;
+  const _AccountEditPage({required this.api, required this.initial});
+  @override
+  State<_AccountEditPage> createState() => _AccountEditPageState();
+}
+
+class _AccountEditPageState extends State<_AccountEditPage> {
+  late final TextEditingController email = TextEditingController(text: widget.initial['email']?.toString() ?? '');
+  late final TextEditingController company = TextEditingController(text: widget.initial['company']?.toString() ?? '');
+  late final TextEditingController contact = TextEditingController(text: widget.initial['contact']?.toString() ?? '');
+  late final TextEditingController street = TextEditingController(text: widget.initial['street']?.toString() ?? '');
+  late final TextEditingController zip = TextEditingController(text: widget.initial['zip']?.toString() ?? '');
+  late final TextEditingController city = TextEditingController(text: widget.initial['city']?.toString() ?? '');
+  bool busy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Daten ändern')),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              TextField(controller: email, decoration: const InputDecoration(labelText: 'E-Mail', border: OutlineInputBorder())),
+              const SizedBox(height: 8),
+              TextField(controller: contact, decoration: const InputDecoration(labelText: 'Ansprechpartner', border: OutlineInputBorder())),
+              const SizedBox(height: 8),
+              TextField(controller: company, decoration: const InputDecoration(labelText: 'Firma', border: OutlineInputBorder())),
+              const SizedBox(height: 8),
+              TextField(controller: street, decoration: const InputDecoration(labelText: 'Adresse', border: OutlineInputBorder())),
+              const SizedBox(height: 8),
+              Row(children: [
+                Expanded(child: TextField(controller: zip, decoration: const InputDecoration(labelText: 'PLZ', border: OutlineInputBorder()))),
+                const SizedBox(width: 8),
+                Expanded(child: TextField(controller: city, decoration: const InputDecoration(labelText: 'Ort', border: OutlineInputBorder()))),
+              ]),
+              const SizedBox(height: 16),
+              Row(children: [
+                FilledButton(
+                  onPressed: busy ? null : () async {
+                    setState(() => busy = true);
+                    try {
+                      await widget.api.accountUpdate({
+                        'email': email.text.trim(),
+                        'contact': contact.text.trim(),
+                        'company': company.text.trim(),
+                        'street': street.text.trim(),
+                        'zip': zip.text.trim(),
+                        'city': city.text.trim(),
+                      });
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert.')));
+                      Navigator.of(context).pop();
+                    } catch (e) {
+                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+                    } finally { if (mounted) setState(() => busy = false); }
+                  },
+                  child: busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Speichern'),
+                ),
+                const SizedBox(width: 12),
+                OutlinedButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Abbrechen')),
+              ]),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PasswordPage extends StatefulWidget {
+  final ApiClient api;
+  const _PasswordPage({required this.api});
+  @override
+  State<_PasswordPage> createState() => _PasswordPageState();
+}
+
+class _PasswordPageState extends State<_PasswordPage> {
+  final oldPw = TextEditingController();
+  final newPw1 = TextEditingController();
+  final newPw2 = TextEditingController();
+  bool busy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Passwort ändern')),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              TextField(controller: oldPw, obscureText: true, decoration: const InputDecoration(labelText: 'Altes Passwort', border: OutlineInputBorder())),
+              const SizedBox(height: 8),
+              TextField(controller: newPw1, obscureText: true, decoration: const InputDecoration(labelText: 'Neues Passwort', border: OutlineInputBorder())),
+              const SizedBox(height: 8),
+              TextField(controller: newPw2, obscureText: true, decoration: const InputDecoration(labelText: 'Neues Passwort (Wdh.)', border: OutlineInputBorder())),
+              const SizedBox(height: 16),
+              Row(children: [
+                FilledButton(
+                  onPressed: busy ? null : () async {
+                    if (newPw1.text != newPw2.text) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Passwörter stimmen nicht überein.')));
+                      return;
+                    }
+                    setState(() => busy = true);
+                    try {
+                      await widget.api.accountChangePassword(oldPw.text, newPw1.text);
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Passwort geändert.')));
+                      Navigator.of(context).pop();
+                    } catch (e) {
+                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+                    } finally { if (mounted) setState(() => busy = false); }
+                  },
+                  child: busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Speichern'),
+                ),
+                const SizedBox(width: 12),
+                OutlinedButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Abbrechen')),
+              ]),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
