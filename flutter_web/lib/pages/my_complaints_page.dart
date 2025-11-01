@@ -25,30 +25,28 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
   }
 
   Future<void> _load() async {
-    setState(() {
-      _busy = true;
-      _err = null;
-    });
+    setState(() { _busy = true; _err = null; });
     try {
-      final list = await widget.api.complaintList(); // <- existiert in deinem Client
+      final list = await widget.api.complaintList();
       // Neueste zuerst (nach updatedAt, dann createdAt)
       list.sort((a, b) {
-        final ma = a.updatedAt.millisecondsSinceEpoch > 0
-            ? a.updatedAt.millisecondsSinceEpoch
-            : a.createdAt.millisecondsSinceEpoch;
-        final mb = b.updatedAt.millisecondsSinceEpoch > 0
-            ? b.updatedAt.millisecondsSinceEpoch
-            : b.createdAt.millisecondsSinceEpoch;
+        final ma = (a.updatedAt.millisecondsSinceEpoch > 0
+                ? a.updatedAt.millisecondsSinceEpoch
+                : a.createdAt.millisecondsSinceEpoch) ??
+            0;
+        final mb = (b.updatedAt.millisecondsSinceEpoch > 0
+                ? b.updatedAt.millisecondsSinceEpoch
+                : b.createdAt.millisecondsSinceEpoch) ??
+            0;
         return mb.compareTo(ma);
       });
       setState(() => _items = list);
     } catch (e) {
       final msg = '$e';
       setState(() => _err = msg);
-      // 401 nur melden, nicht ausloggen
       if (mounted && msg.contains('401')) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sitzung ungültig? Bitte neu anmelden oder Seite neu laden.')),
+          const SnackBar(content: Text('Sitzung ungültig. Bitte neu anmelden.')),
         );
       }
     } finally {
@@ -56,61 +54,56 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     }
   }
 
-  // --------- Hilfen ----------
-  String _fmt(DateTime dt) {
-    // Einfaches ISO – gern anpassen
-    return dt.toLocal().toString();
-  }
+  String _fmt(DateTime dt) => dt.toLocal().toString();
 
-  /// Neutrale Status-Texte (kein Zwang zu L10n-Keys, damit build sicher läuft)
-  String _statusText(AppLocalizations t, int s, String? decision) {
+  // Neutrale Status-Texte – vermeiden fehlende L10n-Keys
+  String _statusText(int s, String? decision) {
     switch (s) {
-      case 1:
-        return 'gesendet';
-      case 2:
-        return 'in Bearbeitung';
-      case 3:
-        return 'Rückfrage erforderlich';
+      case 1: return 'gesendet';
+      case 2: return 'in Bearbeitung';
+      case 3: return 'Rückfrage erforderlich';
       case 4:
         if (decision == 'rejected') return 'abgelehnt';
         if (decision == 'accepted') return 'angenommen';
         return 'Entscheidung';
-      case 5:
-        return 'in Nacharbeit';
-      case 6:
-        return 'abgeschlossen';
-      default:
-        return 'unbekannt';
+      case 5: return 'in Nacharbeit';
+      case 6: return 'abgeschlossen';
+      default: return 'unbekannt';
     }
   }
 
   Color _statusColor(int s, String? decision) {
     switch (s) {
-      case 1:
-        return Colors.blue;
-      case 2:
-        return Colors.amber.shade800;
-      case 3:
-        return Colors.orange;
+      case 1: return Colors.blue;
+      case 2: return Colors.amber.shade800;
+      case 3: return Colors.orange;
       case 4:
         return decision == 'rejected'
             ? Colors.red
             : (decision == 'accepted' ? Colors.lightGreen : Colors.grey);
-      case 5:
-        return Colors.amber;
-      case 6:
-        return Colors.green;
-      default:
-        return Colors.grey;
+      case 5: return Colors.amber;
+      case 6: return Colors.green;
+      default: return Colors.grey;
     }
   }
 
   bool _canShowReport(Complaint c) {
     final link = c.reportLink;
     if (link == null || link.isEmpty) return false;
-    if (c.status == 6) return true; // abgeschlossen
+    if (c.status == 6) return true;                           // abgeschlossen
     if (c.status == 4 && c.decision == 'rejected') return true; // abgelehnt
     return false;
+  }
+
+  void _logoutAndLeave() {
+    widget.api.logout();
+    // Versuchen zur Start-/Loginseite zurückzukehren
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).popUntil((r) => r.isFirst);
+    } else {
+      // Fallback: Seite neu laden (Web)
+      html.window.location.reload();
+    }
   }
 
   @override
@@ -121,15 +114,21 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).maybePop(),
           tooltip: 'Zurück',
+          onPressed: () => Navigator.of(context).maybePop(),
         ),
-        title: Text('Meine Reklamationen'), // neutraler Titel (kein fehlender L10n-Key)
+        title: const Text('Meine Reklamationen'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Aktualisieren',
             onPressed: _busy ? null : _load,
+          ),
+          // Abmelden-Button (Kundenbereich)
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Abmelden',
+            onPressed: _logoutAndLeave,
           ),
         ],
       ),
@@ -138,16 +137,16 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
           : _err != null
               ? Center(child: Text(_err!))
               : _items.isEmpty
-                  ? Center(child: Text(t.none_complaints)) // diesen Key hast du bereits
+                  ? Center(child: Text(t.none_complaints)) // vorhandener Key
                   : RefreshIndicator(
                       onRefresh: _load,
                       child: ListView.separated(
+                        physics: const AlwaysScrollableScrollPhysics(),
                         itemCount: _items.length,
                         separatorBuilder: (_, __) => const Divider(height: 1),
                         itemBuilder: (_, i) {
                           final c = _items[i];
-
-                          final statusText = _statusText(t, c.status, c.decision);
+                          final statusText = _statusText(c.status, c.decision);
                           final statusColor = _statusColor(c.status, c.decision);
                           final showReport = _canShowReport(c);
 
@@ -168,7 +167,6 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                   InkWell(
                                     onTap: () {
                                       final link = c.reportLink!;
-                                      // im Web direkt in neuem Tab öffnen
                                       html.window.open(link, '_blank');
                                     },
                                     child: const Text(
