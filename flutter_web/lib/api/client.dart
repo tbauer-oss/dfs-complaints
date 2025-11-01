@@ -12,6 +12,7 @@ class ApiClient {
 
   String? token; // JWT
   String? gate;  // optionales Gate-Token
+  String? adminSecret; // für X-Admin-Secret
 
   // ---------- Session persistieren ----------
   void _saveSession() {
@@ -20,6 +21,10 @@ class ApiClient {
       ls['dfs_token'] = token!;
     } else {
       ls.remove('dfs_token');
+    if (adminSecret != null) {
+      ls['dfs_admin'] = adminSecret!;
+    } else {
+      ls.remove('dfs_admin');
     }
     if (gate != null) {
       ls['dfs_gate'] = gate!;
@@ -31,6 +36,7 @@ class ApiClient {
   Future<void> restoreSession() async {
     final ls = html.window.localStorage;
     token = ls['dfs_token'];
+    adminSecret = ls['dfs_admin'];
     gate  = ls['dfs_gate'];
   }
 
@@ -39,7 +45,24 @@ class ApiClient {
     _saveSession();
   }
 
+  void setAdminSecret(String? s) {
+    adminSecret = (s ?? '').trim().isEmpty ? null : s!.trim();
+    _saveSession();
+  }
+
+  void clearAdminSecret() {
+    adminSecret = null;
+    _saveSession();
+  }
+
   // ---------- Header-Helfer ----------
+  Map<String, String> _adminHeaders({bool auth = false, Map<String, String>? extra}) {
+    final h = _headers(auth: auth, extra: extra);
+    if (adminSecret != null) h['X-Admin-Secret'] = adminSecret!;
+    return h;
+  }
+
+    
   Map<String, String> _headers({bool auth = false, Map<String, String>? extra}) {
     final h = <String, String>{
       'Content-Type': 'application/json; charset=utf-8',
