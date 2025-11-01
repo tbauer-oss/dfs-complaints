@@ -12,6 +12,14 @@
   "continueLabel": "Weiter",
   "invalid": "Ungültig",
 
+  "login": "Login",
+  "register": "Registrieren",
+  "admin_area": "Adminbereich",
+  "customer_area": "Kundenbereich",
+  "password_mismatch": "Die Passwörter stimmen nicht überein.",
+  "back": "Zurück",
+  "none_complaints": "Noch keine Reklamationen."
+
   "auth_login": "Login",
   "auth_register": "Registrieren",
   "email": "E-Mail*",
