@@ -18,7 +18,7 @@
   "customer_area": "Espace client",
   "password_mismatch": "Les mots de passe ne correspondent pas.",
   "back": "Retour",
-  "none_complaints": "Aucune réclamation pour l’instant."
+  "none_complaints": "Aucune réclamation pour l’instant.",
 
   "auth_login": "Connexion",
   "auth_register": "Inscription",
