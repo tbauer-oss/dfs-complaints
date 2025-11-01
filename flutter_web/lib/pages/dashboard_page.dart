@@ -1,15 +1,21 @@
-// lib/pages/dashboard_page.dart
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import 'complaint_form_page.dart';
 import 'my_complaints_page.dart';
 import 'account_page.dart';
 import 'support_page.dart';
-import '../widgets/logout_action.dart'; // <-- NEU
+import '../widgets/lang_action.dart';
+import '../widgets/logout_action.dart';
 
 class DashboardPage extends StatelessWidget {
   final ApiClient api;
-  const DashboardPage({super.key, required this.api});
+  final VoidCallback onLoggedOut; // <- Callback, der zurück zur Login-Startseite führt
+
+  const DashboardPage({
+    super.key,
+    required this.api,
+    required this.onLoggedOut,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +46,13 @@ class DashboardPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Kundenbereich'),
         actions: [
-          LogoutAction(api: api), // <-- Abmelde-Button in der AppBar
+          const LangAction(),             // <-- globale Sprache
+          const SizedBox(width: 8),
+          LogoutAction(                   // <-- sichtbarer Abmelde-Button
+            api: api,
+            onLoggedOut: onLoggedOut,     // z.B. Navigator auf Login zurück
+          ),
+          const SizedBox(width: 8),
         ],
       ),
       body: Center(
@@ -62,10 +74,7 @@ class DashboardPage extends StatelessWidget {
                         children: [
                           Icon(e.icon, size: 44),
                           const SizedBox(height: 10),
-                          Text(
-                            e.label,
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
+                          Text(e.label, style: const TextStyle(fontWeight: FontWeight.w600)),
                         ],
                       ),
                     ),
