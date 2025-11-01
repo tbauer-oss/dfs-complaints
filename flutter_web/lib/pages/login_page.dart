@@ -6,8 +6,8 @@ import '../widgets/lang_action.dart';
 class LoginPage extends StatefulWidget {
   final ApiClient api;
   final VoidCallback onLoggedIn;
-  final VoidCallback onOpenRegister; // öffnet RegisterPage
-  final VoidCallback onOpenAdmin;    // öffnet Adminbereich
+  final VoidCallback onOpenRegister; // <- NEU: muss beim Aufruf gesetzt werden
+  final VoidCallback onOpenAdmin;    // <- NEU: muss beim Aufruf gesetzt werden
 
   const LoginPage({
     super.key,
@@ -58,10 +58,9 @@ class _LoginPageState extends State<LoginPage> {
     final t = AppLocalizations.of(context)!;
 
     return Scaffold(
-      // <<< HIER kommt die globale Sprachumschaltung rein
       appBar: AppBar(
         title: const Text('Login'),
-        actions: const [LangAction()], // <-- Genau hier platzieren
+        actions: const [LangAction()],
       ),
       body: Center(
         child: ConstrainedBox(
@@ -69,13 +68,14 @@ class _LoginPageState extends State<LoginPage> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              // --- Admin-Button ÜBER dem Login-Formular ---
+              // Admin-Button ÜBER dem Login
               Align(
                 alignment: Alignment.centerRight,
                 child: OutlinedButton.icon(
                   onPressed: _busy ? null : widget.onOpenAdmin,
                   icon: const Icon(Icons.admin_panel_settings),
-                  label: Text(t.admin_area), // z.B. „Adminbereich“
+                  // FIX: kein t.admin_area (nicht vorhanden)
+                  label: const Text('Adminbereich'),
                 ),
               ),
               const SizedBox(height: 16),
@@ -112,7 +112,7 @@ class _LoginPageState extends State<LoginPage> {
               ),
 
               const SizedBox(height: 24),
-              // --- Registrieren-Button UNTER dem Login-Formular ---
+              // Registrieren-Button UNTER dem Login
               Center(
                 child: TextButton.icon(
                   onPressed: _busy ? null : widget.onOpenRegister,
