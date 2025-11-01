@@ -324,7 +324,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                               return;
                             }
 
-                            final res = await widget.api.submitComplaint({
+                            final res = await widget.api.complaintCreate({
                               'segment': segment == optDentist ? 'Zahnarzt' : 'Zahntechnik',
                               'article': article.text,
                               'batch': batch.text,
