@@ -1,47 +1,48 @@
+// lib/api/client.dart
 import 'dart:convert';
+import 'dart:html' as html; // Web: LocalStorage & Window
 import 'package:http/http.dart' as http;
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'config.dart';
 
-// Nur für Flutter Web verfügbar
-// (Du baust Web, daher ist das ok. Für Mobile würde man mit conditional imports arbeiten.)
-import 'dart:html' as html;
+import '../models/complaint.dart';
 
 class ApiClient {
-  String? token; // JWT
-  String? gate;  // Gate-Token
+  // ---------- Konfiguration ----------
+  static const String _apiBase =
+      String.fromEnvironment('API_BASE', defaultValue: '');
 
-  ApiClient() {
-    // Beim App-Start ggf. aus localStorage wiederherstellen
-    if (kIsWeb) {
-      token = html.window.localStorage['dfs_token'];
-      gate  = html.window.localStorage['dfs_gate'];
+  String? token; // JWT
+  String? gate;  // optionales Gate-Token
+
+  // ---------- Session persistieren ----------
+  void _saveSession() {
+    final ls = html.window.localStorage;
+    if (token != null) {
+      ls['dfs_token'] = token!;
+    } else {
+      ls.remove('dfs_token');
+    }
+    if (gate != null) {
+      ls['dfs_gate'] = gate!;
+    } else {
+      ls.remove('dfs_gate');
     }
   }
 
-  // ---------- Storage Helpers ----------
-  void _persistAuth() {
-    if (!kIsWeb) return;
-    if (token != null) {
-      html.window.localStorage['dfs_token'] = token!;
-    } else {
-      html.window.localStorage.remove('dfs_token');
-    }
-    if (gate != null) {
-      html.window.localStorage['dfs_gate'] = gate!;
-    } else {
-      html.window.localStorage.remove('dfs_gate');
-    }
+  Future<void> restoreSession() async {
+    final ls = html.window.localStorage;
+    token = ls['dfs_token'];
+    gate  = ls['dfs_gate'];
   }
 
   void logout() {
     token = null;
-    _persistAuth();
+    _saveSession();
   }
 
-  Map<String,String> _headers({bool auth=false, Map<String,String>? extra}) {
-    final h = <String,String>{
-      'Content-Type': 'application/json',
+  // ---------- Header-Helfer ----------
+  Map<String, String> _headers({bool auth = false, Map<String, String>? extra}) {
+    final h = <String, String>{
+      'Content-Type': 'application/json; charset=utf-8',
       if (gate != null) 'X-Gate': gate!,
       if (auth && token != null) 'Authorization': 'Bearer $token',
     };
@@ -49,99 +50,179 @@ class ApiClient {
     return h;
   }
 
+  Uri _u(String path) {
+    final base = _apiBase.isEmpty ? '' : _apiBase;
+    return Uri.parse('$base$path');
+  }
+
+  // ---------- Low-level HTTP ----------
+  Future<http.Response> _get(String path, {bool auth = false}) {
+    return http.get(_u(path), headers: _headers(auth: auth));
+  }
+
+  Future<http.Response> _post(String path, Map body,
+      {bool auth = false, Map<String, String>? extraHeaders}) {
+    return http.post(
+      _u(path),
+      headers: _headers(auth: auth, extra: extraHeaders),
+      body: jsonEncode(body),
+    );
+  }
+
+  Future<http.Response> _put(String path, Map body, {bool auth = false}) {
+    return http.put(
+      _u(path),
+      headers: _headers(auth: auth),
+      body: jsonEncode(body),
+    );
+  }
+
+  Future<http.Response> _delete(String path, {Map? body, bool auth = false}) {
+    return http.delete(
+      _u(path),
+      headers: _headers(auth: auth),
+      body: body == null ? null : jsonEncode(body),
+    );
+  }
+
   // ---------- Gate ----------
   Future<bool> gateUnlock(String password) async {
-    final r = await http.post(
-      Uri.parse('${CFG.apiBase}/api/gate'),
-      headers: _headers(),
-      body: jsonEncode({'password': password}),
-    );
+    final r = await _post('/api/gate', {'password': password});
     if (r.statusCode != 200) return false;
     try {
       final j = jsonDecode(r.body);
-      // akzeptiert {ok:true} oder {gate:"..."}
-      if (j is Map<String,dynamic>) {
-        if (j['gate'] is String) {
-          gate = j['gate'] as String;
-          _persistAuth();
-          return true;
-        }
-        if (j['ok'] == true) {
-          // optional: Gate aus Header übernehmen?
-          final g = r.headers['x-gate'];
-          if (g != null && g.isNotEmpty) {
-            gate = g;
-            _persistAuth();
-          }
-          return true;
-        }
+      if (j is Map && j['gate'] is String) {
+        gate = j['gate'] as String;
+        _saveSession();
+        return true;
       }
-    } catch (_) {}
-    return false;
+      if (j is Map && j['ok'] == true) {
+        // Fallback
+        gate = 'ok';
+        _saveSession();
+        return true;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
   }
 
   // ---------- Auth ----------
   Future<bool> login(String email, String password) async {
-    final r = await http.post(
-      Uri.parse('${CFG.apiBase}/api/auth/login'),
-      headers: _headers(),
-      body: jsonEncode({'email': email.trim(), 'password': password}),
-    );
-    if (r.statusCode == 200) {
-      final j = jsonDecode(r.body);
-      token = (j['token'] ?? '').toString();
-      _persistAuth();
-      return token != null && token!.isNotEmpty;
+    final r = await _post('/api/auth/login', {'email': email, 'password': password});
+    if (r.statusCode != 200) return false;
+    final j = jsonDecode(r.body);
+    if (j is Map && j['token'] is String) {
+      token = j['token'] as String;
+      _saveSession();
+      return true;
     }
     return false;
   }
 
-  /// Gibt die http.Response zurück, damit der Aufrufer Statuscodes unterscheiden kann (200/409/400…)
-  Future<http.Response> register(Map<String,dynamic> data) async {
-    final r = await http.post(
-      Uri.parse('${CFG.apiBase}/api/auth/register'),
-      headers: _headers(),
-      body: jsonEncode(data),
-    );
-    return r;
+  Future<String?> register(Map<String, dynamic> data) async {
+    final r = await _post('/api/auth/register', data);
+    if (r.statusCode == 200 || r.statusCode == 201) {
+      return null;
+    }
+    return 'register failed: ${r.statusCode}';
   }
 
-  // ---------- Complaints (Kunden-Endpunkte) ----------
-  Future<Map<String,dynamic>> complaintCreate(Map<String, dynamic> payload,
-      List<({String name, List<int> bytes, String mime})> files) async {
-    // Dein Backend nimmt JSON + (optional) Dateien im Array (Base64).
-    final body = {
-      'payload': payload,
-      if (files.isNotEmpty)
-        'files': files.map((f) => {
-          'name': f.name,
-          'mime': f.mime,
-          'data': base64Encode(f.bytes),
-        }).toList(),
-    };
-
-    final r = await http.post(
-      Uri.parse('${CFG.apiBase}/api/complaint'),
-      headers: _headers(auth: true),
-      body: jsonEncode(body),
-    );
+  // ---------- Account ----------
+  Future<Map<String, dynamic>> accountGet() async {
+    final r = await _get('/api/account', auth: true);
     if (r.statusCode != 200) {
-      if (r.statusCode == 401) throw Exception('unauthorized');
-      throw Exception('complaint create failed: ${r.statusCode} ${r.body}');
+      throw Exception('GET /api/account failed: ${r.statusCode} ${r.body}');
     }
-    return jsonDecode(r.body) as Map<String,dynamic>;
+    final j = jsonDecode(r.body);
+    return (j is Map) ? j.cast<String, dynamic>() : <String, dynamic>{};
   }
 
-  Future<List<Map<String,dynamic>>> complaintListRaw() async {
-    final r = await http.get(
-      Uri.parse('${CFG.apiBase}/api/complaint'),
-      headers: _headers(auth: true),
-    );
+  Future<void> accountUpdate(Map<String, dynamic> data) async {
+    final r = await _put('/api/account', data, auth: true);
     if (r.statusCode != 200) {
-      if (r.statusCode == 401) throw Exception('unauthorized');
-      throw Exception('complaint list failed: ${r.statusCode} ${r.body}');
+      throw Exception('PUT /api/account failed: ${r.statusCode} ${r.body}');
     }
-    final List data = jsonDecode(r.body);
-    return data.cast<Map>().map((e)=>e.cast<String,dynamic>()).toList();
+  }
+
+  Future<void> accountDelete(String password) async {
+    final r = await _delete('/api/account', body: {'password': password}, auth: true);
+    if (r.statusCode != 200) {
+      throw Exception('DELETE /api/account failed: ${r.statusCode} ${r.body}');
+    }
+    logout();
+  }
+
+  Future<void> accountChangePassword(String oldPw, String newPw) async {
+    final r = await _post('/api/account/password', {'old': oldPw, 'new': newPw}, auth: true);
+    if (r.statusCode != 200) {
+      throw Exception('POST /api/account/password failed: ${r.statusCode} ${r.body}');
+    }
+  }
+
+  // ---------- Support ----------
+  Future<void> sendSupport({
+    required String category,
+    required String message,
+    required bool consent,
+  }) async {
+    final r = await _post('/api/support', {
+      'category': category,
+      'message': message,
+      'consent': consent,
+    }, auth: true);
+    if (r.statusCode != 200 && r.statusCode != 201) {
+      throw Exception('POST /api/support failed: ${r.statusCode} ${r.body}');
+    }
+  }
+
+  // ---------- Complaints ----------
+  // Optionaler 2. Positions-Parameter 'files' (List von Records {name, bytes, mime})
+  Future<Map<String, dynamic>?> complaintCreate(
+    Map<String, dynamic> data, [
+    List<({String name, List<int> bytes, String mime})> files = const [],
+  ]) async {
+    // Dateien base64-kodieren
+    final encFiles = files
+        .map((f) => {
+              'name': f.name,
+              'mime': f.mime,
+              'bytes': base64Encode(f.bytes),
+            })
+        .toList();
+
+    final r = await _post('/api/complaints', {
+      'payload': data,
+      if (encFiles.isNotEmpty) 'files': encFiles,
+    }, auth: true);
+
+    if (r.statusCode != 200 && r.statusCode != 201) {
+      return null;
+    }
+    final j = jsonDecode(r.body);
+    return (j is Map) ? j.cast<String, dynamic>() : <String, dynamic>{};
+  }
+
+  /// Rohdaten (falls benötigt)
+  Future<List<Map<String, dynamic>>> complaintListRaw() async {
+    final r = await _get('/api/complaints', auth: true);
+    if (r.statusCode != 200) {
+      throw Exception('GET /api/complaints failed: ${r.statusCode} ${r.body}');
+    }
+    final j = jsonDecode(r.body);
+    if (j is List) {
+      return j
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList(growable: false);
+    }
+    return const [];
+  }
+
+  /// Typisierte Liste
+  Future<List<Complaint>> complaintList() async {
+    final raw = await complaintListRaw();
+    return raw.map(Complaint.fromJson).toList(growable: false);
   }
 }
