@@ -19,7 +19,7 @@ class ApiClient {
     return h;
   }
 
-  // ---------- interne Helper (roh/typsicher) ----------
+  // ---------- interne Helper ----------
   Future<Map<String, dynamic>> _getJson(String path, {bool auth = false}) async {
     final r = await http.get(Uri.parse('${CFG.apiBase}$path'), headers: _headers(auth: auth));
     if (r.statusCode != 200) {
@@ -82,40 +82,53 @@ class ApiClient {
     return false;
   }
 
-  /// Login (POST /api/auth/login)
-  /// Gibt bewusst den ROHEN http.Response zurück, weil dein auth_page.dart .statusCode/.body erwartet.
-  Future<http.Response> login(String email, String password) async {
+  /// Login (POST /api/auth/login) → bool (setzt bei 200 das JWT)
+  Future<bool> login(String email, String password) async {
     final r = await http.post(
       Uri.parse('${CFG.apiBase}/api/auth/login'),
       headers: _headers(),
       body: jsonEncode({'email': email, 'password': password}),
     );
-    if (r.statusCode == 200) {
-      try {
-        final j = jsonDecode(r.body);
-        final t = (j is Map) ? j['token']?.toString() : null;
-        if (t != null && t.isNotEmpty) token = t;
-      } catch (_) {}
+    if (r.statusCode != 200) return false;
+    try {
+      final j = jsonDecode(r.body);
+      final t = (j is Map) ? j['token']?.toString() : null;
+      if (t != null && t.isNotEmpty) {
+        token = t;
+        return true;
+      }
+      // Falls Backend kein Token liefert, aber 200 → trotzdem true
+      return true;
+    } catch (_) {
+      // 200 aber kein valides JSON → trotzdem als Erfolg behandeln
+      return true;
     }
-    return r;
   }
 
-  /// Registrierung (POST /api/auth/register)
-  /// Ebenfalls roher http.Response (deine auth_page prüft .statusCode/.body).
-  Future<http.Response> register(Map<String, dynamic> data) async {
+  /// Registrierung (POST /api/auth/register) → bool (setzt ggf. JWT)
+  Future<bool> register(Map<String, dynamic> data) async {
     final r = await http.post(
       Uri.parse('${CFG.apiBase}/api/auth/register'),
       headers: _headers(),
       body: jsonEncode(data),
     );
-    if (r.statusCode == 200) {
-      try {
-        final j = jsonDecode(r.body);
-        final t = (j is Map) ? j['token']?.toString() : null;
-        if (t != null && t.isNotEmpty) token = t;
-      } catch (_) {}
+    if (r.statusCode != 200) return false;
+    try {
+      final j = jsonDecode(r.body);
+      if (j is Map<String, dynamic>) {
+        final t = j['token']?.toString();
+        if (t != null && t.isNotEmpty) {
+          token = t;
+          return true;
+        }
+        if (j['ok'] == true) return true;
+      }
+      // 200 aber kein ok/token → als Erfolg werten
+      return true;
+    } catch (_) {
+      // 200 aber kein valides JSON → trotzdem Erfolg
+      return true;
     }
-    return r;
   }
 
   // =========================================================
@@ -144,13 +157,13 @@ class ApiClient {
   // ---- Rückwärtskompatible Wrapper für alte Aufrufe -------
   // =========================================================
 
-  /// ALT: submitComplaint(payload, [legacyArg]) — Map wie früher (inkl. 'data'-Alias)
+  /// ALT: submitComplaint(payload, [legacyArg]) → Map wie früher (inkl. 'data'-Alias)
   Future<Map<String, dynamic>> submitComplaint(Map<String, dynamic> payload, [dynamic _legacy]) async {
     final raw = await _postJson('/api/complaint', payload, auth: true);
     return _cloneWithDataAlias(raw);
   }
 
-  /// ALT: myComplaints() — List<Map> wie früher (inkl. 'data'-Alias)
+  /// ALT: myComplaints() → List<Map> wie früher (inkl. 'data'-Alias)
   Future<List<dynamic>> myComplaints() async {
     final list = await _getJsonList('/api/complaint', auth: true);
     return list.map((e) => _cloneWithDataAlias((e as Map).cast<String, dynamic>())).toList();
