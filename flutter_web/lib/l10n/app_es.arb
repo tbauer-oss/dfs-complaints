@@ -18,7 +18,7 @@
   "customer_area": "Área de clientes",
   "password_mismatch": "Las contraseñas no coinciden.",
   "back": "Atrás",
-  "none_complaints": "Aún no hay reclamaciones."
+  "none_complaints": "Aún no hay reclamaciones.",
 
   "auth_login": "Iniciar sesión",
   "auth_register": "Registrarse",
