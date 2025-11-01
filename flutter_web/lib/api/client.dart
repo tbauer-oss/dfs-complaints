@@ -1,375 +1,234 @@
-import 'package:flutter/material.dart';
-import 'dart:html' as html;
-import '../api/client.dart';
-import '../l10n/app_localizations.dart';
-import '../models/country.dart';
+// lib/api/client.dart
+import 'dart:convert';
+import 'dart:html' as html; // Web: LocalStorage & Window
+import 'package:http/http.dart' as http;
 
-enum Salutation { mr, ms, diverse }
+import '../models/complaint.dart';
 
-class AuthPage extends StatefulWidget {
-  final ApiClient api;
-  final VoidCallback onLoggedIn;
-  const AuthPage({super.key, required this.api, required this.onLoggedIn});
-  @override
-  State<AuthPage> createState() => _AuthPageState();
-}
+class ApiClient {
+  // ---------- Konfiguration ----------
+  static const String _apiBase =
+      String.fromEnvironment('API_BASE', defaultValue: '');
 
-class _AuthPageState extends State<AuthPage> {
-  bool isLogin = true;
+  String? token; // JWT
+  String? gate;  // optionales Gate-Token
 
-  final _email = TextEditingController();
-  final _pw = TextEditingController();
-  final _pw2 = TextEditingController();
-  final _company = TextEditingController();
-  final _firstName = TextEditingController();
-  final _lastName  = TextEditingController();
-  final _street = TextEditingController();
-  final _zip = TextEditingController();
-  final _city = TextEditingController();
-  final _phone = TextEditingController();
-
-  Country? _countrySel;
-  Salutation _salutation = Salutation.mr;
-
-  bool _privacy = false;
-  String? _err;
-  bool _busy = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _countrySel = kCountries.firstWhere(
-      (c) => c.code == 'DE',
-      orElse: () => kCountries.first,
-    );
-  }
-
-  @override
-  void dispose() {
-    _email.dispose();
-    _pw.dispose();
-    _pw2.dispose();
-    _company.dispose();
-    _firstName.dispose();
-    _lastName.dispose();
-    _street.dispose();
-    _zip.dispose();
-    _city.dispose();
-    _phone.dispose();
-    super.dispose();
-  }
-
-  String _langCode(BuildContext ctx) {
-    final lc = Localizations.localeOf(ctx).languageCode.toLowerCase();
-    switch (lc) {
-      case 'de':
-      case 'en':
-      case 'fr':
-      case 'it':
-      case 'es':
-        return lc;
-      default:
-        return 'de';
+  // ---------- Session persistieren ----------
+  void _saveSession() {
+    final ls = html.window.localStorage;
+    if (token != null) {
+      ls['dfs_token'] = token!;
+    } else {
+      ls.remove('dfs_token');
+    }
+    if (gate != null) {
+      ls['dfs_gate'] = gate!;
+    } else {
+      ls.remove('dfs_gate');
     }
   }
 
-  String _salutationLabel(BuildContext context, Salutation s) {
-    final t = AppLocalizations.of(context)!;
-    switch (s) {
-      case Salutation.mr:      return t.salutation_mr;
-      case Salutation.ms:      return t.salutation_ms;
-      case Salutation.diverse: return t.salutation_diverse;
-    }
+  Future<void> restoreSession() async {
+    final ls = html.window.localStorage;
+    token = ls['dfs_token'];
+    gate  = ls['dfs_gate'];
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final t = AppLocalizations.of(context)!;
+  void logout() {
+    token = null;
+    _saveSession();
+  }
 
-    return Center(
-      child: SizedBox(
-        width: 480,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ToggleButtons(
-              isSelected: [isLogin, !isLogin],
-              onPressed: (i) => setState(() => isLogin = (i == 0)),
-              children: [
-                Padding(padding: const EdgeInsets.all(8), child: Text(t.auth_login)),
-                Padding(padding: const EdgeInsets.all(8), child: Text(t.auth_register)),
-              ],
-            ),
-            const SizedBox(height: 16),
+  // ---------- Header-Helfer ----------
+  Map<String, String> _headers({bool auth = false, Map<String, String>? extra}) {
+    final h = <String, String>{
+      'Content-Type': 'application/json; charset=utf-8',
+      if (gate != null) 'X-Gate': gate!,
+      if (auth && token != null) 'Authorization': 'Bearer $token',
+    };
+    if (extra != null) h.addAll(extra);
+    return h;
+  }
 
-            TextField(
-              controller: _email,
-              keyboardType: TextInputType.emailAddress,
-              autofillHints: const [AutofillHints.email],
-              decoration: InputDecoration(
-                labelText: t.email,
-                border: const OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 8),
+  Uri _u(String path) {
+    final base = _apiBase.isEmpty ? '' : _apiBase;
+    return Uri.parse('$base$path');
+  }
 
-            TextField(
-              controller: _pw,
-              obscureText: true,
-              decoration: InputDecoration(
-                labelText: t.password,
-                border: const OutlineInputBorder(),
-              ),
-            ),
+  // ---------- Low-level HTTP ----------
+  Future<http.Response> _get(String path, {bool auth = false}) {
+    return http.get(_u(path), headers: _headers(auth: auth));
+  }
 
-            if (!isLogin) ...[
-              const SizedBox(height: 8),
-              TextField(
-                controller: _pw2,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: t.password_repeat,
-                  border: const OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              TextField(
-                controller: _company,
-                decoration: InputDecoration(
-                  labelText: t.company,
-                  border: const OutlineInputBorder(),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  t.contact_person,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              DropdownButtonFormField<Salutation>(
-                value: _salutation,
-                isExpanded: true,
-                decoration: InputDecoration(
-                  labelText: t.salutation,
-                  border: const OutlineInputBorder(),
-                ),
-                items: [
-                  DropdownMenuItem(value: Salutation.mr, child: Text(_salutationLabel(context, Salutation.mr))),
-                  DropdownMenuItem(value: Salutation.ms, child: Text(_salutationLabel(context, Salutation.ms))),
-                  DropdownMenuItem(value: Salutation.diverse, child: Text(_salutationLabel(context, Salutation.diverse))),
-                ],
-                onChanged: (v) => setState(() => _salutation = v ?? Salutation.mr),
-              ),
-              const SizedBox(height: 8),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _firstName,
-                      decoration: InputDecoration(
-                        labelText: t.first_name,
-                        border: const OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _lastName,
-                      decoration: InputDecoration(
-                        labelText: t.last_name,
-                        border: const OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 16),
-
-              TextField(
-                controller: _street,
-                decoration: InputDecoration(
-                  labelText: t.street,
-                  border: const OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _zip,
-                      decoration: InputDecoration(
-                        labelText: t.zip,
-                        border: const OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _city,
-                      decoration: InputDecoration(
-                        labelText: t.city,
-                        border: const OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-
-              DropdownButtonFormField<Country>(
-                value: _countrySel,
-                isExpanded: true,
-                decoration: InputDecoration(
-                  labelText: t.country,
-                  border: const OutlineInputBorder(),
-                ),
-                items: kCountries.map((c) {
-                  return DropdownMenuItem<Country>(
-                    value: c,
-                    child: Text(c.label(context)),
-                  );
-                }).toList(),
-                onChanged: (val) => setState(() => _countrySel = val),
-              ),
-
-              const SizedBox(height: 8),
-              TextField(
-                controller: _phone,
-                decoration: InputDecoration(
-                  labelText: t.phone,
-                  border: const OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              Row(
-                children: [
-                  Checkbox(
-                    value: _privacy,
-                    onChanged: (v) => setState(() => _privacy = v ?? false),
-                  ),
-                  Expanded(child: Text(t.privacy_agree)),
-                  TextButton(
-                    onPressed: () => html.window.open(
-                      'https://www.dfs-diamon.de/datenschutz',
-                      '_blank',
-                    ),
-                    child: Text(t.privacy_link),
-                  ),
-                ],
-              ),
-            ],
-
-            if (_err != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(_err!, style: const TextStyle(color: Colors.red)),
-              ),
-
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: _busy ? null : () async => _handlePress(context),
-              child: _busy
-                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                  : Text(isLogin ? t.auth_login : t.auth_register),
-            ),
-          ],
-        ),
-      ),
+  Future<http.Response> _post(String path, Map body,
+      {bool auth = false, Map<String, String>? extraHeaders}) {
+    return http.post(
+      _u(path),
+      headers: _headers(auth: auth, extra: extraHeaders),
+      body: jsonEncode(body),
     );
   }
 
-  Future<void> _handlePress(BuildContext context) async {
-    final t = AppLocalizations.of(context)!;
+  Future<http.Response> _put(String path, Map body, {bool auth = false}) {
+    return http.put(
+      _u(path),
+      headers: _headers(auth: auth),
+      body: jsonEncode(body),
+    );
+  }
 
-    setState(() {
-      _busy = true;
-      _err = null;
-    });
+  Future<http.Response> _delete(String path, {Map? body, bool auth = false}) {
+    return http.delete(
+      _u(path),
+      headers: _headers(auth: auth),
+      body: body == null ? null : jsonEncode(body),
+    );
+  }
 
+  // ---------- Gate ----------
+  Future<bool> gateUnlock(String password) async {
+    final r = await _post('/api/gate', {'password': password});
+    if (r.statusCode != 200) return false;
     try {
-      if (isLogin) {
-        final ok = await widget.api.login(_email.text.trim(), _pw.text);
-        if (!mounted) return;
-        if (ok) {
-          widget.onLoggedIn();
-        } else {
-          setState(() => _err = t.login_failed);
-        }
-        return;
+      final j = jsonDecode(r.body);
+      if (j is Map && j['gate'] is String) {
+        gate = j['gate'] as String;
+        _saveSession();
+        return true;
       }
-
-      // --- Registrierung ---
-      if (!_privacy) {
-        if (!mounted) return;
-        setState(() => _err = t.privacy_required);
-        return;
+      if (j is Map && j['ok'] == true) {
+        // Fallback
+        gate = 'ok';
+        _saveSession();
+        return true;
       }
-      if (_firstName.text.trim().isEmpty || _lastName.text.trim().isEmpty) {
-        if (!mounted) return;
-        setState(() => _err = t.name_required);
-        return;
-      }
-
-      final selected = _countrySel ?? kCountries.first;
-      final contactCombined = '${_firstName.text.trim()} ${_lastName.text.trim()}'.trim();
-
-      // client.register() liefert jetzt String? -> null = Erfolg
-      final errStr = await widget.api.register({
-        'email': _email.text.trim(),
-        'password': _pw.text,
-        'password2': _pw2.text,
-        'company': _company.text.trim(),
-        'firstName': _firstName.text.trim(),
-        'lastName' : _lastName.text.trim(),
-        'salutation': _salutation.name, // "mr" | "ms" | "diverse"
-        'contact'  : contactCombined,
-        'street': _street.text.trim(),
-        'zip': _zip.text.trim(),
-        'city': _city.text.trim(),
-        'country': selected.label(context),
-        'countryCode': selected.code,
-        'phone': _phone.text.trim(),
-        'privacy': true,
-        'lang': _langCode(context),
-      });
-
-      if (!mounted) return;
-
-      if (errStr == null) {
-        // Erfolgreich registriert -> auf Login umschalten
-        setState(() {
-          isLogin = true;
-          _err = t.registration_received;
-        });
-      } else {
-        final msg = errStr.toLowerCase();
-        if (msg.contains('user_exists') || msg.contains('409')) {
-          setState(() => _err = t.email_exists);
-        } else if (msg.contains('pending') || msg.contains('resent')) {
-          setState(() => _err = t.register_pending_resent);
-        } else {
-          setState(() => _err = t.register_failed(errStr));
-        }
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _err = 'Network/CORS error: $e');
-    } finally {
-      if (!mounted) return;
-      setState(() => _busy = false);
+      return false;
+    } catch (_) {
+      return false;
     }
+  }
+
+  // ---------- Auth ----------
+  Future<bool> login(String email, String password) async {
+    final r = await _post('/api/auth/login', {'email': email, 'password': password});
+    if (r.statusCode != 200) return false;
+    final j = jsonDecode(r.body);
+    if (j is Map && j['token'] is String) {
+      token = j['token'] as String;
+      _saveSession();
+      return true;
+    }
+    return false;
+  }
+
+  /// Registrierung: `null` = Erfolg, sonst Fehlermeldung
+  Future<String?> register(Map<String, dynamic> data) async {
+    final r = await _post('/api/auth/register', data);
+    if (r.statusCode == 200 || r.statusCode == 201) {
+      return null;
+    }
+    // Body (falls vorhanden) als Fehlertext durchreichen
+    try {
+      final body = r.body;
+      if (body.isNotEmpty) return body;
+    } catch (_) {}
+    return 'register failed: ${r.statusCode}';
+  }
+
+  // ---------- Account ----------
+  Future<Map<String, dynamic>> accountGet() async {
+    final r = await _get('/api/account', auth: true);
+    if (r.statusCode != 200) {
+      throw Exception('GET /api/account failed: ${r.statusCode} ${r.body}');
+    }
+    final j = jsonDecode(r.body);
+    return (j is Map) ? j.cast<String, dynamic>() : <String, dynamic>{};
+  }
+
+  Future<void> accountUpdate(Map<String, dynamic> data) async {
+    final r = await _put('/api/account', data, auth: true);
+    if (r.statusCode != 200) {
+      throw Exception('PUT /api/account failed: ${r.statusCode} ${r.body}');
+    }
+  }
+
+  Future<void> accountDelete(String password) async {
+    final r = await _delete('/api/account', body: {'password': password}, auth: true);
+    if (r.statusCode != 200) {
+      throw Exception('DELETE /api/account failed: ${r.statusCode} ${r.body}');
+    }
+    logout();
+  }
+
+  Future<void> accountChangePassword(String oldPw, String newPw) async {
+    final r = await _post('/api/account/password', {'old': oldPw, 'new': newPw}, auth: true);
+    if (r.statusCode != 200) {
+      throw Exception('POST /api/account/password failed: ${r.statusCode} ${r.body}');
+    }
+  }
+
+  // ---------- Support ----------
+  Future<void> sendSupport({
+    required String category,
+    required String message,
+    required bool consent,
+  }) async {
+    final r = await _post('/api/support', {
+      'category': category,
+      'message': message,
+      'consent': consent,
+    }, auth: true);
+    if (r.statusCode != 200 && r.statusCode != 201) {
+      throw Exception('POST /api/support failed: ${r.statusCode} ${r.body}');
+    }
+  }
+
+  // ---------- Complaints ----------
+  // Optionaler 2. Positions-Parameter 'files' (List von Records {name, bytes, mime})
+  Future<Map<String, dynamic>?> complaintCreate(
+    Map<String, dynamic> data, [
+    List<({String name, List<int> bytes, String mime})> files = const [],
+  ]) async {
+    // Dateien base64-kodieren
+    final encFiles = files
+        .map((f) => {
+              'name': f.name,
+              'mime': f.mime,
+              'bytes': base64Encode(f.bytes),
+            })
+        .toList();
+
+    final r = await _post('/api/complaints', {
+      'payload': data,
+      if (encFiles.isNotEmpty) 'files': encFiles,
+    }, auth: true);
+
+    if (r.statusCode != 200 && r.statusCode != 201) {
+      return null;
+    }
+    final j = jsonDecode(r.body);
+    return (j is Map) ? j.cast<String, dynamic>() : <String, dynamic>{};
+  }
+
+  /// Rohdaten
+  Future<List<Map<String, dynamic>>> complaintListRaw() async {
+    final r = await _get('/api/complaints', auth: true);
+    if (r.statusCode != 200) {
+      throw Exception('GET /api/complaints failed: ${r.statusCode} ${r.body}');
+    }
+    final j = jsonDecode(r.body);
+    if (j is List) {
+      return j
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList(growable: false);
+    }
+    return const [];
+  }
+
+  /// Typisierte Liste
+  Future<List<Complaint>> complaintList() async {
+    final raw = await complaintListRaw();
+    return raw.map(Complaint.fromJson).toList(growable: false);
   }
 }
