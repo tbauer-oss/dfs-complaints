@@ -5,33 +5,20 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'config.dart';
 import '../models/complaint.dart';
 
-// Web LocalStorage (sicher in Web, no-op sonst)
-String? _lsGet(String key) {
-  if (!kIsWeb) return null;
-  try {
-    // ignore: avoid_web_libraries_in_flutter
-    import 'dart:html' as html;
-  } catch (_) {}
-  return null;
-}
-void _lsSet(String key, String? value) {
-  if (!kIsWeb) return;
-  try {
-    // ignore: avoid_web_libraries_in_flutter
-    import 'dart:html' as html;
-  } catch (_) {}
-}
+// Diese Import ist für Flutter Web ok (Projekt ist Web-first):
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
 
 class ApiClient {
   String? token;
   String? gate;
 
-  // ===== Persistenz =====
+  // ===== Session-Persistenz (nur Web) =====
   Future<void> restoreSession() async {
     if (!kIsWeb) return;
     try {
-      // ignore: avoid_web_libraries_in_flutter
-      import 'dart:html' as html;
+      token = html.window.localStorage['dfs_token'];
+      gate  = html.window.localStorage['dfs_gate'];
     } catch (_) {}
   }
 
@@ -39,8 +26,11 @@ class ApiClient {
     token = t;
     if (!kIsWeb) return;
     try {
-      // ignore: avoid_web_libraries_in_flutter
-      import 'dart:html' as html;
+      if (t == null || t.isEmpty) {
+        html.window.localStorage.remove('dfs_token');
+      } else {
+        html.window.localStorage['dfs_token'] = t;
+      }
     } catch (_) {}
   }
 
@@ -48,8 +38,11 @@ class ApiClient {
     gate = g;
     if (!kIsWeb) return;
     try {
-      // ignore: avoid_web_libraries_in_flutter
-      import 'dart:html' as html;
+      if (g == null || g.isEmpty) {
+        html.window.localStorage.remove('dfs_gate');
+      } else {
+        html.window.localStorage['dfs_gate'] = g;
+      }
     } catch (_) {}
   }
 
@@ -119,7 +112,7 @@ class ApiClient {
     if (r.statusCode != 200) {
       throw Exception('complaint create failed: ${r.statusCode} ${r.body}');
     }
-    return Complaint.fromJson(jsonDecode(r.body));
+    return Complaint.fromJson(jsonDecode(r.body) as Map<String,dynamic>);
   }
 
   Future<List<Complaint>> complaintList() async {
@@ -134,7 +127,7 @@ class ApiClient {
     if (r.statusCode != 200) {
       throw Exception('complaint list failed: ${r.statusCode} ${r.body}');
     }
-    final List data = jsonDecode(r.body);
+    final List data = jsonDecode(r.body) as List;
     return data.map((e)=>Complaint.fromJson(e as Map<String,dynamic>)).toList();
   }
 
