@@ -76,9 +76,9 @@ class _AuthPageState extends State<AuthPage> {
   String _salutationLabel(BuildContext context, Salutation s) {
     final t = AppLocalizations.of(context)!;
     switch (s) {
-      case Salutation.mr:     return t.salutation_mr;      // z. B. „Herr“
-      case Salutation.ms:     return t.salutation_ms;      // z. B. „Frau“
-      case Salutation.diverse:return t.salutation_diverse; // z. B. „Divers“
+      case Salutation.mr:     return t.salutation_mr;
+      case Salutation.ms:     return t.salutation_ms;
+      case Salutation.diverse:return t.salutation_diverse;
     }
   }
 
@@ -147,7 +147,7 @@ class _AuthPageState extends State<AuthPage> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  t.contact_person, // „Ansprechpartner“
+                  t.contact_person,
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
               ),
@@ -158,7 +158,7 @@ class _AuthPageState extends State<AuthPage> {
                 value: _salutation,
                 isExpanded: true,
                 decoration: InputDecoration(
-                  labelText: t.salutation, // „Anrede“
+                  labelText: t.salutation,
                   border: const OutlineInputBorder(),
                 ),
                 items: [
@@ -177,7 +177,7 @@ class _AuthPageState extends State<AuthPage> {
                     child: TextField(
                       controller: _firstName,
                       decoration: InputDecoration(
-                        labelText: t.first_name, // „Vorname“
+                        labelText: t.first_name,
                         border: const OutlineInputBorder(),
                       ),
                     ),
@@ -187,7 +187,7 @@ class _AuthPageState extends State<AuthPage> {
                     child: TextField(
                       controller: _lastName,
                       decoration: InputDecoration(
-                        labelText: t.last_name, // „Nachname“
+                        labelText: t.last_name,
                         border: const OutlineInputBorder(),
                       ),
                     ),
@@ -303,8 +303,9 @@ class _AuthPageState extends State<AuthPage> {
     });
 
     try {
+      // ---------- LOGIN ----------
       if (isLogin) {
-        final ok = await widget.api.login(_email.text, _pw.text);
+        final ok = await widget.api.login(_email.text.trim(), _pw.text);
         if (!mounted) return;
         if (ok) {
           widget.onLoggedIn();
@@ -314,6 +315,7 @@ class _AuthPageState extends State<AuthPage> {
         return;
       }
 
+      // ---------- REGISTER ----------
       if (!_privacy) {
         if (!mounted) return;
         setState(() => _err = t.privacy_required);
@@ -321,14 +323,14 @@ class _AuthPageState extends State<AuthPage> {
       }
       if (_firstName.text.trim().isEmpty || _lastName.text.trim().isEmpty) {
         if (!mounted) return;
-        setState(() => _err = t.name_required); // „Bitte Vor- und Nachname angeben.“
+        setState(() => _err = t.name_required);
         return;
       }
 
       final selected = _countrySel ?? kCountries.first;
       final contactCombined = '${_firstName.text.trim()} ${_lastName.text.trim()}'.trim();
 
-      final r = await widget.api.register({
+      final errStr = await widget.api.register({
         'email': _email.text.trim(),
         'password': _pw.text,
         'password2': _pw2.text,
@@ -349,22 +351,22 @@ class _AuthPageState extends State<AuthPage> {
 
       if (!mounted) return;
 
-      if (r.statusCode == 200) {
+      if (errStr == null) {
+        // Erfolg: zurück zum Login und Hinweis ausgeben
         setState(() {
           isLogin = true;
           _err = t.registration_received;
         });
-      } else if (r.statusCode == 409) {
-        final body = r.body?.toString() ?? '';
-        if (body.contains('user_exists')) {
+      } else {
+        // Fehlertext vom Backend/Client anzeigen
+        // Häufige Fälle: "409 user exists", "pending resent", generische Fehler
+        if (errStr.contains('user_exists') || errStr.contains('409')) {
           setState(() => _err = t.email_exists);
-        } else if (body.contains('pending') || body.contains('resent')) {
+        } else if (errStr.contains('pending') || errStr.contains('resent')) {
           setState(() => _err = t.register_pending_resent);
         } else {
-          setState(() => _err = t.register_failed(body));
+          setState(() => _err = t.register_failed(errStr));
         }
-      } else {
-        setState(() => _err = t.register_failed(r.body));
       }
     } catch (e) {
       if (!mounted) return;
