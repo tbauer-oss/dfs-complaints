@@ -69,14 +69,8 @@ class ApiClient {
     try {
       final j = jsonDecode(r.body);
       if (j is Map<String, dynamic>) {
-        if (j['gate'] is String) {
-          gate = j['gate'] as String;
-          return true;
-        }
-        if (j['ok'] == true) {
-          gate = gate ?? 'ok';
-          return true;
-        }
+        if (j['gate'] is String) { gate = j['gate'] as String; return true; }
+        if (j['ok'] == true) { gate = gate ?? 'ok'; return true; }
       }
     } catch (_) {}
     return false;
@@ -93,61 +87,47 @@ class ApiClient {
     try {
       final j = jsonDecode(r.body);
       final t = (j is Map) ? j['token']?.toString() : null;
-      if (t != null && t.isNotEmpty) {
-        token = t;
-        return true;
-      }
-      // Falls Backend kein Token liefert, aber 200 → trotzdem true
-      return true;
+      if (t != null && t.isNotEmpty) token = t;
+      return true; // 200 => true, auch ohne Token
     } catch (_) {
-      // 200 aber kein valides JSON → trotzdem als Erfolg behandeln
-      return true;
+      return true; // 200 aber kein valides JSON => dennoch true
     }
   }
 
-  /// Registrierung (POST /api/auth/register) → bool (setzt ggf. JWT)
-  Future<bool> register(Map<String, dynamic> data) async {
+  /// Registrierung (POST /api/auth/register) → http.Response
+  /// (dein auth_page.dart verwendet r.statusCode / r.body)
+  Future<http.Response> register(Map<String, dynamic> data) async {
     final r = await http.post(
       Uri.parse('${CFG.apiBase}/api/auth/register'),
       headers: _headers(),
       body: jsonEncode(data),
     );
-    if (r.statusCode != 200) return false;
-    try {
-      final j = jsonDecode(r.body);
-      if (j is Map<String, dynamic>) {
-        final t = j['token']?.toString();
-        if (t != null && t.isNotEmpty) {
-          token = t;
-          return true;
+    if (r.statusCode == 200) {
+      try {
+        final j = jsonDecode(r.body);
+        if (j is Map<String, dynamic>) {
+          final t = j['token']?.toString();
+          if (t != null && t.isNotEmpty) token = t;
         }
-        if (j['ok'] == true) return true;
-      }
-      // 200 aber kein ok/token → als Erfolg werten
-      return true;
-    } catch (_) {
-      // 200 aber kein valides JSON → trotzdem Erfolg
-      return true;
+      } catch (_) {}
     }
+    return r;
   }
 
   // =========================================================
   // ---------------- Reklamationen (neu) --------------------
   // =========================================================
 
-  /// Typsicher: Anlegen (POST /api/complaint)
   Future<Complaint> complaintCreate(Map<String, dynamic> payload) async {
     final j = await _postJson('/api/complaint', payload, auth: true);
     return Complaint.fromJson(j as Map<String, dynamic>);
   }
 
-  /// Typsicher: Liste (GET /api/complaint)
   Future<List<Complaint>> complaintList() async {
     final list = await _getJsonList('/api/complaint', auth: true);
     return list.map((e) => Complaint.fromJson((e as Map).cast<String, dynamic>())).toList();
   }
 
-  /// Typsicher: Einzelnes Ticket (GET /api/complaint/<ticket>)
   Future<Complaint> complaintGet(String ticket) async {
     final j = await _getJson('/api/complaint/$ticket', auth: true);
     return Complaint.fromJson(j);
@@ -157,23 +137,20 @@ class ApiClient {
   // ---- Rückwärtskompatible Wrapper für alte Aufrufe -------
   // =========================================================
 
-  /// ALT: submitComplaint(payload, [legacyArg]) → Map wie früher (inkl. 'data'-Alias)
   Future<Map<String, dynamic>> submitComplaint(Map<String, dynamic> payload, [dynamic _legacy]) async {
     final raw = await _postJson('/api/complaint', payload, auth: true);
     return _cloneWithDataAlias(raw);
   }
 
-  /// ALT: myComplaints() → List<Map> wie früher (inkl. 'data'-Alias)
   Future<List<dynamic>> myComplaints() async {
     final list = await _getJsonList('/api/complaint', auth: true);
     return list.map((e) => _cloneWithDataAlias((e as Map).cast<String, dynamic>())).toList();
   }
 
-  /// 'payload' zusätzlich als 'data' spiegeln, damit altes UI (data.article, …) weiterläuft
   Map<String, dynamic> _cloneWithDataAlias(Map<String, dynamic> src) {
     final out = Map<String, dynamic>.from(src);
     final payload = (src['payload'] is Map) ? (src['payload'] as Map).cast<String, dynamic>() : <String, dynamic>{};
-    out['data'] = out['data'] ?? payload;
+    out['data'] = out['data'] ?? payload; // alias für alte UIs
     return out;
   }
 
@@ -181,9 +158,7 @@ class ApiClient {
   // ---------------------- Account --------------------------
   // =========================================================
 
-  Future<Map<String, dynamic>> accountGet() async {
-    return _getJson('/api/account', auth: true);
-  }
+  Future<Map<String, dynamic>> accountGet() async => _getJson('/api/account', auth: true);
 
   Future<Map<String, dynamic>> accountUpdate(Map<String, dynamic> data) async {
     final r = await http.put(
