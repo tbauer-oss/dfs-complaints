@@ -19,7 +19,7 @@ class ApiClient {
     return h;
   }
 
-  // ---------- interne Helper ----------
+  // ---------- interne Helper (roh/typsicher) ----------
   Future<Map<String, dynamic>> _getJson(String path, {bool auth = false}) async {
     final r = await http.get(Uri.parse('${CFG.apiBase}$path'), headers: _headers(auth: auth));
     if (r.statusCode != 200) {
@@ -82,46 +82,59 @@ class ApiClient {
     return false;
   }
 
-  /// Login (POST /api/auth/login) — erwartet {token:"..."}; speichert JWT
-  Future<bool> login(String email, String password) async {
-    final j = await _postJson('/api/auth/login', {'email': email, 'password': password}, auth: false);
-    final t = j['token']?.toString();
-    if (t != null && t.isNotEmpty) {
-      token = t;
-      return true;
+  /// Login (POST /api/auth/login)
+  /// Gibt bewusst den ROHEN http.Response zurück, weil dein auth_page.dart .statusCode/.body erwartet.
+  Future<http.Response> login(String email, String password) async {
+    final r = await http.post(
+      Uri.parse('${CFG.apiBase}/api/auth/login'),
+      headers: _headers(),
+      body: jsonEncode({'email': email, 'password': password}),
+    );
+    if (r.statusCode == 200) {
+      try {
+        final j = jsonDecode(r.body);
+        final t = (j is Map) ? j['token']?.toString() : null;
+        if (t != null && t.isNotEmpty) token = t;
+      } catch (_) {}
     }
-    return false;
+    return r;
   }
 
-  /// Registrierung (POST /api/auth/register) — {ok:true} oder {token:"..."}
-  Future<bool> register(Map<String, dynamic> data) async {
-    final j = await _postJson('/api/auth/register', data, auth: false);
-    final t = j['token']?.toString();
-    if (t != null && t.isNotEmpty) {
-      token = t;
-      return true;
+  /// Registrierung (POST /api/auth/register)
+  /// Ebenfalls roher http.Response (deine auth_page prüft .statusCode/.body).
+  Future<http.Response> register(Map<String, dynamic> data) async {
+    final r = await http.post(
+      Uri.parse('${CFG.apiBase}/api/auth/register'),
+      headers: _headers(),
+      body: jsonEncode(data),
+    );
+    if (r.statusCode == 200) {
+      try {
+        final j = jsonDecode(r.body);
+        final t = (j is Map) ? j['token']?.toString() : null;
+        if (t != null && t.isNotEmpty) token = t;
+      } catch (_) {}
     }
-    if (j['ok'] == true) return true;
-    return false;
+    return r;
   }
 
   // =========================================================
   // ---------------- Reklamationen (neu) --------------------
   // =========================================================
 
-  /// Anlegen (POST /api/complaint) – typsicher
+  /// Typsicher: Anlegen (POST /api/complaint)
   Future<Complaint> complaintCreate(Map<String, dynamic> payload) async {
     final j = await _postJson('/api/complaint', payload, auth: true);
     return Complaint.fromJson(j as Map<String, dynamic>);
   }
 
-  /// Liste (GET /api/complaint) – typsicher
+  /// Typsicher: Liste (GET /api/complaint)
   Future<List<Complaint>> complaintList() async {
     final list = await _getJsonList('/api/complaint', auth: true);
     return list.map((e) => Complaint.fromJson((e as Map).cast<String, dynamic>())).toList();
   }
 
-  /// Einzelnes Ticket (GET /api/complaint/<ticket>) – typsicher
+  /// Typsicher: Einzelnes Ticket (GET /api/complaint/<ticket>)
   Future<Complaint> complaintGet(String ticket) async {
     final j = await _getJson('/api/complaint/$ticket', auth: true);
     return Complaint.fromJson(j);
@@ -131,24 +144,22 @@ class ApiClient {
   // ---- Rückwärtskompatible Wrapper für alte Aufrufe -------
   // =========================================================
 
-  /// ALT: submitComplaint({...}) – liefert Map wie früher (mit 'data'-Alias)
-  Future<Map<String, dynamic>> submitComplaint(Map<String, dynamic> payload) async {
+  /// ALT: submitComplaint(payload, [legacyArg]) — Map wie früher (inkl. 'data'-Alias)
+  Future<Map<String, dynamic>> submitComplaint(Map<String, dynamic> payload, [dynamic _legacy]) async {
     final raw = await _postJson('/api/complaint', payload, auth: true);
     return _cloneWithDataAlias(raw);
   }
 
-  /// ALT: myComplaints() – liefert List<Map> wie früher (mit 'data'-Alias)
+  /// ALT: myComplaints() — List<Map> wie früher (inkl. 'data'-Alias)
   Future<List<dynamic>> myComplaints() async {
     final list = await _getJsonList('/api/complaint', auth: true);
     return list.map((e) => _cloneWithDataAlias((e as Map).cast<String, dynamic>())).toList();
   }
 
-  /// Duplikat-Felder für Abwärtskompatibilität:
-  /// - Kopiert 'payload' zusätzlich nach 'data', damit alte UIs (data.article, …) weiter funktionieren.
+  /// 'payload' zusätzlich als 'data' spiegeln, damit altes UI (data.article, …) weiterläuft
   Map<String, dynamic> _cloneWithDataAlias(Map<String, dynamic> src) {
     final out = Map<String, dynamic>.from(src);
     final payload = (src['payload'] is Map) ? (src['payload'] as Map).cast<String, dynamic>() : <String, dynamic>{};
-    // Nur wenn 'data' nicht bereits existiert, setzen wir den Alias:
     out['data'] = out['data'] ?? payload;
     return out;
   }
