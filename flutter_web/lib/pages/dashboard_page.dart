@@ -5,6 +5,7 @@ import 'complaint_form_page.dart';
 import 'my_complaints_page.dart';
 import 'account_page.dart';
 import 'support_page.dart';
+import '../widgets/logout_action.dart'; // <-- NEU
 
 class DashboardPage extends StatelessWidget {
   final ApiClient api;
@@ -36,7 +37,12 @@ class DashboardPage extends StatelessWidget {
     ];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Kundenbereich')),
+      appBar: AppBar(
+        title: const Text('Kundenbereich'),
+        actions: [
+          LogoutAction(api: api), // <-- Abmelde-Button in der AppBar
+        ],
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 900),
@@ -56,7 +62,10 @@ class DashboardPage extends StatelessWidget {
                         children: [
                           Icon(e.icon, size: 44),
                           const SizedBox(height: 10),
-                          Text(e.label, style: const TextStyle(fontWeight: FontWeight.w600)),
+                          Text(
+                            e.label,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
                         ],
                       ),
                     ),
