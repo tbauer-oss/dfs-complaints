@@ -1,141 +1,183 @@
 // lib/pages/my_complaints_page.dart
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+
 import '../api/client.dart';
 import '../models/complaint.dart';
+import '../l10n/app_localizations.dart';
 
 class MyComplaintsPage extends StatefulWidget {
   final ApiClient api;
   const MyComplaintsPage({super.key, required this.api});
+
   @override
   State<MyComplaintsPage> createState() => _MyComplaintsPageState();
 }
 
 class _MyComplaintsPageState extends State<MyComplaintsPage> {
-  List<Complaint> items = <Complaint>[];
-  bool busy = false;
-  String? err;
+  List<Complaint> _items = [];
+  bool _busy = false;
+  String? _err;
 
   @override
-  void initState() { super.initState(); load(); }
+  void initState() {
+    super.initState();
+    _load();
+  }
 
-  Future<void> load() async {
-    setState(() => busy = true);
+  Future<void> _load() async {
+    setState(() {
+      _busy = true;
+      _err = null;
+    });
     try {
       final list = await widget.api.complaintList();
-      list.sort((a, b) => (b.updatedAt.millisecondsSinceEpoch)
-          .compareTo(a.updatedAt.millisecondsSinceEpoch));
-      items = list;
-      err = null;
+      // Neueste zuerst: zuerst updatedAt, fallback createdAt
+      list.sort((a, b) {
+        final ma = b.updatedAt.millisecondsSinceEpoch.compareTo(
+            a.updatedAt.millisecondsSinceEpoch);
+        if (ma != 0) return ma;
+        return b.createdAt.millisecondsSinceEpoch
+            .compareTo(a.createdAt.millisecondsSinceEpoch);
+      });
+      setState(() => _items = list);
     } catch (e) {
-      err = '$e';
-      items = <Complaint>[];
+      setState(() {
+        _items = [];
+        _err = '$e';
+      });
     } finally {
-      setState(() => busy = false);
+      setState(() => _busy = false);
     }
   }
 
-  String _statusText(int? s, String? decision) {
+  // ---------- Status-Darstellung ----------
+  String _statusText(int s, String? decision) {
     switch (s) {
-      case 1: return 'gesendet';
-      case 2: return 'in Bearbeitung';
-      case 3: return 'Rückfrage erforderlich';
-      case 4: return decision == 'rejected' ? 'abgelehnt' : (decision == 'accepted' ? 'angenommen' : 'Entscheidung');
-      case 5: return 'in Nacharbeit';
-      case 6: return 'abgeschlossen';
-      default: return 'unbekannt';
+      case 1:
+        return 'gesendet';
+      case 2:
+        return 'in Bearbeitung';
+      case 3:
+        return 'Rückfrage erforderlich';
+      case 4:
+        if (decision == 'rejected') return 'abgelehnt';
+        if (decision == 'accepted') return 'angenommen';
+        return 'Entscheidung';
+      case 5:
+        return 'in Nacharbeit';
+      case 6:
+        return 'abgeschlossen';
+      default:
+        return 'unbekannt';
     }
   }
 
-  Color _statusColor(int? s, String? decision) {
+  Color _statusColor(int s, String? decision) {
     switch (s) {
-      case 1: return Colors.blue;
-      case 2: return Colors.yellow.shade700;
-      case 3: return Colors.orange;
-      case 4: return decision == 'rejected' ? Colors.red : (decision == 'accepted' ? Colors.lightGreen : Colors.grey);
-      case 5: return Colors.amber;
-      case 6: return Colors.green;
-      default: return Colors.grey;
+      case 1:
+        return Colors.blue; // gesendet
+      case 2:
+        return Colors.amber.shade700; // in Bearbeitung
+      case 3:
+        return Colors.orange; // Rückfrage
+      case 4:
+        if (decision == 'rejected') return Colors.red;
+        if (decision == 'accepted') return Colors.lightGreen;
+        return Colors.grey;
+      case 5:
+        return Colors.amber; // Nacharbeit
+      case 6:
+        return Colors.green; // abgeschlossen
+      default:
+        return Colors.grey;
     }
   }
 
   bool _canShowReport(Complaint c) {
-    if (c.reportLink == null || c.reportLink!.isEmpty) return false;
-    if (c.status == 6) return true;
-    if (c.status == 4 && c.decision == 'rejected') return true;
+    final link = c.reportLink;
+    if (link == null || link.isEmpty) return false;
+    if (c.status == 6) return true; // abgeschlossen
+    if (c.status == 4 && c.decision == 'rejected') return true; // abgelehnt => abgeschlossen (rot)
     return false;
   }
 
-  String _fmtDate(DateTime dt) => dt.toLocal().toString();
-
-  Future<void> _openReport(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bericht konnte nicht geöffnet werden.')));
-    }
+  String _fmtDate(DateTime? dt) {
+    if (dt == null) return '';
+    final d = dt.toLocal();
+    // knapp & robust; gerne später mit intl schöner formatieren
+    return '${d.year.toString().padLeft(4, '0')}-'
+           '${d.month.toString().padLeft(2, '0')}-'
+           '${d.day.toString().padLeft(2, '0')} '
+           '${d.hour.toString().padLeft(2, '0')}:'
+           '${d.minute.toString().padLeft(2, '0')}';
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.of(context).pop()),
-        title: const Text('Meine Reklamationen'),
-        actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: busy ? null : load),
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Schließen')),
-        ],
-      ),
-      body: Builder(
-        builder: (_) {
-          if (busy) return const Center(child: CircularProgressIndicator());
-          if (err != null) return Center(child: Text(err!));
-          if (items.isEmpty) return const Center(child: Text('Keine Reklamationen vorhanden.'));
+    final t = AppLocalizations.of(context)!;
 
-          return RefreshIndicator(
-            onRefresh: load,
-            child: ListView.separated(
-              physics: const AlwaysScrollableScrollPhysics(),
-              itemCount: items.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (_, i) {
-                final c = items[i];
-                final badgeText  = _statusText(c.status, c.decision);
-                final badgeColor = _statusColor(c.status, c.decision);
-                final showReport = _canShowReport(c);
+    if (_busy) return const Center(child: CircularProgressIndicator());
+    if (_err != null) return Center(child: Text(_err!));
+    if (_items.isEmpty) return Center(child: Text(t.none_complaints));
 
-                final article = c.articleLabel; // aus optionalem payload
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: _items.length,
+        separatorBuilder: (_, __) => const Divider(height: 1),
+        itemBuilder: (_, i) {
+          final c = _items[i];
 
-                return ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  title: Text(article.isNotEmpty ? '${c.ticket} – $article' : c.ticket, style: const TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Erstellt: ${_fmtDate(c.createdAt)}'),
-                      Text('Aktualisiert: ${_fmtDate(c.updatedAt)}'),
-                      if (showReport) ...[
-                        const SizedBox(height: 6),
-                        InkWell(
-                          onTap: () => _openReport(c.reportLink!),
-                          child: const Text('Reklamationsbericht öffnen', style: TextStyle(decoration: TextDecoration.underline)),
-                        ),
-                      ],
-                    ],
-                  ),
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: badgeColor.withOpacity(0.12),
-                      border: Border.all(color: badgeColor, width: 1),
-                      borderRadius: BorderRadius.circular(12),
+          final article =
+              (c.payload?['article'] ?? c.payload?['Artikel'] ?? '').toString();
+          final title = article.isNotEmpty ? '${c.ticket} – $article' : c.ticket;
+
+          final badgeText = _statusText(c.status, c.decision);
+          final badgeColor = _statusColor(c.status, c.decision);
+          final showReport = _canShowReport(c);
+
+          return ListTile(
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Erstellt: ${_fmtDate(c.createdAt)}'),
+                if (showReport) ...[
+                  const SizedBox(height: 6),
+                  InkWell(
+                    onTap: () async {
+                      final link = c.reportLink!;
+                      final uri = Uri.tryParse(link);
+                      if (uri != null) {
+                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      }
+                    },
+                    child: const Text(
+                      'Reklamationsbericht öffnen',
+                      style: TextStyle(
+                        decoration: TextDecoration.underline,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                    child: Text(badgeText, style: TextStyle(color: badgeColor, fontWeight: FontWeight.w600)),
                   ),
-                );
-              },
+                ],
+              ],
+            ),
+            trailing: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: badgeColor.withOpacity(0.12),
+                border: Border.all(color: badgeColor, width: 1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                badgeText,
+                style: TextStyle(color: badgeColor, fontWeight: FontWeight.w600),
+              ),
             ),
           );
         },
