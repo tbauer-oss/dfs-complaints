@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import '../api/client.dart';
+import '../widgets/lang_action.dart';       // +++ NEU (falls noch nicht drin)
+import '../widgets/logout_action.dart';     // +++ NEU
 import 'complaint_form_page.dart';
 import 'my_complaints_page.dart';
 import 'account_page.dart';
 import 'support_page.dart';
-import '../widgets/lang_action.dart';
-import '../widgets/logout_action.dart';
 
 class DashboardPage extends StatelessWidget {
   final ApiClient api;
@@ -45,16 +45,28 @@ class DashboardPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Kundenbereich'),
-        actions: [
-          const LangAction(),             // <-- globale Sprache
-          const SizedBox(width: 8),
-          LogoutAction(                   // <-- sichtbarer Abmelde-Button
-            api: api,
-            onLoggedOut: onLoggedOut,     // z.B. Navigator auf Login zurück
-          ),
-          const SizedBox(width: 8),
+        actions: const [
+          LangAction(),                       // Globale Sprache
+          SizedBox(width: 8),
         ],
+        bottom: PreferredSize(                // kleine Leiste rechts für Logout
+          preferredSize: const Size.fromHeight(0),
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+             padding: const EdgeInsets.only(right: 8.0, bottom: 6.0),
+              child: LogoutAction(            // <<< HIER ist der Abmeldebutton
+                api: api,
+                onLoggedOut: () {
+                  // nach Logout zurück zur Login-Seite:
+                  Navigator.of(context).popUntil((r) => r.isFirst);
+                },
+              ),
+            ),
+          ),
+        ),
       ),
+      // WICHTIG: KEINE zweite Überschrift im Body!
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 900),
