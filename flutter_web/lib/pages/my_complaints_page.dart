@@ -30,15 +30,11 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
       items.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     } catch (e) {
       err = '$e';
-      // Bei 401: zurück zum Dashboard (oder ggf. Auth erzwingen)
-      if (err!.contains('unauthorized')) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Sitzung abgelaufen – bitte erneut anmelden.')),
-          );
-          widget.api.logout();
-          Navigator.of(context).pop(); // zurück
-        }
+      // KEIN logout() hier – nur Hinweis
+      if (mounted && err!.contains('unauthorized')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sitzung prüfen: Bitte Seite neu laden oder erneut öffnen.')),
+        );
       }
     } finally {
       if (mounted) setState(() => busy = false);
