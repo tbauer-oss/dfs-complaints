@@ -18,7 +18,7 @@
   "customer_area": "Area clienti",
   "password_mismatch": "Le password non corrispondono.",
   "back": "Indietro",
-  "none_complaints": "Nessun reclamo al momento."
+  "none_complaints": "Nessun reclamo al momento.",
 
   "auth_login": "Accesso",
   "auth_register": "Registrazione",
