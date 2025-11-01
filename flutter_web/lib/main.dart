@@ -69,16 +69,24 @@ class _DFSAppState extends State<DFSApp> {
                 ),
               ],
             ),
+            // Innerer Navigator für Gate/Auth/Dashboard
             body: Navigator(
               pages: [
-                MaterialPage(
-                  key: const ValueKey('page-gate'),
-                  child: GatePage(api: api, onUnlocked: () => setState(() => _unlocked = true)),
-                ),
+                if (!_unlocked)
+                  MaterialPage(
+                    key: const ValueKey('page-gate'),
+                    child: GatePage(
+                      api: api,
+                      onUnlocked: () => setState(() => _unlocked = true),
+                    ),
+                  ),
                 if (_unlocked && api.token == null)
                   MaterialPage(
                     key: const ValueKey('page-auth'),
-                    child: AuthPage(api: api, onLoggedIn: () => setState(() {})),
+                    child: AuthPage(
+                      api: api,
+                      onLoggedIn: () => setState(() {}),
+                    ),
                   ),
                 if (api.token != null)
                   MaterialPage(
