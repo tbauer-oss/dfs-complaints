@@ -18,7 +18,7 @@
   "customer_area": "Customer area",
   "password_mismatch": "The passwords do not match.",
   "back": "Back",
-  "none_complaints": "No complaints yet."
+  "none_complaints": "No complaints yet.",
 
   "auth_login": "Login",
   "auth_register": "Register",
