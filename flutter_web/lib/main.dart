@@ -1,102 +1,77 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
+
+// API-Client für Session/JWT
+import 'api/client.dart';
+
+// Seiten
+import 'pages/login_page.dart';
+
+// Lokalisierung
 import 'l10n/app_localizations.dart';
 
-import 'api/client.dart';
-import 'pages/gate_page.dart';
-import 'pages/auth_page.dart';
-import 'pages/dashboard_page.dart';
-import 'pages/admin_page.dart';
-
 void main() {
-  runApp(const DFSApp());
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const MyApp());
 }
 
-class DFSApp extends StatefulWidget {
-  const DFSApp({super.key});
+class MyApp extends StatefulWidget {
+  const MyApp({super.key});
+
   @override
-  State<DFSApp> createState() => _DFSAppState();
+  State<MyApp> createState() => _MyAppState();
 }
 
-class _DFSAppState extends State<DFSApp> {
-  final api = ApiClient();
-  Locale _locale = const Locale('de');
-  bool _unlocked = false;
+class _MyAppState extends State<MyApp> {
+  final ApiClient api = ApiClient();
+
   bool _restored = false;
+  Locale? _locale; // optional: manuelles Umschalten, falls du es später brauchst
 
   @override
   void initState() {
     super.initState();
-    api.restoreSession().whenComplete(() => setState(() => _restored = true));
+    // Einmalig Session (JWT + Gate) aus dem Browser-Speicher laden
+    api.restoreSession().whenComplete(() {
+      if (mounted) setState(() => _restored = true);
+    });
+  }
+
+  // Falls du irgendwo eine Sprachumschaltung brauchst:
+  void setLocale(Locale? loc) {
+    setState(() => _locale = loc);
   }
 
   @override
   Widget build(BuildContext context) {
     if (!_restored) {
-      return const MaterialApp(home: Scaffold(body: Center(child: CircularProgressIndicator())));
+      return const MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        ),
+      );
     }
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      locale: _locale,
-      supportedLocales: const [Locale('de'), Locale('en'), Locale('es'), Locale('fr'), Locale('it')],
-      localizationsDelegates: const [
-        AppLocalizations.delegate, GlobalMaterialLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate, GlobalWidgetsLocalizations.delegate,
-      ],
-      onGenerateTitle: (ctx) => AppLocalizations.of(ctx)!.appTitle,
-      routes: { '/admin': (ctx) => AdminPage(api: api), },
-      home: Builder(
-        builder: (context) {
-          final t = AppLocalizations.of(context)!;
-          return Scaffold(
-            appBar: AppBar(
-              title: Text(t.appTitle),
-              actions: [
-                DropdownButtonHideUnderline(
-                  child: DropdownButton<Locale>(
-                    value: _locale,
-                    items: const [
-                      DropdownMenuItem(value: Locale('de'), child: Text('DE')),
-                      DropdownMenuItem(value: Locale('en'), child: Text('EN')),
-                      DropdownMenuItem(value: Locale('es'), child: Text('ES')),
-                      DropdownMenuItem(value: Locale('fr'), child: Text('FR')),
-                      DropdownMenuItem(value: Locale('it'), child: Text('IT')),
-                    ],
-                    onChanged: (v) { if (v != null) setState(() => _locale = v); },
-                  ),
-                ),
-              ],
-            ),
-            // Innerer Navigator für Gate/Auth/Dashboard
-            body: Navigator(
-              pages: [
-                if (!_unlocked)
-                  MaterialPage(
-                    key: const ValueKey('page-gate'),
-                    child: GatePage(
-                      api: api,
-                      onUnlocked: () => setState(() => _unlocked = true),
-                    ),
-                  ),
-                if (_unlocked && api.token == null)
-                  MaterialPage(
-                    key: const ValueKey('page-auth'),
-                    child: AuthPage(
-                      api: api,
-                      onLoggedIn: () => setState(() {}),
-                    ),
-                  ),
-                if (api.token != null)
-                  MaterialPage(
-                    key: const ValueKey('page-dash'),
-                    child: DashboardPage(api: api),
-                  ),
-              ],
-              onPopPage: (route, result) => route.didPop(result),
-            ),
-          );
+      title: 'DFS Customer Complaint',
+      // Lokalisierung aktivieren
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      locale: _locale, // bleibt null => Systemsprache
+
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0D47A1)), // DFS-Blau nahekommend
+      ),
+
+      // Startseite = Login
+      home: LoginPage(
+        api: api,
+        onLoggedIn: () {
+          // Optionaler Hook nach Login – die LoginPage pusht ohnehin ins Dashboard.
+          // Hier könntest du z.B. Analytics o.ä. ergänzen.
         },
       ),
     );
