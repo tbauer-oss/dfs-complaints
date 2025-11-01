@@ -10,23 +10,30 @@ class ApiClient {
   static const String _apiBase =
       String.fromEnvironment('API_BASE', defaultValue: '');
 
-  String? token; // JWT
-  String? gate;  // optionales Gate-Token
-  String? adminSecret; // für X-Admin-Secret
+  String? token;        // JWT
+  String? gate;         // optionales Gate-Token
+  String? adminSecret;  // für X-Admin-Secret
 
   // ---------- Session persistieren ----------
   void _saveSession() {
     final ls = html.window.localStorage;
-    if (token != null) {
+
+    // Token
+    if (token != null && token!.isNotEmpty) {
       ls['dfs_token'] = token!;
     } else {
       ls.remove('dfs_token');
-    if (adminSecret != null) {
+    }
+
+    // Admin-Secret
+    if (adminSecret != null && adminSecret!.isNotEmpty) {
       ls['dfs_admin'] = adminSecret!;
     } else {
       ls.remove('dfs_admin');
     }
-    if (gate != null) {
+
+    // Gate
+    if (gate != null && gate!.isNotEmpty) {
       ls['dfs_gate'] = gate!;
     } else {
       ls.remove('dfs_gate');
@@ -35,9 +42,9 @@ class ApiClient {
 
   Future<void> restoreSession() async {
     final ls = html.window.localStorage;
-    token = ls['dfs_token'];
+    token       = ls['dfs_token'];
     adminSecret = ls['dfs_admin'];
-    gate  = ls['dfs_gate'];
+    gate        = ls['dfs_gate'];
   }
 
   void logout() {
@@ -56,13 +63,6 @@ class ApiClient {
   }
 
   // ---------- Header-Helfer ----------
-  Map<String, String> _adminHeaders({bool auth = false, Map<String, String>? extra}) {
-    final h = _headers(auth: auth, extra: extra);
-    if (adminSecret != null) h['X-Admin-Secret'] = adminSecret!;
-    return h;
-  }
-
-    
   Map<String, String> _headers({bool auth = false, Map<String, String>? extra}) {
     final h = <String, String>{
       'Content-Type': 'application/json; charset=utf-8',
@@ -73,39 +73,39 @@ class ApiClient {
     return h;
   }
 
+  Map<String, String> _adminHeaders({bool auth = false, Map<String, String>? extra}) {
+    final h = _headers(auth: auth, extra: extra);
+    if (adminSecret != null) h['X-Admin-Secret'] = adminSecret!;
+    return h;
+  }
+
   Uri _u(String path) {
     final base = _apiBase.isEmpty ? '' : _apiBase;
     return Uri.parse('$base$path');
   }
 
   // ---------- Low-level HTTP ----------
-  Future<http.Response> _get(String path, {bool auth = false}) {
-    return http.get(_u(path), headers: _headers(auth: auth));
+  Future<http.Response> _get(String path, {bool auth = false, bool admin = false}) {
+    final headers = admin ? _adminHeaders(auth: auth) : _headers(auth: auth);
+    return http.get(_u(path), headers: headers);
   }
 
   Future<http.Response> _post(String path, Map body,
-      {bool auth = false, Map<String, String>? extraHeaders}) {
-    return http.post(
-      _u(path),
-      headers: _headers(auth: auth, extra: extraHeaders),
-      body: jsonEncode(body),
-    );
+      {bool auth = false, bool admin = false, Map<String, String>? extraHeaders}) {
+    final headers = admin
+        ? _adminHeaders(auth: auth, extra: extraHeaders)
+        : _headers(auth: auth, extra: extraHeaders);
+    return http.post(_u(path), headers: headers, body: jsonEncode(body));
   }
 
-  Future<http.Response> _put(String path, Map body, {bool auth = false}) {
-    return http.put(
-      _u(path),
-      headers: _headers(auth: auth),
-      body: jsonEncode(body),
-    );
+  Future<http.Response> _put(String path, Map body, {bool auth = false, bool admin = false}) {
+    final headers = admin ? _adminHeaders(auth: auth) : _headers(auth: auth);
+    return http.put(_u(path), headers: headers, body: jsonEncode(body));
   }
 
-  Future<http.Response> _delete(String path, {Map? body, bool auth = false}) {
-    return http.delete(
-      _u(path),
-      headers: _headers(auth: auth),
-      body: body == null ? null : jsonEncode(body),
-    );
+  Future<http.Response> _delete(String path, {Map? body, bool auth = false, bool admin = false}) {
+    final headers = admin ? _adminHeaders(auth: auth) : _headers(auth: auth);
+    return http.delete(_u(path), headers: headers, body: body == null ? null : jsonEncode(body));
   }
 
   // ---------- Gate ----------
@@ -120,7 +120,6 @@ class ApiClient {
         return true;
       }
       if (j is Map && j['ok'] == true) {
-        // Fallback
         gate = 'ok';
         _saveSession();
         return true;
@@ -147,9 +146,8 @@ class ApiClient {
   /// Registrierung: `null` = Erfolg, sonst Fehlermeldung
   Future<String?> register(Map<String, dynamic> data) async {
     final r = await _post('/api/auth/register', data);
-    if (r.statusCode == 200 || r.statusCode == 201) {
-      return null;
-    }
+    if (r.statusCode == 200 || r.statusCode == 201) return null;
+
     // Body (falls vorhanden) als Fehlertext durchreichen
     try {
       final body = r.body;
@@ -226,9 +224,7 @@ class ApiClient {
       if (encFiles.isNotEmpty) 'files': encFiles,
     }, auth: true);
 
-    if (r.statusCode != 200 && r.statusCode != 201) {
-      return null;
-    }
+    if (r.statusCode != 200 && r.statusCode != 201) return null;
     final j = jsonDecode(r.body);
     return (j is Map) ? j.cast<String, dynamic>() : <String, dynamic>{};
   }
