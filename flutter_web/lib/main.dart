@@ -104,7 +104,7 @@ class _MyAppState extends State<MyApp> {
           // ======= Dashboard (nach Login) =======
           ? Scaffold(
               appBar: AppBar(
-                title: Text(AppLocalizations.of(context)?.customer_area ?? 'Kundenbereich'),
+                title: const Text('Kundenbereich'),
                 actions: [
                   LangAction(onLocaleChanged: _setLocale),
                 ],
@@ -114,7 +114,7 @@ class _MyAppState extends State<MyApp> {
           // ======= Login (Startseite) =======
           : Scaffold(
               appBar: AppBar(
-                title: Text(AppLocalizations.of(context)?.login ?? 'Login'),
+                title: const Text('Login'),
                 actions: [
                   LangAction(onLocaleChanged: _setLocale),
                 ],
