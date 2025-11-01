@@ -3,166 +3,108 @@ export const config = { runtime: 'nodejs' };
 
 import jwt from 'jsonwebtoken';
 import { setCors, noContent, ok, bad, methodNotAllowed, readJson } from './_lib/http.js';
+import { complaintsAll, complaintSave, nextTicket } from './_lib/store.js';
 
-// Versuche: zentrale Store-Funktionen nutzen, falls vorhanden
-// (Passe die Importnamen an, falls dein store andere Namen verwendet.)
-import {
-  nextTicket as _nextTicket,
-  complaintListByEmail as _complaintsByEmail,
-  complaintSave as _complaintSave,
-} from './_lib/store.js';
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 
-// Fallback, falls du (noch) keine Store-Funktionen exportierst
-import { Redis } from '@upstash/redis';
-
-const redis = (process.env.REDIS_URL && process.env.REDIS_TOKEN)
-  ? new Redis({ url: process.env.REDIS_URL, token: process.env.REDIS_TOKEN })
-  : null;
-
-const P = 'dfs:'; // Prefix wie in deinem store.js
-const mem = {
-  complaints: new Map(),     // key: ticket -> complaint
-  counters: { ticket: 0 },
-};
-
-// ---------- Helpers ----------
-function requireAuth(req, res) {
-  const hdr = req.headers?.authorization || '';
-  const m = /^Bearer\s+(.+)$/.exec(hdr);
-  if (!m) { bad(res, 'unauthorized', 401); return null; }
-
-  const secret = process.env.JWT_SECRET || process.env.JWT_KEY || '';
-  if (!secret) { bad(res, 'server misconfigured (JWT_SECRET missing)', 500); return null; }
-
+// ---- Auth aus Authorization: Bearer <token> ----
+function requireUser(req) {
+  const auth = req.headers?.authorization || '';
+  const m = auth.match(/^Bearer\s+(.+)$/i);
+  if (!m) return null;
   try {
-    const decoded = jwt.verify(m[1], secret);
-    const email = decoded?.email || decoded?.sub || '';
-    if (!email) { bad(res, 'unauthorized', 401); return null; }
-    return { email, jwt: decoded };
+    const payload = jwt.verify(m[1], JWT_SECRET);
+    // erwartete Felder: payload.email (und optional id, company, ...)
+    return payload && payload.email ? { email: String(payload.email).toLowerCase().trim(), payload } : null;
   } catch {
-    bad(res, 'unauthorized', 401);
     return null;
   }
 }
 
-async function nextTicket() {
-  if (_nextTicket) return await _nextTicket();
-  if (redis) {
-    const n = await redis.incr(`${P}counter:ticket`);
-    return `DFS_CP${String(n).padStart(6, '0')}`;
-  }
-  mem.counters.ticket += 1;
-  return `DFS_CP${String(mem.counters.ticket).padStart(6, '0')}`;
+// ---- schlanke DTO-Ausgabe für das Frontend ----
+function toDto(c) {
+  return {
+    ticket: c.ticket,
+    email: c.email,
+    createdAt: c.createdAt ?? 0,
+    updatedAt: c.updatedAt ?? c.createdAt ?? 0,
+    status: c.status ?? 1,             // 1..6
+    decision: c.decision ?? null,      // 'accepted' | 'rejected' | null
+    reportLink: c.reportLink ?? null,  // optional
+  };
 }
 
-async function complaintSave(obj) {
-  if (_complaintSave) return await _complaintSave(obj);
-  const key = `${P}complaint:${obj.ticket}`;
-  if (redis) return await redis.set(key, obj);
-  mem.complaints.set(obj.ticket, obj);
-  return true;
-}
-
-async function complaintsByEmail(email) {
-  if (_complaintsByEmail) return await _complaintsByEmail(email);
-
-  if (redis) {
-    // Kein Scan hier – einfache Speicherung als Set pro Nutzer
-    const ids = (await redis.smembers(`${P}complaints:by:${email}`)) || [];
-    const all = await Promise.all(ids.map(id => redis.get(`${P}complaint:${id}`)));
-    return (all || []).filter(Boolean);
-  }
-  // Memory-Fallback
-  return [...mem.complaints.values()].filter(c => c.email === email);
-}
-
-async function indexByEmail(email, ticket) {
-  if (redis) {
-    await redis.sadd(`${P}complaints:by:${email}`, ticket);
-  } else {
-    // nichts notwendig für mem
-  }
-}
-
-// ---------- Uploads „sicher“ normalisieren ----------
-function normalizeUploads(arr) {
-  if (!Array.isArray(arr)) return [];
-  // Erwartet: { name, mime, data } mit data = base64-String
-  return arr
-    .map((u) => ({
-      name: String(u?.name || '').slice(0, 120),
-      mime: String(u?.mime || 'application/octet-stream'),
-      // wir speichern **nur** Base64 (oder gar nichts) – keine Binärgrößen in Redis explodieren lassen
-      data: typeof u?.data === 'string' ? u.data : '',
-    }))
-    // nur kleine Anhänge akzeptieren (z. B. je max. 2 MB base64 -> ca. 2.6 MB String)
-    .filter((u) => u.name && u.data && u.data.length <= 2_800_000);
-}
-
-// ---------- Handler ----------
 export default async function handler(req, res) {
+  // Immer zuerst CORS setzen
   setCors(req, res);
   if (req.method === 'OPTIONS') return noContent(res);
 
-  // Auth erzwingen
-  const auth = requireAuth(req, res);
-  if (!auth) return;
-  const email = auth.email;
+  const user = requireUser(req);
+  if (!user) return bad(res, 'unauthorized', 401);
 
+  // ===== GET: eigene Reklamationen des eingeloggten Nutzers =====
   if (req.method === 'GET') {
-    try {
-      const list = await complaintsByEmail(email);
-
-      // Sicherer DTO fürs Frontend
-      const safe = (list || []).map(c => ({
-        ticket: c.ticket,
-        email: c.email,
-        createdAt: c.createdAt,
-        updatedAt: c.updatedAt,
-        status: c.status,
-        decision: c.decision ?? null,
-        reportLink: c.reportLink ?? null,
-        // KEINE payload/Uploads zurückgeben
-      })).sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
-
-      return ok(res, safe);
-    } catch (e) {
-      return bad(res, 'failed to list complaints', 500);
-    }
+    const list = await complaintsAll();
+    const own = Array.isArray(list)
+      ? list.filter(c => (c?.email || '').toLowerCase().trim() === user.email)
+           .sort((a, b) => (b?.updatedAt ?? b?.createdAt ?? 0) - (a?.updatedAt ?? a?.createdAt ?? 0))
+      : [];
+    return ok(res, own.map(toDto));
   }
 
+  // ===== POST: neue Reklamation anlegen =====
   if (req.method === 'POST') {
-    try {
-      const body = readJson(req);
-      const now = Date.now();
+    let body;
+    try { body = readJson(req); } catch { return bad(res, 'invalid json', 400); }
 
-      // Minimal-Validierung
-      const payload = body?.payload && typeof body.payload === 'object' ? body.payload : {};
-      const uploads = normalizeUploads(body?.uploads);
+    // payload: Pflichtfelder im Sinne deines Formulars
+    const p = body?.payload || {};
+    const segment   = (p.segment || '').toString();
+    const article   = (p.article || '').toString();
+    const desc      = (p.desc || '').toString();
+    // optionale Felder:
+    const batch     = (p.batch || '').toString();
+    const qty       = (p.qty || '').toString();
+    const expiry    = (p.expiry || '').toString();
+    const applied   = (p.applied || '').toString();     // 'Ja'/'Nein' oder ''
+    const injury    = (p.injury || '').toString();      // 'Ja'/'Nein' oder ''
+    const injuryDesc= (p.injuryDesc || '').toString();
+    const returned  = (p.returned || '').toString();    // 'Ja'/'Nein'
+    const handling  = (p.handling || '').toString();    // 'Ersatz'/'Gutschrift'/'Nacharbeit'
 
-      // Neues Ticket
-      const ticket = await nextTicket();
+    // Minimalprüfung wie im Frontend
+    if (!article || !desc) return bad(res, 'required fields missing', 400);
+    if (segment === 'Zahnarzt' && !batch) return bad(res, 'batch required for dentist', 400);
 
-      // Kompaktes Complaint-Objekt (keine unkontrollierten Felder)
-      const complaint = {
-        ticket,
-        email,
-        createdAt: now,
-        updatedAt: now,
-        status: 1,             // "gesendet"
-        decision: null,
-        reportLink: null,
-        payload,               // hier liegen segment, article, batch, ...
-        uploads,               // base64-thumbs / kleine bilder
-      };
+    // Uploads sind optional – falls dein Client Base64 mitsendet:
+    // uploads: [{name, mime, data}]  (data = base64)
+    const uploads = Array.isArray(body?.uploads) ? body.uploads.map(u => ({
+      name: (u?.name || '').toString(),
+      mime: (u?.mime || 'application/octet-stream').toString(),
+      // Speichere hier NICHT die Rohdaten in Redis – nur Metadaten oder einen separaten Storage verwenden.
+      // Für jetzt: nur Meta, damit UI die Anzahl anzeigen kann.
+      size: Number(u?.size || 0),
+    })) : [];
 
-      await complaintSave(complaint);
-      await indexByEmail(email, ticket);
+    const now = Date.now();
+    const ticket = await nextTicket();
 
-      return ok(res, { ticket });
-    } catch (e) {
-      return bad(res, 'failed to create complaint', 500);
-    }
+    const complaint = {
+      ticket,
+      email: user.email,
+      payload: {
+        segment, article, desc, batch, qty, expiry, applied, injury, injuryDesc, returned, handling,
+      },
+      uploads,            // nur Metadaten (siehe Kommentar oben)
+      status: 1,          // 1 = Eingegegangen
+      decision: null,     // noch keine Entscheidung
+      reportLink: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await complaintSave(complaint);
+    return ok(res, { ok: true, ticket });
   }
 
   return methodNotAllowed(res);
