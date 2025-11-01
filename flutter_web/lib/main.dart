@@ -1,14 +1,16 @@
-// lib/main.dart
 import 'package:flutter/material.dart';
 
-// API-Client für Session/JWT
+// API-Client
 import 'api/client.dart';
 
-// Seiten
+// Startseite (Login)
 import 'pages/login_page.dart';
 
 // Lokalisierung
 import 'l10n/app_localizations.dart';
+
+// Globaler Sprach-Controller
+import 'i18n/locale_controller.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,20 +28,14 @@ class _MyAppState extends State<MyApp> {
   final ApiClient api = ApiClient();
 
   bool _restored = false;
-  Locale? _locale; // optional: manuelles Umschalten, falls du es später brauchst
 
   @override
   void initState() {
     super.initState();
-    // Einmalig Session (JWT + Gate) aus dem Browser-Speicher laden
+    // Session (JWT + Gate) einmalig aus LocalStorage laden
     api.restoreSession().whenComplete(() {
       if (mounted) setState(() => _restored = true);
     });
-  }
-
-  // Falls du irgendwo eine Sprachumschaltung brauchst:
-  void setLocale(Locale? loc) {
-    setState(() => _locale = loc);
   }
 
   @override
@@ -53,27 +49,30 @@ class _MyAppState extends State<MyApp> {
       );
     }
 
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'DFS Customer Complaint',
-      // Lokalisierung aktivieren
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      locale: _locale, // bleibt null => Systemsprache
+    // <- WICHTIG: MaterialApp hört auf den globalen LocaleController
+    return ValueListenableBuilder<Locale?>(
+      valueListenable: LocaleController.I.locale,
+      builder: (context, appLocale, _) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'DFS Customer Complaint',
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: appLocale, // null = System, sonst erzwungene Sprache
 
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0D47A1)), // DFS-Blau nahekommend
-      ),
+          theme: ThemeData(
+            useMaterial3: true,
+            colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0D47A1)),
+          ),
 
-      // Startseite = Login
-      home: LoginPage(
-        api: api,
-        onLoggedIn: () {
-          // Optionaler Hook nach Login – die LoginPage pusht ohnehin ins Dashboard.
-          // Hier könntest du z.B. Analytics o.ä. ergänzen.
-        },
-      ),
+          home: LoginPage(
+            api: api,
+            onLoggedIn: () {
+              // optionaler Hook nach Login
+            },
+          ),
+        );
+      },
     );
   }
 }
