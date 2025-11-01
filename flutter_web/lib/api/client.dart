@@ -1,12 +1,14 @@
 // lib/api/client.dart
 import 'dart:convert';
-import 'dart:html' as html; // Web: LocalStorage & Window
+// Web-only: LocalStorage für Session
+import 'dart:html' as html;
 import 'package:http/http.dart' as http;
 
 import '../models/complaint.dart';
 
 class ApiClient {
   // ---------- Konfiguration ----------
+  // Wird in CI/CD via --dart-define=API_BASE=... gesetzt
   static const String _apiBase =
       String.fromEnvironment('API_BASE', defaultValue: '');
 
@@ -14,28 +16,32 @@ class ApiClient {
   String? gate;  // optionales Gate-Token
 
   // ---------- Session persistieren ----------
+  static const _kTok = 'dfs_token';
+  static const _kGate = 'dfs_gate';
+
   void _saveSession() {
     final ls = html.window.localStorage;
     if (token != null) {
-      ls['dfs_token'] = token!;
+      ls[_kTok] = token!;
     } else {
-      ls.remove('dfs_token');
+      ls.remove(_kTok);
     }
     if (gate != null) {
-      ls['dfs_gate'] = gate!;
+      ls[_kGate] = gate!;
     } else {
-      ls.remove('dfs_gate');
+      ls.remove(_kGate);
     }
   }
 
   Future<void> restoreSession() async {
     final ls = html.window.localStorage;
-    token = ls['dfs_token'];
-    gate  = ls['dfs_gate'];
+    token = ls[_kTok];
+    gate  = ls[_kGate];
   }
 
   void logout() {
     token = null;
+    gate  = null;
     _saveSession();
   }
 
@@ -110,23 +116,22 @@ class ApiClient {
 
   // ---------- Auth ----------
   Future<bool> login(String email, String password) async {
-    final r = await _post('/api/auth/login', {'email': email, 'password': password});
+    final r = await _post('/api/auth/login', {'email': email.trim(), 'password': password});
     if (r.statusCode != 200) return false;
-    final j = jsonDecode(r.body);
-    if (j is Map && j['token'] is String) {
-      token = j['token'] as String;
-      _saveSession();
-      return true;
-    }
+    try {
+      final j = jsonDecode(r.body);
+      if (j is Map && j['token'] is String) {
+        token = j['token'] as String;
+        _saveSession();
+        return true;
+      }
+    } catch (_) {}
     return false;
   }
 
-  Future<String?> register(Map<String, dynamic> data) async {
-    final r = await _post('/api/auth/register', data);
-    if (r.statusCode == 200 || r.statusCode == 201) {
-      return null;
-    }
-    return 'register failed: ${r.statusCode}';
+  /// WICHTIG: Für deine `auth_page` wird das volle Response-Objekt benötigt.
+  Future<http.Response> register(Map<String, dynamic> data) {
+    return _post('/api/auth/register', data);
   }
 
   // ---------- Account ----------
@@ -178,12 +183,12 @@ class ApiClient {
   }
 
   // ---------- Complaints ----------
-  // Optionaler 2. Positions-Parameter 'files' (List von Records {name, bytes, mime})
+  /// Erstellt eine Reklamation.
+  /// [files] ist eine Liste von Records `({name, bytes, mime})` – genau wie du sie aufrufst.
   Future<Map<String, dynamic>?> complaintCreate(
     Map<String, dynamic> data, [
     List<({String name, List<int> bytes, String mime})> files = const [],
   ]) async {
-    // Dateien base64-kodieren
     final encFiles = files
         .map((f) => {
               'name': f.name,
@@ -204,7 +209,7 @@ class ApiClient {
     return (j is Map) ? j.cast<String, dynamic>() : <String, dynamic>{};
   }
 
-  /// Rohdaten (falls benötigt)
+  /// Rohdatenliste (Map) der Reklamationen
   Future<List<Map<String, dynamic>>> complaintListRaw() async {
     final r = await _get('/api/complaints', auth: true);
     if (r.statusCode != 200) {
@@ -220,7 +225,7 @@ class ApiClient {
     return const [];
   }
 
-  /// Typisierte Liste
+  /// Typisierte Liste der Reklamationen
   Future<List<Complaint>> complaintList() async {
     final raw = await complaintListRaw();
     return raw.map(Complaint.fromJson).toList(growable: false);
