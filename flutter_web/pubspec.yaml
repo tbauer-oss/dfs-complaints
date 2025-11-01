@@ -19,4 +19,10 @@ flutter:
   uses-material-design: true
   assets:
     - assets/
+
+flutter:
   generate: true
+
+flutter_intl:
+  enabled: true
+
