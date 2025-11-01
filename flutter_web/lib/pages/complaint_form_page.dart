@@ -28,6 +28,55 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   String? err;
   bool busy = false;
 
+  // ---- Neu: Dirty-Tracking & Back-Handling ----
+  bool _dirty = false;
+  final List<TextEditingController> _ctrls = [];
+
+  void _markDirty() {
+    if (!_dirty) setState(() => _dirty = true);
+  }
+
+  Future<bool> _confirmLeaveIfDirty() async {
+    if (!_dirty) return true;
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Ungespeicherte Änderungen'),
+        content: const Text('Es gibt nicht gespeicherte Änderungen. Wirklich verlassen?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+          FilledButton.tonal(onPressed: () => Navigator.pop(context, true), child: const Text('Verlassen')),
+        ],
+      ),
+    );
+    return res == true;
+  }
+
+  Future<void> _handleBack() async {
+    if (await _confirmLeaveIfDirty()) {
+      if (mounted) Navigator.of(context).pop();
+    }
+  }
+
+  Future<void> _handleCancel() async => _handleBack();
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrls.addAll([article, batch, qty, expiry, desc, injuryDesc]);
+    for (final c in _ctrls) {
+      c.addListener(_markDirty);
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final c in _ctrls) {
+      c.removeListener(_markDirty);
+    }
+    super.dispose();
+  }
+
   Future<void> pickFiles(AppLocalizations t) async {
     final res = await FilePicker.platform.pickFiles(allowMultiple: true, withData: true);
     if (res == null) return;
@@ -62,6 +111,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
         final mime = _guessMime(name);
         return (name: name, bytes: bytes, mime: mime);
       }).toList();
+      _dirty = true; // Dateien ändern = dirty
     });
   }
 
@@ -88,7 +138,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     if (returned != optReturnedYes && returned != optReturnedNo) returned = optReturnedNo;
     if (![optHandlingRep, optHandlingCredit, optHandlingRework].contains(handling)) handling = optHandlingRep;
 
-    return SingleChildScrollView(
+    final formBody = SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Center(
         child: ConstrainedBox(
@@ -102,7 +152,10 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                   DropdownMenuItem(value: optDentist, child: Text(optDentist)),
                   DropdownMenuItem(value: optLab, child: Text(optLab)),
                 ],
-                onChanged: (v) => setState(() => segment = v as String),
+                onChanged: (v) => setState(() {
+                  segment = v as String;
+                  _dirty = true;
+                }),
                 decoration: InputDecoration(labelText: t.segment),
               ),
               const SizedBox(height: 8),
@@ -164,7 +217,10 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                     DropdownMenuItem(value: optYes, child: Text(optYes)),
                     DropdownMenuItem(value: optNo, child: Text(optNo)),
                   ],
-                  onChanged: (v) => setState(() => applied = v as String),
+                  onChanged: (v) => setState(() {
+                    applied = v as String;
+                    _dirty = true;
+                  }),
                   decoration: InputDecoration(labelText: t.applied_to_patient),
                 ),
                 const SizedBox(height: 8),
@@ -174,7 +230,10 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                     DropdownMenuItem(value: optYes, child: Text(optYes)),
                     DropdownMenuItem(value: optNo, child: Text(optNo)),
                   ],
-                  onChanged: (v) => setState(() => injury = v as String),
+                  onChanged: (v) => setState(() {
+                    injury = v as String;
+                    _dirty = true;
+                  }),
                   decoration: InputDecoration(labelText: t.injury_question),
                 ),
                 if (needInjuryDesc) ...[
@@ -202,7 +261,10 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                   DropdownMenuItem(value: optReturnedYes, child: Text(optReturnedYes)),
                   DropdownMenuItem(value: optReturnedNo, child: Text(optReturnedNo)),
                 ],
-                onChanged: (v) => setState(() => returned = v as String),
+                onChanged: (v) => setState(() {
+                  returned = v as String;
+                  _dirty = true;
+                }),
                 decoration: InputDecoration(labelText: t.returned_question),
               ),
               const SizedBox(height: 8),
@@ -213,74 +275,117 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                   DropdownMenuItem(value: optHandlingCredit, child: Text(optHandlingCredit)),
                   DropdownMenuItem(value: optHandlingRework, child: Text(optHandlingRework)),
                 ],
-                onChanged: (v) => setState(() => handling = v as String),
+                onChanged: (v) => setState(() {
+                  handling = v as String;
+                  _dirty = true;
+                }),
                 decoration: InputDecoration(labelText: t.handling),
               ),
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Checkbox(value: privacy, onChanged: (v) => setState(() => privacy = v ?? false)),
+                  Checkbox(
+                    value: privacy,
+                    onChanged: (v) => setState(() {
+                      privacy = v ?? false;
+                      _dirty = true;
+                    }),
+                  ),
                   Expanded(child: Text(t.privacy_agree)),
                 ],
               ),
               if (err != null) Text(err!, style: const TextStyle(color: Colors.red)),
               if (info != null) Text(info!, style: const TextStyle(color: Colors.green)),
               const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: busy
-                    ? null
-                    : () async {
-                        setState(() => busy = true);
-                        err = null;
-                        info = null;
+              Row(
+                children: [
+                  ElevatedButton(
+                    onPressed: busy
+                        ? null
+                        : () async {
+                            setState(() => busy = true);
+                            err = null;
+                            info = null;
 
-                        if (!privacy) {
-                          err = t.privacy_required;
-                          setState(() => busy = false);
-                          return;
-                        }
-                        if (article.text.isEmpty || desc.text.isEmpty) {
-                          err = t.required_fields;
-                          setState(() => busy = false);
-                          return;
-                        }
-                        // Charge nur bei Zahnarzt Pflicht
-                        if (isDentist && batch.text.isEmpty) {
-                          err = t.batch;
-                          setState(() => busy = false);
-                          return;
-                        }
+                            if (!privacy) {
+                              err = t.privacy_required;
+                              setState(() => busy = false);
+                              return;
+                            }
+                            if (article.text.isEmpty || desc.text.isEmpty) {
+                              err = t.required_fields;
+                              setState(() => busy = false);
+                              return;
+                            }
+                            // Charge nur bei Zahnarzt Pflicht
+                            if (isDentist && batch.text.isEmpty) {
+                              err = t.batch;
+                              setState(() => busy = false);
+                              return;
+                            }
 
-                        final res = await widget.api.submitComplaint({
-                          'segment': segment == optDentist ? 'Zahnarzt' : 'Zahntechnik',
-                          'article': article.text,
-                          'batch': batch.text,
-                          'qty': qty.text,
-                          'expiry': expiry.text,
-                          'desc': desc.text,
-                          'applied': isDentist ? (applied == optYes ? 'Ja' : 'Nein') : '',
-                          'injury': isDentist ? (injury == optYes ? 'Ja' : 'Nein') : '',
-                          'injuryDesc': isDentist ? injuryDesc.text : '',
-                          'returned': (returned == optReturnedYes ? 'Ja' : 'Nein'),
-                          'handling': handling == optHandlingRep
-                              ? 'Ersatz'
-                              : (handling == optHandlingCredit ? 'Gutschrift' : 'Nacharbeit'),
-                          'privacy': 'true'
-                        }, files);
+                            final res = await widget.api.submitComplaint({
+                              'segment': segment == optDentist ? 'Zahnarzt' : 'Zahntechnik',
+                              'article': article.text,
+                              'batch': batch.text,
+                              'qty': qty.text,
+                              'expiry': expiry.text,
+                              'desc': desc.text,
+                              'applied': isDentist ? (applied == optYes ? 'Ja' : 'Nein') : '',
+                              'injury': isDentist ? (injury == optYes ? 'Ja' : 'Nein') : '',
+                              'injuryDesc': isDentist ? injuryDesc.text : '',
+                              'returned': (returned == optReturnedYes ? 'Ja' : 'Nein'),
+                              'handling': handling == optHandlingRep
+                                  ? 'Ersatz'
+                                  : (handling == optHandlingCredit ? 'Gutschrift' : 'Nacharbeit'),
+                              'privacy': 'true'
+                            }, files);
 
-                        setState(() => busy = false);
-                        if (res == null) {
-                          err = t.send_failed;
-                        } else {
-                          info = t.sent_ticket(res['ticket']);
-                        }
-                        setState(() {});
-                      },
-                child: busy ? const CircularProgressIndicator() : Text(t.send),
+                            setState(() => busy = false);
+                            if (res == null) {
+                              err = t.send_failed;
+                            } else {
+                              info = t.sent_ticket(res['ticket']);
+                              _dirty = false; // ✅ Erfolg → keine Rückfrage mehr
+                              // Optional direkt zurück:
+                              // if (mounted) Navigator.of(context).pop();
+                            }
+                            setState(() {});
+                          },
+                    child: busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Text(t.send),
+                  ),
+                  const SizedBox(width: 12),
+                  OutlinedButton(
+                    onPressed: _handleCancel,
+                    child: const Text('Abbrechen'),
+                  ),
+                ],
               ),
             ],
           ),
         ),
+      ),
+    );
+
+    return WillPopScope(
+      onWillPop: () async => _confirmLeaveIfDirty(),
+      child: Scaffold(
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          title: const Text('Reklamation melden'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            tooltip: 'Zurück',
+            onPressed: _handleBack,
+          ),
+          actions: [
+            TextButton(
+              onPressed: _handleCancel,
+              child: const Text('Abbrechen'),
+            ),
+          ],
+        ),
+        body: formBody,
       ),
     );
   }
