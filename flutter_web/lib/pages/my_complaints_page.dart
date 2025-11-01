@@ -16,33 +16,23 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
   bool busy = false;
   String? err;
 
-  @override
-  void initState() {
-    super.initState();
-    load();
-  }
-
-  Future<void> load() async {
-    setState(() => busy = true);
-    try {
-      final list = await widget.api.complaintList(); // -> List<Complaint>
-      // Neueste zuerst: prefer updatedAt, sonst createdAt
-      list.sort((a, b) {
-        final ma = (a.updatedAt ?? a.createdAt ?? 0);
-        final mb = (b.updatedAt ?? b.createdAt ?? 0);
-        return mb.compareTo(ma);
-      });
-      items = list;
-      err = null;
-    } catch (e) {
-      err = '$e';
-      items = <Complaint>[];
-    } finally {
-      setState(() => busy = false);
+  // ---- Helfer: Zeit normalisieren (int ms seit Epoch) ----
+  int _ms(dynamic v) {
+    if (v == null) return 0;
+    if (v is int) return v;
+    if (v is DateTime) return v.millisecondsSinceEpoch;
+    if (v is String) {
+      // try parse as int
+      final n = int.tryParse(v);
+      if (n != null) return n;
+      // try parse DateTime
+      final dt = DateTime.tryParse(v);
+      if (dt != null) return dt.millisecondsSinceEpoch;
     }
+    return 0;
   }
 
-  // ---------- Status Darstellung ----------
+  // ---- Status Darstellung (gemäß deiner Vorgabe) ----
   String _statusText(int? s, String? decision) {
     switch (s) {
       case 1: return 'gesendet';
@@ -80,11 +70,11 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     return false;
   }
 
-  String _fmtDate(int? ms) {
-    if (ms == null || ms <= 0) return '';
+  String _fmtDateMs(int ms) {
+    if (ms <= 0) return '';
     try {
       final dt = DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true).toLocal();
-      return dt.toString(); // ggf. hübscher formatieren
+      return dt.toString(); // ggf. schöner formatieren
     } catch (_) {
       return '';
     }
@@ -104,6 +94,34 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Ungültiger Link.')),
       );
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    load();
+  }
+
+  Future<void> load() async {
+    setState(() => busy = true);
+    try {
+      final list = await widget.api.complaintList(); // -> List<Complaint>
+      // Wir greifen dynamisch zu, damit unterschiedliche Model-Felder funktionieren.
+      list.sort((a, b) {
+        final da = a as dynamic;
+        final db = b as dynamic;
+        final ma = _ms(da.updatedAt ?? da.createdAt);
+        final mb = _ms(db.updatedAt ?? db.createdAt);
+        return mb.compareTo(ma); // neueste zuerst
+      });
+      items = list;
+      err = null;
+    } catch (e) {
+      err = '$e';
+      items = <Complaint>[];
+    } finally {
+      setState(() => busy = false);
     }
   }
 
@@ -145,15 +163,31 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
               separatorBuilder: (_, __) => const Divider(height: 1),
               itemBuilder: (_, i) {
                 final c = items[i];
+                final dyn = c as dynamic; // dynamischer Zugriff, damit verschieden benannte Felder funktionieren
 
-                final ticket    = c.ticket ?? '';
-                final status    = c.status;
-                final decision  = c.decision;
-                final report    = c.reportLink;
-                final createdAt = c.createdAt;
-                // payload kann je nach Modell nullable sein:
-                final payload   = c.payload ?? <String, dynamic>{};
-                final article   = (payload['article'] ?? payload['Artikel'] ?? '').toString();
+                final String ticket   = (dyn.ticket ?? '').toString();
+
+                // status kann int oder String sein
+                int? status;
+                final st = dyn.status;
+                if (st is int) status = st;
+                else if (st is String) status = int.tryParse(st);
+
+                final String? decision = dyn.decision as String?;
+                final String? report   = (dyn.reportLink ?? dyn.report) as String?;
+
+                // Zeitstempel robust lesen
+                final int createdMs = _ms(dyn.createdAt);
+                final int updatedMs = _ms(dyn.updatedAt);
+
+                // Nutzdaten-Objekt (payload/data)
+                Map<String, dynamic> payload = const {};
+                final p = dyn.payload ?? dyn.data;
+                if (p is Map) {
+                  payload = p.cast<String, dynamic>();
+                }
+
+                final String article = (payload['article'] ?? payload['Artikel'] ?? '').toString();
 
                 final badgeText  = _statusText(status, decision);
                 final badgeColor = _statusColor(status, decision);
@@ -168,7 +202,8 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (createdAt != null) Text('Erstellt: ${_fmtDate(createdAt)}'),
+                      if (createdMs > 0) Text('Erstellt: ${_fmtDateMs(createdMs)}'),
+                      if (updatedMs > 0) Text('Aktualisiert: ${_fmtDateMs(updatedMs)}'),
                       if (showReport) ...[
                         const SizedBox(height: 6),
                         InkWell(
