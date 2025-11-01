@@ -1,6 +1,5 @@
 // lib/pages/register_page.dart
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 import '../models/country.dart';
@@ -17,12 +16,12 @@ class RegisterPage extends StatefulWidget {
 }
 
 class _RegisterPageState extends State<RegisterPage> {
-  // Gate
+  // Gate (AUTH_PASSWORD) – vor Betreten der Registrierung
   final _gatePw = TextEditingController();
   bool _gateBusy = false;
   String? _gateErr;
 
-  // Form
+  // Formular
   final _email = TextEditingController();
   final _pw = TextEditingController();
   final _pw2 = TextEditingController();
@@ -102,8 +101,6 @@ class _RegisterPageState extends State<RegisterPage> {
       if (!mounted) return;
       if (!ok) {
         setState(() => _gateErr = 'Falsches Passwort.');
-      } else {
-        setState(() => _gateErr = null);
       }
     } catch (e) {
       if (!mounted) return;
@@ -123,7 +120,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
     try {
       if (_pw.text != _pw2.text) {
-        // Fallback-Text, da t.password_mismatch nicht existiert
+        // Fallback-Text (kein L10n-Key nötig)
         setState(() => _err = 'Passwörter stimmen nicht überein.');
         return;
       }
@@ -136,7 +133,8 @@ class _RegisterPageState extends State<RegisterPage> {
         return;
       }
 
-      final selected = _countrySel ?? kCountries.first;
+      final sel = _countrySel ?? kCountries.first;
+
       final payload = <String, dynamic>{
         'email': _email.text.trim(),
         'password': _pw.text,
@@ -149,36 +147,30 @@ class _RegisterPageState extends State<RegisterPage> {
         'street': _street.text.trim(),
         'zip': _zip.text.trim(),
         'city': _city.text.trim(),
-        'country': selected.label(context),
-        'countryCode': selected.code,
+        'country': sel.label(context),
+        'countryCode': sel.code,
         'phone': _phone.text.trim(),
         'privacy': true,
         'lang': _langCode(context),
       };
 
-      final http.Response? r = await widget.api.register(payload);
+      // ApiClient.register -> Future<String?> (null = OK, sonst Fehlertext)
+      final String? errMsg = await widget.api.register(payload);
       if (!mounted) return;
 
-      if (r == null) {
-        setState(() => _err = t.register_failed('no response'));
+      if (errMsg == null) {
+        setState(() => _info = t.registration_received);
         return;
       }
 
-      if (r.statusCode == 200 || r.statusCode == 201) {
-        setState(() {
-          _info = t.registration_received;
-        });
-        return;
-      }
-
-      // Fehlerauswertung
-      final body = r.body;
-      if (body.contains('user_exists') || r.statusCode == 409) {
+      // Fehlertext heuristisch auswerten
+      final em = errMsg.toLowerCase();
+      if (em.contains('user_exists') || em.contains('409')) {
         setState(() => _err = t.email_exists);
-      } else if (body.contains('pending') || body.contains('resent')) {
+      } else if (em.contains('pending') || em.contains('resent')) {
         setState(() => _err = t.register_pending_resent);
       } else {
-        setState(() => _err = t.register_failed(body.isNotEmpty ? body : '${r.statusCode}'));
+        setState(() => _err = t.register_failed(errMsg));
       }
     } catch (e) {
       if (!mounted) return;
@@ -192,7 +184,7 @@ class _RegisterPageState extends State<RegisterPage> {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
 
-    // 1) Gate-Abfrage VOR dem Formular (einmalig)
+    // Gate-Abfrage VOR dem Formular
     final needsGate = widget.api.gate == null || widget.api.gate!.isEmpty;
 
     return Scaffold(
@@ -235,11 +227,9 @@ class _RegisterPageState extends State<RegisterPage> {
                 const SizedBox(height: 8),
                 TextButton(
                   onPressed: () => Navigator.of(context).maybePop(),
-                  // Fallback statt t.back
                   child: const Text('Zurück'),
                 ),
               ] else ...[
-                // 2) Registrierungsformular
                 TextField(
                   controller: _email,
                   keyboardType: TextInputType.emailAddress,
@@ -416,7 +406,6 @@ class _RegisterPageState extends State<RegisterPage> {
                     const SizedBox(width: 12),
                     TextButton(
                       onPressed: () => Navigator.of(context).maybePop(),
-                      // Fallback statt t.back
                       child: const Text('Zurück'),
                     ),
                   ],
