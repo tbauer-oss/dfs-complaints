@@ -1,60 +1,91 @@
+// lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'api/client.dart';
 import 'l10n/app_localizations.dart';
-
 import 'pages/login_page.dart';
-import 'pages/register_page.dart';
 import 'pages/dashboard_page.dart';
+import 'pages/register_page.dart';
 import 'pages/admin_page.dart';
-
 import 'widgets/lang_action.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const DFSApp());
+  runApp(const MyApp());
 }
 
-class DFSApp extends StatefulWidget {
-  const DFSApp({super.key});
+class MyApp extends StatefulWidget {
+  const MyApp({super.key});
   @override
-  State<DFSApp> createState() => _DFSAppState();
+  State<MyApp> createState() => _MyAppState();
 }
 
-class _DFSAppState extends State<DFSApp> {
+class _MyAppState extends State<MyApp> {
   final api = ApiClient();
-
-  bool _ready = false;
+  Locale? _locale;
+  bool _bootDone = false;
   bool _loggedIn = false;
-  Locale _locale = const Locale('de');
 
   @override
   void initState() {
     super.initState();
-    _bootstrap();
+    _boot();
   }
 
-  Future<void> _bootstrap() async {
+  Future<void> _boot() async {
     await api.restoreSession();
     setState(() {
-      _loggedIn = (api.token ?? '').isNotEmpty;
-      _ready = true;
+      _loggedIn = (api.token != null && api.token!.isNotEmpty);
+      _bootDone = true;
     });
   }
 
   void _setLocale(Locale l) => setState(() => _locale = l);
 
-  void _goLogin() => setState(() => _loggedIn = false);
-  void _goDashboard() => setState(() => _loggedIn = true);
+  // --- Admin-Secret Dialog + Navigation ---
+  Future<void> _openAdmin(BuildContext context) async {
+    final ctrl = TextEditingController(text: api.adminSecret ?? '');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Admin-Secret'),
+        content: TextField(
+          controller: ctrl,
+          decoration: const InputDecoration(
+            labelText: 'X-Admin-Secret',
+            border: OutlineInputBorder(),
+          ),
+          obscureText: true,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Öffnen')),
+        ],
+      ),
+    );
+    if (ok == true) {
+      api.setAdminSecret(ctrl.text.trim());
+      if (!mounted) return;
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminPage()));
+    }
+  }
+
+  // --- Registrierung öffnen ---
+  void _openRegister(BuildContext context) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => RegisterPage(api: api)));
+  }
+
+  // --- Nach Login zum Dashboard ---
+  void _onLoggedIn() => setState(() => _loggedIn = true);
+
+  // --- Nach Logout zurück zum Login ---
+  void _onLoggedOut() => setState(() => _loggedIn = false);
 
   @override
   Widget build(BuildContext context) {
-    if (!_ready) {
-      return const MaterialApp(
-        debugShowCheckedModeBanner: false,
-        home: Scaffold(body: Center(child: CircularProgressIndicator())),
-      );
+    if (!_bootDone) {
+      return const MaterialApp(home: Scaffold(body: Center(child: CircularProgressIndicator())));
     }
 
     return MaterialApp(
@@ -66,61 +97,37 @@ class _DFSAppState extends State<DFSApp> {
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
       ],
-      theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.deepPurple),
-      home: _loggedIn ? _buildDashboardShell() : _buildLoginShell(),
-    );
-  }
-
-  // ---------- LOGIN SHELL ----------
-  Widget _buildLoginShell() {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Login'),
-        actions: [
-          LangAction(onLocaleChanged: _setLocale),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: LoginPage(
-        api: api,
-        // öffnet Admin-Bereich (fragt Secret auf der Seite ab)
-        onOpenAdmin: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => AdminPage(api: api)),
-          );
-        },
-        // öffnet Registrierung (Gate-Abfrage macht RegisterPage)
-        onOpenRegister: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => RegisterPage(api: api)),
-          );
-        },
-        // optional: wenn deine LoginPage nach erfolgreichem Login NICHT selbst navigiert
-        onLoggedIn: () => _goDashboard(),
-      ),
-    );
-  }
-
-  // ---------- DASHBOARD SHELL ----------
-  Widget _buildDashboardShell() {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Kundenbereich'),
-        actions: [
-          LangAction(onLocaleChanged: _setLocale),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: DashboardPage(
-        api: api,
-        onLoggedOut: () {
-          api.logout();
-          _goLogin();
-        },
-      ),
+      home: _loggedIn
+          // ======= Dashboard (nach Login) =======
+          ? Scaffold(
+              appBar: AppBar(
+                title: Text(AppLocalizations.of(context)?.customer_area ?? 'Kundenbereich'),
+                actions: [
+                  LangAction(onLocaleChanged: _setLocale),
+                ],
+              ),
+              body: DashboardPage(api: api, onLoggedOut: _onLoggedOut),
+            )
+          // ======= Login (Startseite) =======
+          : Scaffold(
+              appBar: AppBar(
+                title: Text(AppLocalizations.of(context)?.login ?? 'Login'),
+                actions: [
+                  LangAction(onLocaleChanged: _setLocale),
+                ],
+              ),
+              body: Builder(
+                builder: (ctx) => LoginPage(
+                  api: api,
+                  onLoggedIn: _onLoggedIn,
+                  onOpenAdmin: () => _openAdmin(ctx),
+                  onOpenRegister: () => _openRegister(ctx),
+                ),
+              ),
+            ),
     );
   }
 }
