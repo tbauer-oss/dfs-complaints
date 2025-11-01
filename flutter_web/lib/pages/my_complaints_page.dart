@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
+import '../models/complaint.dart';
 
 class MyComplaintsPage extends StatefulWidget {
   final ApiClient api;
@@ -11,7 +12,7 @@ class MyComplaintsPage extends StatefulWidget {
 }
 
 class _MyComplaintsPageState extends State<MyComplaintsPage> {
-  List<dynamic> items = [];
+  List<Complaint> items = <Complaint>[];
   bool busy = false;
   String? err;
 
@@ -24,18 +25,18 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
   Future<void> load() async {
     setState(() => busy = true);
     try {
-      final list = await widget.api.complaintList();
-      // Sortierung nach Datum (neu → alt). Prefer updatedAt, sonst createdAt.
+      final list = await widget.api.complaintList(); // -> List<Complaint>
+      // Neueste zuerst: prefer updatedAt, sonst createdAt
       list.sort((a, b) {
-        final ma = (a['updatedAt'] ?? a['createdAt']) as int? ?? 0;
-        final mb = (b['updatedAt'] ?? b['createdAt']) as int? ?? 0;
+        final ma = (a.updatedAt ?? a.createdAt ?? 0);
+        final mb = (b.updatedAt ?? b.createdAt ?? 0);
         return mb.compareTo(ma);
       });
       items = list;
       err = null;
     } catch (e) {
       err = '$e';
-      items = [];
+      items = <Complaint>[];
     } finally {
       setState(() => busy = false);
     }
@@ -83,7 +84,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     if (ms == null || ms <= 0) return '';
     try {
       final dt = DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true).toLocal();
-      return dt.toString(); // bei Bedarf schöner formatieren
+      return dt.toString(); // ggf. hübscher formatieren
     } catch (_) {
       return '';
     }
@@ -143,16 +144,15 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
               itemCount: items.length,
               separatorBuilder: (_, __) => const Divider(height: 1),
               itemBuilder: (_, i) {
-                // Felder: ticket, status(1..6), decision('accepted'|'rejected'|null),
-                // reportLink, createdAt, updatedAt, payload{article?...}
-                final c = items[i] as Map<String, dynamic>;
+                final c = items[i];
 
-                final ticket    = (c['ticket'] ?? '').toString();
-                final status    = c['status'] is int ? c['status'] as int : int.tryParse('${c['status'] ?? ''}');
-                final decision  = c['decision']?.toString();
-                final report    = c['reportLink']?.toString();
-                final createdAt = c['createdAt'] is int ? c['createdAt'] as int : int.tryParse('${c['createdAt'] ?? ''}');
-                final payload   = (c['payload'] is Map) ? (c['payload'] as Map).cast<String, dynamic>() : <String, dynamic>{};
+                final ticket    = c.ticket ?? '';
+                final status    = c.status;
+                final decision  = c.decision;
+                final report    = c.reportLink;
+                final createdAt = c.createdAt;
+                // payload kann je nach Modell nullable sein:
+                final payload   = c.payload ?? <String, dynamic>{};
                 final article   = (payload['article'] ?? payload['Artikel'] ?? '').toString();
 
                 final badgeText  = _statusText(status, decision);
