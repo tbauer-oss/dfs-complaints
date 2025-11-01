@@ -1,41 +1,44 @@
 // api/_lib/store.js  (ESM)
 import { Redis } from '@upstash/redis';
 
-// === ENV sauber abgreifen (alle Varianten, zuerst deine) ===========
+/* =========================================================
+   KV / Redis – ENV robust erkennen (Upstash & Vercel KV)
+   ========================================================= */
 const REDIS_URL =
-  process.env.UPSTASH_REDIS_REST_KV_REST_API_URL ||   // <— bei dir vorhanden
+  process.env.UPSTASH_REDIS_REST_KV_REST_API_URL ||   // bei dir vorhanden
   process.env.UPSTASH_REDIS_REST_URL ||               // klassisch Upstash
-  process.env.KV_REST_API_URL ||                      // Vercel KV direkt
+  process.env.KV_REST_API_URL ||                      // Vercel KV
   process.env.REDIS_URL ||                            // Fallback
   null;
 
 const REDIS_TOKEN =
-  process.env.UPSTASH_REDIS_REST_KV_REST_API_TOKEN || // <— bei dir vorhanden (WRITE!)
+  process.env.UPSTASH_REDIS_REST_KV_REST_API_TOKEN || // bei dir vorhanden (WRITE)
   process.env.UPSTASH_REDIS_REST_TOKEN ||             // klassisch Upstash
-  process.env.KV_REST_API_TOKEN ||                    // Vercel KV direkt
+  process.env.KV_REST_API_TOKEN ||                    // Vercel KV
   process.env.REDIS_TOKEN ||                          // Fallback
   null;
 
-// Lazy-Initialisierung (kein Crash bei Preflight/CORS)
+// Lazy-Init (verhindert Crash bei Preflight/CORS)
 let _redis = null;
 function getRedis() {
   if (_redis) return _redis;
-  if (!REDIS_URL || !REDIS_TOKEN) return null;  // Fallback: In-Memory
+  if (!REDIS_URL || !REDIS_TOKEN) return null; // Fallback: In-Memory
   _redis = new Redis({ url: REDIS_URL, token: REDIS_TOKEN });
   return _redis;
 }
 
+// Präfix
 const P = 'dfs:';
 
-// In-Memory Fallback (nur für Dev/Preview)
+// In-Memory Fallback (nur Dev/Preview)
 const mem = {
-  users: new Map(),
-  pending: new Map(),
-  complaints: new Map(),
+  users: new Map(),         // key: email
+  pending: new Map(),       // key: email
+  complaints: new Map(),    // key: ticket
   counters: { ticket: 1 },
 };
 
-// ---------- Helpers (robust) ----------
+// ---------------- Helpers ----------------
 async function rget(key) {
   try { const r = getRedis(); if (!r) return null; return await r.get(key); }
   catch (e) { console.error('KV GET failed:', key, e?.message || e); return null; }
@@ -49,7 +52,7 @@ async function rdel(key) {
   catch (e) { console.error('KV DEL failed:', key, e?.message || e); return null; }
 }
 
-// Keys/Scan – REST-Client kann KEYS oder SCAN
+// KEYS/SCAN – kompatibel für Upstash SDK
 async function rkeys(pattern) {
   const r = getRedis();
   if (!r) return [];
@@ -60,28 +63,37 @@ async function rkeys(pattern) {
     let cursor = 0, out = [];
     do {
       const res = await r.scan(cursor, { match: pattern, count: 1000 });
-      if (Array.isArray(res)) { cursor = Number(res[0]); out.push(...(res[1]||[])); }
-      else { cursor = Number(res.cursor || 0); out.push(...(res.members || res.keys || [])); }
+      if (Array.isArray(res)) {               // [cursor, keys[]]
+        cursor = Number(res[0]);
+        out.push(...(res[1] || []));
+      } else {                                // { cursor, members/keys }
+        cursor = Number(res.cursor || 0);
+        out.push(...(res.members || res.keys || []));
+      }
     } while (cursor !== 0);
     return out;
   }
   return [];
 }
 
-/* --------- NEU: Diagnose für /api/diag/kv ---------- */
+/* -------------- Diagnose für /api/diag/kv --------------- */
 export async function kvStatus() {
   const r = getRedis();
   if (!r) {
     return {
       ok: true,
       useRedis: false,
-      reason: 'missing Upstash ENV',
-      needed: ['KV_REST_API_URL/KV_REST_API_TOKEN', 'oder', 'UPSTASH_REDIS_REST_URL/UPSTASH_REDIS_REST_TOKEN'],
+      reason: 'missing Upstash/Vercel KV ENV',
+      needed: [
+        'KV_REST_API_URL & KV_REST_API_TOKEN',
+        'oder',
+        'UPSTASH_REDIS_REST_URL & UPSTASH_REDIS_REST_TOKEN',
+      ],
     };
   }
   const t0 = Date.now();
   try {
-    const pong = await r.ping();                 // erwartet "PONG"
+    const pong = await r.ping();     // erwartet "PONG"
     const pingMs = Date.now() - t0;
     const prefix = P;
     const keys = await rkeys(`${prefix}*`);
@@ -96,9 +108,9 @@ export async function kvStatus() {
     return { ok: false, useRedis: true, error: e?.message || String(e) };
   }
 }
-/* --------- Ende Diagnose ---------- */
+/* -------------- Ende Diagnose --------------- */
 
-// ---------- Tickets ----------
+// ================= Tickets ==================
 export async function nextTicket() {
   const r = getRedis();
   if (r) {
@@ -109,7 +121,7 @@ export async function nextTicket() {
   return `DFS_CP${String(n).padStart(6, '0')}`;
 }
 
-// ---------- Users ----------
+// ================= Users ====================
 export async function userByEmail(email) {
   if (!email) return null;
   const key = `${P}user:${String(email).toLowerCase()}`;
@@ -146,7 +158,7 @@ export async function usersList() {
   return Array.from(mem.users.values());
 }
 
-// ---------- Pending ----------
+// ================= Pending ==================
 export async function pendingSave(entry) {
   const email = String(entry?.email || '').toLowerCase();
   if (!email) return false;
@@ -165,7 +177,7 @@ export async function pendingGet(email) {
   return mem.pending.get(email) ?? null;
 }
 
-// Alias (falls dein register.js noch darauf zugreift)
+// Alias (kompatibel)
 export async function pendingByEmail(email) { return pendingGet(email); }
 
 export async function pendingDelete(email) {
@@ -187,7 +199,28 @@ export async function pendingList() {
   return Array.from(mem.pending.values());
 }
 
-// ---------- Complaints ----------
+// =============== Complaints =================
+
+// Status-Enum (Farblogik liegt im Frontend, Werte fixieren wir hier)
+export const Status = {
+  SENT: 1,            // gesendet (blau)
+  IN_PROGRESS: 2,     // in Bearbeitung (gelb)
+  NEEDS_INFO: 3,      // Rückfrage erforderlich (orange)
+  FINAL_DECISION: 4,  // Entscheidung (rot/hellgrün via decision)
+  REWORK: 5,          // in Nacharbeit (optional)
+  CLOSED: 6,          // abgeschlossen (grün)
+};
+
+// complaintSave: legt an/überschreibt komplettes Objekt
+// Erwartetes Schema:
+// {
+//   ticket, email,
+//   createdAt, updatedAt,
+//   status: 1..6,
+//   decision: 'accepted'|'rejected'|null,
+//   reportLink: string|null,
+//   payload: {...}
+// }
 export async function complaintSave(c) {
   if (!c?.ticket) c.ticket = await nextTicket();
   const key = `${P}complaint:${c.ticket}`;
@@ -196,13 +229,39 @@ export async function complaintSave(c) {
   mem.complaints.set(c.ticket, c); return c;
 }
 
+export async function complaintGet(ticket) {
+  const key = `${P}complaint:${ticket}`;
+  const r = getRedis();
+  if (r) return await rget(key);
+  return mem.complaints.get(ticket) ?? null;
+}
+
+// Partielle Updates (status, decision, reportLink, payload …)
+export async function complaintUpdate(ticket, patch) {
+  const cur = await complaintGet(ticket);
+  if (!cur) return null;
+  const updated = {
+    ...cur,
+    ...patch,
+    updatedAt: Date.now(),
+  };
+  await complaintSave(updated);
+  return updated;
+}
+
+// Alle Reklamationen eines Kunden (sortiert nach Datum desc)
 export async function complaintsByEmail(email) {
   email = String(email || '').toLowerCase();
   const r = getRedis();
   if (r) {
     const keys = await rkeys(`${P}complaint:*`);
     const vals = await Promise.all(keys.map(k => rget(k)));
-    return vals.filter(v => v?.email?.toLowerCase() === email);
-    }
-  return Array.from(mem.complaints.values()).filter(v => v?.email?.toLowerCase() === email);
+    const list = vals.filter(v => v?.email?.toLowerCase() === email);
+    list.sort((a, b) => (b?.createdAt || 0) - (a?.createdAt || 0));
+    return list;
+  }
+  const list = Array.from(mem.complaints.values())
+    .filter(v => v?.email?.toLowerCase() === email);
+  list.sort((a, b) => (b?.createdAt || 0) - (a?.createdAt || 0));
+  return list;
 }
