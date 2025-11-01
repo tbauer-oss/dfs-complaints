@@ -12,6 +12,14 @@
   "continueLabel": "Continuer",
   "invalid": "Invalide",
 
+  "login": "Connexion",
+  "register": "Inscription",
+  "admin_area": "Espace administrateur",
+  "customer_area": "Espace client",
+  "password_mismatch": "Les mots de passe ne correspondent pas.",
+  "back": "Retour",
+  "none_complaints": "Aucune réclamation pour l’instant."
+
   "auth_login": "Connexion",
   "auth_register": "Inscription",
   "email": "E-mail*",
