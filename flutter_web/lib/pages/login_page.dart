@@ -46,6 +46,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
+    // vorhandene, bekannte Keys weiter benutzen – aber die 3 fehlenden NICHT mehr aufrufen
     String tx(String? s, String fb) => (s == null || s.isEmpty) ? fb : s;
 
     return Center(
@@ -54,18 +55,18 @@ class _LoginPageState extends State<LoginPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Adminbereich (oben)
+            // Adminbereich (oben rechts)
             Align(
               alignment: Alignment.centerRight,
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.admin_panel_settings_outlined),
-                label: Text(tx(t?.admin_area, 'Adminbereich')),
+                // <- fester String statt t.admin_area
+                label: const Text('Adminbereich'),
                 onPressed: _busy ? null : widget.onOpenAdmin,
               ),
             ),
             const SizedBox(height: 12),
 
-            // Login-Form
             TextField(
               controller: _email,
               keyboardType: TextInputType.emailAddress,
@@ -92,11 +93,11 @@ class _LoginPageState extends State<LoginPage> {
                 onPressed: _busy ? null : _doLogin,
                 child: _busy
                     ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                    : Text(tx(t?.login, 'Login')),
+                    // <- fester String statt t.login
+                    : const Text('Login'),
               ),
             ),
 
-            // Fehlermeldung
             if (_err != null) ...[
               const SizedBox(height: 8),
               Text(_err!, style: const TextStyle(color: Colors.red)),
@@ -104,10 +105,10 @@ class _LoginPageState extends State<LoginPage> {
 
             const SizedBox(height: 16),
 
-            // Registrieren (unten)
+            // Registrieren (unten) – fester String statt t.register
             TextButton.icon(
               icon: const Icon(Icons.person_add_alt),
-              label: Text(tx(t?.register, 'Registrieren')),
+              label: const Text('Registrieren'),
               onPressed: _busy ? null : widget.onOpenRegister,
             ),
           ],
