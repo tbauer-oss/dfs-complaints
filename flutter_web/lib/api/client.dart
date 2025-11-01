@@ -1,16 +1,65 @@
 // lib/api/client.dart
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'config.dart';
 import '../models/complaint.dart';
 
-class ApiClient {
-  String? token; // JWT
-  String? gate;  // Gate-Token (X-Gate)
+// Web LocalStorage (sicher in Web, no-op sonst)
+String? _lsGet(String key) {
+  if (!kIsWeb) return null;
+  try {
+    // ignore: avoid_web_libraries_in_flutter
+    import 'dart:html' as html;
+  } catch (_) {}
+  return null;
+}
+void _lsSet(String key, String? value) {
+  if (!kIsWeb) return;
+  try {
+    // ignore: avoid_web_libraries_in_flutter
+    import 'dart:html' as html;
+  } catch (_) {}
+}
 
-  Map<String, String> _headers({bool auth = false, Map<String, String>? extra}) {
-    final h = <String, String>{
+class ApiClient {
+  String? token;
+  String? gate;
+
+  // ===== Persistenz =====
+  Future<void> restoreSession() async {
+    if (!kIsWeb) return;
+    try {
+      // ignore: avoid_web_libraries_in_flutter
+      import 'dart:html' as html;
+    } catch (_) {}
+  }
+
+  void _saveToken(String? t) {
+    token = t;
+    if (!kIsWeb) return;
+    try {
+      // ignore: avoid_web_libraries_in_flutter
+      import 'dart:html' as html;
+    } catch (_) {}
+  }
+
+  void _saveGate(String? g) {
+    gate = g;
+    if (!kIsWeb) return;
+    try {
+      // ignore: avoid_web_libraries_in_flutter
+      import 'dart:html' as html;
+    } catch (_) {}
+  }
+
+  void clearSession() {
+    _saveToken(null);
+    _saveGate(null);
+  }
+
+  Map<String,String> _headers({bool auth=false, Map<String,String>? extra}) {
+    final h = <String,String>{
       'Content-Type': 'application/json',
       if (gate != null) 'X-Gate': gate!,
       if (auth && token != null) 'Authorization': 'Bearer $token',
@@ -19,46 +68,7 @@ class ApiClient {
     return h;
   }
 
-  // ---------- interne Helper ----------
-  Future<Map<String, dynamic>> _getJson(String path, {bool auth = false}) async {
-    final r = await http.get(Uri.parse('${CFG.apiBase}$path'), headers: _headers(auth: auth));
-    if (r.statusCode != 200) {
-      throw Exception('GET $path failed: ${r.statusCode} ${r.body}');
-    }
-    final j = jsonDecode(r.body);
-    if (j is Map<String, dynamic>) return j;
-    throw Exception('GET $path did not return an object');
-  }
-
-  Future<List<dynamic>> _getJsonList(String path, {bool auth = false}) async {
-    final r = await http.get(Uri.parse('${CFG.apiBase}$path'), headers: _headers(auth: auth));
-    if (r.statusCode != 200) {
-      throw Exception('GET $path failed: ${r.statusCode} ${r.body}');
-    }
-    final j = jsonDecode(r.body);
-    if (j is List) return j;
-    throw Exception('GET $path did not return a list');
-  }
-
-  Future<Map<String, dynamic>> _postJson(String path, Map<String, dynamic> body, {bool auth = false}) async {
-    final r = await http.post(
-      Uri.parse('${CFG.apiBase}$path'),
-      headers: _headers(auth: auth),
-      body: jsonEncode(body),
-    );
-    if (r.statusCode != 200) {
-      throw Exception('POST $path failed: ${r.statusCode} ${r.body}');
-    }
-    final j = jsonDecode(r.body);
-    if (j is Map<String, dynamic>) return j;
-    throw Exception('POST $path did not return an object');
-  }
-
-  // =========================================================
-  // -------------------- Gate & Auth ------------------------
-  // =========================================================
-
-  /// Gate freischalten (POST /api/gate) — tolerant auf {ok:true} / {gate:"..."}
+  // ===== Gate / Auth =====
   Future<bool> gateUnlock(String password) async {
     final r = await http.post(
       Uri.parse('${CFG.apiBase}/api/gate'),
@@ -66,17 +76,15 @@ class ApiClient {
       body: jsonEncode({'password': password}),
     );
     if (r.statusCode != 200) return false;
-    try {
-      final j = jsonDecode(r.body);
-      if (j is Map<String, dynamic>) {
-        if (j['gate'] is String) { gate = j['gate'] as String; return true; }
-        if (j['ok'] == true) { gate = gate ?? 'ok'; return true; }
-      }
-    } catch (_) {}
-    return false;
+    final j = jsonDecode(r.body);
+    final g = j['gate']?.toString();
+    if (g != null && g.isNotEmpty) {
+      _saveGate(g);
+      return true;
+    }
+    return j['ok'] == true;
   }
 
-  /// Login (POST /api/auth/login) → bool (setzt bei 200 das JWT)
   Future<bool> login(String email, String password) async {
     final r = await http.post(
       Uri.parse('${CFG.apiBase}/api/auth/login'),
@@ -84,92 +92,76 @@ class ApiClient {
       body: jsonEncode({'email': email, 'password': password}),
     );
     if (r.statusCode != 200) return false;
-    try {
-      final j = jsonDecode(r.body);
-      final t = (j is Map) ? j['token']?.toString() : null;
-      if (t != null && t.isNotEmpty) token = t;
-      return true; // 200 => true, auch ohne Token
-    } catch (_) {
-      return true; // 200 aber kein valides JSON => dennoch true
+    final j = jsonDecode(r.body);
+    final t = j['token']?.toString();
+    if (t != null && t.isNotEmpty) {
+      _saveToken(t);
+      return true;
     }
+    return false;
   }
 
-  /// Registrierung (POST /api/auth/register) → http.Response
-  /// (dein auth_page.dart verwendet r.statusCode / r.body)
-  Future<http.Response> register(Map<String, dynamic> data) async {
-    final r = await http.post(
+  Future<http.Response> register(Map<String,dynamic> data) async {
+    return await http.post(
       Uri.parse('${CFG.apiBase}/api/auth/register'),
       headers: _headers(),
       body: jsonEncode(data),
     );
-    if (r.statusCode == 200) {
-      try {
-        final j = jsonDecode(r.body);
-        if (j is Map<String, dynamic>) {
-          final t = j['token']?.toString();
-          if (t != null && t.isNotEmpty) token = t;
-        }
-      } catch (_) {}
-    }
-    return r;
   }
 
-  // =========================================================
-  // ---------------- Reklamationen (neu) --------------------
-  // =========================================================
-
+  // ===== Complaints =====
   Future<Complaint> complaintCreate(Map<String, dynamic> payload) async {
-    final j = await _postJson('/api/complaint', payload, auth: true);
-    return Complaint.fromJson(j as Map<String, dynamic>);
+    final r = await http.post(
+      Uri.parse('${CFG.apiBase}/api/complaint'),
+      headers: _headers(auth: true),
+      body: jsonEncode(payload),
+    );
+    if (r.statusCode != 200) {
+      throw Exception('complaint create failed: ${r.statusCode} ${r.body}');
+    }
+    return Complaint.fromJson(jsonDecode(r.body));
   }
 
   Future<List<Complaint>> complaintList() async {
-    final list = await _getJsonList('/api/complaint', auth: true);
-    return list.map((e) => Complaint.fromJson((e as Map).cast<String, dynamic>())).toList();
+    final r = await http.get(
+      Uri.parse('${CFG.apiBase}/api/complaint'),
+      headers: _headers(auth: true),
+    );
+    if (r.statusCode == 401) {
+      clearSession();
+      throw Exception('complaint list failed: 401 ${r.body}');
+    }
+    if (r.statusCode != 200) {
+      throw Exception('complaint list failed: ${r.statusCode} ${r.body}');
+    }
+    final List data = jsonDecode(r.body);
+    return data.map((e)=>Complaint.fromJson(e as Map<String,dynamic>)).toList();
   }
 
-  Future<Complaint> complaintGet(String ticket) async {
-    final j = await _getJson('/api/complaint/$ticket', auth: true);
-    return Complaint.fromJson(j);
+  // ===== Account =====
+  Future<Map<String,dynamic>> accountGet() async {
+    final r = await http.get(
+      Uri.parse('${CFG.apiBase}/api/account'),
+      headers: _headers(auth: true),
+    );
+    if (r.statusCode == 401) {
+      clearSession();
+      throw Exception('GET /api/account failed: 401 ${r.body}');
+    }
+    if (r.statusCode != 200) {
+      throw Exception('GET /api/account failed: ${r.statusCode} ${r.body}');
+    }
+    return jsonDecode(r.body) as Map<String,dynamic>;
   }
 
-  // =========================================================
-  // ---- Rückwärtskompatible Wrapper für alte Aufrufe -------
-  // =========================================================
-
-  Future<Map<String, dynamic>> submitComplaint(Map<String, dynamic> payload, [dynamic _legacy]) async {
-    final raw = await _postJson('/api/complaint', payload, auth: true);
-    return _cloneWithDataAlias(raw);
-  }
-
-  Future<List<dynamic>> myComplaints() async {
-    final list = await _getJsonList('/api/complaint', auth: true);
-    return list.map((e) => _cloneWithDataAlias((e as Map).cast<String, dynamic>())).toList();
-  }
-
-  Map<String, dynamic> _cloneWithDataAlias(Map<String, dynamic> src) {
-    final out = Map<String, dynamic>.from(src);
-    final payload = (src['payload'] is Map) ? (src['payload'] as Map).cast<String, dynamic>() : <String, dynamic>{};
-    out['data'] = out['data'] ?? payload; // alias für alte UIs
-    return out;
-  }
-
-  // =========================================================
-  // ---------------------- Account --------------------------
-  // =========================================================
-
-  Future<Map<String, dynamic>> accountGet() async => _getJson('/api/account', auth: true);
-
-  Future<Map<String, dynamic>> accountUpdate(Map<String, dynamic> data) async {
+  Future<Map<String,dynamic>> accountUpdate(Map<String,dynamic> data) async {
     final r = await http.put(
       Uri.parse('${CFG.apiBase}/api/account'),
       headers: _headers(auth: true),
       body: jsonEncode(data),
     );
-    if (r.statusCode != 200) {
-      throw Exception('account update failed: ${r.statusCode} ${r.body}');
-    }
-    return (jsonDecode(r.body) as Map).cast<String, dynamic>();
+    if (r.statusCode != 200) throw Exception('account update failed: ${r.body}');
+    return jsonDecode(r.body) as Map<String,dynamic>;
   }
 
   Future<void> accountChangePassword(String oldPw, String newPw) async {
@@ -178,9 +170,7 @@ class ApiClient {
       headers: _headers(auth: true),
       body: jsonEncode({'oldPassword': oldPw, 'newPassword': newPw}),
     );
-    if (r.statusCode != 200) {
-      throw Exception('password change failed: ${r.statusCode} ${r.body}');
-    }
+    if (r.statusCode != 200) throw Exception('password change failed: ${r.body}');
   }
 
   Future<void> accountDelete(String password) async {
@@ -189,15 +179,11 @@ class ApiClient {
       headers: _headers(auth: true),
       body: jsonEncode({'password': password}),
     );
-    if (r.statusCode != 200) {
-      throw Exception('account delete failed: ${r.statusCode} ${r.body}');
-    }
+    if (r.statusCode != 200) throw Exception('account delete failed: ${r.body}');
+    clearSession();
   }
 
-  // =========================================================
-  // ----------------------- Support -------------------------
-  // =========================================================
-
+  // ===== Support =====
   Future<void> sendSupport({
     required String category,
     required String message,
@@ -206,14 +192,8 @@ class ApiClient {
     final r = await http.post(
       Uri.parse('${CFG.apiBase}/api/support'),
       headers: _headers(auth: true),
-      body: jsonEncode({
-        'category': category,
-        'message': message,
-        'consent': consent,
-      }),
+      body: jsonEncode({'category': category, 'message': message, 'consent': consent}),
     );
-    if (r.statusCode != 200) {
-      throw Exception('support send failed: ${r.statusCode} ${r.body}');
-    }
+    if (r.statusCode != 200) throw Exception('support send failed: ${r.body}');
   }
 }
