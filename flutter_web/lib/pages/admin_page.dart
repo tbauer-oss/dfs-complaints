@@ -28,7 +28,14 @@ class _AdminPageState extends State<AdminPage> {
     super.initState();
     _api = AdminApi();
 
-    final secret = html.window.localStorage['admin_secret'] ?? '';
+    // 1) Primär: aus dem ApiClient, der von main.dart übergeben wird
+    String secret = widget.api.adminSecret ?? '';
+
+    // 2) Fallback: aus localStorage lesen – aber bitte den richtigen Key "dfs_admin"
+    if (secret.isEmpty) {
+      secret = html.window.localStorage['dfs_admin'] ?? '';
+    }
+
     _api.setSecret(secret);
 
     if (secret.isEmpty) {
