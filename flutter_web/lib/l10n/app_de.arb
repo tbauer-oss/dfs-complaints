@@ -124,6 +124,7 @@
   "article": "Artikelnummer*",
   "batch": "Charge",
   "quantity": "Menge",
+  "qty": "Menge",
   "expiry": "Ablaufdatum (falls relevant)",
   "problem_desc": "Problembeschreibung*",
   "applied_to_patient": "Am Patienten angewendet?*",
