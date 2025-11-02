@@ -2,7 +2,7 @@
 export const config = { runtime: 'nodejs' };
 
 import {
-  handlePreflight, setCors, ok, bad, methodNotAllowed, noContent
+  handlePreflight, setCors, ok, bad, methodNotAllowed, noContent, readJson
 } from './_lib/http.js';
 import jwt from 'jsonwebtoken';
 import {
@@ -25,8 +25,11 @@ function authEmailFromReq(req) {
   }
 }
 
+const ALLOWED_LANG = new Set(['de','en','fr','it','es']);
+const norm = (v) => (v == null ? '' : String(v).trim());
+
 export default async function handler(req, res) {
-  // CORS & Preflight zuerst
+  // CORS/Preflight zuerst
   if (handlePreflight(req, res)) return;
   setCors(req, res);
 
@@ -35,12 +38,11 @@ export default async function handler(req, res) {
   const email = authEmailFromReq(req);
   if (!email) return bad(res, 'unauthorized', 401);
 
-  // ---------- GET: Account lesen (für "Mein Account") ----------
+  // ---------- GET: Account lesen ----------
   if (req.method === 'GET') {
     try {
       const u = await userByEmail(email);
       if (!u) return bad(res, 'not found', 404);
-      // Nur harmlose Felder zurückgeben
       const out = {
         email: u.email || '',
         company: u.company || '',
@@ -50,7 +52,7 @@ export default async function handler(req, res) {
         city: u.city || '',
         country: u.country || '',
         phone: u.phone || '',
-        lang: u.lang || 'de',
+        lang: (u.lang || 'de'),
         createdAt: u.createdAt || null,
         revoked: !!u.revoked,
       };
@@ -61,14 +63,69 @@ export default async function handler(req, res) {
     }
   }
 
+  // ---------- PUT/PATCH: Accountdaten ändern ----------
+  if (req.method === 'PUT' || req.method === 'PATCH') {
+    try {
+      const body = readJson(req) || {};
+
+      // Nur diese Felder dürfen geändert werden (E-Mail bleibt die vom Token!)
+      const update = {
+        company:  norm(body.company),
+        contact:  norm(body.contact),
+        street:   norm(body.street),
+        zip:      norm(body.zip),
+        city:     norm(body.city),
+        country:  norm(body.country),
+        phone:    norm(body.phone),
+        lang:     norm(body.lang),
+      };
+
+      // Sprache validieren (optional, sonst Standard 'de')
+      if (!ALLOWED_LANG.has(update.lang.toLowerCase())) {
+        update.lang = 'de';
+      }
+
+      // Bestehenden Nutzer laden oder Grundgerüst anlegen
+      const cur = (await userByEmail(email)) || { email, createdAt: Date.now() };
+
+      const saved = {
+        ...cur,
+        ...update,
+        email,
+        updatedAt: Date.now(),
+      };
+
+      await userSave(saved);
+
+      // Reduzierte Antwort
+      const out = {
+        email: saved.email,
+        company: saved.company || '',
+        contact: saved.contact || '',
+        street: saved.street || '',
+        zip: saved.zip || '',
+        city: saved.city || '',
+        country: saved.country || '',
+        phone: saved.phone || '',
+        lang: saved.lang || 'de',
+        createdAt: saved.createdAt || null,
+        updatedAt: saved.updatedAt || null,
+        revoked: !!saved.revoked,
+      };
+      return ok(res, out);
+    } catch (e) {
+      console.error('account PUT/PATCH error:', e);
+      return bad(res, 'server error', 500);
+    }
+  }
+
   // ---------- DELETE: Account löschen ----------
   if (req.method === 'DELETE') {
     try {
-      // Soft-Delete als Standard (sicherer)
       const hard = String(req.query?.hard || '').trim() === '1';
 
       if (hard) {
-        // 1) Alle Reklamationen des Nutzers löschen
+        // 1) Reklamationen löschen
         const list = await complaintsByEmail(email);
         if (Array.isArray(list)) {
           for (const c of list) {
@@ -79,17 +136,16 @@ export default async function handler(req, res) {
         }
         // 2) Nutzer löschen
         try { await userDelete(email); } catch (_) {}
-        // 3) Eventuelles pending löschen
+        // 3) evtl. Pending-Eintrag löschen
         try { await pendingDelete(email); } catch (_) {}
       } else {
-        // Soft: nur sperren – Daten bleiben erhalten
+        // Soft-Delete: sperren
         const u = (await userByEmail(email)) || { email };
         u.revoked = true;
         u.revokedAt = Date.now();
         await userSave(u);
       }
 
-      // 204 genügt Frontend-seitig meist; sonst ok(res,{...})
       return noContent(res);
     } catch (e) {
       console.error('account DELETE error:', e);
