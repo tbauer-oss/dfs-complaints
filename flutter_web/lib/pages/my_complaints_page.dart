@@ -48,11 +48,11 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
       // Neueste zuerst (nach updatedAt, dann createdAt)
       list.sort((a, b) {
         final ta = (a.updatedAt.millisecondsSinceEpoch > 0
-                ? a.updatedAt.millisecondsSinceEpoch
-                : a.createdAt.millisecondsSinceEpoch);
+            ? a.updatedAt.millisecondsSinceEpoch
+            : a.createdAt.millisecondsSinceEpoch);
         final tb = (b.updatedAt.millisecondsSinceEpoch > 0
-                ? b.updatedAt.millisecondsSinceEpoch
-                : b.createdAt.millisecondsSinceEpoch);
+            ? b.updatedAt.millisecondsSinceEpoch
+            : b.createdAt.millisecondsSinceEpoch);
         return tb.compareTo(ta);
       });
 
@@ -106,6 +106,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     }
   }
 
+  // (Kann bleiben, wird aktuell nicht mehr genutzt)
   bool _canShowReport(Complaint c) {
     final link = c.reportLink;
     if (link == null || link.isEmpty) return false;
@@ -172,7 +173,8 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                           final c = _items[i];
                           final statusText = _statusText(c.status, c.decision);
                           final statusColor = _statusColor(c.status, c.decision);
-                          final showReport = _canShowReport(c);
+                          final reportLink = (c.reportLink ?? '').trim();
+                          final canOpenReport = reportLink.isNotEmpty;
 
                           return ListTile(
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -186,37 +188,100 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                 Text('Erstellt: ${_fmt(c.createdAt)}'),
                                 if (c.updatedAt.millisecondsSinceEpoch > 0)
                                   Text('Aktualisiert: ${_fmt(c.updatedAt)}'),
-                                if (showReport) ...[
+                                if (canOpenReport) ...[
                                   const SizedBox(height: 6),
-                                  InkWell(
-                                    onTap: () {
-                                      final link = c.reportLink!;
-                                      html.window.open(link, '_blank');
-                                    },
-                                    child: const Text(
-                                      'Reklamationsbericht öffnen',
-                                      style: TextStyle(decoration: TextDecoration.underline),
-                                    ),
+                                  TextButton.icon(
+                                    onPressed: () => html.window.open(reportLink, '_blank'),
+                                    icon: const Icon(Icons.open_in_new),
+                                    label: const Text('Bericht öffnen'),
                                   ),
                                 ],
                               ],
                             ),
-                            trailing: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: statusColor.withOpacity(0.12),
-                                border: Border.all(color: statusColor, width: 1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                statusText,
-                                style: TextStyle(color: statusColor, fontWeight: FontWeight.w600),
-                              ),
+                            trailing: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                // Status-Badge
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: statusColor.withOpacity(0.12),
+                                    border: Border.all(color: statusColor, width: 1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    statusText,
+                                    style: TextStyle(color: statusColor, fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                // Details-Button
+                                TextButton.icon(
+                                  onPressed: () async {
+                                    await showDialog(
+                                      context: context,
+                                      builder: (_) => _MyComplaintDetailsDialog(c: c),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.info_outline),
+                                  label: const Text('Details'),
+                                ),
+                              ],
                             ),
                           );
                         },
                       ),
                     ),
+    );
+  }
+}
+
+// ---- Details-Dialog (Kundenbereich) ----
+// WICHTIG: Top-Level (außerhalb der State-Klasse)!
+class _MyComplaintDetailsDialog extends StatelessWidget {
+  final Complaint c;
+  const _MyComplaintDetailsDialog({required this.c});
+
+  @override
+  Widget build(BuildContext context) {
+    final payload = c.payload ?? const {};
+    Widget row(String l, String v) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 160, child: Text(l, style: const TextStyle(fontWeight: FontWeight.w600))),
+          Expanded(child: Text(v.isEmpty ? '—' : v)),
+        ],
+      ),
+    );
+
+    return AlertDialog(
+      title: Text('Details – ${c.ticket}'),
+      content: SizedBox(
+        width: 560,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (payload.isEmpty)
+                const Text('Keine Details vorhanden.')
+              else ...[
+                row('Segment', (payload['segment'] ?? '').toString()),
+                row('Artikel', (payload['article'] ?? '').toString()),
+                row('Charge',  (payload['batch'] ?? '').toString()),
+                row('Menge',   (payload['qty'] ?? '').toString()),
+                row('Ablauf',  (payload['expiry'] ?? '').toString()),
+                row('Beschreibung', (payload['desc'] ?? '').toString()),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Schließen')),
+      ],
     );
   }
 }
