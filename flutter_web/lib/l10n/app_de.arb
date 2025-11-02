@@ -44,7 +44,7 @@
   "accountDeleteConfirm": "Bist du sicher? Dieser Vorgang kann nicht rückgängig gemacht werden.",
   "accountDeleted": "Account gelöscht.",
 
-  "contactPerson": "Ansprechpartner",  // zusätzlich zu deinem vorhandenen "contact_person",
+  "contactPerson": "Ansprechpartner",
 
   "adminTitle": "Adminbereich – DFS Customer Complaint",
 
