@@ -2,7 +2,7 @@
 export const config = { runtime: 'nodejs' };
 
 import {
-  handlePreflight, ok, bad, methodNotAllowed, readJson
+  handlePreflight, setCors, ok, bad, methodNotAllowed, readJson
 } from '../_lib/http.js';
 import { usersList, userSave, userDelete, pendingDelete } from '../_lib/store.js';
 
@@ -17,6 +17,7 @@ function isAdmin(req) {
 export default async function handler(req, res) {
   // CORS-Header setzen + OPTIONS (Preflight) direkt beantworten
   if (handlePreflight(req, res)) return;
+  setCors(req, res);
 
   if (!isAdmin(req)) return bad(res, 'admin unauthorized', 401);
 
@@ -24,6 +25,7 @@ export default async function handler(req, res) {
     // ---- LIST ----
     if (req.method === 'GET') {
       const list = await usersList();
+      list.sort((a, b) => String(a?.company || '').localeCompare(String(b?.company || '')));
       return ok(res, list);
     }
 
@@ -31,12 +33,12 @@ export default async function handler(req, res) {
     if (req.method === 'PATCH') {
       // erwartet: { email, revoked: true/false }
       const { email, revoked } = readJson(req) || {};
-      if (!email) return bad(res, 'missing email', 400);
-
+      const wanted = String(email || '').trim().toLowerCase();
+      if (!wanted) return bad(res, 'missing email', 400);
       const list = await usersList();
-      const u = list.find(x => (x.email || '').toString().toLowerCase() === String(email).toLowerCase());
+      const u = list.find(x => String(x?.email || '').trim().toLowerCase() === wanted);
+      
       if (!u) return bad(res, 'not found', 404);
-
       u.revoked = !!revoked;
       await userSave(u);
       return ok(res, { ok: true });
@@ -45,13 +47,13 @@ export default async function handler(req, res) {
     // ---- DELETE (robust) ----
     if (req.method === 'DELETE') {
       const body = readJson(req) || {};
-      const email = (req.query?.email || body.email || '').toString().trim();
-      if (!email) return bad(res, 'missing email', 400);
-
-      await userDelete(email);
+      const wanted = (req.query?.email || body.email || '').toString().trim().toLowerCase();
+      if (!wanted) return bad(res, 'missing email', 400);
+      await userDelete(wanted);
+      
       // pending ggf. mit aufräumen (failsafe)
       try { await pendingDelete(email); } catch (_) {}
-      return ok(res, { deleted: true, email });
+      return ok(res, { deleted: true, email: wanted });
     }
 
     // ---- POST Fallback: action=delete ----
@@ -59,16 +61,16 @@ export default async function handler(req, res) {
       const body = readJson(req) || {};
       const action = (body.action || '').toString();
       if (action === 'delete') {
-        const email = (body.email || '').toString().trim();
-        if (!email) return bad(res, 'missing email', 400);
-        await userDelete(email);
-        return ok(res, { deleted: true, email });
+        const wanted = (body.email || '').toString().trim().toLowerCase();
+        if (!wanted) return bad(res, 'missing email', 400);
+        await userDelete(wanted);
+        return ok(res, { deleted: true, email: wanted });
       }
       return bad(res, 'unknown action', 400);
     }
 
     return methodNotAllowed(res);
   } catch (e) {
-    return bad(res?.message || String(e), 500);
+    return bad(res, e?.message || String(e), 500);
   }
 }
