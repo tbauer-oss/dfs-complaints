@@ -223,7 +223,7 @@ class ApiClient {
         .map((f) => {
               'name': f.name,
               'mime': f.mime,
-             'bytes': base64Encode(f.bytes),
+              'bytes': base64Encode(f.bytes),
             })
         .toList();
 
@@ -259,6 +259,28 @@ class ApiClient {
   Future<List<Complaint>> complaintList() async {
     final raw = await complaintListRaw();
     return raw.map(Complaint.fromJson).toList(growable: false);
+  }
+
+  // ---------- NEW: Kundenbereich – Live-Updates ----------
+  /// Liefert die eigenen Reklamationen mit allen Feldern (inkl. status/decision/updatedAt).
+  /// Backend: GET /api/complaint/list?details=1  (JWT erforderlich)
+  Future<List<Map<String, dynamic>>> myComplaintsDetailed() async {
+    final r = await _get('/api/complaint/list?details=1', auth: true);
+    if (r.statusCode != 200) {
+      throw Exception('GET /api/complaint/list?details=1 failed: ${r.statusCode} ${r.body}');
+    }
+    final List data = jsonDecode(r.body);
+    return data.cast<Map<String, dynamic>>();
+  }
+
+  /// Eine eigene Reklamation per Ticket (Validierung gegen User erfolgt im Backend).
+  /// Backend: GET /api/complaint/get?ticket=...  (JWT erforderlich)
+  Future<Map<String, dynamic>> myComplaintByTicket(String ticket) async {
+    final r = await _get('/api/complaint/get?ticket=$ticket', auth: true);
+    if (r.statusCode != 200) {
+      throw Exception('GET /api/complaint/get failed: ${r.statusCode} ${r.body}');
+    }
+    return (jsonDecode(r.body) as Map).cast<String, dynamic>();
   }
 
   // ---------- Admin: Secret prüfen (für Dialog) ----------
