@@ -1,4 +1,5 @@
 // lib/main.dart
+import 'dart:html' as html; // für Sprache persistieren
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
@@ -30,6 +31,11 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
+    // gespeicherte Sprache laden
+    final saved = html.window.localStorage['dfs_lang'];
+    if (saved != null && saved.isNotEmpty) {
+      _locale = Locale(saved);
+    }
     _boot();
   }
 
@@ -41,56 +47,58 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
-  void _setLocale(Locale l) => setState(() => _locale = l);
+  void _setLocale(Locale l) {
+    setState(() => _locale = l);
+    html.window.localStorage['dfs_lang'] = l.languageCode;
+  }
 
   // --- Admin-Secret Dialog + Navigation ---
   Future<void> _openAdmin(BuildContext context) async {
+    final t = AppLocalizations.of(context)!;
     final ctrl = TextEditingController(text: api.adminSecret ?? '');
     final wantOpen = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Admin-Secret'),
+        title: Text(t.adminArea), // oder t.adminTitle
         content: TextField(
           controller: ctrl,
-          decoration: const InputDecoration(
-            labelText: 'X-Admin-Secret',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            labelText: t.adminSecret,
+            border: const OutlineInputBorder(),
           ),
           obscureText: true,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Abbrechen'),
+            child: Text(t.cancel),
           ),
-          ElevatedButton(
+          FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Öffnen'),
+            child: Text(t.open),
           ),
         ],
       ),
     );
 
-    if (wantOpen != true) return; // Dialog abgebrochen
+    if (wantOpen != true) return;
 
     final secret = ctrl.text.trim();
     if (secret.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bitte Admin-Secret eingeben.')),
+        SnackBar(content: Text(t.required_fields)),
       );
       return;
     }
 
-    // **NEU:** Secret sofort prüfen – bei Fehler NICHT navigieren
     final ok = await api.validateAdminSecret(secret);
     if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Admin-Secret ungültig.')),
+        SnackBar(content: Text(t.errorGeneric('Admin-Secret'))),
       );
       return;
     }
 
-    // Gültig → speichern & Adminbereich öffnen
     api.setAdminSecret(secret);
     if (!mounted) return;
     Navigator.of(context).push(
@@ -98,21 +106,19 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
-  // --- Registrierung öffnen ---
   void _openRegister(BuildContext context) {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => RegisterPage(api: api)));
   }
 
-  // --- Nach Login zum Dashboard ---
   void _onLoggedIn() => setState(() => _loggedIn = true);
-
-  // --- Nach Logout zurück zum Login ---
   void _onLoggedOut() => setState(() => _loggedIn = false);
 
   @override
   Widget build(BuildContext context) {
     if (!_bootDone) {
-      return const MaterialApp(home: Scaffold(body: Center(child: CircularProgressIndicator())));
+      return const MaterialApp(
+        home: Scaffold(body: Center(child: CircularProgressIndicator())),
+      );
     }
 
     return MaterialApp(
@@ -127,27 +133,47 @@ class _MyAppState extends State<MyApp> {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+      // Fallback, wenn Browser-Sprache nicht unterstützt wird
+      localeResolutionCallback: (deviceLocales, supported) {
+        if (_locale != null) return _locale;
+        if (deviceLocales != null && deviceLocales.isNotEmpty) {
+          final lang = deviceLocales.first.languageCode.toLowerCase();
+          for (final s in supported) {
+            if (s.languageCode.toLowerCase() == lang) return s;
+          }
+        }
+        return const Locale('de');
+      },
       home: _loggedIn
-          ? Scaffold(
-              
-              body: DashboardPage(api: api, onLoggedOut: _onLoggedOut),
+          ? Builder(
+              builder: (ctx) {
+                final t = AppLocalizations.of(ctx)!;
+                return Scaffold(
+                  appBar: AppBar(
+                    title: Text(t.appTitle),
+                    actions: [LangAction(onLocaleChanged: _setLocale)],
+                  ),
+                  body: DashboardPage(api: api, onLoggedOut: _onLoggedOut),
+                );
+              },
             )
-          : Scaffold(
-            // ... Login bleibt unverändert
-              appBar: AppBar(
-                title: const Text('Login'),
-                actions: [
-                  LangAction(onLocaleChanged: _setLocale),
-                ],
-              ),
-              body: Builder(
-                builder: (ctx) => LoginPage(
-                  api: api,
-                  onLoggedIn: _onLoggedIn,
-                  onOpenAdmin: () => _openAdmin(ctx),
-                  onOpenRegister: () => _openRegister(ctx),
-                ),
-              ),
+          : Builder(
+              builder: (ctx) {
+                final t = AppLocalizations.of(ctx)!;
+                return Scaffold(
+                  appBar: AppBar(
+                    // WICHTIG: kein const + lokalisiert
+                    title: Text(t.login),
+                    actions: [LangAction(onLocaleChanged: _setLocale)],
+                  ),
+                  body: LoginPage(
+                    api: api,
+                    onLoggedIn: _onLoggedIn,
+                    onOpenAdmin: () => _openAdmin(ctx),
+                    onOpenRegister: () => _openRegister(ctx),
+                  ),
+                );
+              },
             ),
     );
   }
