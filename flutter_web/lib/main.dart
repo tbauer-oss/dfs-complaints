@@ -101,7 +101,15 @@ class _MyAppState extends State<MyApp> {
         GlobalCupertinoLocalizations.delegate,
       ],
       home: _loggedIn
-          ? DashboardPage(api: api, onLoggedOut: _onLoggedOut)   // <— kein äußerer Scaffold/AppBar mehr
+          ? Scaffold(
+              appBar: AppBar(
+                title: const Text('Kundenbereich'),
+                actions: [
+                  LangAction(onLocaleChanged: _setLocale),
+                ],
+              ),
+              body: DashboardPage(api: api, onLoggedOut: _onLoggedOut),
+            )
           : Scaffold(
             // ... Login bleibt unverändert
               appBar: AppBar(
