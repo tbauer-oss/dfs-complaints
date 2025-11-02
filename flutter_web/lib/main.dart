@@ -46,7 +46,7 @@ class _MyAppState extends State<MyApp> {
   // --- Admin-Secret Dialog + Navigation ---
   Future<void> _openAdmin(BuildContext context) async {
     final ctrl = TextEditingController(text: api.adminSecret ?? '');
-    final ok = await showDialog<bool>(
+    final wantOpen = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Admin-Secret'),
@@ -59,16 +59,43 @@ class _MyAppState extends State<MyApp> {
           obscureText: true,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Öffnen')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Abbrechen'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Öffnen'),
+          ),
         ],
       ),
     );
-    if (ok == true) {
-      api.setAdminSecret(ctrl.text.trim());
-      if (!mounted) return;
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => AdminPage(api: api)));
+
+    if (wantOpen != true) return; // Dialog abgebrochen
+
+    final secret = ctrl.text.trim();
+    if (secret.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bitte Admin-Secret eingeben.')),
+      );
+      return;
     }
+
+    // **NEU:** Secret sofort prüfen – bei Fehler NICHT navigieren
+    final ok = await api.validateAdminSecret(secret);
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Admin-Secret ungültig.')),
+      );
+      return;
+    }
+
+    // Gültig → speichern & Adminbereich öffnen
+    api.setAdminSecret(secret);
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => AdminPage(api: api)),
+    );
   }
 
   // --- Registrierung öffnen ---
