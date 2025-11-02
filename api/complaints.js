@@ -2,7 +2,9 @@
 export const config = { runtime: 'nodejs' };
 
 import jwt from 'jsonwebtoken';
-import { setCors, noContent, ok, bad, methodNotAllowed, readJson } from './_lib/http.js';
+import {
+  handlePreflight, ok, bad, methodNotAllowed, readJson
+} from './_lib/http.js';
 import { complaintsAll, complaintSave, nextTicket } from './_lib/store.js';
 
 // ===== Konfiguration =====
@@ -35,11 +37,11 @@ function toDto(c) {
   };
 }
 
-// ---- Uploads robust parsen (unterstützt 'uploads' oder 'files' mit base64 'bytes') ----
+// ---- Uploads robust parsen ----
 function parseUploads(body) {
   const out = [];
 
-  // Variante A: body.uploads[] mit {name, mime, size} (nur Meta)
+  // Variante A: body.uploads[] (nur Meta)
   if (Array.isArray(body?.uploads)) {
     for (const u of body.uploads) {
       out.push({
@@ -50,11 +52,10 @@ function parseUploads(body) {
     }
   }
 
-  // Variante B: body.files[] mit {name, mime, bytes: <base64>} (aus deinem Client)
+  // Variante B: body.files[] mit base64 bytes (aus dem Client)
   if (Array.isArray(body?.files)) {
     for (const f of body.files) {
       const b64 = (f?.bytes || '').toString();
-      // grobe Größenabschätzung aus base64-Länge
       const approxSize = Math.floor(b64.length * 3 / 4);
       out.push({
         name: (f?.name || '').toString(),
@@ -74,9 +75,8 @@ function sortDescByDate(a, b) {
 }
 
 export default async function handler(req, res) {
-  // --- CORS IMMER zuerst ---
-  setCors(req, res);
-  if (req.method === 'OPTIONS') return noContent(res);
+  // --- CORS immer zuerst: setzt Header & beantwortet OPTIONS (204) ---
+  if (handlePreflight(req, res)) return;
 
   // --- Auth prüfen ---
   const user = requireUser(req);
@@ -87,7 +87,9 @@ export default async function handler(req, res) {
     try {
       const list = await complaintsAll();
       const own = Array.isArray(list)
-        ? list.filter(c => (c?.email || '').toString().trim().toLowerCase() === user.email).sort(sortDescByDate)
+        ? list
+            .filter(c => (c?.email || '').toString().trim().toLowerCase() === user.email)
+            .sort(sortDescByDate)
         : [];
       return ok(res, own.map(toDto));
     } catch {
@@ -127,12 +129,10 @@ export default async function handler(req, res) {
     const complaint = {
       ticket,
       email: user.email,
-      payload: {
-        segment, article, desc, batch, qty, expiry, applied, injury, injuryDesc, returned, handling,
-      },
-      uploads,            // nur Metadaten (keine Base64-Daten in Redis)
-      status: 1,          // 1 = Eingegegangen
-      decision: null,     // noch keine Entscheidung
+      payload: { segment, article, desc, batch, qty, expiry, applied, injury, injuryDesc, returned, handling },
+      uploads,
+      status: 1,
+      decision: null,
       reportLink: null,
       createdAt: now,
       updatedAt: now,
