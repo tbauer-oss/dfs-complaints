@@ -19,6 +19,64 @@
   "continueLabel": "Continue",
   "invalid": "Invalid",
 
+  "cancel": "Cancel",
+  "open": "Open",
+  "unlock": "Unlock",
+
+  "logout": "Log out",
+  "loggedOut": "Logged out.",
+  "logoutTitle": "Log out",
+  "logoutConfirm": "Do you really want to log out?",
+
+  "sessionExpired": "Session expired. Please log in again.",
+  "noData": "No data.",
+
+  "error": "Error: {msg}",
+  "@error": { "placeholders": { "msg": {} } },
+  "errorGeneric": "Error: {msg}",
+  "@errorGeneric": { "placeholders": { "msg": {} } },
+
+  "myAccount": "My account",
+  "editData": "Edit data",
+  "changePassword": "Change password",
+  "accountDelete": "Delete account",
+  "accountDeleteTitle": "Delete account?",
+  "accountDeleteConfirm": "Are you sure? This cannot be undone.",
+  "accountDeleted": "Account deleted.",
+
+  "adminTitle": "Admin area – DFS Customer Complaint",
+
+  "unsavedChangesTitle": "Unsaved changes",
+  "unsavedChangesText": "There are unsaved changes. Leave anyway?",
+  "leave": "Leave",
+
+  "reportComplaint": "Report complaint",
+  "openComplaintReport": "Open complaint report",
+  "myComplaints": "My complaints",
+
+  "createdAt": "Created: {ts}",
+  "@createdAt": { "placeholders": { "ts": {} } },
+  "updatedAt": "Updated: {ts}",
+  "@updatedAt": { "placeholders": { "ts": {} } },
+
+  "sessionInvalidPleaseLogin": "Session invalid. Please log in again.",
+
+  "gateUnlockHint": "Please enter the release password to open the registration area.",
+
+  "statusSubmitted": "submitted",
+  "statusInProgress": "in progress",
+  "statusInquiryRequired": "inquiry required",
+  "statusRejected": "rejected",
+  "statusAccepted": "accepted",
+  "statusDecision": "decision",
+  "statusRework": "rework",
+  "statusClosed": "closed",
+  "statusUnknown": "unknown",
+
+  "email_plain": "Email",
+  "company_plain": "Company",
+  "contact_person_plain": "Contact person",
+
   "login": "Login",
   "register": "Register",
   "admin_area": "Admin area",
