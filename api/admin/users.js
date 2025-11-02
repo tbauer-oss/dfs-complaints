@@ -1,4 +1,8 @@
 // api/admin/users.js
+console.log('[ADMIN DEBUG]', {
+  ADMIN_SECRET: process.env.ADMIN_SECRET ? '(set)' : '(missing)',
+  recv: req.headers?.['x-admin-secret']
+});
 export const config = { runtime: 'nodejs' };
 
 import {
