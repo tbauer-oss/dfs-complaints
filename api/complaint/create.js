@@ -1,119 +1,149 @@
+// api/complaint/create.js
 export const config = { runtime: 'nodejs' };
 
 import jwt from 'jsonwebtoken';
-import multer from 'multer';
 import { create } from 'xmlbuilder2';
-import { setCors, noContent, ok, bad, methodNotAllowed } from '../_lib/http.js';
-import { complaintSave, userByEmail, nextTicket } from '../_lib/store.js';
+import {
+  setCors,
+  noContent,
+  ok,
+  bad,
+  methodNotAllowed,
+  readJson
+} from '../_lib/http.js';
+import {
+  complaintSave,
+  userByEmail,
+  nextTicket
+} from '../_lib/store.js';
 import { send, tpl } from '../_lib/mail.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret';
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 10 } }); // Single file limit; sum prüfen unten
 
-function auth(req){
+function auth(req) {
   const hdr = req.headers?.authorization || '';
   const tok = hdr.startsWith('Bearer ') ? hdr.slice(7) : null;
   if (!tok) return null;
-  try { return jwt.verify(tok, JWT_SECRET); } catch { return null; }
+  try {
+    return jwt.verify(tok, JWT_SECRET);
+  } catch {
+    return null;
+  }
 }
 
-function runMulter(req,res){
-  return new Promise((resolve, reject)=>{
-    upload.array('images')(req, res, (err)=> err ? reject(err) : resolve());
-  });
-}
-
-export default async function handler(req, res){
-  setCors(req,res);
+export default async function handler(req, res) {
+  setCors(req, res);
   if (req.method === 'OPTIONS') return noContent(res);
-  if (req.method !== 'POST')    return methodNotAllowed(res);
+  if (req.method !== 'POST') return methodNotAllowed(res);
 
   const a = auth(req);
-  if (!a?.sub) return bad(res,'unauthorized',401);
+  if (!a?.sub) return bad(res, 'unauthorized', 401);
+
   const u = await userByEmail(a.sub);
-  if (!u || u.revoked) return bad(res,'forbidden',403);
+  if (!u || u.revoked) return bad(res, 'forbidden', 403);
 
-  await runMulter(req,res);
+  const body = readJson(req);
+  const payload = body?.payload || {};
+  const files = Array.isArray(body?.files) ? body.files : [];
 
-  const body = JSON.parse(req.body?.fields || req.body || '{}');
-
-  const required = ['segment','article','desc','privacy','returned','handling'];
-  for (const k of required) if (!body[k]) return bad(res, `missing ${k}`);
-
-  if (body.segment === 'Zahnarzt'){
-    if (!body.applied || typeof body.applied !== 'string') return bad(res,'missing applied (Ja/Nein)');
-    if (!body.injury || typeof body.injury !== 'string') return bad(res,'missing injury (Ja/Nein)');
-    if (body.applied === 'Ja' && body.injury === 'Ja' && !body.injuryDesc) return bad(res,'missing injuryDesc');
-    if (!body.batch) return bad(res,'missing batch (Charge)');
-  }
-
-  // Summe Bilder prüfen (≤ 8 MB)
-  const files = req.files || [];
-  const totalBytes = files.reduce((s,f)=>s + (f?.buffer?.length||0), 0);
-  if (totalBytes > 8 * 1024 * 1024) return bad(res,'images too large (max 8MB total)');
+  if (!payload.segment || !payload.article || !payload.desc)
+    return bad(res, 'missing required fields', 400);
+  if (payload.segment === 'Zahnarzt' && !payload.batch)
+    return bad(res, 'missing batch for dentist', 400);
 
   const ticket = await nextTicket();
   const now = new Date().toISOString();
 
-  const payload = {
-    ticket, createdAt: now, email: u.email,
-    customer: { company: u.company, contact: u.contact, street: u.street, zip: u.zip, city: u.city, country: u.country, phone: u.phone||'' },
-    data: {
-      segment: body.segment, article: body.article, batch: body.batch||'',
-      qty: body.qty||'', expiry: body.expiry||'',
-      desc: body.desc,
-      applied: body.applied||'', injury: body.injury||'', injuryDesc: body.injuryDesc||'',
-      returned: body.returned, handling: body.handling
-    },
-    status: 'Gesendet'
+  const complaint = {
+    ticket,
+    email: u.email,
+    createdAt: now,
+    updatedAt: now,
+    status: 'Gesendet',
+    decision: null,
+    reportLink: null,
+    payload,
+    uploads: files.map(f => ({
+      name: f.name,
+      mime: f.mime,
+      size: Math.floor((f.bytes?.length || 0) * 3 / 4),
+    })),
   };
 
-  // XML
-  const xml = create({ version:'1.0', encoding:'UTF-8' })
+  await complaintSave(complaint);
+
+  // ---------- Erweiterte E-Mail an DFS ----------
+  const customerBlock = `
+  <strong>Kunde:</strong> ${u.company}<br/>
+  <strong>Kontakt:</strong> ${u.contact}<br/>
+  <strong>E-Mail:</strong> ${u.email}<br/>
+  <strong>Telefon:</strong> ${u.phone || '-'}<br/>
+  <strong>Adresse:</strong> ${u.street}, ${u.zip} ${u.city}, ${u.country}<br/>
+  `;
+
+  const detailsBlock = `
+  <strong>Artikel:</strong> ${payload.article}<br/>
+  <strong>Charge:</strong> ${payload.batch || '-'}<br/>
+  <strong>Menge:</strong> ${payload.qty || '-'}<br/>
+  <strong>Ablaufdatum:</strong> ${payload.expiry || '-'}<br/>
+  <strong>Beschreibung:</strong><br/>
+  <pre>${payload.desc}</pre>
+  `;
+
+  const additionalBlock = `
+  <strong>Bereich:</strong> ${payload.segment}<br/>
+  <strong>Am Patienten angewendet:</strong> ${payload.applied || '-'}<br/>
+  <strong>Verletzung:</strong> ${payload.injury || '-'}<br/>
+  <strong>Verletzungsbeschreibung:</strong> ${payload.injuryDesc || '-'}<br/>
+  <strong>Rücksendung:</strong> ${payload.returned || '-'}<br/>
+  <strong>Gewünschte Bearbeitung:</strong> ${payload.handling || '-'}<br/>
+  `;
+
+  const summaryHtml = `
+  <p>Neue Reklamation eingegangen:</p>
+  <p><strong>Ticket:</strong> ${ticket}</p>
+  <hr/>
+  ${customerBlock}
+  <hr/>
+  ${detailsBlock}
+  <hr/>
+  ${additionalBlock}
+  <p><em>Diese Reklamation wurde automatisch über die DFS Complaint App eingereicht.</em></p>
+  `;
+
+  // Anhänge (XML + Bilder falls vorhanden)
+  const xml = create({ version: '1.0', encoding: 'UTF-8' })
     .ele('Complaint')
       .ele('Ticket').txt(ticket).up()
-      .ele('CreatedAt').txt(now).up()
       .ele('Customer')
         .ele('Company').txt(u.company).up()
-        .ele('Contact').txt(u.contact).up()
         .ele('Email').txt(u.email).up()
-        .ele('Street').txt(u.street).up()
-        .ele('ZIP').txt(u.zip).up()
-        .ele('City').txt(u.city).up()
-        .ele('Country').txt(u.country).up()
-        .ele('Phone').txt(u.phone||'').up()
       .up()
       .ele('Data')
-        .ele('Segment').txt(payload.data.segment).up()
-        .ele('Article').txt(payload.data.article).up()
-        .ele('Batch').txt(payload.data.batch).up()
-        .ele('Quantity').txt(String(payload.data.qty||'')).up()
-        .ele('Expiry').txt(String(payload.data.expiry||'')).up()
-        .ele('Description').txt(payload.data.desc).up()
-        .ele('Applied').txt(String(payload.data.applied||'')).up()
-        .ele('Injury').txt(String(payload.data.injury||'')).up()
-        .ele('InjuryDesc').txt(String(payload.data.injuryDesc||'')).up()
-        .ele('Returned').txt(payload.data.returned).up()
-        .ele('Handling').txt(payload.data.handling).up()
+        .ele('Segment').txt(payload.segment).up()
+        .ele('Article').txt(payload.article).up()
+        .ele('Batch').txt(payload.batch || '').up()
+        .ele('Description').txt(payload.desc || '').up()
       .up()
-    .up()
     .end({ prettyPrint: true });
 
-  // E-Mail
   const attachments = [
     { filename: `${ticket}.xml`, content: Buffer.from(xml, 'utf8'), contentType: 'application/xml' },
-    ...files.map((f,i)=>({ filename: f.originalname || `image_${i+1}.bin`, content: f.buffer, contentType: f.mimetype || 'application/octet-stream' }))
+    ...files.map((f, i) => ({
+      filename: f.name || `image_${i + 1}.bin`,
+      content: Buffer.from(f.bytes || '', 'base64'),
+      contentType: f.mime || 'application/octet-stream'
+    })),
   ];
-  const summary =
-`Kunde: ${u.company} (${u.email})
-Artikel: ${payload.data.article}
-Bereich: ${payload.data.segment}
-Charge: ${payload.data.batch}
-Beschreibung: ${payload.data.desc}`;
 
-  await send('complaint@dfs-diamon.de', tpl.complaintDFS(ticket, summary), attachments);
-  await send(u.email, tpl.complaintCustomer(ticket)); // ohne Bilder
+  await send('complaint@dfs-diamon.de', {
+    subject: `[DFS Complaint] Neue Reklamation ${ticket}`,
+    html: summaryHtml,
+    attachments
+  });
 
-  await complaintSave(payload);
+  // Kundenbestätigung
+  await send(u.email, tpl.complaintCustomer(ticket));
+
   return ok(res, { ticket });
 }
