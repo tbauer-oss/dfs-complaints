@@ -115,17 +115,6 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     return false;
   }
 
-  void _logoutAndLeave() {
-    widget.api.logout();
-    // Versuchen zur Start-/Loginseite zurückzukehren
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).popUntil((r) => r.isFirst);
-    } else {
-      // Fallback: Seite neu laden (Web)
-      html.window.location.reload();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
@@ -148,12 +137,6 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
             icon: const Icon(Icons.refresh),
             tooltip: 'Aktualisieren',
             onPressed: _busy ? null : _load,
-          ),
-          // Abmelden-Button (Kundenbereich)
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Abmelden',
-            onPressed: _logoutAndLeave,
           ),
         ],
       ),
