@@ -76,6 +76,7 @@
   "email_plain": "E-mail",
   "company_plain": "Azienda",
   "contact_person_plain": "Referente",
+  "contact_person": "Referente",
 
   "auth_login": "Accesso",
   "auth_register": "Registrazione",
