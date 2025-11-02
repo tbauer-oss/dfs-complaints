@@ -19,6 +19,64 @@
   "continueLabel": "Continua",
   "invalid": "Non valido",
 
+  "cancel": "Annulla",
+  "open": "Apri",
+  "unlock": "Sblocca",
+
+  "logout": "Esci",
+  "loggedOut": "Disconnesso.",
+  "logoutTitle": "Disconnessione",
+  "logoutConfirm": "Vuoi davvero disconnetterti?",
+
+  "sessionExpired": "Sessione scaduta. Effettua di nuovo l’accesso.",
+  "noData": "Nessun dato.",
+
+  "error": "Errore: {msg}",
+  "@error": { "placeholders": { "msg": {} } },
+  "errorGeneric": "Errore: {msg}",
+  "@errorGeneric": { "placeholders": { "msg": {} } },
+
+  "myAccount": "Il mio account",
+  "editData": "Modifica dati",
+  "changePassword": "Cambia password",
+  "accountDelete": "Elimina account",
+  "accountDeleteTitle": "Eliminare l’account?",
+  "accountDeleteConfirm": "Sei sicuro? Questa azione non può essere annullata.",
+  "accountDeleted": "Account eliminato.",
+
+  "adminTitle": "Area amministratore – DFS Customer Complaint",
+
+  "unsavedChangesTitle": "Modifiche non salvate",
+  "unsavedChangesText": "Ci sono modifiche non salvate. Uscire comunque?",
+  "leave": "Esci",
+
+  "reportComplaint": "Segnala reclamo",
+  "openComplaintReport": "Apri rapporto di reclamo",
+  "myComplaints": "I miei reclami",
+
+  "createdAt": "Creato: {ts}",
+  "@createdAt": { "placeholders": { "ts": {} } },
+  "updatedAt": "Aggiornato: {ts}",
+  "@updatedAt": { "placeholders": { "ts": {} } },
+
+  "sessionInvalidPleaseLogin": "Sessione non valida. Effettua di nuovo l’accesso.",
+
+  "gateUnlockHint": "Inserisci la password di sblocco per aprire l’area di registrazione.",
+
+  "statusSubmitted": "inviato",
+  "statusInProgress": "in lavorazione",
+  "statusInquiryRequired": "richiesta di chiarimenti",
+  "statusRejected": "rifiutato",
+  "statusAccepted": "accettato",
+  "statusDecision": "decisione",
+  "statusRework": "rielaborazione",
+  "statusClosed": "chiuso",
+  "statusUnknown": "sconosciuto",
+
+  "email_plain": "E-mail",
+  "company_plain": "Azienda",
+  "contact_person_plain": "Referente",
+
   "login": "Accesso",
   "register": "Registrazione",
   "admin_area": "Area amministratore",
