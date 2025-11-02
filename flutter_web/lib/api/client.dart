@@ -250,16 +250,18 @@ class ApiClient {
     final raw = await complaintListRaw();
     return raw.map(Complaint.fromJson).toList(growable: false);
   }
+  
+  // ---------- Admin: Secret prüfen (für Dialog) ----------
   Future<bool> validateAdminSecret(String secret) async {
     if (secret.trim().isEmpty) return false;
     try {
-      // leichter Health-Check über Pending-Endpoint
-      final r = await http.get(
-        _u('/api/admin/pending'),
-        headers: _headers(extra: {'X-Admin-Secret': secret}),
+      final r = await _get(
+        '/api/admin/pending',
+        extra: {'X-Admin-Secret': secret.trim()},
       );
       return r.statusCode == 200;
     } catch (_) {
       return false;
     }
   }
+}
