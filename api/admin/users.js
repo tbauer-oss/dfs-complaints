@@ -25,8 +25,22 @@ export default async function handler(req, res) {
     // ---- LIST ----
     if (req.method === 'GET') {
       const list = await usersList();
-      list.sort((a, b) => String(a?.company || '').localeCompare(String(b?.company || '')));
-      return ok(res, list);
+      // Stelle sicher, dass selfDeleted mitgeliefert wird
+      const out = list.map(u => ({
+        email: u.email || '',
+        company: u.company || '',
+        contact: u.contact || '',
+        street: u.street || '',
+        zip: u.zip || '',
+        city: u.city || '',
+        country: u.country || '',
+        phone: u.phone || '',
+        lang: (u.lang || 'de'),
+        createdAt: u.createdAt || null,
+        revoked: !!u.revoked,
+        selfDeleted: !!u.selfDeleted,   // <— WICHTIG
+      }));
+      return ok(res, out);
     }
 
     // ---- REVOKE / UNREVOKE ----
