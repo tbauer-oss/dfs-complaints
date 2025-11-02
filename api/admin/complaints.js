@@ -1,26 +1,35 @@
 // api/admin/complaints.js
 export const config = { runtime: 'nodejs' };
 
-import { setCors, noContent, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
+import {
+  handlePreflight,
+  setCors,
+  ok,
+  bad,
+  methodNotAllowed,
+  readJson,
+  noContent,
+} from '../_lib/http.js';
+
 import {
   complaintsAll,
   complaintsOpen,
   complaintsByEmail,
   complaintByTicket,
   complaintSave,
-  complaintsAll, complaintsOpen, complaintsByEmail,
-  complaintByTicket, complaintSave, complaintDelete
+  complaintDelete,
 } from '../_lib/store.js';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
-const isAdmin = (req) => ADMIN_SECRET && req.headers?.['x-admin-secret'] === ADMIN_SECRET;
+const isAdmin = (req) =>
+  ADMIN_SECRET && req.headers?.['x-admin-secret'] === ADMIN_SECRET;
 
 // ---- Status-Mapping: intern numerisch (1..6), für Admin-UI zusätzlich Label ----
 const STATUS_LABEL = {
   1: 'Eingegegangen',
   2: 'In Bearbeitung',
   3: 'Rückfrage erforderlich',
-  4: 'Entscheidung',         // Decision steht separat in c.decision
+  4: 'Entscheidung', // Decision steht separat in c.decision
   5: 'In Nacharbeit',
   6: 'Abgeschlossen',
 };
@@ -59,8 +68,12 @@ const decorateForAdmin = (c) => ({
 });
 
 export default async function handler(req, res) {
+  // 1) **Preflight zuerst** (setzt CORS und beantwortet OPTIONS)
+  if (handlePreflight(req, res)) return;
+  // 2) Für alle weiteren Antworten die CORS-Header setzen
   setCors(req, res);
-  if (req.method === 'OPTIONS') return noContent(res);
+
+  // 3) Admin-Auth
   if (!isAdmin(req)) return bad(res, 'admin unauthorized', 401);
 
   try {
@@ -100,7 +113,9 @@ export default async function handler(req, res) {
 
       // d) Alle Reklamationen (Admin-Übersicht)
       const all = await complaintsAll();
-      const out = (Array.isArray(all) ? all : []).sort(sortDescByDate).map(decorateForAdmin);
+      const out = (Array.isArray(all) ? all : [])
+        .sort(sortDescByDate)
+        .map(decorateForAdmin);
       return ok(res, out);
     }
 
@@ -108,12 +123,7 @@ export default async function handler(req, res) {
     // POST / PATCH: Status/Decision/Report
     // ======================================
     if (req.method === 'POST' || req.method === 'PATCH') {
-      let body;
-      try {
-        body = readJson(req);
-      } catch {
-        return bad(res, 'invalid json', 400);
-      }
+      const body = readJson(req);
 
       const ticket     = (body?.ticket || '').toString().trim();
       const statusIn   = body?.status;                // Zahl 1..6 | "1".."6" | Label
@@ -170,24 +180,27 @@ export default async function handler(req, res) {
       });
     }
 
-      // ===== DELETE: Complaint löschen =====
-      if (req.method === 'DELETE') {
-        // ticket aus ?ticket=... oder Body
-        let ticket = (req.query?.ticket || '').toString().trim();
-        if (!ticket && req.body) {
-          try {
-            const b = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body;
-            ticket = (b?.ticket || '').toString().trim();
-          } catch (_) {}
-        }
-        if (!ticket) return bad(res, 'missing ticket', 400);
-      
-        const c = await complaintByTicket(ticket);
-        if (!c) return bad(res, 'not found', 404);
-
-        await complaintDelete(ticket);
-        return noContent(res);
+    // ===== DELETE: Complaint löschen =====
+    if (req.method === 'DELETE') {
+      // ticket aus ?ticket=... oder Body
+      let ticket = (req.query?.ticket || '').toString().trim();
+      if (!ticket && req.body) {
+        try {
+          const b =
+            typeof req.body === 'string'
+              ? JSON.parse(req.body || '{}')
+              : req.body;
+          ticket = (b?.ticket || '').toString().trim();
+        } catch (_) {}
       }
+      if (!ticket) return bad(res, 'missing ticket', 400);
+
+      const c = await complaintByTicket(ticket);
+      if (!c) return bad(res, 'not found', 404);
+
+      await complaintDelete(ticket);
+      return noContent(res);
+    }
 
     return methodNotAllowed(res);
   } catch (e) {
