@@ -2,21 +2,9 @@
 export const config = { runtime: 'nodejs' };
 
 import bcrypt from 'bcryptjs';
-
-const PROD_FE  = 'https://dfs-complaints-web.vercel.app';
-const PREVIEW  = /^https:\/\/dfs-complaints-web-[a-z0-9-]+(?:-[a-z0-9-]+)?\.vercel\.app$/i;
-
-function setCors(req, res) {
-  const origin = req.headers?.origin || '';
-  const allow = origin && (origin === PROD_FE || PREVIEW.test(origin)) ? origin : PROD_FE;
-  res.setHeader('Access-Control-Allow-Origin', allow);
-  res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  // X-Gate hinzugefügt (Gate-Flow)
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Secret, X-Gate');
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-}
+import {
+  handlePreflight, ok, bad, methodNotAllowed, readJson
+} from '../_lib/http.js';
 
 const isPreview  = process.env.VERCEL_ENV !== 'production';
 const validEmail = s => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || ''));
@@ -25,11 +13,6 @@ function toBool(v) {
   if (typeof v === 'boolean') return v;
   const s = String(v ?? '').trim().toLowerCase();
   return s === '1' || s === 'true' || s === 'on' || s === 'yes';
-}
-
-function readJson(req) {
-  if (req.body && typeof req.body === 'object') return req.body;
-  try { return JSON.parse(req.body ?? '{}'); } catch { return {}; }
 }
 
 // ---- Sprach-Normalisierung: "de-DE" -> "de", Fallback "de"
@@ -41,36 +24,30 @@ function normLang(x) {
 }
 
 export default async function handler(req, res) {
-  setCors(req, res);
-  if (req.method === 'OPTIONS') { res.statusCode = 204; return res.end(); }
-  if (req.method !== 'POST')    { res.statusCode = 405; return res.end(JSON.stringify({ error: 'method not allowed' })); }
+  // --- CORS zuerst: setzt Header & beantwortet OPTIONS (204) ---
+  if (handlePreflight(req, res)) return;
+
+  if (req.method !== 'POST') return methodNotAllowed(res);
 
   try {
     const b = readJson(req);
 
-    // Pflichtfelder (ohne 'contact'; wir erlauben entweder contact ODER first+last)
+    // Pflichtfelder (ohne 'contact'; erlaubt: contact ODER first+last)
     const required = ['email','password','password2','company','street','zip','city','country'];
     for (const k of required) {
-      if (!b[k]) { res.statusCode = 400; return res.end(JSON.stringify({ error:`missing ${k}` })); }
+      if (!b[k]) return bad(res, `missing ${k}`, 400);
     }
 
-    if (!validEmail(b.email)) {
-      res.statusCode = 400; return res.end(JSON.stringify({ error: 'invalid email' }));
-    }
-    if (String(b.password) !== String(b.password2)) {
-      res.statusCode = 400; return res.end(JSON.stringify({ error: 'password mismatch' }));
-    }
-    if (!toBool(b.privacy)) {
-      res.statusCode = 400; return res.end(JSON.stringify({ error: 'privacy not accepted' }));
-    }
+    if (!validEmail(b.email))                return bad(res, 'invalid email', 400);
+    if (String(b.password) !== String(b.password2))
+                                            return bad(res, 'password mismatch', 400);
+    if (!toBool(b.privacy))                 return bad(res, 'privacy not accepted', 400);
 
     // Kontakt-Pflicht: entweder "contact" ODER (firstName & lastName)
     const hasOldContact = !!b.contact;
     const hasSplitNames = !!b.firstName && !!b.lastName;
-    if (!hasOldContact && !hasSplitNames) {
-      res.statusCode = 400;
-      return res.end(JSON.stringify({ error: 'missing contact or first/last name' }));
-    }
+    if (!hasOldContact && !hasSplitNames)
+                                            return bad(res, 'missing contact or first/last name', 400);
 
     // Store laden
     const store = await import('../_lib/store.js');
@@ -95,14 +72,12 @@ export default async function handler(req, res) {
       ? String(b.contact).trim()
       : `${firstName} ${lastName}`.trim();
 
-    // Bereits pending? -> Mails erneut senden, 409 + "resent"
+    // Bereits pending? -> Mails erneut senden, 409 + Zusatzinfos
     const existing = await pendingGet(email);
     if (existing) {
       let mailSent = false, mailError = null;
       try {
         const { send, notifyQM, tpl, verifyTransport } = await import('../_lib/mail.js');
-        const start = Date.now();
-
         await verifyTransport().catch(() => {});
         const results = await Promise.allSettled([
           send(
@@ -113,10 +88,6 @@ export default async function handler(req, res) {
         ]);
         mailSent = results.some(r => r.status === 'fulfilled');
         if (!mailSent) mailError = 'all mail attempts failed';
-
-        console.log('register: mail results', results.map(r => r.status), 'duration', Date.now() - start, 'ms');
-
-        // Transport flushen + kurze Wartezeit
         await new Promise(r => setTimeout(r, 750));
       } catch (e) {
         mailError = e?.message || String(e);
@@ -126,7 +97,7 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify({ error: 'pending_exists', status: 'resent', mailSent, mailError }));
     }
 
-    // Neu anlegen (+ Sprache SPEICHERN)
+    // Neu anlegen (+ Sprache speichern)
     const pending = {
       email,
       passhash: await bcrypt.hash(String(b.password), 10),
@@ -146,12 +117,10 @@ export default async function handler(req, res) {
     };
     await pendingSave(pending);
 
-    // Mails VOR der Response senden (sonst killt Serverless den Job)
+    // Mails vor der Response senden
     let mailSent = false, mailError = null;
     try {
       const { send, notifyQM, tpl, verifyTransport } = await import('../_lib/mail.js');
-      const start = Date.now();
-
       await verifyTransport().catch(()=>{});
       const results = await Promise.allSettled([
         send(pending.email, tpl.afterRegisterToCustomer(pending.contact || pending.company, lang)),
@@ -159,23 +128,18 @@ export default async function handler(req, res) {
       ]);
       mailSent = results.some(r => r.status === 'fulfilled');
       if (!mailSent) mailError = 'all mail attempts failed';
-
-      console.log('register: mail results', results.map(r => r.status), 'duration', Date.now() - start, 'ms');
-
-      // Transport flushen + minimale Wartezeit
       await new Promise(r => setTimeout(r, 750));
     } catch (e) {
       mailError = e?.message || String(e);
       console.error('register: initial mail failed:', mailError);
     }
-    
-    await new Promise(r => setTimeout(r, 500)); // kleine Verzögerung (500 ms)
-    res.statusCode = 200;
-    return res.end(JSON.stringify({ ok: true, mailSent, mailError }));
+
+    await new Promise(r => setTimeout(r, 500));
+    return ok(res, { ok: true, mailSent, mailError });
+
   } catch (err) {
     console.error('register.js fatal:', err);
-    res.statusCode = 500;
     const msg = isPreview ? (err?.message || String(err)) : 'internal error';
-    return res.end(JSON.stringify({ error: msg }));
+    return bad(res, msg, 500);
   }
 }
