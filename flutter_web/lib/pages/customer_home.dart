@@ -22,7 +22,7 @@ class CustomerHomePage extends StatelessWidget {
     );
 
     return Scaffold(
-      appBar: AppBar(title: Text(t.customer_area)), // „Kundenbereich“ lokalisiert
+      appBar: AppBar(title: Text(t.customer_area)),
       body: Center(
         child: Wrap(
           alignment: WrapAlignment.center,
@@ -37,7 +37,7 @@ class CustomerHomePage extends StatelessWidget {
                 ));
               },
               icon: const Icon(Icons.add_circle_outline),
-              label: Text(t.reportComplaint), // „Reklamation melden“
+              label: Text(t.reportComplaint),
             ),
             ElevatedButton.icon(
               style: btnStyle,
@@ -47,11 +47,9 @@ class CustomerHomePage extends StatelessWidget {
                 ));
               },
               icon: const Icon(Icons.list_alt),
-              label: Text(t.myComplaints), // „Meine Reklamationen“
+              label: Text(t.myComplaints),
             ),
-
-            const SizedBox(height: 40), // statt Divider in Wrap (wirkt sauberer)
-
+            const SizedBox(height: 40),
             ElevatedButton.icon(
               style: btnStyle,
               onPressed: () {
@@ -60,7 +58,7 @@ class CustomerHomePage extends StatelessWidget {
                 ));
               },
               icon: const Icon(Icons.person),
-              label: Text(t.myAccount), // „Mein Account“
+              label: Text(t.myAccount),
             ),
             ElevatedButton.icon(
               style: btnStyle,
@@ -70,7 +68,7 @@ class CustomerHomePage extends StatelessWidget {
                 ));
               },
               icon: const Icon(Icons.support_agent),
-              label: Text(t.supportTitle), // „DFS Support“ lokalisiert
+              label: Text(t.supportTitle), // ← übersetzt
             ),
           ],
         ),
