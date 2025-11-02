@@ -1,4 +1,5 @@
 // lib/pages/my_complaints_page.dart
+import 'dart:async';
 import 'dart:html' as html; // nur Web – für Link-Öffnen
 import 'package:flutter/material.dart';
 import '../api/client.dart';
@@ -18,39 +19,57 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
   String? _err;
   List<Complaint> _items = const [];
 
+  Timer? _poll; // ← Auto-Refresh
+
   @override
   void initState() {
     super.initState();
-    _load();
+    _load(); // initial
+    // sanftes Polling alle 10s, ohne UI-Spinner
+    _poll = Timer.periodic(const Duration(seconds: 10), (_) => _load(silent: true));
   }
 
-  Future<void> _load() async {
-    setState(() { _busy = true; _err = null; });
+  @override
+  void dispose() {
+    _poll?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) {
+      setState(() { _busy = true; _err = null; });
+    }
     try {
-      final list = await widget.api.complaintList();
+      // Nutzt neuen Detail-Endpunkt (JWT), liefert volle Felder
+      final raw = await widget.api.myComplaintsDetailed();
+      // in dein Modell mappen (falls Complaint.fromJson existiert)
+      final list = raw.map(Complaint.fromJson).toList(growable: false);
+
       // Neueste zuerst (nach updatedAt, dann createdAt)
       list.sort((a, b) {
-        final ma = (a.updatedAt.millisecondsSinceEpoch > 0
+        final ta = (a.updatedAt.millisecondsSinceEpoch > 0
                 ? a.updatedAt.millisecondsSinceEpoch
-                : a.createdAt.millisecondsSinceEpoch) ??
-            0;
-        final mb = (b.updatedAt.millisecondsSinceEpoch > 0
+                : a.createdAt.millisecondsSinceEpoch);
+        final tb = (b.updatedAt.millisecondsSinceEpoch > 0
                 ? b.updatedAt.millisecondsSinceEpoch
-                : b.createdAt.millisecondsSinceEpoch) ??
-            0;
-        return mb.compareTo(ma);
+                : b.createdAt.millisecondsSinceEpoch);
+        return tb.compareTo(ta);
       });
+
+      if (!mounted) return;
       setState(() => _items = list);
     } catch (e) {
       final msg = '$e';
+      if (!mounted) return;
       setState(() => _err = msg);
-      if (mounted && msg.contains('401')) {
+      if (msg.contains('401')) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Sitzung ungültig. Bitte neu anmelden.')),
         );
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (!mounted) return;
+      if (!silent) setState(() => _busy = false);
     }
   }
 
@@ -90,7 +109,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
   bool _canShowReport(Complaint c) {
     final link = c.reportLink;
     if (link == null || link.isEmpty) return false;
-    if (c.status == 6) return true;                           // abgeschlossen
+    if (c.status == 6) return true;                            // abgeschlossen
     if (c.status == 4 && c.decision == 'rejected') return true; // abgelehnt
     return false;
   }
@@ -119,6 +138,11 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
         ),
         title: const Text('Meine Reklamationen'),
         actions: [
+          if (_busy)
+            const Padding(
+              padding: EdgeInsets.only(right: 8),
+              child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Aktualisieren',
@@ -137,9 +161,9 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
           : _err != null
               ? Center(child: Text(_err!))
               : _items.isEmpty
-                  ? Center(child: Text(t.none_complaints)) // vorhandener Key
+                  ? Center(child: Text(t.none_complaints))
                   : RefreshIndicator(
-                      onRefresh: _load,
+                      onRefresh: () => _load(silent: false),
                       child: ListView.separated(
                         physics: const AlwaysScrollableScrollPhysics(),
                         itemCount: _items.length,
