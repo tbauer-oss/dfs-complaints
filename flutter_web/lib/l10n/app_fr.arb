@@ -158,5 +158,14 @@
   "supportCatAccount": "Questions de compte",
   "supportCatPrivacy": "Confidentialité",
   "supportCatFeedback": "Retour d’information",
-  "supportCatSuggestion": "Suggestion d’amélioration"
+  "supportCatSuggestion": "Suggestion d’amélioration",
+
+  "adminArea": "Espace admin",
+  "@adminArea": { "description": "Bouton vers l'espace administrateur" },
+  "login": "Connexion",
+  "@login": { "description": "Libellé du bouton de connexion" },
+  "register": "S’inscrire",
+  "@register": { "description": "Libellé du bouton d’inscription" },
+  "loginFailed": "Échec de la connexion.",
+  "@loginFailed": { "description": "Erreur en cas d’identifiants invalides" }
 }
