@@ -40,7 +40,7 @@ class DashboardPage extends StatelessWidget {
           builder: (_) => AccountPage(api: api),
         ));
       }),
-      _Entry('DFS Support', Icons.support_agent, () {
+      _Entry(t.supportTitle, Icons.support_agent, () {
         Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => SupportPage(api: api),
         ));
