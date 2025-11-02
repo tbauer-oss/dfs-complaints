@@ -144,5 +144,19 @@
   "sent_ticket": "Sent. Ticket: {ticket}",
 
   "none_complaints": "No complaints.",
-  "status": "Status: {value}"
+  "status": "Status: {value}",
+
+  "supportTitle": "DFS Support",
+  "category": "Category",
+  "yourMessage": "Your message",
+  "supportConsentText": "I agree to processing according to the privacy notice.",
+  "message_required": "Please enter a message.",
+  "message_sent": "Message sent.",
+  "supportCatGeneral": "General inquiry",
+  "supportCatComplaintIssue": "Issue with a complaint",
+  "supportCatTechnical": "Technical issue",
+  "supportCatAccount": "Account inquiries",
+  "supportCatPrivacy": "Privacy",
+  "supportCatFeedback": "Feedback",
+  "supportCatSuggestion": "Suggestion for improvement"
 }
