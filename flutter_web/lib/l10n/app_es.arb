@@ -19,6 +19,64 @@
   "continueLabel": "Continuar",
   "invalid": "No válido",
 
+  "cancel": "Cancelar",
+  "open": "Abrir",
+  "unlock": "Desbloquear",
+
+  "logout": "Cerrar sesión",
+  "loggedOut": "Sesión cerrada.",
+  "logoutTitle": "Cerrar sesión",
+  "logoutConfirm": "¿Quieres cerrar la sesión?",
+
+  "sessionExpired": "Sesión expirada. Inicia sesión de nuevo.",
+  "noData": "Sin datos.",
+
+  "error": "Error: {msg}",
+  "@error": { "placeholders": { "msg": {} } },
+  "errorGeneric": "Error: {msg}",
+  "@errorGeneric": { "placeholders": { "msg": {} } },
+
+  "myAccount": "Mi cuenta",
+  "editData": "Editar datos",
+  "changePassword": "Cambiar contraseña",
+  "accountDelete": "Eliminar cuenta",
+  "accountDeleteTitle": "¿Eliminar la cuenta?",
+  "accountDeleteConfirm": "¿Estás seguro? Esta acción no se puede deshacer.",
+  "accountDeleted": "Cuenta eliminada.",
+
+  "adminTitle": "Área de administración – DFS Customer Complaint",
+
+  "unsavedChangesTitle": "Cambios no guardados",
+  "unsavedChangesText": "Hay cambios no guardados. ¿Salir de todos modos?",
+  "leave": "Salir",
+
+  "reportComplaint": "Reportar reclamación",
+  "openComplaintReport": "Abrir informe de reclamación",
+  "myComplaints": "Mis reclamaciones",
+
+  "createdAt": "Creado: {ts}",
+  "@createdAt": { "placeholders": { "ts": {} } },
+  "updatedAt": "Actualizado: {ts}",
+  "@updatedAt": { "placeholders": { "ts": {} } },
+
+  "sessionInvalidPleaseLogin": "Sesión no válida. Inicia sesión de nuevo.",
+
+  "gateUnlockHint": "Introduce la contraseña de desbloqueo para abrir el área de registro.",
+
+  "statusSubmitted": "enviado",
+  "statusInProgress": "en proceso",
+  "statusInquiryRequired": "se requiere consulta",
+  "statusRejected": "rechazado",
+  "statusAccepted": "aceptado",
+  "statusDecision": "decisión",
+  "statusRework": "retrabajo",
+  "statusClosed": "cerrado",
+  "statusUnknown": "desconocido",
+
+  "email_plain": "Correo electrónico",
+  "company_plain": "Empresa",
+  "contact_person_plain": "Persona de contacto",
+
   "login": "Iniciar sesión",
   "register": "Registrarse",
   "admin_area": "Área de administración",
