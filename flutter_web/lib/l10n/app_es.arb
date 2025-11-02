@@ -28,15 +28,6 @@
   "logoutTitle": "Cerrar sesión",
   "logoutConfirm": "¿Quieres cerrar la sesión?",
 
-  "reportComplaint": "Reportar una reclamación",
-  "@reportComplaint": { "description": "Tarjeta del panel: abrir formulario de reclamación" },
-  "myComplaints": "Mis reclamaciones",
-  "@myComplaints": { "description": "Tarjeta del panel: lista de reclamaciones del usuario" },
-  "myAccount": "Mi cuenta",
-  "@myAccount": { "description": "Tarjeta del panel: página de cuenta/perfil" },
-  "supportTitle": "Soporte",
-  "@supportTitle": { "description": "Tarjeta del panel: página de ayuda" },
-
   "sessionExpired": "Sesión expirada. Inicia sesión de nuevo.",
   "noData": "Sin datos.",
 
