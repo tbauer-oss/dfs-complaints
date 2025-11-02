@@ -19,6 +19,64 @@
   "continueLabel": "Continuer",
   "invalid": "Invalide",
 
+  "cancel": "Annuler",
+  "open": "Ouvrir",
+  "unlock": "Déverrouiller",
+
+  "logout": "Se déconnecter",
+  "loggedOut": "Déconnecté.",
+  "logoutTitle": "Déconnexion",
+  "logoutConfirm": "Voulez-vous vraiment vous déconnecter ?",
+
+  "sessionExpired": "Session expirée. Veuillez vous reconnecter.",
+  "noData": "Pas de données.",
+
+  "error": "Erreur : {msg}",
+  "@error": { "placeholders": { "msg": {} } },
+  "errorGeneric": "Erreur : {msg}",
+  "@errorGeneric": { "placeholders": { "msg": {} } },
+
+  "myAccount": "Mon compte",
+  "editData": "Modifier les données",
+  "changePassword": "Changer le mot de passe",
+  "accountDelete": "Supprimer le compte",
+  "accountDeleteTitle": "Supprimer le compte ?",
+  "accountDeleteConfirm": "Êtes-vous sûr ? Cette action est irréversible.",
+  "accountDeleted": "Compte supprimé.",
+
+  "adminTitle": "Espace administrateur – DFS Customer Complaint",
+
+  "unsavedChangesTitle": "Modifications non enregistrées",
+  "unsavedChangesText": "Des modifications non enregistrées existent. Quitter quand même ?",
+  "leave": "Quitter",
+
+  "reportComplaint": "Déclarer une réclamation",
+  "openComplaintReport": "Ouvrir le rapport de réclamation",
+  "myComplaints": "Mes réclamations",
+
+  "createdAt": "Créé : {ts}",
+  "@createdAt": { "placeholders": { "ts": {} } },
+  "updatedAt": "Mis à jour : {ts}",
+  "@updatedAt": { "placeholders": { "ts": {} } },
+
+  "sessionInvalidPleaseLogin": "Session invalide. Veuillez vous reconnecter.",
+
+  "gateUnlockHint": "Veuillez saisir le mot de passe de déverrouillage pour ouvrir la zone d'inscription.",
+
+  "statusSubmitted": "envoyée",
+  "statusInProgress": "en cours",
+  "statusInquiryRequired": "demande d’information requise",
+  "statusRejected": "refusée",
+  "statusAccepted": "acceptée",
+  "statusDecision": "décision",
+  "statusRework": "révision",
+  "statusClosed": "clôturée",
+  "statusUnknown": "inconnue",
+
+  "email_plain": "E-mail",
+  "company_plain": "Entreprise",
+  "contact_person_plain": "Interlocuteur",
+
   "login": "Connexion",
   "register": "Inscription",
   "admin_area": "Espace administrateur",
