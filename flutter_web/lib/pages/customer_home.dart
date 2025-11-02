@@ -1,6 +1,9 @@
+// lib/pages/customer_home_page.dart
 import 'package:flutter/material.dart';
 import '../api/client.dart';
-import 'complaint_form_page.dart'; // deine bestehende Seite zum Melden
+import '../l10n/app_localizations.dart';
+
+import 'complaint_form_page.dart';
 import 'my_complaints_page.dart';
 import 'account_page.dart';
 import 'support_page.dart';
@@ -11,13 +14,15 @@ class CustomerHomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+
     final btnStyle = ElevatedButton.styleFrom(
       minimumSize: const Size(250, 56),
       textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
     );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Kundenbereich')),
+      appBar: AppBar(title: Text(t.customer_area)), // „Kundenbereich“ lokalisiert
       body: Center(
         child: Wrap(
           alignment: WrapAlignment.center,
@@ -32,7 +37,7 @@ class CustomerHomePage extends StatelessWidget {
                 ));
               },
               icon: const Icon(Icons.add_circle_outline),
-              label: const Text('Reklamation melden'),
+              label: Text(t.reportComplaint), // „Reklamation melden“
             ),
             ElevatedButton.icon(
               style: btnStyle,
@@ -42,9 +47,11 @@ class CustomerHomePage extends StatelessWidget {
                 ));
               },
               icon: const Icon(Icons.list_alt),
-              label: const Text('Meine Reklamationen'),
+              label: Text(t.myComplaints), // „Meine Reklamationen“
             ),
-            const Divider(height: 40, thickness: 1),
+
+            const SizedBox(height: 40), // statt Divider in Wrap (wirkt sauberer)
+
             ElevatedButton.icon(
               style: btnStyle,
               onPressed: () {
@@ -53,7 +60,7 @@ class CustomerHomePage extends StatelessWidget {
                 ));
               },
               icon: const Icon(Icons.person),
-              label: const Text('Mein Account'),
+              label: Text(t.myAccount), // „Mein Account“
             ),
             ElevatedButton.icon(
               style: btnStyle,
@@ -63,7 +70,7 @@ class CustomerHomePage extends StatelessWidget {
                 ));
               },
               icon: const Icon(Icons.support_agent),
-              label: const Text('DFS Support'),
+              label: Text(t.supportTitle), // „DFS Support“ lokalisiert
             ),
           ],
         ),
