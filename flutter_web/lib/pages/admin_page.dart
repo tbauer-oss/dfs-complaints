@@ -1019,6 +1019,21 @@ class AdminApi {
     return data.map((e) => AdminComplaint.fromJson(e as Map<String, dynamic>)).toList();
   }
 
+  // Einzel-Complaint (roh) per Ticket (inkl. payload)
+  Future<Map<String, dynamic>> fetchComplaintRawByTicket(String ticket) async {
+    final res = await html.HttpRequest.request(
+      _u('/api/admin/complaints', {'ticket': ticket}).toString(),
+      method: 'GET',
+      requestHeaders: _headersJson(),
+      withCredentials: false, // wir senden nur X-Admin-Secret
+    );
+    if (res.status != 200) {
+      throw 'complaint GET by ticket: HTTP ${res.status} ${res.responseText}';
+    }
+    final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
+    return j;
+  }
+
   // Status/Decision/Report-Link aktualisieren
   Future<AdminComplaint> updateComplaint({
     required String ticket,
@@ -1087,6 +1102,60 @@ const kDecisionItems = <Map<String, String>>[
   {'label': 'Angenommen', 'value': 'accepted'},
   {'label': 'Abgelehnt',  'value': 'rejected'},
 ];
+
+class _ComplaintDetailsDialog extends StatelessWidget {
+  final Map<String, dynamic> data; // vollständiges Complaint-Objekt (inkl. payload)
+  const _ComplaintDetailsDialog({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final payload = (data['payload'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final files   = (data['files'] as List?)?.cast<Map>() ?? const [];
+    final ticket  = (data['ticket'] ?? '').toString();
+
+    Widget row(String l, String v) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 160, child: Text(l, style: const TextStyle(fontWeight: FontWeight.w600))),
+          Expanded(child: Text(v.isEmpty ? '—' : v)),
+        ],
+      ),
+    );
+
+    return AlertDialog(
+      title: Text('Details – $ticket'),
+      content: SizedBox(
+        width: 560,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (payload.isEmpty)
+                const Text('Keine Payload übermittelt.')
+              else ...[
+                row('Segment', (payload['segment'] ?? '').toString()),
+                row('Artikel', (payload['article'] ?? '').toString()),
+                row('Charge',  (payload['batch'] ?? '').toString()),
+                row('Menge',   (payload['qty'] ?? '').toString()),
+                row('Ablauf',  (payload['expiry'] ?? '').toString()),
+                row('Beschreibung', (payload['desc'] ?? '').toString()),
+              ],
+              const SizedBox(height: 10),
+              if (files.isNotEmpty) const Text('Dateien:', style: TextStyle(fontWeight: FontWeight.w600)),
+              if (files.isNotEmpty)
+                ...files.map((f) => Text('- ${f['name'] ?? 'Datei'} (${f['mime'] ?? 'mime'})')).toList(),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Schließen')),
+      ],
+    );
+  }
+}
 
 class _ComplaintEditor extends StatefulWidget {
   final AdminApi api;
@@ -1173,6 +1242,26 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                       border: OutlineInputBorder(),
                     ),
                   ),
+                ),
+
+                TextButton.icon(
+                  onPressed: _busy ? null : () async {
+                    try {
+                      final raw = await widget.api.fetchComplaintRawByTicket(c.ticket);
+                      if (!context.mounted) return;
+                      await showDialog(
+                        context: context,
+                        builder: (_) => _ComplaintDetailsDialog(data: raw),
+                      );
+                    } catch (e) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Details laden fehlgeschlagen: $e')),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.info_outline),
+                  label: const Text('Details'),
                 ),
 
                 // SPEICHERN
