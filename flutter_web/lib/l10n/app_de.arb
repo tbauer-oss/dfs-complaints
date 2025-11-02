@@ -19,6 +19,66 @@
   "continueLabel": "Weiter",
   "invalid": "Ungültig",
 
+  "cancel": "Abbrechen",
+  "open": "Öffnen",
+  "unlock": "Entsperren",
+
+  "logout": "Abmelden",
+  "loggedOut": "Abgemeldet.",
+  "logoutTitle": "Abmelden",
+  "logoutConfirm": "Möchtest du dich wirklich abmelden?",
+
+  "sessionExpired": "Sitzung abgelaufen. Bitte neu anmelden.",
+  "noData": "Keine Daten.",
+
+  "error": "Fehler: {msg}",
+  "@error": { "placeholders": { "msg": {} } },
+  "errorGeneric": "Fehler: {msg}",
+  "@errorGeneric": { "placeholders": { "msg": {} } },
+
+  "myAccount": "Mein Account",
+  "editData": "Daten ändern",
+  "changePassword": "Passwort ändern",
+  "accountDelete": "Account löschen",
+  "accountDeleteTitle": "Account löschen?",
+  "accountDeleteConfirm": "Bist du sicher? Dieser Vorgang kann nicht rückgängig gemacht werden.",
+  "accountDeleted": "Account gelöscht.",
+
+  "contactPerson": "Ansprechpartner",  // zusätzlich zu deinem vorhandenen "contact_person"
+
+  "adminTitle": "Adminbereich – DFS Customer Complaint",
+
+  "unsavedChangesTitle": "Ungespeicherte Änderungen",
+  "unsavedChangesText": "Es gibt nicht gespeicherte Änderungen. Wirklich verlassen?",
+  "leave": "Verlassen",
+
+  "reportComplaint": "Reklamation melden",
+  "openComplaintReport": "Reklamationsbericht öffnen",
+  "myComplaints": "Meine Reklamationen",
+
+  "createdAt": "Erstellt: {ts}",
+  "@createdAt": { "placeholders": { "ts": {} } },
+  "updatedAt": "Aktualisiert: {ts}",
+  "@updatedAt": { "placeholders": { "ts": {} } },
+
+  "sessionInvalidPleaseLogin": "Sitzung ungültig. Bitte neu anmelden.",
+
+  "gateUnlockHint": "Bitte geben Sie das Freigabe-Passwort ein, um den Registrierungsbereich zu öffnen.",
+
+  "statusSubmitted": "gesendet",
+  "statusInProgress": "in Bearbeitung",
+  "statusInquiryRequired": "Rückfrage erforderlich",
+  "statusRejected": "abgelehnt",
+  "statusAccepted": "angenommen",
+  "statusDecision": "Entscheidung",
+  "statusRework": "in Nacharbeit",
+  "statusClosed": "abgeschlossen",
+  "statusUnknown": "unbekannt",
+
+  "email_plain": "E-Mail",
+  "company_plain": "Firma",
+  "contact_person_plain": "Ansprechpartner",
+
   "login": "Login",
   "register": "Registrieren",
   "admin_area": "Adminbereich",
