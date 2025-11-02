@@ -25,13 +25,13 @@ export function setCors(req, res) {
   // Dynamisch die vom Browser angefragten Header zurückspiegeln (failsafe)
   const reqAllowed = req.headers?.['access-control-request-headers'];
   const defaultAllowed = 'Content-Type, Authorization, X-Admin-Secret, X-Gate';
-  res.setHeader('Access-Control-Allow-Headers', reqAllowed || defaultAllowed);
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    reqAllowed ? `${defaultAllowed}, ${reqAllowed}` : defaultAllowed
+  );
 
-  // (Optional) Preflight cachen
+  // Preflight cachen
   res.setHeader('Access-Control-Max-Age', '600');
-
-  // (Optional) Response-Header freigeben, falls Frontend sie lesen muss
-  // res.setHeader('Access-Control-Expose-Headers', 'Content-Type');
 
   // Unkritisch, hilft manchen Clients
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
