@@ -1023,8 +1023,8 @@ class AdminApi {
   Future<AdminComplaint> updateComplaint({
     required String ticket,
     int? status,
-    String? decision,   // 'accepted' | 'rejected' | null (null = nicht senden)
-    String? reportLink, // null = löschen
+    String? decision,
+    String? reportLink,
   }) async {
     final body = <String, dynamic>{ 'ticket': ticket };
     if (status != null) body['status'] = status;
@@ -1043,6 +1043,31 @@ class AdminApi {
     }
     final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
     return AdminComplaint.fromJson(j);
+  }
+
+  // Reklamation löschen (Admin)
+  Future<void> deleteComplaint(String ticket) async {
+    // Versuch 1: DELETE ?ticket=...
+    try {
+      final res = await html.HttpRequest.request(
+        _u('/api/admin/complaints', {'ticket': ticket}).toString(),
+        method: 'DELETE',
+        requestHeaders: _headersJson(),
+        withCredentials: true,
+      );
+      if (res.status == 200 || res.status == 204) return;
+    } catch (_) {}
+    // Fallback: DELETE mit Body
+    final res = await html.HttpRequest.request(
+      _u('/api/admin/complaints').toString(),
+      method: 'DELETE',
+      requestHeaders: _headersJson(),
+      sendData: jsonEncode({'ticket': ticket}),
+      withCredentials: true,
+    );
+    if (res.status != 200 && res.status != 204) {
+      throw 'complaint DELETE failed: HTTP ${res.status} ${res.responseText}';
+    }
   }
 }
 
@@ -1149,6 +1174,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                     ),
                   ),
                 ),
+
+                // SPEICHERN
                 ElevatedButton.icon(
                   onPressed: _busy ? null : () async {
                     setState(() => _busy = true);
@@ -1159,13 +1186,13 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                         decision: _decision,
                         reportLink: _reportCtrl.text.trim().isEmpty ? null : _reportCtrl.text.trim(),
                       );
-                      // lokalen Zustand updaten
                       setState(() {
                         _status = updated.status;
                         _decision = updated.decision;
                       });
-                      // Wenn jetzt geschlossen → Liste aktualisieren lassen
-                      if (_isNowClosed) widget.onClosed();
+                      if (_status == 6 || (_status == 4 && _decision == 'rejected')) {
+                        widget.onClosed(); // falls jetzt „geschlossen“, sofort aus Liste entfernen
+                      }
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Status aktualisiert.')),
                       );
@@ -1179,6 +1206,13 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                   },
                   icon: const Icon(Icons.save),
                   label: const Text('Speichern'),
+                ),
+
+                // ← HIER NEU: LÖSCHEN (siehe Block oben)
+                TextButton.icon(
+                  onPressed: _busy ? null : () async { /* ... wie oben ... */ },
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Löschen'),
                 ),
               ],
             ),
