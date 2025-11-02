@@ -144,5 +144,19 @@
   "sent_ticket": "Inviato. Ticket: {ticket}",
 
   "none_complaints": "Nessun reclamo.",
-  "status": "Stato: {value}"
+  "status": "Stato: {value}",
+
+  "supportTitle": "Supporto DFS",
+  "category": "Categoria",
+  "yourMessage": "Il tuo messaggio",
+  "supportConsentText": "Acconsento al trattamento secondo l’informativa sulla privacy.",
+  "message_required": "Inserisci un messaggio.",
+  "message_sent": "Messaggio inviato.",
+  "supportCatGeneral": "Richiesta generale",
+  "supportCatComplaintIssue": "Problema con un reclamo",
+  "supportCatTechnical": "Problema tecnico",
+  "supportCatAccount": "Richieste account",
+  "supportCatPrivacy": "Privacy",
+  "supportCatFeedback": "Feedback",
+  "supportCatSuggestion": "Suggerimento di miglioramento"
 }
