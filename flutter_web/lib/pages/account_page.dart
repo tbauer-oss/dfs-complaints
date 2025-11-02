@@ -28,7 +28,9 @@ class _AccountPageState extends State<AccountPage> {
       final s = e.toString();
       if (s.contains('401')) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sitzung abgelaufen. Bitte neu anmelden.')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Sitzung abgelaufen. Bitte neu anmelden.')),
+          );
           Navigator.of(context).pop();
         }
         return;
@@ -56,63 +58,96 @@ class _AccountPageState extends State<AccountPage> {
               Text('Firma: ${acc!['company'] ?? ''}'),
               Text('Ansprechpartner: ${acc!['contact'] ?? ''}'),
               const SizedBox(height: 16),
+
               FilledButton.icon(
                 icon: const Icon(Icons.edit),
-                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => _AccountEditPage(api: widget.api, initial: acc!),
-                )).then((_) => _load()),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => _AccountEditPage(api: widget.api, initial: acc!),
+                  ),
+                ).then((_) => _load()),
                 label: const Text('Daten ändern'),
               ),
               const SizedBox(height: 12),
+
               FilledButton.icon(
                 icon: const Icon(Icons.lock),
-                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => _PasswordPage(api: widget.api),
-                )),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => _PasswordPage(api: widget.api)),
+                ),
                 label: const Text('Passwort ändern'),
               ),
               const SizedBox(height: 12),
+
               OutlinedButton.icon(
                 icon: const Icon(Icons.delete_forever, color: Colors.red),
                 label: const Text('Account löschen', style: TextStyle(color: Colors.red)),
                 onPressed: () async {
+                  // 1) Sicherheitsabfrage
                   final sure = await showDialog<bool>(
                     context: context,
                     builder: (_) => AlertDialog(
                       title: const Text('Account löschen?'),
-                      content: const Text('Bist du sicher? Dieser Vorgang kann nicht rückgängig gemacht werden.'),
+                      content: const Text(
+                        'Bist du sicher? Dieser Vorgang kann nicht rückgängig gemacht werden.'
+                      ),
                       actions: [
-                        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
-                        FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Weiter')),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('Abbrechen'),
+                        ),
+                        FilledButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text('Weiter'),
+                        ),
                       ],
                     ),
                   );
                   if (sure != true) return;
 
+                  // 2) Passwort-Abfrage
                   final pwd = await showDialog<String>(
                     context: context,
                     builder: (_) {
                       final ctrl = TextEditingController();
                       return AlertDialog(
                         title: const Text('Passwort bestätigen'),
-                        content: TextField(controller: ctrl, obscureText: true, decoration: const InputDecoration(labelText: 'Passwort')),
+                        content: TextField(
+                          controller: ctrl,
+                          obscureText: true,
+                          decoration: const InputDecoration(labelText: 'Passwort'),
+                        ),
                         actions: [
-                          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
-                          FilledButton(onPressed: () => Navigator.pop(context, ctrl.text), child: const Text('Account löschen')),
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('Abbrechen'),
+                          ),
+                          FilledButton(
+                            onPressed: () => Navigator.pop(context, ctrl.text),
+                            child: const Text('Account löschen'),
+                          ),
                         ],
                       );
                     },
                   );
                   if (pwd == null || pwd.isEmpty) return;
 
+                  // 3) Löschen (200/204 ok)
                   try {
-                    await widget.api.accountDelete(pwd);
+                    final ok = await widget.api.accountDelete(pwd);
                     if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Account gelöscht.')));
-                    Navigator.of(context).pop(); // zurück ins Dashboard
+                    if (ok) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Account gelöscht.')),
+                      );
+                      // Zur Start-/Loginseite zurück
+                      Navigator.of(context).popUntil((r) => r.isFirst);
+                    }
                   } catch (e) {
                     if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Fehler: $e')),
+                    );
                   }
                 },
               ),
@@ -124,7 +159,10 @@ class _AccountPageState extends State<AccountPage> {
 
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.of(context).pop()),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
         title: const Text('Mein Account'),
       ),
       body: body,
@@ -136,19 +174,26 @@ class _AccountPageState extends State<AccountPage> {
 
 class _AccountEditPage extends StatefulWidget {
   final ApiClient api;
-  final Map<String,dynamic> initial;
+  final Map<String, dynamic> initial;
   const _AccountEditPage({required this.api, required this.initial});
   @override
   State<_AccountEditPage> createState() => _AccountEditPageState();
 }
 
 class _AccountEditPageState extends State<_AccountEditPage> {
-  late final TextEditingController email = TextEditingController(text: widget.initial['email']?.toString() ?? '');
-  late final TextEditingController company = TextEditingController(text: widget.initial['company']?.toString() ?? '');
-  late final TextEditingController contact = TextEditingController(text: widget.initial['contact']?.toString() ?? '');
-  late final TextEditingController street = TextEditingController(text: widget.initial['street']?.toString() ?? '');
-  late final TextEditingController zip = TextEditingController(text: widget.initial['zip']?.toString() ?? '');
-  late final TextEditingController city = TextEditingController(text: widget.initial['city']?.toString() ?? '');
+  late final TextEditingController email   =
+      TextEditingController(text: widget.initial['email']?.toString() ?? '');
+  late final TextEditingController company =
+      TextEditingController(text: widget.initial['company']?.toString() ?? '');
+  late final TextEditingController contact =
+      TextEditingController(text: widget.initial['contact']?.toString() ?? '');
+  late final TextEditingController street  =
+      TextEditingController(text: widget.initial['street']?.toString() ?? '');
+  late final TextEditingController zip     =
+      TextEditingController(text: widget.initial['zip']?.toString() ?? '');
+  late final TextEditingController city    =
+      TextEditingController(text: widget.initial['city']?.toString() ?? '');
+
   bool busy = false;
 
   @override
@@ -161,45 +206,99 @@ class _AccountEditPageState extends State<_AccountEditPage> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              TextField(controller: email, decoration: const InputDecoration(labelText: 'E-Mail', border: OutlineInputBorder())),
-              const SizedBox(height: 8),
-              TextField(controller: contact, decoration: const InputDecoration(labelText: 'Ansprechpartner', border: OutlineInputBorder())),
-              const SizedBox(height: 8),
-              TextField(controller: company, decoration: const InputDecoration(labelText: 'Firma', border: OutlineInputBorder())),
-              const SizedBox(height: 8),
-              TextField(controller: street, decoration: const InputDecoration(labelText: 'Adresse', border: OutlineInputBorder())),
-              const SizedBox(height: 8),
-              Row(children: [
-                Expanded(child: TextField(controller: zip, decoration: const InputDecoration(labelText: 'PLZ', border: OutlineInputBorder()))),
-                const SizedBox(width: 8),
-                Expanded(child: TextField(controller: city, decoration: const InputDecoration(labelText: 'Ort', border: OutlineInputBorder()))),
-              ]),
-              const SizedBox(height: 16),
-              Row(children: [
-                FilledButton(
-                  onPressed: busy ? null : () async {
-                    setState(() => busy = true);
-                    try {
-                      await widget.api.accountUpdate({
-                        'email': email.text.trim(),
-                        'contact': contact.text.trim(),
-                        'company': company.text.trim(),
-                        'street': street.text.trim(),
-                        'zip': zip.text.trim(),
-                        'city': city.text.trim(),
-                      });
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert.')));
-                      Navigator.of(context).pop();
-                    } catch (e) {
-                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
-                    } finally { if (mounted) setState(() => busy = false); }
-                  },
-                  child: busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Speichern'),
+              TextField(
+                controller: email,
+                decoration: const InputDecoration(
+                  labelText: 'E-Mail', border: OutlineInputBorder(),
                 ),
-                const SizedBox(width: 12),
-                OutlinedButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Abbrechen')),
-              ]),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: contact,
+                decoration: const InputDecoration(
+                  labelText: 'Ansprechpartner', border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: company,
+                decoration: const InputDecoration(
+                  labelText: 'Firma', border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: street,
+                decoration: const InputDecoration(
+                  labelText: 'Adresse', border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: zip,
+                      decoration: const InputDecoration(
+                        labelText: 'PLZ', border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: city,
+                      decoration: const InputDecoration(
+                        labelText: 'Ort', border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  FilledButton(
+                    onPressed: busy ? null : () async {
+                      setState(() => busy = true);
+                      try {
+                        await widget.api.accountUpdate({
+                          'email':   email.text.trim(),
+                          'contact': contact.text.trim(),
+                          'company': company.text.trim(),
+                          'street':  street.text.trim(),
+                          'zip':     zip.text.trim(),
+                          'city':    city.text.trim(),
+                        });
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Gespeichert.')),
+                        );
+                        Navigator.of(context).pop();
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Fehler: $e')),
+                          );
+                        }
+                      } finally {
+                        if (mounted) setState(() => busy = false);
+                      }
+                    },
+                    child: busy
+                        ? const SizedBox(
+                            width: 18, height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Speichern'),
+                  ),
+                  const SizedBox(width: 12),
+                  OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Abbrechen'),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -231,34 +330,71 @@ class _PasswordPageState extends State<_PasswordPage> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              TextField(controller: oldPw, obscureText: true, decoration: const InputDecoration(labelText: 'Altes Passwort', border: OutlineInputBorder())),
-              const SizedBox(height: 8),
-              TextField(controller: newPw1, obscureText: true, decoration: const InputDecoration(labelText: 'Neues Passwort', border: OutlineInputBorder())),
-              const SizedBox(height: 8),
-              TextField(controller: newPw2, obscureText: true, decoration: const InputDecoration(labelText: 'Neues Passwort (Wdh.)', border: OutlineInputBorder())),
-              const SizedBox(height: 16),
-              Row(children: [
-                FilledButton(
-                  onPressed: busy ? null : () async {
-                    if (newPw1.text != newPw2.text) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Passwörter stimmen nicht überein.')));
-                      return;
-                    }
-                    setState(() => busy = true);
-                    try {
-                      await widget.api.accountChangePassword(oldPw.text, newPw1.text);
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Passwort geändert.')));
-                      Navigator.of(context).pop();
-                    } catch (e) {
-                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
-                    } finally { if (mounted) setState(() => busy = false); }
-                  },
-                  child: busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Speichern'),
+              TextField(
+                controller: oldPw, obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Altes Passwort', border: OutlineInputBorder(),
                 ),
-                const SizedBox(width: 12),
-                OutlinedButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Abbrechen')),
-              ]),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: newPw1, obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Neues Passwort', border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: newPw2, obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Neues Passwort (Wdh.)', border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  FilledButton(
+                    onPressed: busy ? null : () async {
+                      if (newPw1.text != newPw2.text) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Passwörter stimmen nicht überein.')),
+                        );
+                        return;
+                      }
+                      setState(() => busy = true);
+                      try {
+                        await widget.api.accountChangePassword(
+                          oldPw.text, newPw1.text,
+                        );
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Passwort geändert.')),
+                        );
+                        Navigator.of(context).pop();
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Fehler: $e')),
+                          );
+                        }
+                      } finally {
+                        if (mounted) setState(() => busy = false);
+                      }
+                    },
+                    child: busy
+                        ? const SizedBox(
+                            width: 18, height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Speichern'),
+                  ),
+                  const SizedBox(width: 12),
+                  OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Abbrechen'),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
