@@ -1,8 +1,11 @@
 import 'dart:convert';
 import 'dart:html' as html;
 import 'package:flutter/material.dart';
+
+import '../widgets/status_badge.dart'; // für hübsches Status-Badge (bereits vorhanden)
 import '../api/client.dart';
 
+/// Admin-Hauptseite mit drei Bereichen: Pending, Users, Offene Reklamationen
 class AdminPage extends StatefulWidget {
   final ApiClient api;
   const AdminPage({super.key, required this.api});
@@ -11,69 +14,145 @@ class AdminPage extends StatefulWidget {
   State<AdminPage> createState() => _AdminPageState();
 }
 
+enum _AdminSection { pending, users, openComplaints }
+
 class _AdminPageState extends State<AdminPage> {
   late final AdminApi _api;
 
-  bool _loadingPending = false;
-  bool _loadingUsers = false;
-  String? _fatalErr; // Ungültiges/missing Secret -> blockiert
-  String? _err;      // Nicht-blockierende Fehlermeldungen
+  _AdminSection _section = _AdminSection.pending;
 
-  List<PendingUser> _pending = [];
-  List<ActiveUser> _users = [];
-  final Map<String, ComplaintsResult> _complaints = {};
+  // Shared/Error/Busy
+  String? _err;
+
+  // Pending
+  bool _loadingPending = false;
+  List<PendingUser> _pending = const [];
+  final Map<String, ComplaintsResult> _pendingComplaints = {};
+
+  // Users
+  bool _loadingUsers = false;
+  List<AdminUser> _users = const [];
+  final Map<String, ComplaintsResult> _userComplaints = {};
+
+  // Offene Reklamationen
+  bool _loadingOpen = false;
+  String? _openErr;
+  List<AdminComplaint> _openComplaints = const [];
 
   @override
   void initState() {
     super.initState();
-    _api = AdminApi();
-
-    // 1) Primär: aus dem ApiClient, der von main.dart übergeben wird
-    String secret = widget.api.adminSecret ?? '';
-
-    // 2) Fallback: aus localStorage lesen – aber bitte den richtigen Key "dfs_admin"
-    if (secret.isEmpty) {
-      secret = html.window.localStorage['dfs_admin'] ?? '';
-    }
-
-    _api.setSecret(secret);
-
-    if (secret.isEmpty) {
-      _fatalErr = 'Kein Admin-Secret gefunden. Bitte über den Admin-Button (Startseite) öffnen.';
-      return;
-    }
-
-    _refreshAll();
+    _api = AdminApi()..setSecret(widget.api.adminSecret ?? '');
+    _bootstrap();
   }
 
-  Future<void> _refreshAll() async {
+  Future<void> _bootstrap() async {
     setState(() {
-      _err = null;
       _loadingPending = true;
       _loadingUsers = true;
+      _loadingOpen = true;
+      _err = null;
+      _openErr = null;
     });
     try {
-      final p = _api.fetchPending();
-      final u = _api.fetchUsers();
-      final both = await Future.wait([p, u]);
+      final p = await _api.fetchPending();
+      final u = await _api.fetchUsers();
+      final all = await _api.fetchAllComplaints(); // für "Offene Reklamationen"
       if (!mounted) return;
       setState(() {
-        _pending = both[0] as List<PendingUser>;
-        _users = both[1] as List<ActiveUser>;
+        _pending = p;
+        _users = u;
+        _openComplaints = _filterOpen(all);
       });
     } catch (e) {
-      // 401 → Secret ungültig
-      if (e.toString().contains('401')) {
-        setState(() => _fatalErr = 'Admin-Secret ungültig. Bitte erneut über den Admin-Button (Startseite) mit richtigem Secret öffnen.');
-      } else {
-        setState(() => _err = '$e');
-      }
+      if (!mounted) return;
+      setState(() => _err = '$e');
     } finally {
       if (!mounted) return;
       setState(() {
         _loadingPending = false;
         _loadingUsers = false;
+        _loadingOpen = false;
       });
+    }
+  }
+
+  List<AdminComplaint> _filterOpen(List<AdminComplaint> all) {
+    // Offen: status != 6 (Abgeschlossen) UND decision != 'rejected'
+    // (status 4 ist "Entscheidung" – offen, solange decision==null oder 'accepted' ohne Abschluss;
+    // dein Backend setzt bei 'rejected' zudem statusClosed=true Logik)
+    return all.where((c) => c.status != 6 && c.decision != 'rejected').toList()
+      ..sort((a, b) => (b.updatedAt ?? b.createdAt ?? 0).compareTo(a.updatedAt ?? a.createdAt ?? 0));
+  }
+
+  Future<void> _refreshPending() async {
+    setState(() => _loadingPending = true);
+    try {
+      final p = await _api.fetchPending();
+      if (!mounted) return;
+      setState(() => _pending = p);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _err = '$e');
+    } finally {
+      if (!mounted) return;
+      setState(() => _loadingPending = false);
+    }
+  }
+
+  Future<void> _refreshUsers() async {
+    setState(() => _loadingUsers = true);
+    try {
+      final u = await _api.fetchUsers();
+      if (!mounted) return;
+      setState(() => _users = u);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _err = '$e');
+    } finally {
+      if (!mounted) return;
+      setState(() => _loadingUsers = false);
+    }
+  }
+
+  Future<void> _refreshOpenComplaints() async {
+    setState(() { _loadingOpen = true; _openErr = null; });
+    try {
+      final all = await _api.fetchAllComplaints();
+      if (!mounted) return;
+      setState(() => _openComplaints = _filterOpen(all));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _openErr = '$e');
+    } finally {
+      if (!mounted) return;
+      setState(() => _loadingOpen = false);
+    }
+  }
+
+  Future<void> _loadComplaintsForEmail(String email, {required bool forPending}) async {
+    final key = email.toLowerCase();
+    if (forPending) {
+      setState(() => _pendingComplaints[key] = ComplaintsResult.loading());
+    } else {
+      setState(() => _userComplaints[key] = ComplaintsResult.loading());
+    }
+    try {
+      final tickets = await _api.fetchTicketsByEmail(email);
+      if (!mounted) return;
+      if (forPending) {
+        setState(() => _pendingComplaints[key] = ComplaintsResult.ok(tickets));
+      } else {
+        setState(() => _userComplaints[key] = ComplaintsResult.ok(tickets));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e.toString();
+      if (forPending) {
+        setState(() => _pendingComplaints[key] = ComplaintsResult.err(msg));
+      } else {
+        setState(() => _userComplaints[key] = ComplaintsResult.err(msg));
+      }
     }
   }
 
@@ -84,7 +163,8 @@ class _AdminPageState extends State<AdminPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Freigabe ausgelöst für $email.')),
       );
-      await _refreshAll();
+      await _refreshPending();
+      await _refreshUsers();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -94,17 +174,19 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   Future<void> _reject(String email) async {
-    final ok = await _confirm('Anmeldung ablehnen',
-        'Soll $email wirklich abgelehnt werden?\n\nDer Eintrag wird dabei wie beim Löschen vollständig entfernt.');
+    final ok = await _confirm(
+      'Anmeldung ablehnen',
+      'Soll $email wirklich abgelehnt werden?\n\nDer Eintrag wird dabei wie beim Löschen vollständig entfernt.',
+    );
     if (ok != true) return;
 
     try {
-      await _api.deleteUser(email); // ⬅️ identische Logik wie Löschen
+      await _api.deletePending(email); // echte Pending-Löschung
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Eintrag abgelehnt und gelöscht: $email')),
       );
-      await _refreshAll();
+      await _refreshPending();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -114,15 +196,20 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   Future<void> _deleteUser(String email) async {
-    final ok = await _confirm('Nutzer löschen', 'Soll der aktive Nutzer $email wirklich gelöscht werden?');
+    final ok = await _confirm(
+      'Nutzer löschen',
+      'Soll der Nutzer $email wirklich vollständig gelöscht werden?',
+    );
     if (ok != true) return;
+
     try {
       await _api.deleteUser(email);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Nutzer gelöscht: $email')),
+        SnackBar(content: Text('Nutzer entfernt: $email')),
       );
-      await _refreshAll();
+      await _refreshUsers();
+      await _refreshOpenComplaints(); // falls dadurch offene Fälle “verwaisen”
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -131,34 +218,40 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
-  Future<void> _loadComplaints(String email) async {
-    if (_complaints[email]?.loading == true) return;
-    setState(() {
-      _complaints[email] = ComplaintsResult.loading();
-    });
+  Future<void> _setComplaintStatus({
+    required String ticket,
+    int? status,
+    String? decision, // 'accepted' | 'rejected' | null
+    String? reportLink,
+    bool refreshOpen = false,
+    bool silent = false,
+  }) async {
     try {
-      final list = await _api.fetchComplaintsFor(email);
+      await _api.patchComplaint(ticket: ticket, status: status, decision: decision, reportLink: reportLink);
       if (!mounted) return;
-      setState(() {
-        _complaints[email] = ComplaintsResult.ok(list);
-      });
+      if (!silent) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Status für $ticket aktualisiert.')),
+        );
+      }
+      if (refreshOpen) await _refreshOpenComplaints();
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _complaints[email] = ComplaintsResult.err('$e');
-      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fehler beim Aktualisieren: $e')),
+      );
     }
   }
 
   Future<bool?> _confirm(String title, String message) {
     return showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (_) => AlertDialog(
         title: Text(title),
         content: Text(message),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('OK')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('OK')),
         ],
       ),
     );
@@ -166,208 +259,253 @@ class _AdminPageState extends State<AdminPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_fatalErr != null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Adminbereich – DFS Customer Complaint')),
-        body: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.lock, size: 48),
-                  const SizedBox(height: 12),
-                  Text(
-                    _fatalErr!,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.red),
-                  ),
-                  const SizedBox(height: 12),
-                  FilledButton(
-                    onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
-                    child: const Text('Zurück'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
     final theme = Theme.of(context);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Adminbereich – DFS Customer Complaint')),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1100),
+      appBar: AppBar(
+        title: const Text('Adminbereich – DFS Customer Complaint'),
+        actions: [
+          const SizedBox(width: 8),
+        ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(56),
           child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                if (_err != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(_err!, style: TextStyle(color: theme.colorScheme.error)),
-                  ),
-                Expanded(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Pending
-                      Expanded(
-                        child: Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(Icons.hourglass_top),
-                                    const SizedBox(width: 8),
-                                    const Text('Pending (Freigabe ausstehend)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                                    const Spacer(),
-                                    IconButton(
-                                      tooltip: 'Neu laden',
-                                      onPressed: _loadingPending ? null : () async {
-                                        setState(() => _loadingPending = true);
-                                        try {
-                                          final list = await _api.fetchPending();
-                                          if (!mounted) return;
-                                          setState(() => _pending = list);
-                                        } catch (e) {
-                                          if (!mounted) return;
-                                          setState(() => _err = '$e');
-                                        } finally {
-                                          if (!mounted) return;
-                                          setState(() => _loadingPending = false);
-                                        }
-                                      },
-                                      icon: const Icon(Icons.refresh),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                if (_loadingPending) const LinearProgressIndicator(),
-                                const SizedBox(height: 8),
-                                Expanded(
-                                  child: _pending.isEmpty
-                                      ? const Center(child: Text('Keine Pending-Anmeldungen.'))
-                                      : ListView.separated(
-                                          itemCount: _pending.length,
-                                          separatorBuilder: (_, __) => const Divider(height: 1),
-                                          itemBuilder: (ctx, i) {
-                                            final p = _pending[i];
-                                            return _PendingTile(
-                                              data: p,
-                                              onApprove: () => _approve(p.email, lang: p.lang),
-                                              onReject: () => _reject(p.email),
-                                              onLoadComplaints: () => _loadComplaints(p.email),
-                                              complaints: _complaints[p.email],
-                                            );
-                                          },
-                                        ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Users
-                      Expanded(
-                        child: Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(Icons.people),
-                                    const SizedBox(width: 8),
-                                    const Text('Aktive Nutzer', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                                    const Spacer(),
-                                    IconButton(
-                                      tooltip: 'Neu laden',
-                                      onPressed: _loadingUsers ? null : () async {
-                                        setState(() => _loadingUsers = true);
-                                        try {
-                                          final list = await _api.fetchUsers();
-                                          if (!mounted) return;
-                                          setState(() => _users = list);
-                                        } catch (e) {
-                                          if (!mounted) return;
-                                          setState(() => _err = '$e');
-                                        } finally {
-                                          if (!mounted) return;
-                                          setState(() => _loadingUsers = false);
-                                        }
-                                      },
-                                      icon: const Icon(Icons.refresh),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                if (_loadingUsers) const LinearProgressIndicator(),
-                                const SizedBox(height: 8),
-                                Expanded(
-                                  child: _users.isEmpty
-                                      ? const Center(child: Text('Keine aktiven Nutzer.'))
-                                      : ListView.separated(
-                                          itemCount: _users.length,
-                                          separatorBuilder: (_, __) => const Divider(height: 1),
-                                          itemBuilder: (ctx, i) {
-                                            final u = _users[i];
-                                            return _UserTile(
-                                              data: u,
-                                              onDelete: () => _deleteUser(u.email),
-                                              onLoadComplaints: () => _loadComplaints(u.email),
-                                              complaints: _complaints[u.email],
-                                            );
-                                          },
-                                        ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                _sectionButton('Pending', Icons.how_to_reg_outlined, _AdminSection.pending),
+                _sectionButton('Kundendatenbank', Icons.people_outline, _AdminSection.users),
+                _sectionButton('Offene Reklamationen', Icons.assignment_late_outlined, _AdminSection.openComplaints),
               ],
             ),
           ),
+        ),
+      ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1200),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: _buildSection(theme),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionButton(String label, IconData icon, _AdminSection s) {
+    final isActive = _section == s;
+    return FilledButton.tonalIcon(
+      icon: Icon(icon),
+      label: Text(label),
+      onPressed: isActive ? null : () => setState(() => _section = s),
+    );
+  }
+
+  Widget _buildSection(ThemeData theme) {
+    if (_err != null) {
+      return Text(_err!, style: TextStyle(color: theme.colorScheme.error));
+    }
+
+    switch (_section) {
+      case _AdminSection.pending:
+        return _buildPending();
+      case _AdminSection.users:
+        return _buildUsers();
+      case _AdminSection.openComplaints:
+        return _buildOpenComplaints();
+    }
+  }
+
+  // ---------- UI: Pending ----------
+  Widget _buildPending() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.how_to_reg_outlined),
+                const SizedBox(width: 8),
+                const Text('Pending (Freigabe / Ablehnen)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                const Spacer(),
+                IconButton(
+                  tooltip: 'Neu laden',
+                  onPressed: _loadingPending ? null : _refreshPending,
+                  icon: _loadingPending
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.refresh),
+                ),
+              ],
+            ),
+            const Divider(),
+            if (_pending.isEmpty && !_loadingPending) const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Text('Keine offenen Pending-Einträge.'),
+            ),
+            if (_pending.isNotEmpty)
+              Expanded(
+                child: ListView.separated(
+                  itemCount: _pending.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (_, i) {
+                    final d = _pending[i];
+                    final c = _pendingComplaints[d.email.toLowerCase()];
+                    return _PendingTile(
+                      data: d,
+                      complaints: c,
+                      onLoadComplaints: () => _loadComplaintsForEmail(d.email, forPending: true),
+                      onApprove: () => _approve(d.email, lang: d.lang),
+                      onReject: () => _reject(d.email),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---------- UI: Users (Kundendatenbank mit Ticketliste & Statusänderung) ----------
+  Widget _buildUsers() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.people),
+                const SizedBox(width: 8),
+                const Text('Aktive Nutzer (Kundendatenbank)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                const Spacer(),
+                IconButton(
+                  tooltip: 'Neu laden',
+                  onPressed: _loadingUsers ? null : _refreshUsers,
+                  icon: _loadingUsers
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.refresh),
+                ),
+              ],
+            ),
+            const Divider(),
+            if (_users.isEmpty && !_loadingUsers) const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Text('Keine aktiven Nutzer.'),
+            ),
+            if (_users.isNotEmpty)
+              Expanded(
+                child: ListView.separated(
+                  itemCount: _users.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (_, i) {
+                    final u = _users[i];
+                    final c = _userComplaints[u.email.toLowerCase()];
+                    return _UserTile(
+                      data: u,
+                      complaints: c,
+                      onLoadComplaints: () => _loadComplaintsForEmail(u.email, forPending: false),
+                      onDelete: () => _deleteUser(u.email),
+                      onSetStatus: ({
+                        required String ticket,
+                        int? status,
+                        String? decision,
+                        String? reportLink,
+                      }) => _setComplaintStatus(
+                        ticket: ticket,
+                        status: status,
+                        decision: decision,
+                        reportLink: reportLink,
+                        refreshOpen: true, // falls Ticket dadurch in/offen wird
+                        silent: true,
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---------- UI: Offene Reklamationen ----------
+  Widget _buildOpenComplaints() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.assignment_late_outlined),
+                const SizedBox(width: 8),
+                const Text('Offene Reklamationen', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                const Spacer(),
+                IconButton(
+                  tooltip: 'Neu laden',
+                  onPressed: _loadingOpen ? null : _refreshOpenComplaints,
+                  icon: _loadingOpen
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.refresh),
+                ),
+              ],
+            ),
+            const Divider(),
+            if (_openErr != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(_openErr!, style: const TextStyle(color: Colors.red)),
+              ),
+            if (!_loadingOpen && _openComplaints.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Text('Derzeit keine offenen Reklamationen.'),
+              ),
+            if (_openComplaints.isNotEmpty)
+              Expanded(
+                child: ListView.separated(
+                  itemCount: _openComplaints.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (_, i) {
+                    final c = _openComplaints[i];
+                    return _OpenComplaintTile(
+                      data: c,
+                      onSetStatus: ({
+                        required String ticket,
+                        int? status,
+                        String? decision,
+                        String? reportLink,
+                      }) async {
+                        await _setComplaintStatus(
+                          ticket: ticket,
+                          status: status,
+                          decision: decision,
+                          reportLink: reportLink,
+                          refreshOpen: true,
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+          ],
         ),
       ),
     );
   }
 }
 
-// ---------- UI Tiles ----------
-
-class _Field extends StatelessWidget {
-  final String label;
-  final String value;
-  const _Field({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    final muted = Theme.of(context).textTheme.bodySmall;
-    return Wrap(
-      spacing: 6,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        Text('$label:', style: muted),
-        Text(value.isEmpty ? '—' : value),
-      ],
-    );
-  }
-}
+// ============================================================================
+//  Tiles / Widgets
+// ============================================================================
 
 class _PendingTile extends StatefulWidget {
   final PendingUser data;
@@ -396,33 +534,26 @@ class _PendingTileState extends State<_PendingTile> {
     return Column(
       children: [
         ListTile(
-          title: Text(d.email),
-          subtitle: Wrap(
-            spacing: 12,
-            runSpacing: 4,
-            children: [
-              _Field(label: 'Firma', value: d.company),
-              _Field(label: 'Kontakt', value: d.contact),
-              _Field(label: 'Ort', value: '${d.zip} ${d.city}'),
-              _Field(label: 'Land', value: d.country),
-              _Field(label: 'Telefon', value: d.phone),
-              _Field(label: 'Sprache', value: d.lang.toUpperCase()),
-              _Field(label: 'Erstellt', value: d.createdAt ?? '—'),
-            ],
-          ),
+          title: Text('${d.company}  •  ${d.email}'),
+          subtitle: Text('${d.contact} • ${d.country} • ${d.phone} • Sprache: ${d.lang}'),
           trailing: Wrap(
             spacing: 8,
             children: [
-              IconButton(
-                tooltip: 'Reklamationen anzeigen',
-                onPressed: () {
-                  setState(() => _expanded = !_expanded);
-                  if (_expanded) widget.onLoadComplaints();
-                },
-                icon: Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
+              TextButton(onPressed: widget.onLoadComplaints, child: const Text('Tickets anzeigen')),
+              FilledButton.icon(
+                onPressed: widget.onApprove,
+                icon: const Icon(Icons.check_circle_outline),
+                label: const Text('Freigeben'),
               ),
-              FilledButton(onPressed: widget.onApprove, child: const Text('Freigeben')),
-              OutlinedButton(onPressed: widget.onReject, child: const Text('Ablehnen')),
+              OutlinedButton.icon(
+                onPressed: () async => widget.onReject(),
+                icon: const Icon(Icons.delete_forever_outlined),
+                label: const Text('Ablehnen'),
+              ),
+              IconButton(
+                onPressed: () => setState(() => _expanded = !_expanded),
+                icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+              ),
             ],
           ),
         ),
@@ -434,15 +565,23 @@ class _PendingTileState extends State<_PendingTile> {
 }
 
 class _UserTile extends StatefulWidget {
-  final ActiveUser data;
-  final Future<void> Function() onDelete;
+  final AdminUser data;
   final VoidCallback onLoadComplaints;
+  final VoidCallback onDelete;
   final ComplaintsResult? complaints;
+  final Future<void> Function({
+    required String ticket,
+    int? status,
+    String? decision,
+    String? reportLink,
+  }) onSetStatus;
+
   const _UserTile({
     required this.data,
-    required this.onDelete,
     required this.onLoadComplaints,
+    required this.onDelete,
     required this.complaints,
+    required this.onSetStatus,
   });
 
   @override
@@ -451,7 +590,6 @@ class _UserTile extends StatefulWidget {
 
 class _UserTileState extends State<_UserTile> {
   bool _expanded = false;
-  bool _busy = false;
 
   @override
   Widget build(BuildContext context) {
@@ -459,97 +597,135 @@ class _UserTileState extends State<_UserTile> {
     return Column(
       children: [
         ListTile(
-          title: Text(d.email),
-          subtitle: Wrap(
-            spacing: 12,
-            runSpacing: 4,
-            children: [
-              _Field(label: 'Firma', value: d.company),
-              _Field(label: 'Kontakt', value: d.contact),
-              _Field(label: 'Ort', value: '${d.zip} ${d.city}'),
-              _Field(label: 'Land', value: d.country),
-              _Field(label: 'Telefon', value: d.phone),
-              _Field(label: 'Sprache', value: d.lang.toUpperCase()),
-              _Field(label: 'Aktiv seit', value: d.createdAt ?? '—'),
-            ],
-          ),
+          title: Text('${d.company}  •  ${d.email}'),
+          subtitle: Text('${d.contact} • ${d.country} • ${d.phone} • Sprache: ${d.lang}'),
           trailing: Wrap(
             spacing: 8,
             children: [
-              IconButton(
-                tooltip: 'Reklamationen anzeigen',
-                onPressed: () {
-                  setState(() => _expanded = !_expanded);
-                  if (_expanded) widget.onLoadComplaints();
-                },
-                icon: Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
+              TextButton(onPressed: widget.onLoadComplaints, child: const Text('Tickets anzeigen')),
+              OutlinedButton.icon(
+                onPressed: () async => widget.onDelete(),
+                icon: const Icon(Icons.person_remove_alt_1_outlined),
+                label: const Text('Löschen'),
               ),
-              OutlinedButton(
-                onPressed: _busy
-                    ? null
-                    : () async {
-                        setState(() => _busy = true);
-                        await widget.onDelete();
-                        if (mounted) setState(() => _busy = false);
-                      },
-                child: _busy
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Text('Löschen'),
+              IconButton(
+                onPressed: () => setState(() => _expanded = !_expanded),
+                icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
               ),
             ],
           ),
         ),
-        if (_expanded) _ComplaintsView(email: d.email, result: widget.complaints),
+        if (_expanded) _ComplaintsView(
+          email: d.email,
+          result: widget.complaints,
+          withStatusActions: true,
+          onSetStatus: widget.onSetStatus,
+        ),
         const Divider(height: 1),
       ],
     );
   }
 }
 
-class _ComplaintsView extends StatelessWidget {
-  final String email;
-  final ComplaintsResult? result;
-  const _ComplaintsView({required this.email, required this.result});
+class _OpenComplaintTile extends StatefulWidget {
+  final AdminComplaint data;
+  final Future<void> Function({
+    required String ticket,
+    int? status,
+    String? decision,
+    String? reportLink,
+  }) onSetStatus;
+
+  const _OpenComplaintTile({
+    required this.data,
+    required this.onSetStatus,
+  });
+
+  @override
+  State<_OpenComplaintTile> createState() => _OpenComplaintTileState();
+}
+
+class _OpenComplaintTileState extends State<_OpenComplaintTile> {
+  bool _busy = false;
+  int? _statusSel;
+  String? _decisionSel;
+  final _reportCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _statusSel = widget.data.status;
+    _decisionSel = widget.data.decision;
+    _reportCtrl.text = widget.data.reportLink ?? '';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final r = result;
-    if (r == null) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Text('Noch nicht geladen.'),
-      );
-    }
-    if (r.loading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: LinearProgressIndicator(),
-      );
-    }
-    if (r.error != null) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Text('Fehler beim Laden: ${r.error}', style: const TextStyle(color: Colors.red)),
-      );
-    }
-    if (r.tickets.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Text('Keine Reklamationen gefunden.'),
-      );
-    }
+    final c = widget.data;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      child: Column(
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Divider(),
-          const Text('Reklamationen (Tickets):', style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 8,
-            runSpacing: 6,
-            children: r.tickets.map((t) => Chip(label: Text(t))).toList(),
+          Expanded(
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text('${c.ticket} • ${c.email}'),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('${c.segment} • Artikel: ${c.article} • Menge: ${c.qty ?? '-'}'),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      StatusBadge(status: c.statusLabel), // vorhandenes Widget
+                      const SizedBox(width: 8),
+                      if (c.decision != null) Text('Decision: ${c.decision}'),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 360,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(child: _StatusDropdown(value: _statusSel, onChanged: _busy ? null : (v) => setState(() => _statusSel = v))),
+                    const SizedBox(width: 8),
+                    Expanded(child: _DecisionDropdown(value: _decisionSel, onChanged: _busy ? null : (v) => setState(() => _decisionSel = v))),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _reportCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Report-Link (optional)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                FilledButton.icon(
+                  onPressed: _busy ? null : () async {
+                    setState(() => _busy = true);
+                    await widget.onSetStatus(
+                      ticket: c.ticket,
+                      status: _statusSel,
+                      decision: _decisionSel,
+                      reportLink: _reportCtrl.text.trim().isEmpty ? null : _reportCtrl.text.trim(),
+                    );
+                    setState(() => _busy = false);
+                  },
+                  icon: _busy
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.save_outlined),
+                  label: const Text('Speichern'),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -557,40 +733,96 @@ class _ComplaintsView extends StatelessWidget {
   }
 }
 
-// ---------- Models ----------
+class _ComplaintsView extends StatelessWidget {
+  final String email;
+  final ComplaintsResult? result;
+
+  /// Optional: Admin-Statusaktionen einblenden (für Kundendatenbank)
+  final bool withStatusActions;
+  final Future<void> Function({
+    required String ticket,
+    int? status,
+    String? decision,
+    String? reportLink,
+  })? onSetStatus;
+
+  const _ComplaintsView({
+    super.key,
+    required this.email,
+    required this.result,
+    this.withStatusActions = false,
+    this.onSetStatus,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final r = result;
+    if (r == null || r.loading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: LinearProgressIndicator(),
+      );
+    }
+    if (r.error != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Text(r.error!, style: const TextStyle(color: Colors.red)),
+      );
+    }
+    if (r.tickets.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: Text('Keine Reklamationen gefunden.'),
+      );
+    }
+
+    // Nur Ticketliste – Details zieht sich der Admin in der Offenen-Liste.
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8, left: 12, right: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Reklamationen für $email (${r.tickets.length}):', style: const TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: r.tickets.map((t) {
+              if (!withStatusActions || onSetStatus == null) {
+                return Chip(label: Text(t));
+              }
+              // Wenn du hier auch sofort Status-Aktionen möchtest, müsste man Details laden;
+              // für Übersichtlichkeit belassen wir es hier bei der Ticketliste.
+              return InputChip(label: Text(t));
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+//  Modelle & Admin-API (nur was diese Seite benötigt)
+// ============================================================================
 
 class PendingUser {
-  final String email;
-  final String company;
-  final String contact;
-  final String street;
-  final String zip;
-  final String city;
-  final String country;
-  final String phone;
+  final String email, company, contact, country, phone;
   final String lang;
   final String? createdAt;
-
-  PendingUser({
+  const PendingUser({
     required this.email,
     required this.company,
     required this.contact,
-    required this.street,
-    required this.zip,
-    required this.city,
     required this.country,
     required this.phone,
     required this.lang,
     required this.createdAt,
   });
-
-  factory PendingUser.fromJson(Map<String, dynamic> j) => PendingUser(
+  factory PendingUser.fromJson(Map j) => PendingUser(
         email: j['email'] ?? '',
         company: j['company'] ?? '',
         contact: j['contact'] ?? '',
-        street: j['street'] ?? '',
-        zip: j['zip'] ?? '',
-        city: j['city'] ?? '',
         country: j['country'] ?? '',
         phone: j['phone'] ?? '',
         lang: (j['lang'] ?? 'de').toString(),
@@ -598,42 +830,69 @@ class PendingUser {
       );
 }
 
-class ActiveUser {
-  final String email;
-  final String company;
-  final String contact;
-  final String street;
-  final String zip;
-  final String city;
-  final String country;
-  final String phone;
+class AdminUser {
+  final String email, company, contact, country, phone;
   final String lang;
   final String? createdAt;
-
-  ActiveUser({
+  const AdminUser({
     required this.email,
     required this.company,
     required this.contact,
-    required this.street,
-    required this.zip,
-    required this.city,
     required this.country,
     required this.phone,
     required this.lang,
     required this.createdAt,
   });
-
-  factory ActiveUser.fromJson(Map<String, dynamic> j) => ActiveUser(
+  factory AdminUser.fromJson(Map j) => AdminUser(
         email: j['email'] ?? '',
         company: j['company'] ?? '',
         contact: j['contact'] ?? '',
-        street: j['street'] ?? '',
-        zip: j['zip'] ?? '',
-        city: j['city'] ?? '',
         country: j['country'] ?? '',
         phone: j['phone'] ?? '',
         lang: (j['lang'] ?? 'de').toString(),
         createdAt: j['createdAt']?.toString(),
+      );
+}
+
+class AdminComplaint {
+  final String ticket;
+  final String email;
+  final String segment;
+  final String article;
+  final int? qty;
+  final int status;           // 1..6
+  final String statusLabel;   // vom Backend geliefert
+  final String? decision;     // 'accepted' | 'rejected' | null
+  final String? reportLink;
+  final int? createdAt;
+  final int? updatedAt;
+
+  AdminComplaint({
+    required this.ticket,
+    required this.email,
+    required this.segment,
+    required this.article,
+    required this.qty,
+    required this.status,
+    required this.statusLabel,
+    required this.decision,
+    required this.reportLink,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory AdminComplaint.fromJson(Map j) => AdminComplaint(
+        ticket: j['ticket'] ?? '',
+        email: j['email'] ?? '',
+        segment: j['segment'] ?? '',
+        article: j['article'] ?? '',
+        qty: (j['qty'] is num) ? (j['qty'] as num).toInt() : null,
+        status: (j['status'] is num) ? (j['status'] as num).toInt() : 1,
+        statusLabel: j['statusLabel'] ?? 'Eingegegangen',
+        decision: (j['decision'] == null) ? null : j['decision'].toString(),
+        reportLink: (j['reportLink'] == null) ? null : j['reportLink'].toString(),
+        createdAt: j['createdAt'] is num ? (j['createdAt'] as num).toInt() : null,
+        updatedAt: j['updatedAt'] is num ? (j['updatedAt'] as num).toInt() : null,
       );
 }
 
@@ -647,13 +906,69 @@ class ComplaintsResult {
   factory ComplaintsResult.ok(List<String> t) => ComplaintsResult._(false, null, t);
 }
 
-// ---------- API Helper ----------
+// ---- Auswahl-Controls für Status/Decision ----
+
+class _StatusDropdown extends StatelessWidget {
+  final int? value;
+  final ValueChanged<int?>? onChanged;
+  const _StatusDropdown({required this.value, required this.onChanged});
+
+  static const _items = <int, String>{
+    1: 'Eingegegangen',
+    2: 'In Bearbeitung',
+    3: 'Rückfrage erforderlich',
+    4: 'Entscheidung',
+    5: 'In Nacharbeit',
+    6: 'Abgeschlossen',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<int>(
+      value: value,
+      onChanged: onChanged,
+      decoration: const InputDecoration(
+        labelText: 'Status',
+        border: OutlineInputBorder(),
+      ),
+      items: _items.entries
+          .map((e) => DropdownMenuItem<int>(value: e.key, child: Text(e.value)))
+          .toList(),
+    );
+  }
+}
+
+class _DecisionDropdown extends StatelessWidget {
+  final String? value; // 'accepted' | 'rejected' | null
+  final ValueChanged<String?>? onChanged;
+  const _DecisionDropdown({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<String>(
+      value: value,
+      onChanged: onChanged,
+      decoration: const InputDecoration(
+        labelText: 'Entscheidung',
+        border: OutlineInputBorder(),
+      ),
+      items: const [
+        DropdownMenuItem<String>(value: null, child: Text('—')),
+        DropdownMenuItem<String>(value: 'accepted', child: Text('Angenommen')),
+        DropdownMenuItem<String>(value: 'rejected', child: Text('Abgelehnt')),
+      ],
+    );
+  }
+}
+
+// ============================================================================
+//  Admin-API (rein für AdminPage; nutzt dein bestehendes Backend)
+// ============================================================================
+
 class AdminApi {
   String _secret = '';
 
-  void setSecret(String s) {
-    _secret = s;
-  }
+  void setSecret(String s) => _secret = s;
 
   String get baseUrl {
     final b = const String.fromEnvironment('API_BASE', defaultValue: '');
@@ -663,16 +978,13 @@ class AdminApi {
 
   Map<String, String> _headersJson() => {
         'Content-Type': 'application/json; charset=utf-8',
-        if (_secret.isNotEmpty) 'X-Admin-Secret': _secret,
+        'X-Admin-Secret': _secret,
       };
 
-  Uri _u(String path, [Map<String, String>? q]) {
-    final uri = Uri.parse('$baseUrl$path');
-    if (q == null || q.isEmpty) return uri;
-    return uri.replace(queryParameters: q);
-  }
+  Uri _u(String p, [Map<String, String>? q]) => Uri.parse('$baseUrl$p').replace(queryParameters: q);
 
   // ---- Pending ----
+
   Future<List<PendingUser>> fetchPending() async {
     final res = await html.HttpRequest.request(
       _u('/api/admin/pending').toString(),
@@ -680,85 +992,76 @@ class AdminApi {
       requestHeaders: _headersJson(),
       withCredentials: true,
     );
-    if (res.status != 200) {
-      throw 'pending GET: HTTP ${res.status} ${res.responseText}';
-    }
-    final txt = res.responseText ?? '';
-    if (txt.trim().isEmpty) return <PendingUser>[];
-    final List data = jsonDecode(txt);
-    return data
-        .map((e) => PendingUser.fromJson(e as Map<String, dynamic>))
-        .toList();
+    if (res.status != 200) throw 'pending GET: HTTP ${res.status} ${res.responseText}';
+    final List data = jsonDecode(res.responseText ?? '[]');
+    return data.map((e) => PendingUser.fromJson(e as Map)).toList();
   }
 
   Future<void> approvePending(String email, {String? lang}) async {
-    final body = jsonEncode(
-      {'email': email, 'action': 'approve', if (lang != null) 'lang': lang},
-    );
     final res = await html.HttpRequest.request(
       _u('/api/admin/pending').toString(),
       method: 'POST',
       requestHeaders: _headersJson(),
-      sendData: body,
+      sendData: jsonEncode({'email': email, if (lang != null) 'lang': lang}),
       withCredentials: true,
     );
-    // 204 zulassen
     if (res.status != 200 && res.status != 204) {
-      throw 'pending POST approve: HTTP ${res.status} ${res.responseText}';
+      throw 'pending POST: HTTP ${res.status} ${res.responseText}';
     }
   }
 
-  Future<void> rejectPending(String email) async {
-    // 1) DELETE ?email=...
+  Future<void> deletePending(String email) async {
+    // robust: zuerst DELETE, falls nicht erlaubt, POST action=delete als Fallback
+    final url = _u('/api/admin/pending').toString();
+
+    // 1) DELETE als Query
     try {
-      final res = await html.HttpRequest.request(
-        _u('/api/admin/pending', {'email': email}).toString(),
+      final r1 = await html.HttpRequest.request(
+        '$url?email=${Uri.encodeQueryComponent(email)}',
         method: 'DELETE',
         requestHeaders: _headersJson(),
         withCredentials: true,
       );
-      if (res.status == 200 || res.status == 204) return;
+      if (r1.status == 200 || r1.status == 204) return;
     } catch (_) {}
-    // 2) Fallback: POST action=reject
-    final res = await html.HttpRequest.request(
-      _u('/api/admin/pending').toString(),
-      method: 'POST',
-      requestHeaders: _headersJson(),
-      sendData: jsonEncode({'action': 'reject', 'email': email}),
-      withCredentials: true,
-    );
-    if (res.status != 200 && res.status != 204) {
-      throw 'pending reject failed: HTTP ${res.status} ${res.responseText}';
-    }
+
+    // 2) DELETE Body
+    try {
+      final r2 = await html.HttpRequest.request(
+        url,
+        method: 'DELETE',
+        requestHeaders: _headersJson(),
+        sendData: jsonEncode({'email': email}),
+        withCredentials: true,
+      );
+      if (r2.status == 200 || r2.status == 204) return;
+    } catch (_) {}
+
+    // 3) (optional) POST action=delete – falls du es analog users noch pflegen willst
+    throw 'pending DELETE failed';
   }
 
   // ---- Users ----
-  Future<List<ActiveUser>> fetchUsers() async {
+
+  Future<List<AdminUser>> fetchUsers() async {
     final res = await html.HttpRequest.request(
       _u('/api/admin/users').toString(),
       method: 'GET',
       requestHeaders: _headersJson(),
       withCredentials: true,
     );
-    if (res.status != 200) {
-      throw 'users GET: HTTP ${res.status} ${res.responseText}';
-    }
-    final txt = res.responseText ?? '';
-    if (txt.trim().isEmpty) return <ActiveUser>[];
-    final List data = jsonDecode(txt);
-    return data
-        .map((e) => ActiveUser.fromJson(e as Map<String, dynamic>))
-        .toList();
+    if (res.status != 200) throw 'users GET: HTTP ${res.status} ${res.responseText}';
+    final List data = jsonDecode(res.responseText ?? '[]');
+    return data.map((e) => AdminUser.fromJson(e as Map)).toList();
   }
 
   Future<void> deleteUser(String email) async {
-    final urlQ = _u('/api/admin/users', {'email': email}).toString();
     final url = _u('/api/admin/users').toString();
 
-    // 1) DELETE ?email=...
+    // 1) DELETE als Query
     try {
       final res = await html.HttpRequest.request(
-        urlQ,
+        '$url?email=${Uri.encodeQueryComponent(email)}',
         method: 'DELETE',
         requestHeaders: _headersJson(),
         withCredentials: true,
@@ -778,7 +1081,7 @@ class AdminApi {
       if (res.status == 200 || res.status == 204) return;
     } catch (_) {}
 
-    // 3) POST action=delete
+    // 3) POST action=delete (Fallback ist bei dir vorhanden)
     final res = await html.HttpRequest.request(
       url,
       method: 'POST',
@@ -792,19 +1095,52 @@ class AdminApi {
   }
 
   // ---- Complaints ----
-  Future<List<String>> fetchComplaintsFor(String email) async {
+
+  Future<List<String>> fetchTicketsByEmail(String email) async {
     final res = await html.HttpRequest.request(
       _u('/api/admin/complaints', {'email': email}).toString(),
       method: 'GET',
       requestHeaders: _headersJson(),
       withCredentials: true,
     );
-    if (res.status != 200) {
-      throw 'complaints GET: HTTP ${res.status} ${res.responseText}';
-    }
+    if (res.status != 200) throw 'complaints GET: HTTP ${res.status} ${res.responseText}';
     final txt = res.responseText ?? '';
     if (txt.trim().isEmpty) return <String>[];
     final List data = jsonDecode(txt);
-    return data.map((e) => e.toString()).toList();
+    // Backend liefert komplette Objekte – für die kleine Liste nehmen wir nur Tickets:
+    return data.map((e) => (e as Map)['ticket'].toString()).toList();
+  }
+
+  Future<List<AdminComplaint>> fetchAllComplaints() async {
+    final res = await html.HttpRequest.request(
+      _u('/api/admin/complaints').toString(),
+      method: 'GET',
+      requestHeaders: _headersJson(),
+      withCredentials: true,
+    );
+    if (res.status != 200) throw 'complaints GET: HTTP ${res.status} ${res.responseText}';
+    final List data = jsonDecode(res.responseText ?? '[]');
+    return data.map((e) => AdminComplaint.fromJson(e as Map)).toList();
+  }
+
+  Future<void> patchComplaint({
+    required String ticket,
+    int? status,
+    String? decision, // 'accepted' | 'rejected' | null
+    String? reportLink,
+  }) async {
+    final res = await html.HttpRequest.request(
+      _u('/api/admin/complaints').toString(),
+      method: 'PATCH',
+      requestHeaders: _headersJson(),
+      sendData: jsonEncode({
+        'ticket': ticket,
+        if (status != null) 'status': status,
+        if (decision != null) 'decision': decision, // null = entfernen → hier einfach weglassen
+        if (reportLink != null) 'reportLink': reportLink,
+      }),
+      withCredentials: true,
+    );
+    if (res.status != 200) throw 'complaints PATCH: HTTP ${res.status} ${res.responseText}';
   }
 }
