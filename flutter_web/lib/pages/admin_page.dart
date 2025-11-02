@@ -781,7 +781,6 @@ class PendingUser {
   final String phone;
   final String lang;
   final String? createdAt;
-  final bool selfDeleted;
 
   PendingUser({
     required this.email,
@@ -794,7 +793,6 @@ class PendingUser {
     required this.phone,
     required this.lang,
     required this.createdAt,
-    required this.selfDeleted,
   });
 
   factory PendingUser.fromJson(Map<String, dynamic> j) => PendingUser(
@@ -822,6 +820,7 @@ class ActiveUser {
   final String phone;
   final String lang;
   final String? createdAt;
+  final bool selfDeleted;
 
   ActiveUser({
     required this.email,
@@ -834,6 +833,7 @@ class ActiveUser {
     required this.phone,
     required this.lang,
     required this.createdAt,
+    required this.selfDeleted,
   });
 
   factory ActiveUser.fromJson(Map<String, dynamic> j) => ActiveUser(
