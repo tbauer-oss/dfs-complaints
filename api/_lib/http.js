@@ -65,6 +65,12 @@ export function methodNotAllowed(res) {
   return bad(res, 'method not allowed', 405);
 }
 
+// 204 No Content (z. B. für Preflight)
+export function noContent(res) {
+  res.statusCode = 204;
+  res.end();
+}
+
 // JSON-Body robust lesen
 export function readJson(req) {
   if (req?.body && typeof req.body === 'object') return req.body;
