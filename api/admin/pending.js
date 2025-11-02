@@ -2,7 +2,7 @@
 export const config = { runtime: 'nodejs' };
 
 import {
-  handlePreflight, ok, bad, methodNotAllowed, readJson
+  handlePreflight, setCors, ok, bad, methodNotAllowed, readJson
 } from '../_lib/http.js';
 import { pendingList, pendingDelete, userSave, userDelete } from '../_lib/store.js';
 import { send, tpl } from '../_lib/mail.js';
@@ -17,7 +17,8 @@ function isAdmin(req) {
 export default async function handler(req, res) {
   // --- CORS/Preflight zuerst (setzt Header & beantwortet OPTIONS mit 204) ---
   if (handlePreflight(req, res)) return;
-
+  setCors(req, res);
+  
   if (!isAdmin(req)) return bad(res, 'admin unauthorized', 401);
 
   try {
@@ -29,10 +30,11 @@ export default async function handler(req, res) {
 
     // ---- APPROVE -----------------------------------------------------------
     if (req.method === 'POST') {
-      // erwartet: { email }
-      const { email } = readJson(req) || {};
+      // erwartet: { email, action?: 'approve', lang?: 'de'|'en'|... }
+      const { email, action } = readJson(req) || {};
       const wanted = String(email || '').trim().toLowerCase();
       if (!wanted) return bad(res, 'missing email', 400);
+      if (action && action !== 'approve') return bad(res, 'invalid action', 400);
 
       const list = await pendingList();
       const p = Array.isArray(list)
