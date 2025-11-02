@@ -59,24 +59,20 @@ class _MyAppState extends State<MyApp> {
     final wantOpen = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text(t.adminArea), // oder t.adminTitle
+        // ⬇️ snake_case wie in deinen ARBs
+        title: Text(t.admin_area),
         content: TextField(
           controller: ctrl,
-          decoration: InputDecoration(
-            labelText: t.adminSecret,
-            border: const OutlineInputBorder(),
+          // ⬇️ falls du KEINEN Key "adminSecret" in den ARBs hast, nimm den Literal
+          decoration: const InputDecoration(
+            labelText: 'X-Admin-Secret',
+            border: OutlineInputBorder(),
           ),
           obscureText: true,
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(t.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(t.open),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(t.cancel)),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(t.open)),
         ],
       ),
     );
@@ -133,17 +129,22 @@ class _MyAppState extends State<MyApp> {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      // Fallback, wenn Browser-Sprache nicht unterstützt wird
-      localeResolutionCallback: (deviceLocales, supported) {
-        if (_locale != null) return _locale;
-        if (deviceLocales != null && deviceLocales.isNotEmpty) {
-          final lang = deviceLocales.first.languageCode.toLowerCase();
-          for (final s in supported) {
-            if (s.languageCode.toLowerCase() == lang) return s;
+
+      // ⬇️ KORREKT: Liste verwenden
+      localeListResolutionCallback: (locales, supported) {
+        if (_locale != null) return _locale!;
+        if (locales != null) {
+          for (final loc in locales) {
+            for (final s in supported) {
+              if (s.languageCode.toLowerCase() == loc.languageCode.toLowerCase()) {
+                return s;
+              }
+            }
           }
         }
-        return const Locale('de');
+        return const Locale('de'); // Default
       },
+
       home: _loggedIn
           ? Builder(
               builder: (ctx) {
@@ -162,8 +163,7 @@ class _MyAppState extends State<MyApp> {
                 final t = AppLocalizations.of(ctx)!;
                 return Scaffold(
                   appBar: AppBar(
-                    // WICHTIG: kein const + lokalisiert
-                    title: Text(t.login),
+                    title: Text(t.login),           // ✅ lokalisiert, kein const
                     actions: [LangAction(onLocaleChanged: _setLocale)],
                   ),
                   body: LoginPage(
