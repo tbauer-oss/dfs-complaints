@@ -110,6 +110,14 @@ class ApiClient {
     );
   }
 
+  Future<http.Response> _patch(String path, Map body, {bool auth = false}) {
+    return http.patch(
+      _u(path),
+      headers: _headers(auth: auth),
+      body: jsonEncode(body),
+    );
+  }
+
   Future<http.Response> _delete(String path, {Map? body, bool auth = false}) {
     return http.delete(
       _u(path),
@@ -177,18 +185,48 @@ class ApiClient {
   }
 
   Future<void> accountUpdate(Map<String, dynamic> data) async {
-    final r = await _put('/api/account', data, auth: true);
-    if (r.statusCode != 200) {
-      throw Exception('PUT /api/account failed: ${r.statusCode} ${r.body}');
+    // 1) Primär: PUT /api/account
+    var r = await _put('/api/account', data, auth: true);
+    if (r.statusCode == 200) return;
+
+    // 2) Fallback: PATCH /api/account (falls PUT nicht erlaubt)
+    if (r.statusCode == 405 || r.statusCode == 404) {
+      r = await _patch('/api/account', data, auth: true);
+      if (r.statusCode == 200) return;
+
+      // 3) Fallback: POST /api/account/update oder POST /api/account
+      if (r.statusCode == 405 || r.statusCode == 404) {
+        r = await _post('/api/account/update', data, auth: true);
+        if (r.statusCode == 200) return;
+
+        if (r.statusCode == 405 || r.statusCode == 404) {
+          r = await _post('/api/account', data, auth: true);
+          if (r.statusCode == 200) return;
+        }
+      }
     }
+
+    throw Exception('PUT/PATCH/POST /api/account failed: ${r.statusCode} ${r.body}');
   }
 
   Future<void> accountDelete(String password) async {
-    final r = await _delete('/api/account', body: {'password': password}, auth: true);
-    if (r.statusCode != 200) {
-      throw Exception('DELETE /api/account failed: ${r.statusCode} ${r.body}');
+    // 1) Primär: DELETE /api/account (204 = Erfolg)
+    var r = await _delete('/api/account', body: {'password': password}, auth: true);
+    if (r.statusCode == 200 || r.statusCode == 204) {
+      await logout();
+      return;
     }
-    logout();
+
+    // 2) Fallback: POST /api/account/delete
+    if (r.statusCode == 405 || r.statusCode == 404) {
+      r = await _post('/api/account/delete', {'password': password}, auth: true);
+      if (r.statusCode == 200 || r.statusCode == 204) {
+        await logout();
+        return;
+      }
+    }
+
+    throw Exception('DELETE/POST /api/account failed: ${r.statusCode} ${r.body}');
   }
 
   Future<void> accountChangePassword(String oldPw, String newPw) async {
