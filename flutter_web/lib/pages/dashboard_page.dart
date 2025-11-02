@@ -1,7 +1,10 @@
+// lib/pages/dashboard_page.dart
 import 'package:flutter/material.dart';
+
 import '../api/client.dart';
 import '../widgets/lang_action.dart';
 import '../widgets/logout_action.dart';
+
 import 'complaint_form_page.dart';
 import 'my_complaints_page.dart';
 import 'account_page.dart';
@@ -10,22 +13,37 @@ import 'support_page.dart';
 class DashboardPage extends StatelessWidget {
   final ApiClient api;
   final VoidCallback onLoggedOut;
-  const DashboardPage({super.key, required this.api, required this.onLoggedOut});
+  final void Function(Locale locale)? onLocaleChanged; // ⬅️ neu
+
+  const DashboardPage({
+    super.key,
+    required this.api,
+    required this.onLoggedOut,
+    this.onLocaleChanged, // ⬅️ neu
+  });
 
   @override
   Widget build(BuildContext context) {
     final tiles = <_Entry>[
       _Entry('Reklamation melden', Icons.add_circle, () {
-        Navigator.of(context).push(MaterialPageRoute(builder: (_) => ComplaintFormPage(api: api)));
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => ComplaintFormPage(api: api),
+        ));
       }),
       _Entry('Meine Reklamationen', Icons.list_alt, () {
-        Navigator.of(context).push(MaterialPageRoute(builder: (_) => MyComplaintsPage(api: api)));
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => MyComplaintsPage(api: api),
+        ));
       }),
       _Entry('Mein Account', Icons.person, () {
-        Navigator.of(context).push(MaterialPageRoute(builder: (_) => AccountPage(api: api)));
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => AccountPage(api: api),
+        ));
       }),
       _Entry('DFS Support', Icons.support_agent, () {
-        Navigator.of(context).push(MaterialPageRoute(builder: (_) => SupportPage(api: api)));
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => SupportPage(api: api),
+        ));
       }),
     ];
 
@@ -33,8 +51,10 @@ class DashboardPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Kundenbereich'),
         actions: [
-          const LangAction(),
+          // 🔊 Sprache global umschalten (kein const!)
+          LangAction(onLocaleChanged: onLocaleChanged),
           const SizedBox(width: 8),
+          // ✅ Abmelden
           LogoutAction(api: api, onLoggedOut: onLoggedOut),
         ],
       ),
