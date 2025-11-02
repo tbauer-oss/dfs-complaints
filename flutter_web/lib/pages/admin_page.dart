@@ -486,6 +486,7 @@ class _PendingTile extends StatefulWidget {
   final _ComplaintsResult? complaints;
   final AdminApi api;
   final VoidCallback onClosedFromEditor;
+
   const _PendingTile({
     required this.data,
     required this.onApprove,
@@ -503,29 +504,62 @@ class _PendingTile extends StatefulWidget {
 class _PendingTileState extends State<_PendingTile> {
   bool _expanded = false;
 
-  @override
-  Widget build(BuildContext context) {
+  void _showAddressDialog() {
     final d = widget.data;
-    return Column(
-      children: [
-        ListTile(
-          title: Text(d.email),
-          subtitle: Wrap(
-            spacing: 12,
-            runSpacing: 4,
+    showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Adressdaten (Pending)'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _Field(label: 'Firma', value: d.company),
+              _Field(label: 'Firma',   value: d.company),
               _Field(label: 'Kontakt', value: d.contact),
-              _Field(label: 'Ort', value: '${d.zip} ${d.city}'),
-              _Field(label: 'Land', value: d.country),
+              const SizedBox(height: 6),
+              _Field(label: 'Straße',  value: d.street),
+              _Field(label: 'PLZ/Ort', value: '${d.zip} ${d.city}'.trim()),
+              _Field(label: 'Land',    value: d.country),
+              const SizedBox(height: 6),
               _Field(label: 'Telefon', value: d.phone),
+              _Field(label: 'E-Mail',  value: d.email),
               _Field(label: 'Sprache', value: d.lang.toUpperCase()),
               _Field(label: 'Erstellt', value: d.createdAt ?? '—'),
             ],
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Schließen'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final d = widget.data;
+    // Kompakte Darstellung: Firma + Land (Fallbacks)
+    final title = (d.company.isNotEmpty) ? d.company : d.email;
+    final subtitle = (d.country.isNotEmpty) ? d.country : '${d.zip} ${d.city}'.trim();
+
+    return Column(
+      children: [
+        ListTile(
+          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+          subtitle: Text(subtitle.isEmpty ? '—' : subtitle),
           trailing: Wrap(
             spacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
+              IconButton(
+                tooltip: 'Adressdaten anzeigen',
+                onPressed: _showAddressDialog,
+                icon: const Icon(Icons.info_outline),
+              ),
               IconButton(
                 tooltip: 'Reklamationen anzeigen',
                 onPressed: () {
@@ -534,8 +568,14 @@ class _PendingTileState extends State<_PendingTile> {
                 },
                 icon: Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
               ),
-              FilledButton(onPressed: widget.onApprove, child: const Text('Freigeben')),
-              OutlinedButton(onPressed: widget.onReject, child: const Text('Ablehnen')),
+              FilledButton(
+                onPressed: widget.onApprove,
+                child: const Text('Freigeben'),
+              ),
+              OutlinedButton(
+                onPressed: widget.onReject,
+                child: const Text('Ablehnen'),
+              ),
             ],
           ),
         ),
