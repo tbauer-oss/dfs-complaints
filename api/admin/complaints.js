@@ -2,29 +2,31 @@
 export const config = { runtime: 'nodejs' };
 
 import { setCors, noContent, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
-import { complaintsAll, complaintByTicket, complaintSave } from '../_lib/store.js';
+import {
+  complaintsAll,
+  complaintsOpen,
+  complaintsByEmail,
+  complaintByTicket,
+  complaintSave,
+} from '../_lib/store.js';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 const isAdmin = (req) => ADMIN_SECRET && req.headers?.['x-admin-secret'] === ADMIN_SECRET;
 
 // ---- Status-Mapping: intern numerisch (1..6), für Admin-UI zusätzlich Label ----
-const STATUS_CODE = {
-  'Eingegegangen': 1,
-  'In Bearbeitung': 2,
-  'Rückfrage erforderlich': 3,
-  'Angenommen / Genehmigt': 4, // decision = 'accepted'
-  'Abgelehnt': 4,               // decision = 'rejected' (geschlossen)
-  'In Nacharbeit': 5,
-  'Abgeschlossen': 6,
-};
 const STATUS_LABEL = {
   1: 'Eingegegangen',
   2: 'In Bearbeitung',
   3: 'Rückfrage erforderlich',
-  4: 'Entscheidung',         // Label neutral; Entscheidung steht in c.decision
+  4: 'Entscheidung',         // Decision steht separat in c.decision
   5: 'In Nacharbeit',
   6: 'Abgeschlossen',
 };
+const STATUS_CODE = Object.fromEntries(
+  Object.entries(STATUS_LABEL).map(([k, v]) => [v, Number(k)])
+);
+
+/** akzeptiert Zahl 1..6, numerische Strings "1".."6" oder Label-Strings */
 function parseStatus(input) {
   if (input == null) return null;
   if (typeof input === 'number') {
@@ -33,6 +35,10 @@ function parseStatus(input) {
   }
   if (typeof input === 'string') {
     const s = input.trim();
+    if (/^\d+$/.test(s)) {
+      const n = Number(s);
+      return n >= 1 && n <= 6 ? n : null;
+    }
     return STATUS_CODE[s] ?? null;
   }
   return null;
@@ -47,7 +53,7 @@ const sortDescByDate = (a, b) => {
 };
 const decorateForAdmin = (c) => ({
   ...c,
-  statusLabel: STATUS_LABEL[c.status] || 'Eingegegangen',
+  statusLabel: STATUS_LABEL[c.status] || STATUS_LABEL[1],
 });
 
 export default async function handler(req, res) {
@@ -55,76 +61,116 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return noContent(res);
   if (!isAdmin(req)) return bad(res, 'admin unauthorized', 401);
 
-  // ===== GET: alle oder gefiltert nach ?email= =====
-  if (req.method === 'GET') {
-    const email = normEmail(req.query?.email || '');
-    const list = await complaintsAll();
-    if (!Array.isArray(list)) return ok(res, []);
-    const filtered = email
-      ? list.filter((c) => normEmail(c?.email) === email)
-      : list;
-    const out = filtered.sort(sortDescByDate).map(decorateForAdmin);
-    return ok(res, out);
-  }
+  try {
+    // ===========================
+    // GET: verschiedene Modi
+    // ===========================
+    if (req.method === 'GET') {
+      const q = req.query || {};
+      const email   = normEmail(q.email || '');
+      const ticket  = (q.ticket || '').toString().trim();
+      const open    = (q.open || '').toString().trim();
+      const details = (q.details || '').toString().trim();
 
-  // ===== PATCH: Status / Decision / ReportLink setzen =====
-  if (req.method === 'PATCH') {
-    let body;
-    try { body = readJson(req); } catch { return bad(res, 'invalid json', 400); }
+      // a) Einzel-Complaint per Ticket
+      if (ticket) {
+        const c = await complaintByTicket(ticket);
+        if (!c) return bad(res, 'not found', 404);
+        return ok(res, decorateForAdmin(c));
+      }
 
-    const ticket     = (body?.ticket || '').toString().trim();
-    const statusIn   = body?.status;                 // Zahl 1..6 ODER Label-String
-    const decisionIn = body?.decision ?? undefined;  // 'accepted' | 'rejected' | null | undefined
-    const reportLink = body?.reportLink;             // optional String | null
+      // b) Complaints eines Kunden (Tickets oder Detailobjekte)
+      if (email) {
+        const list = await complaintsByEmail(email);
+        list.sort(sortDescByDate);
+        if (details === '1') {
+          return ok(res, list.map(decorateForAdmin));
+        }
+        // Kompakte Antwort: nur Ticket-IDs (Backwards-Kompatibilität)
+        return ok(res, list.map((c) => c.ticket));
+      }
 
-    if (!ticket) return bad(res, 'missing ticket', 400);
+      // c) Nur offene Reklamationen
+      if (open === '1') {
+        const list = await complaintsOpen();
+        return ok(res, list.map(decorateForAdmin));
+      }
 
-    const c = await complaintByTicket(ticket);
-    if (!c) return bad(res, 'not found', 404);
-
-    // --- Status (optional) ---
-    if (statusIn !== undefined) {
-      const code = parseStatus(statusIn);
-      if (code == null) return bad(res, 'invalid status', 400);
-      c.status = code;
-      c.statusUpdatedAt = Date.now();
+      // d) Alle Reklamationen (Admin-Übersicht)
+      const all = await complaintsAll();
+      const out = (Array.isArray(all) ? all : []).sort(sortDescByDate).map(decorateForAdmin);
+      return ok(res, out);
     }
 
-    // --- Decision (optional) ---
-    if (decisionIn !== undefined) {
-      if (decisionIn !== null && decisionIn !== 'accepted' && decisionIn !== 'rejected') {
-        return bad(res, 'invalid decision', 400);
+    // ======================================
+    // POST / PATCH: Status/Decision/Report
+    // ======================================
+    if (req.method === 'POST' || req.method === 'PATCH') {
+      let body;
+      try {
+        body = readJson(req);
+      } catch {
+        return bad(res, 'invalid json', 400);
       }
-      c.decision = decisionIn ?? null;
 
-      // Business-Logik:
-      // Bei 'rejected' schließen wir den Vorgang (Status bleibt 4 = Entscheidung).
-      if (c.decision === 'rejected') {
-        c.closed = true;
-        c.closedAt = Date.now();
-        c.status = 4; // bleibt im "Entscheidung"-Code
+      const ticket     = (body?.ticket || '').toString().trim();
+      const statusIn   = body?.status;                // Zahl 1..6 | "1".."6" | Label
+      const decisionIn = body?.decision ?? undefined; // 'accepted' | 'rejected' | null | undefined
+      const reportLink = body?.reportLink;            // string | null | undefined
+
+      if (!ticket) return bad(res, 'missing ticket', 400);
+
+      const c = await complaintByTicket(ticket);
+      if (!c) return bad(res, 'not found', 404);
+
+      // --- Status (optional) ---
+      if (statusIn !== undefined) {
+        const code = parseStatus(statusIn);
+        if (code == null) return bad(res, 'invalid status', 400);
+        c.status = code;
         c.statusUpdatedAt = Date.now();
       }
 
-      // Bei 'accepted' NICHT automatisch schließen; Abschluss erfolgt mit Status 6.
+      // --- Decision (optional) ---
+      if (decisionIn !== undefined) {
+        if (decisionIn !== null && decisionIn !== 'accepted' && decisionIn !== 'rejected') {
+          return bad(res, 'invalid decision', 400);
+        }
+        c.decision = decisionIn ?? null;
+
+        // Business-Logik:
+        // Bei 'rejected' bleibt Status 4 (= Entscheidung), gilt als geschlossen für die Offenen-Liste.
+        if (c.decision === 'rejected') {
+          c.closed = true;
+          c.closedAt = Date.now();
+          c.status = 4;
+          c.statusUpdatedAt = Date.now();
+        }
+        // Bei 'accepted' kein Auto-Abschluss – Abschluss erfolgt explizit mit Status 6.
+      }
+
+      // --- Report-Link (optional) ---
+      if (reportLink !== undefined) {
+        c.reportLink = reportLink || null;
+      }
+
+      // Timestamps & Persist
+      c.updatedAt = Date.now();
+      await complaintSave(c);
+
+      return ok(res, {
+        ticket: c.ticket,
+        status: c.status,
+        statusLabel: STATUS_LABEL[c.status] || STATUS_LABEL[1],
+        decision: c.decision ?? null,
+        reportLink: c.reportLink ?? null,
+        updatedAt: c.updatedAt,
+      });
     }
 
-    // --- Report-Link (optional) ---
-    if (reportLink !== undefined) c.reportLink = reportLink || null;
-
-    // Timestamps
-    c.updatedAt = Date.now();
-
-    await complaintSave(c);
-    return ok(res, {
-      ok: true,
-      ticket: c.ticket,
-      status: c.status,
-      statusLabel: STATUS_LABEL[c.status] || 'Eingegegangen',
-      decision: c.decision ?? null,
-      reportLink: c.reportLink ?? null,
-    });
+    return methodNotAllowed(res);
+  } catch (e) {
+    console.error('admin/complaints error:', e);
+    return bad(res, e?.message || 'server error', 500);
   }
-
-  return methodNotAllowed(res);
 }
