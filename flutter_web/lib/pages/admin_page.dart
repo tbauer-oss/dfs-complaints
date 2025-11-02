@@ -678,7 +678,7 @@ class _OpenComplaintTileState extends State<_OpenComplaintTile> {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      StatusBadge(status: c.statusLabel), // vorhandenes Widget
+                      StatusBadge(status: c.status), // vorhandenes Widget
                       const SizedBox(width: 8),
                       if (c.decision != null) Text('Decision: ${c.decision}'),
                     ],
@@ -924,7 +924,7 @@ class _StatusDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DropdownButtonFormField<int>(
+    return DropdownButtonFormField<int?>(
       value: value,
       onChanged: onChanged,
       decoration: const InputDecoration(
@@ -932,7 +932,7 @@ class _StatusDropdown extends StatelessWidget {
         border: OutlineInputBorder(),
       ),
       items: _items.entries
-          .map((e) => DropdownMenuItem<int>(value: e.key, child: Text(e.value)))
+          .map((e) => DropdownMenuItem<int?>(value: e.key, child: Text(e.value)))
           .toList(),
     );
   }
@@ -945,17 +945,17 @@ class _DecisionDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DropdownButtonFormField<String>(
+    return DropdownButtonFormField<String?>(
       value: value,
       onChanged: onChanged,
       decoration: const InputDecoration(
         labelText: 'Entscheidung',
         border: OutlineInputBorder(),
       ),
-      items: const [
-        DropdownMenuItem<String>(value: null, child: Text('—')),
-        DropdownMenuItem<String>(value: 'accepted', child: Text('Angenommen')),
-        DropdownMenuItem<String>(value: 'rejected', child: Text('Abgelehnt')),
+      items: [
+        DropdownMenuItem<String?>(value: null, child: const Text('—')),
+        const DropdownMenuItem<String?>(value: 'accepted', child: Text('Angenommen')),
+        const DropdownMenuItem<String?>(value: 'rejected', child: Text('Abgelehnt')),
       ],
     );
   }
