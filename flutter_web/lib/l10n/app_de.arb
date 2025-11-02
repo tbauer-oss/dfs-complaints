@@ -31,6 +31,15 @@
   "sessionExpired": "Sitzung abgelaufen. Bitte neu anmelden.",
   "noData": "Keine Daten.",
 
+  "reportComplaint": "Reklamation melden",
+  "@reportComplaint": { "description": "Dashboard-Kachel: Reklamationsformular öffnen" },
+  "myComplaints": "Meine Reklamationen",
+  "@myComplaints": { "description": "Dashboard-Kachel: Liste der eigenen Reklamationen" },
+  "myAccount": "Mein Konto",
+  "@myAccount": { "description": "Dashboard-Kachel: Kontoseite/Profil" },
+  "supportTitle": "Support",
+  "@supportTitle": { "description": "Dashboard-Kachel: Support-/Hilfeseite" },
+
   "error": "Fehler: {msg}",
   "@error": { "placeholders": { "msg": {} } },
   "errorGeneric": "Fehler: {msg}",
