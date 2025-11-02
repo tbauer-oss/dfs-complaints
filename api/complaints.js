@@ -1,4 +1,4 @@
-// api/complaints.js
+// /api/complaints.js
 export const config = { runtime: 'nodejs' };
 
 import jwt from 'jsonwebtoken';
@@ -7,10 +7,9 @@ import {
 } from './_lib/http.js';
 import { complaintsAll, complaintSave, nextTicket } from './_lib/store.js';
 
-// ===== Konfiguration =====
 const JWT_SECRET = process.env.JWT_SECRET || process.env.JWT || '';
 
-// ---- JWT aus Authorization-Header lesen/prüfen ----
+/* ---- JWT prüfen ---- */
 function requireUser(req) {
   const auth = req.headers?.authorization || req.headers?.Authorization || '';
   const m = auth.match(/^Bearer\s+(.+)$/i);
@@ -24,50 +23,46 @@ function requireUser(req) {
   }
 }
 
-// ---- schlanke DTO-Ausgabe für das Frontend ----
+/* ---- DTO fürs Frontend ---- */
 function toDto(c) {
   return {
     ticket: c.ticket,
     email: c.email,
     createdAt: c.createdAt ?? 0,
     updatedAt: c.updatedAt ?? c.createdAt ?? 0,
-    status: c.status ?? 1,             // 1..6
-    decision: c.decision ?? null,      // 'accepted' | 'rejected' | null
-    reportLink: c.reportLink ?? null,  // optional
+    status: c.status ?? 1,
+    decision: c.decision ?? null,
+    reportLink: c.reportLink ?? null,
   };
 }
 
-// ---- Uploads robust parsen ----
+/* ---- Upload-Metadaten extrahieren ---- */
 function parseUploads(body) {
   const out = [];
-
-  // Variante A: body.uploads[] (nur Meta)
   if (Array.isArray(body?.uploads)) {
     for (const u of body.uploads) {
       out.push({
-        name: (u?.name || '').toString(),
-        mime: (u?.mime || 'application/octet-stream').toString(),
+        name: String(u?.name || ''),
+        mime: String(u?.mime || 'application/octet-stream'),
         size: Number(u?.size || 0),
       });
     }
   }
-
-  // Variante B: body.files[] mit base64 bytes (aus dem Client)
   if (Array.isArray(body?.files)) {
     for (const f of body.files) {
-      const b64 = (f?.bytes || '').toString();
+      const b64 = String(f?.bytes || '');
       const approxSize = Math.floor(b64.length * 3 / 4);
       out.push({
-        name: (f?.name || '').toString(),
-        mime: (f?.mime || 'application/octet-stream').toString(),
+        name: String(f?.name || ''),
+        mime: String(f?.mime || 'application/octet-stream'),
         size: approxSize > 0 ? approxSize : 0,
       });
     }
   }
-
   return out;
 }
 
+/* ---- Sortierhilfe ---- */
 function sortDescByDate(a, b) {
   const ta = a?.updatedAt ?? a?.createdAt ?? 0;
   const tb = b?.updatedAt ?? b?.createdAt ?? 0;
@@ -75,76 +70,78 @@ function sortDescByDate(a, b) {
 }
 
 export default async function handler(req, res) {
-  // --- CORS immer zuerst: setzt Header & beantwortet OPTIONS (204) ---
-  if (handlePreflight(req, res)) return;
+  // --- CORS zuerst (setzt Header & beantwortet OPTIONS mit 204) ---
+  if (handlePreflight(req, res)) {
+    console.log('[CORS] Preflight answered for /api/complaints');
+    return;
+  }
 
   // --- Auth prüfen ---
   const user = requireUser(req);
-  if (!user) return bad(res, 'unauthorized', 401);
+  if (!user) {
+    console.warn('[CORS/Auth] Unauthorized access attempt to /api/complaints');
+    return bad(res, 'unauthorized', 401);
+  }
 
-  // ===== GET: eigene Reklamationen =====
-  if (req.method === 'GET') {
-    try {
+  try {
+    // ===== GET: eigene Reklamationen =====
+    if (req.method === 'GET') {
       const list = await complaintsAll();
       const own = Array.isArray(list)
-        ? list
-            .filter(c => (c?.email || '').toString().trim().toLowerCase() === user.email)
-            .sort(sortDescByDate)
+        ? list.filter(c => (c?.email || '').toString().trim().toLowerCase() === user.email)
         : [];
+      own.sort(sortDescByDate);
       return ok(res, own.map(toDto));
-    } catch {
-      return bad(res, 'server error', 500);
     }
-  }
 
-  // ===== POST: neue Reklamation =====
-  if (req.method === 'POST') {
-    let body;
-    try { body = readJson(req); } catch { return bad(res, 'invalid json', 400); }
+    // ===== POST: neue Reklamation =====
+    if (req.method === 'POST') {
+      const body = readJson(req);
+      const p = body?.payload || {};
 
-    const p = body?.payload || {};
-    const segment    = (p.segment || '').toString();
-    const article    = (p.article || '').toString();
-    const desc       = (p.desc || '').toString();
+      const segment    = String(p.segment || '');
+      const article    = String(p.article || '');
+      const desc       = String(p.desc || '');
+      const batch      = String(p.batch || '');
+      const qty        = String(p.qty || '');
+      const expiry     = String(p.expiry || '');
+      const applied    = String(p.applied || '');
+      const injury     = String(p.injury || '');
+      const injuryDesc = String(p.injuryDesc || '');
+      const returned   = String(p.returned || '');
+      const handling   = String(p.handling || '');
 
-    // optional
-    const batch      = (p.batch || '').toString();
-    const qty        = (p.qty || '').toString();
-    const expiry     = (p.expiry || '').toString();
-    const applied    = (p.applied || '').toString();     // 'Ja'/'Nein' oder ''
-    const injury     = (p.injury || '').toString();      // 'Ja'/'Nein' oder ''
-    const injuryDesc = (p.injuryDesc || '').toString();
-    const returned   = (p.returned || '').toString();    // 'Ja'/'Nein'
-    const handling   = (p.handling || '').toString();    // 'Ersatz'/'Gutschrift'/'Nacharbeit'
+      // Pflichtfelder prüfen
+      if (!article || !desc) return bad(res, 'required fields missing', 400);
+      if (segment === 'Zahnarzt' && !batch)
+        return bad(res, 'batch required for dentist', 400);
 
-    // Minimal-Validierung (wie im Frontend)
-    if (!article || !desc) return bad(res, 'required fields missing', 400);
-    if (segment === 'Zahnarzt' && !batch) return bad(res, 'batch required for dentist', 400);
+      const uploads = parseUploads(body);
+      const now = Date.now();
+      const ticket = await nextTicket();
 
-    const uploads = parseUploads(body);   // nur Metadaten
+      const complaint = {
+        ticket,
+        email: user.email,
+        payload: {
+          segment, article, desc, batch, qty, expiry,
+          applied, injury, injuryDesc, returned, handling
+        },
+        uploads,
+        status: 1,
+        decision: null,
+        reportLink: null,
+        createdAt: now,
+        updatedAt: now,
+      };
 
-    const now = Date.now();
-    const ticket = await nextTicket();
-
-    const complaint = {
-      ticket,
-      email: user.email,
-      payload: { segment, article, desc, batch, qty, expiry, applied, injury, injuryDesc, returned, handling },
-      uploads,
-      status: 1,
-      decision: null,
-      reportLink: null,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    try {
       await complaintSave(complaint);
       return ok(res, { ok: true, ticket });
-    } catch {
-      return bad(res, 'server error', 500);
     }
-  }
 
-  return methodNotAllowed(res);
+    return methodNotAllowed(res);
+  } catch (e) {
+    console.error('complaints.js error:', e);
+    return bad(res, 'server error', 500);
+  }
 }
