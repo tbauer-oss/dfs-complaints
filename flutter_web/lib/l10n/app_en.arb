@@ -179,6 +179,14 @@
   "session_invalid": "Session invalid. Please log in again.",
   "back": "Back",
   "refresh": "Refresh",
+  "no_details": "No details available.",
+  "segment": "Segment",
+  "article": "Article",
+  "batch": "Batch",
+  "quantity": "Quantity",
+  "expiry": "Expiry",
+  "description": "Description",
+  "close": "Close"
 
   "adminArea": "Admin area",
   "@adminArea": { "description": "Button to admin area" },
