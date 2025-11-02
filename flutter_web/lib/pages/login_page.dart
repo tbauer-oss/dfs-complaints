@@ -34,7 +34,7 @@ class _LoginPageState extends State<LoginPage> {
       if (ok) {
         widget.onLoggedIn();
       } else {
-        setState(() => _err = 'Login fehlgeschlagen.');
+        setState(() => _err = AppLocalizations.of(context)?.loginFailed ?? 'Login fehlgeschlagen.');
       }
     } catch (e) {
       setState(() => _err = '$e');
@@ -46,7 +46,6 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
-    // vorhandene, bekannte Keys weiter benutzen – aber die 3 fehlenden NICHT mehr aufrufen
     String tx(String? s, String fb) => (s == null || s.isEmpty) ? fb : s;
 
     return Center(
@@ -108,7 +107,7 @@ class _LoginPageState extends State<LoginPage> {
             // Registrieren (unten) – fester String statt t.register
             TextButton.icon(
               icon: const Icon(Icons.person_add_alt),
-              label: const Text('Registrieren'),
+              label: Text(tx(t?.register, 'Registrieren')),
               onPressed: _busy ? null : widget.onOpenRegister,
             ),
           ],
