@@ -124,6 +124,7 @@
   "article": "Article number*",
   "batch": "Batch",
   "quantity": "Quantity",
+  "qty": "Quantity",
   "expiry": "Expiry date (if relevant)",
   "problem_desc": "Problem description*",
   "applied_to_patient": "Applied to a patient?*",
