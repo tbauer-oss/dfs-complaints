@@ -8,6 +8,8 @@ import {
   complaintsByEmail,
   complaintByTicket,
   complaintSave,
+  complaintsAll, complaintsOpen, complaintsByEmail,
+  complaintByTicket, complaintSave, complaintDelete
 } from '../_lib/store.js';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
@@ -167,6 +169,25 @@ export default async function handler(req, res) {
         updatedAt: c.updatedAt,
       });
     }
+
+      // ===== DELETE: Complaint löschen =====
+      if (req.method === 'DELETE') {
+        // ticket aus ?ticket=... oder Body
+        let ticket = (req.query?.ticket || '').toString().trim();
+        if (!ticket && req.body) {
+          try {
+            const b = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body;
+            ticket = (b?.ticket || '').toString().trim();
+          } catch (_) {}
+        }
+        if (!ticket) return bad(res, 'missing ticket', 400);
+      
+        const c = await complaintByTicket(ticket);
+        if (!c) return bad(res, 'not found', 404);
+
+        await complaintDelete(ticket);
+        return noContent(res);
+      }
 
     return methodNotAllowed(res);
   } catch (e) {
