@@ -158,5 +158,14 @@
   "supportCatAccount": "Account inquiries",
   "supportCatPrivacy": "Privacy",
   "supportCatFeedback": "Feedback",
-  "supportCatSuggestion": "Suggestion for improvement"
+  "supportCatSuggestion": "Suggestion for improvement",
+
+  "adminArea": "Admin area",
+  "@adminArea": { "description": "Button to admin area" },
+  "login": "Log in",
+  "@login": { "description": "Login button label" },
+  "register": "Register",
+  "@register": { "description": "Registration button label" },
+  "loginFailed": "Login failed.",
+  "@loginFailed": { "description": "Error when credentials are invalid" }
 }
