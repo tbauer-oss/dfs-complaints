@@ -19,21 +19,21 @@ class ApiClient {
     final ls = html.window.localStorage;
 
     // Token
-    if (token != null && token!.isNotEmpty) {
+    if (token != null) {
       ls['dfs_token'] = token!;
     } else {
       ls.remove('dfs_token');
     }
 
     // Admin-Secret
-    if (adminSecret != null && adminSecret!.isNotEmpty) {
+    if (adminSecret != null) {
       ls['dfs_admin'] = adminSecret!;
     } else {
       ls.remove('dfs_admin');
     }
 
     // Gate
-    if (gate != null && gate!.isNotEmpty) {
+    if (gate != null) {
       ls['dfs_gate'] = gate!;
     } else {
       ls.remove('dfs_gate');
@@ -75,7 +75,9 @@ class ApiClient {
 
   Map<String, String> _adminHeaders({bool auth = false, Map<String, String>? extra}) {
     final h = _headers(auth: auth, extra: extra);
-    if (adminSecret != null) h['X-Admin-Secret'] = adminSecret!;
+    if (adminSecret != null && adminSecret!.isNotEmpty) {
+      h['X-Admin-Secret'] = adminSecret!;
+    }
     return h;
   }
 
@@ -85,27 +87,33 @@ class ApiClient {
   }
 
   // ---------- Low-level HTTP ----------
-  Future<http.Response> _get(String path, {bool auth = false, bool admin = false}) {
-    final headers = admin ? _adminHeaders(auth: auth) : _headers(auth: auth);
-    return http.get(_u(path), headers: headers);
+  Future<http.Response> _get(String path, {bool auth = false, Map<String,String>? extra}) {
+    return http.get(_u(path), headers: _headers(auth: auth, extra: extra));
   }
 
   Future<http.Response> _post(String path, Map body,
-      {bool auth = false, bool admin = false, Map<String, String>? extraHeaders}) {
-    final headers = admin
-        ? _adminHeaders(auth: auth, extra: extraHeaders)
-        : _headers(auth: auth, extra: extraHeaders);
-    return http.post(_u(path), headers: headers, body: jsonEncode(body));
+      {bool auth = false, Map<String, String>? extraHeaders}) {
+    return http.post(
+      _u(path),
+      headers: _headers(auth: auth, extra: extraHeaders),
+      body: jsonEncode(body),
+    );
   }
 
-  Future<http.Response> _put(String path, Map body, {bool auth = false, bool admin = false}) {
-    final headers = admin ? _adminHeaders(auth: auth) : _headers(auth: auth);
-    return http.put(_u(path), headers: headers, body: jsonEncode(body));
+  Future<http.Response> _put(String path, Map body, {bool auth = false}) {
+    return http.put(
+      _u(path),
+      headers: _headers(auth: auth),
+      body: jsonEncode(body),
+    );
   }
 
-  Future<http.Response> _delete(String path, {Map? body, bool auth = false, bool admin = false}) {
-    final headers = admin ? _adminHeaders(auth: auth) : _headers(auth: auth);
-    return http.delete(_u(path), headers: headers, body: body == null ? null : jsonEncode(body));
+  Future<http.Response> _delete(String path, {Map? body, bool auth = false}) {
+    return http.delete(
+      _u(path),
+      headers: _headers(auth: auth),
+      body: body == null ? null : jsonEncode(body),
+    );
   }
 
   // ---------- Gate ----------
@@ -146,9 +154,9 @@ class ApiClient {
   /// Registrierung: `null` = Erfolg, sonst Fehlermeldung
   Future<String?> register(Map<String, dynamic> data) async {
     final r = await _post('/api/auth/register', data);
-    if (r.statusCode == 200 || r.statusCode == 201) return null;
-
-    // Body (falls vorhanden) als Fehlertext durchreichen
+    if (r.statusCode == 200 || r.statusCode == 201) {
+      return null;
+    }
     try {
       final body = r.body;
       if (body.isNotEmpty) return body;
@@ -205,12 +213,10 @@ class ApiClient {
   }
 
   // ---------- Complaints ----------
-  // Optionaler 2. Positions-Parameter 'files' (List von Records {name, bytes, mime})
   Future<Map<String, dynamic>?> complaintCreate(
     Map<String, dynamic> data, [
     List<({String name, List<int> bytes, String mime})> files = const [],
   ]) async {
-    // Dateien base64-kodieren
     final encFiles = files
         .map((f) => {
               'name': f.name,
@@ -224,12 +230,13 @@ class ApiClient {
       if (encFiles.isNotEmpty) 'files': encFiles,
     }, auth: true);
 
-    if (r.statusCode != 200 && r.statusCode != 201) return null;
+    if (r.statusCode != 200 && r.statusCode != 201) {
+      return null;
+    }
     final j = jsonDecode(r.body);
     return (j is Map) ? j.cast<String, dynamic>() : <String, dynamic>{};
   }
 
-  /// Rohdaten
   Future<List<Map<String, dynamic>>> complaintListRaw() async {
     final r = await _get('/api/complaints', auth: true);
     if (r.statusCode != 200) {
@@ -245,12 +252,11 @@ class ApiClient {
     return const [];
   }
 
-  /// Typisierte Liste
   Future<List<Complaint>> complaintList() async {
     final raw = await complaintListRaw();
     return raw.map(Complaint.fromJson).toList(growable: false);
   }
-  
+
   // ---------- Admin: Secret prüfen (für Dialog) ----------
   Future<bool> validateAdminSecret(String secret) async {
     if (secret.trim().isEmpty) return false;
