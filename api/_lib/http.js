@@ -15,20 +15,25 @@ export function isAllowedOrigin(origin = '') {
 // Setzt CORS-Header (immer am Handler-Anfang aufrufen!)
 export function setCors(req, res) {
   const origin = req.headers?.origin || '';
-  const allow = isAllowedOrigin(origin) ? origin : PROD_FE;
+  const allow  = isAllowedOrigin(origin) ? origin : PROD_FE;
 
   res.setHeader('Access-Control-Allow-Origin', allow);
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
 
-  // WICHTIG: Custom-Header wie X-Gate und Admin-Secret erlauben
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, X-Admin-Secret, X-Gate'
-  );
+  // Dynamisch die vom Browser angefragten Header zurückspiegeln (failsafe)
+  const reqAllowed = req.headers?.['access-control-request-headers'];
+  const defaultAllowed = 'Content-Type, Authorization, X-Admin-Secret, X-Gate';
+  res.setHeader('Access-Control-Allow-Headers', reqAllowed || defaultAllowed);
 
-  // Optional, schadet nicht
+  // (Optional) Preflight cachen
+  res.setHeader('Access-Control-Max-Age', '600');
+
+  // (Optional) Response-Header freigeben, falls Frontend sie lesen muss
+  // res.setHeader('Access-Control-Expose-Headers', 'Content-Type');
+
+  // Unkritisch, hilft manchen Clients
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 }
 
@@ -38,7 +43,7 @@ export function handlePreflight(req, res) {
   if (req.method === 'OPTIONS') {
     res.statusCode = 204;
     res.end();
-    return true; // signalisiert: bereits beantwortet
+    return true; // bereits beantwortet
   }
   return false;
 }
