@@ -1,45 +1,48 @@
 // lib/widgets/status_badge.dart
 import 'package:flutter/material.dart';
+import '../l10n/app_localizations.dart';
 
 Color _statusColor(int s, {String? decision}) {
   switch (s) {
-    case 1: return Colors.blue;           // gesendet
-    case 2: return Colors.yellow.shade700;// in Bearbeitung
-    case 3: return Colors.orange;         // Rückfrage
+    case 1: return Colors.blue;            // submitted
+    case 2: return Colors.yellow.shade700; // in progress
+    case 3: return Colors.orange;          // inquiry
     case 4:
       if (decision == 'rejected') return Colors.red;
       if (decision == 'accepted') return Colors.lightGreen;
       return Colors.grey;
-    case 5: return Colors.amber;          // Nacharbeit
-    case 6: return Colors.green;          // abgeschlossen
+    case 5: return Colors.amber;           // rework
+    case 6: return Colors.green;           // done
     default: return Colors.grey;
   }
 }
 
-String _statusText(int s, {String? decision}) {
-  switch (s) {
-    case 1: return 'gesendet';
-    case 2: return 'in Bearbeitung';
-    case 3: return 'Rückfrage erforderlich';
-    case 4:
-      if (decision == 'rejected') return 'abgelehnt';
-      if (decision == 'accepted') return 'angenommen';
-      return 'Entscheidung';
-    case 5: return 'in Nacharbeit';
-    case 6: return 'abgeschlossen';
-    default: return 'unbekannt';
-  }
-}
-
 class StatusBadge extends StatelessWidget {
-  final int status;
-  final String? decision;
+  final int status;          // 1..6
+  final String? decision;    // 'accepted' | 'rejected' | null
+
   const StatusBadge({super.key, required this.status, this.decision});
+
+  String _statusText(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    switch (status) {
+      case 1: return t.statusSubmitted;                 // gesendet
+      case 2: return t.statusInProgress;                // in Bearbeitung
+      case 3: return t.statusInquiryRequired;           // Rückfrage erforderlich
+      case 4:
+        if (decision == 'rejected') return t.statusRejected;   // abgelehnt
+        if (decision == 'accepted') return t.statusAccepted;   // angenommen
+        return t.statusDecision;                        // Entscheidung
+      case 5: return t.statusRework;                    // in Nacharbeit
+      case 6: return t.statusClosed;                    // abgeschlossen
+      default: return t.statusUnknown;                  // unbekannt
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final c = _statusColor(status, decision: decision);
-    final t = _statusText(status, decision: decision);
+    final label = _statusText(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -47,7 +50,7 @@ class StatusBadge extends StatelessWidget {
         border: Border.all(color: c, width: 1),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Text(t, style: TextStyle(color: c, fontWeight: FontWeight.w600)),
+      child: Text(label, style: TextStyle(color: c, fontWeight: FontWeight.w600)),
     );
   }
 }
