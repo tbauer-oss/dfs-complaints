@@ -7,6 +7,13 @@
   "langFR": "FR",
   "langIT": "IT",
 
+  "langMenuTooltip": "Lingua",
+  "langNameDE": "Tedesco",
+  "langNameEN": "Inglese",
+  "langNameFR": "Francese",
+  "langNameIT": "Italiano",
+  "langNameES": "Spagnolo",
+
   "gate_prompt": "Codice di accesso (una volta per clienti non registrati)",
   "gate_password": "Password",
   "continueLabel": "Continua",
