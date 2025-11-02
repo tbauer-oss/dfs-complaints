@@ -37,7 +37,10 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
 
   Future<void> _load({bool silent = false}) async {
     if (!silent) {
-      setState(() { _busy = true; _err = null; });
+      setState(() {
+        _busy = true;
+        _err = null;
+      });
     }
     try {
       // Nutzt neuen Detail-Endpunkt (JWT), liefert volle Felder
@@ -63,8 +66,9 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
       if (!mounted) return;
       setState(() => _err = msg);
       if (msg.contains('401')) {
+        final t = AppLocalizations.of(context)!;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sitzung ungültig. Bitte neu anmelden.')),
+          SnackBar(content: Text(t.session_invalid)),
         );
       }
     } finally {
@@ -75,44 +79,53 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
 
   String _fmt(DateTime dt) => dt.toLocal().toString();
 
-  // Neutrale Status-Texte – vermeiden fehlende L10n-Keys
-  String _statusText(int s, String? decision) {
+  // Lokalisierte Status-Texte
+  String _statusTextLocalized(AppLocalizations t, int s, String? decision) {
     switch (s) {
-      case 1: return 'gesendet';
-      case 2: return 'in Bearbeitung';
-      case 3: return 'Rückfrage erforderlich';
+      case 1:
+        return t.status_sent; // gesendet
+      case 2:
+        return t.status_in_progress; // in Bearbeitung
+      case 3:
+        return t.status_question; // Rückfrage erforderlich
       case 4:
-        if (decision == 'rejected') return 'abgelehnt';
-        if (decision == 'accepted') return 'angenommen';
-        return 'Entscheidung';
-      case 5: return 'in Nacharbeit';
-      case 6: return 'abgeschlossen';
-      default: return 'unbekannt';
+        if (decision == 'rejected') return t.status_rejected; // abgelehnt
+        if (decision == 'accepted') return t.status_accepted; // angenommen
+        return t.status_decision; // Entscheidung
+      case 5:
+        return t.status_rework; // in Nacharbeit
+      case 6:
+        return t.status_closed; // abgeschlossen
+      default:
+        return t.status_unknown; // unbekannt
     }
   }
 
   Color _statusColor(int s, String? decision) {
     switch (s) {
-      case 1: return Colors.blue;
-      case 2: return Colors.amber.shade800;
-      case 3: return Colors.orange;
+      case 1:
+        return Colors.blue;
+      case 2:
+        return Colors.amber.shade800;
+      case 3:
+        return Colors.orange;
       case 4:
         return decision == 'rejected'
             ? Colors.red
             : (decision == 'accepted' ? Colors.lightGreen : Colors.grey);
-      case 5: return Colors.amber;
-      case 6: return Colors.green;
-      default: return Colors.grey;
+      case 5:
+        return Colors.amber;
+      case 6:
+        return Colors.green;
+      default:
+        return Colors.grey;
     }
   }
 
-  // (Kann bleiben, wird aktuell nicht mehr genutzt)
-  bool _canShowReport(Complaint c) {
-    final link = c.reportLink;
-    if (link == null || link.isEmpty) return false;
-    if (c.status == 6) return true;                            // abgeschlossen
-    if (c.status == 4 && c.decision == 'rejected') return true; // abgelehnt
-    return false;
+  // Report-Link ist für Kunden sichtbar, wenn gesetzt (unabhängig vom Status)
+  bool _canOpenReportLink(Complaint c) {
+    final link = (c.reportLink ?? '').trim();
+    return link.isNotEmpty;
   }
 
   @override
@@ -123,20 +136,24 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          tooltip: 'Zurück',
+          tooltip: t.back,
           onPressed: () => Navigator.of(context).maybePop(),
         ),
-        title: const Text('Meine Reklamationen'),
+        title: Text(t.my_complaints_title),
         actions: [
           if (_busy)
             const Padding(
               padding: EdgeInsets.only(right: 8),
-              child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
             ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            tooltip: 'Aktualisieren',
-            onPressed: _busy ? null : _load,
+            tooltip: t.refresh,
+            onPressed: _busy ? null : () => _load(silent: false),
           ),
         ],
       ),
@@ -154,29 +171,34 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                         separatorBuilder: (_, __) => const Divider(height: 1),
                         itemBuilder: (_, i) {
                           final c = _items[i];
-                          final statusText = _statusText(c.status, c.decision);
-                          final statusColor = _statusColor(c.status, c.decision);
+                          final statusText =
+                              _statusTextLocalized(t, c.status, c.decision);
+                          final statusColor =
+                              _statusColor(c.status, c.decision);
                           final reportLink = (c.reportLink ?? '').trim();
-                          final canOpenReport = reportLink.isNotEmpty;
+                          final canOpenReport = _canOpenReportLink(c);
 
                           return ListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 10),
                             title: Text(
                               c.ticket,
-                              style: const TextStyle(fontWeight: FontWeight.w600),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w600),
                             ),
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Erstellt: ${_fmt(c.createdAt)}'),
+                                Text('${t.created}: ${_fmt(c.createdAt)}'),
                                 if (c.updatedAt.millisecondsSinceEpoch > 0)
-                                  Text('Aktualisiert: ${_fmt(c.updatedAt)}'),
+                                  Text('${t.updated}: ${_fmt(c.updatedAt)}'),
                                 if (canOpenReport) ...[
                                   const SizedBox(height: 6),
                                   TextButton.icon(
-                                    onPressed: () => html.window.open(reportLink, '_blank'),
+                                    onPressed: () =>
+                                        html.window.open(reportLink, '_blank'),
                                     icon: const Icon(Icons.open_in_new),
-                                    label: const Text('Bericht öffnen'),
+                                    label: Text(t.report_open),
                                   ),
                                 ],
                               ],
@@ -185,17 +207,21 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                               mainAxisSize: MainAxisSize.min,
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
-                                // Status-Badge
+                                // Status-Badge („Status: …“)
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 6),
                                   decoration: BoxDecoration(
                                     color: statusColor.withOpacity(0.12),
-                                    border: Border.all(color: statusColor, width: 1),
+                                    border:
+                                        Border.all(color: statusColor, width: 1),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Text(
-                                    statusText,
-                                    style: TextStyle(color: statusColor, fontWeight: FontWeight.w600),
+                                    '${t.status}: $statusText',
+                                    style: TextStyle(
+                                        color: statusColor,
+                                        fontWeight: FontWeight.w600),
                                   ),
                                 ),
                                 const SizedBox(height: 6),
@@ -204,11 +230,12 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                   onPressed: () async {
                                     await showDialog(
                                       context: context,
-                                      builder: (_) => _MyComplaintDetailsDialog(c: c),
+                                      builder: (_) =>
+                                          _MyComplaintDetailsDialog(c: c),
                                     );
                                   },
                                   icon: const Icon(Icons.info_outline),
-                                  label: const Text('Details'),
+                                  label: Text(t.details),
                                 ),
                               ],
                             ),
@@ -228,20 +255,24 @@ class _MyComplaintDetailsDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     final payload = c.payload ?? const {};
     Widget row(String l, String v) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(width: 160, child: Text(l, style: const TextStyle(fontWeight: FontWeight.w600))),
-          Expanded(child: Text(v.isEmpty ? '—' : v)),
-        ],
-      ),
-    );
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                  width: 160,
+                  child: Text(l,
+                      style: const TextStyle(fontWeight: FontWeight.w600))),
+              Expanded(child: Text(v.isEmpty ? '—' : v)),
+            ],
+          ),
+        );
 
     return AlertDialog(
-      title: Text('Details – ${c.ticket}'),
+      title: Text('${t.details} – ${c.ticket}'),
       content: SizedBox(
         width: 560,
         child: SingleChildScrollView(
@@ -249,21 +280,21 @@ class _MyComplaintDetailsDialog extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (payload.isEmpty)
-                const Text('Keine Details vorhanden.')
+                Text(t.no_details) // lokalisierte Fallbackmeldung
               else ...[
-                row('Segment', (payload['segment'] ?? '').toString()),
-                row('Artikel', (payload['article'] ?? '').toString()),
-                row('Charge',  (payload['batch'] ?? '').toString()),
-                row('Menge',   (payload['qty'] ?? '').toString()),
-                row('Ablauf',  (payload['expiry'] ?? '').toString()),
-                row('Beschreibung', (payload['desc'] ?? '').toString()),
+                row(t.segment, (payload['segment'] ?? '').toString()),
+                row(t.article, (payload['article'] ?? '').toString()),
+                row(t.batch, (payload['batch'] ?? '').toString()),
+                row(t.quantity, (payload['qty'] ?? '').toString()),
+                row(t.expiry, (payload['expiry'] ?? '').toString()),
+                row(t.description, (payload['desc'] ?? '').toString()),
               ],
             ],
           ),
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Schließen')),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(t.close)),
       ],
     );
   }
