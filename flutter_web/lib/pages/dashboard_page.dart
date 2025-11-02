@@ -44,18 +44,24 @@ class DashboardPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
+        centerTitle: true,
+        elevation: 1,
+        scrolledUnderElevation: 1,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        surfaceTintColor: Colors.transparent,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         title: const Text('Kundenbereich'),
         actions: const [
-          LangAction(),                       // Globale Sprache
+          LangAction(),
           SizedBox(width: 8),
         ],
-        bottom: PreferredSize(                // kleine Leiste rechts für Logout
+        bottom: PreferredSize(
           preferredSize: const Size.fromHeight(0),
           child: Align(
             alignment: Alignment.centerRight,
             child: Padding(
-             padding: const EdgeInsets.only(right: 8.0, bottom: 6.0),
-              child: LogoutAction(            // <<< HIER ist der Abmeldebutton
+              padding: const EdgeInsets.only(right: 8.0, bottom: 6.0),
+              child: LogoutAction(
                 api: api,
                 onLoggedOut: () {
                   // nach Logout zurück zur Login-Seite:
