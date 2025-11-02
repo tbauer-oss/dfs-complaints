@@ -67,7 +67,7 @@ class _MyAppState extends State<MyApp> {
     if (ok == true) {
       api.setAdminSecret(ctrl.text.trim());
       if (!mounted) return;
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminPage()));
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => AdminPage(api: api)));
     }
   }
 
