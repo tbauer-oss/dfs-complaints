@@ -265,3 +265,38 @@ export async function complaintsByEmail(email) {
   list.sort((a, b) => (b?.createdAt || 0) - (a?.createdAt || 0));
   return list;
 }
+
+/* ================== NEU für Admin/Open-Views ================== */
+
+// Alle Reklamationen (Redis oder Memory), unsortiert – Sortierung im Aufrufer möglich
+export async function complaintsAll() {
+  const r = getRedis();
+  if (r) {
+    const keys = await rkeys(`${P}complaint:*`);
+    const vals = await Promise.all(keys.map(k => rget(k)));
+    return vals.filter(Boolean);
+  }
+  return Array.from(mem.complaints.values());
+}
+
+// Alias: Einzel-Complaint per Ticket
+export async function complaintByTicket(ticket) {
+  ticket = String(ticket || '').trim();
+  if (!ticket) return null;
+  return await complaintGet(ticket);
+}
+
+// Offene Reklamationen im Sinne deiner Definition:
+// Offen = NICHT (Status == 6 "Abgeschlossen") UND NICHT (Status == 4 && decision == 'rejected')
+export async function complaintsOpen() {
+  const all = await complaintsAll();
+  const open = all.filter(c => {
+    const s = Number(c?.status || 0);
+    const dec = (c?.decision || '').toString();
+    const closedByStatus    = (s === Status.CLOSED);
+    const closedByRejection = (s === Status.FINAL_DECISION && dec === 'rejected');
+    return !(closedByStatus || closedByRejection);
+  });
+  open.sort((a, b) => (b?.createdAt || 0) - (a?.createdAt || 0));
+  return open;
+}
