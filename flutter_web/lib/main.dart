@@ -10,6 +10,7 @@ import 'pages/dashboard_page.dart';
 import 'pages/register_page.dart';
 import 'pages/admin_page.dart';
 import 'widgets/lang_action.dart';
+import 'widgets/logout_button.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -150,12 +151,37 @@ class _MyAppState extends State<MyApp> {
               builder: (ctx) {
                 final t = AppLocalizations.of(ctx)!;
                 return Scaffold(
-                  appBar: AppBar(
+                 appBar: AppBar(
                     title: Text(t.appTitle),
-                    actions: [LangAction(onLocaleChanged: _setLocale)],
+                    actions: [
+                      // EIN Sprachbutton (oben rechts)
+                      LangAction(onLocaleChanged: _setLocale),
+                    ],
+                    // Direkt darunter: schöner Logout-Button
+                    bottom: PreferredSize(
+                      preferredSize: const Size.fromHeight(50),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          child: FilledButton.icon(
+                            icon: const Icon(Icons.logout),
+                            label: Text(t.logout),
+                            onPressed: () async {
+                              await api.logout(); // <- funktioniert, wenn logout() Future<void> ist
+                              if (ctx.mounted) {
+                                ScaffoldMessenger.of(ctx)
+                                    .showSnackBar(SnackBar(content: Text(t.loggedOut)));
+                              }
+                              _onLoggedOut();
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                   body: DashboardPage(api: api, onLoggedOut: _onLoggedOut),
-                );
+               );
               },
             )
           : Builder(
