@@ -124,6 +124,7 @@
   "article": "Référence article*",
   "batch": "Lot",
   "quantity": "Quantité",
+  "qty": "Quantité",
   "expiry": "Date d’expiration (le cas échéant)",
   "problem_desc": "Description du problème*",
   "applied_to_patient": "Appliqué à un patient ?*",
