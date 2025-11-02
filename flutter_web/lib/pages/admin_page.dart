@@ -1025,7 +1025,7 @@ class AdminApi {
       _u('/api/admin/complaints', {'ticket': ticket}).toString(),
       method: 'GET',
       requestHeaders: _headersJson(),
-      withCredentials: false, // wir senden nur X-Admin-Secret
+      withCredentials: true, // wir senden nur X-Admin-Secret
     );
     if (res.status != 200) {
       throw 'complaint GET by ticket: HTTP ${res.status} ${res.responseText}';
