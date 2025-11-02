@@ -223,11 +223,12 @@ class ApiClient {
         .map((f) => {
               'name': f.name,
               'mime': f.mime,
-              'bytes': base64Encode(f.bytes),
+             'bytes': base64Encode(f.bytes),
             })
         .toList();
 
-    final r = await _post('/api/complaints', {
+    // 🔧 Richtiger Pfad (Singular + create)
+    final r = await _post('/api/complaint/create', {
       'payload': data,
       if (encFiles.isNotEmpty) 'files': encFiles,
     }, auth: true);
@@ -240,9 +241,10 @@ class ApiClient {
   }
 
   Future<List<Map<String, dynamic>>> complaintListRaw() async {
-    final r = await _get('/api/complaints', auth: true);
+    // 🔧 Richtiger Pfad (Singular)
+    final r = await _get('/api/complaint/mine', auth: true);
     if (r.statusCode != 200) {
-      throw Exception('GET /api/complaints failed: ${r.statusCode} ${r.body}');
+      throw Exception('GET /api/complaint/mine failed: ${r.statusCode} ${r.body}');
     }
     final j = jsonDecode(r.body);
     if (j is List) {
