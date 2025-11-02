@@ -229,6 +229,15 @@ export async function complaintSave(c) {
   mem.complaints.set(c.ticket, c); return c;
 }
 
+// Complaint löschen (Hard-Delete)
+export async function complaintDelete(ticket) {
+  if (!ticket) return false;
+  const key = `${P}complaint:${ticket}`;
+  const r = getRedis();
+  if (r) { await rdel(key); return true; }
+  return mem.complaints.delete(ticket);
+}
+
 export async function complaintGet(ticket) {
   const key = `${P}complaint:${ticket}`;
   const r = getRedis();
