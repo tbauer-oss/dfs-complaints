@@ -160,5 +160,14 @@
   "supportCatAccount": "Anfragen zum Account",
   "supportCatPrivacy": "Datenschutz",
   "supportCatFeedback": "Feedback",
-  "supportCatSuggestion": "Vorschlag zur Verbesserung"
+  "supportCatSuggestion": "Vorschlag zur Verbesserung",
+
+  "adminArea": "Adminbereich",
+  "@adminArea": { "description": "Button zum Adminbereich" },
+  "login": "Login",
+  "@login": { "description": "Login-Button-Text" },
+  "register": "Registrieren",
+  "@register": { "description": "Button-Text zur Registrierung" },
+  "loginFailed": "Login fehlgeschlagen.",
+  "@loginFailed": { "description": "Fehlermeldung bei falschen Zugangsdaten" }
 }
