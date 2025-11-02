@@ -106,9 +106,9 @@ class _MyAppState extends State<MyApp> {
                 title: const Text('Kundenbereich'),
                 actions: [
                   LangAction(onLocaleChanged: _setLocale),
+                  DashboardPage(api: api, onLoggedOut: _onLoggedOut),
                 ],
               ),
-              body: DashboardPage(api: api, onLoggedOut: _onLoggedOut),
             )
           : Scaffold(
             // ... Login bleibt unverändert
