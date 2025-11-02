@@ -47,8 +47,10 @@ class ApiClient {
     gate        = ls['dfs_gate'];
   }
 
-  void logout() {
+  Future<void> logout() async {
     token = null;
+    adminSecret = null;
+    gate = null;
     _saveSession();
   }
 
