@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../api/client.dart';
-import '../widgets/lang_action.dart';       // +++ NEU (falls noch nicht drin)
-import '../widgets/logout_action.dart';     // +++ NEU
+import '../widgets/lang_action.dart';
+import '../widgets/logout_action.dart';
 import 'complaint_form_page.dart';
 import 'my_complaints_page.dart';
 import 'account_page.dart';
@@ -9,70 +9,35 @@ import 'support_page.dart';
 
 class DashboardPage extends StatelessWidget {
   final ApiClient api;
-  final VoidCallback onLoggedOut; // <- Callback, der zurück zur Login-Startseite führt
-
-  const DashboardPage({
-    super.key,
-    required this.api,
-    required this.onLoggedOut,
-  });
+  final VoidCallback onLoggedOut;
+  const DashboardPage({super.key, required this.api, required this.onLoggedOut});
 
   @override
   Widget build(BuildContext context) {
     final tiles = <_Entry>[
       _Entry('Reklamation melden', Icons.add_circle, () {
-        Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => ComplaintFormPage(api: api),
-        ));
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => ComplaintFormPage(api: api)));
       }),
       _Entry('Meine Reklamationen', Icons.list_alt, () {
-        Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => MyComplaintsPage(api: api),
-        ));
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => MyComplaintsPage(api: api)));
       }),
       _Entry('Mein Account', Icons.person, () {
-        Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => AccountPage(api: api),
-        ));
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => AccountPage(api: api)));
       }),
       _Entry('DFS Support', Icons.support_agent, () {
-        Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => SupportPage(api: api),
-        ));
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => SupportPage(api: api)));
       }),
     ];
 
     return Scaffold(
       appBar: AppBar(
-        centerTitle: true,
-        elevation: 1,
-        scrolledUnderElevation: 1,
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        surfaceTintColor: Colors.transparent,
-        foregroundColor: Theme.of(context).colorScheme.onSurface,
         title: const Text('Kundenbereich'),
-        actions: const [
-          LangAction(),
-          SizedBox(width: 8),
+        actions: [
+          const LangAction(),
+          const SizedBox(width: 8),
+          LogoutAction(api: api, onLoggedOut: onLoggedOut),
         ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(0),
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 8.0, bottom: 6.0),
-              child: LogoutAction(
-                api: api,
-                onLoggedOut: () {
-                  // nach Logout zurück zur Login-Seite:
-                  Navigator.of(context).popUntil((r) => r.isFirst);
-                },
-              ),
-            ),
-          ),
-        ),
       ),
-      // WICHTIG: KEINE zweite Überschrift im Body!
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 900),
