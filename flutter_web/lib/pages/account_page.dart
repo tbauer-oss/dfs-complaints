@@ -113,36 +113,29 @@ class _AccountPageState extends State<AccountPage> {
                       return AlertDialog(
                         title: const Text('Passwort bestätigen'),
                         content: TextField(
-                          controller: ctrl,
-                          obscureText: true,
+                          controller: ctrl, obscureText: true,
                           decoration: const InputDecoration(labelText: 'Passwort'),
                         ),
                         actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('Abbrechen'),
-                          ),
-                          FilledButton(
-                            onPressed: () => Navigator.pop(context, ctrl.text),
-                            child: const Text('Account löschen'),
-                          ),
+                          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
+                          FilledButton(onPressed: () => Navigator.pop(context, ctrl.text), child: const Text('Account löschen')),
                         ],
                       );
                     },
                   );
                   if (pwd == null || pwd.isEmpty) return;
 
-                  // 3) Löschen (200/204 ok)
                   try {
-                    final ok = await widget.api.accountDelete(pwd);
+                    // wirft bei Fehler -> catch
+                    await widget.api.accountDelete(pwd);
+
                     if (!mounted) return;
-                    if (ok) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Account gelöscht.')),
-                      );
-                      // Zur Start-/Loginseite zurück
-                      Navigator.of(context).popUntil((r) => r.isFirst);
-                    }
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Account gelöscht.')),
+                    );
+
+                    // Zur Start-/Loginseite zurück
+                    Navigator.of(context).popUntil((r) => r.isFirst);
                   } catch (e) {
                     if (!mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
