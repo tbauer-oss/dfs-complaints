@@ -158,5 +158,14 @@
   "supportCatAccount": "Consultas de cuenta",
   "supportCatPrivacy": "Privacidad",
   "supportCatFeedback": "Comentarios",
-  "supportCatSuggestion": "Sugerencia de mejora"
+  "supportCatSuggestion": "Sugerencia de mejora",
+
+  "adminArea": "Área de administración",
+  "@adminArea": { "description": "Botón al área de administración" },
+  "login": "Iniciar sesión",
+  "@login": { "description": "Etiqueta del botón de inicio de sesión" },
+  "register": "Registrarse",
+  "@register": { "description": "Etiqueta del botón de registro" },
+  "loginFailed": "Error de inicio de sesión.",
+  "@loginFailed": { "description": "Error cuando las credenciales no son válidas" }
 }
