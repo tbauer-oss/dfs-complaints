@@ -23,15 +23,6 @@
   "open": "Open",
   "unlock": "Unlock",
 
-  "reportComplaint": "Report complaint",
-  "@reportComplaint": { "description": "Dashboard tile: open complaint form" },
-  "myComplaints": "My complaints",
-  "@myComplaints": { "description": "Dashboard tile: list of user's complaints" },
-  "myAccount": "My account",
-  "@myAccount": { "description": "Dashboard tile: account/profile page" },
-  "supportTitle": "Support",
-  "@supportTitle": { "description": "Dashboard tile: support/help page" },
-
   "logout": "Log out",
   "loggedOut": "Logged out.",
   "logoutTitle": "Log out",
