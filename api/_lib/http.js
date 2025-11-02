@@ -1,15 +1,12 @@
-// api/_lib/http.js  (ESM, Vercel)
+// api/_lib/http.js  (ESM, shared CORS helpers)
 
-// --- Freigegebene Frontend-Origins ---
-const PROD_FE  = 'https://dfs-complaints-web.vercel.app';
-const LOCAL_FE = 'http://localhost:8080';
+// --- Erlaubte Frontend-Origins ---
+export const PROD_FE  = 'https://dfs-complaints-web.vercel.app';
+export const LOCAL_FE = 'http://localhost:8080';
 const PREVIEW  = /^https:\/\/dfs-complaints-web-[a-z0-9-]+(?:-[a-z0-9-]+)?\.vercel\.app$/i;
 
-// Für Vercel Node.js Runtime (optional pro-File, hier zentral okay)
-export const config = { runtime: 'nodejs' };
-
 // Prüft, ob Origin erlaubt ist
-function isAllowedOrigin(origin = '') {
+export function isAllowedOrigin(origin = '') {
   if (!origin) return false;
   if (origin === PROD_FE || origin === LOCAL_FE) return true;
   return PREVIEW.test(origin);
@@ -24,15 +21,26 @@ export function setCors(req, res) {
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  // Wichtig: Authorization/X-Admin-Secret/X-Gate zulassen
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Secret, X-Gate');
+
+  // WICHTIG: Custom-Header wie X-Gate und Admin-Secret erlauben
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, X-Admin-Secret, X-Gate'
+  );
+
+  // Optional, schadet nicht
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 }
 
-// 204 für Preflight
-export function noContent(res) {
-  res.statusCode = 204;
-  res.end();
+// Komfort-Helfer: setzt CORS und beantwortet ggf. das Preflight
+export function handlePreflight(req, res) {
+  setCors(req, res);
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204;
+    res.end();
+    return true; // signalisiert: bereits beantwortet
+  }
+  return false;
 }
 
 // 200 + JSON
@@ -52,7 +60,7 @@ export function methodNotAllowed(res) {
   return bad(res, 'method not allowed', 405);
 }
 
-// JSON-Body robust lesen (Vercel liefert bei kleinen Bodies oft schon geparst)
+// JSON-Body robust lesen
 export function readJson(req) {
   if (req?.body && typeof req.body === 'object') return req.body;
   try {
