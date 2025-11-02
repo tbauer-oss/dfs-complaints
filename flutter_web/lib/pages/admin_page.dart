@@ -660,7 +660,18 @@ class _UserTileState extends State<_UserTile> {
       children: [
         ListTile(
           title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-          subtitle: Text(subtitle),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(subtitle),
+              if (d.selfDeleted) const SizedBox(height: 4),
+              if (d.selfDeleted)
+                const Text(
+                  'Account durch User gelöscht!',
+                  style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
+                ),
+            ],
+          ),
           trailing: Wrap(
             spacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
@@ -770,6 +781,7 @@ class PendingUser {
   final String phone;
   final String lang;
   final String? createdAt;
+  final bool selfDeleted;
 
   PendingUser({
     required this.email,
@@ -782,6 +794,7 @@ class PendingUser {
     required this.phone,
     required this.lang,
     required this.createdAt,
+    required this.selfDeleted,
   });
 
   factory PendingUser.fromJson(Map<String, dynamic> j) => PendingUser(
@@ -834,6 +847,7 @@ class ActiveUser {
         phone: j['phone'] ?? '',
         lang: (j['lang'] ?? 'de').toString(),
         createdAt: j['createdAt']?.toString(),
+        selfDeleted: (j['selfDeleted'] ?? false) == true, // 🔴 NEU
       );
 }
 
