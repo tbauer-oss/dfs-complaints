@@ -22,18 +22,18 @@ export function setCors(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
 
-  // Dynamisch die vom Browser angefragten Header zurückspiegeln (failsafe)
+  // dynamisch erlaubte Header spiegeln (failsafe)
   const reqAllowed = req.headers?.['access-control-request-headers'];
   const defaultAllowed = 'Content-Type, Authorization, X-Admin-Secret, X-Gate';
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    reqAllowed ? `${defaultAllowed}, ${reqAllowed}` : defaultAllowed
-  );
+  const allowHeaders = reqAllowed && String(reqAllowed).trim().length > 0
+    ? `${defaultAllowed}, ${reqAllowed}`
+    : defaultAllowed;
+  res.setHeader('Access-Control-Allow-Headers', allowHeaders);
 
   // Preflight cachen
   res.setHeader('Access-Control-Max-Age', '600');
 
-  // Unkritisch, hilft manchen Clients
+  // hilfreich für einige Clients
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 }
 
@@ -65,7 +65,7 @@ export function methodNotAllowed(res) {
   return bad(res, 'method not allowed', 405);
 }
 
-// 204 No Content (z. B. für Preflight)
+// 204 No Content
 export function noContent(res) {
   res.statusCode = 204;
   res.end();
