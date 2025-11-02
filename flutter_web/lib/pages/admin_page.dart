@@ -1,12 +1,11 @@
 import 'dart:convert';
 import 'dart:html' as html;
 import 'package:flutter/material.dart';
-
 import '../api/client.dart';
 
 class AdminPage extends StatefulWidget {
-  final ApiClient? api; // optional
-  const AdminPage({super.key, this.api});
+  final ApiClient api;
+  const AdminPage({super.key, required this.api});
 
   @override
   State<AdminPage> createState() => _AdminPageState();
