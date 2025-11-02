@@ -1210,7 +1210,40 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
 
                 // ← HIER NEU: LÖSCHEN (siehe Block oben)
                 TextButton.icon(
-                  onPressed: _busy ? null : () async { /* ... wie oben ... */ },
+                  onPressed: _busy ? null : () async {
+                    final ok = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Reklamation löschen'),
+                        content: Text('Ticket ${c.ticket} wirklich endgültig löschen?'),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+                          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen')),
+                        ],
+                      ),
+                    );
+                    if (ok != true) return;
+
+                    setState(() => _busy = true);
+                    try {
+                      await widget.api.deleteComplaint(c.ticket);
+                      // Aus der Liste entfernen (Panel "Offene Reklamationen")
+                      widget.onClosed();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Ticket ${c.ticket} gelöscht.')),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Löschen fehlgeschlagen: $e')),
+                        );
+                      }
+                    } finally {
+                      if (mounted) setState(() => _busy = false);
+                    }
+                  },
                   icon: const Icon(Icons.delete_outline),
                   label: const Text('Löschen'),
                 ),
