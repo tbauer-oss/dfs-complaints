@@ -139,10 +139,12 @@ export default async function handler(req, res) {
         // 3) evtl. Pending-Eintrag löschen
         try { await pendingDelete(email); } catch (_) {}
       } else {
-        // Soft-Delete: sperren
+        // Soft-Delete: Markierung als durch User gelöscht
         const u = (await userByEmail(email)) || { email };
         u.revoked = true;
         u.revokedAt = Date.now();
+        u.selfDeleted = true;    // <— NEU
+        u.deletedAt = Date.now();// <— optional: Zeit merken
         await userSave(u);
       }
 
