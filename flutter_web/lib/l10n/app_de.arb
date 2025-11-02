@@ -146,5 +146,19 @@
   "sent_ticket": "Gesendet. Ticket: {ticket}",
 
   "none_complaints": "Keine Reklamationen.",
-  "status": "Status: {value}"
+  "status": "Status: {value}",
+
+  "supportTitle": "DFS Support",
+  "category": "Kategorie",
+  "yourMessage": "Ihre Nachricht",
+  "supportConsentText": "Ich stimme der Verarbeitung gemäß Datenschutzhinweis zu.",
+  "message_required": "Bitte eine Nachricht eingeben.",
+  "message_sent": "Nachricht gesendet.",
+  "supportCatGeneral": "Allgemeine Anfrage",
+  "supportCatComplaintIssue": "Problem mit einer Reklamation",
+  "supportCatTechnical": "Technisches Problem",
+  "supportCatAccount": "Anfragen zum Account",
+  "supportCatPrivacy": "Datenschutz",
+  "supportCatFeedback": "Feedback",
+  "supportCatSuggestion": "Vorschlag zur Verbesserung"
 }
