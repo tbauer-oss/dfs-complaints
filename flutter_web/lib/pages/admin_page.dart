@@ -575,29 +575,61 @@ class _UserTileState extends State<_UserTile> {
   bool _expanded = false;
   bool _busy = false;
 
-  @override
-  Widget build(BuildContext context) {
+  void _showAddressDialog() {
     final d = widget.data;
-    return Column(
-      children: [
-        ListTile(
-          title: Text(d.email),
-          subtitle: Wrap(
-            spacing: 12,
-            runSpacing: 4,
+    showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Adressdaten'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _Field(label: 'Firma', value: d.company),
+              _Field(label: 'Firma',   value: d.company),
               _Field(label: 'Kontakt', value: d.contact),
-              _Field(label: 'Ort', value: '${d.zip} ${d.city}'),
-              _Field(label: 'Land', value: d.country),
+              const SizedBox(height: 6),
+              _Field(label: 'Straße',  value: d.street),
+              _Field(label: 'PLZ/Ort', value: '${d.zip} ${d.city}'.trim()),
+              _Field(label: 'Land',    value: d.country),
+              const SizedBox(height: 6),
               _Field(label: 'Telefon', value: d.phone),
+              _Field(label: 'E-Mail',  value: d.email),
               _Field(label: 'Sprache', value: d.lang.toUpperCase()),
               _Field(label: 'Aktiv seit', value: d.createdAt ?? '—'),
             ],
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Schließen'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final d = widget.data;
+    final title = (d.company.isNotEmpty) ? d.company : d.email;
+    final subtitle = (d.country.isNotEmpty) ? d.country : d.email;
+
+    return Column(
+      children: [
+        ListTile(
+          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+          subtitle: Text(subtitle),
           trailing: Wrap(
             spacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
+              IconButton(
+                tooltip: 'Adressdaten anzeigen',
+                onPressed: _showAddressDialog,
+                icon: const Icon(Icons.info_outline),
+              ),
               IconButton(
                 tooltip: 'Reklamationen anzeigen',
                 onPressed: () {
