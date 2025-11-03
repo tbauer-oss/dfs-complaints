@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import '../api/client.dart';
+import '../l10n/app_localizations.dart';
 
 class AdminPage extends StatefulWidget {
   final ApiClient api;
@@ -28,6 +29,9 @@ class _AdminPageState extends State<AdminPage> {
   // E-Mail -> geladene Reklamationen (Details)
   final Map<String, _ComplaintsResult> _complaints = {};
 
+  // --- Report-Link Dialog & Aktionen ---
+  final _reportUrlCtrl = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -36,7 +40,7 @@ class _AdminPageState extends State<AdminPage> {
     // 1) Primär: aus dem ApiClient, der von main.dart übergeben wird
     String secret = widget.api.adminSecret ?? '';
 
-    // 2) Fallback: aus localStorage lesen – aber bitte den richtigen Key "dfs_admin"
+    // 2) Fallback: aus localStorage lesen – Key "dfs_admin"
     if (secret.isEmpty) {
       secret = html.window.localStorage['dfs_admin'] ?? '';
     }
@@ -188,6 +192,96 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  // --- Report-Link setzen ---
+  Future<void> _setReportLinkForComplaint(AdminComplaint c) async {
+    final t = AppLocalizations.of(context);
+    _reportUrlCtrl.text = c.reportLink ?? '';
+
+    final url = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: Text(t?.open ?? 'Öffnen/Setzen'),
+          content: TextField(
+            controller: _reportUrlCtrl,
+            decoration: InputDecoration(
+              labelText: t?.open ?? 'Report-Link (URL)',
+              hintText: 'https://…',
+            ),
+            autofocus: true,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(t?.cancel ?? 'Abbrechen'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, _reportUrlCtrl.text.trim()),
+              child: Text(t?.open ?? 'Setzen'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (url == null || url.isEmpty) return;
+
+    setState(() {});
+    final ok = await widget.api.adminReportSet(c.ticket, url);
+    if (ok) {
+      setState(() { c.reportLink = url; });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(t?.created ?? 'Gespeichert')),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(t?.operationFailed ?? 'Aktion fehlgeschlagen')),
+        );
+      }
+    }
+    setState(() {});
+  }
+
+  // --- Report-Link löschen ---
+  Future<void> _clearReportLinkForComplaint(AdminComplaint c) async {
+    final t = AppLocalizations.of(context);
+
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(t?.logoutTitle ?? 'Bestätigung'),
+        content: Text(t?.logoutConfirm ?? 'Wirklich löschen?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t?.cancel ?? 'Abbrechen')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(t?.unlock ?? 'Löschen')),
+        ],
+      ),
+    );
+
+    if (yes != true) return;
+
+    setState(() {});
+    final ok = await widget.api.adminReportClear(c.ticket);
+    if (ok) {
+      setState(() { c.reportLink = null; });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(t?.created ?? 'Gelöscht')),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(t?.operationFailed ?? 'Aktion fehlgeschlagen')),
+        );
+      }
+    }
+    setState(() {});
+  }
+
   // ---------- UI ----------
   @override
   Widget build(BuildContext context) {
@@ -222,106 +316,6 @@ class _AdminPageState extends State<AdminPage> {
       );
     }
 
-    // admin_page.dart (im _AdminPageState)
-    final _reportUrlCtrl = TextEditingController();
-
-    Future<void> _setReportLinkForComplaint(Complaint c) async {
-      final t = AppLocalizations.of(context);
-      _reportUrlCtrl.text = c.reportUrl ?? '';
-
-      final url = await showDialog<String>(
-        context: context,
-        builder: (ctx) {
-          return AlertDialog(
-            title: Text(t?.open ?? 'Öffnen/Setzen'),
-            content: TextField(
-              controller: _reportUrlCtrl,
-              decoration: InputDecoration(
-                labelText: t?.open ?? 'Report-Link (URL)',
-                hintText: 'https://…',
-              ),
-              autofocus: true,
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: Text(t?.cancel ?? 'Abbrechen'),
-              ),
-              FilledButton(
-               onPressed: () => Navigator.pop(ctx, _reportUrlCtrl.text.trim()),
-                child: Text(t?.open ?? 'Setzen'),
-              ),
-            ],
-          );
-        },
-      );
-
-      if (url == null || url.isEmpty) return;
-
-      // Busy optional
-      setState(() {}); // falls du einen Busy-Indicator hast, hier setzen
-      final ok = await widget.api.adminReportSet(c.ticket, url);
-      if (ok) {
-        setState(() {
-          // Lokales Model aktualisieren (je nach Struktur):
-          c.reportUrl = url; // falls mutable Model
-          // oder, wenn immutable:
-          // final idx = _complaints.indexWhere((x) => x.ticket == c.ticket);
-          // _complaints[idx] = _complaints[idx].copyWith(reportUrl: url);
-        });
-        if (mounted) {
-         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(t?.created ?? 'Gespeichert')),
-          );
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(t?.operationFailed ?? 'Aktion fehlgeschlagen')),
-          );
-        }
-      }
-      setState(() {}); // Busy zurück
-    }
-
-    Future<void> _clearReportLinkForComplaint(Complaint c) async {
-      final t = AppLocalizations.of(context);
-
-      final yes = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-         title: Text(t?.logoutTitle ?? 'Bestätigung'),
-          content: Text(t?.logoutConfirm ?? 'Wirklich löschen?'),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t?.cancel ?? 'Abbrechen')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(t?.unlock ?? 'Löschen')),
-          ],
-        ),
-      );
-
-      if (yes != true) return;
-
-      setState(() {});
-      final ok = await widget.api.adminReportClear(c.ticket);
-      if (ok) {
-        setState(() {
-          c.reportUrl = null; // oder copyWith/reportUrl:null siehe oben
-        });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(t?.created ?? 'Gelöscht')),
-          );
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(t?.operationFailed ?? 'Aktion fehlgeschlagen')),
-          );
-        }
-      }
-      setState(() {});
-    }
-    
     final theme = Theme.of(context);
     return DefaultTabController(
       length: 3,
@@ -361,7 +355,7 @@ class _AdminPageState extends State<AdminPage> {
                       children: [
                         _buildPendingPanel(),
                         _buildUsersPanel(),
-                        _buildOpenComplaintsPanel(),
+                        _buildOpenComplaintsPanel(), // zeigt Tabelle (Variante C)
                       ],
                     ),
                   ),
@@ -427,8 +421,6 @@ class _AdminPageState extends State<AdminPage> {
                           onLoadComplaints: () => _loadComplaintsDetailed(p.email),
                           complaints: _complaints[p.email],
                           api: _api,
-                          // Beim Pending sollen geschlossene Fälle nicht automatisch verschwinden;
-                          // daher onClosed leer lassen.
                           onClosedFromEditor: () {},
                         );
                       },
@@ -491,8 +483,7 @@ class _AdminPageState extends State<AdminPage> {
                           complaints: _complaints[u.email],
                           api: _api,
                           onClosedFromEditor: () {
-                            // Falls in User-Ansicht ein Fall geschlossen wird, nur globale Offene-Liste updaten:
-                            _refreshOpenComplaints();
+                            _refreshOpenComplaints(); // globale Offene-Liste updaten
                           },
                         );
                       },
@@ -532,27 +523,49 @@ class _AdminPageState extends State<AdminPage> {
             Expanded(
               child: _openComplaints.isEmpty
                   ? const Center(child: Text('Keine offenen Reklamationen.'))
-                  : ListView.separated(
-                      itemCount: _openComplaints.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
-                      itemBuilder: (ctx, i) {
-                        final c = _openComplaints[i];
-                        return _ComplaintEditor(
-                          api: _api,
-                          c: c,
-                          onClosed: () {
-                            // Sofort aus der Offenen-Liste entfernen
-                            setState(() {
-                              _openComplaints.removeWhere((x) => x.ticket == c.ticket);
-                            });
-                          },
-                        );
-                      },
-                    ),
+                  : _buildOpenComplaintsTable(context),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  // --- Tabelle für offene Reklamationen ---
+  Widget _buildOpenComplaintsTable(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    final complaints = _openComplaints;
+
+    Widget table = PaginatedDataTable(
+      header: Text(t?.openComplaints ?? 'Offene Reklamationen'),
+      rowsPerPage: (complaints.length < 10) ? complaints.length.clamp(1, 10) : 10,
+      availableRowsPerPage: const [5, 10, 20, 50],
+      columns: [
+        DataColumn(label: Text(t?.ticket ?? 'Ticket')),
+        DataColumn(label: Text(t?.createdAt ?? 'Erstellt')),
+        const DataColumn(label: Text('Report')),
+        DataColumn(label: Text(t?.category ?? 'Aktionen')),
+      ],
+      source: _ComplaintsDataSource(
+        context: context,
+        data: complaints,
+        onSetReport: _setReportLinkForComplaint,
+        onClearReport: _clearReportLinkForComplaint,
+      ),
+    );
+
+    // horizontales Scrollen auf schmalen Screens
+    table = SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 800),
+        child: table,
+      ),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: table,
     );
   }
 }
@@ -642,7 +655,6 @@ class _PendingTileState extends State<_PendingTile> {
   @override
   Widget build(BuildContext context) {
     final d = widget.data;
-    // Kompakte Darstellung: Firma + Land (Fallbacks)
     final title = (d.company.isNotEmpty) ? d.company : d.email;
     final subtitle = (d.country.isNotEmpty) ? d.country : '${d.zip} ${d.city}'.trim();
 
@@ -947,7 +959,7 @@ class ActiveUser {
         phone: j['phone'] ?? '',
         lang: (j['lang'] ?? 'de').toString(),
         createdAt: j['createdAt']?.toString(),
-        selfDeleted: (j['selfDeleted'] ?? false) == true, // 🔴 NEU
+        selfDeleted: (j['selfDeleted'] ?? false) == true,
       );
 }
 
@@ -1139,7 +1151,7 @@ class AdminApi {
       _u('/api/admin/complaints', {'ticket': ticket}).toString(),
       method: 'GET',
       requestHeaders: _headersJson(),
-      withCredentials: true, // wir senden nur X-Admin-Secret
+      withCredentials: true,
     );
     if (res.status != 200) {
       throw 'complaint GET by ticket: HTTP ${res.status} ${res.responseText}';
@@ -1200,7 +1212,7 @@ class AdminApi {
   }
 }
 
-// ---------- Status-/Decision-Editor ----------
+// ---------- Status-/Decision-Editor (Detailansicht in Pending/Users) ----------
 
 const kStatusItems = <Map<String, dynamic>>[
   {'label': 'Eingegegangen',          'value': 1},
@@ -1270,6 +1282,81 @@ class _ComplaintDetailsDialog extends StatelessWidget {
     );
   }
 }
+
+// ---------- DataSource für Tabelle ----------
+
+class _ComplaintsDataSource extends DataTableSource {
+  final BuildContext context;
+  final List<AdminComplaint> data;
+  final void Function(AdminComplaint) onSetReport;
+  final void Function(AdminComplaint) onClearReport;
+
+  _ComplaintsDataSource({
+    required this.context,
+    required this.data,
+    required this.onSetReport,
+    required this.onClearReport,
+  });
+
+  @override
+  DataRow? getRow(int index) {
+    if (index < 0 || index >= data.length) return null;
+    final c = data[index];
+    final t = AppLocalizations.of(context);
+
+    final ticket = c.ticket;
+    final created = c.createdAt.toIso8601String().split('.').first;
+
+    return DataRow(cells: [
+      DataCell(Text(ticket)),
+      DataCell(Text(created)),
+      DataCell(
+        (c.reportLink != null && c.reportLink!.isNotEmpty)
+            ? InkWell(
+                onTap: () => _openUrl(c.reportLink!),
+                child: Text(
+                  c.reportLink!,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(decoration: TextDecoration.underline),
+                ),
+              )
+            : const Text('—'),
+      ),
+      DataCell(Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: t?.open ?? 'Report-Link setzen/ändern',
+            icon: const Icon(Icons.link),
+            onPressed: () => onSetReport(c),
+          ),
+          if ((c.reportLink ?? '').isNotEmpty)
+            IconButton(
+              tooltip: t?.unlock ?? 'Report-Link löschen',
+              icon: const Icon(Icons.link_off),
+              onPressed: () => onClearReport(c),
+            ),
+        ],
+      )),
+    ]);
+  }
+
+  void _openUrl(String url) {
+    // Web: neues Tab
+    html.window.open(url, '_blank');
+  }
+
+  @override
+  bool get isRowCountApproximate => false;
+
+  @override
+  int get rowCount => data.length;
+
+  @override
+  int get selectedRowCount => 0;
+}
+
+// ---------- Detail-Editor (wird in Pending/Users genutzt) ----------
 
 class _ComplaintEditor extends StatefulWidget {
   final AdminApi api;
@@ -1393,7 +1480,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                         _status = updated.status;
                         _decision = updated.decision;
                       });
-                      if (_status == 6 || (_status == 4 && _decision == 'rejected')) {
+                      if (_isNowClosed) {
                         widget.onClosed(); // falls jetzt „geschlossen“, sofort aus Liste entfernen
                       }
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -1411,7 +1498,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                   label: const Text('Speichern'),
                 ),
 
-                // ← HIER NEU: LÖSCHEN (siehe Block oben)
+                // LÖSCHEN
                 TextButton.icon(
                   onPressed: _busy ? null : () async {
                     final ok = await showDialog<bool>(
@@ -1430,7 +1517,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                     setState(() => _busy = true);
                     try {
                       await widget.api.deleteComplaint(c.ticket);
-                      // Aus der Liste entfernen (Panel "Offene Reklamationen")
                       widget.onClosed();
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
