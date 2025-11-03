@@ -163,7 +163,13 @@ export default async function handler(req, res) {
 
       // --- Report-Link (optional) ---
       if (reportLink !== undefined) {
-        c.reportLink = reportLink || null;
+        const v = (reportLink ?? '').toString().trim();
+        if (v) {
+          c.reportLink = v;
+        } else {
+          // leeren/entfernen
+          delete c.reportLink;
+        }
       }
 
       // Timestamps & Persist
