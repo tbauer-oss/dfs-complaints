@@ -3,6 +3,25 @@ import 'dart:convert';
 import 'dart:html' as html; // Web: LocalStorage & Window
 import 'package:http/http.dart' as http;
 
+class ApiError implements Exception {
+  final int status;
+  final String message;
+  ApiError(this.status, this.message);
+  @override
+  String toString() => 'HTTP $status: $message';
+}
+
+String _extractMessage(String body) {
+  try {
+    final j = jsonDecode(body);
+    if (j is Map && j['error'] is String) return j['error'] as String;
+    if (j is Map && j['message'] is String) return j['message'] as String;
+    return body.isNotEmpty ? body : 'Unknown error';
+  } catch (_) {
+    return body.isNotEmpty ? body : 'Unknown error';
+  }
+}
+
 import '../models/complaint.dart';
 
 class ApiClient {
@@ -333,5 +352,47 @@ class ApiClient {
     } catch (_) {
       return false;
     }
+  }
+
+   // ---------- Admin: Reklamationen ----------
+  /// Offene Reklamationen (oder nach Query) laden – nutzt Admin-Secret Header.
+  Future<List<Map<String, dynamic>>> adminComplaintsList({String query = ''}) async {
+    final path = query.isEmpty ? '/api/admin/complaints' : '/api/admin/complaints?$query';
+    final r = await http.get(_u(path), headers: _adminHeaders());
+    if (r.statusCode != 200) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final j = jsonDecode(r.body);
+    if (j is List) {
+      return j.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList(growable: false);
+    }
+    return const [];
+  }
+
+  /// Admin-Update für eine Reklamation.
+  /// - `reportLink`: wenn `""` (leerer String) übergeben wird, löscht das Backend den Link.
+  /// - Key wird NUR gesendet, wenn Parameter != null (damit keine ungewollten Änderungen passieren).
+  Future<Map<String, dynamic>> adminComplaintUpdate({
+    required String ticket,
+    int? status,
+    String? decision,
+    String? reportLink, // "" => explizit löschen
+  }) async {
+    final body = <String, dynamic>{'ticket': ticket};
+    if (status != null) body['status'] = status;
+    if (decision != null) body['decision'] = decision;
+    if (reportLink != null) body['reportLink'] = reportLink; // wichtig: "" wird gesendet
+
+    final r = await http.post(
+      _u('/api/admin/complaints'),
+      headers: _adminHeaders(),
+      body: jsonEncode(body),
+    );
+
+    if (r.statusCode < 200 || r.statusCode >= 300) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final j = jsonDecode(r.body);
+    return (j is Map) ? j.cast<String, dynamic>() : <String, dynamic>{};
   }
 }
