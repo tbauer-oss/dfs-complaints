@@ -515,24 +515,38 @@ class _AdminPageState extends State<AdminPage> {
                       separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (ctx, i) {
                         final c = _openComplaints[i];
-                        return _ComplaintEditor(
-                          api: _api,
+                        return _ComplaintTileCompact(
                           c: c,
-                          onClosed: () {
-                            setState(() {
-                              _openComplaints.removeWhere((x) => x.ticket == c.ticket);
-                            });
+                          companyHint: _companyByEmail(c.email), // falls verfügbar
+                          onOpenEditor: () async {
+                            // Editor im Dialog öffnen
+                            await showDialog<void>(
+                              context: context,
+                              builder: (_) => Dialog(
+                                insetPadding: const EdgeInsets.all(16),
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(maxWidth: 780),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(12),
+                                    child: _ComplaintEditor(
+                                      api: _api,
+                                      c: c,
+                                      onClosed: () {
+                                        // Sofort aus der Offenen-Liste entfernen
+                                        setState(() {
+                                          _openComplaints.removeWhere((x) => x.ticket == c.ticket);
+                                        });
+                                        Navigator.of(context, rootNavigator: true).maybePop();
+                                      },
+                                      companyHint: _companyByEmail(c.email),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
                           },
                         );
                       },
-                    ),
-            )
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 // ---------- UI Hilfs-Widgets ----------
 
@@ -843,191 +857,169 @@ class _ComplaintsDetailList extends StatelessWidget {
           const Text('Reklamationen (Details):', style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
           ...r.items.map((c) => _ComplaintTileCompact(
-            api: api,                // ← NEU
-            c: c,
-            companyHint: companyHint,
-            onEdit: () {
-              showDialog(
-                context: context,
-                builder: (_) => Dialog(
-                  insetPadding: const EdgeInsets.all(20),
-                  child: SizedBox(
-                    width: 680,
-                    child: _ComplaintEditor(
-                      api: api,
-                      c: c,
-                      onClosed: onClosed,
-                      companyHint: companyHint,
+                c: c,
+                companyHint: companyHint,
+                onOpenEditor: () async {
+                  await showDialog<void>(
+                    context: context,
+                    builder: (_) => Dialog(
+                      insetPadding: const EdgeInsets.all(16),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 780),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: _ComplaintEditor(
+                            api: api,
+                            c: c,
+                            onClosed: () {
+                              onClosed();
+                              Navigator.of(context, rootNavigator: true).maybePop();
+                            },
+                            companyHint: companyHint,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              );
-            },
-          )).toList(),
+                  );
+                },
+              )).toList(),
         ],
       ),
     );
-  }
-}
 
 // Kompakte Kachel für eine Reklamation (in "Aktive Nutzer") – MIT Kurzdetails + Details-Button
 class _ComplaintTileCompact extends StatelessWidget {
   final AdminComplaint c;
   final String? companyHint;
-  final VoidCallback onEdit;
-  final AdminApi api; // ← damit wir die vollständigen Details nachladen können
+  final VoidCallback onOpenEditor;
 
   const _ComplaintTileCompact({
-    super.key,
+    Key? key,
     required this.c,
-    required this.onEdit,
-    required this.api,
+    required this.onOpenEditor,
     this.companyHint,
-  });
+  }) : super(key: key);
 
-  String _statusLabel(int v) {
-    const m = {
-      1: 'Eingegegangen',
-      2: 'In Bearbeitung',
-      3: 'Rückfrage erforderlich',
-      5: 'In Nacharbeit',
-      6: 'Abgeschlossen',
-      4: 'Entscheidung', // neutral
-    };
-    return m[v] ?? 'Unbekannt';
-  }
-
-  // Kurzer, sicherer Payload-Zugriff
-  String _p(String key) {
-    final p = c.payload ?? const {};
-    final v = (p[key] ?? '').toString().trim();
-    return v.isEmpty ? '—' : v;
-  }
-
-  // Vollständige Details nachladen und als Dialog anzeigen
-  Future<void> _openDetailsDialog(BuildContext context) async {
-    try {
-      final data = await api.fetchComplaintRawByTicket(c.ticket); // lädt inkl. payload + files
-      // Vorhandener Details-Dialog aus deiner Datei:
-      //   class _ComplaintDetailsDialog extends StatelessWidget { ... }
-      // Wir nutzen ihn wieder:
-      // ignore: use_build_context_synchronously
-      showDialog(
-        context: context,
-        builder: (_) => _ComplaintDetailsDialog(data: data),
-      );
-    } catch (e) {
-      // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Details konnten nicht geladen werden: $e')),
-      );
+  Color _statusColor(int s, String? decision) {
+    switch (s) {
+      case 1: return Colors.blue;
+      case 2: return Colors.amber.shade800;
+      case 3: return Colors.orange;
+      case 4:
+        return (decision == 'rejected')
+            ? Colors.red
+            : (decision == 'accepted' ? Colors.lightGreen : Colors.grey);
+      case 5: return Colors.amber;
+      case 6: return Colors.green;
+      default: return Colors.grey;
     }
+  }
+
+  String _statusText(int s, String? decision) {
+    switch (s) {
+      case 1: return 'Eingegegangen';
+      case 2: return 'In Bearbeitung';
+      case 3: return 'Rückfrage erforderlich';
+      case 4:
+        if (decision == 'rejected') return 'Abgelehnt';
+        if (decision == 'accepted') return 'Angenommen';
+        return 'Entscheidung';
+      case 5: return 'In Nacharbeit';
+      case 6: return 'Abgeschlossen';
+      default: return 'Unbekannt';
+    }
+  }
+
+  String get handlingLabel {
+    final p = c.payload;
+    if (p == null) return '—';
+    final v = p['handling'] ?? p['Wunsch'] ?? '';
+    final s = v.toString().trim();
+    return s.isEmpty ? '—' : s;
   }
 
   @override
   Widget build(BuildContext context) {
-    final status = _statusLabel(c.status);
-    final dec = (c.decision == 'accepted')
-        ? 'Angenommen'
-        : (c.decision == 'rejected')
-            ? 'Abgelehnt'
-            : '—';
-    final wish = c.handlingLabel;
-    final right = (companyHint != null && companyHint!.trim().isNotEmpty)
+    final statusText = _statusText(c.status, c.decision);
+    final statusColor = _statusColor(c.status, c.decision);
+    final rightLabel = (companyHint != null && companyHint!.trim().isNotEmpty)
         ? 'Firma: ${companyHint!}'
         : 'E-Mail: ${c.email}';
 
-    // Kurzdetails aus dem Formular (wenn vorhanden)
-    final seg   = _p('segment'); // Zahnarzt | Zahntechnik
-    final art   = _p('article');
-    final batch = _p('batch');
-    final qty   = _p('qty');
-    final exp   = _p('expiry');
-    final desc  = _p('desc');
-
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        title: Text(
-          '${c.ticket}  •  $status',
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        title: Row(
           children: [
-            // Erste Zeile: Wunsch + Entscheidung
-            Wrap(
-              spacing: 12,
-              runSpacing: 4,
-              children: [
-                Text('Wunsch: ${wish.isEmpty ? '—' : wish}'),
-                Text('Entscheidung: $dec'),
-              ],
-            ),
-            const SizedBox(height: 6),
-
-            // Zweite Zeile: Segment + Artikel + Charge
-            Wrap(
-              spacing: 12,
-              runSpacing: 4,
-              children: [
-                Text('Segment: $seg'),
-                Text('Artikel: $art'),
-                Text('Charge: $batch'),
-              ],
-            ),
-
-            // Dritte Zeile: Menge + Ablauf
-            Wrap(
-              spacing: 12,
-              runSpacing: 4,
-              children: [
-                Text('Menge: $qty'),
-                Text('Ablauf: $exp'),
-              ],
-            ),
-
-            // Vierte Zeile: Kurzbeschreibung (max. 1 Zeile abgeschnitten)
-            if (desc != '—')
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  'Beschreibung: $desc',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+            Text('Ticket: ${c.ticket}', style: const TextStyle(fontWeight: FontWeight.w600)),
+            const Spacer(),
+            Text(rightLabel, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+          ],
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              // Status-Badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.12),
+                  border: Border.all(color: statusColor, width: 1),
+                  borderRadius: BorderRadius.circular(12),
                 ),
+                child: Text('Status: $statusText', style: TextStyle(color: statusColor, fontWeight: FontWeight.w600)),
               ),
-
-            const SizedBox(height: 4),
-            Text(
-              'Erstellt: ${c.createdAt.toLocal()}'
-              '${c.updatedAt.isAfter(c.createdAt) ? '  •  Aktualisiert: ${c.updatedAt.toLocal()}' : ''}',
-              style: const TextStyle(fontSize: 12, color: Colors.black54),
-            ),
-          ],
+              // Entscheidung (falls gesetzt)
+              if ((c.decision ?? '').isNotEmpty)
+                Builder(
+                  builder: (_) {
+                    final dec = c.decision!;
+                    final decText = (dec == 'accepted') ? 'Angenommen' : 'Abgelehnt';
+                    final decColor = (dec == 'accepted') ? Colors.green : Colors.red;
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: decColor.withOpacity(0.12),
+                        border: Border.all(color: decColor, width: 1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text('Entscheidung: $decText', style: TextStyle(color: decColor, fontWeight: FontWeight.w600)),
+                    );
+                  },
+                ),
+              // Wunsch (falls vorhanden)
+              if (handlingLabel != '—')
+                Builder(
+                  builder: (_) {
+                    Color col;
+                    switch (handlingLabel) {
+                      case 'Ersatz':     col = Colors.indigo; break;
+                      case 'Gutschrift': col = Colors.teal;   break;
+                      case 'Nacharbeit': col = Colors.deepOrange; break;
+                      default:           col = Colors.grey;
+                    }
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: col.withOpacity(0.12),
+                        border: Border.all(color: col, width: 1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text('Wunsch: $handlingLabel', style: TextStyle(color: col, fontWeight: FontWeight.w600)),
+                    );
+                  },
+                ),
+            ],
+          ),
         ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(right, style: const TextStyle(fontSize: 12, color: Colors.black54)),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 6,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () => _openDetailsDialog(context),
-                  icon: const Icon(Icons.info_outline, size: 18),
-                  label: const Text('Details'),
-                ),
-                FilledButton(
-                  onPressed: onEdit,
-                  child: const Text('Bearbeiten'),
-                ),
-              ],
-            ),
-          ],
+        trailing: FilledButton.icon(
+          onPressed: onOpenEditor,
+          icon: const Icon(Icons.edit_outlined),
+          label: const Text('Bearbeiten / Details'),
         ),
       ),
     );
