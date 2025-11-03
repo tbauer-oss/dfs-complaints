@@ -514,39 +514,6 @@ class _Field extends StatelessWidget {
   }
 }
 
-// Kleine Seitenmarke für den Kundenwunsch ("Ersatz", "Gutschrift", "Nacharbeit")
-class _WishBadgeSmall extends StatelessWidget {
-  final String wish;
-  const _WishBadgeSmall(this.wish, {super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final w = wish.trim();
-    if (w.isEmpty || w == '—') return const SizedBox.shrink();
-
-    Color c;
-    switch (w) {
-      case 'Ersatz':      c = Colors.indigo;      break;
-      case 'Gutschrift':  c = Colors.teal;        break;
-      case 'Nacharbeit':  c = Colors.deepOrange;  break;
-      default:            c = Colors.grey;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: c.withOpacity(0.12),
-        border: Border.all(color: c, width: 1),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        'Wunsch: $w',
-        style: TextStyle(color: c, fontWeight: FontWeight.w600),
-      ),
-    );
-  }
-}
-
 class _PendingTile extends StatefulWidget {
   final PendingUser data;
   final VoidCallback onApprove;
@@ -1589,5 +1556,37 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
           ],
         ),
       );
+  }
+}
+// Kleine Seitenmarke für den Kundenwunsch ("Ersatz", "Gutschrift", "Nacharbeit")
+class _WishBadgeSmall extends StatelessWidget {
+  final String wish;
+  const _WishBadgeSmall(this.wish, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final w = wish.trim();
+    if (w.isEmpty || w == '—') return const SizedBox.shrink();
+
+    Color c;
+    switch (w) {
+      case 'Ersatz':      c = Colors.indigo;      break;
+      case 'Gutschrift':  c = Colors.teal;        break;
+      case 'Nacharbeit':  c = Colors.deepOrange;  break;
+      default:            c = Colors.grey;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: c.withOpacity(0.12),
+        border: Border.all(color: c, width: 1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        'Wunsch: $w',
+        style: TextStyle(color: c, fontWeight: FontWeight.w600),
+      ),
+    );
   }
 }
