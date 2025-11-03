@@ -1297,7 +1297,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   // lokale UI-States für Status/Decision
   int? _status;           // 1..6
   String? _decision;      // null | 'accepted' | 'rejected'
-
+ }
   @override
   void initState() {
     super.initState();
