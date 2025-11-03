@@ -1404,175 +1404,132 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
-      child: Stack(
-        children: [
-          // --- Hauptinhalt (oben Luft für Badge) ---
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 28, 12, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: Padding(
+        // kein Platz mehr für die Seitenmarke nötig
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Kopfzeile
+            Row(
               children: [
-                Row(
-                  children: [
-                    Text('Ticket: ${widget.c.ticket}',
-                        style: const TextStyle(fontWeight: FontWeight.w600)),
-                    const Spacer(),
-                    Text(
-                      rightLabel,
-                      style: const TextStyle(fontSize: 12, color: Colors.black54),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-
-                // Auffälliger Wunsch-Hinweis (breit)
-                Builder(
-                  builder: (_) {
-                    final wish = widget.c.handlingLabel;
-                    Color col;
-                    switch (wish) {
-                      case 'Ersatz':     col = Colors.green;  break;
-                      case 'Gutschrift': col = Colors.purple; break;
-                      case 'Nacharbeit': col = Colors.orange; break;
-                      default:           col = Colors.grey;   break;
-                    }
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      margin: const EdgeInsets.only(bottom: 10),
-                      decoration: BoxDecoration(
-                        color: col.withOpacity(0.10),
-                        border: Border.all(color: col, width: 1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.flag, size: 18),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Gewünschte Behandlung: $wish',
-                            style: TextStyle(fontWeight: FontWeight.w700, color: col),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-
-                // Status & Entscheidung
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<int>(
-                        value: _status,
-                        decoration: const InputDecoration(
-                          labelText: 'Status',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: kStatusItems
-                            .map((e) => DropdownMenuItem<int>(
-                                  value: e['value'] as int,
-                                  child: Text(e['label'] as String),
-                                ))
-                            .toList(),
-                        onChanged: (v) => setState(() => _status = v),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        value: _decision ?? '',
-                        decoration: const InputDecoration(
-                          labelText: 'Entscheidung',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: kDecisionItems
-                            .map((e) => DropdownMenuItem<String>(
-                                  value: e['value']!,
-                                  child: Text(e['label']!),
-                                ))
-                            .toList(),
-                        onChanged: (v) =>
-                            setState(() => _decision = (v == null || v.isEmpty) ? null : v),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    FilledButton(
-                      onPressed: _busy ? null : _saveStatusDecision,
-                      child: const Text('Speichern'),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 12),
-
-                // Report-Link
-                TextField(
-                  controller: _reportCtrl,
-                  decoration: InputDecoration(
-                    labelText: 'Report-Link (optional)',
-                    border: const OutlineInputBorder(),
-                    suffixIcon: IconButton(
-                      tooltip: 'Link entfernen',
-                      onPressed: _busy ? null : _clearReportLink,
-                      icon: const Icon(Icons.delete_outline),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: OutlinedButton.icon(
-                    onPressed: _busy ? null : _saveReportLink,
-                    icon: const Icon(Icons.save_outlined),
-                    label: const Text('Link speichern'),
-                  ),
+                Text('Ticket: ${widget.c.ticket}',
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                const Spacer(),
+                Text(
+                  (widget.companyHint != null && widget.companyHint!.trim().isNotEmpty)
+                      ? 'Firma: ${widget.companyHint}'
+                      : 'E-Mail: ${widget.c.email}',
+                  style: const TextStyle(fontSize: 12, color: Colors.black54),
                 ),
               ],
             ),
-          ),
+            const SizedBox(height: 12),
 
-          // --- kleines Wunsch-Badge oben rechts ---
-          Positioned(
-            right: 12,
-            top: 8,
-            child: _WishBadgeSmall(widget.c.handlingLabel),
-          ),
-        ],
+            // Auffälliger Wunsch-Hinweis (breit)
+            Builder(
+              builder: (_) {
+                final wish = widget.c.handlingLabel;
+                Color col;
+                switch (wish) {
+                  case 'Ersatz':     col = Colors.green;  break;
+                  case 'Gutschrift': col = Colors.purple; break;
+                  case 'Nacharbeit': col = Colors.orange; break;
+                  default:           col = Colors.grey;   break;
+                }
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  margin: const EdgeInsets.only(bottom: 10),
+                  decoration: BoxDecoration(
+                    color: col.withOpacity(0.10),
+                    border: Border.all(color: col, width: 1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.flag, size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Gewünschte Behandlung: $wish',
+                        style: TextStyle(fontWeight: FontWeight.w700, color: col),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+
+            // Status & Entscheidung
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<int>(
+                    value: _status,
+                    decoration: const InputDecoration(
+                      labelText: 'Status',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: kStatusItems
+                        .map((e) => DropdownMenuItem<int>(
+                              value: e['value'] as int,
+                              child: Text(e['label'] as String),
+                            ))
+                        .toList(),
+                    onChanged: (v) => setState(() => _status = v),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: _decision ?? '',
+                    decoration: const InputDecoration(
+                      labelText: 'Entscheidung',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: kDecisionItems
+                        .map((e) => DropdownMenuItem<String>(
+                              value: e['value']!,
+                              child: Text(e['label']!),
+                            ))
+                        .toList(),
+                    onChanged: (v) =>
+                        setState(() => _decision = (v == null || v.isEmpty) ? null : v),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                FilledButton(
+                  onPressed: _busy ? null : _saveStatusDecision,
+                  child: const Text('Speichern'),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            // Report-Link
+            TextField(
+              controller: _reportCtrl,
+              decoration: InputDecoration(
+                labelText: 'Report-Link (optional)',
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  tooltip: 'Link entfernen',
+                  onPressed: _busy ? null : _clearReportLink,
+                  icon: const Icon(Icons.delete_outline),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: _busy ? null : _saveReportLink,
+                icon: const Icon(Icons.save_outlined),
+                label: const Text('Link speichern'),
+              ),
+            ),
+          ],
+        ),
       ),
-    );
-  }
-}
-
-// Kleine Seitenmarke „Wunsch: …“
-class _WishBadgeSmall extends StatelessWidget {
-  final String wish;
-  const _WishBadgeSmall(this.wish, {super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final w = wish.trim();
-    if (w.isEmpty || w == '—') return const SizedBox.shrink();
-
-    Color c;
-    switch (w) {
-      case 'Ersatz':      c = Colors.indigo;      break;
-      case 'Gutschrift':  c = Colors.teal;        break;
-      case 'Nacharbeit':  c = Colors.deepOrange;  break;
-      default:            c = Colors.grey;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: c.withOpacity(0.12),
-        border: Border.all(color: c, width: 1),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        'Wunsch: $w',
-        style: TextStyle(color: c, fontWeight: FontWeight.w600),
-      ),
-    );
-  }
-}
+    )
