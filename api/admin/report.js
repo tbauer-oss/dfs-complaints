@@ -1,7 +1,7 @@
 // /api/admin/report.js
 export const config = { runtime: 'nodejs' };
 
-import { setCors, noContent, methodNotAllowed, ok, bad } from '../_lib/http.js';
+import {handlePreflight, setCors, noContent, ok, bad, methodNotAllowed, readJson,} from '../_lib/http.js';
 import { complaintUpdate, complaintClearReportLink } from '../_lib/store.js';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
