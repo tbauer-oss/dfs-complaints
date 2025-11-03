@@ -1289,6 +1289,12 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                         decision: _decision,
                         reportLink: _reportCtrl.text.trim().isEmpty ? '' : _reportCtrl.text.trim(),
                       );
+                      final link = _reportCtrl.text.trim();
+                      await api.adminComplaintUpdate(
+                        ticket: c.ticket,
+                        reportLink: link.isEmpty ? '' : link, // "" => löschen
+                        // ggf. status / decision mitgeben
+                      );
                       setState(() {
                         _status = updated.status;
                         _decision = updated.decision;
