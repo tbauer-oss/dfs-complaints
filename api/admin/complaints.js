@@ -155,35 +155,27 @@ export default async function handler(req, res) {
       }
 
       // ---- Decision (optional) ----
-      if (decisionIn !== undefined) {
-        // Normalisieren: "", "null", "-", null  =>  null (löschen)
-        let d = decisionIn;
-        if (d === null) d = null;
-        else if (typeof d === 'string') {
-          const s = d.trim().toLowerCase();
-          if (s === '' || s === 'null' || s === '-') d = null;
-          else if (s !== 'accepted' && s !== 'rejected') {
-            return bad(res, 'invalid decision', 400);
-          } else {
-            d = s; // 'accepted' | 'rejected'
-          }
-        } else {
+      const rawDecision = body?.decision;
+      const decisionIn = (rawDecision === '') ? null : rawDecision;
+
+      if (rawDecision !== undefined) {  // Key wurde gesendet (auch '')
+        if (decisionIn !== null && decisionIn !== 'accepted' && decisionIn !== 'rejected') {
           return bad(res, 'invalid decision', 400);
         }
+        c.decision = decisionIn;  // null | 'accepted' | 'rejected'
 
-        c.decision = d; // kann nun auch explizit null sein
-
-        // Business-Logik: 'rejected' → Auto-Abschluss + Status "Entscheidung"
+        // Business-Logik:
         if (c.decision === 'rejected') {
           c.closed = true;
           c.closedAt = Date.now();
-          c.status = 4;                 // Entscheidung
+          c.status = 4;                 // Entscheidung (systemgesetzt)
           c.statusUpdatedAt = Date.now();
+        } else {
+          // bei accepted oder null: NICHT auto-schließen
+          if (c.closed) { delete c.closed; delete c.closedAt; }
         }
-        // 'accepted' => kein Auto-Abschluss
-        // null (gelöscht) => keine Sonderbehandlung; Status bleibt wie gewählt
       }
-
+      
       // ---- Report-Link (optional; leer => löschen) ----
       if (reportLink !== undefined) {
         const v = (reportLink ?? '').toString().trim();
