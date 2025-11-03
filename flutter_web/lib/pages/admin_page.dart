@@ -1,8 +1,7 @@
-// lib/pages/admin_page.dart
 import 'dart:convert';
-import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import '../api/client.dart';
+import '../models/admin.dart';   // enthält AdminComplaint, ActiveUser, PendingUser usw.
 
 class AdminPage extends StatefulWidget {
   final ApiClient api;
@@ -19,47 +18,13 @@ class _AdminPageState extends State<AdminPage> {
   bool _loadingUsers = false;
   bool _loadingOpen = false;
 
-  String? _fatalErr; // Ungültiges/missing Secret -> blockiert
-  String? _err;      // Nicht-blockierende Fehlermeldungen
-  String? _filterCompany;
-
-  // Firmenliste aus aktiven Nutzern generieren (einzigartige Namen)
-  List<String> _companyOptions() {
-    final s = <String>{};
-    for (final u in _users) {
-      final c = u.company.trim();
-      if (c.isNotEmpty) s.add(c);
-    }
-    final list = s.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-    return list;
-  }
-
-  ActiveUser? _findActive(String email) {
-    final e = email.trim().toLowerCase();
-    for (final u in _users) {
-      if (u.email.trim().toLowerCase() == e) return u;
-    }
-    return null;
-  }
-
-  PendingUser? _findPending(String email) {
-    final e = email.trim().toLowerCase();
-    for (final p in _pending) {
-      if (p.email.trim().toLowerCase() == e) return p;
-    }
-    return null;
-  }
-
-  String? _companyByEmail(String email) {
-    final name = _findActive(email)?.company ?? _findPending(email)?.company ?? '';
-    return name.trim().isEmpty ? null : name.trim();
-  }
+  String? _fatalErr;
+  String? _err;
 
   List<PendingUser> _pending = [];
   List<ActiveUser> _users = [];
   List<AdminComplaint> _openComplaints = [];
 
-  // E-Mail -> geladene Reklamationen (Details)
   final Map<String, _ComplaintsResult> _complaints = {};
 
   @override
@@ -67,376 +32,62 @@ class _AdminPageState extends State<AdminPage> {
     super.initState();
     _api = AdminApi();
 
-    // 1) Primär: aus dem ApiClient (Startseite Admin-Dialog)
-    String secret = widget.api.adminSecret ?? '';
-
-    // 2) Fallback: LocalStorage ("dfs_admin")
-    if (secret.isEmpty) {
-      secret = html.window.localStorage['dfs_admin'] ?? '';
-    }
-
-    _api.setSecret(secret);
-
-    if (secret.isEmpty) {
-      _fatalErr = 'Kein Admin-Secret gefunden. Bitte über den Admin-Button (Startseite) öffnen.';
-      return;
-    }
-
-    _refreshAll();
-    _refreshOpenComplaints();
+    _loadAll();
   }
 
-  Future<void> _refreshAll() async {
-    setState(() {
-      _err = null;
-      _loadingPending = true;
-      _loadingUsers = true;
-    });
+  Future<void> _loadAll() async {
+    await Future.wait([
+      _refreshPending(),
+      _refreshUsers(),
+      _refreshOpenComplaints(),
+    ]);
+  }
+
+  Future<void> _refreshPending() async {
+    setState(() => _loadingPending = true);
     try {
-      final p = _api.fetchPending();
-      final u = _api.fetchUsers();
-      final both = await Future.wait([p, u]);
-      if (!mounted) return;
-      setState(() {
-        _pending = both[0] as List<PendingUser>;
-        _users   = both[1] as List<ActiveUser>;
-      });
+      final list = await _api.listPending();
+      setState(() => _pending = list);
     } catch (e) {
-      // 401 → Secret ungültig
-      if (e.toString().contains('401')) {
-        setState(() => _fatalErr = 'Admin-Secret ungültig. Bitte erneut über den Admin-Button (Startseite) mit richtigem Secret öffnen.');
-      } else {
-        setState(() => _err = '$e');
-      }
+      _err = 'Fehler beim Laden der Pending-User: $e';
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _loadingPending = false;
-        _loadingUsers = false;
-      });
+      setState(() => _loadingPending = false);
+    }
+  }
+
+  Future<void> _refreshUsers() async {
+    setState(() => _loadingUsers = true);
+    try {
+      final list = await _api.listActive();
+      setState(() => _users = list);
+    } catch (e) {
+      _err = 'Fehler beim Laden der Benutzer: $e';
+    } finally {
+      setState(() => _loadingUsers = false);
     }
   }
 
   Future<void> _refreshOpenComplaints() async {
     setState(() => _loadingOpen = true);
     try {
-      final list = await _api.fetchOpenComplaints();
-      if (!mounted) return;
+      final list = await _api.listOpenComplaints();
       setState(() => _openComplaints = list);
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _err = '$e');
+      _err = 'Fehler beim Laden der Reklamationen: $e';
     } finally {
-      if (!mounted) return;
       setState(() => _loadingOpen = false);
     }
   }
 
-  Future<void> _approve(String email, {String? lang}) async {
-    try {
-      await _api.approvePending(email, lang: lang);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Freigabe ausgelöst für $email.')),
-      );
-      await _refreshAll();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fehler bei Freigabe: $e')),
-      );
-    }
-  }
-
-  Future<void> _reject(String email) async {
-    final ok = await _confirm(
-      'Anmeldung ablehnen',
-      'Soll $email wirklich abgelehnt werden?\n\nDer Eintrag wird dabei wie beim Löschen vollständig entfernt.',
+  String? _companyByEmail(String email) {
+    final match = _users.firstWhere(
+      (u) => u.email == email,
+      orElse: () => ActiveUser(email: email, company: 'Unbekannt', firstName: '', lastName: '', approved: true),
     );
-    if (ok != true) return;
-
-    try {
-      await _api.deleteUser(email); // identische Logik wie Löschen
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Eintrag abgelehnt und gelöscht: $email')),
-      );
-      await _refreshAll();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fehler beim Ablehnen: $e')),
-      );
-    }
+    return match.company;
   }
 
-  Future<void> _deleteUser(String email) async {
-    final ok = await _confirm('Nutzer löschen', 'Soll der aktive Nutzer $email wirklich gelöscht werden?');
-    if (ok != true) return;
-    try {
-      await _api.deleteUser(email);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Nutzer gelöscht: $email')),
-      );
-      await _refreshAll();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fehler beim Löschen: $e')),
-      );
-    }
-  }
-
-  Future<void> _loadComplaintsDetailed(String email) async {
-    final cur = _complaints[email];
-    if (cur?.loading == true) return;
-    setState(() {
-      _complaints[email] = _ComplaintsResult.loading();
-    });
-    try {
-      final list = await _api.fetchComplaintsByEmailDetailed(email);
-      if (!mounted) return;
-      setState(() {
-        _complaints[email] = _ComplaintsResult.ok(list);
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _complaints[email] = _ComplaintsResult.err('$e');
-      });
-    }
-  }
-
-  Future<bool?> _confirm(String title, String message) {
-    return showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('OK')),
-        ],
-      ),
-    );
-  }
-
-  // ---------- UI ----------
-  @override
-  Widget build(BuildContext context) {
-    if (_fatalErr != null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Adminbereich – DFS Customer Complaint')),
-        body: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.lock, size: 48),
-                  const SizedBox(height: 12),
-                  Text(
-                    _fatalErr!,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.red),
-                  ),
-                  const SizedBox(height: 12),
-                  FilledButton(
-                    onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
-                    child: const Text('Zurück'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    final theme = Theme.of(context);
-    return DefaultTabController(
-      length: 3,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Adminbereich – DFS Customer Complaint'),
-          bottom: const TabBar(
-            tabs: [
-              Tab(icon: Icon(Icons.hourglass_top), text: 'Pending'),
-              Tab(icon: Icon(Icons.people), text: 'Aktive Nutzer'),
-              Tab(icon: Icon(Icons.receipt_long), text: 'Offene Reklamationen'),
-            ],
-          ),
-          actions: [
-            IconButton(
-              tooltip: 'Offene Reklamationen neu laden',
-              onPressed: _loadingOpen ? null : _refreshOpenComplaints,
-              icon: const Icon(Icons.refresh),
-            ),
-            const SizedBox(width: 8),
-          ],
-        ),
-        body: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1200),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  if (_err != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Text(_err!, style: TextStyle(color: theme.colorScheme.error)),
-                    ),
-                  Expanded(
-                    child: TabBarView(
-                      children: [
-                        _buildPendingPanel(),
-                        _buildUsersPanel(),
-                        _buildOpenComplaintsPanel(),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ----- Panels -----
-
-  Widget _buildPendingPanel() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.hourglass_top),
-                const SizedBox(width: 8),
-                const Text('Pending (Freigabe ausstehend)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                const Spacer(),
-                IconButton(
-                  tooltip: 'Neu laden',
-                  onPressed: _loadingPending ? null : () async {
-                    setState(() => _loadingPending = true);
-                    try {
-                      final list = await _api.fetchPending();
-                      if (!mounted) return;
-                      setState(() => _pending = list);
-                    } catch (e) {
-                      if (!mounted) return;
-                      setState(() => _err = '$e');
-                    } finally {
-                      if (!mounted) return;
-                      setState(() => _loadingPending = false);
-                    }
-                  },
-                  icon: const Icon(Icons.refresh),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            if (_loadingPending) const LinearProgressIndicator(),
-            const SizedBox(height: 8),
-            Expanded(
-              child: _pending.isEmpty
-                  ? const Center(child: Text('Keine Pending-Anmeldungen.'))
-                  : ListView.separated(
-                      itemCount: _pending.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (ctx, i) {
-                        final p = _pending[i];
-                        return _PendingTile(
-                          data: p,
-                          onApprove: () => _approve(p.email, lang: p.lang),
-                          onReject: () => _reject(p.email),
-                          onLoadComplaints: () => _loadComplaintsDetailed(p.email),
-                          complaints: _complaints[p.email],
-                          api: _api,
-                          // Beim Pending sollen geschlossene Fälle nicht automatisch verschwinden;
-                          // daher onClosed leer lassen.
-                          onClosedFromEditor: () {},
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildUsersPanel() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.people),
-                const SizedBox(width: 8),
-                const Text('Aktive Nutzer', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                const Spacer(),
-                IconButton(
-                  tooltip: 'Neu laden',
-                  onPressed: _loadingUsers ? null : () async {
-                    setState(() => _loadingUsers = true);
-                    try {
-                      final list = await _api.fetchUsers();
-                      if (!mounted) return;
-                      setState(() => _users = list);
-                    } catch (e) {
-                      if (!mounted) return;
-                      setState(() => _err = '$e');
-                    } finally {
-                      if (!mounted) return;
-                      setState(() => _loadingUsers = false);
-                    }
-                  },
-                  icon: const Icon(Icons.refresh),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            if (_loadingUsers) const LinearProgressIndicator(),
-            const SizedBox(height: 8),
-            Expanded(
-              child: _users.isEmpty
-                  ? const Center(child: Text('Keine aktiven Nutzer.'))
-                  : ListView.separated(
-                      itemCount: _users.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (ctx, i) {
-                        final u = _users[i];
-                        return _UserTile(
-                          data: u,
-                          onDelete: () => _deleteUser(u.email),
-                          onLoadComplaints: () => _loadComplaintsDetailed(u.email),
-                          complaints: _complaints[u.email],
-                          api: _api,
-                          onClosedFromEditor: () {
-                            // Falls in User-Ansicht ein Fall geschlossen wird, nur globale Offene-Liste updaten:
-                            _refreshOpenComplaints();
-                          },
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // ---------- Panels ----------
 
   Widget _buildOpenComplaintsPanel() {
     return Card(
@@ -449,27 +100,13 @@ class _AdminPageState extends State<AdminPage> {
               children: [
                 const Icon(Icons.receipt_long),
                 const SizedBox(width: 8),
-               const Text('Offene Reklamationen', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                const Text('Offene Reklamationen', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                 const Spacer(),
-                // Firmen-Filter einbauen
-                if (_companyOptions().isNotEmpty) ...[
-                  const Text('Firma:', style: TextStyle(fontSize: 12)),
-                  const SizedBox(width: 8),
-                  DropdownButton<String>(
-                    value: _filterCompany,
-                    hint: const Text('Alle'),
-                    items: [
-                      const DropdownMenuItem<String>(value: null, child: Text('Alle')),
-                      ..._companyOptions().map((c) => DropdownMenuItem(value: c, child: Text(c))),
-                    ],
-                    onChanged: (v) => setState(() => _filterCompany = v),
+                if (_loadingOpen)
+                  const Padding(
+                    padding: EdgeInsets.only(right: 12),
+                    child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
                   ),
-                  const SizedBox(width: 16),
-                ],
-                if (_loadingOpen) const Padding(
-                  padding: EdgeInsets.only(right: 12),
-                  child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-                ),
                 IconButton(
                   tooltip: 'Neu laden',
                   onPressed: _loadingOpen ? null : _refreshOpenComplaints,
@@ -478,35 +115,6 @@ class _AdminPageState extends State<AdminPage> {
               ],
             ),
             const SizedBox(height: 8),
-
-            // Liste mit Filter
-            Builder(builder: (_) {
-              final items = (_filterCompany == null)
-                  ? _openComplaints
-                  : _openComplaints.where((c) => (_companyByEmail(c.email) ?? '') == _filterCompany).toList();
-
-              return Expanded(
-                child: items.isEmpty
-                    ? const Center(child: Text('Keine offenen Reklamationen.'))
-                    : ListView.separated(
-                        itemCount: items.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (ctx, i) {
-                          final c = items[i];
-                          return _ComplaintEditor(
-                            api: _api,
-                            c: c,
-                            onClosed: () {
-                              setState(() {
-                                _openComplaints.removeWhere((x) => x.ticket == c.ticket);
-                              });
-                            },
-                            companyHint: _companyByEmail(c.email),
-                          );
-                        },
-                      ),
-              );
-            }),
             Expanded(
               child: _openComplaints.isEmpty
                   ? const Center(child: Text('Keine offenen Reklamationen.'))
@@ -517,9 +125,8 @@ class _AdminPageState extends State<AdminPage> {
                         final c = _openComplaints[i];
                         return _ComplaintTileCompact(
                           c: c,
-                          companyHint: _companyByEmail(c.email), // falls verfügbar
+                          companyHint: _companyByEmail(c.email),
                           onOpenEditor: () async {
-                            // Editor im Dialog öffnen
                             await showDialog<void>(
                               context: context,
                               builder: (_) => Dialog(
@@ -532,7 +139,6 @@ class _AdminPageState extends State<AdminPage> {
                                       api: _api,
                                       c: c,
                                       onClosed: () {
-                                        // Sofort aus der Offenen-Liste entfernen
                                         setState(() {
                                           _openComplaints.removeWhere((x) => x.ticket == c.ticket);
                                         });
@@ -547,273 +153,46 @@ class _AdminPageState extends State<AdminPage> {
                           },
                         );
                       },
-
-// ---------- UI Hilfs-Widgets ----------
-
-class _Field extends StatelessWidget {
-  final String label;
-  final String value;
-  const _Field({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    final muted = Theme.of(context).textTheme.bodySmall;
-    return Wrap(
-      spacing: 6,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        Text('$label:', style: muted),
-        Text(value.isEmpty ? '—' : value),
-      ],
-    );
-  }
-}
-
-class _PendingTile extends StatefulWidget {
-  final PendingUser data;
-  final VoidCallback onApprove;
-  final VoidCallback onReject;
-  final Future<void> Function() onLoadComplaints;
-  final _ComplaintsResult? complaints;
-  final AdminApi api;
-  final VoidCallback onClosedFromEditor;
-
-  const _PendingTile({
-    required this.data,
-    required this.onApprove,
-    required this.onReject,
-    required this.onLoadComplaints,
-    required this.complaints,
-    required this.api,
-    required this.onClosedFromEditor,
-  });
-
-  @override
-  State<_PendingTile> createState() => _PendingTileState();
-}
-
-class _PendingTileState extends State<_PendingTile> {
-  bool _expanded = false;
-
-  void _showAddressDialog() {
-    final d = widget.data;
-    showDialog<void>(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Adressdaten (Pending)'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _Field(label: 'Firma',   value: d.company),
-              _Field(label: 'Kontakt', value: d.contact),
-              const SizedBox(height: 6),
-              _Field(label: 'Straße',  value: d.street),
-              _Field(label: 'PLZ/Ort', value: '${d.zip} ${d.city}'.trim()),
-              _Field(label: 'Land',    value: d.country),
-              const SizedBox(height: 6),
-              _Field(label: 'Telefon', value: d.phone),
-              _Field(label: 'E-Mail',  value: d.email),
-              _Field(label: 'Sprache', value: d.lang.toUpperCase()),
-              _Field(label: 'Erstellt', value: d.createdAt ?? '—'),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Schließen'),
+                    ),
             ),
           ],
-        );
-      },
+        ),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final d = widget.data;
-    final title = (d.company.isNotEmpty) ? d.company : d.email;
-    final subtitle = (d.country.isNotEmpty) ? d.country : '${d.zip} ${d.city}'.trim();
+    if (_fatalErr != null) {
+      return Center(child: Text(_fatalErr!, style: const TextStyle(color: Colors.red)));
+    }
 
-    return Column(
-      children: [
-        ListTile(
-          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-          subtitle: Text(subtitle.isEmpty ? '—' : subtitle),
-          trailing: Wrap(
-            spacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              IconButton(
-                tooltip: 'Adressdaten anzeigen',
-                onPressed: _showAddressDialog,
-                icon: const Icon(Icons.info_outline),
-              ),
-              IconButton(
-                tooltip: 'Reklamationen anzeigen',
-                onPressed: () {
-                  setState(() => _expanded = !_expanded);
-                  if (_expanded) widget.onLoadComplaints();
-                },
-                icon: Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
-              ),
-              FilledButton(
-                onPressed: widget.onApprove,
-                child: const Text('Freigeben'),
-              ),
-              OutlinedButton(
-                onPressed: widget.onReject,
-                child: const Text('Ablehnen'),
-              ),
-            ],
-          ),
-        ),
-        if (_expanded)
-          _ComplaintsDetailList(
-            result: widget.complaints,
-            api: widget.api,
-            onClosed: widget.onClosedFromEditor,
-            companyHint: widget.data.company,
-          ),
-        const Divider(height: 1),
-      ],
-    );
-  }
-}
-
-class _UserTile extends StatefulWidget {
-  final ActiveUser data;
-  final Future<void> Function() onDelete;
-  final Future<void> Function() onLoadComplaints;
-  final _ComplaintsResult? complaints;
-  final AdminApi api;
-  final VoidCallback onClosedFromEditor;
-  const _UserTile({
-    required this.data,
-    required this.onDelete,
-    required this.onLoadComplaints,
-    required this.complaints,
-    required this.api,
-    required this.onClosedFromEditor,
-  });
-
-  @override
-  State<_UserTile> createState() => _UserTileState();
-}
-
-class _UserTileState extends State<_UserTile> {
-  bool _expanded = false;
-  bool _busy = false;
-
-  void _showAddressDialog() {
-    final d = widget.data;
-    showDialog<void>(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Adressdaten'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _Field(label: 'Firma',   value: d.company),
-              _Field(label: 'Kontakt', value: d.contact),
-              const SizedBox(height: 6),
-              _Field(label: 'Straße',  value: d.street),
-              _Field(label: 'PLZ/Ort', value: '${d.zip} ${d.city}'.trim()),
-              _Field(label: 'Land',    value: d.country),
-              const SizedBox(height: 6),
-              _Field(label: 'Telefon', value: d.phone),
-              _Field(label: 'E-Mail',  value: d.email),
-              _Field(label: 'Sprache', value: d.lang.toUpperCase()),
-              _Field(label: 'Aktiv seit', value: d.createdAt ?? '—'),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Schließen'),
-            ),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Adminbereich'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            Expanded(child: _buildOpenComplaintsPanel()),
           ],
-        );
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final d = widget.data;
-    final title = (d.company.isNotEmpty) ? d.company : d.email;
-    final subtitle = (d.country.isNotEmpty) ? d.country : d.email;
-
-    return Column(
-      children: [
-        ListTile(
-          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(subtitle),
-              if (d.selfDeleted) const SizedBox(height: 4),
-              if (d.selfDeleted)
-                const Text(
-                  'Account durch User gelöscht!',
-                  style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
-                ),
-            ],
-          ),
-          trailing: Wrap(
-            spacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              IconButton(
-                tooltip: 'Adressdaten anzeigen',
-                onPressed: _showAddressDialog,
-                icon: const Icon(Icons.info_outline),
-              ),
-              IconButton(
-                tooltip: 'Reklamationen anzeigen',
-                onPressed: () {
-                  setState(() => _expanded = !_expanded);
-                  if (_expanded) widget.onLoadComplaints();
-                },
-                icon: Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
-              ),
-              OutlinedButton(
-                onPressed: _busy
-                    ? null
-                    : () async {
-                        setState(() => _busy = true);
-                        await widget.onDelete();
-                        if (mounted) setState(() => _busy = false);
-                      },
-                child: _busy
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Text('Löschen'),
-              ),
-            ],
-          ),
         ),
-        if (_expanded)
-          _ComplaintsDetailList(
-            result: widget.complaints,
-            api: widget.api,
-            onClosed: widget.onClosedFromEditor,
-            companyHint: widget.data.company,
-          ),
-        const Divider(height: 1),
-      ],
+      ),
     );
   }
 }
+
+// =====================================================
+// ================  DETAIL-LISTEN-KOMPONENTE  =========
+// =====================================================
 
 class _ComplaintsDetailList extends StatelessWidget {
   final _ComplaintsResult? result;
-  final AdminApi api;
+  final ApiClient api;
   final VoidCallback onClosed;
   final String? companyHint;
-  
+
   const _ComplaintsDetailList({
     required this.result,
     required this.api,
@@ -882,12 +261,17 @@ class _ComplaintsDetailList extends StatelessWidget {
                     ),
                   );
                 },
-              )).toList(),
+              )),
         ],
       ),
     );
+  }
+}
 
-// Kompakte Kachel für eine Reklamation (in "Aktive Nutzer") – MIT Kurzdetails + Details-Button
+// =====================================================
+// =============== KOMPAKTE REKLAMATIONSKARTE ==========
+// =====================================================
+
 class _ComplaintTileCompact extends StatelessWidget {
   final AdminComplaint c;
   final String? companyHint;
@@ -902,31 +286,43 @@ class _ComplaintTileCompact extends StatelessWidget {
 
   Color _statusColor(int s, String? decision) {
     switch (s) {
-      case 1: return Colors.blue;
-      case 2: return Colors.amber.shade800;
-      case 3: return Colors.orange;
+      case 1:
+        return Colors.blue;
+      case 2:
+        return Colors.amber.shade800;
+      case 3:
+        return Colors.orange;
       case 4:
         return (decision == 'rejected')
             ? Colors.red
             : (decision == 'accepted' ? Colors.lightGreen : Colors.grey);
-      case 5: return Colors.amber;
-      case 6: return Colors.green;
-      default: return Colors.grey;
+      case 5:
+        return Colors.amber;
+      case 6:
+        return Colors.green;
+      default:
+        return Colors.grey;
     }
   }
 
   String _statusText(int s, String? decision) {
     switch (s) {
-      case 1: return 'Eingegegangen';
-      case 2: return 'In Bearbeitung';
-      case 3: return 'Rückfrage erforderlich';
+      case 1:
+        return 'Eingegegangen';
+      case 2:
+        return 'In Bearbeitung';
+      case 3:
+        return 'Rückfrage erforderlich';
       case 4:
         if (decision == 'rejected') return 'Abgelehnt';
         if (decision == 'accepted') return 'Angenommen';
         return 'Entscheidung';
-      case 5: return 'In Nacharbeit';
-      case 6: return 'Abgeschlossen';
-      default: return 'Unbekannt';
+      case 5:
+        return 'In Nacharbeit';
+      case 6:
+        return 'Abgeschlossen';
+      default:
+        return 'Unbekannt';
     }
   }
 
@@ -971,7 +367,8 @@ class _ComplaintTileCompact extends StatelessWidget {
                   border: Border.all(color: statusColor, width: 1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text('Status: $statusText', style: TextStyle(color: statusColor, fontWeight: FontWeight.w600)),
+                child: Text('Status: $statusText',
+                    style: TextStyle(color: statusColor, fontWeight: FontWeight.w600)),
               ),
               // Entscheidung (falls gesetzt)
               if ((c.decision ?? '').isNotEmpty)
@@ -987,7 +384,8 @@ class _ComplaintTileCompact extends StatelessWidget {
                         border: Border.all(color: decColor, width: 1),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Text('Entscheidung: $decText', style: TextStyle(color: decColor, fontWeight: FontWeight.w600)),
+                      child: Text('Entscheidung: $decText',
+                          style: TextStyle(color: decColor, fontWeight: FontWeight.w600)),
                     );
                   },
                 ),
@@ -997,10 +395,17 @@ class _ComplaintTileCompact extends StatelessWidget {
                   builder: (_) {
                     Color col;
                     switch (handlingLabel) {
-                      case 'Ersatz':     col = Colors.indigo; break;
-                      case 'Gutschrift': col = Colors.teal;   break;
-                      case 'Nacharbeit': col = Colors.deepOrange; break;
-                      default:           col = Colors.grey;
+                      case 'Ersatz':
+                        col = Colors.indigo;
+                        break;
+                      case 'Gutschrift':
+                        col = Colors.teal;
+                        break;
+                      case 'Nacharbeit':
+                        col = Colors.deepOrange;
+                        break;
+                      default:
+                        col = Colors.grey;
                     }
                     return Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -1009,7 +414,8 @@ class _ComplaintTileCompact extends StatelessWidget {
                         border: Border.all(color: col, width: 1),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Text('Wunsch: $handlingLabel', style: TextStyle(color: col, fontWeight: FontWeight.w600)),
+                      child: Text('Wunsch: $handlingLabel',
+                          style: TextStyle(color: col, fontWeight: FontWeight.w600)),
                     );
                   },
                 ),
@@ -1026,742 +432,132 @@ class _ComplaintTileCompact extends StatelessWidget {
   }
 }
 
-// ---------- Modelle ----------
-
-class PendingUser {
-  final String email;
-  final String company;
-  final String contact;
-  final String street;
-  final String zip;
-  final String city;
-  final String country;
-  final String phone;
-  final String lang;
-  final String? createdAt;
-
-  PendingUser({
-    required this.email,
-    required this.company,
-    required this.contact,
-    required this.street,
-    required this.zip,
-    required this.city,
-    required this.country,
-    required this.phone,
-    required this.lang,
-    required this.createdAt,
-  });
-
-  factory PendingUser.fromJson(Map<String, dynamic> j) => PendingUser(
-        email: j['email'] ?? '',
-        company: j['company'] ?? '',
-        contact: j['contact'] ?? '',
-        street: j['street'] ?? '',
-        zip: j['zip'] ?? '',
-        city: j['city'] ?? '',
-        country: j['country'] ?? '',
-        phone: j['phone'] ?? '',
-        lang: (j['lang'] ?? 'de').toString(),
-        createdAt: j['createdAt']?.toString(),
-      );
-}
-
-class ActiveUser {
-  final String email;
-  final String company;
-  final String contact;
-  final String street;
-  final String zip;
-  final String city;
-  final String country;
-  final String phone;
-  final String lang;
-  final String? createdAt;
-  final bool selfDeleted;
-
-  ActiveUser({
-    required this.email,
-    required this.company,
-    required this.contact,
-    required this.street,
-    required this.zip,
-    required this.city,
-    required this.country,
-    required this.phone,
-    required this.lang,
-    required this.createdAt,
-    required this.selfDeleted,
-  });
-
-  factory ActiveUser.fromJson(Map<String, dynamic> j) => ActiveUser(
-        email: j['email'] ?? '',
-        company: j['company'] ?? '',
-        contact: j['contact'] ?? '',
-        street: j['street'] ?? '',
-        zip: j['zip'] ?? '',
-        city: j['city'] ?? '',
-        country: j['country'] ?? '',
-        phone: j['phone'] ?? '',
-        lang: (j['lang'] ?? 'de').toString(),
-        createdAt: j['createdAt']?.toString(),
-        selfDeleted: (j['selfDeleted'] ?? false) == true,
-      );
-}
-
-class AdminComplaint {
-  final String ticket;
-  final String email;
-  final DateTime createdAt;
-  final DateTime updatedAt;
-  int status;               // 1..6 (mutierbar für UI)
-  String? decision;         // 'accepted' | 'rejected' | null
-  String? reportLink;
-
-  // ← NEU: komplettes Payload vom Backend (für Wunsch etc.)
-  final Map<String, dynamic>? payload;
-
-  AdminComplaint({
-    required this.ticket,
-    required this.email,
-    required this.createdAt,
-    required this.updatedAt,
-    required this.status,
-    this.decision,
-    this.reportLink,
-    this.payload,
-  });
-
-  factory AdminComplaint.fromJson(Map<String, dynamic> j) {
-    DateTime _dt(v) {
-      if (v is int) return DateTime.fromMillisecondsSinceEpoch(v);
-      if (v is String && v.trim().isNotEmpty) return DateTime.tryParse(v) ?? DateTime.now();
-      return DateTime.now();
-    }
-    int _i(v) => (v is num) ? v.toInt() : int.tryParse('${v ?? ''}') ?? 1;
-
-    return AdminComplaint(
-      ticket: (j['ticket'] ?? '').toString(),
-      email: (j['email'] ?? '').toString(),
-      createdAt: _dt(j['createdAt']),
-      updatedAt: _dt(j['updatedAt']),
-      status: _i(j['status']),
-      decision: (j['decision'] == null || (j['decision'] as String?)?.isEmpty == true) ? null : j['decision']?.toString(),
-      reportLink: j['reportLink']?.toString(),
-      payload: (j['payload'] is Map) ? (j['payload'] as Map).cast<String, dynamic>() : null,
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-    'ticket': ticket,
-    'email': email,
-    'createdAt': createdAt.toIso8601String(),
-    'updatedAt': updatedAt.toIso8601String(),
-    'status': status,
-    'decision': decision,
-    'reportLink': reportLink,
-    'payload': payload,
-  };
-
-  // ← NEU: bequemer Zugriff auf den Kundenwunsch
-  String get handlingLabel {
-    final p = payload;
-    if (p == null) return '—';
-    final v = p['handling'] ?? p['Wunsch'] ?? '';
-    final s = v.toString().trim();
-    return s.isEmpty ? '—' : s; // „Ersatz“, „Gutschrift“, „Nacharbeit“
-  }
-}
-
-class _ComplaintsResult {
-  final bool loading;
-  final String? error;
-  final List<AdminComplaint> items;
-  _ComplaintsResult._(this.loading, this.error, this.items);
-  factory _ComplaintsResult.loading() => _ComplaintsResult._(true, null, const []);
-  factory _ComplaintsResult.err(String e) => _ComplaintsResult._(false, e, const []);
-  factory _ComplaintsResult.ok(List<AdminComplaint> list) => _ComplaintsResult._(false, null, list);
-}
-
-// ---------- Admin-API Helper ----------
-class AdminApi {
-  String _secret = '';
-
-  void setSecret(String s) { _secret = s; }
-
-  String get baseUrl {
-    final b = const String.fromEnvironment('API_BASE', defaultValue: '');
-    if (b.isNotEmpty) return b;
-    return html.window.location.origin;
-  }
-
-  Map<String, String> _headersJson() => {
-        'Content-Type': 'application/json; charset=utf-8',
-        if (_secret.isNotEmpty) 'X-Admin-Secret': _secret,
-      };
-
-  Uri _u(String path, [Map<String, String>? q]) {
-    final uri = Uri.parse('$baseUrl$path');
-    if (q == null || q.isEmpty) return uri;
-    return uri.replace(queryParameters: q);
-  }
-
-  Future<html.HttpRequest> _request(
-    String method,
-    String path, {
-    Map<String, String>? q,
-    Object? body,
-  }) async {
-    try {
-      final res = await html.HttpRequest.request(
-        _u(path, q).toString(),
-        method: method,
-        requestHeaders: _headersJson(),
-        sendData: body is String ? body : (body == null ? null : jsonEncode(body)),
-        withCredentials: true,
-      );
-      return res;
-    } catch (e) {
-      if (e is html.ProgressEvent) {
-        final t = e.target;
-        if (t is html.HttpRequest) {
-          final st  = t.status;
-          final txt = t.responseText ?? '';
-          final stx = t.statusText ?? '';
-          throw 'HTTP $st $stx — ${txt.isEmpty ? "Request fehlgeschlagen" : txt}';
-        }
-        throw 'Netzwerkfehler (Browser-Event). Bitte erneut versuchen.';
-      }
-      throw e.toString();
-    }
-  }
-
-  // ---- Pending ----
-  Future<List<PendingUser>> fetchPending() async {
-    final res = await html.HttpRequest.request(
-      _u('/api/admin/pending').toString(),
-      method: 'GET',
-      requestHeaders: _headersJson(),
-      withCredentials: true,
-    );
-    if (res.status != 200) throw 'pending GET: HTTP ${res.status} ${res.responseText}';
-    final txt = res.responseText ?? '';
-    if (txt.trim().isEmpty) return <PendingUser>[];
-    final List data = jsonDecode(txt);
-    return data.map((e) => PendingUser.fromJson(e as Map<String, dynamic>)).toList();
-  }
-
-  Future<void> approvePending(String email, {String? lang}) async {
-    final body = jsonEncode({'email': email, 'action': 'approve', if (lang != null) 'lang': lang});
-    final res = await html.HttpRequest.request(
-      _u('/api/admin/pending').toString(),
-      method: 'POST',
-      requestHeaders: _headersJson(),
-      sendData: body,
-      withCredentials: true,
-    );
-    if (res.status != 200 && res.status != 204) {
-      throw 'pending POST approve: HTTP ${res.status} ${res.responseText}';
-    }
-  }
-
-  Future<void> deleteUser(String email) async {
-    final urlQ = _u('/api/admin/users', {'email': email}).toString();
-    final url  = _u('/api/admin/users').toString();
-
-    // 1) DELETE ?email=...
-    try {
-      final res = await html.HttpRequest.request(
-        urlQ, method: 'DELETE', requestHeaders: _headersJson(), withCredentials: true,
-      );
-      if (res.status == 200 || res.status == 204) return;
-    } catch (_) {}
-
-    // 2) DELETE Body
-    try {
-      final res = await html.HttpRequest.request(
-        url, method: 'DELETE', requestHeaders: _headersJson(), sendData: jsonEncode({'email': email}), withCredentials: true,
-      );
-      if (res.status == 200 || res.status == 204) return;
-    } catch (_) {}
-
-    // 3) POST action=delete
-    final res = await html.HttpRequest.request(
-      url, method: 'POST', requestHeaders: _headersJson(), sendData: jsonEncode({'action': 'delete', 'email': email}), withCredentials: true,
-    );
-    if (res.status != 200 && res.status != 204) {
-      throw 'users DELETE/POST(delete) failed: HTTP ${res.status} ${res.responseText}';
-    }
-  }
-
-  Future<List<ActiveUser>> fetchUsers() async {
-    final res = await html.HttpRequest.request(
-      _u('/api/admin/users').toString(),
-      method: 'GET',
-      requestHeaders: _headersJson(),
-      withCredentials: true,
-    );
-    if (res.status != 200) throw 'users GET: HTTP ${res.status} ${res.responseText}';
-    final txt = res.responseText ?? '';
-    if (txt.trim().isEmpty) return <ActiveUser>[];
-    final List data = jsonDecode(txt);
-    return data.map((e) => ActiveUser.fromJson(e as Map<String, dynamic>)).toList();
-  }
-
-  // ---- Complaints ----
-
-  Future<List<AdminComplaint>> fetchComplaintsByEmailDetailed(String email) async {
-    final res = await html.HttpRequest.request(
-      _u('/api/admin/complaints', {'email': email, 'details': '1'}).toString(),
-      method: 'GET',
-      requestHeaders: _headersJson(),
-      withCredentials: true,
-    );
-    if (res.status != 200) throw 'complaints email GET: HTTP ${res.status}';
-    final List data = jsonDecode(res.responseText ?? '[]');
-    return data.map((e) => AdminComplaint.fromJson(e as Map<String, dynamic>)).toList();
-  }
-
-  Future<List<AdminComplaint>> fetchOpenComplaints() async {
-    final res = await html.HttpRequest.request(
-      _u('/api/admin/complaints', {'open': '1'}).toString(),
-      method: 'GET',
-      requestHeaders: _headersJson(),
-      withCredentials: true,
-    );
-    if (res.status != 200) throw 'open complaints GET: HTTP ${res.status}';
-    final List data = jsonDecode(res.responseText ?? '[]');
-    return data.map((e) => AdminComplaint.fromJson(e as Map<String, dynamic>)).toList();
-  }
-
-  Future<Map<String, dynamic>> fetchComplaintRawByTicket(String ticket) async {
-    final res = await html.HttpRequest.request(
-      _u('/api/admin/complaints', {'ticket': ticket}).toString(),
-      method: 'GET',
-      requestHeaders: _headersJson(),
-      withCredentials: true,
-    );
-    if (res.status != 200) {
-      throw 'complaint GET by ticket: HTTP ${res.status} ${res.responseText}';
-    }
-    final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
-    return j;
-  }
-
-  // Status/Decision/Report-Link aktualisieren
-  Future<AdminComplaint> updateComplaint({
-    required String ticket,
-    int? status,
-    String? decision,
-    String? reportLink,
-  }) async {
-    final body = <String, dynamic>{ 'ticket': ticket };
-    if (status != null)    body['status'] = status;
-    body['decision']   = decision ?? '';
-    if (reportLink != null) body['reportLink'] = reportLink;
-
-    final res = await _request('POST', '/api/admin/complaints', body: body);
-
-    final code = res.status ?? 0;
-    final txt  = res.responseText ?? '';
-    if (code != 200) {
-      throw 'HTTP $code ${res.statusText ?? ''} — $txt';
-    }
-
-    final Map<String, dynamic> j =
-        txt.trim().isEmpty ? <String, dynamic>{} : jsonDecode(txt);
-
-    return AdminComplaint.fromJson(j);
-  }
-
-  // Alias (nur EINMAL vorhanden!)
-  Future<AdminComplaint> adminComplaintUpdate({
-    required String ticket,
-    int? status,
-    String? decision,
-    String? reportLink, // "" => Backend löscht den Link
-  }) {
-    return updateComplaint(
-      ticket: ticket,
-      status: status,
-      decision: decision,
-      reportLink: reportLink,
-    );
-  }
-
-  Future<void> deleteComplaint(String ticket) async {
-    // Versuch 1: DELETE ?ticket=...
-    try {
-      final r1 = await _request('DELETE', '/api/admin/complaints', q: {'ticket': ticket});
-      if (r1.status == 200 || r1.status == 204) return;
-    } catch (_) {
-      // Ignorieren, wir machen Fallback
-    }
-
-    // Versuch 2: DELETE mit Body
-    final r2 = await _request('DELETE', '/api/admin/complaints', body: {'ticket': ticket});
-    final code = r2.status ?? 0;
-    if (code != 200 && code != 204) {
-      final txt = r2.responseText ?? '';
-      throw 'HTTP $code ${r2.statusText ?? ''} — $txt';
-    }
-  }
-}
-
-// ---------- Status-/Decision-Editor ----------
-
-const kStatusItems = <Map<String, dynamic>>[
-  {'label': 'Eingegegangen',          'value': 1},
-  {'label': 'In Bearbeitung',         'value': 2},
-  {'label': 'Rückfrage erforderlich', 'value': 3},
-  {'label': 'In Nacharbeit',          'value': 5},
-  {'label': 'Abgeschlossen',          'value': 6},
-];
-
-const kDecisionItems = <Map<String, String>>[
-  {'label': '—',          'value': ''},          // nicht senden -> null
-  {'label': 'Angenommen', 'value': 'accepted'},
-  {'label': 'Abgelehnt',  'value': 'rejected'},
-];
-
-class _ComplaintDetailsDialog extends StatelessWidget {
-  final Map<String, dynamic> data; // vollständiges Complaint-Objekt (inkl. payload)
-  const _ComplaintDetailsDialog({required this.data});
-
-  @override
-  Widget build(BuildContext context) {
-    final payload = (data['payload'] as Map?)?.cast<String, dynamic>() ?? const {};
-    final files   = (data['files'] as List?)?.cast<Map>() ?? const [];
-    final ticket  = (data['ticket'] ?? '').toString();
-
-    Widget row(String l, String v) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(width: 160, child: Text(l, style: const TextStyle(fontWeight: FontWeight.w600))),
-          Expanded(child: Text(v.isEmpty ? '—' : v)),
-        ],
-      ),
-    );
-
-    return AlertDialog(
-      title: Text('Details – $ticket'),
-      content: SizedBox(
-        width: 560,
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (payload.isEmpty)
-                const Text('Keine Payload übermittelt.')
-              else ...[
-                row('Segment', (payload['segment'] ?? '').toString()),
-                row('Artikel', (payload['article'] ?? '').toString()),
-                row('Charge',  (payload['batch'] ?? '').toString()),
-                row('Menge',   (payload['qty'] ?? '').toString()),
-                row('Ablauf',  (payload['expiry'] ?? '').toString()),
-                row('Beschreibung', (payload['desc'] ?? '').toString()),
-                row('Produkte zurückgeschickt?', (payload['returned'] ?? '').toString()),
-                row('Gewünschte Behandlung', (payload['handling'] ?? '').toString()),
-                if ((payload['applied'] ?? '') != '')
-                  row('Am Patienten angewendet?', (payload['applied'] ?? '').toString()),
-                if ((payload['injury'] ?? '') != '')
-                  row('Verletzung?', (payload['injury'] ?? '').toString()),
-                if ((payload['injuryDesc'] ?? '').toString().trim().isNotEmpty)
-                  row('Verletzungsbeschreibung', (payload['injuryDesc'] ?? '').toString()),
-              ],
-              const SizedBox(height: 10),
-              if (files.isNotEmpty) const Text('Dateien:', style: TextStyle(fontWeight: FontWeight.w600)),
-              if (files.isNotEmpty)
-                ...files.map((f) => Text('- ${f['name'] ?? 'Datei'} (${f['mime'] ?? 'mime'})')).toList(),
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Schließen')),
-      ],
-    );
-  }
-}
+// =====================================================
+// =============== REKLAMATION-EDITOR ==================
+// =====================================================
 
 class _ComplaintEditor extends StatefulWidget {
   final AdminApi api;
   final AdminComplaint c;
   final VoidCallback onClosed;
-  final String? companyHint; // optional
+  final String? companyHint;
 
   const _ComplaintEditor({
-    Key? key,
     required this.api,
     required this.c,
     required this.onClosed,
     this.companyHint,
-  }) : super(key: key);
+  });
 
   @override
   State<_ComplaintEditor> createState() => _ComplaintEditorState();
 }
 
 class _ComplaintEditorState extends State<_ComplaintEditor> {
-  final _reportCtrl = TextEditingController();
   bool _busy = false;
-
-  // lokale UI-States für Status/Decision
-  int? _status;           // 1..6
-  String? _decision;      // null | 'accepted' | 'rejected'
-
-  @override
-  void initState() {
-    super.initState();
-    _reportCtrl.text = widget.c.reportLink ?? '';
-    _status = widget.c.status;
-    _decision = widget.c.decision; // kann null sein
-  }
-
-  @override
-  void dispose() {
-    _reportCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _saveReportLink() async {
-    setState(() => _busy = true);
-    try {
-      final link = _reportCtrl.text.trim();
-      final updated = await widget.api.adminComplaintUpdate(
-        ticket: widget.c.ticket,
-        reportLink: link.isEmpty ? '' : link, // "" => löschen
-      );
-
-      // lokalen State aktualisieren
-      _reportCtrl.text   = updated.reportLink ?? '';
-      widget.c.reportLink = updated.reportLink;
-      widget.c.status     = updated.status;
-      widget.c.decision   = updated.decision;
-
-      // Falls nun geschlossen/abgelehnt → aus Liste entfernen
-      if (updated.status == 6 || updated.decision == 'rejected') {
-        widget.onClosed();
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Report-Link gespeichert.')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _clearReportLink() async {
-    setState(() => _busy = true);
-    try {
-      await widget.api.adminComplaintUpdate(
-        ticket: widget.c.ticket,
-        reportLink: '', // explizit löschen
-      );
-      _reportCtrl.text = '';
-      widget.c.reportLink = null;
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Report-Link entfernt.')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _saveStatusDecision() async {
-    if (_status == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bitte Status auswählen.')),
-      );
-      return;
-    }
-
-    setState(() => _busy = true);
-    try {
-      final updated = await widget.api.adminComplaintUpdate(
-        ticket: widget.c.ticket,
-        status: _status,
-        // "" (= „—“) -> Backend setzt decision=null
-        decision: _decision ?? '',
-      );
-
-      widget.c.status   = updated.status;
-      widget.c.decision = updated.decision;
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Status/Entscheidung gespeichert.')),
-        );
-      }
-
-      if (updated.status == 6 || updated.decision == 'rejected') {
-        widget.onClosed();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
+  final _reportCtrl = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
-    final rightLabel = (widget.companyHint != null && widget.companyHint!.trim().isNotEmpty)
-        ? 'Firma: ${widget.companyHint}'
-        : 'E-Mail: ${widget.c.email}';
-
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      child: Padding(
-        // keine Seitenmarke mehr → einfache Padding-Box
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Kopfzeile
-            Row(
-              children: [
-                Text('Ticket: ${widget.c.ticket}',
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
-                const Spacer(),
-                Text(
-                  rightLabel,
-                  style: const TextStyle(fontSize: 12, color: Colors.black54),
-                ),
-              ],
+    final c = widget.c;
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Ticket: ${c.ticket}', style: const TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 6),
+          Text('Kunde: ${widget.companyHint ?? c.email}'),
+          const Divider(),
+          TextField(
+            controller: _reportCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Report-Link (optional)',
+              border: OutlineInputBorder(),
             ),
-            const SizedBox(height: 12),
-
-            // Auffälliger Wunsch-Hinweis (breit)
-            Builder(
-              builder: (_) {
-                final wish = widget.c.handlingLabel; // aus payload
-                Color col;
-                switch (wish) {
-                  case 'Ersatz':     col = Colors.green;  break;
-                  case 'Gutschrift': col = Colors.purple; break;
-                  case 'Nacharbeit': col = Colors.orange; break;
-                  default:           col = Colors.grey;   break;
-                }
-                return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  margin: const EdgeInsets.only(bottom: 10),
-                  decoration: BoxDecoration(
-                    color: col.withOpacity(0.10),
-                    border: Border.all(color: col, width: 1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.flag, size: 18),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Gewünschte Behandlung: $wish',
-                        style: TextStyle(fontWeight: FontWeight.w700, color: col),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-
-            // Status + Entscheidung
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<int>(
-                    value: _status,
-                    decoration: const InputDecoration(
-                      labelText: 'Status',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: kStatusItems
-                        .map((e) => DropdownMenuItem<int>(
-                              value: e['value'] as int,
-                              child: Text(e['label'] as String),
-                            ))
-                        .toList(),
-                    onChanged: (v) => setState(() => _status = v),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _decision ?? '',
-                    decoration: const InputDecoration(
-                      labelText: 'Entscheidung',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: kDecisionItems
-                        .map((e) => DropdownMenuItem<String>(
-                              value: e['value']!,
-                              child: Text(e['label']!),
-                            ))
-                        .toList(),
-                    onChanged: (v) =>
-                        setState(() => _decision = (v == null || v.isEmpty) ? null : v),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                FilledButton(
-                  onPressed: _busy ? null : _saveStatusDecision,
-                  child: const Text('Speichern'),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            // Report-Link mit Lösch-Icon
-            TextField(
-              controller: _reportCtrl,
-              decoration: InputDecoration(
-                labelText: 'Report-Link (optional)',
-                border: const OutlineInputBorder(),
-                suffixIcon: IconButton(
-                  tooltip: 'Link entfernen',
-                  onPressed: _busy ? null : _clearReportLink,
-                  icon: const Icon(Icons.delete_outline),
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: OutlinedButton.icon(
-                onPressed: _busy ? null : _saveReportLink,
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              FilledButton.icon(
+                onPressed: _busy
+                    ? null
+                    : () {
+                        // Speichern
+                      },
                 icon: const Icon(Icons.save_outlined),
-                label: const Text('Link speichern'),
+                label: const Text('Speichern'),
               ),
-            ),
-          ],
-        ),
+              const SizedBox(width: 8),
+              TextButton.icon(
+                onPressed: _busy
+                    ? null
+                    : () async {
+                        final ok = await showDialog<bool>(
+                          context: context,
+                          builder: (_) => AlertDialog(
+                            title: const Text('Reklamation löschen'),
+                            content: Text(
+                                'Ticket ${c.ticket} wirklich löschen?\nDieser Vorgang kann nicht rückgängig gemacht werden.'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: const Text('Abbrechen'),
+                              ),
+                              FilledButton(
+                                style: ButtonStyle(
+                                  backgroundColor: WidgetStateProperty.all(Colors.red),
+                                ),
+                                onPressed: () => Navigator.pop(context, true),
+                                child: const Text('Löschen'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (ok != true) return;
+
+                        setState(() => _busy = true);
+                        try {
+                          await widget.api.deleteComplaint(c.ticket);
+                          widget.onClosed();
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Reklamation gelöscht.')),
+                            );
+                            Navigator.of(context, rootNavigator: true).maybePop();
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Löschen fehlgeschlagen: $e')),
+                            );
+                          }
+                        } finally {
+                          if (mounted) setState(() => _busy = false);
+                        }
+                      },
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Reklamation löschen'),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
+}
+
+// =====================================================
+// =============== INTERNE DATENKLASSEN ================
+// =====================================================
+
+class _ComplaintsResult {
+  final bool loading;
+  final String? error;
+  final List<AdminComplaint> items;
+  const _ComplaintsResult(this.loading, this.error, this.items);
+
+  factory _ComplaintsResult.loading() => const _ComplaintsResult(true, null, []);
+  factory _ComplaintsResult.ok(List<AdminComplaint> list) =>
+      _ComplaintsResult(false, null, list);
+  factory _ComplaintsResult.err(String e) => _ComplaintsResult(false, e, []);
 }
