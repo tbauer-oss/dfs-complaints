@@ -934,10 +934,14 @@ class AdminComplaint {
     'payload': payload, // NEU
   };
 
-  // ---- Komfort-Getter (NEU) ----
+  // Komfort-Getter: Kundenwunsch („Ersatz“, „Gutschrift“, „Nacharbeit“)
   String get handlingLabel {
-    final h = (payload?['handling'] ?? '').toString().trim();
-    return h.isEmpty ? '—' : h; // erwartete Werte: Ersatz | Gutschrift | Nacharbeit
+    final p = payload;
+    if (p == null) return '—';
+    // bevorzugt 'handling', fallback auf evtl. alten Key 'Wunsch'
+    final v = p['handling'] ?? p['Wunsch'] ?? '';
+    final s = v.toString().trim();
+    return s.isEmpty ? '—' : s;
   }
 }
 
