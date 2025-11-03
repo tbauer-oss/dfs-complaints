@@ -1280,15 +1280,16 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   final _reportCtrl = TextEditingController();
   bool _busy = false;
 
-  int? _status;            // 1..6
-  String? _decision;       // null | 'accepted' | 'rejected'
+  // lokale UI-States für Status/Decision
+  int? _status;           // 1..6
+  String? _decision;      // null | 'accepted' | 'rejected'
 
   @override
   void initState() {
     super.initState();
     _reportCtrl.text = widget.c.reportLink ?? '';
-    _status   = widget.c.status;
-    _decision = widget.c.decision;
+    _status = widget.c.status;
+    _decision = widget.c.decision; // kann null sein
   }
 
   @override
@@ -1306,11 +1307,13 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
         reportLink: link.isEmpty ? '' : link, // "" => löschen
       );
 
-      _reportCtrl.text     = updated.reportLink ?? '';
-      widget.c.reportLink  = updated.reportLink;
-      widget.c.status      = updated.status;
-      widget.c.decision    = updated.decision;
+      // lokalen State aktualisieren
+      _reportCtrl.text   = updated.reportLink ?? '';
+      widget.c.reportLink = updated.reportLink;
+      widget.c.status     = updated.status;
+      widget.c.decision   = updated.decision;
 
+      // Falls nun geschlossen/abgelehnt → aus Liste entfernen
       if (updated.status == 6 || updated.decision == 'rejected') {
         widget.onClosed();
       }
@@ -1370,7 +1373,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       final updated = await widget.api.adminComplaintUpdate(
         ticket: widget.c.ticket,
         status: _status,
-        decision: _decision ?? '', // "" => Backend setzt null
+        // "" (= „—“) -> Backend setzt decision=null
+        decision: _decision ?? '',
       );
 
       widget.c.status   = updated.status;
@@ -1405,7 +1409,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
       child: Padding(
-        // kein Platz mehr für die Seitenmarke nötig
+        // keine Seitenmarke mehr → einfache Padding-Box
         padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1417,9 +1421,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                     style: const TextStyle(fontWeight: FontWeight.w600)),
                 const Spacer(),
                 Text(
-                  (widget.companyHint != null && widget.companyHint!.trim().isNotEmpty)
-                      ? 'Firma: ${widget.companyHint}'
-                      : 'E-Mail: ${widget.c.email}',
+                  rightLabel,
                   style: const TextStyle(fontSize: 12, color: Colors.black54),
                 ),
               ],
@@ -1429,7 +1431,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
             // Auffälliger Wunsch-Hinweis (breit)
             Builder(
               builder: (_) {
-                final wish = widget.c.handlingLabel;
+                final wish = widget.c.handlingLabel; // aus payload
                 Color col;
                 switch (wish) {
                   case 'Ersatz':     col = Colors.green;  break;
@@ -1460,7 +1462,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
               },
             ),
 
-            // Status & Entscheidung
+            // Status + Entscheidung
             Row(
               children: [
                 Expanded(
@@ -1507,7 +1509,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
 
             const SizedBox(height: 12),
 
-            // Report-Link
+            // Report-Link mit Lösch-Icon
             TextField(
               controller: _reportCtrl,
               decoration: InputDecoration(
@@ -1532,5 +1534,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
           ],
         ),
       ),
-    ),
- }
+    );
+  }
+}
