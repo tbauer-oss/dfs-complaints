@@ -10,18 +10,11 @@ import {
   readJson,
 } from '../_lib/http.js';
 
-import {
-  usersList,
-  userSave,
-  userDelete,
-  pendingDelete,
-} from '../_lib/store.js';
-
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 
 function isAdmin(req) {
   // Node normalisiert Header-Keys zu lowercase
-  const hdr = req.headers?.['x-admin-secret'];
+  const hdr = req?.headers?.['x-admin-secret'];
   return typeof hdr === 'string' && !!ADMIN_SECRET && hdr === ADMIN_SECRET;
 }
 
@@ -29,12 +22,25 @@ function isAdmin(req) {
 const normEmail = (v = '') => v.toString().trim().toLowerCase();
 
 export default async function handler(req, res) {
-  // CORS-Header setzen + OPTIONS (Preflight) direkt beantworten
+  // 1) Preflight zuerst (setzt CORS, beantwortet OPTIONS 204)
   if (handlePreflight(req, res)) return;
+
+  // 2) Für alle weiteren Antworten CORS setzen
   setCors(req, res);
 
-  // Admin-Auth
+  // 3) Admin-Auth
   if (!isAdmin(req)) return bad(res, 'admin unauthorized', 401);
+
+  // 4) Schwere Module erst NACH Preflight & Auth laden (verhindert CORS-Brüche)
+  let store;
+  try {
+    store = await import('../_lib/store.js');
+  } catch (e) {
+    console.error('admin/users lazy import failed:', e);
+    return bad(res, 'server error (imports)', 500);
+  }
+
+  const { usersList, userSave, userDelete, pendingDelete } = store;
 
   try {
     // ---- LIST --------------------------------------------------------------
@@ -80,7 +86,7 @@ export default async function handler(req, res) {
 
     // ---- DELETE (robust) ---------------------------------------------------
     if (req.method === 'DELETE') {
-      // ?email=... oder Body {email:"..."}
+      // ?email=... oder Body {email:"..."} – URL robust parsen
       const url = new URL(req.url, 'http://x');
       const queryEmail = url.searchParams.get('email') || '';
       const body = readJson(req) || {};
@@ -90,9 +96,7 @@ export default async function handler(req, res) {
       await userDelete(wanted);
 
       // Failsafe: evtl. noch in pending vorhanden → aufräumen
-      try {
-        await pendingDelete(wanted); // <-- Bugfix: 'wanted', nicht 'email'
-      } catch (_) {}
+      try { await pendingDelete(wanted); } catch (_) {}
 
       return ok(res, { deleted: true, email: wanted });
     }
