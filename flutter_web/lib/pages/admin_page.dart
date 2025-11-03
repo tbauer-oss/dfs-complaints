@@ -890,8 +890,6 @@ class AdminComplaint {
   int status;               // 1..6 (mutierbar für UI)
   String? decision;         // 'accepted' | 'rejected' | null
   String? reportLink;
-
-  // ↓↓↓ NEU
   final Map<String, dynamic>? payload;
 
   AdminComplaint({
@@ -902,7 +900,7 @@ class AdminComplaint {
     required this.status,
     this.decision,
     this.reportLink,
-    this.payload, // NEU
+    this.payload,
   });
 
   factory AdminComplaint.fromJson(Map<String, dynamic> j) {
@@ -1412,8 +1410,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
             right: 12,
             top: 8,
             child: _WishBadgeSmall(widget.c.handlingLabel), // nutzt Getter aus AdminComplaint
-          ),
-
+            ),
+          ]
           // eigentlicher Inhalt – oben etwas Luft lassen
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 28, 12, 12),
