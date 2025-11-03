@@ -12,28 +12,42 @@ export function isAllowedOrigin(origin = '') {
   return PREVIEW.test(origin);
 }
 
+// Wählt den tatsächlich zu sendenden ACAO-Wert (bei withCredentials NIE "*")
+function pickAllowOrigin(origin = '') {
+  return isAllowedOrigin(origin) ? origin : PROD_FE;
+}
+
 // Setzt CORS-Header (immer am Handler-Anfang aufrufen!)
 export function setCors(req, res) {
   const origin = req.headers?.origin || '';
-  const allow  = isAllowedOrigin(origin) ? origin : PROD_FE;
+  const allow  = pickAllowOrigin(origin);
 
   res.setHeader('Access-Control-Allow-Origin', allow);
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
 
-  // dynamisch erlaubte Header spiegeln (failsafe)
+  // Standard-Header + evtl. vom Browser angefragte Header (failsafe anfügen)
+  const defaultAllowed = [
+    'Content-Type',
+    'Authorization',
+    'X-Admin-Secret',
+    'X-Gate',
+    'Accept',
+    'X-Requested-With',
+  ].join(', ');
+
   const reqAllowed = req.headers?.['access-control-request-headers'];
-  const defaultAllowed = 'Content-Type, Authorization, X-Admin-Secret, X-Gate';
-  const allowHeaders = reqAllowed && String(reqAllowed).trim().length > 0
+  const allowHeaders = (reqAllowed && String(reqAllowed).trim().length > 0)
     ? `${defaultAllowed}, ${reqAllowed}`
     : defaultAllowed;
+
   res.setHeader('Access-Control-Allow-Headers', allowHeaders);
 
-  // Preflight cachen
+  // Preflight cachen (10 min)
   res.setHeader('Access-Control-Max-Age', '600');
 
-  // hilfreich für einige Clients
+  // Manche Clients erwarten Content-Type
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 }
 
