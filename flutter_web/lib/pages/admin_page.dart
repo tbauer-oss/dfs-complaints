@@ -1,7 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import '../api/client.dart';
-import '../models/admin.dart';   // enthält AdminComplaint, ActiveUser, PendingUser usw.
+import '../api/client.dart'; // enthält ApiClient, AdminApi, AdminComplaint usw.
+import '../models/user.dart'; // enthält ActiveUser, PendingUser (anpassen, falls anders benannt)
+
+// =====================================================
+// ==================== ADMIN PAGE =====================
+// =====================================================
 
 class AdminPage extends StatefulWidget {
   final ApiClient api;
@@ -31,7 +35,6 @@ class _AdminPageState extends State<AdminPage> {
   void initState() {
     super.initState();
     _api = AdminApi();
-
     _loadAll();
   }
 
@@ -80,14 +83,17 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   String? _companyByEmail(String email) {
-    final match = _users.firstWhere(
-      (u) => u.email == email,
-      orElse: () => ActiveUser(email: email, company: 'Unbekannt', firstName: '', lastName: '', approved: true),
-    );
-    return match.company;
+    try {
+      final match = _users.firstWhere((u) => u.email == email);
+      return match.company;
+    } catch (_) {
+      return null;
+    }
   }
 
-  // ---------- Panels ----------
+  // =====================================================
+  // =============== PANEL: OFFENE REKLAS ================
+  // =====================================================
 
   Widget _buildOpenComplaintsPanel() {
     return Card(
@@ -184,91 +190,6 @@ class _AdminPageState extends State<AdminPage> {
 }
 
 // =====================================================
-// ================  DETAIL-LISTEN-KOMPONENTE  =========
-// =====================================================
-
-class _ComplaintsDetailList extends StatelessWidget {
-  final _ComplaintsResult? result;
-  final ApiClient api;
-  final VoidCallback onClosed;
-  final String? companyHint;
-
-  const _ComplaintsDetailList({
-    required this.result,
-    required this.api,
-    required this.onClosed,
-    this.companyHint,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final r = result;
-    if (r == null) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Text('Noch nicht geladen.'),
-      );
-    }
-    if (r.loading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: LinearProgressIndicator(),
-      );
-    }
-    if (r.error != null) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Text('Fehler beim Laden: ${r.error}', style: const TextStyle(color: Colors.red)),
-      );
-    }
-    if (r.items.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Text('Keine Reklamationen gefunden.'),
-      );
-    }
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Divider(),
-          const Text('Reklamationen (Details):', style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 6),
-          ...r.items.map((c) => _ComplaintTileCompact(
-                c: c,
-                companyHint: companyHint,
-                onOpenEditor: () async {
-                  await showDialog<void>(
-                    context: context,
-                    builder: (_) => Dialog(
-                      insetPadding: const EdgeInsets.all(16),
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 780),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: _ComplaintEditor(
-                            api: api,
-                            c: c,
-                            onClosed: () {
-                              onClosed();
-                              Navigator.of(context, rootNavigator: true).maybePop();
-                            },
-                            companyHint: companyHint,
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              )),
-        ],
-      ),
-    );
-  }
-}
-
-// =====================================================
 // =============== KOMPAKTE REKLAMATIONSKARTE ==========
 // =====================================================
 
@@ -359,7 +280,6 @@ class _ComplaintTileCompact extends StatelessWidget {
             runSpacing: 6,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              // Status-Badge
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
@@ -370,7 +290,6 @@ class _ComplaintTileCompact extends StatelessWidget {
                 child: Text('Status: $statusText',
                     style: TextStyle(color: statusColor, fontWeight: FontWeight.w600)),
               ),
-              // Entscheidung (falls gesetzt)
               if ((c.decision ?? '').isNotEmpty)
                 Builder(
                   builder: (_) {
@@ -389,7 +308,6 @@ class _ComplaintTileCompact extends StatelessWidget {
                     );
                   },
                 ),
-              // Wunsch (falls vorhanden)
               if (handlingLabel != '—')
                 Builder(
                   builder: (_) {
@@ -433,7 +351,7 @@ class _ComplaintTileCompact extends StatelessWidget {
 }
 
 // =====================================================
-// =============== REKLAMATION-EDITOR ==================
+// ================== REKLAMATION EDITOR ===============
 // =====================================================
 
 class _ComplaintEditor extends StatefulWidget {
@@ -455,7 +373,6 @@ class _ComplaintEditor extends StatefulWidget {
 
 class _ComplaintEditorState extends State<_ComplaintEditor> {
   bool _busy = false;
-  final _reportCtrl = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
@@ -468,22 +385,10 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
           const SizedBox(height: 6),
           Text('Kunde: ${widget.companyHint ?? c.email}'),
           const Divider(),
-          TextField(
-            controller: _reportCtrl,
-            decoration: const InputDecoration(
-              labelText: 'Report-Link (optional)',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 8),
           Row(
             children: [
               FilledButton.icon(
-                onPressed: _busy
-                    ? null
-                    : () {
-                        // Speichern
-                      },
+                onPressed: _busy ? null : () {},
                 icon: const Icon(Icons.save_outlined),
                 label: const Text('Speichern'),
               ),
@@ -514,7 +419,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                           ),
                         );
                         if (ok != true) return;
-
                         setState(() => _busy = true);
                         try {
                           await widget.api.deleteComplaint(c.ticket);
@@ -547,7 +451,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
 }
 
 // =====================================================
-// =============== INTERNE DATENKLASSEN ================
+// ================== INTERNES MODEL ===================
 // =====================================================
 
 class _ComplaintsResult {
