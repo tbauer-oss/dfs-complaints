@@ -174,7 +174,7 @@ export default async function handler(req, res) {
 
       // Timestamps & Persist
       c.updatedAt = Date.now();
-      await complaintSave(c);
+      await complaintSave(ticket, c);
 
       return ok(res, {
         ticket: c.ticket,
