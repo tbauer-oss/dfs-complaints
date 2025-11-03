@@ -1,5 +1,5 @@
 // lib/main.dart
-import 'dart:html' as html; // für Sprache persistieren
+import 'dart:html' as html; // für Sprache + Theme persistieren
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
@@ -10,7 +10,6 @@ import 'pages/dashboard_page.dart';
 import 'pages/register_page.dart';
 import 'pages/admin_page.dart';
 import 'widgets/lang_action.dart';
-import 'widgets/logout_button.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,18 +24,37 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   final api = ApiClient();
+
   Locale? _locale;
   bool _bootDone = false;
   bool _loggedIn = false;
 
+  // ---- NEU: globaler ThemeMode (system | light | dark)
+  ThemeMode _themeMode = ThemeMode.system;
+
   @override
   void initState() {
     super.initState();
+
     // gespeicherte Sprache laden
-    final saved = html.window.localStorage['dfs_lang'];
-    if (saved != null && saved.isNotEmpty) {
-      _locale = Locale(saved);
+    final savedLang = html.window.localStorage['dfs_lang'];
+    if (savedLang != null && savedLang.isNotEmpty) {
+      _locale = Locale(savedLang);
     }
+
+    // gespeicherten ThemeMode laden
+    final savedTheme = (html.window.localStorage['dfs_theme'] ?? 'system').toLowerCase();
+    switch (savedTheme) {
+      case 'light':
+        _themeMode = ThemeMode.light;
+        break;
+      case 'dark':
+        _themeMode = ThemeMode.dark;
+        break;
+      default:
+        _themeMode = ThemeMode.system;
+    }
+
     _boot();
   }
 
@@ -53,6 +71,26 @@ class _MyAppState extends State<MyApp> {
     html.window.localStorage['dfs_lang'] = l.languageCode;
   }
 
+  // ---- NEU: ThemeMode setzen + persistieren
+  void _setThemeMode(ThemeMode mode) {
+    setState(() => _themeMode = mode);
+    final v = switch (mode) { ThemeMode.light => 'light', ThemeMode.dark => 'dark', _ => 'system' };
+    html.window.localStorage['dfs_theme'] = v;
+  }
+
+  // Kleines Icon je aktuellem Modus
+  IconData _themeIconFor(ThemeMode m) {
+    switch (m) {
+      case ThemeMode.light:
+        return Icons.light_mode;
+      case ThemeMode.dark:
+        return Icons.dark_mode;
+      case ThemeMode.system:
+      default:
+        return Icons.brightness_auto;
+    }
+  }
+
   // --- Admin-Secret Dialog + Navigation ---
   Future<void> _openAdmin(BuildContext context) async {
     final t = AppLocalizations.of(context)!;
@@ -60,11 +98,9 @@ class _MyAppState extends State<MyApp> {
     final wantOpen = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        // ⬇️ snake_case wie in deinen ARBs
         title: Text(t.admin_area),
         content: TextField(
           controller: ctrl,
-          // ⬇️ falls du KEINEN Key "adminSecret" in den ARBs hast, nimm den Literal
           decoration: const InputDecoration(
             labelText: 'X-Admin-Secret',
             border: OutlineInputBorder(),
@@ -82,25 +118,19 @@ class _MyAppState extends State<MyApp> {
 
     final secret = ctrl.text.trim();
     if (secret.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.required_fields)),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.required_fields)));
       return;
     }
 
     final ok = await api.validateAdminSecret(secret);
     if (!ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.errorGeneric('Admin-Secret'))),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.errorGeneric('Admin-Secret'))));
       return;
     }
 
     api.setAdminSecret(secret);
     if (!mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => AdminPage(api: api)),
-    );
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => AdminPage(api: api)));
   }
 
   void _openRegister(BuildContext context) {
@@ -113,13 +143,13 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     if (!_bootDone) {
-      return const MaterialApp(
-        home: Scaffold(body: Center(child: CircularProgressIndicator())),
-      );
+      return const MaterialApp(home: Scaffold(body: Center(child: CircularProgressIndicator())));
     }
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+
+      // ---- Global: Locale + L10n
       locale: _locale,
       supportedLocales: const [
         Locale('de'), Locale('en'), Locale('fr'), Locale('it'), Locale('es'),
@@ -130,8 +160,6 @@ class _MyAppState extends State<MyApp> {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-
-      // ⬇️ KORREKT: Liste verwenden
       localeListResolutionCallback: (locales, supported) {
         if (_locale != null) return _locale!;
         if (locales != null) {
@@ -146,42 +174,81 @@ class _MyAppState extends State<MyApp> {
         return const Locale('de'); // Default
       },
 
+      // ---- Global: Theme/Darkmode
+      themeMode: _themeMode,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF3453A8), brightness: Brightness.light),
+        visualDensity: VisualDensity.adaptivePlatformDensity,
+      ),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF3453A8), brightness: Brightness.dark),
+        visualDensity: VisualDensity.adaptivePlatformDensity,
+      ),
+
+      // ---- UI
       home: _loggedIn
           ? Builder(
               builder: (ctx) {
                 final t = AppLocalizations.of(ctx)!;
                 return Scaffold(
-                 appBar: AppBar(
+                  appBar: AppBar(
                     title: Text(t.appTitle),
                     actions: [
-                      // EIN Sprachbutton (oben rechts)
+                      // Sprachwahl
                       LangAction(onLocaleChanged: _setLocale),
-                    ],
-                    // Direkt darunter: schöner Logout-Button
-                    bottom: PreferredSize(
-                      preferredSize: const Size.fromHeight(50),
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          child: FilledButton.icon(
-                            icon: const Icon(Icons.logout),
-                            label: Text(t.logout),
-                            onPressed: () async {
-                              await api.logout(); // <- funktioniert, wenn logout() Future<void> ist
-                              if (ctx.mounted) {
-                                ScaffoldMessenger.of(ctx)
-                                    .showSnackBar(SnackBar(content: Text(t.loggedOut)));
-                              }
-                              _onLoggedOut();
-                            },
+
+                      // ---- NEU: globaler Theme-Umschalter (System/Light/Dark)
+                      PopupMenuButton<ThemeMode>(
+                        tooltip: 'Theme',
+                        position: PopupMenuPosition.under,
+                        icon: Icon(_themeIconFor(_themeMode)),
+                        onSelected: _setThemeMode,
+                        itemBuilder: (context) => [
+                          PopupMenuItem(
+                            value: ThemeMode.system,
+                            child: Row(
+                              children: [
+                                Icon(Icons.brightness_auto, color: Theme.of(context).colorScheme.primary),
+                                const SizedBox(width: 10),
+                                const Text('System'),
+                                const Spacer(),
+                                if (_themeMode == ThemeMode.system) const Icon(Icons.check),
+                              ],
+                            ),
                           ),
-                        ),
+                          PopupMenuItem(
+                            value: ThemeMode.light,
+                            child: Row(
+                              children: [
+                                Icon(Icons.light_mode, color: Theme.of(context).colorScheme.primary),
+                                const SizedBox(width: 10),
+                                const Text('Hell'),
+                                const Spacer(),
+                                if (_themeMode == ThemeMode.light) const Icon(Icons.check),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: ThemeMode.dark,
+                            child: Row(
+                              children: [
+                                Icon(Icons.dark_mode, color: Theme.of(context).colorScheme.primary),
+                                const SizedBox(width: 10),
+                                const Text('Dunkel'),
+                                const Spacer(),
+                                if (_themeMode == ThemeMode.dark) const Icon(Icons.check),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
+                      const SizedBox(width: 6),
+                    ],
                   ),
                   body: DashboardPage(api: api, onLoggedOut: _onLoggedOut),
-               );
+                );
               },
             )
           : Builder(
@@ -189,8 +256,55 @@ class _MyAppState extends State<MyApp> {
                 final t = AppLocalizations.of(ctx)!;
                 return Scaffold(
                   appBar: AppBar(
-                    title: Text(t.login),           // ✅ lokalisiert, kein const
-                    actions: [LangAction(onLocaleChanged: _setLocale)],
+                    title: Text(t.login),
+                    actions: [
+                      LangAction(onLocaleChanged: _setLocale),
+                      PopupMenuButton<ThemeMode>(
+                        tooltip: 'Theme',
+                        position: PopupMenuPosition.under,
+                        icon: Icon(_themeIconFor(_themeMode)),
+                        onSelected: _setThemeMode,
+                        itemBuilder: (context) => [
+                          PopupMenuItem(
+                            value: ThemeMode.system,
+                            child: Row(
+                              children: [
+                                Icon(Icons.brightness_auto, color: Theme.of(context).colorScheme.primary),
+                                const SizedBox(width: 10),
+                                const Text('System'),
+                                const Spacer(),
+                                if (_themeMode == ThemeMode.system) const Icon(Icons.check),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: ThemeMode.light,
+                            child: Row(
+                              children: [
+                                Icon(Icons.light_mode, color: Theme.of(context).colorScheme.primary),
+                                const SizedBox(width: 10),
+                                const Text('Hell'),
+                                const Spacer(),
+                                if (_themeMode == ThemeMode.light) const Icon(Icons.check),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: ThemeMode.dark,
+                            child: Row(
+                              children: [
+                                Icon(Icons.dark_mode, color: Theme.of(context).colorScheme.primary),
+                                const SizedBox(width: 10),
+                                const Text('Dunkel'),
+                                const Spacer(),
+                                if (_themeMode == ThemeMode.dark) const Icon(Icons.check),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(width: 6),
+                    ],
                   ),
                   body: LoginPage(
                     api: api,
