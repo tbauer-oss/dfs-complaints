@@ -511,29 +511,6 @@ class _Field extends StatelessWidget {
   }
 }
 
-class _PendingTile extends StatefulWidget {
-  final PendingUser data;
-  final VoidCallback onApprove;
-  final VoidCallback onReject;
-  final Future<void> Function() onLoadComplaints;
-  final _ComplaintsResult? complaints;
-  final AdminApi api;
-  final VoidCallback onClosedFromEditor;
-
-  const _PendingTile({
-    required this.data,
-    required this.onApprove,
-    required this.onReject,
-    required this.onLoadComplaints,
-    required this.complaints,
-    required this.api,
-    required this.onClosedFromEditor,
-  });
-
-  @override
-  State<_PendingTile> createState() => _PendingTileState();
-}
-
 // Kleine Seitenmarke für den Kundenwunsch ("Ersatz", "Gutschrift", "Nacharbeit")
 class _WishBadgeSmall extends StatelessWidget {
   final String wish;
@@ -565,6 +542,29 @@ class _WishBadgeSmall extends StatelessWidget {
       ),
     );
   }
+}
+
+class _PendingTile extends StatefulWidget {
+  final PendingUser data;
+  final VoidCallback onApprove;
+  final VoidCallback onReject;
+  final Future<void> Function() onLoadComplaints;
+  final _ComplaintsResult? complaints;
+  final AdminApi api;
+  final VoidCallback onClosedFromEditor;
+
+  const _PendingTile({
+    required this.data,
+    required this.onApprove,
+    required this.onReject,
+    required this.onLoadComplaints,
+    required this.complaints,
+    required this.api,
+    required this.onClosedFromEditor,
+  });
+
+  @override
+  State<_PendingTile> createState() => _PendingTileState();
 }
 
 class _PendingTileState extends State<_PendingTile> {
