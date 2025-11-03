@@ -1,3 +1,4 @@
+// flutter_web/lib/pages/admin_page.dart
 import 'dart:convert';
 import 'dart:html' as html;
 import 'package:flutter/material.dart';
@@ -54,6 +55,12 @@ class _AdminPageState extends State<AdminPage> {
 
     _refreshAll();
     _refreshOpenComplaints();
+  }
+
+  @override
+  void dispose() {
+    _reportUrlCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _refreshAll() async {
@@ -126,7 +133,8 @@ class _AdminPageState extends State<AdminPage> {
     if (ok != true) return;
 
     try {
-      await _api.deleteUser(email); // identische Logik wie Löschen
+      // WICHTIG: Pending löschen – NICHT users!
+      await _api.deletePending(email);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Eintrag abgelehnt und gelöscht: $email')),
@@ -194,18 +202,17 @@ class _AdminPageState extends State<AdminPage> {
 
   // --- Report-Link setzen ---
   Future<void> _setReportLinkForComplaint(AdminComplaint c) async {
-    final t = AppLocalizations.of(context);
     _reportUrlCtrl.text = c.reportLink ?? '';
 
     final url = await showDialog<String>(
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          title: Text(t?.open ?? 'Öffnen/Setzen'),
+          title: const Text('Report-Link setzen/ändern'),
           content: TextField(
             controller: _reportUrlCtrl,
-            decoration: InputDecoration(
-              labelText: t?.open ?? 'Report-Link (URL)',
+            decoration: const InputDecoration(
+              labelText: 'Report-Link (URL)',
               hintText: 'https://…',
             ),
             autofocus: true,
@@ -213,11 +220,11 @@ class _AdminPageState extends State<AdminPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: Text(t?.cancel ?? 'Abbrechen'),
+              child: const Text('Abbrechen'),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(ctx, _reportUrlCtrl.text.trim()),
-              child: Text(t?.open ?? 'Setzen'),
+              child: const Text('Speichern'),
             ),
           ],
         );
@@ -232,7 +239,7 @@ class _AdminPageState extends State<AdminPage> {
       setState(() { c.reportLink = url; });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(t?.created ?? 'Gespeichert')),
+          const SnackBar(content: Text('Gespeichert')),
         );
       }
     } else {
@@ -247,16 +254,14 @@ class _AdminPageState extends State<AdminPage> {
 
   // --- Report-Link löschen ---
   Future<void> _clearReportLinkForComplaint(AdminComplaint c) async {
-    final t = AppLocalizations.of(context);
-
     final yes = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(t?.logoutTitle ?? 'Bestätigung'),
-        content: Text(t?.logoutConfirm ?? 'Wirklich löschen?'),
+        title: const Text('Bestätigung'),
+        content: const Text('Wirklich löschen?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t?.cancel ?? 'Abbrechen')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(t?.unlock ?? 'Löschen')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen')),
         ],
       ),
     );
@@ -269,7 +274,7 @@ class _AdminPageState extends State<AdminPage> {
       setState(() { c.reportLink = null; });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(t?.created ?? 'Gelöscht')),
+          const SnackBar(content: Text('Gelöscht')),
         );
       }
     } else {
@@ -355,7 +360,7 @@ class _AdminPageState extends State<AdminPage> {
                       children: [
                         _buildPendingPanel(),
                         _buildUsersPanel(),
-                        _buildOpenComplaintsPanel(), // zeigt Tabelle (Variante C)
+                        _buildOpenComplaintsPanel(),
                       ],
                     ),
                   ),
@@ -533,18 +538,17 @@ class _AdminPageState extends State<AdminPage> {
 
   // --- Tabelle für offene Reklamationen ---
   Widget _buildOpenComplaintsTable(BuildContext context) {
-    final t = AppLocalizations.of(context);
     final complaints = _openComplaints;
 
     Widget table = PaginatedDataTable(
       header: const Text('Offene Reklamationen'),
       rowsPerPage: (complaints.length < 10) ? complaints.length.clamp(1, 10) : 10,
       availableRowsPerPage: const [5, 10, 20, 50],
-      columns: [
-        const DataColumn(label: Text('Ticket')),
-        const DataColumn(label: Text('Erstellt')),
-        const DataColumn(label: Text('Reklamationsbericht')),
-        const DataColumn(label: Text('Aktionen')),
+      columns: const [
+        DataColumn(label: Text('Ticket')),
+        DataColumn(label: Text('Erstellt')),
+        DataColumn(label: Text('Reklamationsbericht')),
+        DataColumn(label: Text('Aktionen')),
       ],
       source: _ComplaintsDataSource(
         context: context,
@@ -1074,6 +1078,31 @@ class AdminApi {
     }
   }
 
+  Future<void> deletePending(String email) async {
+    // 1) DELETE ?email=...
+    try {
+      final res = await html.HttpRequest.request(
+        _u('/api/admin/pending', {'email': email}).toString(),
+        method: 'DELETE',
+        requestHeaders: _headersJson(),
+        withCredentials: false,
+      );
+      if (res.status == 200 || res.status == 204) return;
+    } catch (_) {}
+    // 2) DELETE Body
+    final res = await html.HttpRequest.request(
+      _u('/api/admin/pending').toString(),
+      method: 'DELETE',
+      requestHeaders: _headersJson(),
+      sendData: jsonEncode({'email': email}),
+      withCredentials: false,
+    );
+    if (res.status != 200 && res.status != 204) {
+      throw 'pending DELETE failed: HTTP ${res.status} ${res.responseText}';
+    }
+  }
+
+  // ---- Users ----
   Future<void> deleteUser(String email) async {
     final urlQ = _u('/api/admin/users', {'email': email}).toString();
     final url  = _u('/api/admin/users').toString();
@@ -1117,7 +1146,7 @@ class AdminApi {
     return data.map((e) => ActiveUser.fromJson(e as Map<String, dynamic>)).toList();
   }
 
-  // ---- Complaints (neu/erweitert) ----
+  // ---- Complaints ----
 
   // Detaillierte Liste für Kundendatenbank
   Future<List<AdminComplaint>> fetchComplaintsByEmailDetailed(String email) async {
@@ -1302,7 +1331,6 @@ class _ComplaintsDataSource extends DataTableSource {
   DataRow? getRow(int index) {
     if (index < 0 || index >= data.length) return null;
     final c = data[index];
-    final t = AppLocalizations.of(context);
 
     final ticket = c.ticket;
     final created = c.createdAt.toIso8601String().split('.').first;
@@ -1326,13 +1354,13 @@ class _ComplaintsDataSource extends DataTableSource {
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
-            tooltip: t?.open ?? 'Report-Link setzen/ändern',
+            tooltip: 'Report-Link setzen/ändern',
             icon: const Icon(Icons.link),
             onPressed: () => onSetReport(c),
           ),
           if ((c.reportLink ?? '').isNotEmpty)
             IconButton(
-              tooltip: t?.unlock ?? 'Report-Link löschen',
+              tooltip: 'Report-Link löschen',
               icon: const Icon(Icons.link_off),
               onPressed: () => onClearReport(c),
             ),
@@ -1385,6 +1413,12 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     _status = widget.c.status;
     _decision = widget.c.decision;
     _reportCtrl.text = widget.c.reportLink ?? '';
+  }
+
+  @override
+  void dispose() {
+    _reportCtrl.dispose();
+    super.dispose();
   }
 
   bool get _isNowClosed {
