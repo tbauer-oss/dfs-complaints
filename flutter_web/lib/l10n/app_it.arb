@@ -80,7 +80,7 @@
 
   "auth_login": "Accesso",
   "auth_register": "Registrazione",
-  "login": "Accedi",
+  "login": "Login - App reclami DFS",
   "@login": { "description": "Etichetta pulsante di accesso" },
   "register": "Registrati",
   "@register": { "description": "Etichetta pulsante di registrazione" },
