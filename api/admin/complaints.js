@@ -123,7 +123,16 @@ export default async function handler(req, res) {
     // POST / PATCH: Status/Decision/Report
     // ======================================
     if (req.method === 'POST' || req.method === 'PATCH') {
-      const body = readJson(req);
+      // ---- Body robust parsen (ohne CORS-Änderungen) ----
+      let body = readJson(req);          // kann bereits Objekt ODER String sein
+      if (typeof body === 'string') {
+        try { body = JSON.parse(body); } catch { /* ignore */ }
+      }
+      if (typeof body === 'string') {
+        // Legacy-Fall: reiner Ticket-String
+        body = { ticket: body };
+      }
+      if (!body || typeof body !== 'object') body = {};
 
       const ticket     = (body?.ticket || '').toString().trim();
       const statusIn   = body?.status;                // Zahl 1..6 | "1".."6" | Label
@@ -151,28 +160,26 @@ export default async function handler(req, res) {
         c.decision = decisionIn ?? null;
 
         // Business-Logik:
-        // Bei 'rejected' bleibt Status 4 (= Entscheidung), gilt als geschlossen für die Offenen-Liste.
         if (c.decision === 'rejected') {
           c.closed = true;
           c.closedAt = Date.now();
-          c.status = 4;
+          c.status = 4;                 // Entscheidung
           c.statusUpdatedAt = Date.now();
         }
-        // Bei 'accepted' kein Auto-Abschluss – Abschluss erfolgt explizit mit Status 6.
+        // 'accepted' -> kein Auto-Abschluss; Abschluss explizit mit Status 6
       }
 
-      // --- Report-Link (optional) ---
+      // --- Report-Link (optional; leer => löschen) ---
       if (reportLink !== undefined) {
         const v = (reportLink ?? '').toString().trim();
         if (v) {
           c.reportLink = v;
         } else {
-          // leeren/entfernen
-          delete c.reportLink;
+          delete c.reportLink;          // explizit entfernen
         }
       }
 
-      // Timestamps & Persist
+      // Persist
       c.updatedAt = Date.now();
       await complaintSave(ticket, c);
 
