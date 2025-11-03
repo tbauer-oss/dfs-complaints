@@ -80,7 +80,7 @@
 
   "auth_login": "Iniciar sesión",
   "auth_register": "Registrarse",
-  "login": "Iniciar sesión",
+  "login": "Iniciar sesión - Aplicación de reclamaciones DFS",
   "@login": { "description": "Etiqueta del botón de inicio de sesión" },
   "register": "Registrarse",
   "@register": { "description": "Etiqueta del botón de registro" },
