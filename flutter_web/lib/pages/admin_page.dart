@@ -843,6 +843,7 @@ class _ComplaintsDetailList extends StatelessWidget {
           const Text('Reklamationen (Details):', style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
           ...r.items.map((c) => _ComplaintTileCompact(
+            api: api,                // ← NEU
             c: c,
             companyHint: companyHint,
             onEdit: () {
@@ -869,28 +870,58 @@ class _ComplaintsDetailList extends StatelessWidget {
   }
 }
 
-// Kompakte Kachel für eine Reklamation (in "Aktive Nutzer")
+// Kompakte Kachel für eine Reklamation (in "Aktive Nutzer") – MIT Kurzdetails + Details-Button
 class _ComplaintTileCompact extends StatelessWidget {
   final AdminComplaint c;
   final String? companyHint;
   final VoidCallback onEdit;
+  final AdminApi api; // ← damit wir die vollständigen Details nachladen können
 
   const _ComplaintTileCompact({
+    super.key,
     required this.c,
     required this.onEdit,
+    required this.api,
     this.companyHint,
   });
 
   String _statusLabel(int v) {
-    final m = {
+    const m = {
       1: 'Eingegegangen',
       2: 'In Bearbeitung',
       3: 'Rückfrage erforderlich',
       5: 'In Nacharbeit',
       6: 'Abgeschlossen',
-      4: 'Entscheidung', // bleibt hier neutral
+      4: 'Entscheidung', // neutral
     };
     return m[v] ?? 'Unbekannt';
+  }
+
+  // Kurzer, sicherer Payload-Zugriff
+  String _p(String key) {
+    final p = c.payload ?? const {};
+    final v = (p[key] ?? '').toString().trim();
+    return v.isEmpty ? '—' : v;
+  }
+
+  // Vollständige Details nachladen und als Dialog anzeigen
+  Future<void> _openDetailsDialog(BuildContext context) async {
+    try {
+      final data = await api.fetchComplaintRawByTicket(c.ticket); // lädt inkl. payload + files
+      // Vorhandener Details-Dialog aus deiner Datei:
+      //   class _ComplaintDetailsDialog extends StatelessWidget { ... }
+      // Wir nutzen ihn wieder:
+      // ignore: use_build_context_synchronously
+      showDialog(
+        context: context,
+        builder: (_) => _ComplaintDetailsDialog(data: data),
+      );
+    } catch (e) {
+      // ignore: use_build_context_synchronously
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Details konnten nicht geladen werden: $e')),
+      );
+    }
   }
 
   @override
@@ -906,6 +937,14 @@ class _ComplaintTileCompact extends StatelessWidget {
         ? 'Firma: ${companyHint!}'
         : 'E-Mail: ${c.email}';
 
+    // Kurzdetails aus dem Formular (wenn vorhanden)
+    final seg   = _p('segment'); // Zahnarzt | Zahntechnik
+    final art   = _p('article');
+    final batch = _p('batch');
+    final qty   = _p('qty');
+    final exp   = _p('expiry');
+    final desc  = _p('desc');
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4),
       child: ListTile(
@@ -917,6 +956,7 @@ class _ComplaintTileCompact extends StatelessWidget {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Erste Zeile: Wunsch + Entscheidung
             Wrap(
               spacing: 12,
               runSpacing: 4,
@@ -925,7 +965,41 @@ class _ComplaintTileCompact extends StatelessWidget {
                 Text('Entscheidung: $dec'),
               ],
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 6),
+
+            // Zweite Zeile: Segment + Artikel + Charge
+            Wrap(
+              spacing: 12,
+              runSpacing: 4,
+              children: [
+                Text('Segment: $seg'),
+                Text('Artikel: $art'),
+                Text('Charge: $batch'),
+              ],
+            ),
+
+            // Dritte Zeile: Menge + Ablauf
+            Wrap(
+              spacing: 12,
+              runSpacing: 4,
+              children: [
+                Text('Menge: $qty'),
+                Text('Ablauf: $exp'),
+              ],
+            ),
+
+            // Vierte Zeile: Kurzbeschreibung (max. 1 Zeile abgeschnitten)
+            if (desc != '—')
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'Beschreibung: $desc',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+
+            const SizedBox(height: 4),
             Text(
               'Erstellt: ${c.createdAt.toLocal()}'
               '${c.updatedAt.isAfter(c.createdAt) ? '  •  Aktualisiert: ${c.updatedAt.toLocal()}' : ''}',
@@ -933,14 +1007,25 @@ class _ComplaintTileCompact extends StatelessWidget {
             ),
           ],
         ),
-        trailing: Wrap(
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 8,
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Text(right, style: const TextStyle(fontSize: 12, color: Colors.black54)),
-            FilledButton(
-              onPressed: onEdit,
-              child: const Text('Bearbeiten'),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => _openDetailsDialog(context),
+                  icon: const Icon(Icons.info_outline, size: 18),
+                  label: const Text('Details'),
+                ),
+                FilledButton(
+                  onPressed: onEdit,
+                  child: const Text('Bearbeiten'),
+                ),
+              ],
             ),
           ],
         ),
