@@ -4,15 +4,16 @@ export const config = { runtime: 'nodejs' };
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import {
-  handlePreflight, ok, bad, methodNotAllowed, readJson
+  handlePreflight, setCors, ok, bad, methodNotAllowed, readJson
 } from '../_lib/http.js';
 import { userByEmail } from '../_lib/store.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret';
 
 export default async function handler(req, res) {
-  // CORS-Header setzen + OPTIONS direkt beantworten (204)
-  if (handlePreflight(req, res)) return;
+  // --- CORS zuerst ---
+  if (handlePreflight(req, res)) return; // beantwortet OPTIONS (204) inkl. CORS
+  setCors(req, res); // sicherstellen, dass auch POST-Antworten CORS haben
 
   if (req.method !== 'POST') return methodNotAllowed(res);
 
@@ -26,7 +27,6 @@ export default async function handler(req, res) {
     const u = await userByEmail(email);
     if (!u) return bad(res, 'invalid credentials', 401);
 
-    // Achtung: Feldname muss zu deinem Store passen (passhash vs passwordHash)
     const hash = u.passhash || u.passwordHash || '';
     const okPw = await bcrypt.compare(pw, hash);
     if (!okPw) return bad(res, 'invalid credentials', 401);
@@ -50,6 +50,7 @@ export default async function handler(req, res) {
       }
     });
   } catch (e) {
+    console.error('auth/login error:', e);
     return bad(res, 'server error', 500);
   }
 }
