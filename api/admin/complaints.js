@@ -10,19 +10,9 @@ import {
   readJson,
 } from '../_lib/http.js';
 
-import {
-  complaintsAll,
-  complaintsOpen,
-  complaintsByEmail,
-  complaintByTicket,
-  complaintSave,
-  complaintDelete,
-} from '../_lib/store.js';
-
 // -------- Admin-Auth ----------
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
-const isAdmin = (req) =>
-  ADMIN_SECRET && req.headers?.['x-admin-secret'] === ADMIN_SECRET;
+const isAdmin = (req) => ADMIN_SECRET && req.headers?.['x-admin-secret'] === ADMIN_SECRET;
 
 // -------- Status-Mapping ----------
 const STATUS_LABEL = {
@@ -33,23 +23,16 @@ const STATUS_LABEL = {
   5: 'In Nacharbeit',
   6: 'Abgeschlossen',
 };
+const STATUS_CODE = Object.fromEntries(Object.entries(STATUS_LABEL).map(([k, v]) => [v, Number(k)]));
 
-const STATUS_CODE = Object.fromEntries(
-  Object.entries(STATUS_LABEL).map(([k, v]) => [v, Number(k)])
-);
-
-/** Akzeptiert: Zahl 1..6, numerischer String "1".."6" oder Label-String */
 function parseStatus(input) {
   if (input == null) return null;
-  if (typeof input === 'number') {
-    const n = Number(input);
-    return n >= 1 && n <= 6 ? n : null;
-  }
+  if (typeof input === 'number') return (input >= 1 && input <= 6) ? input : null;
   if (typeof input === 'string') {
     const s = input.trim();
     if (/^\d+$/.test(s)) {
       const n = Number(s);
-      return n >= 1 && n <= 6 ? n : null;
+      return (n >= 1 && n <= 6) ? n : null;
     }
     return STATUS_CODE[s] ?? null;
   }
@@ -63,23 +46,30 @@ const sortDescByDate = (a, b) => {
   const tb = b?.updatedAt ?? b?.createdAt ?? 0;
   return (tb || 0) - (ta || 0);
 };
-const decorateForAdmin = (c) => ({
-  ...c,
-  statusLabel: STATUS_LABEL[c.status] || STATUS_LABEL[1],
-});
+const decorateForAdmin = (c) => ({ ...c, statusLabel: STATUS_LABEL[c.status] || STATUS_LABEL[1] });
 
 // =======================================================
 // Handler
 // =======================================================
 export default async function handler(req, res) {
-  // 1) CORS-Header IMMER zuerst setzen
- setCors(req, res);
+  // 1) CORS IMMER zuerst
+  setCors(req, res);
 
-  // 2) OPTIONS (Preflight) sofort beantworten – ohne Admin-Auth
+  // 2) Preflight IMMER minimal beantworten (keine weiteren Imports!)
   if (req.method === 'OPTIONS') return noContent(res);
 
-  // 3) Ab hier Admin-Auth prüfen
+  // 3) Admin-Auth prüfen (immer noch ohne schwere Imports)
   if (!isAdmin(req)) return bad(res, 'admin unauthorized', 401);
+
+  // 4) Schwere Imports NACH Preflight/Admin laden (verhindert 500 bei OPTIONS)
+  const {
+    complaintsAll,
+    complaintsOpen,
+    complaintsByEmail,
+    complaintByTicket,
+    complaintSave,
+    complaintDelete,
+  } = await import('../_lib/store.js');
 
   try {
     // ----------------------------
@@ -92,35 +82,25 @@ export default async function handler(req, res) {
       const open    = (q.open || '').toString().trim();
       const details = (q.details || '').toString().trim();
 
-      // a) Einzel-Complaint per Ticket
       if (ticket) {
         const c = await complaintByTicket(ticket);
         if (!c) return bad(res, 'not found', 404);
         return ok(res, decorateForAdmin(c));
       }
 
-      // b) Complaints eines Kunden
       if (email) {
         const list = await complaintsByEmail(email);
         list.sort(sortDescByDate);
-        if (details === '1') {
-          return ok(res, list.map(decorateForAdmin));
-        }
-        // kompakte Antwort: nur Ticket-IDs
-        return ok(res, list.map((c) => c.ticket));
+        return ok(res, details === '1' ? list.map(decorateForAdmin) : list.map((c) => c.ticket));
       }
 
-      // c) Nur offene Reklamationen
       if (open === '1') {
         const list = await complaintsOpen();
         return ok(res, list.map(decorateForAdmin));
       }
 
-      // d) Alle Reklamationen
       const all = await complaintsAll();
-      const out = (Array.isArray(all) ? all : [])
-        .sort(sortDescByDate)
-        .map(decorateForAdmin);
+      const out = (Array.isArray(all) ? all : []).sort(sortDescByDate).map(decorateForAdmin);
       return ok(res, out);
     }
 
@@ -128,25 +108,23 @@ export default async function handler(req, res) {
     // POST / PATCH – Status / Decision / Report
     // ----------------------------
     if (req.method === 'POST' || req.method === 'PATCH') {
-      // Body robust parsen
       let body = readJson(req);
-      if (typeof body === 'string') {
-        try { body = JSON.parse(body); } catch { /* ignore */ }
-      }
+      if (typeof body === 'string') { try { body = JSON.parse(body); } catch {} }
       if (typeof body === 'string') body = { ticket: body };
       if (!body || typeof body !== 'object') body = {};
 
-      const ticket     = (body?.ticket || '').toString().trim();
-      const statusIn   = body?.status;                // 1..6 | "1".."6" | Label
-      const decisionIn = body?.decision;              // 'accepted' | 'rejected' | "" | null | undefined
-      const reportLink = body?.reportLink;            // string | "" | null | undefined
+      const ticket      = (body?.ticket || '').toString().trim();
+      const statusIn    = body?.status; // 1..6 | "1".."6" | Label
+      const hasDecision = Object.prototype.hasOwnProperty.call(body, 'decision');
+      const rawDecision = hasDecision ? body.decision : undefined; // 'accepted' | 'rejected' | "" | null | undefined
+      const reportLink  = body?.reportLink; // string | "" | null | undefined
 
       if (!ticket) return bad(res, 'missing ticket', 400);
 
       const c = await complaintByTicket(ticket);
       if (!c) return bad(res, 'not found', 404);
 
-      // ---- Status (optional) ----
+      // Status (optional)
       if (statusIn !== undefined) {
         const code = parseStatus(statusIn);
         if (code == null) return bad(res, 'invalid status', 400);
@@ -154,41 +132,35 @@ export default async function handler(req, res) {
         c.statusUpdatedAt = Date.now();
       }
 
-      // ---- Decision (optional) ----
-      const rawDecision = body?.decision;
-      const decisionIn = (rawDecision === '') ? null : rawDecision;
-
-      if (rawDecision !== undefined) {  // Key wurde gesendet (auch '')
-        if (decisionIn !== null && decisionIn !== 'accepted' && decisionIn !== 'rejected') {
+      // Decision (optional, separat, "" => null)
+      if (hasDecision) {
+        const decision = (rawDecision === '') ? null : rawDecision;
+        if (decision !== null && decision !== 'accepted' && decision !== 'rejected') {
           return bad(res, 'invalid decision', 400);
         }
-        c.decision = decisionIn;  // null | 'accepted' | 'rejected'
+        c.decision = decision;
 
-        // Business-Logik:
+        // Business-Logik: 'rejected' => schließen + Status "Entscheidung"
         if (c.decision === 'rejected') {
           c.closed = true;
           c.closedAt = Date.now();
-          c.status = 4;                 // Entscheidung (systemgesetzt)
+          c.status = 4;
           c.statusUpdatedAt = Date.now();
         }
       }
-      
-      // ---- Report-Link (optional; leer => löschen) ----
+
+      // Report-Link (optional; "" => löschen)
       if (reportLink !== undefined) {
         const v = (reportLink ?? '').toString().trim();
         if (v) c.reportLink = v;
         else delete c.reportLink;
       }
 
-      // Persist
       c.updatedAt = Date.now();
 
-      // robust speichern (bevorzugt keyed, Fallback full)
-      try {
-        await complaintSave(ticket, c);
-      } catch {
-        await complaintSave({ ...c });
-      }
+      // robust persistieren
+      try { await complaintSave(ticket, c); }
+      catch { await complaintSave({ ...c }); }
 
       return ok(res, {
         ticket: c.ticket,
@@ -201,19 +173,15 @@ export default async function handler(req, res) {
     }
 
     // ----------------------------
-    // DELETE – Complaint löschen
+    // DELETE
     // ----------------------------
     if (req.method === 'DELETE') {
-      // ticket aus ?ticket=... oder Body
       let ticket = (req.query?.ticket || '').toString().trim();
       if (!ticket && req.body) {
         try {
-          const b =
-            typeof req.body === 'string'
-              ? JSON.parse(req.body || '{}')
-              : req.body;
+          const b = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body;
           ticket = (b?.ticket || '').toString().trim();
-        } catch (_) {}
+        } catch {}
       }
       if (!ticket) return bad(res, 'missing ticket', 400);
 
