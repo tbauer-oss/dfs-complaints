@@ -256,36 +256,29 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                   ),
                                 ),
 
-                                const SizedBox(height: 6),
-
-                                // NEU: Decision-Badge (nur anzeigen, wenn gesetzt)
-                                if (c.decision != null) ...[
-                                  Builder(builder: (_) {
-                                    final isAcc = c.decision == 'accepted';
-                                    final isRej = c.decision == 'rejected';
-                                    final decColor = isAcc
-                                        ? Colors.green
-                                        : (isRej ? Colors.red : Colors.grey);
-
-                                    final decText = isAcc
-                                        ? t.decision_accepted   // z.B. "Angenommen"
-                                        : (isRej ? t.decision_rejected : t.decision_pending); // optionaler Fallback
-
-                                    return Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                      decoration: BoxDecoration(
-                                        color: decColor.withOpacity(0.12),
-                                        border: Border.all(color: decColor, width: 1),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Text(
-                                        '${t.decision}: $decText',
-                                        style: TextStyle(color: decColor, fontWeight: FontWeight.w600),
-                                      ),
-                                    );
-                                  }),
+                                // Decision-Badge (nur wenn gesetzt)
+                                if ((c.decision ?? '').isNotEmpty) ...[
                                   const SizedBox(height: 6),
-                                ],
+                                  Builder(
+                                    builder: (_) {
+                                      final dec = c.decision!; // hier sicher, weil oben geprüft
+                                      final decText = dec == 'accepted' ? t.decision_accepted : t.decision_rejected;
+                                      final decColor = dec == 'accepted' ? Colors.green : Colors.red;
+                                      return Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: decColor.withOpacity(0.12),
+                                          border: Border.all(color: decColor, width: 1),
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Text(
+                                          '${t.decision}: $decText',
+                                          style: TextStyle(color: decColor, fontWeight: FontWeight.w600),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],,
 
                                 // Details-Button
                                 TextButton.icon(
