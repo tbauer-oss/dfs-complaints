@@ -1,4 +1,4 @@
-// lib/pages/admin_page.dart
+E-Mail// lib/pages/admin_page.dart
 import 'dart:convert';
 import 'dart:html' as html;
 import 'package:flutter/material.dart';
@@ -21,6 +21,27 @@ class _AdminPageState extends State<AdminPage> {
 
   String? _fatalErr; // Ungültiges/missing Secret -> blockiert
   String? _err;      // Nicht-blockierende Fehlermeldungen
+
+  ActiveUser? _findActive(String email) {
+    final e = email.trim().toLowerCase();
+    for (final u in _users) {
+      if (u.email.trim().toLowerCase() == e) return u;
+    }
+    return null;
+  }
+
+  PendingUser? _findPending(String email) {
+    final e = email.trim().toLowerCase();
+    for (final p in _pending) {
+      if (p.email.trim().toLowerCase() == e) return p;
+    }
+    return null;
+  }
+
+  String? _companyByEmail(String email) {
+    final name = _findActive(email)?.company ?? _findPending(email)?.company ?? '';
+    return name.trim().isEmpty ? null : name.trim();
+  }
 
   List<PendingUser> _pending = [];
   List<ActiveUser> _users = [];
@@ -441,8 +462,8 @@ class _AdminPageState extends State<AdminPage> {
                         return _ComplaintEditor(
                           api: _api,
                           c: c,
+                          companyHint: _companyByEmail(c.email), // ← HIER rein
                           onClosed: () {
-                            // Sofort aus der Offenen-Liste entfernen
                             setState(() {
                               _openComplaints.removeWhere((x) => x.ticket == c.ticket);
                             });
@@ -584,6 +605,7 @@ class _PendingTileState extends State<_PendingTile> {
             result: widget.complaints,
             api: widget.api,
             onClosed: widget.onClosedFromEditor,
+            companyHint: widget.data.company,
           ),
         const Divider(height: 1),
       ],
@@ -709,6 +731,7 @@ class _UserTileState extends State<_UserTile> {
             result: widget.complaints,
             api: widget.api,
             onClosed: widget.onClosedFromEditor,
+            companyHint: widget.data.company,
           ),
         const Divider(height: 1),
       ],
@@ -720,10 +743,13 @@ class _ComplaintsDetailList extends StatelessWidget {
   final _ComplaintsResult? result;
   final AdminApi api;
   final VoidCallback onClosed;
+  final String? companyHint;
+  
   const _ComplaintsDetailList({
     required this.result,
     required this.api,
     required this.onClosed,
+    this.companyHint,
   });
 
   @override
@@ -761,7 +787,12 @@ class _ComplaintsDetailList extends StatelessWidget {
           const Divider(),
           const Text('Reklamationen (Details):', style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
-          ...r.items.map((c) => _ComplaintEditor(api: api, c: c, onClosed: onClosed)).toList(),
+          ...r.items.map((c) => _ComplaintEditor(
+                api: api,
+                c: c,
+                onClosed: onClosed,
+                companyHint: companyHint, // ← HIER Firma weitergeben
+              )).toList(),
         ],
       ),
     );
@@ -1208,20 +1239,21 @@ class _ComplaintDetailsDialog extends StatelessWidget {
 }
 
 class _ComplaintEditor extends StatefulWidget {
-  final AdminApi api;          // AdminApi-Instanz
-  final AdminComplaint c;      // zu bearbeitender Fall
-  final VoidCallback onClosed; // wird aufgerufen, wenn Fall aus "Offene" verschwinden soll
+  final AdminApi api;
+  final AdminComplaint c;
+  final VoidCallback onClosed;
+  final String? companyHint; // ← NEU
 
   const _ComplaintEditor({
     Key? key,
     required this.api,
     required this.c,
     required this.onClosed,
+    this.companyHint,        // ← NEU
   }) : super(key: key);
 
   @override
   State<_ComplaintEditor> createState() => _ComplaintEditorState();
-}
 
 class _ComplaintEditorState extends State<_ComplaintEditor> {
   final _reportCtrl = TextEditingController();
@@ -1349,6 +1381,10 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
 
   @override
   Widget build(BuildContext context) {
+    final rightLabel = (widget.companyHint != null && widget.companyHint!.trim().isNotEmpty)
+        ? 'Firma: ${widget.companyHint}'
+        : 'E-Mail: ${widget.c.email}'; // Fallback für „Offene Reklamationen“
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
       child: Padding(
@@ -1356,14 +1392,17 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Kopfzeile
             Row(
               children: [
-                Text('Ticket: ${widget.c.ticket}',
-                  style: const TextStyle(fontWeight: FontWeight.w600)),
+                Text(
+                  'Ticket: ${widget.c.ticket}',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
                 const Spacer(),
-                Text('E-Mail: ${widget.c.email}',
-                  style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                Text(
+                  rightLabel,                         // ← HIER jetzt Firma bevorzugt
+                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                ),
               ],
             ),
             const SizedBox(height: 12),
