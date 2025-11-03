@@ -3,7 +3,8 @@
 // --- Erlaubte Frontend-Origins ---
 export const PROD_FE  = 'https://dfs-complaints-web.vercel.app';
 export const LOCAL_FE = 'http://localhost:8080';
-const PREVIEW  = /^https:\/\/dfs-complaints-web(?:-[a-z0-9-]+)*\.vercel\.app$/i;
+// breit gefasste Preview-RegEx (beliebig viele Suffix-Blöcke)
+const PREVIEW  = /^https:\/\/(?:dfs-complaints|dfs-complaints-web|dfs-customer-complaint)(?:-[a-z0-9-]+)*\.vercel\.app$/i;
 
 // Prüft, ob Origin erlaubt ist
 export function isAllowedOrigin(origin = '') {
@@ -12,19 +13,22 @@ export function isAllowedOrigin(origin = '') {
   return PREVIEW.test(origin);
 }
 
-// Wählt den tatsächlich zu sendenden ACAO-Wert (bei withCredentials NIE "*")
-function pickAllowOrigin(origin = '') {
-  return isAllowedOrigin(origin) ? origin : PROD_FE;
-}
-
 // Setzt CORS-Header (immer am Handler-Anfang aufrufen!)
 export function setCors(req, res) {
   const origin = req.headers?.origin || '';
-  const allow  = pickAllowOrigin(origin);
+  const allowed = isAllowedOrigin(origin);
 
-  res.setHeader('Access-Control-Allow-Origin', allow);
-  res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  if (allowed) {
+    // Für Prod/Preview/Local: Origin spiegeln + Credentials zulassen
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  } else {
+    // Für unbekannte Origins: Wildcard, aber ohne Credentials
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    // kein Allow-Credentials setzen!
+  }
+
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
 
   // Standard-Header + evtl. vom Browser angefragte Header (failsafe anfügen)
