@@ -32,7 +32,7 @@ class _AdminPageState extends State<AdminPage> {
   @override
   void initState() {
     super.initState();
-    _api = AdminApi(widget.api); //
+    _api = AdminApi(); //
 
     // 1) Primär: aus dem ApiClient, der von main.dart übergeben wird
     String secret = widget.api.adminSecret ?? '';
@@ -1090,6 +1090,21 @@ class AdminApi {
     return AdminComplaint.fromJson(j);
   }
 
+  // Alias, damit Aufrufe mit adminComplaintUpdate(...) funktionieren
+  Future<AdminComplaint> adminComplaintUpdate({
+    required String ticket,
+    int? status,
+    String? decision,
+    String? reportLink, // "" => Backend löscht den Link
+  }) {
+    return updateComplaint(
+      ticket: ticket,
+      status: status,
+      decision: decision,
+      reportLink: reportLink,
+    );
+  }
+
   // Reklamation löschen (Admin)
   Future<void> deleteComplaint(String ticket) async {
     // Versuch 1: DELETE ?ticket=...
@@ -1187,203 +1202,116 @@ class _ComplaintDetailsDialog extends StatelessWidget {
   }
 }
 
-class _ComplaintEditor extends StatefulWidget {
-  final AdminApi api;
-  final AdminComplaint c;
-  final VoidCallback onClosed; // aufgerufen, wenn der Fall aus "Offene" verschwinden soll
+  class _ComplaintEditor extends StatefulWidget {
+    final AdminApi api;                 // AdminApi-Instanz
+    final AdminComplaint c;             // der zu bearbeitende Fall
+    final VoidCallback onClosed;        // wird aufgerufen, wenn Fall aus "Offene" verschwinden soll
 
-  const _ComplaintEditor({
-    super.key,
-    required this.api,
-    required this.complaint,
-    required this.c,
-    required this.onClosed,
-  });
+    const _ComplaintEditor({
+      Key? key,
+      required this.api,
+      required this.c,
+      required this.onClosed,
+    }) : super(key: key);
 
-  @override
-  State<_ComplaintEditor> createState() => _ComplaintEditorState();
-}
-
-class _ComplaintEditorState extends State<_ComplaintEditor> {
-  bool _busy = false;
-  late int _status;
-  String? _decision;
-  final _reportCtrl = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _status = widget.c.status;
-    _decision = widget.c.decision;
-    _reportCtrl.text = widget.c.reportLink ?? '';
+    @override
+    State<_ComplaintEditor> createState() => _ComplaintEditorState();
   }
 
-  bool get _isNowClosed {
-    // Abgeschlossen oder (Entscheidung + rejected)
-    return _status == 6 || (_status == 4 && _decision == 'rejected');
-  }
+  class _ComplaintEditorState extends State<_ComplaintEditor> {
+    final _reportCtrl = TextEditingController();
+    bool _busy = false;
 
-  @override
-  Widget build(BuildContext context) {
-    final c = widget.c;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Wrap(
-              spacing: 16,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Text('Ticket: ${c.ticket}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                Text('Kunde: ${c.email}'),
-                Text('Erstellt: ${c.createdAt.toIso8601String().split(".").first}'),
-              ],
+    @override
+    void initState() {
+      super.initState();
+      _reportCtrl.text = widget.c.reportLink ?? '';
+    }
+
+    @override
+    void dispose() {
+      _reportCtrl.dispose();
+      super.dispose();
+    }
+
+    Future<void> _saveReportLink() async {
+      setState(() => _busy = true);
+      try {
+        final link = _reportCtrl.text.trim(); // <-- erst deklarieren, dann nutzen
+        final updated = await widget.api.adminComplaintUpdate(
+          ticket: widget.c.ticket,                  // <-- widget.c statt widget.complaint
+          reportLink: link.isEmpty ? '' : link,     // "" => löschen
+        );
+        _reportCtrl.text = updated.reportLink ?? '';
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Gespeichert.')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Fehler: $e')),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _busy = false);
+      }
+    }
+
+    Future<void> _clearReportLink() async {
+      setState(() => _busy = true);
+      try {
+        await widget.api.adminComplaintUpdate(
+          ticket: widget.c.ticket,
+          reportLink: '',                               // explizit löschen
+        );
+        _reportCtrl.text = '';
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Report-Link entfernt.')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Fehler: $e')),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _busy = false);
+      }
+    }
+
+    @override
+    Widget build(BuildContext context) {
+      // ... dein restliches UI, Buttons rufen _saveReportLink() / _clearReportLink() auf
+      return Column(
+        children: [
+          TextField(
+            controller: _reportCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Report-Link (optional)',
+              border: OutlineInputBorder(),
             ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 16,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                DropdownButton<int>(
-                  value: _status,
-                  onChanged: _busy ? null : (v) => setState(() => _status = v ?? _status),
-                  items: [
-                    for (final it in kStatusItems)
-                      DropdownMenuItem(value: it['value'] as int, child: Text(it['label'] as String)),
-                  ],
-                ),
-                if (_status == 4)
-                  DropdownButton<String>(
-                    value: _decision ?? '',
-                    onChanged: _busy ? null : (v) => setState(() => _decision = (v ?? '').isEmpty ? null : v),
-                    items: [
-                      for (final it in kDecisionItems)
-                        DropdownMenuItem(value: it['value'], child: Text(it['label']!)),
-                    ],
-                  ),
-                SizedBox(
-                  width: 320,
-                  child: TextField(
-                    controller: _reportCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Report-Link (optional)',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-
-                TextButton.icon(
-                  onPressed: _busy ? null : () async {
-                    try {
-                      final raw = await widget.api.fetchComplaintRawByTicket(c.ticket);
-                      if (!context.mounted) return;
-                      await showDialog(
-                        context: context,
-                        builder: (_) => Dialog(
-                          child: _ComplaintEditor(
-                            api: _api,                  // <--- AdminApi rein
-                            complaint: complaint,       // dein AdminComplaint-Objekt
-                          ),
-                        ),
-                      );
-                    } catch (e) {
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Details laden fehlgeschlagen: $e')),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.info_outline),
-                  label: const Text('Details'),
-                ),
-
-                // SPEICHERN
-                ElevatedButton.icon(
-                  onPressed: _busy ? null : () async {
-                    setState(() => _busy = true);
-                    try {
-                      final updated = await widget.api.adminComplaintUpdate(
-                        ticket: widget.complaint.ticket,
-                        status: _status,
-                        decision: _decision,
-                        reportLink: link.isEmpty ? '' : link, // "" => löschen
-                      );
-                      final link = _reportCtrl.text.trim();
-                      await widget.api.adminComplaintUpdate(
-                        ticket: c.ticket,
-                        reportLink: link.isEmpty ? '' : link, // "" => löschen
-                        // ggf. status / decision mitgeben
-                      );
-                      setState(() {
-                        _status = updated.status;
-                        _decision = updated.decision;
-                      });
-                      if (_status == 6 || (_status == 4 && _decision == 'rejected')) {
-                        widget.onClosed(); // falls jetzt „geschlossen“, sofort aus Liste entfernen
-                      }
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Status aktualisiert.')),
-                      );
-                    } catch (e) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Fehler: $e')),
-                      );
-                    } finally {
-                      if (mounted) setState(() => _busy = false);
-                    }
-                  },
-                  icon: const Icon(Icons.save),
-                  label: const Text('Speichern'),
-                ),
-
-                // ← HIER NEU: LÖSCHEN (siehe Block oben)
-                TextButton.icon(
-                  onPressed: _busy ? null : () async {
-                    final ok = await showDialog<bool>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: const Text('Reklamation löschen'),
-                        content: Text('Ticket ${c.ticket} wirklich endgültig löschen?'),
-                        actions: [
-                          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
-                          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen')),
-                        ],
-                      ),
-                    );
-                    if (ok != true) return;
-
-                    setState(() => _busy = true);
-                    try {
-                      await widget.api.deleteComplaint(c.ticket);
-                      // Aus der Liste entfernen (Panel "Offene Reklamationen")
-                      widget.onClosed();
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Ticket ${c.ticket} gelöscht.')),
-                        );
-                      }
-                    } catch (e) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Löschen fehlgeschlagen: $e')),
-                        );
-                      }
-                    } finally {
-                      if (mounted) setState(() => _busy = false);
-                    }
-                  },
-                  icon: const Icon(Icons.delete_outline),
-                  label: const Text('Löschen'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              ElevatedButton(
+                onPressed: _busy ? null : _saveReportLink,
+                child: const Text('Speichern'),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: _busy ? null : _clearReportLink,
+                icon: const Icon(Icons.clear),
+               label: const Text('Entfernen'),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
   }
 }
