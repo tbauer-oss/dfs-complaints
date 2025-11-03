@@ -22,14 +22,14 @@ import {
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 const isAdmin = (req) =>
-  ADMIN_SECRET && req.headers?.['x-admin-secret'] === ADMIN_SECRET;
+  !!ADMIN_SECRET && req.headers?.['x-admin-secret'] === ADMIN_SECRET;
 
-// ---- Status-Mapping: intern numerisch (1..6), für Admin-UI zusätzlich Label ----
+// ---- Status-Mapping: intern numerisch (1..6), Admin-UI bekommt Label dazu ----
 const STATUS_LABEL = {
   1: 'Eingegegangen',
   2: 'In Bearbeitung',
   3: 'Rückfrage erforderlich',
-  4: 'Entscheidung', // Decision steht separat in c.decision
+  4: 'Entscheidung', // Decision steht separat
   5: 'In Nacharbeit',
   6: 'Abgeschlossen',
 };
@@ -68,9 +68,9 @@ const decorateForAdmin = (c) => ({
 });
 
 export default async function handler(req, res) {
-  // 1) **Preflight zuerst** (setzt CORS und beantwortet OPTIONS)
+  // 1) Preflight zuerst: setzt CORS, beantwortet OPTIONS (204)
   if (handlePreflight(req, res)) return;
-  // 2) Für alle weiteren Antworten die CORS-Header setzen
+  // 2) Für alle weiteren Antworten CORS setzen
   setCors(req, res);
 
   // 3) Admin-Auth
@@ -81,13 +81,14 @@ export default async function handler(req, res) {
     // GET: verschiedene Modi
     // ===========================
     if (req.method === 'GET') {
-      const q = req.query || {};
-      const email   = normEmail(q.email || '');
-      const ticket  = (q.ticket || '').toString().trim();
-      const open    = (q.open || '').toString().trim();
-      const details = (q.details || '').toString().trim();
+      // Query robust lesen (funktioniert in allen Runtimes)
+      const url = new URL(req.url, 'http://x');
+      const email   = normEmail(url.searchParams.get('email') || '');
+      const ticket  = (url.searchParams.get('ticket') || '').toString().trim();
+      const open    = (url.searchParams.get('open') || '').toString().trim();
+      const details = (url.searchParams.get('details') || '').toString().trim();
 
-      // a) Einzel-Complaint per Ticket
+      // a) Einzel-Complaint per Ticket (inkl. payload)
       if (ticket) {
         const c = await complaintByTicket(ticket);
         if (!c) return bad(res, 'not found', 404);
@@ -101,7 +102,7 @@ export default async function handler(req, res) {
         if (details === '1') {
           return ok(res, list.map(decorateForAdmin));
         }
-        // Kompakte Antwort: nur Ticket-IDs (Backwards-Kompatibilität)
+        // Kompakt: nur Ticket-IDs (Backwards-Kompatibilität)
         return ok(res, list.map((c) => c.ticket));
       }
 
@@ -151,14 +152,14 @@ export default async function handler(req, res) {
         c.decision = decisionIn ?? null;
 
         // Business-Logik:
-        // Bei 'rejected' bleibt Status 4 (= Entscheidung), gilt als geschlossen für die Offenen-Liste.
+        // Bei 'rejected' bleibt Status 4 (= Entscheidung), gilt als geschlossen (für Offenen-Liste).
         if (c.decision === 'rejected') {
           c.closed = true;
           c.closedAt = Date.now();
           c.status = 4;
           c.statusUpdatedAt = Date.now();
         }
-        // Bei 'accepted' kein Auto-Abschluss – Abschluss erfolgt explizit mit Status 6.
+        // Bei 'accepted' kein Auto-Abschluss – Abschluss explizit mit Status 6.
       }
 
       // --- Report-Link (optional) ---
@@ -183,7 +184,10 @@ export default async function handler(req, res) {
     // ===== DELETE: Complaint löschen =====
     if (req.method === 'DELETE') {
       // ticket aus ?ticket=... oder Body
-      let ticket = (req.query?.ticket || '').toString().trim();
+      let ticket = '';
+      const url = new URL(req.url, 'http://x');
+      ticket = (url.searchParams.get('ticket') || '').toString().trim();
+
       if (!ticket && req.body) {
         try {
           const b =
@@ -193,16 +197,17 @@ export default async function handler(req, res) {
           ticket = (b?.ticket || '').toString().trim();
         } catch (_) {}
       }
+
       if (!ticket) return bad(res, 'missing ticket', 400);
 
       const c = await complaintByTicket(ticket);
       if (!c) return bad(res, 'not found', 404);
 
       await complaintDelete(ticket);
-      return noContent(res);
+      return noContent(res); // 204
     }
 
-    return methodNotAllowed(res);
+    return methodNotAllowed(res); // 405
   } catch (e) {
     console.error('admin/complaints error:', e);
     return bad(res, e?.message || 'server error', 500);
