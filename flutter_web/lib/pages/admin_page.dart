@@ -1254,7 +1254,7 @@ class _ComplaintEditor extends StatefulWidget {
 
   @override
   State<_ComplaintEditor> createState() => _ComplaintEditorState();
-
+}
 class _ComplaintEditorState extends State<_ComplaintEditor> {
   final _reportCtrl = TextEditingController();
   bool _busy = false;
