@@ -159,6 +159,8 @@
   "status_accepted": "angenommen",
   "status_rejected": "abgelehnt",
   "status_unknown": "unbekannt",
+  "decision_rejected": "Abgelehnt",
+  "decision_pending": "Ausstehend",
 
   "supportTitle": "DFS Support",
   "category": "Kategorie",
