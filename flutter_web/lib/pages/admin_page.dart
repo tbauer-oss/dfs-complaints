@@ -222,6 +222,106 @@ class _AdminPageState extends State<AdminPage> {
       );
     }
 
+    // admin_page.dart (im _AdminPageState)
+    final _reportUrlCtrl = TextEditingController();
+
+    Future<void> _setReportLinkForComplaint(Complaint c) async {
+      final t = AppLocalizations.of(context);
+      _reportUrlCtrl.text = c.reportUrl ?? '';
+
+      final url = await showDialog<String>(
+        context: context,
+        builder: (ctx) {
+          return AlertDialog(
+            title: Text(t?.open ?? 'Öffnen/Setzen'),
+            content: TextField(
+              controller: _reportUrlCtrl,
+              decoration: InputDecoration(
+                labelText: t?.open ?? 'Report-Link (URL)',
+                hintText: 'https://…',
+              ),
+              autofocus: true,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(t?.cancel ?? 'Abbrechen'),
+              ),
+              FilledButton(
+               onPressed: () => Navigator.pop(ctx, _reportUrlCtrl.text.trim()),
+                child: Text(t?.open ?? 'Setzen'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (url == null || url.isEmpty) return;
+
+      // Busy optional
+      setState(() {}); // falls du einen Busy-Indicator hast, hier setzen
+      final ok = await widget.api.adminReportSet(c.ticket, url);
+      if (ok) {
+        setState(() {
+          // Lokales Model aktualisieren (je nach Struktur):
+          c.reportUrl = url; // falls mutable Model
+          // oder, wenn immutable:
+          // final idx = _complaints.indexWhere((x) => x.ticket == c.ticket);
+          // _complaints[idx] = _complaints[idx].copyWith(reportUrl: url);
+        });
+        if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(t?.created ?? 'Gespeichert')),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(t?.operationFailed ?? 'Aktion fehlgeschlagen')),
+          );
+        }
+      }
+      setState(() {}); // Busy zurück
+    }
+
+    Future<void> _clearReportLinkForComplaint(Complaint c) async {
+      final t = AppLocalizations.of(context);
+
+      final yes = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+         title: Text(t?.logoutTitle ?? 'Bestätigung'),
+          content: Text(t?.logoutConfirm ?? 'Wirklich löschen?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t?.cancel ?? 'Abbrechen')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(t?.unlock ?? 'Löschen')),
+          ],
+        ),
+      );
+
+      if (yes != true) return;
+
+      setState(() {});
+      final ok = await widget.api.adminReportClear(c.ticket);
+      if (ok) {
+        setState(() {
+          c.reportUrl = null; // oder copyWith/reportUrl:null siehe oben
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(t?.created ?? 'Gelöscht')),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(t?.operationFailed ?? 'Aktion fehlgeschlagen')),
+          );
+        }
+      }
+      setState(() {});
+    }
+    
     final theme = Theme.of(context);
     return DefaultTabController(
       length: 3,
