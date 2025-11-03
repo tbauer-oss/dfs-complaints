@@ -886,10 +886,13 @@ class AdminComplaint {
   final String ticket;
   final String email;
   final DateTime createdAt;
-  final DateTime updatedAt; // final -> NICHT lokal überschreiben
+  final DateTime updatedAt;
   int status;               // 1..6 (mutierbar für UI)
   String? decision;         // 'accepted' | 'rejected' | null
   String? reportLink;
+
+  // ↓↓↓ NEU
+  final Map<String, dynamic>? payload;
 
   AdminComplaint({
     required this.ticket,
@@ -899,6 +902,7 @@ class AdminComplaint {
     required this.status,
     this.decision,
     this.reportLink,
+    this.payload, // NEU
   });
 
   factory AdminComplaint.fromJson(Map<String, dynamic> j) {
@@ -915,10 +919,9 @@ class AdminComplaint {
       createdAt: _dt(j['createdAt']),
       updatedAt: _dt(j['updatedAt']),
       status: _i(j['status']),
-      decision: (j['decision'] == null || (j['decision'] as String?)?.isEmpty == true)
-          ? null
-          : j['decision']?.toString(),
+      decision: (j['decision'] == null || (j['decision'] as String?)?.isEmpty == true) ? null : j['decision']?.toString(),
       reportLink: j['reportLink']?.toString(),
+      payload: (j['payload'] is Map) ? (j['payload'] as Map).cast<String, dynamic>() : null, // NEU
     );
   }
 
@@ -930,7 +933,14 @@ class AdminComplaint {
     'status': status,
     'decision': decision,
     'reportLink': reportLink,
+    'payload': payload, // NEU
   };
+
+  // ---- Komfort-Getter (NEU) ----
+  String get handlingLabel {
+    final h = (payload?['handling'] ?? '').toString().trim();
+    return h.isEmpty ? '—' : h; // erwartete Werte: Ersatz | Gutschrift | Nacharbeit
+  }
 }
 
 class _ComplaintsResult {
@@ -1222,6 +1232,14 @@ class _ComplaintDetailsDialog extends StatelessWidget {
                 row('Menge',   (payload['qty'] ?? '').toString()),
                 row('Ablauf',  (payload['expiry'] ?? '').toString()),
                 row('Beschreibung', (payload['desc'] ?? '').toString()),
+                row('Produkte zurückgeschickt?', (payload['returned'] ?? '').toString()),
+                row('Gewünschte Behandlung', (payload['handling'] ?? '').toString()),
+                if ((payload['applied'] ?? '') != '')
+                  row('Am Patienten angewendet?', (payload['applied'] ?? '').toString()),
+                if ((payload['injury'] ?? '') != '')
+                  row('Verletzung?', (payload['injury'] ?? '').toString()),
+                if ((payload['injuryDesc'] ?? '').toString().trim().isNotEmpty)
+                  row('Verletzungsbeschreibung', (payload['injuryDesc'] ?? '').toString()),
               ],
               const SizedBox(height: 10),
               if (files.isNotEmpty) const Text('Dateien:', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -1406,6 +1424,40 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
               ],
             ),
             const SizedBox(height: 12),
+
+            // ↓↓↓ NEU: Wunsch-Behandlung hervorheben ↓↓↓
+            Builder(
+              builder: (_) {
+                final wish = widget.c.handlingLabel; // kommt aus payload
+                Color col;
+                switch (wish) {
+                  case 'Ersatz':     col = Colors.green;  break;
+                  case 'Gutschrift': col = Colors.purple; break;
+                  case 'Nacharbeit': col = Colors.orange; break;
+                  default:           col = Colors.grey;   break;
+                }
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  margin: const EdgeInsets.only(bottom: 10),
+                  decoration: BoxDecoration(
+                    color: col.withOpacity(0.10),
+                    border: Border.all(color: col, width: 1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.flag, size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Gewünschte Behandlung: $wish',
+                        style: TextStyle(fontWeight: FontWeight.w700, color: col),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),            
 
             // Status + Entscheidung (nebeneinander)
             Row(
