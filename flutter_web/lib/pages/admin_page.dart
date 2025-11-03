@@ -1,4 +1,4 @@
-E-Mail// lib/pages/admin_page.dart
+// lib/pages/admin_page.dart
 import 'dart:convert';
 import 'dart:html' as html;
 import 'package:flutter/material.dart';
