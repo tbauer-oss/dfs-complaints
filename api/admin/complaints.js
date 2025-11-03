@@ -123,26 +123,25 @@ export default async function handler(req, res) {
     // POST / PATCH: Status/Decision/Report
     // ======================================
     if (req.method === 'POST' || req.method === 'PATCH') {
-      // ---- Body robust parsen (ohne CORS-Änderungen) ----
-      let body = readJson(req);          // kann bereits Objekt ODER String sein
+      let body = readJson(req);
       if (typeof body === 'string') {
         try { body = JSON.parse(body); } catch { /* ignore */ }
       }
-      if (typeof body === 'string') {
-        // Legacy-Fall: reiner Ticket-String
-        body = { ticket: body };
-      }
+      if (typeof body === 'string') body = { ticket: body };
       if (!body || typeof body !== 'object') body = {};
 
       const ticket     = (body?.ticket || '').toString().trim();
-      const statusIn   = body?.status;                // Zahl 1..6 | "1".."6" | Label
-      const decisionIn = body?.decision ?? undefined; // 'accepted' | 'rejected' | null | undefined
-      const reportLink = body?.reportLink;            // string | null | undefined
+      const statusIn   = body?.status;
+      const decisionIn = body?.decision ?? undefined;
+      const reportLink = body?.reportLink;
 
       if (!ticket) return bad(res, 'missing ticket', 400);
 
-      const c = await complaintByTicket(ticket);
-      if (!c) return bad(res, 'not found', 404);
+      let c = await complaintByTicket(ticket);
+      if (!c || typeof c !== 'object') {
+        // Falls korrupt (z.B. als String gespeichert) → neu anfangen
+        c = { ticket, createdAt: Date.now(), email: '', status: 1, decision: null };
+      }
 
       // --- Status (optional) ---
       if (statusIn !== undefined) {
@@ -158,30 +157,31 @@ export default async function handler(req, res) {
           return bad(res, 'invalid decision', 400);
         }
         c.decision = decisionIn ?? null;
-
-        // Business-Logik:
         if (c.decision === 'rejected') {
           c.closed = true;
           c.closedAt = Date.now();
-          c.status = 4;                 // Entscheidung
+          c.status = 4;
           c.statusUpdatedAt = Date.now();
         }
-        // 'accepted' -> kein Auto-Abschluss; Abschluss explizit mit Status 6
       }
 
       // --- Report-Link (optional; leer => löschen) ---
       if (reportLink !== undefined) {
         const v = (reportLink ?? '').toString().trim();
-        if (v) {
-          c.reportLink = v;
-        } else {
-          delete c.reportLink;          // explizit entfernen
-        }
+        if (v) c.reportLink = v; else delete c.reportLink;
       }
 
-      // Persist
       c.updatedAt = Date.now();
-      await complaintSave(ticket, c);
+
+      // ------ SAVE robust mit Fallback-Reparatur ------
+      try {
+        // bevorzugt: Ein-Parameter-Variante (ganzer Datensatz)
+        await complaintSave(c);
+      } catch (e) {
+        // Wenn in der DB ein String o.ä. liegt → erst löschen, dann frisch schreiben
+        try { await complaintDelete(ticket); } catch {}
+        await complaintSave({ ...c });
+      }
 
       return ok(res, {
         ticket: c.ticket,
