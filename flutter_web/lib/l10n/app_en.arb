@@ -13,6 +13,7 @@
   "langNameFR": "French",
   "langNameIT": "Italian",
   "langNameES": "Spanish",
+  "decision": "Decision",
 
   "gate_prompt": "Access code (one-time for unregistered customers)",
   "gate_password": "Password",
