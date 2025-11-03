@@ -1405,27 +1405,33 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Text(
-                  'Ticket: ${widget.c.ticket}',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const Spacer(),
-                Text(
-                  rightLabel,                         // ← HIER jetzt Firma bevorzugt
-                  style: const TextStyle(fontSize: 12, color: Colors.black54),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
+      child: Stack(
+        children: [
+          // rechte, kleine Seitenmarke
+          Positioned(
+            right: 12,
+            top: 8,
+            child: _WishBadgeSmall(widget.c.handlingLabel), // nutzt Getter aus AdminComplaint
+          ),
 
-            // ↓↓↓ NEU: Wunsch-Behandlung hervorheben ↓↓↓
+          // eigentlicher Inhalt – oben etwas Luft lassen
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 28, 12, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Kopfzeile
+                Row(
+                  children: [
+                    Text('Ticket: ${widget.c.ticket}',
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                    const Spacer(),
+                    Text('E-Mail: ${widget.c.email}',
+                        style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
             Builder(
               builder: (_) {
                 final wish = widget.c.handlingLabel; // kommt aus payload
