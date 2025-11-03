@@ -1283,14 +1283,14 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                   onPressed: _busy ? null : () async {
                     setState(() => _busy = true);
                     try {
-                      final updated = await widget.api.updateComplaint(
+                      final updated = await widget.api.adminComplaintUpdate(
                         ticket: c.ticket,
                         status: _status,
                         decision: _decision,
                         reportLink: _reportCtrl.text.trim().isEmpty ? '' : _reportCtrl.text.trim(),
                       );
                       final link = _reportCtrl.text.trim();
-                      await api.adminComplaintUpdate(
+                      await widget.api.adminComplaintUpdate(
                         ticket: c.ticket,
                         reportLink: link.isEmpty ? '' : link, // "" => löschen
                         // ggf. status / decision mitgeben
