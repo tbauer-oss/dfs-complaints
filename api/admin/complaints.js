@@ -11,18 +11,9 @@ import {
   noContent,
 } from '../_lib/http.js';
 
-import {
-  complaintsAll,
-  complaintsOpen,
-  complaintsByEmail,
-  complaintByTicket,
-  complaintSave,
-  complaintDelete,
-} from '../_lib/store.js';
-
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 const isAdmin = (req) =>
-  !!ADMIN_SECRET && req.headers?.['x-admin-secret'] === ADMIN_SECRET;
+  !!ADMIN_SECRET && req?.headers?.['x-admin-secret'] === ADMIN_SECRET;
 
 // ---- Status-Mapping: intern numerisch (1..6), Admin-UI bekommt Label dazu ----
 const STATUS_LABEL = {
@@ -68,20 +59,39 @@ const decorateForAdmin = (c) => ({
 });
 
 export default async function handler(req, res) {
-  // 1) Preflight zuerst: setzt CORS, beantwortet OPTIONS (204)
+  // 1) Preflight zuerst (setzt CORS, beantwortet OPTIONS 204)
   if (handlePreflight(req, res)) return;
+
   // 2) Für alle weiteren Antworten CORS setzen
   setCors(req, res);
 
   // 3) Admin-Auth
   if (!isAdmin(req)) return bad(res, 'admin unauthorized', 401);
 
+  // 4) Schwere Module erst jetzt laden (verhindert Preflight-/CORS-Brüche)
+  let store;
+  try {
+    store = await import('../_lib/store.js');
+  } catch (e) {
+    console.error('admin/complaints lazy import failed:', e);
+    return bad(res, 'server error (imports)', 500);
+  }
+
+  const {
+    complaintsAll,
+    complaintsOpen,
+    complaintsByEmail,
+    complaintByTicket,
+    complaintSave,
+    complaintDelete,
+  } = store;
+
   try {
     // ===========================
     // GET: verschiedene Modi
     // ===========================
     if (req.method === 'GET') {
-      // Query robust lesen (funktioniert in allen Runtimes)
+      // Query robust lesen
       const url = new URL(req.url, 'http://x');
       const email   = normEmail(url.searchParams.get('email') || '');
       const ticket  = (url.searchParams.get('ticket') || '').toString().trim();
@@ -184,9 +194,8 @@ export default async function handler(req, res) {
     // ===== DELETE: Complaint löschen =====
     if (req.method === 'DELETE') {
       // ticket aus ?ticket=... oder Body
-      let ticket = '';
       const url = new URL(req.url, 'http://x');
-      ticket = (url.searchParams.get('ticket') || '').toString().trim();
+      let ticket = (url.searchParams.get('ticket') || '').toString().trim();
 
       if (!ticket && req.body) {
         try {
