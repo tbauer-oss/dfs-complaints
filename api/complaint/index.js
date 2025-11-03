@@ -1,51 +1,125 @@
-// api/complaint/index.js
+// api/admin/complaints/index.js
 export const config = { runtime: 'nodejs' };
 
-import { setCors, ok, bad, noContent, methodNotAllowed } from '../_lib/http.js';
-import { getAuthUser } from '../_lib/auth.js';
-import { nextTicket, complaintSave, complaintsByEmail, Status } from '../_lib/store.js';
-import { sendMail } from '../_lib/mailer.js';
+import { setCors, ok, bad, noContent, methodNotAllowed } from '../../_lib/http.js';
+import { getAdmin } from '../../_lib/auth.js';
+// Passen ggf. die Namen an, falls deine store.js abweicht:
+import {
+  complaintGet,        // (ticket) => complaint | null
+  complaintSave,       // (complaint) => void
+  complaintsByEmail,   // (email) => []
+  complaintsOpen,      // () => []  (alle offenen)
+  Status,              // enum/const mit SENT.., CLOSED (hier 6)
+} from '../../_lib/store.js';
+
+function normBody(req) {
+  let b = req.body;
+  if (typeof b === 'string') {
+    try { b = JSON.parse(b); }
+    catch { b = { ticket: b }; }
+  }
+  if (!b || typeof b !== 'object') b = {};
+  return b;
+}
+
+function strOrUndef(v) {
+  if (v === undefined || v === null) return undefined;
+  const s = String(v);
+  return s;
+}
 
 export default async function handler(req, res) {
   setCors(req, res);
   if (req.method === 'OPTIONS') return noContent(res);
 
-  const user = getAuthUser(req);
-  if (!user) return bad(res, 'unauthorized', 401);
+  // --- Admin-Auth ---
+  const admin = getAdmin?.(req);
+  if (!admin) return bad(res, 'unauthorized', 401);
 
-  // GET: Liste meiner Reklamationen
+  // ---------- GET ----------
+  // /api/admin/complaints?email=...&details=1
+  // /api/admin/complaints?open=1
+  // /api/admin/complaints?ticket=DFS_CP000001
   if (req.method === 'GET') {
-    const list = await complaintsByEmail(user.email);
-    return ok(res, list);
+    const q = req.query || {};
+
+    if (q.ticket) {
+      const c = await complaintGet(String(q.ticket));
+      if (!c) return bad(res, 'not found', 404);
+      return ok(res, c);
+    }
+
+    if (q.open) {
+      const list = await complaintsOpen();
+      return ok(res, list);
+    }
+
+    if (q.email) {
+      const list = await complaintsByEmail(String(q.email));
+      // details=1 → gleiche Struktur; (du hattest es im FE so vorgesehen)
+      return ok(res, list);
+    }
+
+    // Fallback: nichts Konkretes angefragt
+    return bad(res, 'missing query', 400);
   }
 
-  // POST: Neue Reklamation (autom. Ticketnummer)
+  // ---------- POST (Update) ----------
+  // Body erlaubt: { ticket, status?, decision?, reportLink? }
+  // Besonderheiten:
+  // - decision: ""  -> null (löschen)
+  // - reportLink: "" -> null (löschen)
   if (req.method === 'POST') {
-    const body = typeof req.body === 'object' ? req.body : JSON.parse(req.body ?? '{}');
+    const b = normBody(req);
 
-    const ticket = await nextTicket();
-    const now = Date.now();
-    const complaint = {
-      ticket,
-      email: user.email,
-      createdAt: now,
-      updatedAt: now,
-      status: Status.SENT,
-      decision: null,
-      reportLink: null,
-      payload: body || {}
-    };
-    await complaintSave(complaint);
+    const ticket = strOrUndef(b.ticket) || strOrUndef(req.query?.ticket);
+    if (!ticket) return bad(res, 'ticket required', 400);
 
-    // Mail an DFS + Kunde
-    await sendMail({
-      to: 'complaint@dfs-diamon.de',
-      cc: user.email,
-      subject: `[DFS Complaint] Neue Reklamation ${ticket}`,
-      html: `<p>Neue Reklamation von ${user.email}.</p><pre>${JSON.stringify(body, null, 2)}</pre>`
-    });
+    const c = await complaintGet(ticket);
+    if (!c) return bad(res, 'not found', 404);
 
-    return ok(res, complaint);
+    // status optional, muss Zahl sein
+    if (b.status !== undefined && b.status !== null && b.status !== '') {
+      const n = Number(b.status);
+      if (!Number.isFinite(n)) return bad(res, 'invalid status', 400);
+      c.status = n;
+    }
+
+    // decision: "", null => null
+    if ('decision' in b) {
+      const d = (typeof b.decision === 'string') ? b.decision.trim() : b.decision;
+      c.decision = d ? String(d) : null;
+    }
+
+    // reportLink: "" => null
+    if ('reportLink' in b) {
+      const rl = (b.reportLink === '') ? null : strOrUndef(b.reportLink);
+      c.reportLink = rl ?? null;
+    }
+
+    c.updatedAt = Date.now();
+
+    await complaintSave(c);
+    return ok(res, c);
+  }
+
+  // ---------- DELETE ----------
+  // ?ticket=... ODER Body {ticket:"..."}
+  if (req.method === 'DELETE') {
+    const b = normBody(req);
+    const ticket = strOrUndef(b.ticket) || strOrUndef(req.query?.ticket);
+    if (!ticket) return bad(res, 'ticket required', 400);
+
+    const c = await complaintGet(ticket);
+    if (!c) return bad(res, 'not found', 404);
+
+    // "Löschen" hier: auf CLOSED setzen? Oder wirklich entfernen?
+    // Falls du echtes Löschen willst, ersetze diese Zeilen durch complaintDelete(ticket).
+    c.status = typeof Status?.CLOSED === 'number' ? Status.CLOSED : 6;
+    c.updatedAt = Date.now();
+    await complaintSave(c);
+
+    return ok(res, c);
   }
 
   return methodNotAllowed(res);
