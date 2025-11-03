@@ -176,7 +176,7 @@ export default async function handler(req, res) {
       // ------ SAVE robust mit Fallback-Reparatur ------
       try {
         // bevorzugt: Ein-Parameter-Variante (ganzer Datensatz)
-        await complaintSave(c);
+        await complaintSave({ ...c });
       } catch (e) {
         // Wenn in der DB ein String o.ä. liegt → erst löschen, dann frisch schreiben
         try { await complaintDelete(ticket); } catch {}
