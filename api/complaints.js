@@ -135,7 +135,7 @@ export default async function handler(req, res) {
         updatedAt: now,
       };
 
-      await complaintSave(complaint);
+      await complaintSave(c);
       return ok(res, { ok: true, ticket });
     }
 
