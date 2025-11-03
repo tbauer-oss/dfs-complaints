@@ -1,10 +1,11 @@
 // api/_lib/http.js  (ESM, shared CORS helpers)
 
-// --- Erlaubte Frontend-Origins ---
+// --- HARTE Whitelist ---
 export const PROD_FE  = 'https://dfs-complaints-web.vercel.app';
 export const LOCAL_FE = 'http://localhost:8080';
-// breit gefasste Preview-RegEx (beliebig viele Suffix-Blöcke)
-const PREVIEW  = /^https:\/\/(?:dfs-complaints|dfs-complaints-web|dfs-customer-complaint)(?:-[a-z0-9-]+)*\.vercel\.app$/i;
+
+// Breite Preview-RegEx: beliebig viele Suffix-Blöcke
+const PREVIEW = /^https:\/\/(?:dfs-complaints|dfs-complaints-web|dfs-customer-complaint)(?:-[a-z0-9-]+)*\.vercel\.app$/i;
 
 // Prüft, ob Origin erlaubt ist
 export function isAllowedOrigin(origin = '') {
@@ -24,14 +25,13 @@ export function setCors(req, res) {
     res.setHeader('Vary', 'Origin');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
   } else {
-    // Für unbekannte Origins: Wildcard, aber ohne Credentials
+    // Fallback für unbekannte Origins (z. B. externe Tools)
     res.setHeader('Access-Control-Allow-Origin', '*');
-    // kein Allow-Credentials setzen!
+    // KEIN Allow-Credentials setzen!
   }
 
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
 
-  // Standard-Header + evtl. vom Browser angefragte Header (failsafe anfügen)
   const defaultAllowed = [
     'Content-Type',
     'Authorization',
@@ -42,38 +42,36 @@ export function setCors(req, res) {
   ].join(', ');
 
   const reqAllowed = req.headers?.['access-control-request-headers'];
-  const allowHeaders = (reqAllowed && String(reqAllowed).trim().length > 0)
+  const allowHeaders = (reqAllowed && String(reqAllowed).trim())
     ? `${defaultAllowed}, ${reqAllowed}`
     : defaultAllowed;
 
   res.setHeader('Access-Control-Allow-Headers', allowHeaders);
-
-  // Preflight cachen (10 min)
-  res.setHeader('Access-Control-Max-Age', '600');
-
-  // Manche Clients erwarten Content-Type
+  res.setHeader('Access-Control-Max-Age', '600'); // 10 min
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 }
 
-// Komfort-Helfer: setzt CORS und beantwortet ggf. das Preflight
+// Beantworte OPTIONS zuverlässig
 export function handlePreflight(req, res) {
   setCors(req, res);
   if (req.method === 'OPTIONS') {
     res.statusCode = 204;
     res.end();
-    return true; // bereits beantwortet
+    return true;
   }
   return false;
 }
 
 // 200 + JSON
 export function ok(res, data) {
+  setCors(reqFromRes(res), res); // safety: auch bei späteren Antworten CORS sicherstellen
   res.statusCode = 200;
   res.end(JSON.stringify(data ?? {}));
 }
 
 // Fehlerantwort mit Code
 export function bad(res, msg = 'bad request', code = 400) {
+  setCors(reqFromRes(res), res);
   res.statusCode = code;
   res.end(JSON.stringify({ error: msg }));
 }
@@ -85,6 +83,7 @@ export function methodNotAllowed(res) {
 
 // 204 No Content
 export function noContent(res) {
+  setCors(reqFromRes(res), res);
   res.statusCode = 204;
   res.end();
 }
@@ -97,4 +96,11 @@ export function readJson(req) {
   } catch {
     return {};
   }
+}
+
+// --- Hilfsfunktion, um in ok/bad/noContent nochmal an req zu kommen ---
+function reqFromRes(res) {
+  // Vercel/Node hängt das ursprüngliche req häufig an res.socket.server …
+// @ts-ignore
+  return res?.req || res?.socket?.parser?.incoming || {};
 }
