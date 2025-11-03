@@ -1287,7 +1287,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                         ticket: c.ticket,
                         status: _status,
                         decision: _decision,
-                        reportLink: _reportCtrl.text.trim().isEmpty ? null : _reportCtrl.text.trim(),
+                        reportLink: _reportCtrl.text.trim().isEmpty ? '' : _reportCtrl.text.trim(),
                       );
                       setState(() {
                         _status = updated.status;
