@@ -73,7 +73,7 @@ const decorateForAdmin = (c) => ({
 // =======================================================
 export default async function handler(req, res) {
   // 1) CORS-Header IMMER zuerst setzen
-  try { setCors(req, res); } catch (_) {}
+ setCors(req, res);
 
   // 2) OPTIONS (Preflight) sofort beantworten – ohne Admin-Auth
   if (req.method === 'OPTIONS') return noContent(res);
@@ -170,9 +170,6 @@ export default async function handler(req, res) {
           c.closedAt = Date.now();
           c.status = 4;                 // Entscheidung (systemgesetzt)
           c.statusUpdatedAt = Date.now();
-        } else {
-          // bei accepted oder null: NICHT auto-schließen
-          if (c.closed) { delete c.closed; delete c.closedAt; }
         }
       }
       
