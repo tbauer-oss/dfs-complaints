@@ -153,6 +153,7 @@
   "status_in_progress": "in Bearbeitung",
   "status_question": "Rückfrage erforderlich",
   "status_decision": "Entscheidung",
+  "decision_accepted": "Angenommen",
   "status_rework": "in Nacharbeit",
   "status_closed": "abgeschlossen",
   "status_accepted": "angenommen",
