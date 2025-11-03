@@ -459,9 +459,11 @@ class _AdminPageState extends State<AdminPage> {
                       separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (ctx, i) {
                         final c = _openComplaints[i];
+
                         return Stack(
                           clipBehavior: Clip.none,
                           children: [
+                            // die eigentliche Karte/Editor
                             _ComplaintEditor(
                               api: _api,
                               c: c,
@@ -471,11 +473,12 @@ class _AdminPageState extends State<AdminPage> {
                                   _openComplaints.removeWhere((x) => x.ticket == c.ticket);
                                 });
                               },
-                            ),
-                            // rechte Seitenmarke (Kundenwunsch)
+                           ),
+
+                            // Wunsch-Badge oben rechts über der Karte
                             Positioned(
-                              top: 6,
-                              right: 10,
+                              right: 12,
+                              top: 10,
                               child: _WishBadgeSmall(c.handlingLabel),
                             ),
                           ],
@@ -934,6 +937,8 @@ class AdminComplaint {
   int status;               // 1..6 (mutierbar für UI)
   String? decision;         // 'accepted' | 'rejected' | null
   String? reportLink;
+
+  // ← NEU: komplettes Payload vom Backend (für Wunsch etc.)
   final Map<String, dynamic>? payload;
 
   AdminComplaint({
@@ -963,7 +968,7 @@ class AdminComplaint {
       status: _i(j['status']),
       decision: (j['decision'] == null || (j['decision'] as String?)?.isEmpty == true) ? null : j['decision']?.toString(),
       reportLink: j['reportLink']?.toString(),
-      payload: (j['payload'] is Map) ? (j['payload'] as Map).cast<String, dynamic>() : null, // NEU
+      payload: (j['payload'] is Map) ? (j['payload'] as Map).cast<String, dynamic>() : null,
     );
   }
 
@@ -975,17 +980,16 @@ class AdminComplaint {
     'status': status,
     'decision': decision,
     'reportLink': reportLink,
-    'payload': payload, // NEU
+    'payload': payload,
   };
 
-  // Komfort-Getter: Kundenwunsch („Ersatz“, „Gutschrift“, „Nacharbeit“)
+  // ← NEU: bequemer Zugriff auf den Kundenwunsch
   String get handlingLabel {
     final p = payload;
     if (p == null) return '—';
-    // bevorzugt 'handling', fallback auf evtl. alten Key 'Wunsch'
     final v = p['handling'] ?? p['Wunsch'] ?? '';
     final s = v.toString().trim();
-    return s.isEmpty ? '—' : s;
+    return s.isEmpty ? '—' : s; // „Ersatz“, „Gutschrift“, „Nacharbeit“
   }
 }
 
