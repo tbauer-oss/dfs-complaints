@@ -2,65 +2,58 @@
 export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
-
-const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
-
-function isAdmin(req) {
-  // Header-Keys sind in Node lowercase
-  const hdr = req?.headers?.['x-admin-secret'];
-  return typeof hdr === 'string' && !!ADMIN_SECRET && hdr === ADMIN_SECRET;
-}
+import { isAdmin } from '../_lib/auth.js';
+import { pendingList, pendingDelete, userSave, userDelete } from '../_lib/store.js';
+import { send, tpl } from '../_lib/mail.js';
 
 export default async function handler(req, res) {
-  // --- CORS/Preflight zuerst (setzt Header & beantwortet OPTIONS mit 204) ---
+  // 1) CORS & Preflight
   if (handlePreflight(req, res)) return;
-  // Für Nicht-OPTIONS alle CORS-Header setzen
   setCors(req, res);
 
-  // --- Admin-Auth (nach Preflight!) ---
-  if (!isAdmin(req)) return bad(res, 'admin unauthorized', 401);
+  // 2) Admin-Auth
+  if (!isAdmin(req, { debug: true })) return bad(res, 'admin unauthorized', 401);
 
-  // --- Schwere Module erst jetzt laden (verhindert Preflight-/CORS-Brüche) ---
-  let store, mail;
-  try {
-    store = await import('../_lib/store.js');
-    // mail ist optional – darf nicht den Request killen
-    mail = await import('../_lib/mail.js').catch(() => null);
-  } catch (e) {
-    console.error('lazy import failed:', e);
-    return bad(res, 'server error (imports)', 500);
+  // 3) Sicherer Wrapper für Store-Aufrufe
+  async function safePendingList() {
+    try {
+      const list = await pendingList();
+      if (!Array.isArray(list)) {
+        console.error('pendingList returned non-array:', typeof list);
+        return [];
+      }
+      return list;
+    } catch (e) {
+      console.error('pendingList() failed:', e);
+      // Kapsel sauber: liefere leere Liste statt 500
+      return [];
+    }
   }
-
-  const { pendingList, pendingDelete, userSave, userDelete } = store;
-  const send = mail?.send;
-  const tpl  = mail?.tpl;
 
   try {
     // ---- LIST --------------------------------------------------------------
     if (req.method === 'GET') {
-      const list = await pendingList();
+      const list = await safePendingList();
       return ok(res, list);
     }
 
     // ---- APPROVE -----------------------------------------------------------
     if (req.method === 'POST') {
-      // erwartet: { email, action?: 'approve', lang?: 'de'|'en'|... }
       const body = readJson(req) || {};
       const emailRaw = (body.email ?? '').toString().trim().toLowerCase();
-      const action   = (body.action ?? 'approve').toString();
-      const lang     = (body.lang ?? 'de').toString().trim().toLowerCase();
+      const action = (body.action ?? 'approve').toString();
+      const lang   = (body.lang ?? 'de').toString().trim().toLowerCase();
 
       if (!emailRaw) return bad(res, 'missing email', 400);
       if (action !== 'approve') return bad(res, 'invalid action', 400);
 
-      const list = await pendingList();
-      const p = Array.isArray(list)
-        ? list.find(x => String(x?.email || '').trim().toLowerCase() === emailRaw)
-        : null;
+      const list = await safePendingList();
+      const p = list.find(x => String(x?.email || '').trim().toLowerCase() === emailRaw);
       if (!p) return bad(res, 'not found', 404);
 
-      // Aus Pending entfernen, in Users übernehmen
-      await pendingDelete(p.email);
+      try { await pendingDelete(p.email); }
+      catch (e) { console.error('pendingDelete failed:', e); /* trotzdem weiter */ }
+
       const user = {
         ...p,
         lang,
@@ -68,37 +61,35 @@ export default async function handler(req, res) {
         approvedAt: Date.now(),
         revoked: false,
       };
-      await userSave(user);
 
-      // Bestätigungsmail (fehlertolerant, nie den Request brechen)
-      if (send && tpl?.approved) {
-        try {
-          const name = (user.contact || user.company || '').toString();
-          await send(user.email, tpl.approved(name));
-        } catch (_) {}
+      try { await userSave(user); }
+      catch (e) {
+        console.error('userSave failed:', e);
+        return bad(res, 'store error', 500);
       }
+
+      // Mail darf nicht crashen
+      try { await send(user.email, tpl.approved(user.contact || user.company)); } catch (_) {}
 
       return ok(res, { ok: true, email: user.email });
     }
 
     // ---- REJECT/DELETE -----------------------------------------------------
     if (req.method === 'DELETE') {
-      // erlaubt Body ODER ?email=...
       const body  = readJson(req) || {};
       const qmail = ((req.query?.email ?? body.email) || '').toString().trim();
       if (!qmail) return bad(res, 'missing email', 400);
 
-      await pendingDelete(qmail);
-      // Cleanup, falls Nutzer bereits existiert (failsafe)
-      try { await userDelete(qmail); } catch (_) {}
+      try { await pendingDelete(qmail); } catch (e) { console.error('pendingDelete failed:', e); }
+      try { await userDelete(qmail); }   catch (e) { /* optional, silent cleanup */ }
 
-      // Konsistente JSON-Antwort
       return ok(res, { deleted: true, email: qmail });
     }
 
-    return methodNotAllowed(res); // 405
+    return methodNotAllowed(res);
   } catch (e) {
-    console.error('admin/pending error:', e);
+    // Einmal zentral loggen, aber die Antwort kontrolliert halten
+    console.error('admin/pending unhandled:', e);
     return bad(res, 'server error', 500);
   }
 }
