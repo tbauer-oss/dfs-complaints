@@ -934,6 +934,37 @@ class AdminApi {
     return uri.replace(queryParameters: q);
   }
 
+  Future<html.HttpRequest> _request(
+    String method,
+    String path, {
+    Map<String, String>? q,
+    Object? body,
+  }) async {
+    try {
+      final res = await html.HttpRequest.request(
+        _u(path, q).toString(),
+        method: method,
+        requestHeaders: _headersJson(),
+        sendData: body is String ? body : (body == null ? null : jsonEncode(body)),
+        withCredentials: true,
+      );
+      return res;
+    } catch (e) {
+      // Flutter Web/dart:html wirft bei Netzwerk/CORS Fehlern ProgressEvent -> minified:…
+      if (e is html.ProgressEvent) {
+        final t = e.target;
+        if (t is html.HttpRequest) {
+          final st  = t.status;
+          final txt = t.responseText ?? '';
+          final stx = t.statusText ?? '';
+          throw 'HTTP $st $stx — ${txt.isEmpty ? "Request fehlgeschlagen" : txt}';
+        }
+        throw 'Netzwerkfehler (Browser-Event). Bitte erneut versuchen.';
+      }
+      throw e.toString();
+    }
+  }
+
   // ---- Pending ----
   Future<List<PendingUser>> fetchPending() async {
     final res = await html.HttpRequest.request(
@@ -1058,20 +1089,20 @@ class AdminApi {
     if (decision != null) body['decision'] = decision;
     if (reportLink != null) body['reportLink'] = reportLink;
 
-    final res = await html.HttpRequest.request(
-      _u('/api/admin/complaints').toString(),
-      method: 'POST',
-      requestHeaders: _headersJson(),
-      sendData: jsonEncode(body),
-      withCredentials: true,
-    );
-    if (res.status != 200) {
-      throw 'complaint update: HTTP ${res.status} ${res.responseText}';
+    final res = await _request('POST', '/api/admin/complaints', body: body);
+
+    final code = res.status ?? 0;
+    final txt  = res.responseText ?? '';
+    if (code != 200) {
+      throw 'HTTP $code ${res.statusText ?? ''} — $txt';
     }
-    final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
+
+    final Map<String, dynamic> j =
+        txt.trim().isEmpty ? <String, dynamic>{} : jsonDecode(txt);
+
     return AdminComplaint.fromJson(j);
   }
-
+  
   // Alias (nur EINMAL vorhanden!)
   Future<AdminComplaint> adminComplaintUpdate({
     required String ticket,
@@ -1088,27 +1119,20 @@ class AdminApi {
   }
 
   Future<void> deleteComplaint(String ticket) async {
-    // 1) DELETE ?ticket=...
+    // Versuch 1: DELETE ?ticket=...
     try {
-      final res = await html.HttpRequest.request(
-        _u('/api/admin/complaints', {'ticket': ticket}).toString(),
-        method: 'DELETE',
-        requestHeaders: _headersJson(),
-        withCredentials: true,
-      );
-      if (res.status == 200 || res.status == 204) return;
-    } catch (_) {}
+      final r1 = await _request('DELETE', '/api/admin/complaints', q: {'ticket': ticket});
+      if (r1.status == 200 || r1.status == 204) return;
+    } catch (_) {
+      // Ignorieren, wir machen Fallback
+    }
 
-    // 2) DELETE mit Body
-    final res = await html.HttpRequest.request(
-      _u('/api/admin/complaints').toString(),
-      method: 'DELETE',
-      requestHeaders: _headersJson(),
-      sendData: jsonEncode({'ticket': ticket}),
-      withCredentials: true,
-    );
-    if (res.status != 200 && res.status != 204) {
-      throw 'complaint DELETE failed: HTTP ${res.status} ${res.responseText}';
+    // Versuch 2: DELETE mit Body
+    final r2 = await _request('DELETE', '/api/admin/complaints', body: {'ticket': ticket});
+    final code = r2.status ?? 0;
+    if (code != 200 && code != 204) {
+      final txt = r2.responseText ?? '';
+      throw 'HTTP $code ${r2.statusText ?? ''} — $txt';
     }
   }
 }
