@@ -1541,6 +1541,5 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
           ],
         ),
       );
-    )
   }
 }
