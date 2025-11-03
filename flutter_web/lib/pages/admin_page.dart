@@ -21,6 +21,18 @@ class _AdminPageState extends State<AdminPage> {
 
   String? _fatalErr; // Ungültiges/missing Secret -> blockiert
   String? _err;      // Nicht-blockierende Fehlermeldungen
+  String? _filterCompany;
+
+  // Firmenliste aus aktiven Nutzern generieren (einzigartige Namen)
+  List<String> _companyOptions() {
+    final s = <String>{};
+    for (final u in _users) {
+      final c = u.company.trim();
+      if (c.isNotEmpty) s.add(c);
+    }
+    final list = s.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return list;
+  }
 
   ActiveUser? _findActive(String email) {
     final e = email.trim().toLowerCase();
@@ -437,8 +449,23 @@ class _AdminPageState extends State<AdminPage> {
               children: [
                 const Icon(Icons.receipt_long),
                 const SizedBox(width: 8),
-                const Text('Offene Reklamationen', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+               const Text('Offene Reklamationen', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                 const Spacer(),
+                // Firmen-Filter einbauen
+                if (_companyOptions().isNotEmpty) ...[
+                  const Text('Firma:', style: TextStyle(fontSize: 12)),
+                  const SizedBox(width: 8),
+                  DropdownButton<String>(
+                    value: _filterCompany,
+                    hint: const Text('Alle'),
+                    items: [
+                      const DropdownMenuItem<String>(value: null, child: Text('Alle')),
+                      ..._companyOptions().map((c) => DropdownMenuItem(value: c, child: Text(c))),
+                    ],
+                    onChanged: (v) => setState(() => _filterCompany = v),
+                  ),
+                  const SizedBox(width: 16),
+                ],
                 if (_loadingOpen) const Padding(
                   padding: EdgeInsets.only(right: 12),
                   child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
@@ -451,6 +478,35 @@ class _AdminPageState extends State<AdminPage> {
               ],
             ),
             const SizedBox(height: 8),
+
+            // Liste mit Filter
+            Builder(builder: (_) {
+              final items = (_filterCompany == null)
+                  ? _openComplaints
+                  : _openComplaints.where((c) => (_companyByEmail(c.email) ?? '') == _filterCompany).toList();
+
+              return Expanded(
+                child: items.isEmpty
+                    ? const Center(child: Text('Keine offenen Reklamationen.'))
+                    : ListView.separated(
+                        itemCount: items.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        itemBuilder: (ctx, i) {
+                          final c = items[i];
+                          return _ComplaintEditor(
+                            api: _api,
+                            c: c,
+                            onClosed: () {
+                              setState(() {
+                                _openComplaints.removeWhere((x) => x.ticket == c.ticket);
+                              });
+                            },
+                            companyHint: _companyByEmail(c.email),
+                          );
+                        },
+                      ),
+              );
+            }),
             Expanded(
               child: _openComplaints.isEmpty
                   ? const Center(child: Text('Keine offenen Reklamationen.'))
@@ -786,13 +842,108 @@ class _ComplaintsDetailList extends StatelessWidget {
           const Divider(),
           const Text('Reklamationen (Details):', style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
-          ...r.items.map((c) => _ComplaintEditor(
-                api: api,
-                c: c,
-                onClosed: onClosed,
-                companyHint: companyHint, // ← HIER Firma weitergeben
-              )).toList(),
+          ...r.items.map((c) => _ComplaintTileCompact(
+            c: c,
+            companyHint: companyHint,
+            onEdit: () {
+              showDialog(
+                context: context,
+                builder: (_) => Dialog(
+                  insetPadding: const EdgeInsets.all(20),
+                  child: SizedBox(
+                    width: 680,
+                    child: _ComplaintEditor(
+                      api: api,
+                      c: c,
+                      onClosed: onClosed,
+                      companyHint: companyHint,
+                    ),
+                  ),
+                ),
+              );
+            },
+          )).toList(),
         ],
+      ),
+    );
+  }
+}
+
+// Kompakte Kachel für eine Reklamation (in "Aktive Nutzer")
+class _ComplaintTileCompact extends StatelessWidget {
+  final AdminComplaint c;
+  final String? companyHint;
+  final VoidCallback onEdit;
+
+  const _ComplaintTileCompact({
+    required this.c,
+    required this.onEdit,
+    this.companyHint,
+  });
+
+  String _statusLabel(int v) {
+    final m = {
+      1: 'Eingegegangen',
+      2: 'In Bearbeitung',
+      3: 'Rückfrage erforderlich',
+      5: 'In Nacharbeit',
+      6: 'Abgeschlossen',
+      4: 'Entscheidung', // bleibt hier neutral
+    };
+    return m[v] ?? 'Unbekannt';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final status = _statusLabel(c.status);
+    final dec = (c.decision == 'accepted')
+        ? 'Angenommen'
+        : (c.decision == 'rejected')
+            ? 'Abgelehnt'
+            : '—';
+    final wish = c.handlingLabel;
+    final right = (companyHint != null && companyHint!.trim().isNotEmpty)
+        ? 'Firma: ${companyHint!}'
+        : 'E-Mail: ${c.email}';
+
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        title: Text(
+          '${c.ticket}  •  $status',
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 12,
+              runSpacing: 4,
+              children: [
+                Text('Wunsch: ${wish.isEmpty ? '—' : wish}'),
+                Text('Entscheidung: $dec'),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Erstellt: ${c.createdAt.toLocal()}'
+              '${c.updatedAt.isAfter(c.createdAt) ? '  •  Aktualisiert: ${c.updatedAt.toLocal()}' : ''}',
+              style: const TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+          ],
+        ),
+        trailing: Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          children: [
+            Text(right, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+            FilledButton(
+              onPressed: onEdit,
+              child: const Text('Bearbeiten'),
+            ),
+          ],
+        ),
       ),
     );
   }
