@@ -256,14 +256,14 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                   ),
                                 ),
 
-                                // Decision-Badge (nur wenn gesetzt)
+                                // ↓↓↓ NEU: separater Entscheidungs-Badge (nur wenn gesetzt) ↓↓↓
                                 if ((c.decision ?? '').isNotEmpty) ...[
                                   const SizedBox(height: 6),
                                   Builder(
                                     builder: (_) {
-                                      final dec = c.decision!; // hier sicher, weil oben geprüft
-                                      final decText = dec == 'accepted' ? t.decision_accepted : t.decision_rejected;
-                                      final decColor = dec == 'accepted' ? Colors.green : Colors.red;
+                                      final dec = c.decision!;
+                                      final decText = (dec == 'accepted') ? t.decision_accepted : t.decision_rejected;
+                                      final decColor = (dec == 'accepted') ? Colors.green : Colors.red;
                                       return Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                         decoration: BoxDecoration(
@@ -279,6 +279,9 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                     },
                                   ),
                                 ],
+                                // ↑↑↑ NEU: Ende Entscheidungs-Badge ↑↑↑
+
+                                const SizedBox(height: 6),
 
                                 // Details-Button
                                 TextButton.icon(
