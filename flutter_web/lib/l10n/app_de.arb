@@ -80,7 +80,7 @@
 
   "auth_login": "Login",
   "auth_register": "Registrieren",
-  "login": "Login",
+  "login": "Login - DFS Reklamations App",
   "@login": { "description": "Login-Button-Text" },
   "register": "Registrieren",
   "@register": { "description": "Button-Text zur Registrierung" },
