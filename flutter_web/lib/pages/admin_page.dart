@@ -1413,9 +1413,11 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
           Positioned(
             right: 12,
             top: 8,
-            child: _WishBadgeSmall(widget.c.handlingLabel), // nutzt Getter aus AdminComplaint
-            ),
-          ]
+            child: _WishBadgeSmall(widget.c.handlingLabel),
+          ),
+        ],
+      ),
+    );
           // eigentlicher Inhalt – oben etwas Luft lassen
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 28, 12, 12),
