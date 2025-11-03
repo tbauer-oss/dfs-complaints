@@ -1,7 +1,7 @@
+// lib/pages/admin_page.dart
 import 'dart:convert';
 import 'dart:html' as html;
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import '../api/client.dart';
 
 class AdminPage extends StatefulWidget {
@@ -32,12 +32,12 @@ class _AdminPageState extends State<AdminPage> {
   @override
   void initState() {
     super.initState();
-    _api = AdminApi(); //
+    _api = AdminApi();
 
-    // 1) Primär: aus dem ApiClient, der von main.dart übergeben wird
+    // 1) Primär: aus dem ApiClient (Startseite Admin-Dialog)
     String secret = widget.api.adminSecret ?? '';
 
-    // 2) Fallback: aus localStorage lesen – aber bitte den richtigen Key "dfs_admin"
+    // 2) Fallback: LocalStorage ("dfs_admin")
     if (secret.isEmpty) {
       secret = html.window.localStorage['dfs_admin'] ?? '';
     }
@@ -543,7 +543,6 @@ class _PendingTileState extends State<_PendingTile> {
   @override
   Widget build(BuildContext context) {
     final d = widget.data;
-    // Kompakte Darstellung: Firma + Land (Fallbacks)
     final title = (d.company.isNotEmpty) ? d.company : d.email;
     final subtitle = (d.country.isNotEmpty) ? d.country : '${d.zip} ${d.city}'.trim();
 
@@ -848,7 +847,7 @@ class ActiveUser {
         phone: j['phone'] ?? '',
         lang: (j['lang'] ?? 'de').toString(),
         createdAt: j['createdAt']?.toString(),
-        selfDeleted: (j['selfDeleted'] ?? false) == true, // 🔴 NEU
+        selfDeleted: (j['selfDeleted'] ?? false) == true,
       );
 }
 
@@ -856,7 +855,7 @@ class AdminComplaint {
   final String ticket;
   final String email;
   final DateTime createdAt;
-  final DateTime updatedAt;
+  final DateTime updatedAt; // final -> NICHT lokal überschreiben
   int status;               // 1..6 (mutierbar für UI)
   String? decision;         // 'accepted' | 'rejected' | null
   String? reportLink;
@@ -885,7 +884,9 @@ class AdminComplaint {
       createdAt: _dt(j['createdAt']),
       updatedAt: _dt(j['updatedAt']),
       status: _i(j['status']),
-      decision: (j['decision'] == null || (j['decision'] as String?)?.isEmpty == true) ? null : j['decision']?.toString(),
+      decision: (j['decision'] == null || (j['decision'] as String?)?.isEmpty == true)
+          ? null
+          : j['decision']?.toString(),
       reportLink: j['reportLink']?.toString(),
     );
   }
@@ -950,7 +951,6 @@ class AdminApi {
       );
       return res;
     } catch (e) {
-      // Flutter Web/dart:html wirft bei Netzwerk/CORS Fehlern ProgressEvent -> minified:…
       if (e is html.ProgressEvent) {
         final t = e.target;
         if (t is html.HttpRequest) {
@@ -1102,7 +1102,7 @@ class AdminApi {
 
     return AdminComplaint.fromJson(j);
   }
-  
+
   // Alias (nur EINMAL vorhanden!)
   Future<AdminComplaint> adminComplaintUpdate({
     required String ticket,
@@ -1208,7 +1208,7 @@ class _ComplaintDetailsDialog extends StatelessWidget {
   }
 }
 
-  class _ComplaintEditor extends StatefulWidget {
+class _ComplaintEditor extends StatefulWidget {
   final AdminApi api;          // AdminApi-Instanz
   final AdminComplaint c;      // zu bearbeitender Fall
   final VoidCallback onClosed; // wird aufgerufen, wenn Fall aus "Offene" verschwinden soll
@@ -1255,7 +1255,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
         reportLink: link.isEmpty ? '' : link, // "" => löschen
       );
 
-      // lokalen State aktualisieren
+      // lokalen State aktualisieren (kein Schreibzugriff auf final updatedAt!)
       _reportCtrl.text   = updated.reportLink ?? '';
       widget.c.reportLink = updated.reportLink;
       widget.c.status     = updated.status;
@@ -1320,11 +1320,11 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     try {
       final updated = await widget.api.adminComplaintUpdate(
         ticket: widget.c.ticket,
-        status: _status, // 1..6
+        status: _status,                 // 1..6
         decision: (_decision == null || _decision!.isEmpty) ? null : _decision,
       );
 
-      // lokalen State aktualisieren
+      // lokalen State aktualisieren (kein Schreibzugriff auf final updatedAt!)
       widget.c.status   = updated.status;
       widget.c.decision = updated.decision;
 
@@ -1348,6 +1348,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       if (mounted) setState(() => _busy = false);
     }
   }
+
   @override
   Widget build(BuildContext context) {
     return Card(
