@@ -2,581 +2,753 @@
 import 'dart:convert';
 import 'dart:html' as html;
 import 'package:flutter/material.dart';
+import '../api/client.dart';
 
-// ------------------------------------------------------
-// AdminPage – eigenständig (Modelle + AdminApi inklusive)
-// ------------------------------------------------------
-
+// ===================================================================
+// Admin Page
+// ===================================================================
 class AdminPage extends StatefulWidget {
-  // Hinweis: ApiClient wird hier nicht benötigt; Signatur bleibt kompatibel.
-  final Object? api;
-  const AdminPage({super.key, this.api});
+  final ApiClient api;
+  const AdminPage({super.key, required this.api});
 
   @override
   State<AdminPage> createState() => _AdminPageState();
 }
 
 class _AdminPageState extends State<AdminPage> {
-  final AdminApi _api = AdminApi();
+  late final AdminApi _api;
 
-  bool _loadingOpen = false;
-  bool _loadingUsers = false;
+  // Ladeflags / Fehler
+  bool _loadPending = false;
+  bool _loadUsers = false;
+  bool _loadOpen = false;
+  String? _fatalErr;
   String? _err;
 
   // Daten
-  List<AdminComplaint> _open = [];
+  List<PendingUser> _pending = [];
   List<ActiveUser> _users = [];
+  List<AdminComplaint> _openComplaints = [];
 
-  // Filter (Firma)
+  // Email -> detaillierte Reklamationen (für Users/Pending)
+  final Map<String, _ComplaintsResult> _complaints = {};
+
+  // Firmenfilter (Offene Reklamationen)
   String _filterCompany = 'Alle Firmen';
 
   @override
   void initState() {
     super.initState();
-    _refreshUsers();
+    _api = AdminApi();
+
+    // Secret zuerst aus der API (wenn über Admin-Button gekommen),
+    // sonst aus LocalStorage (dfs_admin) – so wie du es nutzt.
+    String secret = widget.api.adminSecret ?? '';
+    if (secret.isEmpty) {
+      secret = html.window.localStorage['dfs_admin'] ?? '';
+    }
+    _api.setSecret(secret);
+
+    if (secret.isEmpty) {
+      _fatalErr =
+          'Kein Admin-Secret gefunden. Bitte den Adminbereich über den Start-Button öffnen '
+          'oder im Browser-Storage dfs_admin setzen.';
+      return;
+    }
+
+    _refreshAll();
     _refreshOpen();
   }
 
-  Future<void> _refreshUsers() async {
-    setState(() => _loadingUsers = true);
+  // Hilfsfunktionen ---------------------------------------------------
+  String? _companyByEmail(String email) {
+    final e = email.trim().toLowerCase();
+    final u = _users.firstWhere(
+      (x) => x.email.trim().toLowerCase() == e,
+      orElse: () => ActiveUser.empty(),
+    );
+    if (u.email.isNotEmpty) return u.company.trim().isEmpty ? null : u.company.trim();
+
+    final p = _pending.firstWhere(
+      (x) => x.email.trim().toLowerCase() == e,
+      orElse: () => PendingUser.empty(),
+    );
+    return p.company.trim().isEmpty ? null : p.company.trim();
+  }
+
+  Future<void> _refreshAll() async {
+    setState(() {
+      _err = null;
+      _loadPending = true;
+      _loadUsers = true;
+    });
     try {
-      final list = await _api.fetchUsers();
-      setState(() => _users = list);
+      final pF = _api.fetchPending();
+      final uF = _api.fetchUsers();
+      final both = await Future.wait([pF, uF]);
+      if (!mounted) return;
+      setState(() {
+        _pending = both[0] as List<PendingUser>;
+        _users = both[1] as List<ActiveUser>;
+      });
     } catch (e) {
-      setState(() => _err = 'Benutzer konnten nicht geladen werden: $e');
+      setState(() => _err = '$e');
     } finally {
-      if (mounted) setState(() => _loadingUsers = false);
+      if (!mounted) return;
+      setState(() {
+        _loadPending = false;
+        _loadUsers = false;
+      });
     }
   }
 
   Future<void> _refreshOpen() async {
-    setState(() => _loadingOpen = true);
+    setState(() {
+      _err = null;
+      _loadOpen = true;
+    });
     try {
       final list = await _api.fetchOpenComplaints();
-      setState(() => _open = list);
+      if (!mounted) return;
+      setState(() => _openComplaints = list);
     } catch (e) {
-      setState(() => _err = 'Reklamationen konnten nicht geladen werden: $e');
+      setState(() => _err = '$e');
     } finally {
-      if (mounted) setState(() => _loadingOpen = false);
+      if (!mounted) return;
+      setState(() => _loadOpen = false);
     }
   }
 
-  String? _companyByEmail(String email) {
-    final e = email.trim().toLowerCase();
-    for (final u in _users) {
-      if (u.email.trim().toLowerCase() == e) return (u.company.trim().isEmpty ? null : u.company.trim());
+  Future<void> _loadComplaintsDetailed(String email) async {
+    final cur = _complaints[email];
+    if (cur?.loading == true) return;
+    setState(() {
+      _complaints[email] = _ComplaintsResult.loading();
+    });
+    try {
+      final list = await _api.fetchComplaintsByEmailDetailed(email);
+      if (!mounted) return;
+      setState(() {
+        _complaints[email] = _ComplaintsResult.ok(list);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _complaints[email] = _ComplaintsResult.err('$e');
+      });
     }
-    return null;
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final companies = <String>{};
-    for (final u in _users) {
-      if (u.company.trim().isNotEmpty) companies.add(u.company.trim());
-    }
-    final companyOptions = ['Alle Firmen', ...companies.toList()..sort()];
-
-    final list = (_filterCompany == 'Alle Firmen')
-        ? _open
-        : _open.where((c) => (_companyByEmail(c.email) ?? '') == _filterCompany).toList();
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Adminbereich – DFS Customer Complaint'),
+  Future<bool?> _confirm(String title, String msg) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(msg),
         actions: [
-          if (_loadingUsers || _loadingOpen)
-            const Padding(
-              padding: EdgeInsets.only(right: 12),
-              child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-            ),
-          IconButton(
-            tooltip: 'Neu laden',
-            onPressed: _loadingOpen ? null : () async {
-              await _refreshUsers();
-              await _refreshOpen();
-            },
-            icon: const Icon(Icons.refresh),
-          ),
-          const SizedBox(width: 8),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('OK')),
         ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            if (_err != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text(_err!, style: const TextStyle(color: Colors.red)),
-              ),
-            Row(
-              children: [
-                const Icon(Icons.filter_alt_outlined),
-                const SizedBox(width: 8),
-                const Text('Firma:'),
-                const SizedBox(width: 8),
-                DropdownButton<String>(
-                  value: _filterCompany,
-                  items: companyOptions
-                      .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
-                      .toList(),
-                  onChanged: (v) => setState(() => _filterCompany = v ?? 'Alle Firmen'),
-                ),
-                const Spacer(),
-                const Text('Offene Reklamationen', style: TextStyle(fontWeight: FontWeight.w600)),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: _loadingOpen
-                  ? const Center(child: CircularProgressIndicator())
-                  : (list.isEmpty
-                      ? const Center(child: Text('Keine offenen Reklamationen.'))
-                      : ListView.separated(
-                          itemCount: list.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 8),
-                          itemBuilder: (ctx, i) {
-                            final c = list[i];
-                            return _ComplaintTileCompact(
-                              c: c,
-                              companyHint: _companyByEmail(c.email),
-                              onOpenEditor: () async {
-                                await showDialog<void>(
-                                  context: context,
-                                  builder: (_) => Dialog(
-                                    insetPadding: const EdgeInsets.all(16),
-                                    child: ConstrainedBox(
-                                      constraints: const BoxConstraints(maxWidth: 880),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(12),
-                                        child: _ComplaintEditor(
-                                          api: _api,
-                                          c: c,
-                                          companyHint: _companyByEmail(c.email),
-                                          onClosed: () {
-                                            setState(() {
-                                              _open.removeWhere((x) => x.ticket == c.ticket);
-                                            });
-                                            Navigator.of(context, rootNavigator: true).maybePop();
-                                          },
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            );
-                          },
-                        )),
-            ),
-          ],
-        ),
       ),
     );
   }
-}
 
-// ------------------------------------------------------
-// Kompakte Karte (Listenansicht)
-// ------------------------------------------------------
-
-class _ComplaintTileCompact extends StatelessWidget {
-  final AdminComplaint c;
-  final String? companyHint;
-  final VoidCallback onOpenEditor;
-
-  const _ComplaintTileCompact({
-    super.key,
-    required this.c,
-    required this.onOpenEditor,
-    this.companyHint,
-  });
-
-  String get handlingLabel {
-    final p = c.payload;
-    if (p == null) return '—';
-    final v = p['handling'] ?? p['Wunsch'] ?? '';
-    final s = v.toString().trim();
-    return s.isEmpty ? '—' : s;
-  }
-
-  Color _statusColor(int s, String? decision) {
-    switch (s) {
-      case 1: return Colors.blue;
-      case 2: return Colors.amber.shade800;
-      case 3: return Colors.orange;
-      case 5: return Colors.amber;
-      case 6: return Colors.green;
-      default:
-        // 4 = „Entscheidung“ – farblich je nach decision
-        if (decision == 'accepted') return Colors.lightGreen;
-        if (decision == 'rejected') return Colors.red;
-        return Colors.grey;
-    }
-  }
-
-  String _statusText(int s, String? decision) {
-    switch (s) {
-      case 1: return 'Eingegegangen';
-      case 2: return 'In Bearbeitung';
-      case 3: return 'Rückfrage erforderlich';
-      case 5: return 'In Nacharbeit';
-      case 6: return 'Abgeschlossen';
-      default:
-        if (decision == 'accepted') return 'Angenommen';
-        if (decision == 'rejected') return 'Abgelehnt';
-        return 'Entscheidung';
-    }
-  }
-
+  // UI ----------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
-    final statusText = _statusText(c.status, c.decision);
-    final statusColor = _statusColor(c.status, c.decision);
-    final rightLabel = (companyHint != null && companyHint!.trim().isNotEmpty)
-        ? 'Firma: ${companyHint!}'
-        : 'E-Mail: ${c.email}';
-
-    return Card(
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        title: Row(
-          children: [
-            Text('Ticket: ${c.ticket}', style: const TextStyle(fontWeight: FontWeight.w600)),
-            const Spacer(),
-            Text(rightLabel, style: const TextStyle(fontSize: 12, color: Colors.black54)),
-          ],
+    if (_fatalErr != null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Adminbereich – DFS Customer Complaint')),
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.lock_outline, size: 44),
+                  const SizedBox(height: 12),
+                  Text(_fatalErr!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red)),
+                  const SizedBox(height: 12),
+                  FilledButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Zurück')),
+                ],
+              ),
+            ),
+          ),
         ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 6),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 6,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              // Status
-              _chip('Status: $statusText', statusColor),
-              // Entscheidung
-              if ((c.decision ?? '').isNotEmpty)
-                _chip('Entscheidung: ${c.decision == 'accepted' ? 'Angenommen' : 'Abgelehnt'}',
-                    c.decision == 'accepted' ? Colors.green : Colors.red),
-              // Wunsch
-              if (handlingLabel != '—')
-                _chip('Wunsch: $handlingLabel', switch (handlingLabel) {
-                  'Ersatz'      => Colors.indigo,
-                  'Gutschrift'  => Colors.teal,
-                  'Nacharbeit'  => Colors.deepOrange,
-                  _              => Colors.grey,
-                }),
+      );
+    }
+
+    final theme = Theme.of(context);
+    final companies = <String>{
+      'Alle Firmen',
+      ..._users.map((e) => e.company).where((s) => s.trim().isNotEmpty),
+      ..._pending.map((e) => e.company).where((s) => s.trim().isNotEmpty),
+    }.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Adminbereich – DFS Customer Complaint'),
+          actions: [
+            IconButton(
+              tooltip: 'Alles neu laden',
+              onPressed: () async {
+                await _refreshAll();
+                await _refreshOpen();
+              },
+              icon: const Icon(Icons.refresh),
+            ),
+            const SizedBox(width: 6),
+          ],
+          bottom: const TabBar(
+            tabs: [
+              Tab(icon: Icon(Icons.hourglass_top), text: 'Pending'),
+              Tab(icon: Icon(Icons.people), text: 'Aktive Nutzer'),
+              Tab(icon: Icon(Icons.receipt_long), text: 'Offene Reklamationen'),
             ],
           ),
         ),
-        trailing: FilledButton.icon(
-          onPressed: onOpenEditor,
-          icon: const Icon(Icons.edit_outlined),
-          label: const Text('Bearbeiten / Details'),
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1200),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                children: [
+                  if (_err != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(_err!, style: TextStyle(color: theme.colorScheme.error)),
+                    ),
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        _buildPendingPanel(),
+                        _buildUsersPanel(),
+                        _buildOpenPanel(companies),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _chip(String text, Color c) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: c.withOpacity(0.12),
-          border: Border.all(color: c, width: 1),
-          borderRadius: BorderRadius.circular(12),
+  // Panels ------------------------------------------------------------
+
+  Widget _buildPendingPanel() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              const Icon(Icons.hourglass_top),
+              const SizedBox(width: 8),
+              const Text('Pending (Freigabe ausstehend)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              const Spacer(),
+              IconButton(
+                tooltip: 'Neu laden',
+                onPressed: _loadPending ? null : () async {
+                  setState(() => _loadPending = true);
+                  try {
+                    final list = await _api.fetchPending();
+                    if (!mounted) return;
+                    setState(() => _pending = list);
+                  } catch (e) {
+                    setState(() => _err = '$e');
+                  } finally {
+                    if (mounted) setState(() => _loadPending = false);
+                  }
+                },
+                icon: const Icon(Icons.refresh),
+              ),
+            ]),
+            const SizedBox(height: 8),
+            if (_loadPending) const LinearProgressIndicator(),
+            const SizedBox(height: 8),
+            Expanded(
+              child: _pending.isEmpty
+                  ? const Center(child: Text('Keine Pending-Anmeldungen.'))
+                  : ListView.separated(
+                      itemCount: _pending.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (ctx, i) {
+                        final p = _pending[i];
+                        return _PendingTile(
+                          data: p,
+                          api: _api,
+                          onApprove: () async {
+                            try {
+                              await _api.approvePending(p.email, lang: p.lang);
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Freigabe ausgelöst für ${p.email}.')),
+                              );
+                              await _refreshAll();
+                            } catch (e) {
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(SnackBar(content: Text('Fehler: $e')));
+                            }
+                          },
+                          onReject: () async {
+                            final ok = await _confirm('Anmeldung ablehnen',
+                                'Soll ${p.email} wirklich abgelehnt und gelöscht werden?');
+                            if (ok != true) return;
+                            try {
+                              await _api.deleteUser(p.email);
+                              if (mounted) {
+                                ScaffoldMessenger.of(context)
+                                    .showSnackBar(SnackBar(content: Text('Eintrag gelöscht: ${p.email}')));
+                                await _refreshAll();
+                              }
+                            } catch (e) {
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(SnackBar(content: Text('Fehler: $e')));
+                            }
+                          },
+                          onLoadComplaints: () => _loadComplaintsDetailed(p.email),
+                          complaints: _complaints[p.email],
+                        );
+                      },
+                    ),
+            ),
+          ],
         ),
-        child: Text(text, style: TextStyle(color: c, fontWeight: FontWeight.w600)),
-      );
+      ),
+    );
+  }
+
+  Widget _buildUsersPanel() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              const Icon(Icons.people),
+              const SizedBox(width: 8),
+              const Text('Aktive Nutzer', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              const Spacer(),
+              IconButton(
+                tooltip: 'Neu laden',
+                onPressed: _loadUsers ? null : () async {
+                  setState(() => _loadUsers = true);
+                  try {
+                    final list = await _api.fetchUsers();
+                    if (!mounted) return;
+                    setState(() => _users = list);
+                  } catch (e) {
+                    setState(() => _err = '$e');
+                  } finally {
+                    if (mounted) setState(() => _loadUsers = false);
+                  }
+                },
+                icon: const Icon(Icons.refresh),
+              ),
+            ]),
+            const SizedBox(height: 8),
+            if (_loadUsers) const LinearProgressIndicator(),
+            const SizedBox(height: 8),
+            Expanded(
+              child: _users.isEmpty
+                  ? const Center(child: Text('Keine aktiven Nutzer.'))
+                  : ListView.separated(
+                      itemCount: _users.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (ctx, i) {
+                        final u = _users[i];
+                        return _UserTile(
+                          data: u,
+                          api: _api,
+                          onDelete: () async {
+                            final ok = await _confirm('Nutzer löschen',
+                                'Soll der aktive Nutzer ${u.email} wirklich gelöscht werden?');
+                            if (ok != true) return;
+                            try {
+                              await _api.deleteUser(u.email);
+                              if (mounted) {
+                                ScaffoldMessenger.of(context)
+                                    .showSnackBar(SnackBar(content: Text('Nutzer gelöscht: ${u.email}')));
+                                await _refreshAll();
+                                await _refreshOpen();
+                              }
+                            } catch (e) {
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(SnackBar(content: Text('Fehler: $e')));
+                            }
+                          },
+                          onLoadComplaints: () => _loadComplaintsDetailed(u.email),
+                          complaints: _complaints[u.email],
+                          onClosedFromEditor: () {
+                            // wenn im Editor geschlossen → Liste „Offen“ aktualisieren
+                            _refreshOpen();
+                          },
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOpenPanel(List<String> companies) {
+    // ggf. gefilterte Liste bilden
+    final list = (_filterCompany == 'Alle Firmen')
+        ? _openComplaints
+        : _openComplaints
+            .where((c) => (_companyByEmail(c.email) ?? '') == _filterCompany)
+            .toList();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(children: [
+              const Icon(Icons.receipt_long),
+              const SizedBox(width: 8),
+              const Text('Offene Reklamationen', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              const Spacer(),
+              DropdownButton<String>(
+                value: _filterCompany,
+                onChanged: (v) => setState(() => _filterCompany = v ?? 'Alle Firmen'),
+                items: companies
+                    .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
+                    .toList(),
+              ),
+              const SizedBox(width: 8),
+              if (_loadOpen) const Padding(
+                padding: EdgeInsets.only(right: 8),
+                child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+              ),
+              IconButton(
+                tooltip: 'Neu laden',
+                onPressed: _loadOpen ? null : _refreshOpen,
+                icon: const Icon(Icons.refresh),
+              ),
+            ]),
+            const SizedBox(height: 8),
+            Expanded(
+              child: list.isEmpty
+                  ? const Center(child: Text('Keine offenen Reklamationen.'))
+                  : ListView.separated(
+                      itemCount: list.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (ctx, i) {
+                        final c = list[i];
+                        return _ComplaintEditor(
+                          api: _api,
+                          c: c,
+                          companyHint: _companyByEmail(c.email),
+                          onClosed: () {
+                            // Sofort aus der Offenen-Liste entfernen
+                            setState(() {
+                              _openComplaints.removeWhere((x) => x.ticket == c.ticket);
+                            });
+                          },
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
-// ------------------------------------------------------
-// Editor-Dialog (Details + Aktionen)
-// ------------------------------------------------------
+// ===================================================================
+// Kleine Hilfswidgets
+// ===================================================================
+class _Field extends StatelessWidget {
+  final String label;
+  final String value;
+  const _Field({required this.label, required this.value});
 
-class _ComplaintEditor extends StatefulWidget {
+  @override
+  Widget build(BuildContext context) {
+    final muted = Theme.of(context).textTheme.bodySmall;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Wrap(
+        spacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text('$label:', style: muted),
+          Text(value.isEmpty ? '—' : value),
+        ],
+      ),
+    );
+  }
+}
+
+class _PendingTile extends StatefulWidget {
+  final PendingUser data;
   final AdminApi api;
-  final AdminComplaint c;
+  final VoidCallback onApprove;
+  final VoidCallback onReject;
+  final Future<void> Function() onLoadComplaints;
+  final _ComplaintsResult? complaints;
+  const _PendingTile({
+    required this.data,
+    required this.api,
+    required this.onApprove,
+    required this.onReject,
+    required this.onLoadComplaints,
+    required this.complaints,
+  });
+
+  @override
+  State<_PendingTile> createState() => _PendingTileState();
+}
+
+class _PendingTileState extends State<_PendingTile> {
+  bool _expanded = false;
+
+  void _showAddress() {
+    final d = widget.data;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Adressdaten (Pending)'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _Field(label: 'Firma', value: d.company),
+            _Field(label: 'Kontakt', value: d.contact),
+            const SizedBox(height: 6),
+            _Field(label: 'Straße', value: d.street),
+            _Field(label: 'PLZ/Ort', value: '${d.zip} ${d.city}'.trim()),
+            _Field(label: 'Land', value: d.country),
+            const SizedBox(height: 6),
+            _Field(label: 'Telefon', value: d.phone),
+            _Field(label: 'E-Mail', value: d.email),
+            _Field(label: 'Sprache', value: d.lang.toUpperCase()),
+            _Field(label: 'Erstellt', value: d.createdAt ?? '—'),
+          ],
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final d = widget.data;
+    final title = d.company.isNotEmpty ? d.company : d.email;
+    final subtitle = (d.country.isNotEmpty) ? d.country : '${d.zip} ${d.city}'.trim();
+
+    return Column(
+      children: [
+        ListTile(
+          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+          subtitle: Text(subtitle.isEmpty ? '—' : subtitle),
+          trailing: Wrap(
+            spacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              IconButton(tooltip: 'Adressdaten', onPressed: _showAddress, icon: const Icon(Icons.info_outline)),
+              IconButton(
+                tooltip: 'Reklamationen anzeigen',
+                onPressed: () {
+                  setState(() => _expanded = !_expanded);
+                  if (_expanded) widget.onLoadComplaints();
+                },
+                icon: Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
+              ),
+              FilledButton(onPressed: widget.onApprove, child: const Text('Freigeben')),
+              OutlinedButton(onPressed: widget.onReject, child: const Text('Ablehnen')),
+            ],
+          ),
+        ),
+        if (_expanded)
+          _ComplaintsDetailList(
+            result: widget.complaints,
+            api: widget.api,
+            onClosed: () {},
+            companyHint: d.company,
+          ),
+        const Divider(height: 1),
+      ],
+    );
+  }
+}
+
+class _UserTile extends StatefulWidget {
+  final ActiveUser data;
+  final AdminApi api;
+  final Future<void> Function() onDelete;
+  final Future<void> Function() onLoadComplaints;
+  final _ComplaintsResult? complaints;
+  final VoidCallback onClosedFromEditor;
+  const _UserTile({
+    required this.data,
+    required this.api,
+    required this.onDelete,
+    required this.onLoadComplaints,
+    required this.complaints,
+    required this.onClosedFromEditor,
+  });
+
+  @override
+  State<_UserTile> createState() => _UserTileState();
+}
+
+class _UserTileState extends State<_UserTile> {
+  bool _expanded = false;
+
+  void _showAddress() {
+    final d = widget.data;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Adressdaten'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _Field(label: 'Firma', value: d.company),
+            _Field(label: 'Kontakt', value: d.contact),
+            const SizedBox(height: 6),
+            _Field(label: 'Straße', value: d.street),
+            _Field(label: 'PLZ/Ort', value: '${d.zip} ${d.city}'.trim()),
+            _Field(label: 'Land', value: d.country),
+            const SizedBox(height: 6),
+            _Field(label: 'Telefon', value: d.phone),
+            _Field(label: 'E-Mail', value: d.email),
+            _Field(label: 'Sprache', value: d.lang.toUpperCase()),
+            _Field(label: 'Aktiv seit', value: d.createdAt ?? '—'),
+          ],
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final d = widget.data;
+    final title = d.company.isNotEmpty ? d.company : d.email;
+    final subtitle = d.country.isNotEmpty ? d.country : d.email;
+
+    return Column(
+      children: [
+        ListTile(
+          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(subtitle),
+              if (d.selfDeleted) const SizedBox(height: 4),
+              if (d.selfDeleted)
+                const Text('Account durch User gelöscht!', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600)),
+            ],
+          ),
+          trailing: Wrap(
+            spacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              IconButton(tooltip: 'Adressdaten', onPressed: _showAddress, icon: const Icon(Icons.info_outline)),
+              IconButton(
+                tooltip: 'Reklamationen anzeigen',
+                onPressed: () {
+                  setState(() => _expanded = !_expanded);
+                  if (_expanded) widget.onLoadComplaints();
+                },
+                icon: Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
+              ),
+              OutlinedButton(onPressed: () async => widget.onDelete(), child: const Text('Löschen')),
+            ],
+          ),
+        ),
+        if (_expanded)
+          _ComplaintsDetailList(
+            result: widget.complaints,
+            api: widget.api,
+            onClosed: widget.onClosedFromEditor,
+            companyHint: d.company,
+          ),
+        const Divider(height: 1),
+      ],
+    );
+  }
+}
+
+class _ComplaintsDetailList extends StatelessWidget {
+  final _ComplaintsResult? result;
+  final AdminApi api;
   final VoidCallback onClosed;
   final String? companyHint;
-
-  const _ComplaintEditor({
-    super.key,
+  const _ComplaintsDetailList({
+    required this.result,
     required this.api,
-    required this.c,
     required this.onClosed,
     this.companyHint,
   });
 
   @override
-  State<_ComplaintEditor> createState() => _ComplaintEditorState();
-}
-
-class _ComplaintEditorState extends State<_ComplaintEditor> {
-  bool _busy = false;
-
-  int? _status;
-  String? _decision;
-  final _reportCtrl = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _status = widget.c.status;
-    _decision = widget.c.decision;
-    _reportCtrl.text = widget.c.reportLink ?? '';
-  }
-
-  @override
-  void dispose() {
-    _reportCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _saveStatusDecision() async {
-    if (_status == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bitte Status auswählen.')));
-      return;
-    }
-    setState(() => _busy = true);
-    try {
-      final updated = await widget.api.adminComplaintUpdate(
-        ticket: widget.c.ticket,
-        status: _status,
-        decision: _decision ?? '',
-      );
-      widget.c.status = updated.status;
-      widget.c.decision = updated.decision;
-
-      // Falls durch Entscheidung/Status geschlossen → onClosed
-      if (updated.status == 6 || updated.decision == 'rejected') {
-        widget.onClosed();
-      }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Status/Entscheidung gespeichert.')));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _saveReport() async {
-    setState(() => _busy = true);
-    try {
-      final link = _reportCtrl.text.trim();
-      final updated = await widget.api.adminComplaintUpdate(
-        ticket: widget.c.ticket,
-        reportLink: link.isEmpty ? '' : link,
-      );
-      widget.c.reportLink = updated.reportLink;
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Report-Link gespeichert.')));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _clearReport() async {
-    setState(() => _busy = true);
-    try {
-      await widget.api.adminComplaintUpdate(ticket: widget.c.ticket, reportLink: '');
-      _reportCtrl.text = '';
-      widget.c.reportLink = null;
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Report-Link entfernt.')));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _deleteComplaint() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Reklamation löschen'),
-        content: Text('Ticket ${widget.c.ticket} wirklich löschen?\nDieser Vorgang kann nicht rückgängig gemacht werden.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
-          FilledButton(
-            style: ButtonStyle(backgroundColor: WidgetStateProperty.all(Colors.red)),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Löschen'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
-
-    setState(() => _busy = true);
-    try {
-      await widget.api.deleteComplaint(widget.c.ticket);
-      widget.onClosed();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reklamation gelöscht.')));
-        Navigator.of(context, rootNavigator: true).maybePop();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Löschen fehlgeschlagen: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final c = widget.c;
-    final payload = c.payload ?? const <String, dynamic>{};
-    final files = c.files;
-
-    Widget row(String l, String v) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(width: 200, child: Text(l, style: const TextStyle(fontWeight: FontWeight.w600))),
-              Expanded(child: Text(v.isEmpty ? '—' : v)),
-            ],
-          ),
-        );
-
-    return SingleChildScrollView(
+    final r = result;
+    if (r == null) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Text('Noch nicht geladen.'),
+      );
+    }
+    if (r.loading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: LinearProgressIndicator(),
+      );
+    }
+    if (r.error != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Text('Fehler beim Laden: ${r.error}', style: const TextStyle(color: Colors.red)),
+      );
+    }
+    if (r.items.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Text('Keine Reklamationen gefunden.'),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Ticket: ${c.ticket}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          const Divider(),
+          const Text('Reklamationen (Details):', style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
-          Text('Kunde: ${widget.companyHint ?? c.email}'),
-          const Divider(height: 20),
-
-          // Payload-Details
-          const Text('Details aus der Meldung', style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 6),
-          if (payload.isEmpty)
-            const Text('Keine Payload übermittelt.')
-          else ...[
-            row('Segment', (payload['segment'] ?? '').toString()),
-            row('Artikel', (payload['article'] ?? '').toString()),
-            row('Charge', (payload['batch'] ?? '').toString()),
-            row('Menge', (payload['qty'] ?? '').toString()),
-            row('Ablauf', (payload['expiry'] ?? '').toString()),
-            row('Beschreibung', (payload['desc'] ?? '').toString()),
-            if ((payload['applied'] ?? '').toString().trim().isNotEmpty)
-              row('Am Patienten angewendet?', (payload['applied'] ?? '').toString()),
-            if ((payload['injury'] ?? '').toString().trim().isNotEmpty)
-              row('Verletzung?', (payload['injury'] ?? '').toString()),
-            if ((payload['injuryDesc'] ?? '').toString().trim().isNotEmpty)
-              row('Verletzungsbeschreibung', (payload['injuryDesc'] ?? '').toString()),
-            row('Produkte zurückgeschickt?', (payload['returned'] ?? '').toString()),
-            row('Gewünschte Behandlung', (payload['handling'] ?? '').toString()),
-          ],
-          const SizedBox(height: 10),
-          if (files.isNotEmpty) ...[
-            const Text('Dateien:', style: TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 4),
-            ...files.map((f) => Text('- ${f.name} (${f.mime})')).toList(),
-          ],
-
-          const Divider(height: 24),
-
-          // Status / Entscheidung
-          Row(
-            children: [
-              Expanded(
-                child: DropdownButtonFormField<int>(
-                  value: _status,
-                  decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder()),
-                  items: const [
-                    DropdownMenuItem(value: 1, child: Text('Eingegegangen')),
-                    DropdownMenuItem(value: 2, child: Text('In Bearbeitung')),
-                    DropdownMenuItem(value: 3, child: Text('Rückfrage erforderlich')),
-                    DropdownMenuItem(value: 5, child: Text('In Nacharbeit')),
-                    DropdownMenuItem(value: 6, child: Text('Abgeschlossen')),
-                    // (4 ist „Entscheidung“, wird über decision abgebildet)
-                  ],
-                  onChanged: (v) => setState(() => _status = v),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  value: _decision ?? '',
-                  decoration: const InputDecoration(labelText: 'Entscheidung', border: OutlineInputBorder()),
-                  items: const [
-                    DropdownMenuItem(value: '', child: Text('—')),
-                    DropdownMenuItem(value: 'accepted', child: Text('Angenommen')),
-                    DropdownMenuItem(value: 'rejected', child: Text('Abgelehnt')),
-                  ],
-                  onChanged: (v) => setState(() => _decision = (v == null || v.isEmpty) ? null : v),
-                ),
-              ),
-              const SizedBox(width: 12),
-              FilledButton(
-                onPressed: _busy ? null : _saveStatusDecision,
-                child: const Text('Speichern'),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 12),
-
-          // Report-Link
-          TextField(
-            controller: _reportCtrl,
-            decoration: InputDecoration(
-              labelText: 'Report-Link (optional)',
-              border: const OutlineInputBorder(),
-              suffixIcon: IconButton(
-                tooltip: 'Link entfernen',
-                onPressed: _busy ? null : _clearReport,
-                icon: const Icon(Icons.delete_outline),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: _busy ? null : _saveReport,
-            icon: const Icon(Icons.save_outlined),
-            label: const Text('Link speichern'),
-          ),
-
-          const SizedBox(height: 16),
-          // Löschen
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: _busy ? null : _deleteComplaint,
-              icon: const Icon(Icons.delete_outline),
-              label: const Text('Reklamation löschen'),
-            ),
-          ),
+          ...r.items.map((c) => _ComplaintEditor(api: api, c: c, onClosed: onClosed, companyHint: companyHint)).toList(),
         ],
       ),
     );
   }
 }
 
-// ------------------------------------------------------
+// ===================================================================
 // Modelle
-// ------------------------------------------------------
-
+// ===================================================================
 class PendingUser {
   final String email;
   final String company;
@@ -603,16 +775,29 @@ class PendingUser {
   });
 
   factory PendingUser.fromJson(Map<String, dynamic> j) => PendingUser(
-        email: (j['email'] ?? '').toString(),
-        company: (j['company'] ?? '').toString(),
-        contact: (j['contact'] ?? '').toString(),
-        street: (j['street'] ?? '').toString(),
-        zip: (j['zip'] ?? '').toString(),
-        city: (j['city'] ?? '').toString(),
-        country: (j['country'] ?? '').toString(),
-        phone: (j['phone'] ?? '').toString(),
+        email: j['email'] ?? '',
+        company: j['company'] ?? '',
+        contact: j['contact'] ?? '',
+        street: j['street'] ?? '',
+        zip: j['zip'] ?? '',
+        city: j['city'] ?? '',
+        country: j['country'] ?? '',
+        phone: j['phone'] ?? '',
         lang: (j['lang'] ?? 'de').toString(),
         createdAt: j['createdAt']?.toString(),
+      );
+
+  factory PendingUser.empty() => PendingUser(
+        email: '',
+        company: '',
+        contact: '',
+        street: '',
+        zip: '',
+        city: '',
+        country: '',
+        phone: '',
+        lang: 'de',
+        createdAt: '',
       );
 }
 
@@ -644,17 +829,31 @@ class ActiveUser {
   });
 
   factory ActiveUser.fromJson(Map<String, dynamic> j) => ActiveUser(
-        email: (j['email'] ?? '').toString(),
-        company: (j['company'] ?? '').toString(),
-        contact: (j['contact'] ?? '').toString(),
-        street: (j['street'] ?? '').toString(),
-        zip: (j['zip'] ?? '').toString(),
-        city: (j['city'] ?? '').toString(),
-        country: (j['country'] ?? '').toString(),
-        phone: (j['phone'] ?? '').toString(),
+        email: j['email'] ?? '',
+        company: j['company'] ?? '',
+        contact: j['contact'] ?? '',
+        street: j['street'] ?? '',
+        zip: j['zip'] ?? '',
+        city: j['city'] ?? '',
+        country: j['country'] ?? '',
+        phone: j['phone'] ?? '',
         lang: (j['lang'] ?? 'de').toString(),
         createdAt: j['createdAt']?.toString(),
         selfDeleted: (j['selfDeleted'] ?? false) == true,
+      );
+
+  factory ActiveUser.empty() => ActiveUser(
+        email: '',
+        company: '',
+        contact: '',
+        street: '',
+        zip: '',
+        city: '',
+        country: '',
+        phone: '',
+        lang: 'de',
+        createdAt: '',
+        selfDeleted: false,
       );
 }
 
@@ -663,12 +862,12 @@ class AdminComplaint {
   final String email;
   final DateTime createdAt;
   final DateTime updatedAt;
-  int status;               // 1..6 – UI mutierbar
+  int status;               // 1..6 (mutierbar für UI)
   String? decision;         // 'accepted' | 'rejected' | null
   String? reportLink;
 
+  // komplettes Payload vom Backend (für Wunsch etc.)
   final Map<String, dynamic>? payload;
-  final List<_FileInfo> files;
 
   AdminComplaint({
     required this.ticket,
@@ -676,10 +875,9 @@ class AdminComplaint {
     required this.createdAt,
     required this.updatedAt,
     required this.status,
-    required this.decision,
-    required this.reportLink,
-    required this.payload,
-    required this.files,
+    this.decision,
+    this.reportLink,
+    this.payload,
   });
 
   factory AdminComplaint.fromJson(Map<String, dynamic> j) {
@@ -688,36 +886,21 @@ class AdminComplaint {
       if (v is String && v.trim().isNotEmpty) return DateTime.tryParse(v) ?? DateTime.now();
       return DateTime.now();
     }
-
-    final payload = (j['payload'] is Map)
-        ? (j['payload'] as Map).cast<String, dynamic>()
-        : null;
-
-    final List<_FileInfo> files = <_FileInfo>[];
-    final rawFiles = j['files'];
-    if (rawFiles is List) {
-      for (final f in rawFiles) {
-        if (f is Map) {
-          files.add(_FileInfo(
-            name: (f['name'] ?? 'Datei').toString(),
-            mime: (f['mime'] ?? 'application/octet-stream').toString(),
-          ));
-        }
-      }
-    }
+    int _i(v) => (v is num) ? v.toInt() : int.tryParse('${v ?? ''}') ?? 1;
 
     return AdminComplaint(
       ticket: (j['ticket'] ?? '').toString(),
       email: (j['email'] ?? '').toString(),
       createdAt: _dt(j['createdAt']),
       updatedAt: _dt(j['updatedAt']),
-      status: (j['status'] is num) ? (j['status'] as num).toInt() : int.tryParse('${j['status'] ?? 1}') ?? 1,
-      decision: (j['decision'] == null || (j['decision'].toString().trim().isEmpty))
+      status: _i(j['status']),
+      decision: (j['decision'] == null || (j['decision'] as String?)?.isEmpty == true)
           ? null
-          : j['decision'].toString(),
+          : j['decision']?.toString(),
       reportLink: j['reportLink']?.toString(),
-      payload: payload,
-      files: files,
+      payload: (j['payload'] is Map)
+          ? (j['payload'] as Map).cast<String, dynamic>()
+          : null,
     );
   }
 
@@ -730,21 +913,416 @@ class AdminComplaint {
         'decision': decision,
         'reportLink': reportLink,
         'payload': payload,
-        'files': files.map((f) => {'name': f.name, 'mime': f.mime}).toList(),
       };
+
+  String get handlingLabel {
+    final p = payload;
+    if (p == null) return '—';
+    final v = p['handling'] ?? p['Wunsch'] ?? '';
+    final s = v.toString().trim();
+    return s.isEmpty ? '—' : s; // Ersatz | Gutschrift | Nacharbeit
+  }
 }
 
-class _FileInfo {
-  final String name;
-  final String mime;
-  _FileInfo({required this.name, required this.mime});
+// ===================================================================
+// Status-/Decision-Listen + Details-Dialog + Editor
+// ===================================================================
+const kStatusItems = <Map<String, dynamic>>[
+  {'label': 'Eingegegangen', 'value': 1},
+  {'label': 'In Bearbeitung', 'value': 2},
+  {'label': 'Rückfrage erforderlich', 'value': 3},
+  {'label': 'In Nacharbeit', 'value': 5},
+  {'label': 'Abgeschlossen', 'value': 6},
+];
+
+const kDecisionItems = <Map<String, String>>[
+  {'label': '—', 'value': ''}, // keine Entscheidung
+  {'label': 'Angenommen', 'value': 'accepted'},
+  {'label': 'Abgelehnt', 'value': 'rejected'},
+];
+
+class _ComplaintDetailsDialog extends StatelessWidget {
+  final Map<String, dynamic> data; // vollständiges Complaint-Objekt
+  const _ComplaintDetailsDialog({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final payload = (data['payload'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final files = (data['files'] as List?)?.cast<Map>() ?? const [];
+    final ticket = (data['ticket'] ?? '').toString();
+
+    Widget row(String l, String v) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(width: 160, child: Text(l, style: const TextStyle(fontWeight: FontWeight.w600))),
+              Expanded(child: Text(v.isEmpty ? '—' : v)),
+            ],
+          ),
+        );
+
+    return AlertDialog(
+      title: Text('Details – $ticket'),
+      content: SizedBox(
+        width: 560,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (payload.isEmpty)
+                const Text('Keine Payload übermittelt.')
+              else ...[
+                row('Segment', (payload['segment'] ?? '').toString()),
+                row('Artikel', (payload['article'] ?? '').toString()),
+                row('Charge', (payload['batch'] ?? '').toString()),
+                row('Menge', (payload['qty'] ?? '').toString()),
+                row('Ablauf', (payload['expiry'] ?? '').toString()),
+                row('Beschreibung', (payload['desc'] ?? '').toString()),
+                row('Produkte zurückgeschickt?', (payload['returned'] ?? '').toString()),
+                row('Gewünschte Behandlung', (payload['handling'] ?? '').toString()),
+                if ((payload['applied'] ?? '') != '')
+                  row('Am Patienten angewendet?', (payload['applied'] ?? '').toString()),
+                if ((payload['injury'] ?? '') != '')
+                  row('Verletzung?', (payload['injury'] ?? '').toString()),
+                if ((payload['injuryDesc'] ?? '').toString().trim().isNotEmpty)
+                  row('Verletzungsbeschreibung', (payload['injuryDesc'] ?? '').toString()),
+              ],
+              const SizedBox(height: 10),
+              if (files.isNotEmpty) const Text('Dateien:', style: TextStyle(fontWeight: FontWeight.w600)),
+              if (files.isNotEmpty)
+                ...files.map((f) => Text('- ${f['name'] ?? 'Datei'} (${f['mime'] ?? 'mime'})')).toList(),
+            ],
+          ),
+        ),
+      ),
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Schließen'))],
+    );
+  }
 }
 
-// ------------------------------------------------------
+class _ComplaintEditor extends StatefulWidget {
+  final AdminApi api;
+  final AdminComplaint c;
+  final VoidCallback onClosed;
+  final String? companyHint;
+  const _ComplaintEditor({
+    super.key,
+    required this.api,
+    required this.c,
+    required this.onClosed,
+    this.companyHint,
+  });
+
+  @override
+  State<_ComplaintEditor> createState() => _ComplaintEditorState();
+}
+
+class _ComplaintEditorState extends State<_ComplaintEditor> {
+  final _reportCtrl = TextEditingController();
+  bool _busy = false;
+  bool _expanded = false;
+
+  int? _status; // 1..6
+  String? _decision; // null | accepted | rejected
+
+  @override
+  void initState() {
+    super.initState();
+    _reportCtrl.text = widget.c.reportLink ?? '';
+    _status = widget.c.status;
+    _decision = widget.c.decision;
+  }
+
+  @override
+  void dispose() {
+    _reportCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveReportLink() async {
+    setState(() => _busy = true);
+    try {
+      final link = _reportCtrl.text.trim();
+      final updated = await widget.api.adminComplaintUpdate(
+        ticket: widget.c.ticket,
+        reportLink: link.isEmpty ? '' : link,
+      );
+      widget.c.reportLink = updated.reportLink;
+      widget.c.status = updated.status;
+      widget.c.decision = updated.decision;
+
+      if (updated.status == 6 || updated.decision == 'rejected') {
+        widget.onClosed();
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Report-Link gespeichert.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _clearReportLink() async {
+    setState(() => _busy = true);
+    try {
+      await widget.api.adminComplaintUpdate(ticket: widget.c.ticket, reportLink: '');
+      _reportCtrl.text = '';
+      widget.c.reportLink = null;
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Report-Link entfernt.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _saveStatusDecision() async {
+    if (_status == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bitte Status auswählen.')));
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final updated = await widget.api.adminComplaintUpdate(
+        ticket: widget.c.ticket,
+        status: _status,
+        decision: _decision ?? '',
+      );
+      widget.c.status = updated.status;
+      widget.c.decision = updated.decision;
+
+      if (updated.status == 6 || updated.decision == 'rejected') {
+        widget.onClosed();
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Status/Entscheidung gespeichert.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _deleteComplaint() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reklamation löschen'),
+        content: Text('Soll Ticket ${widget.c.ticket} wirklich gelöscht werden?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    try {
+      await widget.api.deleteComplaint(widget.c.ticket);
+      widget.onClosed();
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Ticket ${widget.c.ticket} gelöscht.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+      }
+    }
+  }
+
+  String _statusLabel(int v) {
+    final m = kStatusItems.firstWhere((e) => e['value'] == v, orElse: () => const {});
+    return (m['label'] ?? 'Status $v').toString();
+    }
+
+  @override
+  Widget build(BuildContext context) {
+    final right = (widget.companyHint != null && widget.companyHint!.trim().isNotEmpty)
+        ? 'Firma: ${widget.companyHint}'
+        : 'E-Mail: ${widget.c.email}';
+
+    final wish = widget.c.handlingLabel;
+    Color wishCol;
+    switch (wish) {
+      case 'Ersatz':
+        wishCol = Colors.indigo;
+        break;
+      case 'Gutschrift':
+        wishCol = Colors.teal;
+        break;
+      case 'Nacharbeit':
+        wishCol = Colors.deepOrange;
+        break;
+      default:
+        wishCol = Colors.grey;
+    }
+
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Kopfzeile kompakt
+            Row(
+              children: [
+                Text('Ticket: ${widget.c.ticket}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                const Spacer(),
+                Text(right, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            // Wunsch-Flag
+            if (wish != '—')
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: BoxDecoration(
+                  color: wishCol.withOpacity(0.10),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: wishCol),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.flag, size: 18),
+                    const SizedBox(width: 8),
+                    Text('Gewünschte Behandlung: $wish',
+                        style: TextStyle(fontWeight: FontWeight.w700, color: wishCol)),
+                  ],
+                ),
+              ),
+
+            // kompakte Anzeige + Expand
+            Row(
+              children: [
+                Text('Status: ${_statusLabel(widget.c.status)}'),
+                const SizedBox(width: 12),
+                Text('Entscheidung: ${widget.c.decision?.toString() == 'accepted' ? 'Angenommen' : widget.c.decision == 'rejected' ? 'Abgelehnt' : '—'}'),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: () => setState(() => _expanded = !_expanded),
+                  icon: Icon(_expanded ? Icons.expand_less : Icons.edit),
+                  label: Text(_expanded ? 'Bearbeiten schließen' : 'Bearbeiten'),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: 'Details anzeigen',
+                  onPressed: () async {
+                    try {
+                      final raw = await widget.api.fetchComplaintRawByTicket(widget.c.ticket);
+                      if (!context.mounted) return;
+                      showDialog<void>(
+                        context: context,
+                        builder: (_) => _ComplaintDetailsDialog(data: raw),
+                      );
+                    } catch (e) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+                    }
+                  },
+                  icon: const Icon(Icons.info_outline),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  tooltip: 'Reklamation löschen',
+                  onPressed: _deleteComplaint,
+                  icon: const Icon(Icons.delete_outline),
+                ),
+              ],
+            ),
+
+            if (_expanded) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<int>(
+                      value: _status,
+                      decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder()),
+                      items: kStatusItems
+                          .map((e) => DropdownMenuItem<int>(
+                                value: e['value'] as int,
+                                child: Text(e['label'] as String),
+                              ))
+                          .toList(),
+                      onChanged: (v) => setState(() => _status = v),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: _decision ?? '',
+                      decoration: const InputDecoration(labelText: 'Entscheidung', border: OutlineInputBorder()),
+                      items: kDecisionItems
+                          .map((e) => DropdownMenuItem<String>(
+                                value: e['value']!,
+                                child: Text(e['label']!),
+                              ))
+                          .toList(),
+                      onChanged: (v) => setState(() => _decision = (v == null || v.isEmpty) ? null : v),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  FilledButton(onPressed: _busy ? null : _saveStatusDecision, child: const Text('Speichern')),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _reportCtrl,
+                decoration: InputDecoration(
+                  labelText: 'Report-Link (optional)',
+                  border: const OutlineInputBorder(),
+                  suffixIcon: IconButton(
+                    tooltip: 'Link entfernen',
+                    onPressed: _busy ? null : _clearReportLink,
+                    icon: const Icon(Icons.delete_outline),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  onPressed: _busy ? null : _saveReportLink,
+                  icon: const Icon(Icons.save_outlined),
+                  label: const Text('Link speichern'),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ===================================================================
 // Admin API (Browser, dart:html)
-// ------------------------------------------------------
-
+// ===================================================================
 class AdminApi {
+  String _secret = '';
+  void setSecret(String s) => _secret = s;
+
   String get baseUrl {
     final b = const String.fromEnvironment('API_BASE', defaultValue: '');
     if (b.isNotEmpty) return b;
@@ -753,6 +1331,7 @@ class AdminApi {
 
   Map<String, String> _headersJson() => {
         'Content-Type': 'application/json; charset=utf-8',
+        if (_secret.isNotEmpty) 'X-Admin-Secret': _secret,
       };
 
   Uri _u(String path, [Map<String, String>? q]) {
@@ -767,37 +1346,100 @@ class AdminApi {
     Map<String, String>? q,
     Object? body,
   }) async {
-    final res = await html.HttpRequest.request(
-      _u(path, q).toString(),
-      method: method,
-      requestHeaders: _headersJson(),
-      sendData: body is String ? body : (body == null ? null : jsonEncode(body)),
-      withCredentials: true,
-    );
-    return res;
+    try {
+      final res = await html.HttpRequest.request(
+        _u(path, q).toString(),
+        method: method,
+        requestHeaders: _headersJson(),
+        sendData: body is String ? body : (body == null ? null : jsonEncode(body)),
+        withCredentials: true,
+      );
+      return res;
+    } catch (e) {
+      if (e is html.ProgressEvent) {
+        final t = e.target;
+        if (t is html.HttpRequest) {
+          final st = t.status;
+          final txt = t.responseText ?? '';
+          final stx = t.statusText ?? '';
+          throw 'HTTP $st $stx — ${txt.isEmpty ? "Request fehlgeschlagen" : txt}';
+        }
+      }
+      throw e.toString();
+    }
   }
 
-  // Nutzer
+  // Pending
+  Future<List<PendingUser>> fetchPending() async {
+    final res = await _request('GET', '/api/admin/pending');
+    if (res.status != 200) throw 'pending GET: HTTP ${res.status} ${res.responseText}';
+    final txt = res.responseText ?? '';
+    if (txt.trim().isEmpty) return <PendingUser>[];
+    final List data = jsonDecode(txt);
+    return data.map((e) => PendingUser.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<void> approvePending(String email, {String? lang}) async {
+    final body = {'email': email, 'action': 'approve', if (lang != null) 'lang': lang};
+    final res = await _request('POST', '/api/admin/pending', body: body);
+    if (res.status != 200 && res.status != 204) {
+      throw 'pending POST approve: HTTP ${res.status} ${res.responseText}';
+    }
+  }
+
+  Future<void> deleteUser(String email) async {
+    // Versuch 1: DELETE mit Query
+    try {
+      final r1 = await _request('DELETE', '/api/admin/users', q: {'email': email});
+      if (r1.status == 200 || r1.status == 204) return;
+    } catch (_) {}
+    // Versuch 2: DELETE mit Body
+    try {
+      final r2 = await _request('DELETE', '/api/admin/users', body: {'email': email});
+      if (r2.status == 200 || r2.status == 204) return;
+    } catch (_) {}
+    // Versuch 3: POST action=delete
+    final r3 = await _request('POST', '/api/admin/users', body: {'action': 'delete', 'email': email});
+    if (r3.status != 200 && r3.status != 204) {
+      throw 'users DELETE/POST(delete) failed: HTTP ${r3.status} ${r3.responseText}';
+    }
+  }
+
+  // Users
   Future<List<ActiveUser>> fetchUsers() async {
     final res = await _request('GET', '/api/admin/users');
-    if (res.status != 200) {
-      throw 'users GET: HTTP ${res.status} ${res.responseText}';
-    }
+    if (res.status != 200) throw 'users GET: HTTP ${res.status} ${res.responseText}';
     final txt = res.responseText ?? '';
     if (txt.trim().isEmpty) return <ActiveUser>[];
     final List data = jsonDecode(txt);
     return data.map((e) => ActiveUser.fromJson(e as Map<String, dynamic>)).toList();
   }
 
-  // Offene Reklamationen (ohne E-Mail-Filter)
-  Future<List<AdminComplaint>> fetchOpenComplaints() async {
-    final res = await _request('GET', '/api/admin/complaints', q: {'open': '1'});
-    if (res.status != 200) throw 'open complaints GET: HTTP ${res.status}';
+  // Complaints (by email / open)
+  Future<List<AdminComplaint>> fetchComplaintsByEmailDetailed(String email) async {
+    final res = await _request('GET', '/api/admin/complaints', q: {'email': email, 'details': '1'});
+    if (res.status != 200) throw 'complaints email GET: HTTP ${res.status} ${res.responseText}';
     final List data = jsonDecode(res.responseText ?? '[]');
     return data.map((e) => AdminComplaint.fromJson(e as Map<String, dynamic>)).toList();
   }
 
-  // Update
+  Future<List<AdminComplaint>> fetchOpenComplaints() async {
+    final res = await _request('GET', '/api/admin/complaints', q: {'open': '1'});
+    if (res.status != 200) throw 'open complaints GET: HTTP ${res.status} ${res.responseText}';
+    final List data = jsonDecode(res.responseText ?? '[]');
+    return data.map((e) => AdminComplaint.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<Map<String, dynamic>> fetchComplaintRawByTicket(String ticket) async {
+    final res = await _request('GET', '/api/admin/complaints', q: {'ticket': ticket});
+    if (res.status != 200) {
+      throw 'complaint GET by ticket: HTTP ${res.status} ${res.responseText}';
+    }
+    final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
+    return j;
+  }
+
+  // Update / Delete
   Future<AdminComplaint> adminComplaintUpdate({
     required String ticket,
     int? status,
@@ -813,23 +1455,34 @@ class AdminApi {
     if (res.status != 200) {
       throw 'HTTP ${res.status} ${res.statusText} — ${res.responseText ?? ''}';
     }
-    final Map<String, dynamic> j = (res.responseText ?? '').trim().isEmpty
-        ? <String, dynamic>{}
-        : jsonDecode(res.responseText!);
+    final Map<String, dynamic> j =
+        (res.responseText ?? '').trim().isEmpty ? <String, dynamic>{} : jsonDecode(res.responseText!);
     return AdminComplaint.fromJson(j);
   }
 
-  // Löschen
   Future<void> deleteComplaint(String ticket) async {
-    // Versuch 1: DELETE ?ticket=...
+    // 1) DELETE ?ticket=...
     try {
       final r1 = await _request('DELETE', '/api/admin/complaints', q: {'ticket': ticket});
       if (r1.status == 200 || r1.status == 204) return;
-    } catch (_) {}
-    // Fallback: DELETE mit Body
+    } catch (_) {/* Fallback */}
+    // 2) DELETE Body
     final r2 = await _request('DELETE', '/api/admin/complaints', body: {'ticket': ticket});
     if (r2.status != 200 && r2.status != 204) {
       throw 'HTTP ${r2.status} ${r2.statusText} — ${r2.responseText ?? ''}';
     }
   }
+}
+
+// ===================================================================
+// interne Hilfs-Resultklasse
+// ===================================================================
+class _ComplaintsResult {
+  final bool loading;
+  final String? error;
+  final List<AdminComplaint> items;
+  _ComplaintsResult._(this.loading, this.error, this.items);
+  factory _ComplaintsResult.loading() => _ComplaintsResult._(true, null, const []);
+  factory _ComplaintsResult.err(String e) => _ComplaintsResult._(false, e, const []);
+  factory _ComplaintsResult.ok(List<AdminComplaint> list) => _ComplaintsResult._(false, null, list);
 }
