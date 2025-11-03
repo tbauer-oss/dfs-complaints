@@ -1085,8 +1085,8 @@ class AdminApi {
     String? reportLink,
   }) async {
     final body = <String, dynamic>{ 'ticket': ticket };
-    if (status != null) body['status'] = status;
-    if (decision != null) body['decision'] = decision;
+    if (status != null)    body['status'] = status;
+    body['decision']   = decision ?? '';
     if (reportLink != null) body['reportLink'] = reportLink;
 
     final res = await _request('POST', '/api/admin/complaints', body: body);
@@ -1143,7 +1143,6 @@ const kStatusItems = <Map<String, dynamic>>[
   {'label': 'Eingegegangen',          'value': 1},
   {'label': 'In Bearbeitung',         'value': 2},
   {'label': 'Rückfrage erforderlich', 'value': 3},
-  {'label': 'Entscheidung',           'value': 4},
   {'label': 'In Nacharbeit',          'value': 5},
   {'label': 'Abgeschlossen',          'value': 6},
 ];
@@ -1320,11 +1319,11 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     try {
       final updated = await widget.api.adminComplaintUpdate(
         ticket: widget.c.ticket,
-        status: _status,                 // 1..6
-        decision: (_decision == null || _decision!.isEmpty) ? null : _decision,
+        status: _status,
+        // "" (= „—“) -> Backend setzt decision=null
+        decision: _decision ?? '', 
       );
 
-      // lokalen State aktualisieren (kein Schreibzugriff auf final updatedAt!)
       widget.c.status   = updated.status;
       widget.c.decision = updated.decision;
 
@@ -1334,7 +1333,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
         );
       }
 
-      // Offene-Liste anpassen, falls geschlossen
       if (updated.status == 6 || updated.decision == 'rejected') {
         widget.onClosed();
       }
