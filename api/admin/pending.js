@@ -1,7 +1,7 @@
 // api/admin/pending.js
 export const config = { runtime: 'nodejs' };
 
-import {handlePreflight, setCors, ok, bad, methodNotAllowed, readJson,} from '../_lib/http.js';
+import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { pendingList, pendingDelete, userSave, userDelete } from '../_lib/store.js';
 import { send, tpl } from '../_lib/mail.js';
 
