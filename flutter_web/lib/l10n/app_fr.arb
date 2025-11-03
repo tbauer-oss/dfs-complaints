@@ -153,6 +153,7 @@
   "status_in_progress": "en cours",
   "status_question": "demande d’informations",
   "status_decision": "décision",
+  "decision_accepted": "Accepté",
   "status_rework": "retouche",
   "status_closed": "clos",
   "status_accepted": "accepté",
