@@ -92,8 +92,8 @@ class _LoginPageState extends State<LoginPage> {
                 onPressed: _busy ? null : _doLogin,
                 child: _busy
                     ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                    // <- fester String statt t.login
-                    : const Text('Login'),
+                    // lokalisiert (robust gegen unterschiedliche Key-Namen)
+                    : Text(tx(t?.auth_login ?? t?.login, 'Login')),
               ),
             ),
 
