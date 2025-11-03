@@ -459,32 +459,16 @@ class _AdminPageState extends State<AdminPage> {
                       separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (ctx, i) {
                         final c = _openComplaints[i];
-
-                        return Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            // die eigentliche Karte/Editor
-                            _ComplaintEditor(
-                              api: _api,
-                              c: c,
-                              onClosed: () {
-                                // Sofort aus der Offenen-Liste entfernen
-                                setState(() {
-                                  _openComplaints.removeWhere((x) => x.ticket == c.ticket);
-                                });
-                              },
-                           ),
-
-                            // Wunsch-Badge oben rechts über der Karte
-                            Positioned(
-                              right: 12,
-                              top: 10,
-                              child: _WishBadgeSmall(c.handlingLabel),
-                            ),
-                          ],
+                        return _ComplaintEditor(
+                          api: _api,
+                          c: c,
+                          onClosed: () {
+                            setState(() {
+                              _openComplaints.removeWhere((x) => x.ticket == c.ticket);
+                            });
+                          },
                         );
                       },
-                    ),
             )
           ],
         ),
@@ -1277,33 +1261,33 @@ class _ComplaintEditor extends StatefulWidget {
   final AdminApi api;
   final AdminComplaint c;
   final VoidCallback onClosed;
-  final String? companyHint; // ← NEU
+  final String? companyHint; // optional
 
   const _ComplaintEditor({
     Key? key,
     required this.api,
     required this.c,
     required this.onClosed,
-    this.companyHint,        // ← NEU
+    this.companyHint,
   }) : super(key: key);
 
   @override
   State<_ComplaintEditor> createState() => _ComplaintEditorState();
 }
+
 class _ComplaintEditorState extends State<_ComplaintEditor> {
   final _reportCtrl = TextEditingController();
   bool _busy = false;
 
-  // lokale UI-States für Status/Decision
-  int? _status;           // 1..6
-  String? _decision;      // null | 'accepted' | 'rejected'
- }
+  int? _status;            // 1..6
+  String? _decision;       // null | 'accepted' | 'rejected'
+
   @override
   void initState() {
     super.initState();
     _reportCtrl.text = widget.c.reportLink ?? '';
-    _status = widget.c.status;
-    _decision = widget.c.decision; // kann null sein
+    _status   = widget.c.status;
+    _decision = widget.c.decision;
   }
 
   @override
@@ -1321,13 +1305,11 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
         reportLink: link.isEmpty ? '' : link, // "" => löschen
       );
 
-      // lokalen State aktualisieren (kein Schreibzugriff auf final updatedAt!)
-      _reportCtrl.text   = updated.reportLink ?? '';
-      widget.c.reportLink = updated.reportLink;
-      widget.c.status     = updated.status;
-      widget.c.decision   = updated.decision;
+      _reportCtrl.text     = updated.reportLink ?? '';
+      widget.c.reportLink  = updated.reportLink;
+      widget.c.status      = updated.status;
+      widget.c.decision    = updated.decision;
 
-      // Falls Fall nun geschlossen ist, Liste aktualisieren
       if (updated.status == 6 || updated.decision == 'rejected') {
         widget.onClosed();
       }
@@ -1387,8 +1369,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       final updated = await widget.api.adminComplaintUpdate(
         ticket: widget.c.ticket,
         status: _status,
-        // "" (= „—“) -> Backend setzt decision=null
-        decision: _decision ?? '', 
+        decision: _decision ?? '', // "" => Backend setzt null
       );
 
       widget.c.status   = updated.status;
@@ -1424,29 +1405,26 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       margin: const EdgeInsets.symmetric(vertical: 6),
       child: Stack(
         children: [
-          // --- Hauptinhalt ---
+          // --- Hauptinhalt (oben Luft für Badge) ---
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 28, 12, 12), // oben etwas Luft für das Badge
+            padding: const EdgeInsets.fromLTRB(12, 28, 12, 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Kopfzeile
                 Row(
                   children: [
-                    Text(
-                      'Ticket: ${widget.c.ticket}',
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
+                    Text('Ticket: ${widget.c.ticket}',
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
                     const Spacer(),
                     Text(
-                      rightLabel, // ← hier NICHT hart "E-Mail", sondern Firma/E-Mail dynamisch
+                      rightLabel,
                       style: const TextStyle(fontSize: 12, color: Colors.black54),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
 
-                // Wunsch-Hinweis (breit, innerhalb der Karte)
+                // Auffälliger Wunsch-Hinweis (breit)
                 Builder(
                   builder: (_) {
                     final wish = widget.c.handlingLabel;
@@ -1480,7 +1458,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                   },
                 ),
 
-                // Status + Entscheidung
+                // Status & Entscheidung
                 Row(
                   children: [
                     Expanded(
@@ -1553,7 +1531,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
             ),
           ),
 
-          // --- Wunsch-Badge (klein) oben rechts als Seitenmarke ---
+          // --- kleines Wunsch-Badge oben rechts ---
           Positioned(
             right: 12,
             top: 8,
@@ -1563,3 +1541,37 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       ),
     );
   }
+}
+
+// Kleine Seitenmarke „Wunsch: …“
+class _WishBadgeSmall extends StatelessWidget {
+  final String wish;
+  const _WishBadgeSmall(this.wish, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final w = wish.trim();
+    if (w.isEmpty || w == '—') return const SizedBox.shrink();
+
+    Color c;
+    switch (w) {
+      case 'Ersatz':      c = Colors.indigo;      break;
+      case 'Gutschrift':  c = Colors.teal;        break;
+      case 'Nacharbeit':  c = Colors.deepOrange;  break;
+      default:            c = Colors.grey;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: c.withOpacity(0.12),
+        border: Border.all(color: c, width: 1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        'Wunsch: $w',
+        style: TextStyle(color: c, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
