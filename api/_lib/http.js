@@ -3,7 +3,7 @@
 // --- Erlaubte Frontend-Origins ---
 export const PROD_FE  = 'https://dfs-complaints-web.vercel.app';
 export const LOCAL_FE = 'http://localhost:8080';
-const PREVIEW  = /^https:\/\/dfs-complaints-web-[a-z0-9-]+(?:-[a-z0-9-]+)?\.vercel\.app$/i;
+const PREVIEW  = /^https:\/\/dfs-complaints-web(?:-[a-z0-9-]+)*\.vercel\.app$/i;
 
 // Prüft, ob Origin erlaubt ist
 export function isAllowedOrigin(origin = '') {
