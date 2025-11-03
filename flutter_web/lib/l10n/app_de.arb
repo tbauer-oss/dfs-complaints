@@ -171,5 +171,11 @@
   "supportCatAccount": "Anfragen zum Account",
   "supportCatPrivacy": "Datenschutz",
   "supportCatFeedback": "Feedback",
-  "supportCatSuggestion": "Vorschlag zur Verbesserung"
+  "supportCatSuggestion": "Vorschlag zur Verbesserung",
+
+  "operationFailed": "Aktion fehlgeschlagen",
+  "openComplaints": "Offene Reklamationen",
+  "ticket": "Ticket",
+  "createdAt": "Erstellt",
+  "category": "Aktionen"
 }
