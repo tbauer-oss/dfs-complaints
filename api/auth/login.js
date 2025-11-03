@@ -3,22 +3,21 @@ export const config = { runtime: 'nodejs' };
 
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import {
-  handlePreflight, setCors, ok, bad, methodNotAllowed, readJson
-} from '../_lib/http.js';
+import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { userByEmail } from '../_lib/store.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret';
 
 export default async function handler(req, res) {
-  // --- CORS zuerst ---
-  if (handlePreflight(req, res)) return; // beantwortet OPTIONS (204) inkl. CORS
-  setCors(req, res); // sicherstellen, dass auch POST-Antworten CORS haben
+  // 1) OPTIONS beantworten
+  if (handlePreflight(req, res)) return;
+  // 2) Für den echten Request CORS-Header setzen!
+  setCors(req, res);
 
   if (req.method !== 'POST') return methodNotAllowed(res);
 
   try {
-    const body = readJson(req);
+    const body  = readJson(req);
     const email = String(body?.email || '').trim().toLowerCase();
     const pw    = String(body?.password || '');
 
@@ -30,7 +29,6 @@ export default async function handler(req, res) {
     const hash = u.passhash || u.passwordHash || '';
     const okPw = await bcrypt.compare(pw, hash);
     if (!okPw) return bad(res, 'invalid credentials', 401);
-
     if (u.revoked) return bad(res, 'revoked', 403);
 
     const token = jwt.sign({ sub: u.email, email: u.email }, JWT_SECRET, { expiresIn: '12h' });
