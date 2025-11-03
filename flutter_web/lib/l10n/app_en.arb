@@ -80,7 +80,7 @@
 
   "auth_login": "Login",
   "auth_register": "Register",
-  "login": "Login",
+  "login": "Login - DFS Complaints App",
   "@login": { "description": "Login button label" },
   "register": "Register",
   "@register": { "description": "Registration button label" },
