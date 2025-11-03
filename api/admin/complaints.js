@@ -125,7 +125,7 @@ export default async function handler(req, res) {
     }
 
     // ----------------------------
-    // POST / PATCH – Status/Decision/Report
+    // POST / PATCH – Status / Decision / Report
     // ----------------------------
     if (req.method === 'POST' || req.method === 'PATCH') {
       // Body robust parsen
@@ -133,14 +133,12 @@ export default async function handler(req, res) {
       if (typeof body === 'string') {
         try { body = JSON.parse(body); } catch { /* ignore */ }
       }
-      if (typeof body === 'string') {
-        body = { ticket: body };
-      }
+      if (typeof body === 'string') body = { ticket: body };
       if (!body || typeof body !== 'object') body = {};
 
       const ticket     = (body?.ticket || '').toString().trim();
-      const statusIn   = body?.status;                // Zahl | "Zahl" | Label
-      const decisionIn = body?.decision ?? undefined; // 'accepted' | 'rejected' | null | undefined
+      const statusIn   = body?.status;                // 1..6 | "1".."6" | Label
+      const decisionIn = body?.decision;              // 'accepted' | 'rejected' | "" | null | undefined
       const reportLink = body?.reportLink;            // string | "" | null | undefined
 
       if (!ticket) return bad(res, 'missing ticket', 400);
@@ -148,7 +146,7 @@ export default async function handler(req, res) {
       const c = await complaintByTicket(ticket);
       if (!c) return bad(res, 'not found', 404);
 
-      // Status (optional)
+      // ---- Status (optional) ----
       if (statusIn !== undefined) {
         const code = parseStatus(statusIn);
         if (code == null) return bad(res, 'invalid status', 400);
@@ -156,28 +154,37 @@ export default async function handler(req, res) {
         c.statusUpdatedAt = Date.now();
       }
 
-      // Decision (optional)
+      // ---- Decision (optional) ----
       if (decisionIn !== undefined) {
-        if (
-          decisionIn !== null &&
-          decisionIn !== 'accepted' &&
-          decisionIn !== 'rejected'
-        ) {
+        // Normalisieren: "", "null", "-", null  =>  null (löschen)
+        let d = decisionIn;
+        if (d === null) d = null;
+        else if (typeof d === 'string') {
+          const s = d.trim().toLowerCase();
+          if (s === '' || s === 'null' || s === '-') d = null;
+          else if (s !== 'accepted' && s !== 'rejected') {
+            return bad(res, 'invalid decision', 400);
+          } else {
+            d = s; // 'accepted' | 'rejected'
+          }
+        } else {
           return bad(res, 'invalid decision', 400);
         }
-        c.decision = decisionIn ?? null;
 
-        // Business-Logik: 'rejected' => schließen + Status "Entscheidung"
+        c.decision = d; // kann nun auch explizit null sein
+
+        // Business-Logik: 'rejected' → Auto-Abschluss + Status "Entscheidung"
         if (c.decision === 'rejected') {
           c.closed = true;
           c.closedAt = Date.now();
-          c.status = 4; // Entscheidung
+          c.status = 4;                 // Entscheidung
           c.statusUpdatedAt = Date.now();
         }
         // 'accepted' => kein Auto-Abschluss
+        // null (gelöscht) => keine Sonderbehandlung; Status bleibt wie gewählt
       }
 
-      // Report-Link (optional; leer => löschen)
+      // ---- Report-Link (optional; leer => löschen) ----
       if (reportLink !== undefined) {
         const v = (reportLink ?? '').toString().trim();
         if (v) c.reportLink = v;
@@ -187,11 +194,10 @@ export default async function handler(req, res) {
       // Persist
       c.updatedAt = Date.now();
 
-      // robust speichern (unterstütze beide Varianten deiner Store-API)
+      // robust speichern (bevorzugt keyed, Fallback full)
       try {
         await complaintSave(ticket, c);
-      } catch (_) {
-        // Fallback: ganzer Datensatz
+      } catch {
         await complaintSave({ ...c });
       }
 
