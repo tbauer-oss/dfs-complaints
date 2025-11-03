@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:html' as html;
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import '../api/client.dart';
 
 class AdminPage extends StatefulWidget {
@@ -31,7 +32,7 @@ class _AdminPageState extends State<AdminPage> {
   @override
   void initState() {
     super.initState();
-    _api = AdminApi();
+    _api = AdminApi(widget.api); //
 
     // 1) Primär: aus dem ApiClient, der von main.dart übergeben wird
     String secret = widget.api.adminSecret ?? '';
@@ -933,6 +934,21 @@ class AdminApi {
     return uri.replace(queryParameters: q);
   }
 
+  // Alias, damit bestehende Aufrufe mit adminComplaintUpdate(...) funktionieren
+  Future<AdminComplaint> adminComplaintUpdate({
+    required String ticket,
+    int? status,
+    String? decision,
+    String? reportLink, // "" => Backend löscht den Link
+  }) {
+    return updateComplaint(
+      ticket: ticket,
+      status: status,
+      decision: decision,
+      reportLink: reportLink,
+    );
+  }
+
   // ---- Pending ----
   Future<List<PendingUser>> fetchPending() async {
     final res = await html.HttpRequest.request(
@@ -1177,7 +1193,9 @@ class _ComplaintEditor extends StatefulWidget {
   final VoidCallback onClosed; // aufgerufen, wenn der Fall aus "Offene" verschwinden soll
 
   const _ComplaintEditor({
+    super.key
     required this.api,
+    required this.complaint
     required this.c,
     required this.onClosed,
   });
@@ -1265,7 +1283,12 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                       if (!context.mounted) return;
                       await showDialog(
                         context: context,
-                        builder: (_) => _ComplaintDetailsDialog(data: raw),
+                        builder: (_) => Dialog(
+                          child: _ComplaintEditor(
+                            api: _api,                  // <--- AdminApi rein
+                            complaint: complaint,       // dein AdminComplaint-Objekt
+                          ),
+                        ),
                       );
                     } catch (e) {
                       if (!context.mounted) return;
@@ -1284,10 +1307,10 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                     setState(() => _busy = true);
                     try {
                       final updated = await widget.api.adminComplaintUpdate(
-                        ticket: c.ticket,
+                        ticket: widget.complaint.ticket,
                         status: _status,
                         decision: _decision,
-                        reportLink: _reportCtrl.text.trim().isEmpty ? '' : _reportCtrl.text.trim(),
+                        reportLink: link.isEmpty ? '' : link, // "" => löschen
                       );
                       final link = _reportCtrl.text.trim();
                       await widget.api.adminComplaintUpdate(
