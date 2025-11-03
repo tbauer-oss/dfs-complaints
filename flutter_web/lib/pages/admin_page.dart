@@ -459,19 +459,30 @@ class _AdminPageState extends State<AdminPage> {
                       separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (ctx, i) {
                         final c = _openComplaints[i];
-                        return _ComplaintEditor(
-                          api: _api,
-                          c: c,
-                          companyHint: _companyByEmail(c.email), // ← HIER rein
-                          onClosed: () {
-                            setState(() {
-                              _openComplaints.removeWhere((x) => x.ticket == c.ticket);
-                            });
-                          },
+                        return Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            _ComplaintEditor(
+                              api: _api,
+                              c: c,
+                              onClosed: () {
+                                // Sofort aus der Offenen-Liste entfernen
+                                setState(() {
+                                  _openComplaints.removeWhere((x) => x.ticket == c.ticket);
+                                });
+                              },
+                            ),
+                            // rechte Seitenmarke (Kundenwunsch)
+                            Positioned(
+                              top: 6,
+                              right: 10,
+                              child: _WishBadgeSmall(c.handlingLabel),
+                            ),
+                          ],
                         );
                       },
                     ),
-            ),
+            )
           ],
         ),
       ),
@@ -521,6 +532,39 @@ class _PendingTile extends StatefulWidget {
 
   @override
   State<_PendingTile> createState() => _PendingTileState();
+}
+
+// Kleine Seitenmarke für den Kundenwunsch ("Ersatz", "Gutschrift", "Nacharbeit")
+class _WishBadgeSmall extends StatelessWidget {
+  final String wish;
+  const _WishBadgeSmall(this.wish, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final w = wish.trim();
+    if (w.isEmpty || w == '—') return const SizedBox.shrink();
+
+    Color c;
+    switch (w) {
+      case 'Ersatz':      c = Colors.indigo;      break;
+      case 'Gutschrift':  c = Colors.teal;        break;
+      case 'Nacharbeit':  c = Colors.deepOrange;  break;
+      default:            c = Colors.grey;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: c.withOpacity(0.12),
+        border: Border.all(color: c, width: 1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        'Wunsch: $w',
+        style: TextStyle(color: c, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
 }
 
 class _PendingTileState extends State<_PendingTile> {
