@@ -278,7 +278,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                       );
                                     },
                                   ),
-                                ],,
+                                ],
 
                                 // Details-Button
                                 TextButton.icon(
