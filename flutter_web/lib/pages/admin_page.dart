@@ -1193,9 +1193,9 @@ class _ComplaintEditor extends StatefulWidget {
   final VoidCallback onClosed; // aufgerufen, wenn der Fall aus "Offene" verschwinden soll
 
   const _ComplaintEditor({
-    super.key
+    super.key,
     required this.api,
-    required this.complaint
+    required this.complaint,
     required this.c,
     required this.onClosed,
   });
