@@ -128,6 +128,41 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     return link.isNotEmpty;
   }
 
+  // Entscheidung als Text (de/en-ready, mit robustem Fallback)
+  String _decisionText(String? d) {
+    switch ((d ?? '').trim().toLowerCase()) {
+      case 'accepted':
+        return 'Angenommen';
+      case 'rejected':
+        return 'Abgelehnt';
+      default:
+        return '—';
+    }
+  }
+
+  Color _decisionColor(String? d) {
+    switch ((d ?? '').trim().toLowerCase()) {
+      case 'accepted':
+        return Colors.green;
+      case 'rejected':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  // Kompaktes Chip-Widget für die Entscheidung
+  Widget _decisionChip(String? decision) {
+    final c = _decisionColor(decision);
+    return Chip(
+      label: Text('Entscheidung: ${_decisionText(decision)}'),
+      backgroundColor: c.withOpacity(0.12),
+      side: BorderSide(color: c, width: 1),
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
@@ -209,29 +244,55 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                               children: [
                                 // Status-Badge („Status: …“)
                                 Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 10, vertical: 6),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                   decoration: BoxDecoration(
                                     color: statusColor.withOpacity(0.12),
-                                    border:
-                                        Border.all(color: statusColor, width: 1),
+                                    border: Border.all(color: statusColor, width: 1),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Text(
                                     '${t.status}: $statusText',
-                                    style: TextStyle(
-                                        color: statusColor,
-                                        fontWeight: FontWeight.w600),
+                                    style: TextStyle(color: statusColor, fontWeight: FontWeight.w600),
                                   ),
                                 ),
+
                                 const SizedBox(height: 6),
+
+                                // NEU: Decision-Badge (nur anzeigen, wenn gesetzt)
+                                if (c.decision != null) ...[
+                                  Builder(builder: (_) {
+                                    final isAcc = c.decision == 'accepted';
+                                    final isRej = c.decision == 'rejected';
+                                    final decColor = isAcc
+                                        ? Colors.green
+                                        : (isRej ? Colors.red : Colors.grey);
+
+                                    final decText = isAcc
+                                        ? t.decision_accepted   // z.B. "Angenommen"
+                                        : (isRej ? t.decision_rejected : t.decision_pending); // optionaler Fallback
+
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: decColor.withOpacity(0.12),
+                                        border: Border.all(color: decColor, width: 1),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        '${t.decision}: $decText',
+                                        style: TextStyle(color: decColor, fontWeight: FontWeight.w600),
+                                      ),
+                                    );
+                                  }),
+                                  const SizedBox(height: 6),
+                                ],
+
                                 // Details-Button
                                 TextButton.icon(
                                   onPressed: () async {
                                     await showDialog(
                                       context: context,
-                                      builder: (_) =>
-                                          _MyComplaintDetailsDialog(c: c),
+                                      builder: (_) => _MyComplaintDetailsDialog(c: c),
                                     );
                                   },
                                   icon: const Icon(Icons.info_outline),
