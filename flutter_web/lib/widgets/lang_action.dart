@@ -1,11 +1,9 @@
-// flutter_web/lib/widgets/lang_action.dart
+// lib/widgets/lang_action.dart
 import 'package:flutter/material.dart';
 import 'package:country_flags/country_flags.dart';
-import '../i18n/locale_controller.dart';
 import '../l10n/app_localizations.dart';
 
-/// Mapping: Sprachcode -> Flaggen-Ländercode
-/// Für EN nutze ich 'gb' (neutraler als 'us', typischer für UI-Sprache Englisch).
+/// Sprachcode -> Flaggen-Ländercode (für EN nehme ich GB)
 const _langToCountry = <String, String>{
   'de': 'de',
   'en': 'gb',
@@ -14,7 +12,6 @@ const _langToCountry = <String, String>{
   'es': 'es',
 };
 
-/// Verfügbare Sprachen (de/en/fr/it/es)
 const _supported = <Locale>[
   Locale('de'),
   Locale('en'),
@@ -24,14 +21,21 @@ const _supported = <Locale>[
 ];
 
 class LangAction extends StatelessWidget {
-  const LangAction({super.key});
+  final void Function(Locale)? onLocaleChanged;
+  /// Nur Flaggen anzeigen (kein Text im Menü)
+  final bool flagsOnly;
+
+  const LangAction({
+    super.key,
+    this.onLocaleChanged,
+    this.flagsOnly = true,
+  });
 
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
-    final ctrl = LocaleController.of(context); // dein bestehender Controller
-    final current = ctrl.locale ?? Localizations.localeOf(context);
-    final currentLang = (current.languageCode).toLowerCase();
+    final current = Localizations.localeOf(context);
+    final currentLang = current.languageCode.toLowerCase();
     final currentFlag = _langToCountry[currentLang] ?? 'gb';
 
     return Tooltip(
@@ -42,7 +46,7 @@ class LangAction extends StatelessWidget {
         offset: const Offset(0, 8),
         itemBuilder: (context) {
           return _supported.map((loc) {
-            final code = (loc.languageCode).toLowerCase();
+            final code = loc.languageCode.toLowerCase();
             final flagCode = _langToCountry[code] ?? 'gb';
             final isActive = code == currentLang;
 
@@ -50,31 +54,28 @@ class LangAction extends StatelessWidget {
               value: loc,
               child: Row(
                 children: [
-                  // Flagge
                   CountryFlag.fromCountryCode(
                     flagCode,
                     height: 16,
                     width: 24,
                     borderRadius: 2,
                   ),
-                  const SizedBox(width: 10),
-                  // Optionaler Text – wenn du wirklich NUR Flaggen willst,
-                  // kannst du den Text komplett entfernen.
-                  Expanded(
-                    child: Text(
-                      _localizedLangName(t, code), // „Deutsch“, „English“, …
-                      style: TextStyle(
-                        fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-                      ),
+                  if (!flagsOnly) ...[
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(_nameFor(t, code)),
                     ),
+                  ],
+                  if (isActive) const Padding(
+                    padding: EdgeInsets.only(left: 8),
+                    child: Icon(Icons.check, size: 14),
                   ),
-                  if (isActive) const Icon(Icons.check, size: 16),
                 ],
               ),
             );
           }).toList();
         },
-        onSelected: (loc) => ctrl.setLocale(loc),
+        onSelected: (loc) => onLocaleChanged?.call(loc),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 6),
           child: CountryFlag.fromCountryCode(
@@ -88,8 +89,7 @@ class LangAction extends StatelessWidget {
     );
   }
 
-  String _localizedLangName(AppLocalizations? t, String code) {
-    // Greift auf deine vorhandenen ARB-Keys zurück, fällt sonst auf Englisch zurück.
+  String _nameFor(AppLocalizations? t, String code) {
     switch (code) {
       case 'de': return t?.langNameDE ?? 'German';
       case 'en': return t?.langNameEN ?? 'English';
