@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'dart:html' as html; // Web: LocalStorage & Window
 import 'package:http/http.dart' as http;
+import '../models/complaint.dart';
 
 class ApiError implements Exception {
   final int status;
@@ -21,8 +22,6 @@ String _extractMessage(String body) {
     return body.isNotEmpty ? body : 'Unknown error';
   }
 }
-
-import '../models/complaint.dart';
 
 class ApiClient {
   // ---------- Konfiguration ----------
