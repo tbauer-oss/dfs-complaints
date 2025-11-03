@@ -1,17 +1,24 @@
 // api/_lib/auth.js
-import jwt from 'jsonwebtoken';
-const JWT_SECRET = process.env.JWT_SECRET || '';
+export const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 
-export function getAuthUser(req) {
-  // Erwartet "Authorization: Bearer <token>"
-  const auth = req.headers?.authorization || '';
-  const m = auth.match(/^Bearer\s+(.+)$/i);
-  if (!m) return null;
-  try {
-    const payload = jwt.verify(m[1], JWT_SECRET);
-    // payload: { email, company, ... }
-    return (payload && payload.email) ? payload : null;
-  } catch {
-    return null;
+export function secureEquals(a = '', b = '') {
+  const aa = Buffer.from(String(a));
+  const bb = Buffer.from(String(b));
+  if (aa.length !== bb.length) return false;
+  let out = 0;
+  for (let i = 0; i < aa.length; i++) out |= aa[i] ^ bb[i];
+  return out === 0;
+}
+
+export function isAdmin(req, { debug = false } = {}) {
+  const hdr = String(req.headers?.['x-admin-secret'] ?? '');
+  const ok  = !!ADMIN_SECRET && !!hdr && secureEquals(hdr, ADMIN_SECRET);
+  if (!ok && debug) {
+    console.warn('admin unauthorized', {
+      gotLen: hdr.length,
+      envLen: ADMIN_SECRET.length,
+      hasEnv: ADMIN_SECRET ? true : false,
+    });
   }
+  return ok;
 }
