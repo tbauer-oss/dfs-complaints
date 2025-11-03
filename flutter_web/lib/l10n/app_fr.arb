@@ -80,7 +80,7 @@
 
   "auth_login": "Connexion",
   "auth_register": "Inscription",
-  "login": "Connexion",
+  "login": "Connexion - Application de réclamation DFS",
   "@login": { "description": "Libellé du bouton de connexion" },
   "register": "Inscription",
   "@register": { "description": "Libellé du bouton d’inscription" },
