@@ -934,21 +934,6 @@ class AdminApi {
     return uri.replace(queryParameters: q);
   }
 
-  // Alias, damit bestehende Aufrufe mit adminComplaintUpdate(...) funktionieren
-  Future<AdminComplaint> adminComplaintUpdate({
-    required String ticket,
-    int? status,
-    String? decision,
-    String? reportLink, // "" => Backend löscht den Link
-  }) {
-    return updateComplaint(
-      ticket: ticket,
-      status: status,
-      decision: decision,
-      reportLink: reportLink,
-    );
-  }
-
   // ---- Pending ----
   Future<List<PendingUser>> fetchPending() async {
     final res = await html.HttpRequest.request(
@@ -1021,9 +1006,8 @@ class AdminApi {
     return data.map((e) => ActiveUser.fromJson(e as Map<String, dynamic>)).toList();
   }
 
-  // ---- Complaints (neu/erweitert) ----
+  // ---- Complaints ----
 
-  // Detaillierte Liste für Kundendatenbank
   Future<List<AdminComplaint>> fetchComplaintsByEmailDetailed(String email) async {
     final res = await html.HttpRequest.request(
       _u('/api/admin/complaints', {'email': email, 'details': '1'}).toString(),
@@ -1036,7 +1020,6 @@ class AdminApi {
     return data.map((e) => AdminComplaint.fromJson(e as Map<String, dynamic>)).toList();
   }
 
-  // Nur offene Reklamationen (für dritten Tab)
   Future<List<AdminComplaint>> fetchOpenComplaints() async {
     final res = await html.HttpRequest.request(
       _u('/api/admin/complaints', {'open': '1'}).toString(),
@@ -1049,13 +1032,12 @@ class AdminApi {
     return data.map((e) => AdminComplaint.fromJson(e as Map<String, dynamic>)).toList();
   }
 
-  // Einzel-Complaint (roh) per Ticket (inkl. payload)
   Future<Map<String, dynamic>> fetchComplaintRawByTicket(String ticket) async {
     final res = await html.HttpRequest.request(
       _u('/api/admin/complaints', {'ticket': ticket}).toString(),
       method: 'GET',
       requestHeaders: _headersJson(),
-      withCredentials: true, // wir senden nur X-Admin-Secret
+      withCredentials: true,
     );
     if (res.status != 200) {
       throw 'complaint GET by ticket: HTTP ${res.status} ${res.responseText}';
@@ -1090,7 +1072,7 @@ class AdminApi {
     return AdminComplaint.fromJson(j);
   }
 
-  // Alias, damit Aufrufe mit adminComplaintUpdate(...) funktionieren
+  // Alias (nur EINMAL vorhanden!)
   Future<AdminComplaint> adminComplaintUpdate({
     required String ticket,
     int? status,
@@ -1105,9 +1087,8 @@ class AdminApi {
     );
   }
 
-  // Reklamation löschen (Admin)
   Future<void> deleteComplaint(String ticket) async {
-    // Versuch 1: DELETE ?ticket=...
+    // 1) DELETE ?ticket=...
     try {
       final res = await html.HttpRequest.request(
         _u('/api/admin/complaints', {'ticket': ticket}).toString(),
@@ -1117,7 +1098,8 @@ class AdminApi {
       );
       if (res.status == 200 || res.status == 204) return;
     } catch (_) {}
-    // Fallback: DELETE mit Body
+
+    // 2) DELETE mit Body
     final res = await html.HttpRequest.request(
       _u('/api/admin/complaints').toString(),
       method: 'DELETE',
@@ -1203,115 +1185,123 @@ class _ComplaintDetailsDialog extends StatelessWidget {
 }
 
   class _ComplaintEditor extends StatefulWidget {
-    final AdminApi api;                 // AdminApi-Instanz
-    final AdminComplaint c;             // der zu bearbeitende Fall
-    final VoidCallback onClosed;        // wird aufgerufen, wenn Fall aus "Offene" verschwinden soll
+  final AdminApi api;          // AdminApi-Instanz
+  final AdminComplaint c;      // zu bearbeitender Fall
+  final VoidCallback onClosed; // wird aufgerufen, wenn Fall aus "Offene" verschwinden soll
 
-    const _ComplaintEditor({
-      Key? key,
-      required this.api,
-      required this.c,
-      required this.onClosed,
-    }) : super(key: key);
+  const _ComplaintEditor({
+    Key? key,
+    required this.api,
+    required this.c,
+    required this.onClosed,
+  }) : super(key: key);
 
-    @override
-    State<_ComplaintEditor> createState() => _ComplaintEditorState();
+  @override
+  State<_ComplaintEditor> createState() => _ComplaintEditorState();
+}
+
+class _ComplaintEditorState extends State<_ComplaintEditor> {
+  final _reportCtrl = TextEditingController();
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _reportCtrl.text = widget.c.reportLink ?? '';
   }
 
-  class _ComplaintEditorState extends State<_ComplaintEditor> {
-    final _reportCtrl = TextEditingController();
-    bool _busy = false;
+  @override
+  void dispose() {
+    _reportCtrl.dispose();
+    super.dispose();
+  }
 
-    @override
-    void initState() {
-      super.initState();
-      _reportCtrl.text = widget.c.reportLink ?? '';
-    }
-
-    @override
-    void dispose() {
-      _reportCtrl.dispose();
-      super.dispose();
-    }
-
-    Future<void> _saveReportLink() async {
-      setState(() => _busy = true);
-      try {
-        final link = _reportCtrl.text.trim(); // <-- erst deklarieren, dann nutzen
-        final updated = await widget.api.adminComplaintUpdate(
-          ticket: widget.c.ticket,                  // <-- widget.c statt widget.complaint
-          reportLink: link.isEmpty ? '' : link,     // "" => löschen
-        );
-        _reportCtrl.text = updated.reportLink ?? '';
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Gespeichert.')),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Fehler: $e')),
-          );
-        }
-      } finally {
-        if (mounted) setState(() => _busy = false);
-      }
-    }
-
-    Future<void> _clearReportLink() async {
-      setState(() => _busy = true);
-      try {
-        await widget.api.adminComplaintUpdate(
-          ticket: widget.c.ticket,
-          reportLink: '',                               // explizit löschen
-        );
-        _reportCtrl.text = '';
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Report-Link entfernt.')),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Fehler: $e')),
-          );
-        }
-      } finally {
-        if (mounted) setState(() => _busy = false);
-      }
-    }
-
-    @override
-    Widget build(BuildContext context) {
-      // ... dein restliches UI, Buttons rufen _saveReportLink() / _clearReportLink() auf
-      return Column(
-        children: [
-          TextField(
-            controller: _reportCtrl,
-            decoration: const InputDecoration(
-              labelText: 'Report-Link (optional)',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              ElevatedButton(
-                onPressed: _busy ? null : _saveReportLink,
-                child: const Text('Speichern'),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(
-                onPressed: _busy ? null : _clearReportLink,
-                icon: const Icon(Icons.clear),
-               label: const Text('Entfernen'),
-              ),
-            ],
-          ),
-        ],
+  Future<void> _saveReportLink() async {
+    setState(() => _busy = true);
+    try {
+      final link = _reportCtrl.text.trim(); // erst deklarieren, dann nutzen
+      final updated = await widget.api.adminComplaintUpdate(
+        ticket: widget.c.ticket,
+        reportLink: link.isEmpty ? '' : link, // "" => löschen
       );
+      _reportCtrl.text = updated.reportLink ?? '';
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gespeichert.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _clearReportLink() async {
+    setState(() => _busy = true);
+    try {
+      await widget.api.adminComplaintUpdate(
+        ticket: widget.c.ticket,
+        reportLink: '', // explizit löschen
+      );
+      _reportCtrl.text = '';
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Report-Link entfernt.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Ticket: ${widget.c.ticket}',
+                style: const TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _reportCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Report-Link (optional)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                ElevatedButton(
+                  onPressed: _busy ? null : _saveReportLink,
+                  child: const Text('Speichern'),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: _busy ? null : _clearReportLink,
+                  icon: const Icon(Icons.clear),
+                  label: const Text('Entfernen'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
