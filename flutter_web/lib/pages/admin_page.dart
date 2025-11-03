@@ -1051,7 +1051,7 @@ class AdminApi {
       _u('/api/admin/pending').toString(),
       method: 'GET',
       requestHeaders: _headersJson(),
-      withCredentials: true,
+      withCredentials: false,
     );
     if (res.status != 200) throw 'pending GET: HTTP ${res.status} ${res.responseText}';
     final txt = res.responseText ?? '';
@@ -1067,7 +1067,7 @@ class AdminApi {
       method: 'POST',
       requestHeaders: _headersJson(),
       sendData: body,
-      withCredentials: true,
+      withCredentials: false,
     );
     if (res.status != 200 && res.status != 204) {
       throw 'pending POST approve: HTTP ${res.status} ${res.responseText}';
@@ -1081,7 +1081,7 @@ class AdminApi {
     // 1) DELETE ?email=...
     try {
       final res = await html.HttpRequest.request(
-        urlQ, method: 'DELETE', requestHeaders: _headersJson(), withCredentials: true,
+        urlQ, method: 'DELETE', requestHeaders: _headersJson(), withCredentials: false,
       );
       if (res.status == 200 || res.status == 204) return;
     } catch (_) {}
@@ -1089,14 +1089,14 @@ class AdminApi {
     // 2) DELETE Body
     try {
       final res = await html.HttpRequest.request(
-        url, method: 'DELETE', requestHeaders: _headersJson(), sendData: jsonEncode({'email': email}), withCredentials: true,
+        url, method: 'DELETE', requestHeaders: _headersJson(), sendData: jsonEncode({'email': email}), withCredentials: false,
       );
       if (res.status == 200 || res.status == 204) return;
     } catch (_) {}
 
     // 3) POST action=delete
     final res = await html.HttpRequest.request(
-      url, method: 'POST', requestHeaders: _headersJson(), sendData: jsonEncode({'action': 'delete', 'email': email}), withCredentials: true,
+      url, method: 'POST', requestHeaders: _headersJson(), sendData: jsonEncode({'action': 'delete', 'email': email}), withCredentials: false,
     );
     if (res.status != 200 && res.status != 204) {
       throw 'users DELETE/POST(delete) failed: HTTP ${res.status} ${res.responseText}';
@@ -1108,7 +1108,7 @@ class AdminApi {
       _u('/api/admin/users').toString(),
       method: 'GET',
       requestHeaders: _headersJson(),
-      withCredentials: true,
+      withCredentials: false,
     );
     if (res.status != 200) throw 'users GET: HTTP ${res.status} ${res.responseText}';
     final txt = res.responseText ?? '';
@@ -1125,7 +1125,7 @@ class AdminApi {
       _u('/api/admin/complaints', {'email': email, 'details': '1'}).toString(),
       method: 'GET',
       requestHeaders: _headersJson(),
-      withCredentials: true,
+      withCredentials: false,
     );
     if (res.status != 200) throw 'complaints email GET: HTTP ${res.status}';
     final List data = jsonDecode(res.responseText ?? '[]');
@@ -1138,7 +1138,7 @@ class AdminApi {
       _u('/api/admin/complaints', {'open': '1'}).toString(),
       method: 'GET',
       requestHeaders: _headersJson(),
-      withCredentials: true,
+      withCredentials: false,
     );
     if (res.status != 200) throw 'open complaints GET: HTTP ${res.status}';
     final List data = jsonDecode(res.responseText ?? '[]');
@@ -1151,7 +1151,7 @@ class AdminApi {
       _u('/api/admin/complaints', {'ticket': ticket}).toString(),
       method: 'GET',
       requestHeaders: _headersJson(),
-      withCredentials: true,
+      withCredentials: false,
     );
     if (res.status != 200) {
       throw 'complaint GET by ticket: HTTP ${res.status} ${res.responseText}';
@@ -1177,7 +1177,7 @@ class AdminApi {
       method: 'POST',
       requestHeaders: _headersJson(),
       sendData: jsonEncode(body),
-      withCredentials: true,
+      withCredentials: false,
     );
     if (res.status != 200) {
       throw 'complaint update: HTTP ${res.status} ${res.responseText}';
@@ -1194,7 +1194,7 @@ class AdminApi {
         _u('/api/admin/complaints', {'ticket': ticket}).toString(),
         method: 'DELETE',
         requestHeaders: _headersJson(),
-        withCredentials: true,
+        withCredentials: false,
       );
       if (res.status == 200 || res.status == 204) return;
     } catch (_) {}
@@ -1204,7 +1204,7 @@ class AdminApi {
       method: 'DELETE',
       requestHeaders: _headersJson(),
       sendData: jsonEncode({'ticket': ticket}),
-      withCredentials: true,
+      withCredentials: false,
     );
     if (res.status != 200 && res.status != 204) {
       throw 'complaint DELETE failed: HTTP ${res.status} ${res.responseText}';
