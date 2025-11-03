@@ -1,107 +1,237 @@
-// lib/models/complaint.dart
-class Complaint {
-  final String ticket;
-  final String email;
-  final DateTime createdAt;
-  final DateTime updatedAt;
-  final int status;                  // 1..6
-  final String? decision;            // 'accepted' | 'rejected' | null
-  final String? reportLink;          // URL zum Bericht (optional)
-  final Map<String, dynamic>? payload; // optionaler Nutzinhalt (z.B. article)
+// api/admin/complaints.js
+export const config = { runtime: 'nodejs' };
 
-  Complaint({
-    required this.ticket,
-    required this.email,
-    required this.createdAt,
-    required this.updatedAt,
-    required this.status,
-    this.decision,
-    this.reportLink,
-    this.payload,
-  });
+import {
+  setCors,
+  ok,
+  bad,
+  noContent,
+  methodNotAllowed,
+  readJson,
+} from '../_lib/http.js';
 
-  /// Bequemer Anzeigename des Artikels (falls vom Backend mitgeschickt).
-  /// Sucht zuerst 'article', dann deutsch 'Artikel'.
-  String get articleLabel {
-    final p = payload;
-    if (p == null) return '';
-    final a = p['article'] ?? p['Artikel'];
-    return (a ?? '').toString();
+import {
+  complaintsAll,
+  complaintsOpen,
+  complaintsByEmail,
+  complaintByTicket,
+  complaintSave,
+  complaintDelete,
+} from '../_lib/store.js';
+
+// -------- Admin-Auth ----------
+const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
+const isAdmin = (req) =>
+  ADMIN_SECRET && req.headers?.['x-admin-secret'] === ADMIN_SECRET;
+
+// -------- Status-Mapping ----------
+const STATUS_LABEL = {
+  1: 'Eingegegangen',
+  2: 'In Bearbeitung',
+  3: 'Rückfrage erforderlich',
+  4: 'Entscheidung',
+  5: 'In Nacharbeit',
+  6: 'Abgeschlossen',
+};
+
+const STATUS_CODE = Object.fromEntries(
+  Object.entries(STATUS_LABEL).map(([k, v]) => [v, Number(k)])
+);
+
+/** Akzeptiert: Zahl 1..6, numerischer String "1".."6" oder Label-String */
+function parseStatus(input) {
+  if (input == null) return null;
+  if (typeof input === 'number') {
+    const n = Number(input);
+    return n >= 1 && n <= 6 ? n : null;
   }
+  if (typeof input === 'string') {
+    const s = input.trim();
+    if (/^\d+$/.test(s)) {
+      const n = Number(s);
+      return n >= 1 && n <= 6 ? n : null;
+    }
+    return STATUS_CODE[s] ?? null;
+  }
+  return null;
+}
 
-  // ---------- Parser-Helper ----------
+// -------- Helpers ----------
+const normEmail = (v = '') => v.toString().trim().toLowerCase();
+const sortDescByDate = (a, b) => {
+  const ta = a?.updatedAt ?? a?.createdAt ?? 0;
+  const tb = b?.updatedAt ?? b?.createdAt ?? 0;
+  return (tb || 0) - (ta || 0);
+};
+const decorateForAdmin = (c) => ({
+  ...c,
+  statusLabel: STATUS_LABEL[c.status] || STATUS_LABEL[1],
+});
 
-  /// Robuste Timestamp-PARSER (int ms, int-String, oder ISO-String)
-  static DateTime _parseDate(dynamic v) {
-    if (v == null) return DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
-    // int (ms since epoch)
-    if (v is int) return DateTime.fromMillisecondsSinceEpoch(v, isUtc: true);
-    // int als String
-    if (v is String && v.trim().isNotEmpty) {
-      final s = v.trim();
-      final n = int.tryParse(s);
-      if (n != null) {
-        return DateTime.fromMillisecondsSinceEpoch(n, isUtc: true);
+// =======================================================
+// Handler
+// =======================================================
+export default async function handler(req, res) {
+  // 1) CORS-Header IMMER zuerst setzen
+  try { setCors(req, res); } catch (_) {}
+
+  // 2) OPTIONS (Preflight) sofort beantworten – ohne Admin-Auth
+  if (req.method === 'OPTIONS') return noContent(res);
+
+  // 3) Ab hier Admin-Auth prüfen
+  if (!isAdmin(req)) return bad(res, 'admin unauthorized', 401);
+
+  try {
+    // ----------------------------
+    // GET
+    // ----------------------------
+    if (req.method === 'GET') {
+      const q = req.query || {};
+      const email   = normEmail(q.email || '');
+      const ticket  = (q.ticket || '').toString().trim();
+      const open    = (q.open || '').toString().trim();
+      const details = (q.details || '').toString().trim();
+
+      // a) Einzel-Complaint per Ticket
+      if (ticket) {
+        const c = await complaintByTicket(ticket);
+        if (!c) return bad(res, 'not found', 404);
+        return ok(res, decorateForAdmin(c));
       }
-      // ISO String
+
+      // b) Complaints eines Kunden
+      if (email) {
+        const list = await complaintsByEmail(email);
+        list.sort(sortDescByDate);
+        if (details === '1') {
+          return ok(res, list.map(decorateForAdmin));
+        }
+        // kompakte Antwort: nur Ticket-IDs
+        return ok(res, list.map((c) => c.ticket));
+      }
+
+      // c) Nur offene Reklamationen
+      if (open === '1') {
+        const list = await complaintsOpen();
+        return ok(res, list.map(decorateForAdmin));
+      }
+
+      // d) Alle Reklamationen
+      const all = await complaintsAll();
+      const out = (Array.isArray(all) ? all : [])
+        .sort(sortDescByDate)
+        .map(decorateForAdmin);
+      return ok(res, out);
+    }
+
+    // ----------------------------
+    // POST / PATCH – Status/Decision/Report
+    // ----------------------------
+    if (req.method === 'POST' || req.method === 'PATCH') {
+      // Body robust parsen
+      let body = readJson(req);
+      if (typeof body === 'string') {
+        try { body = JSON.parse(body); } catch { /* ignore */ }
+      }
+      if (typeof body === 'string') {
+        body = { ticket: body };
+      }
+      if (!body || typeof body !== 'object') body = {};
+
+      const ticket     = (body?.ticket || '').toString().trim();
+      const statusIn   = body?.status;                // Zahl | "Zahl" | Label
+      const decisionIn = body?.decision ?? undefined; // 'accepted' | 'rejected' | null | undefined
+      const reportLink = body?.reportLink;            // string | "" | null | undefined
+
+      if (!ticket) return bad(res, 'missing ticket', 400);
+
+      const c = await complaintByTicket(ticket);
+      if (!c) return bad(res, 'not found', 404);
+
+      // Status (optional)
+      if (statusIn !== undefined) {
+        const code = parseStatus(statusIn);
+        if (code == null) return bad(res, 'invalid status', 400);
+        c.status = code;
+        c.statusUpdatedAt = Date.now();
+      }
+
+      // Decision (optional)
+      if (decisionIn !== undefined) {
+        if (
+          decisionIn !== null &&
+          decisionIn !== 'accepted' &&
+          decisionIn !== 'rejected'
+        ) {
+          return bad(res, 'invalid decision', 400);
+        }
+        c.decision = decisionIn ?? null;
+
+        // Business-Logik: 'rejected' => schließen + Status "Entscheidung"
+        if (c.decision === 'rejected') {
+          c.closed = true;
+          c.closedAt = Date.now();
+          c.status = 4; // Entscheidung
+          c.statusUpdatedAt = Date.now();
+        }
+        // 'accepted' => kein Auto-Abschluss
+      }
+
+      // Report-Link (optional; leer => löschen)
+      if (reportLink !== undefined) {
+        const v = (reportLink ?? '').toString().trim();
+        if (v) c.reportLink = v;
+        else delete c.reportLink;
+      }
+
+      // Persist
+      c.updatedAt = Date.now();
+
+      // robust speichern (unterstütze beide Varianten deiner Store-API)
       try {
-        return DateTime.parse(s).toUtc();
+        await complaintSave(ticket, c);
       } catch (_) {
-        return DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+        // Fallback: ganzer Datensatz
+        await complaintSave({ ...c });
       }
+
+      return ok(res, {
+        ticket: c.ticket,
+        status: c.status,
+        statusLabel: STATUS_LABEL[c.status] || STATUS_LABEL[1],
+        decision: c.decision ?? null,
+        reportLink: c.reportLink ?? null,
+        updatedAt: c.updatedAt,
+      });
     }
-    return DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
-  }
 
-  /// Status 1..6 (akzeptiert Zahl oder Zahl-String; sonst Default)
-  static int _parseInt(dynamic v, {int def = 1}) {
-    if (v is int) return v;
-    if (v is num) return v.toInt();
-    if (v is String) {
-      final n = int.tryParse(v.trim());
-      if (n != null) return n;
-    }
-    return def;
-  }
-
-  /// Normalisiert decision auf 'accepted' | 'rejected' | null
-  static String? _parseDecision(dynamic v) {
-    if (v == null) return null;
-    final s = v.toString().trim().toLowerCase();
-    if (s.isEmpty) return null;
-    if (s == 'accepted' || s == 'rejected') return s;
-    return null; // Unbekannte Werte ignorieren
-  }
-
-  /// Payload sicher zu Map<String,dynamic> casten
-  static Map<String, dynamic>? _parsePayload(dynamic v) {
-    if (v is Map) {
-      try {
-        return v.cast<String, dynamic>();
-      } catch (_) {
-        // Fallback: harte Kopie in Map<String,dynamic>
-        final out = <String, dynamic>{};
-        v.forEach((key, value) {
-          out['$key'] = value;
-        });
-        return out;
+    // ----------------------------
+    // DELETE – Complaint löschen
+    // ----------------------------
+    if (req.method === 'DELETE') {
+      // ticket aus ?ticket=... oder Body
+      let ticket = (req.query?.ticket || '').toString().trim();
+      if (!ticket && req.body) {
+        try {
+          const b =
+            typeof req.body === 'string'
+              ? JSON.parse(req.body || '{}')
+              : req.body;
+          ticket = (b?.ticket || '').toString().trim();
+        } catch (_) {}
       }
-    }
-    return null;
-  }
+      if (!ticket) return bad(res, 'missing ticket', 400);
 
-  factory Complaint.fromJson(Map<String, dynamic> j) {
-    return Complaint(
-      ticket: (j['ticket'] ?? '').toString(),
-      email: (j['email'] ?? '').toString(),
-      createdAt: _parseDate(j['createdAt']),
-      updatedAt: _parseDate(j['updatedAt']),
-      status: _parseInt(j['status'], def: 1),
-      decision: _parseDecision(j['decision']),
-      reportLink: (j['reportLink']?.toString().trim().isEmpty ?? true)
-          ? null
-          : j['reportLink']!.toString().trim(),
-      payload: _parsePayload(j['payload']),
-    );
+      const c = await complaintByTicket(ticket);
+      if (!c) return bad(res, 'not found', 404);
+
+      await complaintDelete(ticket);
+      return noContent(res);
+    }
+
+    return methodNotAllowed(res);
+  } catch (e) {
+    console.error('admin/complaints error:', e);
+    return bad(res, e?.message || 'server error', 500);
   }
 }
