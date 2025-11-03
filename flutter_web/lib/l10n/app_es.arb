@@ -159,6 +159,8 @@
   "status_accepted": "aceptado",
   "status_rejected": "rechazado",
   "status_unknown": "desconocido",
+  "decision_rejected": "Rechazado",
+  "decision_pending": "Pendiente",
 
   "supportTitle": "Soporte DFS",
   "category": "Categoría",
