@@ -309,3 +309,28 @@ export async function complaintsOpen() {
   open.sort((a, b) => (b?.createdAt || 0) - (a?.createdAt || 0));
   return open;
 }
+
+// --- Complaints: get/update helper ---
+export async function complaintGet(ticket) {
+  if (useRedis) {
+    return await rget(`${P}complaint:${ticket}`);
+  }
+  return mem.complaints.get(ticket) || null;
+}
+
+export async function complaintUpdate(ticket, patch) {
+  const c = await complaintGet(ticket);
+  if (!c) return null;
+  const updated = { ...c, ...patch };
+  if (useRedis) {
+    await rset(`${P}complaint:${ticket}`, updated);
+  } else {
+    mem.complaints.set(ticket, updated);
+  }
+  return updated;
+}
+
+// Speziell: Report-Link leeren
+export async function complaintClearReportLink(ticket) {
+  return await complaintUpdate(ticket, { reportUrl: null });
+}
