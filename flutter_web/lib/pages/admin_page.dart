@@ -238,7 +238,7 @@ class _AdminPageState extends State<AdminPage> {
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(t?.operationFailed ?? 'Aktion fehlgeschlagen')),
+          const SnackBar(content: Text('Aktion fehlgeschlagen')),
         );
       }
     }
@@ -275,7 +275,7 @@ class _AdminPageState extends State<AdminPage> {
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(t?.operationFailed ?? 'Aktion fehlgeschlagen')),
+          const SnackBar(content: Text('Aktion fehlgeschlagen')),
         );
       }
     }
@@ -537,14 +537,14 @@ class _AdminPageState extends State<AdminPage> {
     final complaints = _openComplaints;
 
     Widget table = PaginatedDataTable(
-      header: Text(t?.openComplaints ?? 'Offene Reklamationen'),
+      header: const Text('Offene Reklamationen'),
       rowsPerPage: (complaints.length < 10) ? complaints.length.clamp(1, 10) : 10,
       availableRowsPerPage: const [5, 10, 20, 50],
       columns: [
-        DataColumn(label: Text(t?.ticket ?? 'Ticket')),
-        DataColumn(label: Text(t?.createdAt ?? 'Erstellt')),
-        const DataColumn(label: Text('Report')),
-        DataColumn(label: Text(t?.category ?? 'Aktionen')),
+        const DataColumn(label: Text('Ticket')),
+        const DataColumn(label: Text('Erstellt')),
+        const DataColumn(label: Text('Reklamationsbericht')),
+        const DataColumn(label: Text('Aktionen')),
       ],
       source: _ComplaintsDataSource(
         context: context,
