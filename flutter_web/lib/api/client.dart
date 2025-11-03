@@ -110,18 +110,18 @@ class ApiClient {
     );
   }
 
-  Future<http.Response> _patch(String path, Map body, {bool auth = false}) {
+  Future<http.Response> _patch(String path, Map body, {bool auth = false, Map<String,String>? extraHeaders}) {
     return http.patch(
       _u(path),
-      headers: _headers(auth: auth),
+      headers: _headers(auth: auth, extra: extraHeaders),
       body: jsonEncode(body),
     );
   }
 
-  Future<http.Response> _delete(String path, {Map? body, bool auth = false}) {
+  Future<http.Response> _delete(String path, {Map? body, bool auth = false, Map<String,String>? extraHeaders}) {
     return http.delete(
       _u(path),
-      headers: _headers(auth: auth),
+      headers: _headers(auth: auth, extra: extraHeaders),
       body: body == null ? null : jsonEncode(body),
     );
   }
@@ -333,5 +333,25 @@ class ApiClient {
     } catch (_) {
       return false;
     }
+  }
+
+   // ---------- Admin: Report-Link setzen/löschen ----------
+  Future<bool> adminReportSet(String ticket, String url) async {
+    if (adminSecret == null || adminSecret!.isEmpty) return false;
+    final r = await _patch(
+      '/api/admin/report',
+      {'ticket': ticket, 'reportUrl': url},
+      extraHeaders: {'X-Admin-Secret': adminSecret!},
+    );
+    return r.statusCode == 200;
+  }
+
+  Future<bool> adminReportClear(String ticket) async {
+    if (adminSecret == null || adminSecret!.isEmpty) return false;
+    final r = await _delete(
+      '/api/admin/report?ticket=$ticket',
+      extraHeaders: {'X-Admin-Secret': adminSecret!},
+    );
+    return r.statusCode == 200;
   }
 }
