@@ -1204,10 +1204,16 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   final _reportCtrl = TextEditingController();
   bool _busy = false;
 
+  // lokale UI-States für Status/Decision
+  int? _status;           // 1..6
+  String? _decision;      // null | 'accepted' | 'rejected'
+
   @override
   void initState() {
     super.initState();
     _reportCtrl.text = widget.c.reportLink ?? '';
+    _status = widget.c.status;
+    _decision = widget.c.decision; // kann null sein
   }
 
   @override
@@ -1219,15 +1225,27 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   Future<void> _saveReportLink() async {
     setState(() => _busy = true);
     try {
-      final link = _reportCtrl.text.trim(); // erst deklarieren, dann nutzen
+      final link = _reportCtrl.text.trim();
       final updated = await widget.api.adminComplaintUpdate(
         ticket: widget.c.ticket,
         reportLink: link.isEmpty ? '' : link, // "" => löschen
       );
+
+      // lokalen State aktualisieren
       _reportCtrl.text = updated.reportLink ?? '';
+      widget.c.reportLink = updated.reportLink;
+      widget.c.updatedAt  = updated.updatedAt;
+      widget.c.status     = updated.status;
+      widget.c.decision   = updated.decision;
+
+      // Falls Fall nun geschlossen ist, Liste aktualisieren
+      if (updated.status == 6 || updated.decision == 'rejected') {
+        widget.onClosed();
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Gespeichert.')),
+          const SnackBar(content: Text('Report-Link gespeichert.')),
         );
       }
     } catch (e) {
@@ -1249,10 +1267,54 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
         reportLink: '', // explizit löschen
       );
       _reportCtrl.text = '';
+      widget.c.reportLink = null;
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Report-Link entfernt.')),
         );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _saveStatusDecision() async {
+    if (_status == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bitte Status auswählen.')),
+      );
+      return;
+    }
+
+    setState(() => _busy = true);
+    try {
+      final updated = await widget.api.adminComplaintUpdate(
+        ticket: widget.c.ticket,
+        status: _status,                 // 1..6
+        decision: (_decision == null || _decision!.isEmpty) ? null : _decision,
+      );
+
+      // lokalen State aktualisieren
+      widget.c.status   = updated.status;
+      widget.c.decision = updated.decision;
+      widget.c.updatedAt = updated.updatedAt;
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Status/Entscheidung gespeichert.')),
+        );
+      }
+
+      // Offene-Liste anpassen, falls geschlossen
+      if (updated.status == 6 || updated.decision == 'rejected') {
+        widget.onClosed();
       }
     } catch (e) {
       if (mounted) {
@@ -1274,30 +1336,86 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Ticket: ${widget.c.ticket}',
-                style: const TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _reportCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Report-Link (optional)',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
+            // Kopfzeile
             Row(
               children: [
-                ElevatedButton(
-                  onPressed: _busy ? null : _saveReportLink,
+                Text('Ticket: ${widget.c.ticket}',
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
+                const Spacer(),
+                Text('E-Mail: ${widget.c.email}',
+                  style: const TextStyle(fontSize: 12, color: Colors.black54)),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Status + Entscheidung (nebeneinander)
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<int>(
+                    value: _status,
+                    decoration: const InputDecoration(
+                      labelText: 'Status',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: kStatusItems
+                        .map((e) => DropdownMenuItem<int>(
+                              value: e['value'] as int,
+                              child: Text(e['label'] as String),
+                            ))
+                        .toList(),
+                    onChanged: (v) => setState(() => _status = v),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: _decision ?? '',
+                    decoration: const InputDecoration(
+                      labelText: 'Entscheidung',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: kDecisionItems
+                        .map((e) => DropdownMenuItem<String>(
+                              value: e['value']!,
+                              child: Text(e['label']!),
+                            ))
+                        .toList(),
+                    onChanged: (v) =>
+                        setState(() => _decision = (v == null || v.isEmpty) ? null : v),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                FilledButton(
+                  onPressed: _busy ? null : _saveStatusDecision,
                   child: const Text('Speichern'),
                 ),
-                const SizedBox(width: 8),
-                OutlinedButton.icon(
-                  onPressed: _busy ? null : _clearReportLink,
-                  icon: const Icon(Icons.clear),
-                  label: const Text('Entfernen'),
-                ),
               ],
+            ),
+
+            const SizedBox(height: 12),
+
+            // Report-Link mit Lösch-Icon
+            TextField(
+              controller: _reportCtrl,
+              decoration: InputDecoration(
+                labelText: 'Report-Link (optional)',
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  tooltip: 'Link entfernen',
+                  onPressed: _busy ? null : _clearReportLink,
+                  icon: const Icon(Icons.delete_outline),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: _busy ? null : _saveReportLink,
+                icon: const Icon(Icons.save_outlined),
+                label: const Text('Link speichern'),
+              ),
             ),
           ],
         ),
