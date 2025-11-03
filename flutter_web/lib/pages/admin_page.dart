@@ -1232,9 +1232,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       );
 
       // lokalen State aktualisieren
-      _reportCtrl.text = updated.reportLink ?? '';
+      _reportCtrl.text   = updated.reportLink ?? '';
       widget.c.reportLink = updated.reportLink;
-      widget.c.updatedAt  = updated.updatedAt;
       widget.c.status     = updated.status;
       widget.c.decision   = updated.decision;
 
@@ -1297,14 +1296,13 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     try {
       final updated = await widget.api.adminComplaintUpdate(
         ticket: widget.c.ticket,
-        status: _status,                 // 1..6
+        status: _status, // 1..6
         decision: (_decision == null || _decision!.isEmpty) ? null : _decision,
       );
 
       // lokalen State aktualisieren
       widget.c.status   = updated.status;
       widget.c.decision = updated.decision;
-      widget.c.updatedAt = updated.updatedAt;
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1326,7 +1324,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       if (mounted) setState(() => _busy = false);
     }
   }
-
   @override
   Widget build(BuildContext context) {
     return Card(
