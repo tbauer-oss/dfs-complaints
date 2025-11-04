@@ -395,3 +395,25 @@ class ApiClient {
     return (j is Map) ? j.cast<String, dynamic>() : <String, dynamic>{};
   }
 }
+// ---- Rep-Model für Kundenbereich ----
+class MyRep {
+  final String firstName, lastName, email, region;
+  MyRep({required this.firstName, required this.lastName, required this.email, required this.region});
+  String get displayName => ([firstName, lastName].where((s)=>s.trim().isNotEmpty).join(' ')).trim();
+  factory MyRep.fromJson(Map<String, dynamic> j) => MyRep(
+    firstName: (j['firstName'] ?? '').toString(),
+    lastName:  (j['lastName']  ?? '').toString(),
+    email:     (j['email']     ?? '').toString(),
+    region:    (j['region']    ?? '').toString(),
+  );
+}
+
+// ---- zugewiesener Vertreter des eingeloggten Kunden
+Future<MyRep?> getMyRep() async {
+  final r = await _get('/api/rep/my', auth: true);
+  if (r.statusCode == 204) return null;           // kein Vertreter zugewiesen
+  if (r.statusCode != 200) return null;           // robust: nicht eskalieren
+  final body = (jsonDecode(r.body) as Map).cast<String,dynamic>();
+  if ((body['email'] ?? '').toString().isEmpty) return null;
+  return MyRep.fromJson(body);
+}
