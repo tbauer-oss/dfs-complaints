@@ -314,8 +314,8 @@ class _MyAppState extends State<MyApp> {
                   ),
                   body: LoginPage(
                     api: api,
-                    onLoggedIn: _openCustomerDashboard,   // deine bestehende Funktion
-                      onOpenRegister: _openRegister,        // deine bestehende Funktion
+                      onLoggedIn: _openCustomerDashboard,   // deine bestehende Funktion
+                      onOpenRegister: () => _openRegister(context),        // deine bestehende Funktion
                       onOpenAdmin: _openAdminArea,          // deine bestehende Funktion
                       onOpenRep: _openRepArea, 
                   ),
