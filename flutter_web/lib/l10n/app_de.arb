@@ -17,6 +17,15 @@
   "returned": "zurückgegeben",
   "applied": "angewandt",
   "injury": "Verletzung",
+  "rep_banner_title": "Ihr Ansprechpartner (Vertreter): {name}",
+  "@rep_banner_title": {
+    "placeholders": { "name": { "type": "String" } }
+  "rep_email_button": "E-Mail",
+  "rep_email_tooltip": "E-Mail an Vertreter",
+  "mail_subject_rep": "Anfrage zu Reklamation",
+  "customer_label": "Kunde",
+  "country_label": "Land",
+  "internal_no_label": "Interne DFS-Nr.",
 
   "gate_prompt": "Zugangscode (einmalig für nicht registrierte Kunden)",
   "gate_password": "Passwort",
