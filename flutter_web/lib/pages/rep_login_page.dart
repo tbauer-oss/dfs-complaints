@@ -1,21 +1,17 @@
 // lib/pages/rep_login_page.dart
-import 'dart:convert';
-import 'dart:html' as html;
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-
+import '../api/client.dart';
 import 'rep_dashboard_page.dart';
 
 class RepLoginPage extends StatefulWidget {
-  const RepLoginPage({super.key});
+  final ApiClient api;
+  const RepLoginPage({super.key, required this.api});
 
   @override
   State<RepLoginPage> createState() => _RepLoginPageState();
 }
 
 class _RepLoginPageState extends State<RepLoginPage> {
-  static const String _apiBase = String.fromEnvironment('API_BASE', defaultValue: '');
-
   final _email = TextEditingController();
   final _pw    = TextEditingController();
   final _new1  = TextEditingController();
@@ -33,7 +29,6 @@ class _RepLoginPageState extends State<RepLoginPage> {
         return;
       }
 
-      // Passwortwechsel erzwingen, falls das Backend es verlangt
       if (res.mustChange) {
         await _showChangePasswordDialog();
       }
@@ -49,7 +44,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
     }
   }
 
-  Future<void> _showChangePasswordDialog(String token) async {
+  Future<void> _showChangePasswordDialog() async {
     _new1.clear();
     _new2.clear();
 
@@ -77,23 +72,10 @@ class _RepLoginPageState extends State<RepLoginPage> {
           saving = true;
           (ctx as Element).markNeedsBuild();
           try {
-            final r = await http.post(
-              Uri.parse('$_apiBase/api/rep/password'),
-              headers: {
-                'Content-Type': 'application/json; charset=utf-8',
-                'Authorization': 'Bearer $token',
-              },
-              body: jsonEncode({'new': a}),
-            );
-            if (r.statusCode != 200 && r.statusCode != 204) {
-              localErr = r.body.isNotEmpty ? r.body : 'Fehler (${r.statusCode})';
-              saving = false;
-              (ctx as Element).markNeedsBuild();
-              return;
-            }
+            await widget.api.repChangePassword(a);
             if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
           } catch (e) {
-            localErr = 'Netzwerkfehler: $e';
+            localErr = 'Fehler: $e';
             saving = false;
             (ctx as Element).markNeedsBuild();
           }
@@ -127,7 +109,9 @@ class _RepLoginPageState extends State<RepLoginPage> {
             ),
             ElevatedButton(
               onPressed: saving ? null : save,
-              child: saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Speichern'),
+              child: saving
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Speichern'),
             ),
           ],
         );
