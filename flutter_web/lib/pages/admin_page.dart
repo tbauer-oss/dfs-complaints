@@ -280,56 +280,70 @@ class _AdminPageState extends State<AdminPage> {
     return _view == _AdminView.menu ? _buildMenu() : _buildView(companies);
   }
 
-  // ------------------ Kachel-Menü ------------------
+  // ------------------ Kachel-Menü (neues Design) ------------------
   Widget _buildMenu() {
     final w = MediaQuery.of(context).size.width;
-    final cross = w > 900 ? 4 : (w > 600 ? 3 : 2);
+    final isPhone = w < 640;
+    final compact = isPhone;
 
-    final tiles = <_AdminTile>[
-      _AdminTile(
-        icon: Icons.hourglass_top,
-        label: 'Pending',
-        color: Colors.amber,
-        onTap: () => setState(() => _view = _AdminView.pending),
-        badge: _loadPending ? const _BusyDot() : null,
-      ),
-      _AdminTile(
-        icon: Icons.people,
-        label: 'Aktive Nutzer',
-        color: Colors.cyan,
-        onTap: () => setState(() => _view = _AdminView.users),
-        badge: _loadUsers ? const _BusyDot() : null,
-      ),
-      _AdminTile(
-        icon: Icons.receipt_long,
+    final tiles = <Widget>[
+      AdminTile(
         label: 'Offene Reklamationen',
-        color: Colors.indigo,
+        subtitle: 'Bearbeiten & Entscheiden',
+        icon: Icons.assignment_late_outlined,
+        colorA: AdminPalette.redA,
+        colorB: AdminPalette.redB,
+        count: _openComplaints.length,
+        compact: compact,
         onTap: () => setState(() => _view = _AdminView.open),
-        badge: _loadOpen ? const _BusyDot() : null,
       ),
-      _AdminTile(
+      AdminTile(
+        label: 'Anträge / Pending',
+        subtitle: 'Registrierungen prüfen',
+        icon: Icons.verified_user_outlined,
+        colorA: AdminPalette.amberA,
+        colorB: AdminPalette.amberB,
+        count: _pending.length,
+        compact: compact,
+        onTap: () => setState(() => _view = _AdminView.pending),
+      ),
+      AdminTile(
+        label: 'Aktive Nutzer',
+        subtitle: 'Firmen & Kontakte',
+        icon: Icons.group_outlined,
+        colorA: AdminPalette.tealA,
+        colorB: AdminPalette.tealB,
+        count: _users.length,
+        compact: compact,
+        onTap: () => setState(() => _view = _AdminView.users),
+      ),
+      AdminTile(
+        label: 'Vertreterverwaltung',
+        subtitle: 'Zuordnen & Regionen',
         icon: Icons.badge_outlined,
-        label: 'Vertreter',
-        color: Colors.green,
+        colorA: AdminPalette.blueA,
+        colorB: AdminPalette.blueB,
+        compact: compact,
         onTap: () {
           setState(() => _view = _AdminView.reps);
           if (_reps.isEmpty) _refreshReps();
         },
-        badge: _loadReps ? const _BusyDot() : null,
-      ),
+   v ),
     ];
 
-    return GridView.count(
-      padding: const EdgeInsets.all(16),
-      crossAxisCount: cross,
-      crossAxisSpacing: 16,
-      mainAxisSpacing: 16,
-      children: [
-        for (final t in tiles) t,
-      ],
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: isPhone ? 220 : 260,
+        mainAxisSpacing: 16,
+        crossAxisSpacing: 16,
+        childAspectRatio: isPhone ? 1.05 : 1.1,
+      ),
+      itemCount: tiles.length,
+      itemBuilder: (_, i) => tiles[i],
     );
   }
-
+  
   // ------------------ Panel-Ansichten ------------------
   Widget _buildView(List<String> companies) {
     switch (_view) {
@@ -2366,4 +2380,166 @@ class _ComplaintsResult {
   factory _ComplaintsResult.loading() => _ComplaintsResult._(true, null, const []);
   factory _ComplaintsResult.err(String e) => _ComplaintsResult._(false, e, const []);
   factory _ComplaintsResult.ok(List<AdminComplaint> list) => _ComplaintsResult._(false, null, list);
+}
+
+// ===== Admin UI: Fancy Tiles (Design only) =====
+
+class AdminPalette {
+  // etwas „nüchterner“ als im Kundenbereich
+  static const blueA   = Color(0xFF0D47A1);
+  static const blueB   = Color(0xFF1976D2);
+
+  static const tealA   = Color(0xFF004D40);
+  static const tealB   = Color(0xFF00796B);
+
+  static const amberA  = Color(0xFF6D4C00);
+  static const amberB  = Color(0xFFFFA000);
+
+  static const grayA   = Color(0xFF263238);
+  static const grayB   = Color(0xFF455A64);
+
+  static const redA    = Color(0xFF7F0000);
+  static const redB    = Color(0xFFD32F2F);
+
+  static const purpleA = Color(0xFF4A148C);
+  static const purpleB = Color(0xFF7B1FA2);
+}
+
+class AdminTile extends StatelessWidget {
+  final String label;
+  final String? subtitle;         // kleine Unterzeile (z.B. „Bearbeitung“)
+  final IconData icon;
+  final Color colorA;
+  final Color colorB;
+  final VoidCallback onTap;
+  final int? count;               // optionaler Badge (z. B. offene Vorgänge)
+  final bool compact;             // für schmalere Screens
+
+  const AdminTile({
+    super.key,
+    required this.label,
+    required this.icon,
+    required this.colorA,
+    required this.colorB,
+    required this.onTap,
+    this.subtitle,
+    this.count,
+    this.compact = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final badge = (count != null && count! > 0)
+        ? Positioned(
+            top: 8,
+            right: 10,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: Colors.white.withOpacity(0.35), width: 1),
+              ),
+              child: Text(
+                '$count',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+              ),
+            ),
+          )
+        : const SizedBox.shrink();
+
+    return Material(
+      elevation: 8,
+      shadowColor: Colors.black.withOpacity(0.12),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [colorA.withOpacity(0.95), colorB.withOpacity(0.95)],
+            ),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            child: Stack(
+              children: [
+                // dezenter Glanz
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  left: 0,
+                  height: 42,
+                  child: IgnorePointer(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [Colors.white.withOpacity(0.16), Colors.transparent],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                // optionaler Counter
+                badge,
+                // Inhalt
+                Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: compact ? 44 : 56,
+                        height: compact ? 44 : 56,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.16),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white.withOpacity(0.28), width: 1),
+                        ),
+                        child: Icon(icon, color: Colors.white, size: compact ? 24 : 28),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        label,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: compact ? 13.5 : 14.5,
+                          letterSpacing: 0.2,
+                          height: 1.15,
+                        ),
+                      ),
+                      if ((subtitle ?? '').isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          subtitle!,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.92),
+                            fontWeight: FontWeight.w500,
+                            fontSize: compact ? 11.5 : 12.5,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
