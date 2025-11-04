@@ -225,6 +225,23 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text('${t.created}: ${_fmt(c.createdAt)}'),
+                                if (c.internalNo != null && c.internalNo!.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4.0, bottom: 4.0),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.tag, size: 18, color: Colors.grey[600]),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          'Interne DFS-Nr.: ${c.internalNo}',
+                                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                                color: Colors.grey[800],
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 if (c.updatedAt.millisecondsSinceEpoch > 0)
                                   Text('${t.updated}: ${_fmt(c.updatedAt)}'),
                                 if (canOpenReport) ...[
