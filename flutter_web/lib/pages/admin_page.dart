@@ -801,6 +801,7 @@ class _AdminPageState extends State<AdminPage> {
       ),
     );
   }
+}
 
 // ===================================================================
 // Kleine Hilfswidgets
