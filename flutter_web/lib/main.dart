@@ -196,10 +196,10 @@ class _MyAppState extends State<MyApp> {
                   appBar: AppBar(
                     title: Text(t.appTitle),
                     actions: [
-                      // Sprachwahl
+                      // Sprache
                       LangAction(onLocaleChanged: _setLocale),
 
-                      // ---- NEU: globaler Theme-Umschalter (System/Light/Dark)
+                      // Theme-Umschalter
                       PopupMenuButton<ThemeMode>(
                         tooltip: 'Theme',
                         position: PopupMenuPosition.under,
@@ -208,41 +208,46 @@ class _MyAppState extends State<MyApp> {
                         itemBuilder: (context) => [
                           PopupMenuItem(
                             value: ThemeMode.system,
-                            child: Row(
-                              children: [
-                                Icon(Icons.brightness_auto, color: Theme.of(context).colorScheme.primary),
-                                const SizedBox(width: 10),
-                                const Text('System'),
-                                const Spacer(),
-                                if (_themeMode == ThemeMode.system) const Icon(Icons.check),
-                              ],
-                            ),
+                            child: Row(children: [
+                              Icon(Icons.brightness_auto, color: Theme.of(context).colorScheme.primary),
+                              const SizedBox(width: 10), const Text('System'),
+                              const Spacer(), if (_themeMode == ThemeMode.system) const Icon(Icons.check),
+                            ]),
                           ),
                           PopupMenuItem(
                             value: ThemeMode.light,
-                            child: Row(
-                              children: [
-                                Icon(Icons.light_mode, color: Theme.of(context).colorScheme.primary),
-                                const SizedBox(width: 10),
-                                const Text('Hell'),
-                                const Spacer(),
-                                if (_themeMode == ThemeMode.light) const Icon(Icons.check),
-                              ],
-                            ),
+                            child: Row(children: [
+                              Icon(Icons.light_mode, color: Theme.of(context).colorScheme.primary),
+                              const SizedBox(width: 10), const Text('Hell'),
+                              const Spacer(), if (_themeMode == ThemeMode.light) const Icon(Icons.check),
+                            ]),
                           ),
                           PopupMenuItem(
                             value: ThemeMode.dark,
-                            child: Row(
-                              children: [
-                                Icon(Icons.dark_mode, color: Theme.of(context).colorScheme.primary),
-                                const SizedBox(width: 10),
-                                const Text('Dunkel'),
-                                const Spacer(),
-                                if (_themeMode == ThemeMode.dark) const Icon(Icons.check),
-                              ],
-                            ),
+                            child: Row(children: [
+                              Icon(Icons.dark_mode, color: Theme.of(context).colorScheme.primary),
+                              const SizedBox(width: 10), const Text('Dunkel'),
+                              const Spacer(), if (_themeMode == ThemeMode.dark) const Icon(Icons.check),
+                            ]),
                           ),
                         ],
+                      ),
+
+                      const SizedBox(width: 6),
+
+                      // <<< HIER IST DER LOGOUT-BUTTON >>>
+                      IconButton(
+                        tooltip: t.logout,                // lokalisiert
+                        icon: const Icon(Icons.logout),
+                        onPressed: () async {
+                          await api.logout();
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(t.loggedOut)),
+                            );
+                          }
+                          _onLoggedOut();
+                        },
                       ),
                       const SizedBox(width: 6),
                     ],
