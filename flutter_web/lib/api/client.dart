@@ -394,7 +394,7 @@ class ApiClient {
 
   // ---------- Vertreter-API (Rep-Login & -Aktionen) ----------
 
-  /// Bestehender Flow (E-Mail + Passwort) – unverändert gelassen.
+  /// Bestehender Flow (E-Mail + Passwort).
   Future<({bool ok, bool mustChange})> repLogin(String email, String password) async {
     try {
       final r = await _post('/api/rep/login', {'email': email, 'password': password});
@@ -419,55 +419,61 @@ class ApiClient {
     }
   }
 
-  /// NEU: Vertreter-Login ausschließlich über Secret (Header-Fallback-Body).
-  /// Erfolgreich bei 200/201/204. Token aus Body ('token') wird, falls vorhanden, gespeichert.
+  /// Vertreter-Login über Secret.
+  /// Reihenfolge: zuerst Body ({"secret": ...}) -> dann Header (X-Rep-Secret).
+  /// Erfolg bei 200/201/204. Token aus Body ('token') wird, falls vorhanden, gespeichert.
   Future<bool> repLoginWithSecret(String secret) async {
     final sec = secret.trim();
     if (sec.isEmpty) return false;
 
-    // 1) Header-basierte Auth: X-Rep-Secret
-    var r = await http.post(
-      _u('/api/rep/login'),
-      headers: _repHeaders(extra: {'X-Rep-Secret': sec}),
-      body: jsonEncode(<String, dynamic>{}), // leerer Body, aber gültiges JSON
-    );
+    // 1) Body-basierte Auth (keine Sonder-Header -> kein CORS-Preflight)
+    try {
+      final rBody = await http.post(
+        _u('/api/rep/login'),
+        headers: _repHeaders(), // Content-Type (+ evtl. X-Gate / Authorization wenn repToken gesetzt)
+        body: jsonEncode({'secret': sec}),
+      );
 
-    if (_ok2xx(r.statusCode)) {
-      // Token optional auslesen
-      try {
-        if (r.body.isNotEmpty) {
-          final j = jsonDecode(r.body);
-          if (j is Map && j['token'] is String) {
-            repToken = j['token'] as String;
-            _saveSession();
+      if (_ok2xx(rBody.statusCode)) {
+        try {
+          if (rBody.body.isNotEmpty) {
+            final j = jsonDecode(rBody.body);
+            if (j is Map && j['token'] is String) {
+              repToken = j['token'] as String;
+            }
           }
-        }
-      } catch (_) {/* Body evtl. leer oder kein JSON */}
-      if (repToken == null) _saveSession(); // persistiere ggf. nur Session-Änderungen
-      return true;
+        } catch (_) {/* ignorieren */}
+        _saveSession();
+        return true;
+      }
+    } catch (_) {
+      // Netzwerk-/Preflight-/Parsing-Fehler ignorieren, Header-Variante probieren
     }
 
-    // 2) Body-basierte Auth: {"secret": "..."}
-    r = await http.post(
-      _u('/api/rep/login'),
-      headers: _repHeaders(), // standard JSON-Header + Gate + ggf. repToken (leer)
-      body: jsonEncode({'secret': sec}),
-    );
+    // 2) Header-basierte Auth (kann CORS-Preflight auslösen)
+    try {
+      final rHead = await http.post(
+        _u('/api/rep/login'),
+        headers: _repHeaders(extra: {'X-Rep-Secret': sec}),
+        body: jsonEncode(<String, dynamic>{}), // valides, leeres JSON
+      );
 
-    if (_ok2xx(r.statusCode)) {
-      try {
-        if (r.body.isNotEmpty) {
-          final j = jsonDecode(r.body);
-          if (j is Map && j['token'] is String) {
-            repToken = j['token'] as String;
+      if (_ok2xx(rHead.statusCode)) {
+        try {
+          if (rHead.body.isNotEmpty) {
+            final j = jsonDecode(rHead.body);
+            if (j is Map && j['token'] is String) {
+              repToken = j['token'] as String;
+            }
           }
-        }
-      } catch (_) {/* ignorieren */}
-      _saveSession();
-      return true;
+        } catch (_) {/* ignorieren */}
+        _saveSession();
+        return true;
+      }
+    } catch (_) {
+      // auch hier: stiller Fail -> false
     }
 
-    // Fallback: eindeutig fehlgeschlagen
     return false;
   }
 
