@@ -394,6 +394,25 @@ class ApiClient {
 
   // ---------- Vertreter-API (Rep-Login & -Aktionen) ----------
 
+  /// Prüft, ob ein Vertreter (aktiv) existiert.
+  /// Erwartet: 200 { exists: true|false } – alles andere wird als false interpretiert.
+  Future<bool> repExists(String email) async {
+    try {
+      final r = await _post('/api/rep/exists', {'email': email.trim().toLowerCase()});
+      if (_ok2xx(r.statusCode)) {
+        try {
+          final j = jsonDecode(r.body);
+          if (j is Map && j['exists'] is bool) return j['exists'] as bool;
+        } catch (_) {
+          // Falls Body nicht parsebar ist, treat as false
+        }
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Bestehender Flow (E-Mail + Passwort).
   Future<({bool ok, bool mustChange})> repLogin(String email, String password) async {
     try {
