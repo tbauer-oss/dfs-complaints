@@ -31,6 +31,7 @@
   "continueLabel": "Continuar",
   "invalid": "No válido",
   "gateUnlockHint": "Introduce la contraseña de desbloqueo para abrir el área de registro.",
+ "rep_area": "Área de representantes",
 
   "cancel": "Cancelar",
   "open": "Abrir",
