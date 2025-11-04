@@ -27,7 +27,7 @@ const PFX     = 'dfs:';                               // Projekt-Prefix
 const SET_ALL = `${PFX}reps:all`;                     // Set aller Rep-IDs
 const CNT     = `${PFX}reps:counter`;                 // Zähler für IDs
 const KEY     = (id)      => `${PFX}reps:${id}`;      // Rep-Objekt
-const IDX_E   = (email)   => `${PFX}repBy:${email.toLowerCase()}`; // email -> repId (Eindeutigkeit d. Rep-Emails)
+const IDX_E   = (email)   => `${PFX}repBy:${email.toLowerCase()}`; // email -> repId
 const SET_CUS = (repId)   => `${PFX}rep:${repId}:customers`;       // Set Kunden-Emails eines Reps
 const IDX_ROF = (email)   => `${PFX}repOf:${email.toLowerCase()}`; // customerEmail -> repId (Reverse-Mapping)
 
@@ -61,6 +61,13 @@ export async function loadRepIdByEmail(email) {
   return await redis.get(IDX_E(email));
 }
 
+export async function loadRepByEmail(email) {
+  await requireRedis();
+  const id = await loadRepIdByEmail(email);
+  if (!id) return null;
+  return await loadRepById(id);
+}
+
 export async function repCustomers(repId) {
   await requireRedis();
   return await redis.smembers(SET_CUS(repId));
@@ -70,7 +77,9 @@ async function saveRep(rep) {
   await requireRedis();
   await redis.set(KEY(rep.id), rep);
   await redis.sadd(SET_ALL, rep.id);
-  await redis.set(IDX_E(rep.email.toLowerCase()), rep.id);
+  if (rep.email) {
+    await redis.set(IDX_E(S(rep.email).toLowerCase()), rep.id);
+  }
 }
 
 // ---- Public API ----
@@ -98,6 +107,7 @@ export async function getAllRepsWithCustomers() {
 }
 
 // Erzeugt oder aktualisiert einen Vertreter (Upsert über id ODER email)
+// ⚠️ Bei Updates bleiben passHash und mustChangePw erhalten (kein Überschreiben).
 export async function upsertRep({ id, firstName, lastName, email, region }) {
   await requireRedis();
 
@@ -125,11 +135,14 @@ export async function upsertRep({ id, firstName, lastName, email, region }) {
   }
 
   if (rep) {
-    // Update: Email-Wechsel berücksichtigen (Index neu setzen)
-    const prevEmail = (rep.email || '').toLowerCase();
+    // Update: Email-Wechsel berücksichtigen (Index neu setzen) und Passwortfelder erhalten
+    const prevEmail = S(rep.email).toLowerCase();
     const updated = {
       ...rep,
       firstName, lastName, email, region,
+      // Passwort-Felder NICHT löschen:
+      passHash: rep.passHash ?? undefined,
+      mustChangePw: rep.mustChangePw ?? false,
       updatedAt: nowIso(),
     };
     if (prevEmail && prevEmail !== email) {
@@ -139,11 +152,13 @@ export async function upsertRep({ id, firstName, lastName, email, region }) {
     const customers = await repCustomers(updated.id);
     return { ...updated, customers: customers || [] };
   } else {
-    // Create
+    // Create – ohne Passwort (kommt beim ersten Login)
     const newId = await nextId();
     const created = {
       id: newId,
       firstName, lastName, email, region,
+      // passHash zunächst nicht gesetzt
+      // mustChangePw wird beim ersten Login auf true gesetzt
       createdAt: nowIso(),
     };
     await saveRep(created);
@@ -222,4 +237,25 @@ export async function getRepOf(email) {
   if (!repId) return null;
   const rep = await loadRepById(repId);
   return rep || null;
+}
+
+// --- NEU: Passwort-Management ---
+// Setzt/ändert den Passwort-Hash eines Reps und optional das Pflichtwechsel-Flag.
+export async function setRepPassword(repId, passHash, mustChange = false) {
+  await requireRedis();
+  repId = S(repId);
+  if (!repId || !passHash) throw new Error('missing repId or passHash');
+
+  const rep = await loadRepById(repId);
+  if (!rep) throw new Error('rep not found');
+
+  const updated = {
+    ...rep,
+    passHash,
+    mustChangePw: !!mustChange,
+    updatedAt: nowIso(),
+  };
+  await saveRep(updated);
+  const customers = await repCustomers(repId);
+  return { ...updated, customers: customers || [] };
 }
