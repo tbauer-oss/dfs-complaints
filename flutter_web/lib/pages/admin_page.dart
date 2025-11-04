@@ -2043,12 +2043,12 @@ class AdminApi {
     required String region,
   }) async {
     final body = {
-      'action': 'create',        // <— wichtig für reps.js
-      if (id != null && id.isNotEmpty) 'id': id, // optional, falls du Update im Backend zulässt
+      'action': 'upsert',                 // <-- NEU
+      if (id != null && id.isNotEmpty) 'id': id,
       'firstName': firstName,
       'lastName': lastName,
       'email': email,
-    'region': region,
+      'region': region,
     };
     final res = await _request('POST', '/api/admin/reps', body: body);
     if (res.status != 200 && res.status != 201) {
@@ -2060,13 +2060,14 @@ class AdminApi {
   }
 
   Future<void> deleteRep(String id) async {
-    // Query-Variante
+    // Query-Variante (falls dein Backend das unterstützt)
     try {
       final r1 = await _request('DELETE', '/api/admin/reps', q: {'id': id});
       if (r1.status == 200 || r1.status == 204) return;
     } catch (_) {}
-    // Body-Variante Fallback
-    final r2 = await _request('DELETE', '/api/admin/reps', body: {'id': id});
+
+    // Body-Variante mit action: 'delete'
+    final r2 = await _request('DELETE', '/api/admin/reps', body: {'action': 'delete', 'id': id});
     if (r2.status != 200 && r2.status != 204) {
       throw 'reps DELETE: HTTP ${r2.status} ${r2.responseText}';
     }
