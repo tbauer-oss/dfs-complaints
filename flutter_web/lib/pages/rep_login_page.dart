@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../api/client.dart';
 import 'rep_dashboard_page.dart';
 
+enum _RepStep { email, otp, setPassword }
+
 class RepLoginPage extends StatefulWidget {
   final ApiClient api;
   const RepLoginPage({super.key, required this.api});
@@ -12,309 +14,273 @@ class RepLoginPage extends StatefulWidget {
 }
 
 class _RepLoginPageState extends State<RepLoginPage> {
-  // --- Controller ---
-  final _secret = TextEditingController();
-  final _email  = TextEditingController();
-  final _pw     = TextEditingController();
-  final _new1   = TextEditingController();
-  final _new2   = TextEditingController();
+  final _email = TextEditingController();
+  final _otp   = TextEditingController(); // Einmalpasswort = REP_JWT_SECRET
+  final _new1  = TextEditingController();
+  final _new2  = TextEditingController();
 
+  _RepStep _step = _RepStep.email;
   bool _busy = false;
   String? _err;
 
-  @override
-  void dispose() {
-    _secret.dispose();
-    _email.dispose();
-    _pw.dispose();
-    _new1.dispose();
-    _new2.dispose();
-    super.dispose();
-  }
+  // Hilfen
+  void _setErr(String? msg) => setState(() => _err = msg);
+  void _setBusy(bool b) => setState(() => _busy = b);
 
-  // ==========================
-  // Secret-Login (REP_JWT_SECRET)
-  // ==========================
-  Future<void> _loginWithSecret() async {
-    final secret = _secret.text.trim();
-    if (secret.isEmpty) {
-      setState(() => _err = 'Bitte Secret eingeben.');
+  // Schritt 1: E-Mail prüfen (existiert & aktiv?)
+  Future<void> _checkEmail() async {
+    _setErr(null);
+    final email = _email.text.trim().toLowerCase();
+    if (email.isEmpty || !email.contains('@')) {
+      _setErr('Bitte eine gültige E-Mail-Adresse eingeben.');
       return;
     }
-
-    setState(() { _busy = true; _err = null; });
+    _setBusy(true);
     try {
-      final ok = await widget.api.repLoginWithSecret(secret);
-      if (!mounted) return;
-      if (!ok) {
-        setState(() => _err = 'Secret ungültig oder nicht akzeptiert.');
+      final exists = await widget.api.repExists(email);
+      if (!exists) {
+        _setErr('Diese E-Mail ist nicht als Vertreter hinterlegt oder nicht aktiv.');
         return;
       }
-      // Erfolg → Dashboard
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => RepDashboardPage(api: widget.api)),
-      );
+      setState(() => _step = _RepStep.otp);
     } catch (e) {
-      if (mounted) {
-        setState(() => _err = 'Netzwerk-/Serverfehler: $e');
-      }
+      _setErr('Serverfehler beim Prüfen der E-Mail: $e');
     } finally {
-      if (mounted) setState(() => _busy = false);
+      _setBusy(false);
     }
   }
 
-  // ==========================
-  // E-Mail/Passwort-Login
-  // ==========================
-  Future<void> _loginWithCredentials() async {
-    final email = _email.text.trim();
-    final pw    = _pw.text;
-    if (email.isEmpty || pw.isEmpty) {
-      setState(() => _err = 'Bitte E-Mail und Passwort eingeben.');
+  // Schritt 2: Einmalpasswort prüfen (REP_JWT_SECRET)
+  // Backend gibt { token, mustChangePw: true|false } zurück.
+  Future<void> _submitOtp() async {
+    _setErr(null);
+    final email = _email.text.trim().toLowerCase();
+    final otp   = _otp.text; // hier erwartest du REP_JWT_SECRET
+    if (otp.isEmpty) {
+      _setErr('Bitte das Einmalpasswort eingeben.');
       return;
     }
 
-    setState(() { _busy = true; _err = null; });
+    _setBusy(true);
     try {
-      final res = await widget.api.repLogin(email, pw);
-      if (!mounted) return;
-
+      final res = await widget.api.repLogin(email, otp);
       if (!res.ok) {
-        setState(() => _err = 'Login fehlgeschlagen. Bitte Zugangsdaten prüfen.');
+        _setErr('Einmalpasswort falsch oder nicht zulässig.');
         return;
       }
-
       if (res.mustChange) {
-        // Passwortwechsel erzwingen
-        await _showChangePasswordDialog();
-        if (!mounted) return;
+        // Direkt in Schritt 3 (neues Passwort setzen)
+        setState(() => _step = _RepStep.setPassword);
+        return;
       }
-
-      // Erfolg → Dashboard
+      // Falls mustChange=false, ist bereits ein eigenes Passwort gesetzt:
+      // -> Direkt ins Dashboard
+      if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => RepDashboardPage(api: widget.api)),
       );
     } catch (e) {
-      if (mounted) {
-        setState(() => _err = 'Netzwerk-/Serverfehler: $e');
-      }
+      _setErr('Login fehlgeschlagen: $e');
     } finally {
-      if (mounted) setState(() => _busy = false);
+      _setBusy(false);
     }
   }
 
-  // ==========================
-  // Dialog: Neues Passwort setzen (für Credentials-Flow)
-  // ==========================
-  Future<void> _showChangePasswordDialog() async {
-    _new1.clear();
-    _new2.clear();
+  // Schritt 3: Neues Passwort setzen (mit Wiederholung)
+  Future<void> _setNewPassword() async {
+    _setErr(null);
+    final a = _new1.text;
+    final b = _new2.text;
 
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) {
-        bool saving = false;
-        String? localErr;
+    if (a.isEmpty || b.isEmpty) {
+      _setErr('Bitte neues Passwort in beiden Feldern eingeben.');
+      return;
+    }
+    if (a != b) {
+      _setErr('Passwörter stimmen nicht überein.');
+      return;
+    }
+    if (a.length < 8) {
+      _setErr('Das Passwort muss mindestens 8 Zeichen lang sein.');
+      return;
+    }
 
-        Future<void> save() async {
-          if (saving) return;
-          final a = _new1.text;
-          final b = _new2.text;
-          if (a.isEmpty || b.isEmpty) {
-            localErr = 'Bitte neues Passwort in beiden Feldern eingeben.';
-            (ctx as Element).markNeedsBuild();
-            return;
-          }
-          if (a != b) {
-            localErr = 'Passwörter stimmen nicht überein.';
-            (ctx as Element).markNeedsBuild();
-            return;
-          }
-          saving = true;
-          (ctx as Element).markNeedsBuild();
-          try {
-            await widget.api.repChangePassword(a);
-            if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
-          } catch (e) {
-            localErr = 'Fehler: $e';
-            saving = false;
-            (ctx as Element).markNeedsBuild();
-          }
-        }
+    _setBusy(true);
+    try {
+      await widget.api.repChangePassword(a);
+      // Danach ist das Passwort gesetzt. Jetzt direkt ins Dashboard.
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => RepDashboardPage(api: widget.api)),
+      );
+    } catch (e) {
+      _setErr('Passwort setzen fehlgeschlagen: $e');
+    } finally {
+      _setBusy(false);
+    }
+  }
 
-        return AlertDialog(
-          title: const Text('Neues Passwort setzen'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: _new1,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: 'Neues Passwort'),
-                enabled: !saving,
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _new2,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: 'Neues Passwort (Wiederholung)'),
-                enabled: !saving,
-              ),
-              if (localErr != null) ...[
-                const SizedBox(height: 12),
-                Text(localErr!, style: const TextStyle(color: Colors.red)),
-              ],
-            ],
+  // UI-Bausteine
+
+  Widget _emailStep() {
+    final canNext = !_busy && _email.text.trim().isNotEmpty;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text(
+          'Vertreter-Login',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _email,
+          keyboardType: TextInputType.emailAddress,
+          autofillHints: const [AutofillHints.username, AutofillHints.email],
+          decoration: const InputDecoration(
+            labelText: 'E-Mail',
+            border: OutlineInputBorder(),
           ),
-          actions: [
-            TextButton(
-              onPressed: saving ? null : () => Navigator.of(ctx).pop(),
-              child: const Text('Später'),
+          onChanged: (_) => setState(() {}),
+          onSubmitted: (_) => canNext ? _checkEmail() : null,
+        ),
+        const SizedBox(height: 16),
+        if (_err != null)
+          Text(_err!, style: const TextStyle(color: Colors.red)),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: canNext ? _checkEmail : null,
+            icon: _busy
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.arrow_forward),
+            label: const Text('Weiter'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _otpStep() {
+    final canNext = !_busy && _otp.text.isNotEmpty;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text(
+          'Einmalpasswort eingeben',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _otp,
+          obscureText: true,
+          decoration: InputDecoration(
+            labelText: 'Einmalpasswort (zugesendet/vereinbart)',
+            border: const OutlineInputBorder(),
+            suffixIcon: IconButton(
+              tooltip: 'Zurück zur E-Mail',
+              onPressed: _busy ? null : () => setState(() => _step = _RepStep.email),
+              icon: const Icon(Icons.edit),
             ),
-            FilledButton(
-              onPressed: saving ? null : save,
-              child: saving
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('Speichern'),
+          ),
+          onChanged: (_) => setState(() {}),
+          onSubmitted: (_) => canNext ? _submitOtp() : null,
+        ),
+        const SizedBox(height: 16),
+        if (_err != null)
+          Text(_err!, style: const TextStyle(color: Colors.red)),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: canNext ? _submitOtp : null,
+            icon: _busy
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.login),
+            label: const Text('Anmelden'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _setPwStep() {
+    final canSave = !_busy && _new1.text.isNotEmpty && _new2.text.isNotEmpty;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text(
+          'Neues Passwort festlegen',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _new1,
+          obscureText: true,
+          decoration: const InputDecoration(
+            labelText: 'Neues Passwort',
+            border: OutlineInputBorder(),
+          ),
+          onChanged: (_) => setState(() {}),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _new2,
+          obscureText: true,
+          decoration: const InputDecoration(
+            labelText: 'Neues Passwort (Wiederholung)',
+            border: OutlineInputBorder(),
+          ),
+          onChanged: (_) => setState(() {}),
+          onSubmitted: (_) => canSave ? _setNewPassword() : null,
+        ),
+        const SizedBox(height: 16),
+        if (_err != null)
+          Text(_err!, style: const TextStyle(color: Colors.red)),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _busy ? null : () => setState(() => _step = _RepStep.otp),
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('Zurück'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: canSave ? _setNewPassword : null,
+                icon: _busy
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.check),
+                label: const Text('Speichern'),
+              ),
             ),
           ],
-        );
-      },
+        ),
+      ],
     );
   }
 
-  // ==========================
-  // UI
-  // ==========================
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2, // Secret | E-Mail & Passwort
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Vertreter-Login'),
-          bottom: const TabBar(
-            tabs: [
-              Tab(icon: Icon(Icons.key), text: 'Secret'),
-              Tab(icon: Icon(Icons.person), text: 'E-Mail & Passwort'),
-            ],
+    final child = switch (_step) {
+      _RepStep.email       => _emailStep(),
+      _RepStep.otp         => _otpStep(),
+      _RepStep.setPassword => _setPwStep(),
+    };
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Vertreter-Login')),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 460),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: AutofillGroup(child: child),
           ),
         ),
-        body: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 460),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  if (_err != null) ...[
-                    Container(
-                      width: double.infinity,
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.08),
-                        border: Border.all(color: Colors.red),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(_err!, style: const TextStyle(color: Colors.red)),
-                    ),
-                  ],
-                  Expanded(
-                    child: TabBarView(
-                      children: [
-                        // --- TAB 1: Secret ---
-                        _buildSecretTab(),
-                        // --- TAB 2: Credentials ---
-                        _buildCredentialsTab(),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSecretTab() {
-    final canLogin = !_busy && _secret.text.trim().isNotEmpty;
-    return AutofillGroup(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _secret,
-            obscureText: true,
-            autofillHints: const [AutofillHints.password],
-            decoration: const InputDecoration(
-              labelText: 'REP Secret',
-              border: OutlineInputBorder(),
-            ),
-            onChanged: (_) => setState(() {}),
-            onSubmitted: (_) => canLogin ? _loginWithSecret() : null,
-            enabled: !_busy,
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              icon: _busy
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.login),
-              label: const Text('Anmelden (Secret)'),
-              onPressed: canLogin ? _loginWithSecret : null,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCredentialsTab() {
-    final canLogin = !_busy && _email.text.trim().isNotEmpty && _pw.text.isNotEmpty;
-    return AutofillGroup(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _email,
-            autofillHints: const [AutofillHints.username, AutofillHints.email],
-            decoration: const InputDecoration(
-              labelText: 'E-Mail',
-              border: OutlineInputBorder(),
-            ),
-            onChanged: (_) => setState(() {}),
-            enabled: !_busy,
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _pw,
-            obscureText: true,
-            autofillHints: const [AutofillHints.password],
-            decoration: const InputDecoration(
-              labelText: 'Passwort',
-              border: OutlineInputBorder(),
-            ),
-            onChanged: (_) => setState(() {}),
-            onSubmitted: (_) => canLogin ? _loginWithCredentials() : null,
-            enabled: !_busy,
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              icon: _busy
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.login),
-              label: const Text('Anmelden (E-Mail & Passwort)'),
-              onPressed: canLogin ? _loginWithCredentials : null,
-            ),
-          ),
-        ],
       ),
     );
   }
