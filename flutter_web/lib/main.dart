@@ -1,15 +1,17 @@
 // lib/main.dart
-import 'dart:html' as html; // für Sprache & Theme persistieren
+import 'dart:html' as html; // nur Web: Sprache & Theme persistieren
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'api/client.dart';
 import 'l10n/app_localizations.dart';
-import 'pages/login_page.dart';
-import 'pages/dashboard_page.dart';
+
+// ⚠️ Präfixierte Imports zur Kollisionsvermeidung:
+import 'pages/login_page.dart' as lp;
 import 'pages/register_page.dart';
 import 'pages/admin_page.dart';
-import 'pages/rep_login_page.dart';
+import 'pages/dashboard_page.dart';
+import 'pages/rep_login_page.dart' as rp;
 import 'pages/rep_dashboard_page.dart';
 import 'widgets/lang_action.dart';
 
@@ -31,7 +33,7 @@ class _MyAppState extends State<MyApp> {
   bool _bootDone = false;
   bool _loggedIn = false;
 
-  // ← Globaler ThemeMode (persistiert)
+  // Globaler ThemeMode (persistiert)
   ThemeMode _themeMode = ThemeMode.system;
 
   @override
@@ -47,9 +49,14 @@ class _MyAppState extends State<MyApp> {
     // ThemeMode laden
     final savedTheme = (html.window.localStorage['dfs_theme'] ?? '').toLowerCase();
     switch (savedTheme) {
-      case 'light': _themeMode = ThemeMode.light; break;
-      case 'dark':  _themeMode = ThemeMode.dark;  break;
-      default:      _themeMode = ThemeMode.system;
+      case 'light':
+        _themeMode = ThemeMode.light;
+        break;
+      case 'dark':
+        _themeMode = ThemeMode.dark;
+        break;
+      default:
+        _themeMode = ThemeMode.system;
     }
 
     _boot();
@@ -71,13 +78,13 @@ class _MyAppState extends State<MyApp> {
   void _setThemeMode(ThemeMode m) {
     setState(() => _themeMode = m);
     html.window.localStorage['dfs_theme'] = switch (m) {
-      ThemeMode.light  => 'light',
-      ThemeMode.dark   => 'dark',
+      ThemeMode.light => 'light',
+      ThemeMode.dark => 'dark',
       ThemeMode.system => 'system',
     };
   }
 
-  // --- Kompaktes Theme-Menü mit Icons ---
+  // Kompaktes Theme-Menü mit Icons
   Widget _themeMenu() {
     IconData icon;
     switch (_themeMode) {
@@ -103,8 +110,7 @@ class _MyAppState extends State<MyApp> {
               const Icon(Icons.brightness_auto),
               const SizedBox(width: 10),
               const Text('System'),
-              if (_themeMode == ThemeMode.system)
-                const Spacer(),
+              if (_themeMode == ThemeMode.system) const Spacer(),
               if (_themeMode == ThemeMode.system)
                 const Icon(Icons.check, color: Colors.green),
             ],
@@ -116,9 +122,8 @@ class _MyAppState extends State<MyApp> {
             children: [
               const Icon(Icons.light_mode),
               const SizedBox(width: 10),
-              const Text(''),
-              if (_themeMode == ThemeMode.light)
-                const Spacer(),
+              const Text('Light'),
+              if (_themeMode == ThemeMode.light) const Spacer(),
               if (_themeMode == ThemeMode.light)
                 const Icon(Icons.check, color: Colors.green),
             ],
@@ -130,9 +135,8 @@ class _MyAppState extends State<MyApp> {
             children: [
               const Icon(Icons.dark_mode),
               const SizedBox(width: 10),
-              const Text(''),
-              if (_themeMode == ThemeMode.dark)
-                const Spacer(),
+              const Text('Dark'),
+              if (_themeMode == ThemeMode.dark) const Spacer(),
               if (_themeMode == ThemeMode.dark)
                 const Icon(Icons.check, color: Colors.green),
             ],
@@ -142,7 +146,7 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
-  // --- Admin-Secret Dialog + Navigation ---
+  // Admin-Secret Dialog + Navigation
   Future<void> _openAdmin(BuildContext context) async {
     final t = AppLocalizations.of(context)!;
     final ctrl = TextEditingController(text: api.adminSecret ?? '');
@@ -185,9 +189,7 @@ class _MyAppState extends State<MyApp> {
 
     api.setAdminSecret(secret);
     if (!mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => AdminPage(api: api)),
-    );
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => AdminPage(api: api)));
   }
 
   void _openRegister(BuildContext context) {
@@ -197,10 +199,10 @@ class _MyAppState extends State<MyApp> {
   void _openRepArea() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => RepLoginPage(
+        builder: (_) => rp.RepLoginPage(
           api: api,
           onLoggedIn: () {
-            // Nach erfolgreichem Vertreter-Login direkt ins Vertreter-Dashboard
+            if (!mounted) return;
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => RepDashboardPage(api: api)),
             );
@@ -225,7 +227,11 @@ class _MyAppState extends State<MyApp> {
       debugShowCheckedModeBanner: false,
       locale: _locale,
       supportedLocales: const [
-        Locale('de'), Locale('en'), Locale('fr'), Locale('it'), Locale('es'),
+        Locale('de'),
+        Locale('en'),
+        Locale('fr'),
+        Locale('it'),
+        Locale('es'),
       ],
       localizationsDelegates: const [
         AppLocalizations.delegate,
@@ -247,11 +253,11 @@ class _MyAppState extends State<MyApp> {
         return const Locale('de'); // Default
       },
 
-      // -------- GLOBAL THEME (Material 3) --------
+      // GLOBAL THEME (Material 3)
       themeMode: _themeMode,
       theme: ThemeData(
         useMaterial3: true,
-        colorSchemeSeed: const Color(0xFF1F4C8F), // DFS-Blau als Seed
+        colorSchemeSeed: const Color(0xFF1F4C8F), // DFS-Blau
         brightness: Brightness.light,
       ),
       darkTheme: ThemeData(
@@ -260,7 +266,7 @@ class _MyAppState extends State<MyApp> {
         brightness: Brightness.dark,
       ),
 
-      // -------- NAVI --------
+      // NAVIGATION / START
       home: _loggedIn
           ? Builder(
               builder: (ctx) {
@@ -274,7 +280,7 @@ class _MyAppState extends State<MyApp> {
                       // Theme-Menü (global)
                       _themeMenu(),
                     ],
-                    // Logout unten in der AppBar (wie zuvor)
+                    // Logout unten in der AppBar
                     bottom: PreferredSize(
                       preferredSize: const Size.fromHeight(50),
                       child: Align(
@@ -287,8 +293,9 @@ class _MyAppState extends State<MyApp> {
                             onPressed: () async {
                               await api.logout();
                               if (ctx.mounted) {
-                                ScaffoldMessenger.of(ctx)
-                                    .showSnackBar(SnackBar(content: Text(t.loggedOut)));
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  SnackBar(content: Text(t.loggedOut)),
+                                );
                               }
                               _onLoggedOut();
                             },
@@ -309,15 +316,16 @@ class _MyAppState extends State<MyApp> {
                     title: Text(t.login),
                     actions: [
                       LangAction(onLocaleChanged: _setLocale),
-                      _themeMenu(), // auch auf Login-Seite nutzbar
+                      _themeMenu(), // auch auf Login-Seite
                     ],
                   ),
-                  body: LoginPage(
+                  body: lp.LoginPage(
                     api: api,
-                      onLoggedIn: _openCustomerDashboard,   // deine bestehende Funktion
-                      onOpenRegister: () => _openRegister(context),        // deine bestehende Funktion
-                      onOpenAdmin: _openAdminArea,          // deine bestehende Funktion
-                      onOpenRep: _openRepArea, 
+                    // ⤵️ Korrekte, kontextgebundene Closures statt fehlender Methoden
+                    onLoggedIn: _onLoggedIn, // setzt _loggedIn = true
+                    onOpenRegister: () => _openRegister(ctx),
+                    onOpenAdmin: () => _openAdmin(ctx),
+                    onOpenRep: _openRepArea,
                   ),
                 );
               },
