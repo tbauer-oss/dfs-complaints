@@ -29,9 +29,18 @@ function requireAdmin(req, res) {
 // --------------- Upstash Redis ---------------
 import { Redis } from '@upstash/redis';
 
-// env wie in deinem store.js: UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN
-const redis = (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN)
-  ? new Redis({ url: process.UPSTASH_REDIS_REST_URL, token: process.env.UPSTASH_REDIS_REST_TOKEN })
+// akzeptiere beide ENV-Varianten
+const redisUrl =
+  process.env.REDIS_URL ||
+  process.env.UPSTASH_REDIS_REST_URL ||
+  '';
+const redisToken =
+  process.env.REDIS_TOKEN ||
+  process.env.UPSTASH_REDIS_REST_TOKEN ||
+  '';
+
+const redis = (redisUrl && redisToken)
+  ? new Redis({ url: redisUrl, token: redisToken })
   : null;
 
 const P = 'dfs:';                 // Prefix
@@ -46,16 +55,16 @@ async function nextId() {
 }
 
 async function loadRepById(id) {
-  const j = await redis.get(KEY(id));
-  return j || null;
+  if (!id) return null;
+  return await redis.get(KEY(id));
 }
 
 async function loadRepIdByEmail(email) {
+  if (!email) return null;
   return await redis.get(IDX_E(email));
 }
 
 async function saveRep(rep) {
-  // rep: {id, firstName, lastName, email, region, createdAt?, updatedAt?}
   await redis.set(KEY(rep.id), rep);
   await redis.sadd(SET_ALL, rep.id);
   await redis.set(IDX_E(rep.email), rep.id);
@@ -81,13 +90,14 @@ function safeJson(req) {
 }
 function normalizeStr(v) { return (v ?? '').toString().trim(); }
 
+// --------- Handler ----------
 export default async function handler(req, res) {
   setCors(req, res);
   if (req.method === 'OPTIONS') { res.status(204).end(); return; }
   if (!requireAdmin(req, res)) return;
 
   if (!redis) {
-    res.status(500).end(JSON.stringify({ error: 'redis not configured (UPSTASH_REDIS_REST_URL/UPSTASH_REDIS_REST_TOKEN)' }));
+    res.status(500).end(JSON.stringify({ error: 'redis not configured (set REDIS_URL/REDIS_TOKEN or UPSTASH_REDIS_REST_URL/UPSTASH_REDIS_REST_TOKEN)' }));
     return;
   }
 
@@ -99,7 +109,6 @@ export default async function handler(req, res) {
         res.status(200).end(JSON.stringify([]));
         return;
       }
-      // mget aller Reps
       const keys = ids.map((id) => KEY(id));
       const rows = await redis.mget(...keys);
       const list = (rows || []).filter(Boolean);
@@ -107,16 +116,13 @@ export default async function handler(req, res) {
       return;
     }
 
-    // --------- POST: UPSERT (anlegen/ändern) ---------
+    // --------- POST: Upsert (create/update) ---------
     if (req.method === 'POST') {
       const body = safeJson(req);
-      // tolerant: action optional; akzeptiere 'upsert' | 'create' | ''
+
+      // action optional -> Standard: upsert
       const action = normalizeStr(body.action) || 'upsert';
       if (action !== 'upsert' && action !== 'create') {
-        if (action === 'delete') {
-          res.status(405).end(JSON.stringify({ error: 'use DELETE for delete' }));
-          return;
-        }
         res.status(400).end(JSON.stringify({ error: 'invalid action' }));
         return;
       }
@@ -132,14 +138,9 @@ export default async function handler(req, res) {
         return;
       }
 
-      // Upsert-Strategie:
-      // 1) wenn id angegeben & existiert -> update
-      // 2) sonst per email Index suchen -> update
-      // 3) sonst create
+      // Upsert-Logik
       let existing = null;
-      if (id) {
-        existing = await loadRepById(id);
-      }
+      if (id) existing = await loadRepById(id);
       if (!existing) {
         const viaEmailId = await loadRepIdByEmail(email);
         if (viaEmailId) {
@@ -154,7 +155,7 @@ export default async function handler(req, res) {
           firstName, lastName, email, region,
           updatedAt: new Date().toISOString(),
         };
-        // Email-Index ggf. umhängen, falls E-Mail geändert wurde
+        // Email-Index aktualisieren falls E-Mail geändert
         if (existing.email && existing.email.toLowerCase() !== email) {
           await redis.del(IDX_E(existing.email));
         }
@@ -176,20 +177,27 @@ export default async function handler(req, res) {
 
     // --------- DELETE: löschen (Query ODER Body) ---------
     if (req.method === 'DELETE') {
-      let id = '';
-      try {
-        const url = new URL(req.url, 'http://x'); // dummy base
-        id = normalizeStr(url.searchParams.get('id'));
-      } catch { /* ignore */ }
+      // 1) Bevorzugt aus req.query (Next/Vercel konform)
+      let id = normalizeStr(req.query?.id);
 
+      // 2) Falls leer, versuche URL nur wenn vorhanden
+      if (!id) {
+        try {
+          const raw = (typeof req.url === 'string') ? req.url : '';
+          if (raw) {
+            const u = new URL(raw, 'http://x'); // Base ist egal
+            id = normalizeStr(u.searchParams.get('id'));
+          }
+        } catch { /* ignorieren */ }
+      }
+
+      // 3) Fallback: Body mit action=delete
       if (!id) {
         const body = safeJson(req);
         const action = normalizeStr(body.action) || 'delete';
-        if (action !== 'delete') {
-          res.status(400).end(JSON.stringify({ error: 'invalid action' }));
-          return;
+        if (action === 'delete') {
+          id = normalizeStr(body.id);
         }
-        id = normalizeStr(body.id);
       }
 
       if (!id) {
