@@ -353,6 +353,30 @@ class ApiClient {
     }
   }
 
+  // ---------- Vertreter (Kundenbereich) ----------
+  /// Liefert den zugewiesenen Vertreter für den eingeloggten Kunden.
+  /// Backend: GET /api/rep/my  (JWT erforderlich)
+  Future<MyRep?> getMyRep() async {
+    try {
+      final r = await _get('/api/rep/my', auth: true);
+      if (r.statusCode == 204) return null;          // kein Vertreter
+      if (r.statusCode != 200) return null;          // still schlucken, Banner dann nicht anzeigen
+      final body = r.body.trim();
+      if (body.isEmpty) return null;
+
+      final j = jsonDecode(body);
+      if (j is Map) {
+        final m = j.cast<String, dynamic>();
+        // Minimalvalidierung
+        if ((m['email'] ?? '').toString().trim().isEmpty) return null;
+        return MyRep.fromJson(m);
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ---------- Admin: Reklamationen ----------
   /// Offene Reklamationen (oder nach Query) laden – nutzt Admin-Secret Header.
   Future<List<Map<String, dynamic>>> adminComplaintsList({String query = ''}) async {
@@ -417,67 +441,4 @@ class MyRep {
     email    : (j['email']     ?? '').toString(),
     region   : (j['region']    ?? '').toString(),
   );
-}
-
-// ===== ApiClient: Hilfsheader mit JWT =====
-extension _AuthHeaders on ApiClient {
-  Map<String,String> _jsonAuthHeaders() => {
-    'Content-Type': 'application/json; charset=utf-8',
-    if (_jwt.isNotEmpty) 'Authorization': 'Bearer $_jwt',
-  };
-}
-
-// ===== ApiClient: Request-Helper (Web) =====
-extension _Http on ApiClient {
-  Uri _u(String path, [Map<String, String>? q]) {
-    final base = const String.fromEnvironment('API_BASE', defaultValue: '');
-    final url  = base.isNotEmpty ? '$base$path' : '${html.window.location.origin}$path';
-    final uri  = Uri.parse(url);
-    return (q == null || q.isEmpty) ? uri : uri.replace(queryParameters: q);
-  }
-
-  Future<html.HttpRequest> _request(String method, String path,
-      {Map<String,String>? query, Object? body, bool auth = false}) async {
-    final headers = auth ? _jsonAuthHeaders() : {'Content-Type': 'application/json; charset=utf-8'};
-    final send = body is String ? body : (body == null ? null : jsonEncode(body));
-    try {
-      final res = await html.HttpRequest.request(
-        _u(path, query).toString(),
-        method: method,
-        requestHeaders: headers,
-        sendData: send,
-        withCredentials: true,
-      );
-      return res;
-    } catch (e) {
-      // Fehler transparent machen
-      if (e is html.ProgressEvent) {
-        final t = e.target;
-        if (t is html.HttpRequest) {
-          throw 'HTTP ${t.status} ${t.statusText} — ${t.responseText ?? ''}';
-        }
-      }
-      rethrow;
-    }
-  }
-}
-
-// ===== ApiClient: getMyRep() =====
-extension _RepApi on ApiClient {
-  Future<MyRep?> getMyRep() async {
-    try {
-      final res = await _request('GET', '/api/rep/my', auth: true);
-      if (res.status == 204) return null;                       // kein Vertreter
-      if ((res.responseText ?? '').trim().isEmpty) return null; // leer
-      final Map<String,dynamic> j = jsonDecode(res.responseText!);
-      // Minimalvalidierung
-      if ((j['email'] ?? '').toString().trim().isEmpty) return null;
-      return MyRep.fromJson(j);
-    } catch (e) {
-      // 401/404 → kein Banner anzeigen, aber für Debug loggen
-      // ignore: avoid_print
-      print('getMyRep() failed: $e');
-      return null;
-    }
-  }
 }
