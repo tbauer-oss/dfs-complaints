@@ -31,6 +31,7 @@
   "continueLabel": "Continuer",
   "invalid": "Invalide",
   "gateUnlockHint": "Veuillez saisir le mot de passe de déverrouillage pour accéder à la zone d’inscription.",
+ "rep_area": "Zone de représentation",
 
   "cancel": "Annuler",
   "open": "Ouvrir",
