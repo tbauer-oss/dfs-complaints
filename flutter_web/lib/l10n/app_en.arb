@@ -17,6 +17,16 @@
   "returned": "returned",
   "applied": "applied",
   "injury": "injury",
+  "@@locale": "en",
+  "rep_banner_title": "Your contact (sales rep): {name}",
+  "@rep_banner_title": {
+    "placeholders": { "name": { "type": "String" } },
+  "rep_email_button": "Email",
+  "rep_email_tooltip": "Email the representative",
+  "mail_subject_rep": "Inquiry about complaint",
+  "customer_label": "Customer",
+  "country_label": "Country",
+  "internal_no_label": "Internal DFS No.",
 
   "gate_prompt": "Access code (one-time for unregistered customers)",
   "gate_password": "Password",
