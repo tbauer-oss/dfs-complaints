@@ -102,7 +102,8 @@ class ApiClient {
   }
 
   Uri _u(String path) {
-    final base = _apiBase.isEmpty ? '' : _apiBase;
+    // Wenn API_BASE leer ist (z. B. Preview/Local), nimm die aktuelle Origin
+    final base = _apiBase.isNotEmpty ? _apiBase : html.window.location.origin;
     return Uri.parse('$base$path');
   }
 
