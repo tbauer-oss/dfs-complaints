@@ -1964,7 +1964,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                   (widget.companyHint != null && widget.companyHint!.trim().isNotEmpty)
                       ? 'Firma: ${widget.companyHint}'
                       : 'E-Mail: ${widget.c.email}',
-                  style: const TextStyle(fontSize: 16, color: Colors.black54),
+                  style: const TextStyle(fontSize: 16, color: Colors.black80),
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
