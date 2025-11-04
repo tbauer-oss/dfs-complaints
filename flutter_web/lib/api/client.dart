@@ -317,7 +317,7 @@ class ApiClient {
     return raw.map(Complaint.fromJson).toList(growable: false);
   }
 
-  // ---------- NEW: Kundenbereich – Live-Updates ----------
+  // ---------- Kundenbereich – Live-Updates ----------
   /// Liefert die eigenen Reklamationen mit allen Feldern (inkl. status/decision/updatedAt).
   /// Backend: GET /api/complaint/list?details=1  (JWT erforderlich)
   Future<List<Map<String, dynamic>>> myComplaintsDetailed() async {
@@ -394,6 +394,47 @@ class ApiClient {
     final j = jsonDecode(r.body);
     return (j is Map) ? j.cast<String, dynamic>() : <String, dynamic>{};
   }
+  // Basis-URL exakt wie im AdminApi: ENV first, sonst Origin
+  String get _baseUrl {
+    final b = const String.fromEnvironment('API_BASE', defaultValue: '');
+    if (b.isNotEmpty) return b;
+    return html.window.location.origin;
+  }
+
+  // Kleiner GET-Helper für JSON – optional mit JWT
+  Future<html.HttpRequest> _get(String path, {bool auth = false}) async {
+    final headers = <String, String>{
+      'Content-Type': 'application/json; charset=utf-8',
+    };
+
+    // HINWEIS: Falls dein JWT in der Klasse anders heißt,
+    // _jwt unten bitte gegen die richtige Variable austauschen.
+    final jwt = _jwt; // <-- wenn dein Feld anders heißt: anpassen!
+    if (auth && jwt != null && jwt.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $jwt';
+    }
+
+    try {
+      final res = await html.HttpRequest.request(
+        '$_baseUrl$path',
+        method: 'GET',
+        requestHeaders: headers,
+        withCredentials: true,
+      );
+      return res;
+    } catch (e) {
+      if (e is html.ProgressEvent) {
+        final t = e.target;
+        if (t is html.HttpRequest) {
+          final st  = t.status;
+          final txt = t.responseText ?? '';
+          final stx = t.statusText ?? '';
+          throw 'HTTP $st $stx — ${txt.isEmpty ? "Request fehlgeschlagen" : txt}';
+        }
+      }
+      throw e.toString();
+    }
+  }
 }
 // ---- Rep-Model für Kundenbereich ----
 class MyRep {
@@ -410,10 +451,19 @@ class MyRep {
 
 // ---- zugewiesener Vertreter des eingeloggten Kunden
 Future<MyRep?> getMyRep() async {
-  final r = await _get('/api/rep/my', auth: true);
-  if (r.statusCode == 204) return null;           // kein Vertreter zugewiesen
-  if (r.statusCode != 200) return null;           // robust: nicht eskalieren
-  final body = (jsonDecode(r.body) as Map).cast<String,dynamic>();
-  if ((body['email'] ?? '').toString().isEmpty) return null;
-  return MyRep.fromJson(body);
-}
+    final r = await _get('/api/rep/my', auth: true);
+    if (r.status == 204 || (r.responseText ?? '').trim().isEmpty) {
+      return null; // kein Vertreter hinterlegt
+    }
+    if (r.status != 200) {
+      throw 'HTTP ${r.status} ${r.statusText} — ${r.responseText ?? ''}';
+    }
+    final Map<String, dynamic> j = jsonDecode(r.responseText!) as Map<String, dynamic>;
+    // Defensive: wenn keine sinnvollen Felder → null
+    if (((j['email'] ?? '') as String).trim().isEmpty &&
+        ((j['firstName'] ?? '') as String).trim().isEmpty &&
+        ((j['lastName'] ?? '') as String).trim().isEmpty) {
+      return null;
+    }
+    return MyRep.fromJson(j);
+  }
