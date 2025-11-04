@@ -23,23 +23,24 @@ class DashboardPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
 
+    // Farben pro Kachel (wie Admin-Optik)
     final tiles = <_Entry>[
-      _Entry(t.reportComplaint, Icons.add_circle, () {
+      _Entry(t.reportComplaint, Icons.add_circle, Colors.indigo, () {
         Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => ComplaintFormPage(api: api),
         ));
       }),
-      _Entry(t.myComplaints, Icons.list_alt, () {
+      _Entry(t.myComplaints, Icons.list_alt, Colors.teal, () {
         Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => MyComplaintsPage(api: api),
         ));
       }),
-      _Entry(t.myAccount, Icons.person, () {
+      _Entry(t.myAccount, Icons.person, Colors.cyan, () {
         Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => AccountPage(api: api),
         ));
       }),
-      _Entry(t.supportTitle, Icons.support_agent, () {
+      _Entry(t.supportTitle, Icons.support_agent, Colors.amber.shade800, () {
         Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => SupportPage(api: api),
         ));
@@ -53,19 +54,14 @@ class DashboardPage extends StatelessWidget {
           final isPortrait = MediaQuery.of(ctx).orientation == Orientation.portrait;
           final isPhone = size.width < 600;
 
-          // Zielbreiten für Kacheln (maxCrossAxisExtent). Auf dem Phone kleiner.
+          // Zielbreiten für Kacheln
           final double maxExtent = isPhone
-              ? (isPortrait ? 160 : 200) // Handy: Portrait knackig, Landscape etwas breiter
-              : (size.width < 1024 ? 220 : 240); // Tablet/Desktop
+              ? (isPortrait ? 160 : 200)
+              : (size.width < 1024 ? 220 : 240);
 
-          // Kompakt-Optik für Phones: kleinere Icons/Schrift und engeres Padding
+          // Kompakt-Optik für Phones
           final double iconSize = isPhone ? 28 : 44;
-          final double vGap = isPhone ? 8 : 10;
           final double fontSize = isPhone ? 12.5 : 14.0;
-          final EdgeInsets cardPad = EdgeInsets.symmetric(
-            horizontal: isPhone ? 6 : 10,
-            vertical: isPhone ? 8 : 12,
-          );
 
           return Center(
             child: ConstrainedBox(
@@ -76,39 +72,19 @@ class DashboardPage extends StatelessWidget {
                   maxCrossAxisExtent: maxExtent,
                   mainAxisSpacing: 12,
                   crossAxisSpacing: 12,
-                  // etwas „flacher“ auf Phones, damit mehr Kacheln auf den Screen passen
                   childAspectRatio: isPhone ? 1.05 : 1.12,
                 ),
                 itemCount: tiles.length,
                 itemBuilder: (context, i) {
                   final e = tiles[i];
-                  return Card(
-                    clipBehavior: Clip.antiAlias,
-                    child: InkWell(
-                      onTap: e.onTap,
-                      child: Padding(
-                        padding: cardPad,
-                        child: Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(e.icon, size: iconSize),
-                              SizedBox(height: vGap),
-                              Text(
-                                e.label,
-                                textAlign: TextAlign.center,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: fontSize,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
+                  return _DashTile(
+                    icon: e.icon,
+                    label: e.label,
+                    color: e.color,
+                    onTap: e.onTap,
+                    iconSize: iconSize,
+                    fontSize: fontSize,
+                    // badge: const _BusyDot(), // optional
                   );
                 },
               ),
@@ -123,6 +99,89 @@ class DashboardPage extends StatelessWidget {
 class _Entry {
   final String label;
   final IconData icon;
+  final Color color;
   final VoidCallback onTap;
-  _Entry(this.label, this.icon, this.onTap);
+  _Entry(this.label, this.icon, this.color, this.onTap);
+}
+
+/// Hübsche Kachel wie im Adminbereich (runde Ecken, Hover, Shadow)
+class _DashTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+  final Widget? badge;
+
+  // Responsive Größen (vom Dashboard übergeben)
+  final double iconSize;
+  final double fontSize;
+
+  const _DashTile({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+    this.badge,
+    this.iconSize = 44,
+    this.fontSize = 14,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final card = Card(
+      elevation: 1.5,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: InkWell(
+        onTap: onTap,
+        hoverColor: color.withOpacity(0.06),
+        splashColor: color.withOpacity(0.10),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: iconSize, color: color),
+                const SizedBox(height: 10),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: fontSize,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (badge == null) return card;
+
+    return Stack(
+      children: [
+        card,
+        Positioned(right: 10, top: 10, child: badge!),
+      ],
+    );
+  }
+}
+
+// Optionaler Busy-Indikator (kleiner Badge)
+class _BusyDot extends StatelessWidget {
+  const _BusyDot({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: 18,
+      height: 18,
+      child: CircularProgressIndicator(strokeWidth: 2),
+    );
+  }
 }
