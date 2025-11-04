@@ -19,8 +19,8 @@
   "injury": "injury",
   "@@locale": "en",
   "rep_banner_title": "Your contact (sales rep): {name}",
-  "@rep_banner_title": {
-    "placeholders": { "name": { "type": "String" } },
+  "rep_banner_title": "Your contact (sales rep): {name}",
+  "@rep_banner_title": {"placeholders": { "name": { "type": "String" } }},
   "rep_email_button": "Email",
   "rep_email_tooltip": "Email the representative",
   "mail_subject_rep": "Inquiry about complaint",
