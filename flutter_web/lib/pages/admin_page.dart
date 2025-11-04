@@ -2211,16 +2211,7 @@ class AdminApi {
   }
 
   // ---------- Representatives (Vertreter) ----------
-  Future<List<Rep>> fetchReps() async {
-    final res = await _request('GET', '/api/admin/reps');
-    if (res.status != 200) {
-      throw 'reps GET: HTTP ${res.status} ${res.responseText}';
-    }
-    final List data = jsonDecode(res.responseText ?? '[]');
-    return data.map((e) => Rep.fromJson((e as Map).cast<String, dynamic>())).toList();
-  }
-
-  Future<Rep> upsertRep({
+ Future<Rep> upsertRep({
     String? id,
     required String firstName,
     required String lastName,
