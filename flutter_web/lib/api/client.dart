@@ -31,6 +31,7 @@ class ApiClient {
   String? token;        // JWT
   String? gate;         // optionales Gate-Token
   String? adminSecret;  // für X-Admin-Secret
+  String? repToken;    // JWT für Vertreter-Login
 
   // ---------- Session persistieren ----------
   void _saveSession() {
@@ -56,6 +57,13 @@ class ApiClient {
     } else {
       ls.remove('dfs_gate');
     }
+    
+    // Rep-Token
+    if (repToken != null) {
+      ls['dfs_rep_token'] = repToken!;
+    } else {
+      ls.remove('dfs_rep_token');
+    }
   }
 
   Future<void> restoreSession() async {
@@ -63,6 +71,7 @@ class ApiClient {
     token       = ls['dfs_token'];
     adminSecret = ls['dfs_admin'];
     gate        = ls['dfs_gate'];
+    repToken   = ls['dfs_rep_token'];
   }
 
   Future<void> logout() async {
@@ -98,6 +107,16 @@ class ApiClient {
     if (adminSecret != null && adminSecret!.isNotEmpty) {
       h['X-Admin-Secret'] = adminSecret!;
     }
+    return h;
+  }
+
+    Map<String, String> _repHeaders({Map<String, String>? extra}) {
+    final h = <String, String>{
+      'Content-Type': 'application/json; charset=utf-8',
+      if (gate != null) 'X-Gate': gate!,
+      if (repToken != null) 'Authorization': 'Bearer $repToken',
+    };
+    if (extra != null) h.addAll(extra);
     return h;
   }
 
@@ -466,89 +485,74 @@ class RepMe {
   );
 }
 
-// ===== Vertreter: Session getrennt halten (eigener Token-Key) =====
-extension RepSession on ApiClient {
-  String? repToken; // eigener JWT für Vertreter
+  // ===== Vertreter-API (minimal) =====
 
-  Future<void> restoreRepSession() async {
-    final ls = html.window.localStorage;
-    repToken = ls['dfs_rep_token'];
-  }
-  void _saveRepSession() {
-    final ls = html.window.localStorage;
-    if (repToken == null) ls.remove('dfs_rep_token');
-    else                  ls['dfs_rep_token'] = repToken!;
-  }
-  Future<void> logoutRep() async {
-    repToken = null;
-    _saveRepSession();
-  }
-
-  Map<String,String> _repHeaders() => {
-    'Content-Type': 'application/json; charset=utf-8',
-    if (repToken != null) 'Authorization': 'Bearer $repToken',
-  };
-
-  // Login (liefert mustChangePw, wenn erstes/Initial-PW)
-  Future<(bool ok, bool mustChangePw)> repLogin(String email, String password) async {
-    final r = await http.post(
-      _u('/api/rep/login'),
-      headers: {'Content-Type':'application/json; charset=utf-8'},
-      body: jsonEncode({'email': email, 'password': password}),
-    );
-    if (r.statusCode != 200) return (false, false);
-    final j = jsonDecode(r.body);
-    repToken = (j['token'] ?? '').toString();
-    _saveRepSession();
-    final must = j['mustChangePw'] == true;
-    return (true, must);
+  Future<bool> repLogin(String email, String password) async {
+    final r = await _post('/api/rep/login', {'email': email, 'password': password});
+    if (r.statusCode != 200) return false;
+    try {
+      final j = jsonDecode(r.body);
+      final tok = (j is Map) ? (j['token'] ?? '').toString() : '';
+      if (tok.isEmpty) return false;
+      repToken = tok;
+      _saveSession();
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
-  Future<bool> repChangePassword(String newPw) async {
-    final r = await http.post(
-      _u('/api/rep/password'),
-      headers: _repHeaders(),
-      body: jsonEncode({'new': newPw}),
-    );
-    return r.statusCode == 200;
+  Future<void> repChangePassword(String newPw) async {
+    final r = await _post('/api/rep/password', {'new': newPw}, extraHeaders: _repHeaders());
+    if (r.statusCode != 200 && r.statusCode != 204) {
+      throw Exception('POST /api/rep/password failed: ${r.statusCode} ${r.body}');
+    }
   }
 
-  Future<RepMe?> repMe() async {
+  Future<Map<String, dynamic>> repMe() async {
     final r = await http.get(_u('/api/rep/me'), headers: _repHeaders());
-    if (r.statusCode != 200) return null;
+    if (r.statusCode != 200) throw Exception('GET /api/rep/me failed: ${r.statusCode} ${r.body}');
     final j = jsonDecode(r.body);
-    return RepMe.fromJson(j);
+    return (j is Map) ? j.cast<String, dynamic>() : <String, dynamic>{};
   }
 
   Future<List<String>> repCustomers() async {
     final r = await http.get(_u('/api/rep/customers'), headers: _repHeaders());
-    if (r.statusCode != 200) return const [];
+    if (r.statusCode != 200) throw Exception('GET /api/rep/customers failed: ${r.statusCode} ${r.body}');
     final j = jsonDecode(r.body);
-    return (j as List).cast<String>();
+    if (j is List) return j.whereType<String>().toList(growable: false);
+    return const [];
   }
 
-  Future<bool> repAssignCustomer(String email) async {
+  Future<void> repAssignCustomer(String email) async {
     final r = await http.post(
       _u('/api/rep/customers'),
       headers: _repHeaders(),
-      body: jsonEncode({'action':'assign','email': email}),
+      body: jsonEncode({'action': 'assign', 'email': email}),
     );
-    return r.statusCode == 200;
+    if (r.statusCode != 200) throw Exception('POST /api/rep/customers assign failed: ${r.statusCode} ${r.body}');
   }
-  Future<bool> repUnassignCustomer(String email) async {
+
+  Future<void> repUnassignCustomer(String email) async {
     final r = await http.post(
       _u('/api/rep/customers'),
       headers: _repHeaders(),
-      body: jsonEncode({'action':'unassign','email': email}),
+      body: jsonEncode({'action': 'unassign', 'email': email}),
     );
-    return r.statusCode == 200;
+    if (r.statusCode != 200) throw Exception('POST /api/rep/customers unassign failed: ${r.statusCode} ${r.body}');
   }
 
-  Future<List<Map<String,dynamic>>> repComplaints({String status = ''}) async {
-    final q = status.isEmpty ? '' : ('?status=${Uri.encodeQueryComponent(status)}');
-    final r = await http.get(_u('/api/rep/complaints$q'), headers: _repHeaders());
-    if (r.statusCode != 200) return const [];
+  Future<List<Map<String, dynamic>>> repComplaints() async {
+    final r = await http.get(_u('/api/rep/complaints'), headers: _repHeaders());
+    if (r.statusCode != 200) throw Exception('GET /api/rep/complaints failed: ${r.statusCode} ${r.body}');
     final j = jsonDecode(r.body);
-    return (j as List).whereType<Map>().map((e)=>e.cast<String,dynamic>()).toList();
+    if (j is List) {
+      return j.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList(growable: false);
+    }
+    return const [];
   }
-}
+
+  Future<void> repLogout() async {
+    repToken = null;
+    _saveSession();
+  }
