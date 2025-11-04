@@ -187,11 +187,11 @@ class _MyAppState extends State<MyApp> {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => RegisterPage(api: api)));
   }
 
-  void _openRepArea() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => RepLoginPage(api: api)),
-    );
-  }
+  void _openRepArea(BuildContext ctx) {
+   Navigator.of(ctx).push(
+    MaterialPageRoute(builder: (_) => RepLoginPage(api: api)),
+   );
+ }
 
   void _onLoggedIn() => setState(() => _loggedIn = true);
   void _onLoggedOut() => setState(() => _loggedIn = false);
@@ -293,11 +293,11 @@ class _MyAppState extends State<MyApp> {
                   ),
                   // <<< Eigener, interner Login-Screen – kein externer Import nötig
                   body: _LoginScreen(
-                    api: api,
-                    onLoggedIn: _onLoggedIn,
-                    onOpenRegister: () => _openRegister(ctx),
-                    onOpenAdmin: () => _openAdmin(ctx),
-                    onOpenRep: _openRepArea,
+                   api: api,
+                   onLoggedIn: _onLoggedIn,
+                   onOpenRegister: () => _openRegister(ctx),
+                   onOpenAdmin: () => _openAdmin(ctx),
+                   onOpenRep: () => _openRepArea(ctx),  // <-- NEU mit ctx
                   ),
                 );
               },
