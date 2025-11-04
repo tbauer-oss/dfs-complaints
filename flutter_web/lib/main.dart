@@ -9,6 +9,8 @@ import 'pages/login_page.dart';
 import 'pages/dashboard_page.dart';
 import 'pages/register_page.dart';
 import 'pages/admin_page.dart';
+import 'pages/rep_login_page.dart';
+import 'pages/rep_dashboard_page.dart';
 import 'widgets/lang_action.dart';
 
 void main() {
@@ -192,6 +194,22 @@ class _MyAppState extends State<MyApp> {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => RegisterPage(api: api)));
   }
 
+  void _openRepArea() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RepLoginPage(
+          api: api,
+          onLoggedIn: () {
+            // Nach erfolgreichem Vertreter-Login direkt ins Vertreter-Dashboard
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => RepDashboardPage(api: api)),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   void _onLoggedIn() => setState(() => _loggedIn = true);
   void _onLoggedOut() => setState(() => _loggedIn = false);
 
@@ -296,9 +314,10 @@ class _MyAppState extends State<MyApp> {
                   ),
                   body: LoginPage(
                     api: api,
-                    onLoggedIn: _onLoggedIn,
-                    onOpenAdmin: () => _openAdmin(ctx),
-                    onOpenRegister: () => _openRegister(ctx),
+                    onLoggedIn: _openCustomerDashboard,   // deine bestehende Funktion
+                      onOpenRegister: _openRegister,        // deine bestehende Funktion
+                      onOpenAdmin: _openAdminArea,          // deine bestehende Funktion
+                      onOpenRep: _openRepArea, 
                   ),
                 );
               },
