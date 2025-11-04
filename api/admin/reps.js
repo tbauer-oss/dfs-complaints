@@ -29,9 +29,9 @@ function requireAdmin(req, res) {
 // --------------- Upstash Redis ---------------
 import { Redis } from '@upstash/redis';
 
-// env wie in deinem store.js: REDIS_URL / REDIS_TOKEN
-const redis = (process.env.REDIS_URL && process.env.REDIS_TOKEN)
-  ? new Redis({ url: process.env.REDIS_URL, token: process.env.REDIS_TOKEN })
+// env wie in deinem store.js: UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN
+const redis = (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN)
+  ? new Redis({ url: process.UPSTASH_REDIS_REST_URL, token: process.env.UPSTASH_REDIS_REST_TOKEN })
   : null;
 
 const P = 'dfs:';                 // Prefix
@@ -87,7 +87,7 @@ export default async function handler(req, res) {
   if (!requireAdmin(req, res)) return;
 
   if (!redis) {
-    res.status(500).end(JSON.stringify({ error: 'redis not configured (REDIS_URL/REDIS_TOKEN)' }));
+    res.status(500).end(JSON.stringify({ error: 'redis not configured (UPSTASH_REDIS_REST_URL/UPSTASH_REDIS_REST_TOKEN)' }));
     return;
   }
 
