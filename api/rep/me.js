@@ -1,9 +1,9 @@
 // /api/rep/me.js
 import jwt from 'jsonwebtoken';
+import { loadRepById, repCustomers } from '../_lib/repsStore.js';
 
 const REP_SECRET = process.env.REP_JWT_SECRET;
 
-// Bearer-Token aus dem Authorization-Header extrahieren
 function getBearerToken(req) {
   const h = req.headers.authorization || '';
   if (!h.toLowerCase().startsWith('bearer ')) return '';
@@ -28,9 +28,7 @@ export default async function handler(req, res) {
     'Access-Control-Allow-Headers',
     'Content-Type, Authorization, X-Admin-Secret, X-Gate, X-Rep-Secret'
   );
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
-  }
+  if (req.method === 'OPTIONS') return res.status(204).end();
 
   if (req.method !== 'GET') {
     return res.status(405).end(JSON.stringify({ error: 'method not allowed' }));
@@ -41,26 +39,30 @@ export default async function handler(req, res) {
 
   try {
     const token = getBearerToken(req);
-    if (!token) {
+    if (!token) return res.status(401).end(JSON.stringify({ error: 'unauthorized' }));
+
+    const claims = jwt.verify(token, REP_SECRET);
+    const repId = claims?.repId;
+    if (!repId) return res.status(401).end(JSON.stringify({ error: 'unauthorized' }));
+
+    const rep = await loadRepById(repId);
+    if (!rep || rep.active === false) {
       return res.status(401).end(JSON.stringify({ error: 'unauthorized' }));
     }
 
-    // ✅ JWT prüfen
-    const decoded = jwt.verify(token, REP_SECRET);
+    const customers = await repCustomers(rep.id);
 
-    // decoded enthält die Payload aus login.js (repId, email, firstName, lastName, region, role)
-    // Hier könntest du später echte DB-Infos nachladen. Für jetzt reichen die Claims.
-    const rep = {
-      id:        decoded.repId || 'rep-secret',
-      firstName: decoded.firstName || 'DFS',
-      lastName:  decoded.lastName || 'Representative',
-      email:     decoded.email || 'rep@dfs-diamon.de',
-      region:    decoded.region || 'DACH',
-      customers: [], // später per DB befüllen
-    };
-
-    return res.status(200).end(JSON.stringify(rep));
-  } catch (e) {
+    return res.status(200).end(
+      JSON.stringify({
+        id: rep.id,
+        firstName: rep.firstName,
+        lastName: rep.lastName,
+        email: rep.email,
+        region: rep.region,
+        customers: customers || [],
+      })
+    );
+  } catch {
     return res.status(401).end(JSON.stringify({ error: 'unauthorized' }));
   }
 }
