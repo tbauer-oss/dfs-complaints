@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../api/client.dart';
 
 // ===================================================================
-// Admin Page
+// Admin Page – mit Kachel-Menü (wie Kunden-Dashboard)
 // ===================================================================
 class AdminPage extends StatefulWidget {
   final ApiClient api;
@@ -14,6 +14,8 @@ class AdminPage extends StatefulWidget {
   @override
   State<AdminPage> createState() => _AdminPageState();
 }
+
+enum _AdminView { menu, pending, users, open }
 
 class _AdminPageState extends State<AdminPage> {
   late final AdminApi _api;
@@ -36,13 +38,16 @@ class _AdminPageState extends State<AdminPage> {
   // Firmenfilter (Offene Reklamationen)
   String _filterCompany = 'Alle Firmen';
 
+  // Ansicht (Menü / Bereich)
+  _AdminView _view = _AdminView.menu;
+
   @override
   void initState() {
     super.initState();
     _api = AdminApi();
 
     // Secret zuerst aus der API (wenn über Admin-Button gekommen),
-    // sonst aus LocalStorage (dfs_admin) – so wie du es nutzt.
+    // sonst aus LocalStorage (dfs_admin).
     String secret = widget.api.adminSecret ?? '';
     if (secret.isEmpty) {
       secret = html.window.localStorage['dfs_admin'] ?? '';
@@ -158,7 +163,13 @@ class _AdminPageState extends State<AdminPage> {
   Widget build(BuildContext context) {
     if (_fatalErr != null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Adminbereich – DFS Customer Complaint')),
+        appBar: AppBar(
+          title: const Text('Adminbereich – DFS Customer Complaint'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ),
         body: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
@@ -188,61 +199,117 @@ class _AdminPageState extends State<AdminPage> {
     }.toList()
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
-    return DefaultTabController(
-      length: 3,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Adminbereich – DFS Customer Complaint'),
-          actions: [
-            IconButton(
-              tooltip: 'Alles neu laden',
-              onPressed: () async {
-                await _refreshAll();
-                await _refreshOpen();
-              },
-              icon: const Icon(Icons.refresh),
-            ),
-            const SizedBox(width: 6),
-          ],
-          bottom: const TabBar(
-            tabs: [
-              Tab(icon: Icon(Icons.hourglass_top), text: 'Pending'),
-              Tab(icon: Icon(Icons.people), text: 'Aktive Nutzer'),
-              Tab(icon: Icon(Icons.receipt_long), text: 'Offene Reklamationen'),
-            ],
-          ),
-        ),
-        body: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1200),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                children: [
-                  if (_err != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Text(_err!, style: TextStyle(color: theme.colorScheme.error)),
-                    ),
-                  Expanded(
-                    child: TabBarView(
-                      children: [
-                        _buildPendingPanel(),
-                        _buildUsersPanel(),
-                        _buildOpenPanel(companies),
-                      ],
-                    ),
-                  ),
-                ],
+    final title = switch (_view) {
+      _AdminView.menu    => 'Adminbereich – DFS Customer Complaint',
+      _AdminView.pending => 'Pending (Freigabe ausstehend)',
+      _AdminView.users   => 'Aktive Nutzer',
+      _AdminView.open    => 'Offene Reklamationen',
+    };
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(title),
+        leading: _view == _AdminView.menu
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => Navigator.of(context).pop(),
+              )
+            : IconButton(
+                icon: const Icon(Icons.home_outlined),
+                tooltip: 'Zurück zum Admin-Menü',
+                onPressed: () => setState(() => _view = _AdminView.menu),
               ),
-            ),
+        actions: [
+          IconButton(
+            tooltip: 'Alles neu laden',
+            onPressed: () async {
+              await _refreshAll();
+              await _refreshOpen();
+            },
+            icon: const Icon(Icons.refresh),
+          ),
+          const SizedBox(width: 6),
+        ],
+      ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1200),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: _buildBody(theme, companies),
           ),
         ),
       ),
     );
   }
 
-  // Panels ------------------------------------------------------------
+  Widget _buildBody(ThemeData theme, List<String> companies) {
+    if (_err != null) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(_err!, style: TextStyle(color: theme.colorScheme.error)),
+          const SizedBox(height: 8),
+          Expanded(child: _view == _AdminView.menu ? _buildMenu() : _buildView(companies)),
+        ],
+      );
+    }
+    return _view == _AdminView.menu ? _buildMenu() : _buildView(companies);
+  }
+
+  // ------------------ Kachel-Menü ------------------
+  Widget _buildMenu() {
+    final w = MediaQuery.of(context).size.width;
+    final cross = w > 900 ? 4 : (w > 600 ? 3 : 2);
+
+    final tiles = <_AdminTile>[
+      _AdminTile(
+        icon: Icons.hourglass_top,
+        label: 'Pending',
+        color: Colors.amber,
+        onTap: () => setState(() => _view = _AdminView.pending),
+        badge: _loadPending ? const _BusyDot() : null,
+      ),
+      _AdminTile(
+        icon: Icons.people,
+        label: 'Aktive Nutzer',
+        color: Colors.cyan,
+        onTap: () => setState(() => _view = _AdminView.users),
+        badge: _loadUsers ? const _BusyDot() : null,
+      ),
+      _AdminTile(
+        icon: Icons.receipt_long,
+        label: 'Offene Reklamationen',
+        color: Colors.indigo,
+        onTap: () => setState(() => _view = _AdminView.open),
+        badge: _loadOpen ? const _BusyDot() : null,
+      ),
+    ];
+
+    return GridView.count(
+      padding: const EdgeInsets.all(16),
+      crossAxisCount: cross,
+      crossAxisSpacing: 16,
+      mainAxisSpacing: 16,
+      children: [
+        for (final t in tiles) t,
+      ],
+    );
+  }
+
+  // ------------------ Panel-Ansichten ------------------
+  Widget _buildView(List<String> companies) {
+    switch (_view) {
+      case _AdminView.pending:
+        return _buildPendingPanel();
+      case _AdminView.users:
+        return _buildUsersPanel();
+      case _AdminView.open:
+        return _buildOpenPanel(companies);
+      case _AdminView.menu:
+        return const SizedBox.shrink();
+    }
+  }
 
   Widget _buildPendingPanel() {
     return Card(
@@ -429,15 +496,14 @@ class _AdminPageState extends State<AdminPage> {
               DropdownButton<String>(
                 value: _filterCompany,
                 onChanged: (v) => setState(() => _filterCompany = v ?? 'Alle Firmen'),
-                items: companies
-                    .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
-                    .toList(),
+                items: companies.map((s) => DropdownMenuItem<String>(value: s, child: Text(s))).toList(),
               ),
               const SizedBox(width: 8),
-              if (_loadOpen) const Padding(
-                padding: EdgeInsets.only(right: 8),
-                child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-              ),
+              if (_loadOpen)
+                const Padding(
+                  padding: EdgeInsets.only(right: 8),
+                  child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                ),
               IconButton(
                 tooltip: 'Neu laden',
                 onPressed: _loadOpen ? null : _refreshOpen,
@@ -470,6 +536,73 @@ class _AdminPageState extends State<AdminPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ===================================================================
+// Menü-Kachel
+// ===================================================================
+class _AdminTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+  final Widget? badge;
+
+  const _AdminTile({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+    this.badge,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final card = Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 44, color: color),
+                const SizedBox(height: 10),
+                Text(
+                  label,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (badge == null) return card;
+
+    return Stack(
+      children: [
+        card,
+        Positioned(right: 10, top: 10, child: badge!),
+      ],
+    );
+  }
+}
+
+class _BusyDot extends StatelessWidget {
+  const _BusyDot();
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: 14,
+      height: 14,
+      child: CircularProgressIndicator(strokeWidth: 2),
     );
   }
 }
@@ -865,7 +998,6 @@ class AdminComplaint {
   int status;               // 1..6 (mutierbar für UI)
   String? decision;         // 'accepted' | 'rejected' | null
   String? reportLink;
-  String? internalNo;
 
   // komplettes Payload vom Backend (für Wunsch etc.)
   final Map<String, dynamic>? payload;
@@ -878,7 +1010,6 @@ class AdminComplaint {
     required this.status,
     this.decision,
     this.reportLink,
-    this.internalNo,
     this.payload,
   });
 
@@ -900,7 +1031,6 @@ class AdminComplaint {
           ? null
           : j['decision']?.toString(),
       reportLink: j['reportLink']?.toString(),
-      internalNo: j['internalNo']?.toString(),
       payload: (j['payload'] is Map)
           ? (j['payload'] as Map).cast<String, dynamic>()
           : null,
@@ -915,7 +1045,6 @@ class AdminComplaint {
         'status': status,
         'decision': decision,
         'reportLink': reportLink,
-        'internalNo': internalNo,
         'payload': payload,
       };
 
@@ -924,7 +1053,7 @@ class AdminComplaint {
     if (p == null) return '—';
     final v = p['handling'] ?? p['Wunsch'] ?? '';
     final s = v.toString().trim();
-    return s.isEmpty ? '—' : s;
+    return s.isEmpty ? '—' : s; // Ersatz | Gutschrift | Nacharbeit
   }
 }
 
@@ -985,7 +1114,6 @@ class _ComplaintDetailsDialog extends StatelessWidget {
                 row('Beschreibung', (payload['desc'] ?? '').toString()),
                 row('Produkte zurückgeschickt?', (payload['returned'] ?? '').toString()),
                 row('Gewünschte Behandlung', (payload['handling'] ?? '').toString()),
-                row('Interne DFS-Nr.', (data['internalNo'] ?? '').toString()),
                 if ((payload['applied'] ?? '') != '')
                   row('Am Patienten angewendet?', (payload['applied'] ?? '').toString()),
                 if ((payload['injury'] ?? '') != '')
@@ -1025,15 +1153,16 @@ class _ComplaintEditor extends StatefulWidget {
 
 class _ComplaintEditorState extends State<_ComplaintEditor> {
   final _reportCtrl = TextEditingController();
-  final _dfsNoCtrl  = TextEditingController();
   bool _busy = false;
   bool _expanded = false;
+
+  int? _status; // 1..6
+  String? _decision; // null | accepted | rejected
 
   @override
   void initState() {
     super.initState();
     _reportCtrl.text = widget.c.reportLink ?? '';
-    _dfsNoCtrl.text  = widget.c.internalNo ?? '';
     _status = widget.c.status;
     _decision = widget.c.decision;
   }
@@ -1041,12 +1170,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   @override
   void dispose() {
     _reportCtrl.dispose();
-    _dfsNoCtrl.dispose();
     super.dispose();
   }
-
-  int? _status; // 1..6
-  String? _decision; // null | accepted | rejected
 
   Future<void> _saveReportLink() async {
     setState(() => _busy = true);
@@ -1127,30 +1252,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     }
   }
 
-    Future<void> _saveInternalNumber() async {
-      setState(() => _busy = true);
-      try {
-        final no = _dfsNoCtrl.text.trim();
-        final updated = await widget.api.adminComplaintUpdate(
-          ticket: widget.c.ticket,
-          internalNo: no,  // leerer String = löschen
-        );
-        widget.c.internalNo = updated.internalNo;
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Interne Reklamationsnummer gespeichert.')),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
-        }
-      } finally {
-        if (mounted) setState(() => _busy = false);
-      }
-    }
-
   Future<void> _deleteComplaint() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -1182,10 +1283,9 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   String _statusLabel(int v) {
     final m = kStatusItems.firstWhere((e) => e['value'] == v, orElse: () => const {});
     return (m['label'] ?? 'Status $v').toString();
-    }
+  }
 
-   // --- Mail-Helfer ----------------------------------------------------------
-
+  // --- E-Mail an Kunden ------------------------------------------------
   String _buildMailSubject(AdminComplaint c) {
     final wish = c.handlingLabel == '—' ? '' : ' – ${c.handlingLabel}';
     return '[DFS Complaint ${c.ticket}] Rückfrage zu Ihrer Reklamation$wish';
@@ -1194,7 +1294,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   String _buildMailBody(AdminComplaint c) {
     final p = c.payload ?? const <String, dynamic>{};
     final company = (widget.companyHint ?? '').trim();
-    final greet = company.isNotEmpty ? 'Guten Tag $company,' : 'Guten Tag,';    
+    final greet = company.isNotEmpty ? 'Guten Tag $company,' : 'Guten Tag,';
 
     String line(String k, Object? v) {
       final s = (v ?? '').toString().trim();
@@ -1267,16 +1367,11 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
         '?subject=${Uri.encodeComponent(subject)}'
         '&body=${Uri.encodeComponent(body)}';
 
-    // Browser-Compose öffnen
     html.window.open(url, '_self');
   }
 
   @override
   Widget build(BuildContext context) {
-    final right = (widget.companyHint != null && widget.companyHint!.trim().isNotEmpty)
-        ? 'Firma: ${widget.companyHint}'
-        : 'E-Mail: ${widget.c.email}';
-
     final wish = widget.c.handlingLabel;
     Color wishCol;
     switch (wish) {
@@ -1301,34 +1396,34 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Kopfzeile (Ticket + Aktionen + rechter Hinweis)
-                Row(
-                  children: [
-                    Text(
-                      'Ticket: ${widget.c.ticket}',
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    const Spacer(),
-
-                    // Mail an Kunden
-                    Tooltip(
-                      message: 'E-Mail an Kunden verfassen',
-                      child: IconButton(
-                        icon: const Icon(Icons.email_outlined),
-                        onPressed: _busy ? null : _composeMailToCustomer,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-
-                    // rechter Hinweis (Firma oder E-Mail)
-                    Text(
-                      (widget.companyHint != null && widget.companyHint!.trim().isNotEmpty)
-                          ? 'Firma: ${widget.companyHint}'
-                          : 'E-Mail: ${widget.c.email}',
-                      style: const TextStyle(fontSize: 12, color: Colors.black54),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+            Row(
+              children: [
+                Text(
+                  'Ticket: ${widget.c.ticket}',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
+                const Spacer(),
+
+                // Mail an Kunden
+                Tooltip(
+                  message: 'E-Mail an Kunden verfassen',
+                  child: IconButton(
+                    icon: const Icon(Icons.email_outlined),
+                    onPressed: _busy ? null : _composeMailToCustomer,
+                  ),
+                ),
+                const SizedBox(width: 8),
+
+                // rechter Hinweis (Firma oder E-Mail)
+                Text(
+                  (widget.companyHint != null && widget.companyHint!.trim().isNotEmpty)
+                      ? 'Firma: ${widget.companyHint}'
+                      : 'E-Mail: ${widget.c.email}',
+                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
             const SizedBox(height: 8),
 
             // Wunsch-Flag
@@ -1358,20 +1453,13 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                 Text('Status: ${_statusLabel(widget.c.status)}'),
                 const SizedBox(width: 12),
                 Text('Entscheidung: ${widget.c.decision?.toString() == 'accepted' ? 'Angenommen' : widget.c.decision == 'rejected' ? 'Abgelehnt' : '—'}'),
-                const SizedBox(width: 12),
-                Flexible(
-                  child: Text(
-                    'Interne Nr.: ${widget.c.internalNo?.isNotEmpty == true ? widget.c.internalNo : '—'}',
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
                 const Spacer(),
                 TextButton.icon(
                   onPressed: () => setState(() => _expanded = !_expanded),
                   icon: Icon(_expanded ? Icons.expand_less : Icons.edit),
                   label: Text(_expanded ? 'Bearbeiten schließen' : 'Bearbeiten'),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 4),
                 IconButton(
                   tooltip: 'Details anzeigen',
                   onPressed: () async {
@@ -1434,23 +1522,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                 ],
               ),
               const SizedBox(height: 12),
-              TextField(
-                controller: _dfsNoCtrl,
-                enabled: widget.c.status != 6, // bei „Abgeschlossen“ sperren
-                decoration: InputDecoration(
-                  labelText: 'Interne DFS-Reklamationsnummer',
-                  hintText: 'z. B. R820-25-034',
-                  border: const OutlineInputBorder(),
-                  suffixIcon: IconButton(
-                    tooltip: 'Speichern',
-                    icon: const Icon(Icons.save_outlined),
-                    onPressed: _busy ? null : _saveInternalNumber,
-                  ),
-                ),
-                onSubmitted: (_) => _saveInternalNumber(),
-              ),
-              const SizedBox(height: 12),
-              
               TextField(
                 controller: _reportCtrl,
                 decoration: InputDecoration(
@@ -1609,13 +1680,11 @@ class AdminApi {
     int? status,
     String? decision,
     String? reportLink,
-    String? internalNo,
   }) async {
     final body = <String, dynamic>{'ticket': ticket};
     if (status != null) body['status'] = status;
     body['decision'] = decision ?? '';
     if (reportLink != null) body['reportLink'] = reportLink;
-    if (internalNo != null) body['internalNo'] = internalNo;
 
     final res = await _request('POST', '/api/admin/complaints', body: body);
     if (res.status != 200) {
