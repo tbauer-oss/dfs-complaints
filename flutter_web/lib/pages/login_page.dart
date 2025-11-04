@@ -1,254 +1,179 @@
-// lib/pages/login_page.dart
+// lib/pages/rep_login_page.dart
 import 'package:flutter/material.dart';
 import '../api/client.dart';
-import '../l10n/app_localizations.dart';
+import 'rep_dashboard_page.dart';
 
-class LoginPage extends StatefulWidget {
+class RepLoginPage extends StatefulWidget {
   final ApiClient api;
-  final VoidCallback onLoggedIn;
-  final VoidCallback onOpenRegister;
-  final VoidCallback onOpenAdmin;
-  final VoidCallback onOpenRep;
-
-  const LoginPage({
-    super.key,
-    required this.api,
-    required this.onLoggedIn,
-    required this.onOpenRegister,
-    required this.onOpenAdmin,
-    required this.onOpenRep,
-  });
+  const RepLoginPage({super.key, required this.api});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  State<RepLoginPage> createState() => _RepLoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _RepLoginPageState extends State<RepLoginPage> {
   final _email = TextEditingController();
-  final _pw = TextEditingController();
+  final _pw    = TextEditingController();
+  final _new1  = TextEditingController();
+  final _new2  = TextEditingController();
+
   bool _busy = false;
-  bool _repCheckBusy = true;
   String? _err;
 
-  final Color dfsBlue = const Color(0xFF005A9C); // DFS-Blau
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _autoOpenRepIfValid());
-  }
-
-  Future<void> _autoOpenRepIfValid() async {
-    setState(() => _repCheckBusy = true);
+  Future<void> _login() async {
+    setState(() { _busy = true; _err = null; });
     try {
-      await widget.api.restoreSession();
-      final tok = widget.api.repToken;
-      if (tok != null && tok.isNotEmpty) {
-        try {
-          await widget.api.repMe();
-          if (!mounted) return;
-          widget.onOpenRep();
-          return;
-        } catch (_) {
-          await widget.api.repLogout();
-        }
+      final ok = await widget.api.repLogin(_email.text.trim(), _pw.text);
+      if (!ok) {
+        setState(() => _err = 'Login fehlgeschlagen.');
+        return;
       }
-    } finally {
-      if (mounted) setState(() => _repCheckBusy = false);
-    }
-  }
 
-  Future<void> _doLogin() async {
-    setState(() {
-      _busy = true;
-      _err = null;
-    });
-    try {
-      final ok = await widget.api.login(_email.text.trim(), _pw.text);
-      if (ok) {
-        widget.onLoggedIn();
-      } else {
-        setState(() => _err =
-            AppLocalizations.of(context)?.loginFailed ?? 'Login fehlgeschlagen.');
-      }
+      // Hinweis: Falls du "mustChangePw" erzwingen willst,
+      // kannst du das Backend-Flag später in ApiClient.repLogin zurückgeben
+      // und hier abfragen. Aktuell navigieren wir direkt ins Dashboard.
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => RepDashboardPage(api: widget.api)),
+      );
     } catch (e) {
-      setState(() => _err = '$e');
+      setState(() => _err = 'Netzwerk-/Serverfehler: $e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
+  Future<void> _showChangePasswordDialog() async {
+    _new1.clear();
+    _new2.clear();
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        bool saving = false;
+        String? localErr;
+
+        Future<void> save() async {
+          if (saving) return;
+          final a = _new1.text.trim();
+          final b = _new2.text.trim();
+          if (a.isEmpty || b.isEmpty) {
+            localErr = 'Bitte neues Passwort in beiden Feldern eingeben.';
+            (ctx as Element).markNeedsBuild();
+            return;
+          }
+          if (a != b) {
+            localErr = 'Passwörter stimmen nicht überein.';
+            (ctx as Element).markNeedsBuild();
+            return;
+          }
+          saving = true;
+          (ctx as Element).markNeedsBuild();
+          try {
+            await widget.api.repChangePassword(a);
+            if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Passwort wurde geändert.')),
+            );
+          } catch (e) {
+            localErr = 'Fehler: $e';
+            saving = false;
+            (ctx as Element).markNeedsBuild();
+          }
+        }
+
+        return AlertDialog(
+          title: const Text('Neues Passwort setzen'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _new1,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'Neues Passwort'),
+              ),
+              TextField(
+                controller: _new2,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'Neues Passwort (Wiederholung)'),
+              ),
+              if (localErr != null) ...[
+                const SizedBox(height: 8),
+                Text(localErr!, style: const TextStyle(color: Colors.red)),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: saving ? null : () => Navigator.of(ctx).pop(),
+              child: const Text('Abbrechen'),
+            ),
+            ElevatedButton(
+              onPressed: saving ? null : save,
+              child: saving
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Speichern'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final t = AppLocalizations.of(context);
-    final repLoggedIn = (widget.api.repToken ?? '').isNotEmpty;
+    final canLogin = !_busy && _email.text.trim().isNotEmpty && _pw.text.isNotEmpty;
 
     return Scaffold(
-      backgroundColor: Colors.grey[100],
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [dfsBlue.withOpacity(0.95), dfsBlue.withOpacity(0.75)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        alignment: Alignment.center,
+      appBar: AppBar(title: const Text('Vertreter-Login')),
+      body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 460),
-          child: Card(
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-            elevation: 12,
-            margin: const EdgeInsets.all(24),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: AutofillGroup(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Logo / Titel
-                  Column(
-                    children: [
-                      const Icon(Icons.medical_services_rounded,
-                          color: Color(0xFF005A9C), size: 64),
-                      const SizedBox(height: 8),
-                      Text(
-                        'DFS-Customer Complaint',
-                        style: TextStyle(
-                          color: dfsBlue,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 22,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Loginbereich',
-                        style: TextStyle(
-                            color: Colors.black54,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w400),
-                      ),
-                      const Divider(height: 28, thickness: 1),
-                    ],
-                  ),
-
-                  // Admin- & Vertreterzugang
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed:
-                            _busy ? null : widget.onOpenAdmin,
-                        icon: const Icon(Icons.admin_panel_settings_outlined),
-                        label: const Text('Admin'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: dfsBlue,
-                          side: BorderSide(color: dfsBlue.withOpacity(0.5)),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      OutlinedButton.icon(
-                        onPressed:
-                            (_busy || _repCheckBusy) ? null : widget.onOpenRep,
-                        icon: const Icon(Icons.handshake_outlined),
-                        label: Text(repLoggedIn
-                            ? 'Vertreter (aktiv)'
-                            : 'Vertreter'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: dfsBlue,
-                          side: BorderSide(color: dfsBlue.withOpacity(0.5)),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Eingabefelder
                   TextField(
                     controller: _email,
+                    autofillHints: const [AutofillHints.username, AutofillHints.email],
                     keyboardType: TextInputType.emailAddress,
-                    decoration: InputDecoration(
-                      labelText: t?.email ?? 'E-Mail*',
-                      prefixIcon:
-                          const Icon(Icons.email_outlined, color: Colors.grey),
-                      border: const OutlineInputBorder(),
-                      enabledBorder: OutlineInputBorder(
-                        borderSide:
-                            BorderSide(color: dfsBlue.withOpacity(0.3)),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    enabled: !_busy && !_repCheckBusy,
+                    decoration: const InputDecoration(labelText: 'E-Mail'),
+                    onChanged: (_) => setState(() {}),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 12),
                   TextField(
                     controller: _pw,
                     obscureText: true,
-                    decoration: InputDecoration(
-                      labelText: t?.password ?? 'Passwort*',
-                      prefixIcon:
-                          const Icon(Icons.lock_outline, color: Colors.grey),
-                      border: const OutlineInputBorder(),
-                      enabledBorder: OutlineInputBorder(
-                        borderSide:
-                            BorderSide(color: dfsBlue.withOpacity(0.3)),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    enabled: !_busy && !_repCheckBusy,
+                    autofillHints: const [AutofillHints.password],
+                    decoration: const InputDecoration(labelText: 'Passwort'),
+                    onChanged: (_) => setState(() {}),
+                    onSubmitted: (_) => canLogin ? _login() : null,
                   ),
-                  const SizedBox(height: 18),
-
-                  // Login-Button
+                  const SizedBox(height: 16),
+                  if (_err != null)
+                    Text(_err!, style: const TextStyle(color: Colors.red)),
+                  const SizedBox(height: 8),
                   SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: dfsBlue,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        elevation: 4,
-                      ),
-                      onPressed: (_busy || _repCheckBusy) ? null : _doLogin,
-                      child: (_busy || _repCheckBusy)
+                    child: ElevatedButton.icon(
+                      icon: _busy
                           ? const SizedBox(
-                              height: 18,
-                              width: 18,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white),
-                            )
-                          : const Text(
-                              'Login',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w600, fontSize: 16),
-                            ),
+                              width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.login),
+                      label: const Text('Anmelden'),
+                      onPressed: canLogin ? _login : null,
                     ),
                   ),
-
-                  if (_err != null) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      _err!,
-                      style:
-                          const TextStyle(color: Colors.red, fontSize: 13),
-                    ),
-                  ],
-
-                  const SizedBox(height: 22),
-
-                  // Registrieren
+                  const SizedBox(height: 8),
+                  // Optional: Passwort ändern (setzt vorhandenes Vertreter-Token voraus – also nach Login sinnvoll)
                   TextButton.icon(
-                    icon: const Icon(Icons.person_add_alt, color: Colors.black54),
-                    label: Text(
-                      t?.register ?? 'Registrieren',
-                      style: const TextStyle(color: Colors.black54),
-                    ),
-                    onPressed:
-                        (_busy || _repCheckBusy) ? null : widget.onOpenRegister,
+                    onPressed: _busy ? null : _showChangePasswordDialog,
+                    icon: const Icon(Icons.lock_reset),
+                    child: const Text('Passwort ändern'),
                   ),
                 ],
               ),
