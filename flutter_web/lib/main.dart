@@ -6,8 +6,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'api/client.dart';
 import 'l10n/app_localizations.dart';
 
-// >>> Nur die benötigten Klassen reinlassen:
-import 'pages/login_page.dart' show LoginPage;
+// WICHTIG: Keine login_page.dart mehr importieren!
+// import 'pages/login_page.dart'  <-- entfernt
 import 'pages/register_page.dart';
 import 'pages/admin_page.dart';
 import 'pages/dashboard_page.dart';
@@ -188,7 +188,6 @@ class _MyAppState extends State<MyApp> {
   }
 
   void _openRepArea() {
-    // RepLoginPage hat KEINEN onLoggedIn-Parameter → nur öffnen.
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => RepLoginPage(api: api)),
     );
@@ -292,9 +291,10 @@ class _MyAppState extends State<MyApp> {
                       _themeMenu(),
                     ],
                   ),
-                  body: LoginPage(
+                  // <<< Eigener, interner Login-Screen – kein externer Import nötig
+                  body: _LoginScreen(
                     api: api,
-                    onLoggedIn: _onLoggedIn,                // setzt _loggedIn = true
+                    onLoggedIn: _onLoggedIn,
                     onOpenRegister: () => _openRegister(ctx),
                     onOpenAdmin: () => _openAdmin(ctx),
                     onOpenRep: _openRepArea,
@@ -302,6 +302,129 @@ class _MyAppState extends State<MyApp> {
                 );
               },
             ),
+    );
+  }
+}
+
+// =======================
+// Interner Login-Screen
+// =======================
+class _LoginScreen extends StatefulWidget {
+  final ApiClient api;
+  final VoidCallback onLoggedIn;
+  final VoidCallback onOpenRegister;
+  final VoidCallback onOpenAdmin;
+  final VoidCallback onOpenRep;
+
+  const _LoginScreen({
+    required this.api,
+    required this.onLoggedIn,
+    required this.onOpenRegister,
+    required this.onOpenAdmin,
+    required this.onOpenRep,
+  });
+
+  @override
+  State<_LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<_LoginScreen> {
+  final _email = TextEditingController();
+  final _pw    = TextEditingController();
+  bool _busy = false;
+  String? _err;
+
+  Future<void> _doLogin() async {
+    setState(() { _busy = true; _err = null; });
+    try {
+      final ok = await widget.api.login(_email.text.trim(), _pw.text); // <-- kleingeschrieben!
+      if (!mounted) return;
+      if (ok) {
+        widget.onLoggedIn();
+      } else {
+        setState(() => _err = AppLocalizations.of(context)!.invalid);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _err = e.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _email,
+                decoration: InputDecoration(
+                  labelText: t.email,
+                  border: const OutlineInputBorder(),
+                ),
+                enabled: !_busy,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _pw,
+                obscureText: true,
+                decoration: InputDecoration(
+                  labelText: t.password,
+                  border: const OutlineInputBorder(),
+                ),
+                onSubmitted: (_) => _busy ? null : _doLogin(),
+                enabled: !_busy,
+              ),
+              const SizedBox(height: 16),
+              if (_err != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(_err!, style: const TextStyle(color: Colors.red)),
+                ),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _busy ? null : _doLogin,
+                  child: _busy
+                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : Text(t.login),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                alignment: WrapAlignment.center,
+                children: [
+                  TextButton.icon(
+                    icon: const Icon(Icons.person_add_alt),
+                    onPressed: _busy ? null : widget.onOpenRegister,
+                    label: Text(t.register),
+                  ),
+                  TextButton.icon(
+                    icon: const Icon(Icons.admin_panel_settings),
+                    onPressed: _busy ? null : widget.onOpenAdmin,
+                    label: Text(t.admin_area),
+                  ),
+                  TextButton.icon(
+                    icon: const Icon(Icons.handshake),
+                    onPressed: _busy ? null : widget.onOpenRep,
+                    label: Text(t.rep_area ?? 'Vertreter'), // falls Key nicht existiert
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
