@@ -23,6 +23,8 @@ String _extractMessage(String body) {
   }
 }
 
+bool _ok2xx(int s) => s >= 200 && s < 300;
+
 class ApiClient {
   // ---------- Konfiguration ----------
   static const String _apiBase =
@@ -114,7 +116,7 @@ class ApiClient {
     final h = <String, String>{
       'Content-Type': 'application/json; charset=utf-8',
       if (gate != null) 'X-Gate': gate!,
-      if (repToken != null) 'Authorization': 'Bearer $repToken',
+      if (repToken != null && repToken!.isNotEmpty) 'Authorization': 'Bearer $repToken',
     };
     if (extra != null) h.addAll(extra);
     return h;
@@ -167,7 +169,7 @@ class ApiClient {
   // ---------- Gate ----------
   Future<bool> gateUnlock(String password) async {
     final r = await _post('/api/gate', {'password': password});
-    if (r.statusCode != 200) return false;
+    if (!_ok2xx(r.statusCode)) return false;
     try {
       final j = jsonDecode(r.body);
       if (j is Map && j['gate'] is String) {
@@ -189,7 +191,7 @@ class ApiClient {
   // ---------- Auth (Kunden) ----------
   Future<bool> login(String email, String password) async {
     final r = await _post('/api/auth/login', {'email': email, 'password': password});
-    if (r.statusCode != 200) return false;
+    if (!_ok2xx(r.statusCode)) return false;
     final j = jsonDecode(r.body);
     if (j is Map && j['token'] is String) {
       token = j['token'] as String;
@@ -202,9 +204,7 @@ class ApiClient {
   /// Registrierung: `null` = Erfolg, sonst Fehlermeldung
   Future<String?> register(Map<String, dynamic> data) async {
     final r = await _post('/api/auth/register', data);
-    if (r.statusCode == 200 || r.statusCode == 201) {
-      return null;
-    }
+    if (_ok2xx(r.statusCode)) return null;
     try {
       final body = r.body;
       if (body.isNotEmpty) return body;
@@ -215,7 +215,7 @@ class ApiClient {
   // ---------- Account ----------
   Future<Map<String, dynamic>> accountGet() async {
     final r = await _get('/api/account', auth: true);
-    if (r.statusCode != 200) {
+    if (!_ok2xx(r.statusCode)) {
       throw Exception('GET /api/account failed: ${r.statusCode} ${r.body}');
     }
     final j = jsonDecode(r.body);
@@ -225,21 +225,21 @@ class ApiClient {
   Future<void> accountUpdate(Map<String, dynamic> data) async {
     // 1) Primär: PUT /api/account
     var r = await _put('/api/account', data, auth: true);
-    if (r.statusCode == 200) return;
+    if (_ok2xx(r.statusCode)) return;
 
     // 2) Fallback: PATCH /api/account (falls PUT nicht erlaubt)
     if (r.statusCode == 405 || r.statusCode == 404) {
       r = await _patch('/api/account', data, auth: true);
-      if (r.statusCode == 200) return;
+      if (_ok2xx(r.statusCode)) return;
 
       // 3) Fallback: POST /api/account/update oder POST /api/account
       if (r.statusCode == 405 || r.statusCode == 404) {
         r = await _post('/api/account/update', data, auth: true);
-        if (r.statusCode == 200) return;
+        if (_ok2xx(r.statusCode)) return;
 
         if (r.statusCode == 405 || r.statusCode == 404) {
           r = await _post('/api/account', data, auth: true);
-          if (r.statusCode == 200) return;
+          if (_ok2xx(r.statusCode)) return;
         }
       }
     }
@@ -250,7 +250,7 @@ class ApiClient {
   Future<void> accountDelete(String password) async {
     // 1) Primär: DELETE /api/account (204 = Erfolg)
     var r = await _delete('/api/account', body: {'password': password}, auth: true);
-    if (r.statusCode == 200 || r.statusCode == 204) {
+    if (_ok2xx(r.statusCode)) {
       await logout();
       return;
     }
@@ -258,7 +258,7 @@ class ApiClient {
     // 2) Fallback: POST /api/account/delete
     if (r.statusCode == 405 || r.statusCode == 404) {
       r = await _post('/api/account/delete', {'password': password}, auth: true);
-      if (r.statusCode == 200 || r.statusCode == 204) {
+      if (_ok2xx(r.statusCode)) {
         await logout();
         return;
       }
@@ -269,7 +269,7 @@ class ApiClient {
 
   Future<void> accountChangePassword(String oldPw, String newPw) async {
     final r = await _post('/api/account/password', {'old': oldPw, 'new': newPw}, auth: true);
-    if (r.statusCode != 200) {
+    if (!_ok2xx(r.statusCode)) {
       throw Exception('POST /api/account/password failed: ${r.statusCode} ${r.body}');
     }
   }
@@ -285,7 +285,7 @@ class ApiClient {
       'message': message,
       'consent': consent,
     }, auth: true);
-    if (r.statusCode != 200 && r.statusCode != 201) {
+    if (!_ok2xx(r.statusCode)) {
       throw Exception('POST /api/support failed: ${r.statusCode} ${r.body}');
     }
   }
@@ -303,13 +303,13 @@ class ApiClient {
             })
         .toList();
 
-    // 🔧 Richtiger Pfad (Singular + create)
+    // Richtiger Pfad (Singular + create)
     final r = await _post('/api/complaint/create', {
       'payload': data,
       if (encFiles.isNotEmpty) 'files': encFiles,
     }, auth: true);
 
-    if (r.statusCode != 200 && r.statusCode != 201) {
+    if (!_ok2xx(r.statusCode)) {
       return null;
     }
     final j = jsonDecode(r.body);
@@ -317,9 +317,9 @@ class ApiClient {
   }
 
   Future<List<Map<String, dynamic>>> complaintListRaw() async {
-    // 🔧 Richtiger Pfad (Singular)
+    // Richtiger Pfad (Singular)
     final r = await _get('/api/complaint/mine', auth: true);
-    if (r.statusCode != 200) {
+    if (!_ok2xx(r.statusCode)) {
       throw Exception('GET /api/complaint/mine failed: ${r.statusCode} ${r.body}');
     }
     final j = jsonDecode(r.body);
@@ -340,7 +340,7 @@ class ApiClient {
   // ---------- Kundenbereich – Live-Updates ----------
   Future<List<Map<String, dynamic>>> myComplaintsDetailed() async {
     final r = await _get('/api/complaint/list?details=1', auth: true);
-    if (r.statusCode != 200) {
+    if (!_ok2xx(r.statusCode)) {
       throw Exception('GET /api/complaint/list?details=1 failed: ${r.statusCode} ${r.body}');
     }
     final List data = jsonDecode(r.body);
@@ -349,7 +349,7 @@ class ApiClient {
 
   Future<Map<String, dynamic>> myComplaintByTicket(String ticket) async {
     final r = await _get('/api/complaint/get?ticket=$ticket', auth: true);
-    if (r.statusCode != 200) {
+    if (!_ok2xx(r.statusCode)) {
       throw Exception('GET /api/complaint/get failed: ${r.statusCode} ${r.body}');
     }
     return (jsonDecode(r.body) as Map).cast<String, dynamic>();
@@ -363,7 +363,7 @@ class ApiClient {
         '/api/admin/pending',
         extra: {'X-Admin-Secret': secret.trim()},
       );
-      return r.statusCode == 200;
+      return _ok2xx(r.statusCode);
     } catch (_) {
       return false;
     }
@@ -376,7 +376,7 @@ class ApiClient {
     try {
       final r = await _get('/api/rep/my', auth: true);
       if (r.statusCode == 204) return null;          // kein Vertreter
-      if (r.statusCode != 200) return null;          // still schlucken, Banner dann nicht anzeigen
+      if (!_ok2xx(r.statusCode)) return null;         // still schlucken, Banner dann nicht anzeigen
       final body = r.body.trim();
       if (body.isEmpty) return null;
 
@@ -393,10 +393,12 @@ class ApiClient {
   }
 
   // ---------- Vertreter-API (Rep-Login & -Aktionen) ----------
+
+  /// Bestehender Flow (E-Mail + Passwort) – unverändert gelassen.
   Future<({bool ok, bool mustChange})> repLogin(String email, String password) async {
     try {
       final r = await _post('/api/rep/login', {'email': email, 'password': password});
-      if (r.statusCode != 200) {
+      if (!_ok2xx(r.statusCode)) {
         return (ok: false, mustChange: false);
       }
 
@@ -408,7 +410,6 @@ class ApiClient {
 
       if (tok.isEmpty) return (ok: false, mustChange: false);
 
-      // Token persistieren
       repToken = tok;
       _saveSession();
 
@@ -418,20 +419,75 @@ class ApiClient {
     }
   }
 
+  /// NEU: Vertreter-Login ausschließlich über Secret (Header-Fallback-Body).
+  /// Erfolgreich bei 200/201/204. Token aus Body ('token') wird, falls vorhanden, gespeichert.
+  Future<bool> repLoginWithSecret(String secret) async {
+    final sec = secret.trim();
+    if (sec.isEmpty) return false;
+
+    // 1) Header-basierte Auth: X-Rep-Secret
+    var r = await http.post(
+      _u('/api/rep/login'),
+      headers: _repHeaders(extra: {'X-Rep-Secret': sec}),
+      body: jsonEncode(<String, dynamic>{}), // leerer Body, aber gültiges JSON
+    );
+
+    if (_ok2xx(r.statusCode)) {
+      // Token optional auslesen
+      try {
+        if (r.body.isNotEmpty) {
+          final j = jsonDecode(r.body);
+          if (j is Map && j['token'] is String) {
+            repToken = j['token'] as String;
+            _saveSession();
+          }
+        }
+      } catch (_) {/* Body evtl. leer oder kein JSON */}
+      if (repToken == null) _saveSession(); // persistiere ggf. nur Session-Änderungen
+      return true;
+    }
+
+    // 2) Body-basierte Auth: {"secret": "..."}
+    r = await http.post(
+      _u('/api/rep/login'),
+      headers: _repHeaders(), // standard JSON-Header + Gate + ggf. repToken (leer)
+      body: jsonEncode({'secret': sec}),
+    );
+
+    if (_ok2xx(r.statusCode)) {
+      try {
+        if (r.body.isNotEmpty) {
+          final j = jsonDecode(r.body);
+          if (j is Map && j['token'] is String) {
+            repToken = j['token'] as String;
+          }
+        }
+      } catch (_) {/* ignorieren */}
+      _saveSession();
+      return true;
+    }
+
+    // Fallback: eindeutig fehlgeschlagen
+    return false;
+  }
+
+  /// Alias, falls der Name dir besser gefällt.
+  Future<bool> repLoginSecret(String secret) => repLoginWithSecret(secret);
+
   Future<void> repChangePassword(String newPw) async {
     final r = await _post(
       '/api/rep/password',
       {'new': newPw},
       extraHeaders: _repHeaders(),
     );
-    if (r.statusCode != 200 && r.statusCode != 204) {
+    if (!_ok2xx(r.statusCode)) {
       throw Exception('POST /api/rep/password failed: ${r.statusCode} ${r.body}');
     }
   }
 
   Future<Map<String, dynamic>> repMe() async {
     final r = await http.get(_u('/api/rep/me'), headers: _repHeaders());
-    if (r.statusCode != 200) {
+    if (!_ok2xx(r.statusCode)) {
       throw Exception('GET /api/rep/me failed: ${r.statusCode} ${r.body}');
     }
     final j = jsonDecode(r.body);
@@ -440,7 +496,7 @@ class ApiClient {
 
   Future<List<String>> repCustomers() async {
     final r = await http.get(_u('/api/rep/customers'), headers: _repHeaders());
-    if (r.statusCode != 200) {
+    if (!_ok2xx(r.statusCode)) {
       throw Exception('GET /api/rep/customers failed: ${r.statusCode} ${r.body}');
     }
     final j = jsonDecode(r.body);
@@ -454,7 +510,7 @@ class ApiClient {
       headers: _repHeaders(),
       body: jsonEncode({'action': 'assign', 'email': email}),
     );
-    if (r.statusCode != 200) {
+    if (!_ok2xx(r.statusCode)) {
       throw Exception('POST /api/rep/customers assign failed: ${r.statusCode} ${r.body}');
     }
   }
@@ -465,14 +521,14 @@ class ApiClient {
       headers: _repHeaders(),
       body: jsonEncode({'action': 'unassign', 'email': email}),
     );
-    if (r.statusCode != 200) {
+    if (!_ok2xx(r.statusCode)) {
       throw Exception('POST /api/rep/customers unassign failed: ${r.statusCode} ${r.body}');
     }
   }
 
   Future<List<Map<String, dynamic>>> repComplaints() async {
     final r = await http.get(_u('/api/rep/complaints'), headers: _repHeaders());
-    if (r.statusCode != 200) {
+    if (!_ok2xx(r.statusCode)) {
       throw Exception('GET /api/rep/complaints failed: ${r.statusCode} ${r.body}');
     }
     final j = jsonDecode(r.body);
