@@ -31,9 +31,19 @@ class _MyAppState extends State<MyApp> {
 
   Locale? _locale;
   bool _bootDone = false;
-  bool _loggedIn = false;
+  bool _loggedIn = false; // -> bleibt für den Kunden-Login (token) zuständig
 
   ThemeMode _themeMode = ThemeMode.system;
+
+  // ---- kleine Helfer für den Gating-Check ----
+  bool get _customerLoggedIn => (api.token != null && api.token!.isNotEmpty);
+  bool get _repLoggedIn {
+    final repTok = (api.repToken != null && api.repToken!.isNotEmpty);
+    final mode   = (html.window.localStorage['dfs_mode'] ?? '').toLowerCase();
+    final isRepMode = mode == 'rep';
+    // Wenn ein Vertreter-Token da ist ODER der Modus explizit gesetzt wurde, zeigen wir den Rep-Bereich:
+    return repTok || isRepMode;
+  }
 
   @override
   void initState() {
@@ -64,7 +74,9 @@ class _MyAppState extends State<MyApp> {
   Future<void> _boot() async {
     await api.restoreSession();
     setState(() {
-      _loggedIn = (api.token != null && api.token!.isNotEmpty);
+      // _loggedIn steuert weiterhin nur den Kundenbereich;
+      // der Vertreterbereich wird unten im build() separat über _repLoggedIn geroutet.
+      _loggedIn = _customerLoggedIn;
       _bootDone = true;
     });
   }
@@ -188,13 +200,13 @@ class _MyAppState extends State<MyApp> {
   }
 
   void _openRepArea(BuildContext ctx) {
-   Navigator.of(ctx).push(
-    MaterialPageRoute(builder: (_) => RepLoginPage(api: api)),
-   );
- }
+    Navigator.of(ctx).push(
+      MaterialPageRoute(builder: (_) => RepLoginPage(api: api)),
+    );
+  }
 
-  void _onLoggedIn() => setState(() => _loggedIn = true);
-  void _onLoggedOut() => setState(() => _loggedIn = false);
+  void _onLoggedIn() => setState(() => _loggedIn = true);   // Kundenlogin
+  void _onLoggedOut() => setState(() => _loggedIn = false); // Kundenlogout
 
   @override
   Widget build(BuildContext context) {
@@ -204,6 +216,50 @@ class _MyAppState extends State<MyApp> {
       );
     }
 
+    // ---- NEU: Vertreter-Gating auf Root-Ebene ----
+    // Wenn repToken vorhanden (oder rep-Modus aktiv), direkt Rep-Dashboard zeigen.
+    if (_repLoggedIn) {
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        locale: _locale,
+        supportedLocales: const [
+          Locale('de'), Locale('en'), Locale('fr'), Locale('it'), Locale('es'),
+        ],
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        localeListResolutionCallback: (locales, supported) {
+          if (_locale != null) return _locale!;
+          if (locales != null) {
+            for (final loc in locales) {
+              for (final s in supported) {
+                if (s.languageCode.toLowerCase() == loc.languageCode.toLowerCase()) {
+                  return s;
+                }
+              }
+            }
+          }
+          return const Locale('de');
+        },
+        themeMode: _themeMode,
+        theme: ThemeData(
+          useMaterial3: true,
+          colorSchemeSeed: const Color(0xFF1F4C8F),
+          brightness: Brightness.light,
+        ),
+        darkTheme: ThemeData(
+          useMaterial3: true,
+          colorSchemeSeed: const Color(0xFF1F4C8F),
+          brightness: Brightness.dark,
+        ),
+        home: RepDashboardPage(api: api),
+      );
+    }
+
+    // ---- Kunden-Flow (unverändert) ----
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       locale: _locale,
@@ -263,7 +319,7 @@ class _MyAppState extends State<MyApp> {
                             icon: const Icon(Icons.logout),
                             label: Text(t.logout),
                             onPressed: () async {
-                              await api.logout();
+                              await api.logout(); // Kunden-Logout
                               if (ctx.mounted) {
                                 ScaffoldMessenger.of(ctx).showSnackBar(
                                   SnackBar(content: Text(t.loggedOut)),
@@ -293,11 +349,11 @@ class _MyAppState extends State<MyApp> {
                   ),
                   // <<< Eigener, interner Login-Screen – kein externer Import nötig
                   body: _LoginScreen(
-                   api: api,
-                   onLoggedIn: _onLoggedIn,
-                   onOpenRegister: () => _openRegister(ctx),
-                   onOpenAdmin: () => _openAdmin(ctx),
-                   onOpenRep: () => _openRepArea(ctx),  // <-- NEU mit ctx
+                    api: api,
+                    onLoggedIn: _onLoggedIn,
+                    onOpenRegister: () => _openRegister(ctx),
+                    onOpenAdmin: () => _openAdmin(ctx),
+                    onOpenRep: () => _openRepArea(ctx),  // Vertreterbereich öffnen
                   ),
                 );
               },
@@ -307,7 +363,7 @@ class _MyAppState extends State<MyApp> {
 }
 
 // =======================
-// Interner Login-Screen
+// Interner Login-Screen (Kundenbereich)
 // =======================
 class _LoginScreen extends StatefulWidget {
   final ApiClient api;
@@ -337,7 +393,7 @@ class _LoginScreenState extends State<_LoginScreen> {
   Future<void> _doLogin() async {
     setState(() { _busy = true; _err = null; });
     try {
-      final ok = await widget.api.login(_email.text.trim(), _pw.text); // <-- kleingeschrieben!
+      final ok = await widget.api.login(_email.text.trim(), _pw.text); // Kunden-Login
       if (!mounted) return;
       if (ok) {
         widget.onLoggedIn();
@@ -415,15 +471,15 @@ class _LoginScreenState extends State<_LoginScreen> {
                     label: Text(t.admin_area),
                   ),
                   TextButton.icon(
-                   icon: const Icon(Icons.handshake),
-                   onPressed: _busy ? null : () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                   const SnackBar(content: Text('Öffne Vertreterbereich…')),
-                  );
-                   widget.onOpenRep();
-                  },
-                  label: Text(t.rep_area ?? 'Vertreter'),
-                 ),
+                    icon: const Icon(Icons.handshake),
+                    onPressed: _busy ? null : () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Öffne Vertreterbereich…')),
+                      );
+                      widget.onOpenRep();
+                    },
+                    label: Text(t.rep_area ?? 'Vertreter'),
+                  ),
                 ],
               ),
             ],
