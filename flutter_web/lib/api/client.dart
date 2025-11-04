@@ -396,42 +396,88 @@ class ApiClient {
   }
 }
 
-// ---- Rep-Model für Kundenbereich ----
+// ===== Model =====
 class MyRep {
   final String firstName;
   final String lastName;
   final String email;
   final String region;
+  const MyRep({required this.firstName, required this.lastName, required this.email, required this.region});
 
-  MyRep({
-    required this.firstName,
-    required this.lastName,
-    required this.email,
-    required this.region,
-  });
+  String get displayName {
+    final fn = firstName.trim();
+    final ln = lastName.trim();
+    if (fn.isEmpty && ln.isEmpty) return email.trim();
+    return [fn, ln].where((s) => s.isNotEmpty).join(' ');
+  }
 
   factory MyRep.fromJson(Map<String, dynamic> j) => MyRep(
-        firstName: (j['firstName'] ?? '').toString(),
-        lastName:  (j['lastName']  ?? '').toString(),
-        email:     (j['email']     ?? '').toString(),
-        region:    (j['region']    ?? '').toString(),
-      );
+    firstName: (j['firstName'] ?? '').toString(),
+    lastName : (j['lastName']  ?? '').toString(),
+    email    : (j['email']     ?? '').toString(),
+    region   : (j['region']    ?? '').toString(),
+  );
 }
 
-extension RepApi on ApiClient {
-  Future<MyRep?> getMyRep() async {
-    final r = await _get('/api/rep/my', auth: true);
-    // 204 = kein Vertreter hinterlegt
-    if (r.statusCode == 204 || (r.body).trim().isEmpty) return null;
-    if (r.statusCode != 200) {
-      throw 'HTTP ${r.statusCode} ${r.reasonPhrase} — ${r.body}';
+// ===== ApiClient: Hilfsheader mit JWT =====
+extension _AuthHeaders on ApiClient {
+  Map<String,String> _jsonAuthHeaders() => {
+    'Content-Type': 'application/json; charset=utf-8',
+    if (_jwt.isNotEmpty) 'Authorization': 'Bearer $_jwt',
+  };
+}
+
+// ===== ApiClient: Request-Helper (Web) =====
+extension _Http on ApiClient {
+  Uri _u(String path, [Map<String, String>? q]) {
+    final base = const String.fromEnvironment('API_BASE', defaultValue: '');
+    final url  = base.isNotEmpty ? '$base$path' : '${html.window.location.origin}$path';
+    final uri  = Uri.parse(url);
+    return (q == null || q.isEmpty) ? uri : uri.replace(queryParameters: q);
+  }
+
+  Future<html.HttpRequest> _request(String method, String path,
+      {Map<String,String>? query, Object? body, bool auth = false}) async {
+    final headers = auth ? _jsonAuthHeaders() : {'Content-Type': 'application/json; charset=utf-8'};
+    final send = body is String ? body : (body == null ? null : jsonEncode(body));
+    try {
+      final res = await html.HttpRequest.request(
+        _u(path, query).toString(),
+        method: method,
+        requestHeaders: headers,
+        sendData: send,
+        withCredentials: true,
+      );
+      return res;
+    } catch (e) {
+      // Fehler transparent machen
+      if (e is html.ProgressEvent) {
+        final t = e.target;
+        if (t is html.HttpRequest) {
+          throw 'HTTP ${t.status} ${t.statusText} — ${t.responseText ?? ''}';
+        }
+      }
+      rethrow;
     }
-    final Map<String, dynamic> j = jsonDecode(r.body) as Map<String, dynamic>;
-    if (((j['email'] ?? '') as String).trim().isEmpty &&
-        ((j['firstName'] ?? '') as String).trim().isEmpty &&
-        ((j['lastName'] ?? '') as String).trim().isEmpty) {
+  }
+}
+
+// ===== ApiClient: getMyRep() =====
+extension _RepApi on ApiClient {
+  Future<MyRep?> getMyRep() async {
+    try {
+      final res = await _request('GET', '/api/rep/my', auth: true);
+      if (res.status == 204) return null;                       // kein Vertreter
+      if ((res.responseText ?? '').trim().isEmpty) return null; // leer
+      final Map<String,dynamic> j = jsonDecode(res.responseText!);
+      // Minimalvalidierung
+      if ((j['email'] ?? '').toString().trim().isEmpty) return null;
+      return MyRep.fromJson(j);
+    } catch (e) {
+      // 401/404 → kein Banner anzeigen, aber für Debug loggen
+      // ignore: avoid_print
+      print('getMyRep() failed: $e');
       return null;
     }
-    return MyRep.fromJson(j);
   }
 }
