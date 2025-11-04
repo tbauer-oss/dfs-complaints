@@ -1487,10 +1487,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   @override
   void dispose() {
     _reportCtrl.dispose();
-    _repFirstCtrl.dispose();
-    _repLastCtrl.dispose();
-    _repMailCtrl.dispose();
-    super.dispose();  
+    super.dispose();
   }
 
   Future<void> _saveReportLink() async {
