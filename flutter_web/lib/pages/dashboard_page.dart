@@ -31,7 +31,14 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
-    _loadRep();
+    Future(() async {
+      if (widget.api.token == null || widget.api.token!.isEmpty) {
+        await widget.api.restoreSession();
+      }
+      final rep = await widget.api.getMyRep(); // ruft /api/rep/my (mit JWT) auf
+      if (!mounted) return;
+      setState(() => _myRep = rep);
+    });
   }
 
   Future<void> _loadRep() async {
