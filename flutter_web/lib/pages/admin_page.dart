@@ -15,7 +15,7 @@ class AdminPage extends StatefulWidget {
   State<AdminPage> createState() => _AdminPageState();
 }
 
-enum _AdminView { menu, pending, users, open }
+enum _AdminView { menu, pending, users, open, reps }
 
 class _AdminPageState extends State<AdminPage> {
   late final AdminApi _api;
@@ -24,6 +24,7 @@ class _AdminPageState extends State<AdminPage> {
   bool _loadPending = false;
   bool _loadUsers = false;
   bool _loadOpen = false;
+  bool _loadReps = false;
   String? _fatalErr;
   String? _err;
 
@@ -31,6 +32,7 @@ class _AdminPageState extends State<AdminPage> {
   List<PendingUser> _pending = [];
   List<ActiveUser> _users = [];
   List<AdminComplaint> _openComplaints = [];
+  List<Rep> _reps = [];
 
   // Email -> detaillierte Reklamationen (für Users/Pending)
   final Map<String, _ComplaintsResult> _complaints = {};
@@ -124,6 +126,19 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  Future<void> _refreshReps() async {
+    setState(() { _err = null; _loadReps = true; });
+    try {
+      final list = await _api.fetchReps();
+      if (!mounted) return;
+      setState(() => _reps = list);
+    } catch (e) {
+      if (mounted) setState(() => _err = '$e');
+    } finally {
+      if (mounted) setState(() => _loadReps = false);
+    }
+  }
+
   Future<void> _loadComplaintsDetailed(String email) async {
     final cur = _complaints[email];
     if (cur?.loading == true) return;
@@ -204,6 +219,7 @@ class _AdminPageState extends State<AdminPage> {
       _AdminView.pending => 'Pending (Freigabe ausstehend)',
       _AdminView.users   => 'Aktive Nutzer',
       _AdminView.open    => 'Offene Reklamationen',
+      _AdminView.reps    => 'Vertreterverwaltung',
     };
 
     return Scaffold(
@@ -284,6 +300,16 @@ class _AdminPageState extends State<AdminPage> {
         onTap: () => setState(() => _view = _AdminView.open),
         badge: _loadOpen ? const _BusyDot() : null,
       ),
+      _AdminTile(
+        icon: Icons.badge_outlined,
+        label: 'Vertreter',
+        color: Colors.green,
+        onTap: () {
+          setState(() => _view = _AdminView.reps);
+          if (_reps.isEmpty) _refreshReps();
+        },
+        badge: _loadReps ? const _BusyDot() : null,
+      ),
     ];
 
     return GridView.count(
@@ -308,6 +334,8 @@ class _AdminPageState extends State<AdminPage> {
         return _buildOpenPanel(companies);
       case _AdminView.menu:
         return const SizedBox.shrink();
+      case _AdminView.reps:
+        return _buildRepsPanel();
     }
   }
 
@@ -538,7 +566,241 @@ class _AdminPageState extends State<AdminPage> {
       ),
     );
   }
-}
+
+  Widget _buildRepsPanel() {
+    final fnCtrl = TextEditingController();
+    final lnCtrl = TextEditingController();
+    final mailCtrl = TextEditingController();
+    String region = kRepRegions.first;
+    bool busy = false;
+
+    void _composeMail(String to, {String? subject, String? body}) {
+      if (to.trim().isEmpty) return;
+      final url = 'mailto:$to'
+          '?subject=${Uri.encodeComponent(subject ?? 'Anfrage / DFS-DIAMON') }'
+          '&body=${Uri.encodeComponent(body ?? 'Guten Tag,\n\nich melde mich als Ihr Ansprechpartner.\n\nBeste Grüße\nDFS-DIAMON GmbH') }';
+      html.window.open(url, '_self');
+    }
+
+    Future<void> _save({String? id}) async {
+      if (busy) return;
+      setState(() => busy = true);
+      try {
+        final rep = await _api.upsertRep(
+          id: id,
+          firstName: fnCtrl.text.trim(),
+          lastName: lnCtrl.text.trim(),
+          email: mailCtrl.text.trim(),
+          region: region,
+        );
+        // Felder leeren, Liste neu
+        fnCtrl.clear(); lnCtrl.clear(); mailCtrl.clear(); region = kRepRegions.first;
+        await _refreshReps();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gespeichert: ${rep.displayName}')),
+        );
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+        }
+      } finally {
+        if (mounted) setState(() => busy = false);
+      }
+    }
+
+    Future<void> _edit(Rep r) async {
+      fnCtrl.text = r.firstName;
+      lnCtrl.text = r.lastName;
+      mailCtrl.text = r.email;
+      region = r.region.isNotEmpty ? r.region : kRepRegions.first;
+
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Vertreter bearbeiten'),
+          content: SizedBox(
+            width: 520,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(controller: fnCtrl, decoration: const InputDecoration(labelText: 'Vorname')),
+                const SizedBox(height: 8),
+                TextField(controller: lnCtrl, decoration: const InputDecoration(labelText: 'Nachname')),
+                const SizedBox(height: 8),
+                TextField(controller: mailCtrl, decoration: const InputDecoration(labelText: 'E-Mail')),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  value: region,
+                  decoration: const InputDecoration(labelText: 'Länderbereich'),
+                  items: kRepRegions
+                      .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
+                      .toList(),
+                  onChanged: (v) => region = v ?? kRepRegions.first,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+            FilledButton(
+              onPressed: () async { Navigator.pop(ctx); await _save(id: r.id); },
+              child: const Text('Speichern'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    Future<void> _confirmDelete(Rep r) async {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Vertreter löschen'),
+          content: Text('Soll ${r.displayName} wirklich gelöscht werden?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen')),
+          ],
+        ),
+      );
+      if (ok == true) {
+        try {
+          await _api.deleteRep(r.id);
+          await _refreshReps();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gelöscht: ${r.displayName}')));
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+          }
+        }
+      }
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(children: [
+              const Icon(Icons.badge_outlined),
+              const SizedBox(width: 8),
+              const Text('Vertreterverwaltung', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              const Spacer(),
+              if (_loadReps)
+                const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+              IconButton(
+                tooltip: 'Neu laden',
+                onPressed: _loadReps ? null : _refreshReps,
+                icon: const Icon(Icons.refresh),
+              ),
+            ]),
+            const SizedBox(height: 12),
+
+            // --- Anlegen-Form ---
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text('Neuen Vertreter anlegen', style: TextStyle(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      SizedBox(
+                        width: 240,
+                        child: TextField(controller: fnCtrl, decoration: const InputDecoration(labelText: 'Vorname')),
+                      ),
+                      SizedBox(
+                        width: 260,
+                        child: TextField(controller: lnCtrl, decoration: const InputDecoration(labelText: 'Nachname')),
+                      ),
+                      SizedBox(
+                        width: 300,
+                        child: TextField(controller: mailCtrl, decoration: const InputDecoration(labelText: 'E-Mail')),
+                      ),
+                      SizedBox(
+                        width: 300,
+                        child: DropdownButtonFormField<String>(
+                          value: region,
+                          decoration: const InputDecoration(labelText: 'Länderbereich'),
+                          items: kRepRegions
+                              .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
+                              .toList(),
+                          onChanged: (v) => region = v ?? kRepRegions.first,
+                        ),
+                      ),
+                      SizedBox(
+                        width: 160,
+                        child: FilledButton.icon(
+                          icon: const Icon(Icons.save_outlined),
+                          onPressed: busy ? null : () => _save(),
+                          label: const Text('Anlegen'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // --- Liste ---
+            Expanded(
+              child: _reps.isEmpty
+                  ? const Center(child: Text('Keine Vertreter angelegt.'))
+                  : ListView.separated(
+                      itemCount: _reps.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (ctx, i) {
+                        final r = _reps[i];
+                        return ListTile(
+                          leading: const CircleAvatar(child: Icon(Icons.person_outline)),
+                          title: Text(r.displayName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                          subtitle: Text('${r.email} • ${r.region}'),
+                          trailing: Wrap(
+                            spacing: 8,
+                            children: [
+                              IconButton(
+                                tooltip: 'E-Mail schreiben',
+                                icon: const Icon(Icons.mail_outline),
+                                onPressed: () => _composeMail(
+                                  r.email,
+                                  subject: 'DFS-DIAMON – Anfrage / ${r.displayName}',
+                                  body: 'Guten Tag ${r.displayName},\n\n— Nachricht —\n\nBeste Grüße\nDFS-DIAMON GmbH',
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: 'Bearbeiten',
+                                icon: const Icon(Icons.edit_outlined),
+                                onPressed: () => _edit(r),
+                              ),
+                              IconButton(
+                                tooltip: 'Löschen',
+                                icon: const Icon(Icons.delete_outline),
+                                onPressed: () => _confirmDelete(r),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
 // ===================================================================
 // Menü-Kachel
@@ -1057,6 +1319,45 @@ class AdminComplaint {
   }
 }
 
+class Rep {
+  final String id;        // vom Backend vergeben oder email-basiert
+  final String firstName;
+  final String lastName;
+  final String email;
+  final String region;
+
+  Rep({
+    required this.id,
+    required this.firstName,
+    required this.lastName,
+    required this.email,
+    required this.region,
+  });
+
+  factory Rep.fromJson(Map<String, dynamic> j) => Rep(
+    id: (j['id'] ?? j['email'] ?? '').toString(),
+    firstName: (j['firstName'] ?? '').toString(),
+    lastName: (j['lastName'] ?? '').toString(),
+    email: (j['email'] ?? '').toString(),
+    region: (j['region'] ?? '').toString(),
+  );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'firstName': firstName,
+    'lastName': lastName,
+    'email': email,
+    'region': region,
+  };
+
+  String get displayName {
+    final fn = firstName.trim();
+    final ln = lastName.trim();
+    if (fn.isEmpty && ln.isEmpty) return email;
+    return [fn, ln].where((s) => s.isNotEmpty).join(' ');
+  }
+}
+
 // ===================================================================
 // Status-/Decision-Listen + Details-Dialog + Editor
 // ===================================================================
@@ -1072,6 +1373,15 @@ const kDecisionItems = <Map<String, String>>[
   {'label': '—', 'value': ''}, // keine Entscheidung
   {'label': 'Angenommen', 'value': 'accepted'},
   {'label': 'Abgelehnt', 'value': 'rejected'},
+];
+
+// Vertreter – Regionen (fixe Auswahl)
+const kRepRegions = <String>[
+  'Lateinamerika',
+  'Osteuropa',
+  'Italien',
+  'China & Mongolei & Philippinen',
+  'Mittlerer Osten & Afrika',
 ];
 
 class _ComplaintDetailsDialog extends StatelessWidget {
@@ -1707,7 +2017,54 @@ class AdminApi {
       throw 'HTTP ${r2.status} ${r2.statusText} — ${r2.responseText ?? ''}';
     }
   }
-}
+
+  // ---------- Representatives (Vertreter) ----------
+  Future<List<Rep>> fetchReps() async {
+    final res = await _request('GET', '/api/admin/reps');
+    if (res.status != 200) {
+      throw 'reps GET: HTTP ${res.status} ${res.responseText}';
+    }
+    final List data = jsonDecode(res.responseText ?? '[]');
+    return data.map((e) => Rep.fromJson((e as Map).cast<String, dynamic>())).toList();
+  }
+
+  /// upsert: legt an oder aktualisiert (falls id != leer)
+  Future<Rep> upsertRep({
+    String? id,
+    required String firstName,
+    required String lastName,
+    required String email,
+    required String region,
+  }) async {
+    final body = {
+      if (id != null && id.isNotEmpty) 'id': id,
+      'firstName': firstName,
+      'lastName': lastName,
+      'email': email,
+      'region': region,
+    };
+    final res = await _request('POST', '/api/admin/reps', body: body);
+    if (res.status != 200 && res.status != 201) {
+      throw 'reps POST: HTTP ${res.status} ${res.responseText}';
+    }
+    final Map<String, dynamic> j =
+        (res.responseText ?? '').trim().isEmpty ? <String, dynamic>{} : jsonDecode(res.responseText!);
+    return Rep.fromJson(j);
+  }
+
+  Future<void> deleteRep(String id) async {
+    // Query-Variante
+    try {
+      final r1 = await _request('DELETE', '/api/admin/reps', q: {'id': id});
+      if (r1.status == 200 || r1.status == 204) return;
+    } catch (_) {}
+    // Body-Variante Fallback
+    final r2 = await _request('DELETE', '/api/admin/reps', body: {'id': id});
+    if (r2.status != 200 && r2.status != 204) {
+      throw 'reps DELETE: HTTP ${r2.status} ${r2.responseText}';
+    }
+  }
+ }
 
 // ===================================================================
 // interne Hilfs-Resultklasse
