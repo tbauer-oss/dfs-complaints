@@ -6,12 +6,12 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'api/client.dart';
 import 'l10n/app_localizations.dart';
 
-// ⚠️ BEWUSST ALIASIERT, um Kollisionen auszuschließen:
-import 'pages/login_page.dart' as lp;
+// >>> Nur die benötigten Klassen reinlassen:
+import 'pages/login_page.dart' show LoginPage;
 import 'pages/register_page.dart';
 import 'pages/admin_page.dart';
 import 'pages/dashboard_page.dart';
-import 'pages/rep_login_page.dart' as rp;
+import 'pages/rep_login_page.dart' show RepLoginPage;
 import 'pages/rep_dashboard_page.dart';
 import 'widgets/lang_action.dart';
 
@@ -84,17 +84,11 @@ class _MyAppState extends State<MyApp> {
   }
 
   Widget _themeMenu() {
-    IconData icon;
-    switch (_themeMode) {
-      case ThemeMode.dark:
-        icon = Icons.dark_mode;
-        break;
-      case ThemeMode.light:
-        icon = Icons.light_mode;
-        break;
-      default:
-        icon = Icons.brightness_auto;
-    }
+    final icon = switch (_themeMode) {
+      ThemeMode.dark => Icons.dark_mode,
+      ThemeMode.light => Icons.light_mode,
+      _ => Icons.brightness_auto,
+    };
 
     return PopupMenuButton<ThemeMode>(
       tooltip: 'Theme',
@@ -196,7 +190,7 @@ class _MyAppState extends State<MyApp> {
   void _openRepArea() {
     // RepLoginPage hat KEINEN onLoggedIn-Parameter → nur öffnen.
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => rp.RepLoginPage(api: api)),
+      MaterialPageRoute(builder: (_) => RepLoginPage(api: api)),
     );
   }
 
@@ -215,11 +209,7 @@ class _MyAppState extends State<MyApp> {
       debugShowCheckedModeBanner: false,
       locale: _locale,
       supportedLocales: const [
-        Locale('de'),
-        Locale('en'),
-        Locale('fr'),
-        Locale('it'),
-        Locale('es'),
+        Locale('de'), Locale('en'), Locale('fr'), Locale('it'), Locale('es'),
       ],
       localizationsDelegates: const [
         AppLocalizations.delegate,
@@ -238,7 +228,7 @@ class _MyAppState extends State<MyApp> {
             }
           }
         }
-        return const Locale('de'); // Default
+        return const Locale('de');
       },
 
       themeMode: _themeMode,
@@ -302,7 +292,7 @@ class _MyAppState extends State<MyApp> {
                       _themeMenu(),
                     ],
                   ),
-                  body: lp.LoginPage(
+                  body: LoginPage(
                     api: api,
                     onLoggedIn: _onLoggedIn,                // setzt _loggedIn = true
                     onOpenRegister: () => _openRegister(ctx),
