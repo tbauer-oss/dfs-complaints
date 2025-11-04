@@ -28,6 +28,13 @@ class _AdminPageState extends State<AdminPage> {
   String? _fatalErr;
   String? _err;
 
+  // Vertreter-Form (persistente Felder)
+  final _repFirstCtrl = TextEditingController();
+  final _repLastCtrl  = TextEditingController();
+  final _repMailCtrl  = TextEditingController();
+  String _repRegion   = kRepRegions.first;
+  bool _repBusy       = false;
+
   // Daten
   List<PendingUser> _pending = [];
   List<ActiveUser> _users = [];
@@ -568,33 +575,33 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   Widget _buildRepsPanel() {
-    final fnCtrl = TextEditingController();
-    final lnCtrl = TextEditingController();
-    final mailCtrl = TextEditingController();
-    String region = kRepRegions.first;
-    bool busy = false;
-
+    // kleine Helper zum Mail-Schreiben
     void _composeMail(String to, {String? subject, String? body}) {
       if (to.trim().isEmpty) return;
       final url = 'mailto:$to'
-          '?subject=${Uri.encodeComponent(subject ?? 'Anfrage / DFS-DIAMON') }'
-          '&body=${Uri.encodeComponent(body ?? 'Guten Tag,\n\nich melde mich als Ihr Ansprechpartner.\n\nBeste Grüße\nDFS-DIAMON GmbH') }';
+          '?subject=${Uri.encodeComponent(subject ?? 'Anfrage / DFS-DIAMON')}'
+          '&body=${Uri.encodeComponent(body ?? 'Guten Tag,\n\nich melde mich als Ihr Ansprechpartner.\n\nBeste Grüße\nDFS-DIAMON GmbH')}';
       html.window.open(url, '_self');
     }
 
     Future<void> _save({String? id}) async {
-      if (busy) return;
-      setState(() => busy = true);
+      if (_repBusy) return;
+      setState(() => _repBusy = true);
       try {
         final rep = await _api.upsertRep(
           id: id,
-          firstName: fnCtrl.text.trim(),
-          lastName: lnCtrl.text.trim(),
-          email: mailCtrl.text.trim(),
-          region: region,
+          firstName: _repFirstCtrl.text.trim(),
+          lastName:  _repLastCtrl.text.trim(),
+          email:     _repMailCtrl.text.trim(),
+          region:    _repRegion,
         );
-        // Felder leeren, Liste neu
-        fnCtrl.clear(); lnCtrl.clear(); mailCtrl.clear(); region = kRepRegions.first;
+
+        // Felder leeren + Liste neu laden
+        _repFirstCtrl.clear();
+        _repLastCtrl.clear();
+        _repMailCtrl.clear();
+        _repRegion = kRepRegions.first;
+
         await _refreshReps();
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -605,15 +612,15 @@ class _AdminPageState extends State<AdminPage> {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
         }
       } finally {
-        if (mounted) setState(() => busy = false);
+        if (mounted) setState(() => _repBusy = false);
       }
     }
 
     Future<void> _edit(Rep r) async {
-      fnCtrl.text = r.firstName;
-      lnCtrl.text = r.lastName;
-      mailCtrl.text = r.email;
-      region = r.region.isNotEmpty ? r.region : kRepRegions.first;
+      _repFirstCtrl.text = r.firstName;
+      _repLastCtrl.text  = r.lastName;
+      _repMailCtrl.text  = r.email;
+      _repRegion         = r.region.isNotEmpty ? r.region : kRepRegions.first;
 
       await showDialog<void>(
         context: context,
@@ -624,19 +631,17 @@ class _AdminPageState extends State<AdminPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(controller: fnCtrl, decoration: const InputDecoration(labelText: 'Vorname')),
+                TextField(controller: _repFirstCtrl, decoration: const InputDecoration(labelText: 'Vorname')),
                 const SizedBox(height: 8),
-                TextField(controller: lnCtrl, decoration: const InputDecoration(labelText: 'Nachname')),
+                TextField(controller: _repLastCtrl,  decoration: const InputDecoration(labelText: 'Nachname')),
                 const SizedBox(height: 8),
-                TextField(controller: mailCtrl, decoration: const InputDecoration(labelText: 'E-Mail')),
+                TextField(controller: _repMailCtrl,  decoration: const InputDecoration(labelText: 'E-Mail')),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  value: region,
+                  value: _repRegion,
                   decoration: const InputDecoration(labelText: 'Länderbereich'),
-                  items: kRepRegions
-                      .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
-                      .toList(),
-                  onChanged: (v) => region = v ?? kRepRegions.first,
+                  items: kRepRegions.map((s) => DropdownMenuItem<String>(value: s, child: Text(s))).toList(),
+                  onChanged: (v) => _repRegion = v ?? kRepRegions.first,
                 ),
               ],
             ),
@@ -685,6 +690,7 @@ class _AdminPageState extends State<AdminPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Kopfzeile
             Row(children: [
               const Icon(Icons.badge_outlined),
               const SizedBox(width: 8),
@@ -700,7 +706,7 @@ class _AdminPageState extends State<AdminPage> {
             ]),
             const SizedBox(height: 12),
 
-            // --- Anlegen-Form ---
+            // Anlegen-Form
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -718,32 +724,30 @@ class _AdminPageState extends State<AdminPage> {
                     children: [
                       SizedBox(
                         width: 240,
-                        child: TextField(controller: fnCtrl, decoration: const InputDecoration(labelText: 'Vorname')),
+                        child: TextField(controller: _repFirstCtrl, decoration: const InputDecoration(labelText: 'Vorname')),
                       ),
                       SizedBox(
                         width: 260,
-                        child: TextField(controller: lnCtrl, decoration: const InputDecoration(labelText: 'Nachname')),
+                        child: TextField(controller: _repLastCtrl, decoration: const InputDecoration(labelText: 'Nachname')),
                       ),
                       SizedBox(
                         width: 300,
-                        child: TextField(controller: mailCtrl, decoration: const InputDecoration(labelText: 'E-Mail')),
+                        child: TextField(controller: _repMailCtrl, decoration: const InputDecoration(labelText: 'E-Mail')),
                       ),
                       SizedBox(
                         width: 300,
                         child: DropdownButtonFormField<String>(
-                          value: region,
+                          value: _repRegion,
                           decoration: const InputDecoration(labelText: 'Länderbereich'),
-                          items: kRepRegions
-                              .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
-                              .toList(),
-                          onChanged: (v) => region = v ?? kRepRegions.first,
+                          items: kRepRegions.map((s) => DropdownMenuItem<String>(value: s, child: Text(s))).toList(),
+                          onChanged: (v) => setState(() => _repRegion = v ?? kRepRegions.first),
                         ),
                       ),
                       SizedBox(
                         width: 160,
                         child: FilledButton.icon(
                           icon: const Icon(Icons.save_outlined),
-                          onPressed: busy ? null : () => _save(),
+                          onPressed: _repBusy ? null : () => _save(),
                           label: const Text('Anlegen'),
                         ),
                       ),
@@ -755,7 +759,7 @@ class _AdminPageState extends State<AdminPage> {
 
             const SizedBox(height: 16),
 
-            // --- Liste ---
+            // Liste der Vertreter
             Expanded(
               child: _reps.isEmpty
                   ? const Center(child: Text('Keine Vertreter angelegt.'))
@@ -1483,7 +1487,10 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   @override
   void dispose() {
     _reportCtrl.dispose();
-    super.dispose();
+    _repFirstCtrl.dispose();
+    _repLastCtrl.dispose();
+    _repMailCtrl.dispose();
+    super.dispose();  
   }
 
   Future<void> _saveReportLink() async {
@@ -2031,7 +2038,6 @@ class AdminApi {
     return data.map((e) => Rep.fromJson((e as Map).cast<String, dynamic>())).toList();
   }
 
-  /// upsert: legt an oder aktualisiert (falls id != leer)
   Future<Rep> upsertRep({
     String? id,
     required String firstName,
@@ -2040,11 +2046,12 @@ class AdminApi {
     required String region,
   }) async {
     final body = {
-      if (id != null && id.isNotEmpty) 'id': id,
+      'action': 'create',        // <— wichtig für reps.js
+      if (id != null && id.isNotEmpty) 'id': id, // optional, falls du Update im Backend zulässt
       'firstName': firstName,
       'lastName': lastName,
       'email': email,
-      'region': region,
+    'region': region,
     };
     final res = await _request('POST', '/api/admin/reps', body: body);
     if (res.status != 200 && res.status != 201) {
