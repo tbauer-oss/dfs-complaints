@@ -75,17 +75,67 @@ class _MyAppState extends State<MyApp> {
     };
   }
 
-  // Kleines, robustes Theme-Menü (ohne ARB-Abhängigkeiten)
+  // --- Kompaktes Theme-Menü mit Icons ---
   Widget _themeMenu() {
+    IconData icon;
+    switch (_themeMode) {
+      case ThemeMode.dark:
+        icon = Icons.dark_mode;
+        break;
+      case ThemeMode.light:
+        icon = Icons.light_mode;
+        break;
+      default:
+        icon = Icons.brightness_auto;
+    }
+
     return PopupMenuButton<ThemeMode>(
       tooltip: 'Theme',
-      icon: const Icon(Icons.brightness_6),
-      initialValue: _themeMode,
+      icon: Icon(icon),
       onSelected: _setThemeMode,
-      itemBuilder: (ctx) => const [
-        PopupMenuItem(value: ThemeMode.system, child: Text('System')),
-        PopupMenuItem(value: ThemeMode.light,  child: Text('Hell')),
-        PopupMenuItem(value: ThemeMode.dark,   child: Text('Dunkel')),
+      itemBuilder: (ctx) => [
+        PopupMenuItem(
+          value: ThemeMode.system,
+          child: Row(
+            children: [
+              const Icon(Icons.brightness_auto),
+              const SizedBox(width: 10),
+              const Text('System'),
+              if (_themeMode == ThemeMode.system)
+                const Spacer(),
+              if (_themeMode == ThemeMode.system)
+                const Icon(Icons.check, color: Colors.green),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: ThemeMode.light,
+          child: Row(
+            children: [
+              const Icon(Icons.light_mode),
+              const SizedBox(width: 10),
+              const Text(''),
+              if (_themeMode == ThemeMode.light)
+                const Spacer(),
+              if (_themeMode == ThemeMode.light)
+                const Icon(Icons.check, color: Colors.green),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: ThemeMode.dark,
+          child: Row(
+            children: [
+              const Icon(Icons.dark_mode),
+              const SizedBox(width: 10),
+              const Text(''),
+              if (_themeMode == ThemeMode.dark)
+                const Spacer(),
+              if (_themeMode == ThemeMode.dark)
+                const Icon(Icons.check, color: Colors.green),
+            ],
+          ),
+        ),
       ],
     );
   }
