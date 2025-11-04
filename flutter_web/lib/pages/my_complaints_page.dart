@@ -18,6 +18,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
   bool _busy = false;
   String? _err;
   List<Complaint> _items = const [];
+  MyRep? _myRep;
 
   Timer? _poll; // ← Auto-Refresh
 
@@ -25,6 +26,10 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
   void initState() {
     super.initState();
     _load(); // initial
+    widget.api.getMyRep().then((rep) {
+      if (!mounted) return;
+      setState(() => _myRep = rep);
+    });
     // sanftes Polling alle 10s, ohne UI-Spinner
     _poll = Timer.periodic(const Duration(seconds: 10), (_) => _load(silent: true));
   }
@@ -192,133 +197,152 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
           ),
         ],
       ),
-      body: _busy
-          ? const Center(child: CircularProgressIndicator())
-          : _err != null
-              ? Center(child: Text(_err!))
-              : _items.isEmpty
-                  ? Center(child: Text(t.none_complaints))
-                  : RefreshIndicator(
-                      onRefresh: () => _load(silent: false),
-                      child: ListView.separated(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        itemCount: _items.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
-                        itemBuilder: (_, i) {
-                          final c = _items[i];
-                          final statusText =
-                              _statusTextLocalized(t, c.status, c.decision);
-                          final statusColor =
-                              _statusColor(c.status, c.decision);
-                          final reportLink = (c.reportLink ?? '').trim();
-                          final canOpenReport = _canOpenReportLink(c);
+       body: Column(
+           children: [
+             // Hinweis-Banner mit Vertreter (falls vorhanden)
+             if (_myRep != null) Padding(
+               padding: const EdgeInsets.fromLTRB(12,12,12,0),
+               child: Container(
+                 width: double.infinity,
+                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                 decoration: BoxDecoration(
+                   color: Colors.blue.withOpacity(0.08),
+                   border: Border.all(color: Colors.blue, width: 1),
+                   borderRadius: BorderRadius.circular(10),
+                 ),
+                 child: Row(
+                   children: [
+                     const Icon(Icons.handshake_outlined, size: 20),
+                     const SizedBox(width: 10),
+                     Expanded(
+                       child: Text(
+                         'Ihr Ansprechpartner (Vertreter): ${_myRep!.displayName} • ${_myRep!.email} • ${_myRep!.region}',
+                         style: const TextStyle(fontWeight: FontWeight.w600),
+                       ),
+                     ),
+                   ],
+                 ),
+               ),
+             ),
 
-                          return ListTile(
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 10),
-                            title: Text(
-                              c.ticket,
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('${t.created}: ${_fmt(c.createdAt)}'),
-                                if (c.internalNo != null && c.internalNo!.isNotEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 4.0, bottom: 4.0),
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.tag, size: 18, color: Colors.grey[600]),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          'Interne DFS-Nr.: ${c.internalNo}',
-                                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                                color: Colors.grey[800],
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                if (c.updatedAt.millisecondsSinceEpoch > 0)
-                                  Text('${t.updated}: ${_fmt(c.updatedAt)}'),
-                                if (canOpenReport) ...[
-                                  const SizedBox(height: 6),
-                                  TextButton.icon(
-                                    onPressed: () =>
-                                        html.window.open(reportLink, '_blank'),
-                                    icon: const Icon(Icons.open_in_new),
-                                    label: Text(t.report_open),
-                                  ),
-                                ],
-                              ],
-                            ),
-                            trailing: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                // Status-Badge („Status: …“)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: statusColor.withOpacity(0.12),
-                                    border: Border.all(color: statusColor, width: 1),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    '${t.status}: $statusText',
-                                    style: TextStyle(color: statusColor, fontWeight: FontWeight.w600),
-                                  ),
-                                ),
+             // Der bisherige Body kommt jetzt in ein Expanded:
+             Expanded(
+               child: _busy
+                   ? const Center(child: CircularProgressIndicator())
+                   : _err != null
+                       ? Center(child: Text(_err!))
+                       : _items.isEmpty
+                           ? Center(child: Text(t.none_complaints))
+                           : RefreshIndicator(
+                               onRefresh: () => _load(silent: false),
+                               child: ListView.separated(
+                                 physics: const AlwaysScrollableScrollPhysics(),
+                                 itemCount: _items.length,
+                                 separatorBuilder: (_, __) => const Divider(height: 1),
+                                 itemBuilder: (_, i) {
+                                   final c = _items[i];
+                                   final statusText = _statusTextLocalized(t, c.status, c.decision);
+                                   final statusColor = _statusColor(c.status, c.decision);
+                                   final reportLink = (c.reportLink ?? '').trim();
+                                   final canOpenReport = _canOpenReportLink(c);
 
-                                // ↓↓↓ NEU: separater Entscheidungs-Badge (nur wenn gesetzt) ↓↓↓
-                                if ((c.decision ?? '').isNotEmpty) ...[
-                                  const SizedBox(height: 6),
-                                  Builder(
-                                    builder: (_) {
-                                      final dec = c.decision!;
-                                      final decText = (dec == 'accepted') ? t.decision_accepted : t.decision_rejected;
-                                      final decColor = (dec == 'accepted') ? Colors.green : Colors.red;
-                                      return Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                        decoration: BoxDecoration(
-                                          color: decColor.withOpacity(0.12),
-                                          border: Border.all(color: decColor, width: 1),
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: Text(
-                                          '${t.decision}: $decText',
-                                          style: TextStyle(color: decColor, fontWeight: FontWeight.w600),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ],
-                                // ↑↑↑ NEU: Ende Entscheidungs-Badge ↑↑↑
-
-                                const SizedBox(height: 6),
-
-                                // Details-Button
-                                TextButton.icon(
-                                  onPressed: () async {
-                                    await showDialog(
-                                      context: context,
-                                      builder: (_) => _MyComplaintDetailsDialog(c: c),
-                                    );
-                                  },
-                                  icon: const Icon(Icons.info_outline),
-                                  label: Text(t.details),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-    );
-  }
+                                   return ListTile(
+                                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                     title: Text(c.ticket, style: const TextStyle(fontWeight: FontWeight.w600)),
+                                     subtitle: Column(
+                                       crossAxisAlignment: CrossAxisAlignment.start,
+                                       children: [
+                                         Text('${t.created}: ${_fmt(c.createdAt)}'),
+                                         if (c.internalNo != null && c.internalNo!.isNotEmpty)
+                                           Padding(
+                                             padding: const EdgeInsets.only(top: 4.0, bottom: 4.0),
+                                             child: Row(
+                                               children: [
+                                                 Icon(Icons.tag, size: 18, color: Colors.grey[600]),
+                                                 const SizedBox(width: 6),
+                                                 Text(
+                                                   'Interne DFS-Nr.: ${c.internalNo}',
+                                                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                                         color: Colors.grey[800],
+                                                         fontWeight: FontWeight.w500,
+                                                       ),
+                                                 ),
+                                               ],
+                                             ),
+                                           ),
+                                         if (c.updatedAt.millisecondsSinceEpoch > 0)
+                                    Text('${t.updated}: ${_fmt(c.updatedAt)}'),
+                                         if (canOpenReport) ...[
+                                           const SizedBox(height: 6),
+                                           TextButton.icon(
+                                             onPressed: () => html.window.open(reportLink, '_blank'),
+                                             icon: const Icon(Icons.open_in_new),
+                                             label: Text(t.report_open),
+                                           ),
+                                         ],
+                                       ],
+                                     ),
+                                     trailing: Column(
+                                       mainAxisSize: MainAxisSize.min,
+                                       crossAxisAlignment: CrossAxisAlignment.end,
+                                       children: [
+                                         // Status-Badge
+                                         Container(
+                                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                           decoration: BoxDecoration(
+                                             color: statusColor.withOpacity(0.12),
+                                             border: Border.all(color: statusColor, width: 1),
+                                             borderRadius: BorderRadius.circular(12),
+                                           ),
+                                           child: Text(
+                                             '${t.status}: $statusText',
+                                             style: TextStyle(color: statusColor, fontWeight: FontWeight.w600),
+                                           ),
+                                         ),
+                                         // Entscheidungs-Badge (nur wenn gesetzt)
+                                         if ((c.decision ?? '').isNotEmpty) ...[
+                                           const SizedBox(height: 6),
+                                           Builder(builder: (_) {
+                                             final dec = c.decision!;
+                                             final decText = (dec == 'accepted') ? t.decision_accepted : t.decision_rejected;
+                                             final decColor = (dec == 'accepted') ? Colors.green : Colors.red;
+                                             return Container(
+                                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                               decoration: BoxDecoration(
+                                                 color: decColor.withOpacity(0.12),
+                                                 border: Border.all(color: decColor, width: 1),
+                                                 borderRadius: BorderRadius.circular(12),
+                                               ),
+                                               child: Text(
+                                                 '${t.decision}: $decText',
+                                                 style: TextStyle(color: decColor, fontWeight: FontWeight.w600),
+                                               ),
+                                             );
+                                           }),
+                                         ],
+                                         const SizedBox(height: 6),
+                                         // Details-Button
+                                         TextButton.icon(
+                                           onPressed: () async {
+                                             await showDialog(
+                                               context: context,
+                                               builder: (_) => _MyComplaintDetailsDialog(c: c),
+                                             );
+                                           },
+                                           icon: const Icon(Icons.info_outline),
+                                           label: Text(t.details),
+                                         ),
+                                       ],
+                                     ),
+                                   );
+                                 },
+                               ),
+                             ),
+             ),
+           ],
+         ),
+    );    
+  }           
 }
 
 // ---- Details-Dialog (Kundenbereich) ----
@@ -331,45 +355,63 @@ class _MyComplaintDetailsDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
     final payload = c.payload ?? const {};
+
+    // Reihenfolge für die üblichen Felder
+    final orderedKeys = <String>[
+      'segment','article','batch','qty','expiry','desc',
+      'returned','handling','applied','injury','injuryDesc',
+    ];
+
+    String labelFor(String k) {
+      switch (k) {
+        case 'segment':    return t.segment;
+        case 'article':    return t.article;
+        case 'batch':      return t.batch;
+        case 'qty':        return t.quantity;
+        case 'expiry':     return t.expiry;
+        case 'desc':       return t.description;
+        case 'returned':   return 'Produkte zurückgeschickt?';
+        case 'handling':   return 'Gewünschte Behandlung';
+        case 'applied':    return 'Am Patienten angewendet?';
+        case 'injury':     return 'Verletzung?';
+        case 'injuryDesc': return 'Verletzungsbeschreibung';
+        default:           return k;
+      }
+    }
+
     Widget row(String l, String v) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                  width: 160,
-                  child: Text(l,
-                      style: const TextStyle(fontWeight: FontWeight.w600))),
-              Expanded(child: Text(v.isEmpty ? '—' : v)),
-            ],
-          ),
-        );
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 180, child: Text(l, style: const TextStyle(fontWeight: FontWeight.w600))),
+          Expanded(child: Text(v.isEmpty ? '—' : v)),
+        ],
+      ),
+    );
+
+    final restKeys = payload.keys.where((k) => !orderedKeys.contains(k)).toList();
 
     return AlertDialog(
       title: Text('${t.details} – ${c.ticket}'),
       content: SizedBox(
-        width: 560,
+        width: 620,
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (payload.isEmpty)
-                Text(t.no_details) // lokalisierte Fallbackmeldung
-              else ...[
-                row(t.segment, (payload['segment'] ?? '').toString()),
-                row(t.article, (payload['article'] ?? '').toString()),
-                row(t.batch, (payload['batch'] ?? '').toString()),
-                row(t.quantity, (payload['qty'] ?? '').toString()),
-                row(t.expiry, (payload['expiry'] ?? '').toString()),
-                row(t.description, (payload['desc'] ?? '').toString()),
+              // Interne DFS-Nummer prominent
+              row('Interne DFS-Reklamationsnummer', (c.internalNo ?? '').toString()),
+              const SizedBox(height: 6),
+              if (payload.isEmpty) Text(t.no_details) else ...[
+                ...orderedKeys.map((k) => row(labelFor(k), (payload[k] ?? '').toString())),
+                if (restKeys.isNotEmpty) const SizedBox(height: 6),
+                ...restKeys.map((k) => row(labelFor(k), (payload[k] ?? '').toString())),
               ],
             ],
           ),
         ),
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: Text(t.close)),
-      ],
+      actions: [ TextButton(onPressed: () => Navigator.pop(context), child: Text(t.close)) ],
     );
   }
-}
