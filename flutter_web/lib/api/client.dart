@@ -461,7 +461,6 @@ class MyRep {
     email    : (j['email']     ?? '').toString(),
     region   : (j['region']    ?? '').toString(),
   );
-}
 
 // ===== Vertreter: Modelle =====
 class RepMe {
@@ -484,8 +483,7 @@ class RepMe {
     customers: (j['customers'] as List? ?? const[]).cast<String>(),
   );
 }
-
-  // ===== Vertreter-API (minimal) =====
+  // ===== Vertreter-API =====
 
   Future<bool> repLogin(String email, String password) async {
     final r = await _post('/api/rep/login', {'email': email, 'password': password});
@@ -503,7 +501,12 @@ class RepMe {
   }
 
   Future<void> repChangePassword(String newPw) async {
-    final r = await _post('/api/rep/password', {'new': newPw}, extraHeaders: _repHeaders());
+    final r = await _post(
+      '/api/rep/password',
+      {'new': newPw},
+      // wir nutzen den extra-Header-Kanal deines bestehenden _post():
+      extraHeaders: _repHeaders(),
+    );
     if (r.statusCode != 200 && r.statusCode != 204) {
       throw Exception('POST /api/rep/password failed: ${r.statusCode} ${r.body}');
     }
@@ -511,14 +514,18 @@ class RepMe {
 
   Future<Map<String, dynamic>> repMe() async {
     final r = await http.get(_u('/api/rep/me'), headers: _repHeaders());
-    if (r.statusCode != 200) throw Exception('GET /api/rep/me failed: ${r.statusCode} ${r.body}');
+    if (r.statusCode != 200) {
+      throw Exception('GET /api/rep/me failed: ${r.statusCode} ${r.body}');
+    }
     final j = jsonDecode(r.body);
     return (j is Map) ? j.cast<String, dynamic>() : <String, dynamic>{};
   }
 
   Future<List<String>> repCustomers() async {
     final r = await http.get(_u('/api/rep/customers'), headers: _repHeaders());
-    if (r.statusCode != 200) throw Exception('GET /api/rep/customers failed: ${r.statusCode} ${r.body}');
+    if (r.statusCode != 200) {
+      throw Exception('GET /api/rep/customers failed: ${r.statusCode} ${r.body}');
+    }
     final j = jsonDecode(r.body);
     if (j is List) return j.whereType<String>().toList(growable: false);
     return const [];
@@ -530,7 +537,9 @@ class RepMe {
       headers: _repHeaders(),
       body: jsonEncode({'action': 'assign', 'email': email}),
     );
-    if (r.statusCode != 200) throw Exception('POST /api/rep/customers assign failed: ${r.statusCode} ${r.body}');
+    if (r.statusCode != 200) {
+      throw Exception('POST /api/rep/customers assign failed: ${r.statusCode} ${r.body}');
+    }
   }
 
   Future<void> repUnassignCustomer(String email) async {
@@ -539,12 +548,16 @@ class RepMe {
       headers: _repHeaders(),
       body: jsonEncode({'action': 'unassign', 'email': email}),
     );
-    if (r.statusCode != 200) throw Exception('POST /api/rep/customers unassign failed: ${r.statusCode} ${r.body}');
+    if (r.statusCode != 200) {
+      throw Exception('POST /api/rep/customers unassign failed: ${r.statusCode} ${r.body}');
+    }
   }
 
   Future<List<Map<String, dynamic>>> repComplaints() async {
     final r = await http.get(_u('/api/rep/complaints'), headers: _repHeaders());
-    if (r.statusCode != 200) throw Exception('GET /api/rep/complaints failed: ${r.statusCode} ${r.body}');
+    if (r.statusCode != 200) {
+      throw Exception('GET /api/rep/complaints failed: ${r.statusCode} ${r.body}');
+    }
     final j = jsonDecode(r.body);
     if (j is List) {
       return j.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList(growable: false);
@@ -556,3 +569,4 @@ class RepMe {
     repToken = null;
     _saveSession();
   }
+}
