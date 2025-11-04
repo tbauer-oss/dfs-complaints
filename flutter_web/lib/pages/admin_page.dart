@@ -1048,20 +1048,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   int? _status; // 1..6
   String? _decision; // null | accepted | rejected
 
-  @override
-  void initState() {
-    super.initState();
-    _reportCtrl.text = widget.c.reportLink ?? '';
-    _status = widget.c.status;
-    _decision = widget.c.decision;
-  }
-
-  @override
-  void dispose() {
-    _reportCtrl.dispose();
-    super.dispose();
-  }
-
   Future<void> _saveReportLink() async {
     setState(() => _busy = true);
     try {
