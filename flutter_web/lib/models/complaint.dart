@@ -9,6 +9,9 @@ class Complaint {
   final String? reportLink;          // URL zum Bericht (optional)
   final Map<String, dynamic>? payload; // optionaler Nutzinhalt (z.B. article)
 
+  // 🆕 Interne DFS-Reklamationsnummer (vom Backend geliefert; optional)
+  final String? internalNo;
+
   Complaint({
     required this.ticket,
     required this.email,
@@ -18,6 +21,7 @@ class Complaint {
     this.decision,
     this.reportLink,
     this.payload,
+    this.internalNo,
   });
 
   /// Bequemer Anzeigename des Artikels (falls vom Backend mitgeschickt).
@@ -90,6 +94,13 @@ class Complaint {
     return null;
   }
 
+  /// Interne Reklamationsnummer als String (leer => null)
+  static String? _parseInternalNo(dynamic v) {
+    if (v == null) return null;
+    final s = v.toString().trim();
+    return s.isEmpty ? null : s;
+  }
+
   factory Complaint.fromJson(Map<String, dynamic> j) {
     return Complaint(
       ticket: (j['ticket'] ?? '').toString(),
@@ -102,6 +113,7 @@ class Complaint {
           ? null
           : j['reportLink']!.toString().trim(),
       payload: _parsePayload(j['payload']),
+      internalNo: _parseInternalNo(j['internalNo']), // 🆕
     );
   }
 }
