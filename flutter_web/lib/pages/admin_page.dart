@@ -803,7 +803,32 @@ class _AdminPageState extends State<AdminPage> {
   }
 
 // ===================================================================
-// Menü-Kachel
+// Kleine Hilfswidgets
+// ===================================================================
+class _Field extends StatelessWidget {
+  final String label;
+  final String value;
+  const _Field({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = Theme.of(context).textTheme.bodySmall;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Wrap(
+        spacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text('$label:', style: muted),
+          Text(value.isEmpty ? '—' : value),
+        ],
+      ),
+    );
+  }
+}
+
+// ===================================================================
+// Admin-Menü-Kachel + Busy-Dot (Top-Level Widgets, nicht verschachteln)
 // ===================================================================
 class _AdminTile extends StatelessWidget {
   final IconData icon;
@@ -813,6 +838,7 @@ class _AdminTile extends StatelessWidget {
   final Widget? badge;
 
   const _AdminTile({
+    super.key,
     required this.icon,
     required this.label,
     required this.color,
@@ -823,12 +849,13 @@ class _AdminTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final card = Card(
+      elevation: 1.5,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Center(
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -858,39 +885,13 @@ class _AdminTile extends StatelessWidget {
 }
 
 class _BusyDot extends StatelessWidget {
-  const _BusyDot();
+  const _BusyDot({super.key});
   @override
   Widget build(BuildContext context) {
     return const SizedBox(
-      width: 14,
-      height: 14,
+      width: 18,
+      height: 18,
       child: CircularProgressIndicator(strokeWidth: 2),
-      );
-    }
-  }
-}
-
-// ===================================================================
-// Kleine Hilfswidgets
-// ===================================================================
-class _Field extends StatelessWidget {
-  final String label;
-  final String value;
-  const _Field({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    final muted = Theme.of(context).textTheme.bodySmall;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Wrap(
-        spacing: 6,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          Text('$label:', style: muted),
-          Text(value.isEmpty ? '—' : value),
-        ],
-      ),
     );
   }
 }
