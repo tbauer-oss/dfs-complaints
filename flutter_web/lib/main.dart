@@ -1,5 +1,5 @@
 // lib/main.dart
-import 'dart:html' as html; // für Sprache + Theme persistieren
+import 'dart:html' as html; // für Sprache & Theme persistieren
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
@@ -29,30 +29,25 @@ class _MyAppState extends State<MyApp> {
   bool _bootDone = false;
   bool _loggedIn = false;
 
-  // ---- NEU: globaler ThemeMode (system | light | dark)
+  // ← Globaler ThemeMode (persistiert)
   ThemeMode _themeMode = ThemeMode.system;
 
   @override
   void initState() {
     super.initState();
 
-    // gespeicherte Sprache laden
+    // Sprache laden
     final savedLang = html.window.localStorage['dfs_lang'];
     if (savedLang != null && savedLang.isNotEmpty) {
       _locale = Locale(savedLang);
     }
 
-    // gespeicherten ThemeMode laden
-    final savedTheme = (html.window.localStorage['dfs_theme'] ?? 'system').toLowerCase();
+    // ThemeMode laden
+    final savedTheme = (html.window.localStorage['dfs_theme'] ?? '').toLowerCase();
     switch (savedTheme) {
-      case 'light':
-        _themeMode = ThemeMode.light;
-        break;
-      case 'dark':
-        _themeMode = ThemeMode.dark;
-        break;
-      default:
-        _themeMode = ThemeMode.system;
+      case 'light': _themeMode = ThemeMode.light; break;
+      case 'dark':  _themeMode = ThemeMode.dark;  break;
+      default:      _themeMode = ThemeMode.system;
     }
 
     _boot();
@@ -71,24 +66,28 @@ class _MyAppState extends State<MyApp> {
     html.window.localStorage['dfs_lang'] = l.languageCode;
   }
 
-  // ---- NEU: ThemeMode setzen + persistieren
-  void _setThemeMode(ThemeMode mode) {
-    setState(() => _themeMode = mode);
-    final v = switch (mode) { ThemeMode.light => 'light', ThemeMode.dark => 'dark', _ => 'system' };
-    html.window.localStorage['dfs_theme'] = v;
+  void _setThemeMode(ThemeMode m) {
+    setState(() => _themeMode = m);
+    html.window.localStorage['dfs_theme'] = switch (m) {
+      ThemeMode.light  => 'light',
+      ThemeMode.dark   => 'dark',
+      ThemeMode.system => 'system',
+    };
   }
 
-  // Kleines Icon je aktuellem Modus
-  IconData _themeIconFor(ThemeMode m) {
-    switch (m) {
-      case ThemeMode.light:
-        return Icons.light_mode;
-      case ThemeMode.dark:
-        return Icons.dark_mode;
-      case ThemeMode.system:
-      default:
-        return Icons.brightness_auto;
-    }
+  // Kleines, robustes Theme-Menü (ohne ARB-Abhängigkeiten)
+  Widget _themeMenu() {
+    return PopupMenuButton<ThemeMode>(
+      tooltip: 'Theme',
+      icon: const Icon(Icons.brightness_6),
+      initialValue: _themeMode,
+      onSelected: _setThemeMode,
+      itemBuilder: (ctx) => const [
+        PopupMenuItem(value: ThemeMode.system, child: Text('System')),
+        PopupMenuItem(value: ThemeMode.light,  child: Text('Hell')),
+        PopupMenuItem(value: ThemeMode.dark,   child: Text('Dunkel')),
+      ],
+    );
   }
 
   // --- Admin-Secret Dialog + Navigation ---
@@ -118,19 +117,25 @@ class _MyAppState extends State<MyApp> {
 
     final secret = ctrl.text.trim();
     if (secret.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.required_fields)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.required_fields)),
+      );
       return;
     }
 
     final ok = await api.validateAdminSecret(secret);
     if (!ok) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.errorGeneric('Admin-Secret'))));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.errorGeneric('Admin-Secret'))),
+      );
       return;
     }
 
     api.setAdminSecret(secret);
     if (!mounted) return;
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => AdminPage(api: api)));
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => AdminPage(api: api)),
+    );
   }
 
   void _openRegister(BuildContext context) {
@@ -143,13 +148,13 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     if (!_bootDone) {
-      return const MaterialApp(home: Scaffold(body: Center(child: CircularProgressIndicator())));
+      return const MaterialApp(
+        home: Scaffold(body: Center(child: CircularProgressIndicator())),
+      );
     }
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-
-      // ---- Global: Locale + L10n
       locale: _locale,
       supportedLocales: const [
         Locale('de'), Locale('en'), Locale('fr'), Locale('it'), Locale('es'),
@@ -174,20 +179,20 @@ class _MyAppState extends State<MyApp> {
         return const Locale('de'); // Default
       },
 
-      // ---- Global: Theme/Darkmode
+      // -------- GLOBAL THEME (Material 3) --------
       themeMode: _themeMode,
       theme: ThemeData(
         useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF3453A8), brightness: Brightness.light),
-        visualDensity: VisualDensity.adaptivePlatformDensity,
+        colorSchemeSeed: const Color(0xFF1F4C8F), // DFS-Blau als Seed
+        brightness: Brightness.light,
       ),
       darkTheme: ThemeData(
         useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF3453A8), brightness: Brightness.dark),
-        visualDensity: VisualDensity.adaptivePlatformDensity,
+        colorSchemeSeed: const Color(0xFF1F4C8F),
+        brightness: Brightness.dark,
       ),
 
-      // ---- UI
+      // -------- NAVI --------
       home: _loggedIn
           ? Builder(
               builder: (ctx) {
@@ -196,13 +201,33 @@ class _MyAppState extends State<MyApp> {
                   appBar: AppBar(
                     title: Text(t.appTitle),
                     actions: [
-                      // Sprachwahl
+                      // Sprache
                       LangAction(onLocaleChanged: _setLocale),
-
-                      // ---- NEU: globaler Theme-Umschalter ...
-                      PopupMenuButton<ThemeMode>( ... ),
-                      const SizedBox(width: 6),
+                      // Theme-Menü (global)
+                      _themeMenu(),
                     ],
+                    // Logout unten in der AppBar (wie zuvor)
+                    bottom: PreferredSize(
+                      preferredSize: const Size.fromHeight(50),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          child: FilledButton.icon(
+                            icon: const Icon(Icons.logout),
+                            label: Text(t.logout),
+                            onPressed: () async {
+                              await api.logout();
+                              if (ctx.mounted) {
+                                ScaffoldMessenger.of(ctx)
+                                    .showSnackBar(SnackBar(content: Text(t.loggedOut)));
+                              }
+                              _onLoggedOut();
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                   body: DashboardPage(api: api, onLoggedOut: _onLoggedOut),
                 );
@@ -216,51 +241,7 @@ class _MyAppState extends State<MyApp> {
                     title: Text(t.login),
                     actions: [
                       LangAction(onLocaleChanged: _setLocale),
-                      PopupMenuButton<ThemeMode>(
-                        tooltip: 'Theme',
-                        position: PopupMenuPosition.under,
-                        icon: Icon(_themeIconFor(_themeMode)),
-                        onSelected: _setThemeMode,
-                        itemBuilder: (context) => [
-                          PopupMenuItem(
-                            value: ThemeMode.system,
-                            child: Row(
-                              children: [
-                                Icon(Icons.brightness_auto, color: Theme.of(context).colorScheme.primary),
-                                const SizedBox(width: 10),
-                                const Text('System'),
-                                const Spacer(),
-                                if (_themeMode == ThemeMode.system) const Icon(Icons.check),
-                              ],
-                            ),
-                          ),
-                          PopupMenuItem(
-                            value: ThemeMode.light,
-                            child: Row(
-                              children: [
-                                Icon(Icons.light_mode, color: Theme.of(context).colorScheme.primary),
-                                const SizedBox(width: 10),
-                                const Text('Hell'),
-                                const Spacer(),
-                                if (_themeMode == ThemeMode.light) const Icon(Icons.check),
-                              ],
-                            ),
-                          ),
-                          PopupMenuItem(
-                            value: ThemeMode.dark,
-                            child: Row(
-                              children: [
-                                Icon(Icons.dark_mode, color: Theme.of(context).colorScheme.primary),
-                                const SizedBox(width: 10),
-                                const Text('Dunkel'),
-                                const Spacer(),
-                                if (_themeMode == ThemeMode.dark) const Icon(Icons.check),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(width: 6),
+                      _themeMenu(), // auch auf Login-Seite nutzbar
                     ],
                   ),
                   body: LoginPage(
