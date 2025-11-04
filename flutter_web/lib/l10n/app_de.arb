@@ -14,6 +14,9 @@
   "langNameIT": "Italienisch",
   "langNameES": "Spanisch",
   "decision": "Entscheidung",
+  "returned": "zurückgegeben",
+  "applied": "angewandt",
+  "injury": "Verletzung",
 
   "gate_prompt": "Zugangscode (einmalig für nicht registrierte Kunden)",
   "gate_password": "Passwort",
