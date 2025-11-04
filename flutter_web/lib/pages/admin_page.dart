@@ -684,6 +684,180 @@ class _AdminPageState extends State<AdminPage> {
       }
     }
 
+    Future<void> _openRepCustomersDialog(Rep rep) async {
+      final emailSet = rep.customers.toSet();
+
+      // Kandidaten: alle aktiven User (E-Mail-Liste), die noch NICHT zugewiesen sind
+      final allUserEmails = _users.map((u) => u.email.trim()).where((e) => e.isNotEmpty).toSet();
+      final available = allUserEmails.difference(emailSet).toList()..sort((a,b)=>a.toLowerCase().compareTo(b.toLowerCase()));
+
+      String? selEmail = available.isNotEmpty ? available.first : null;
+      bool busy = false;
+
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setLocal) {
+            Future<void> doAssign() async {
+              if (selEmail == null || selEmail!.trim().isEmpty) return;
+              setLocal(() => busy = true);
+              try {
+                final customers = await _api.assignCustomerToRep(repId: rep.id, email: selEmail!.trim());
+                // _reps aktualisieren (rep.customers ersetzen)
+                setState(() {
+                  final idx = _reps.indexWhere((x) => x.id == rep.id);
+                  if (idx >= 0) {
+                    _reps[idx] = Rep(
+                      id: _reps[idx].id,
+                      firstName: _reps[idx].firstName,
+                      lastName: _reps[idx].lastName,
+                      email: _reps[idx].email,
+                      region: _reps[idx].region,
+                      customers: customers,
+                    );
+                  }
+                });
+                // lokale Auswahl aktualisieren
+                setLocal(() {
+                  available.remove(selEmail);
+                  selEmail = available.isNotEmpty ? available.first : null;
+                  busy = false;
+                });
+              } catch (e) {
+                setLocal(() => busy = false);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+                }
+              }
+            }
+
+            Future<void> doUnassign(String email) async {
+              setLocal(() => busy = true);
+              try {
+                final customers = await _api.unassignCustomerFromRep(repId: rep.id, email: email);
+                setState(() {
+                  final idx = _reps.indexWhere((x) => x.id == rep.id);
+                  if (idx >= 0) {
+                    _reps[idx] = Rep(
+                      id: _reps[idx].id,
+                      firstName: _reps[idx].firstName,
+                      lastName: _reps[idx].lastName,
+                      email: _reps[idx].email,
+                      region: _reps[idx].region,
+                      customers: customers,
+                    );
+                  }
+                });
+                setLocal(() {
+                  if (!available.contains(email)) {
+                    available.add(email);
+                    available.sort((a,b)=>a.toLowerCase().compareTo(b.toLowerCase()));
+                  }
+                  busy = false;
+                });
+              } catch (e) {
+                setLocal(() => busy = false);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+                }
+              }
+            }
+
+            return AlertDialog(
+              title: Text('Kunden für ${rep.displayName}'),
+              content: SizedBox(
+                width: 620,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Bestehende Kundenliste
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('Zugewiesene Kunden (${rep.customers.length}):',
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      constraints: const BoxConstraints(maxHeight: 280),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: (rep.customers.isEmpty)
+                        ? const Center(child: Padding(
+                            padding: EdgeInsets.all(12),
+                            child: Text('Keine Kunden zugewiesen.'),
+                          ))
+                        : ListView.separated(
+                            shrinkWrap: true,
+                            itemCount: rep.customers.length,
+                            separatorBuilder: (_, __) => const Divider(height: 1),
+                            itemBuilder: (_, i) {
+                              final email = rep.customers[i];
+                              final company = _companyByEmail(email) ?? '';
+                              return ListTile(
+                                leading: const Icon(Icons.person_outline),
+                                title: Text(company.isNotEmpty ? company : email),
+                                subtitle: company.isNotEmpty ? Text(email) : null,
+                                trailing: IconButton(
+                                  tooltip: 'Zuweisung entfernen',
+                                  icon: const Icon(Icons.remove_circle_outline),
+                                  onPressed: busy ? null : () async => await doUnassign(email),
+                                ),
+                              );
+                            },
+                          ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Neuer Kunde zuweisen
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('Kunden zuweisen', style: const TextStyle(fontWeight: FontWeight.w600)),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: selEmail,
+                            decoration: const InputDecoration(
+                              labelText: 'Kunde (E-Mail)',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: available
+                                .map((e) => DropdownMenuItem<String>(
+                                      value: e,
+                                      child: Text(_companyByEmail(e) ?? e),
+                                    ))
+                                .toList(),
+                            onChanged: busy ? null : (v) => setLocal(() => selEmail = v),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        FilledButton.icon(
+                          onPressed: busy || selEmail == null ? null : doAssign,
+                          icon: const Icon(Icons.add),
+                          label: const Text('Zuweisen'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                if (busy) const Padding(
+                  padding: EdgeInsets.only(right: 12),
+                  child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                ),
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen')),
+              ],
+            );
+          },
+        ),
+      );
+    }
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -771,7 +945,7 @@ class _AdminPageState extends State<AdminPage> {
                         return ListTile(
                           leading: const CircleAvatar(child: Icon(Icons.person_outline)),
                           title: Text(r.displayName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                          subtitle: Text('${r.email} • ${r.region}'),
+                          subtitle: Text('${r.email} • ${r.region} • Kunden: ${r.customers.length}'),
                           trailing: Wrap(
                             spacing: 8,
                             children: [
@@ -793,6 +967,11 @@ class _AdminPageState extends State<AdminPage> {
                                 tooltip: 'Löschen',
                                 icon: const Icon(Icons.delete_outline),
                                 onPressed: () => _confirmDelete(r),
+                              ),
+                              IconButton(
+                                tooltip: 'Kunden zuweisen/anzeigen',
+                                icon: const Icon(Icons.group_add_outlined),
+                                onPressed: () => _openRepCustomersDialog(r),
                               ),
                             ],
                           ),
@@ -1327,11 +1506,12 @@ class AdminComplaint {
 }
 
 class Rep {
-  final String id;        // vom Backend vergeben oder email-basiert
+  final String id;
   final String firstName;
   final String lastName;
   final String email;
   final String region;
+  final List<String> customers;
 
   Rep({
     required this.id,
@@ -1339,6 +1519,7 @@ class Rep {
     required this.lastName,
     required this.email,
     required this.region,
+    required this.customers,
   });
 
   factory Rep.fromJson(Map<String, dynamic> j) => Rep(
@@ -1347,6 +1528,9 @@ class Rep {
     lastName: (j['lastName'] ?? '').toString(),
     email: (j['email'] ?? '').toString(),
     region: (j['region'] ?? '').toString(),
+    customers: (j['customers'] is List)
+        ? List<String>.from((j['customers'] as List).map((e) => e.toString()))
+        : const <String>[],
   );
 
   Map<String, dynamic> toJson() => {
@@ -1355,6 +1539,7 @@ class Rep {
     'lastName': lastName,
     'email': email,
     'region': region,
+    'customers': customers,
   };
 
   String get displayName {
@@ -2072,7 +2257,46 @@ class AdminApi {
       throw 'reps DELETE: HTTP ${r2.status} ${r2.responseText}';
     }
   }
- }
+
+  Future<List<Rep>> fetchReps({bool includeCustomers = true}) async {
+    final q = includeCustomers ? {'includeCustomers': '1'} : null;
+    final res = await _request('GET', '/api/admin/reps', q: q);
+    if (res.status != 200) {
+      throw 'reps GET: HTTP ${res.status} ${res.responseText}';
+    }
+    final List data = jsonDecode(res.responseText ?? '[]');
+    return data.map((e) => Rep.fromJson((e as Map).cast<String, dynamic>())).toList();
+  }
+  Future<List<String>> assignCustomerToRep({required String repId, required String email}) async {
+  final res = await _request('POST', '/api/admin/reps', body: {
+    'action': 'assign',
+    'repId': repId,
+    'email': email,
+  });
+  if (res.status != 200) {
+    throw 'reps assign: HTTP ${res.status} ${res.responseText}';
+  }
+  final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
+  return (j['customers'] is List)
+      ? List<String>.from((j['customers'] as List).map((e) => e.toString()))
+      : const <String>[];
+}
+
+  Future<List<String>> unassignCustomerFromRep({required String repId, required String email}) async {
+    final res = await _request('POST', '/api/admin/reps', body: {
+      'action': 'unassign',
+      'repId': repId,
+      'email': email,
+    });
+    if (res.status != 200) {
+      throw 'reps unassign: HTTP ${res.status} ${res.responseText}';
+    }
+    final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
+    return (j['customers'] is List)
+        ? List<String>.from((j['customers'] as List).map((e) => e.toString()))
+        : const <String>[];
+  }
+}
 
 // ===================================================================
 // interne Hilfs-Resultklasse
