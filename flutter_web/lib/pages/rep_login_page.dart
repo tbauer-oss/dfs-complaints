@@ -27,42 +27,25 @@ class _RepLoginPageState extends State<RepLoginPage> {
   Future<void> _login() async {
     setState(() { _busy = true; _err = null; });
     try {
-      final r = await http.post(
-        Uri.parse('$_apiBase/api/rep/login'),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-        body: jsonEncode({'email': _email.text.trim(), 'password': _pw.text}),
-      );
-
-      if (r.statusCode != 200) {
-        setState(() => _err = r.body.isNotEmpty ? r.body : 'Login failed (${r.statusCode})');
-        return;
-      }
-      final j = jsonDecode(r.body) as Map;
-      final token = (j['token'] ?? '').toString();
-      final mustChange = (j['mustChangePw'] ?? false) == true;
-
-      if (token.isEmpty) {
-        setState(() => _err = 'Invalid response (no token)');
+      final res = await widget.api.repLogin(_email.text.trim(), _pw.text);
+      if (!res.ok) {
+        setState(() => _err = 'Login fehlgeschlagen.');
         return;
       }
 
-      // Token speichern
-      html.window.localStorage['dfs_rep_token'] = token;
-
-      if (mustChange) {
-        // Direkt Passwort-Änderung anfordern
-        if (!mounted) return;
-        await _showChangePasswordDialog(token);
+      // Passwortwechsel erzwingen, falls das Backend es verlangt
+      if (res.mustChange) {
+        await _showChangePasswordDialog();
       }
 
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const RepDashboardPage()),
+        MaterialPageRoute(builder: (_) => RepDashboardPage(api: widget.api)),
       );
     } catch (e) {
-      setState(() => _err = 'Network error: $e');
+      setState(() => _err = 'Netzwerk-/Serverfehler: $e');
     } finally {
-      setState(() => _busy = false);
+      if (mounted) setState(() => _busy = false);
     }
   }
 
