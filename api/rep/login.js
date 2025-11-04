@@ -1,37 +1,41 @@
-// api/rep/login.js
-import { setCors } from '../_lib/cors.js';
-import { loadRepByEmail, setRepPassword } from '../_lib/repsStore.js';
-import { signRepJwt, checkPassword, hashPassword } from '../_lib/repAuth.js';
-
+// /api/rep/login.js
 export default async function handler(req, res) {
-  setCors(req, res);
-  if (req.method === 'OPTIONS') return res.status(204).end();
-  if (req.method !== 'POST')   return res.status(405).end(JSON.stringify({ error: 'method not allowed' }));
-
-  try {
-    const body = (typeof req.body === 'string') ? JSON.parse(req.body||'{}') : (req.body || {});
-    const email = (body.email || '').toString().trim().toLowerCase();
-    const password = (body.password || '').toString();
-
-    if (!email || !password) return res.status(400).end(JSON.stringify({ error: 'missing email or password' }));
-
-    const rep = await loadRepByEmail(email);
-    if (!rep) return res.status(401).end(JSON.stringify({ error: 'invalid credentials' }));
-
-    // erster Login: wenn passHash fehlt, akzeptiere das Initial-Passwort und setze mustChangePw=true
-    if (!rep.passHash) {
-      const hash = await hashPassword(password);
-      await setRepPassword(rep.id, hash, true);
-      const token = signRepJwt({ id: rep.id, email: rep.email });
-      return res.status(200).end(JSON.stringify({ token, mustChangePw: true }));
-    }
-
-    const ok = await checkPassword(password, rep.passHash);
-    if (!ok) return res.status(401).end(JSON.stringify({ error: 'invalid credentials' }));
-
-    const token = signRepJwt(rep);
-    return res.status(200).end(JSON.stringify({ token, mustChangePw: !!rep.mustChangePw }));
-  } catch (e) {
-    res.status(500).end(JSON.stringify({ error: String(e?.message || e) }));
+  // ---- CORS (kleinstmöglicher Eingriff) ----
+  const origin = req.headers.origin || '';
+  const allow = [
+    'https://dfs-complaints-web.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:3000',
+  ];
+  if (allow.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
   }
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, X-Admin-Secret, X-Gate, X-Rep-Secret'
+  );
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end(); // Preflight: sofort raus
+  }
+
+  // ---- eigentliche Logik ----
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Secret aus Header ODER Body akzeptieren (passt zum Client-Update)
+  const secret =
+    req.headers['x-rep-secret'] ||
+    (req.body && typeof req.body === 'object' ? req.body.secret : '');
+
+  if (!secret) {
+    return res.status(400).json({ error: 'Missing secret' });
+  }
+
+  // TODO: secret validieren -> token erzeugen
+  // const token = sign(...);
+  return res.status(200).json({ ok: true /*, token */ });
 }
