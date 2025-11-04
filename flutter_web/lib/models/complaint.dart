@@ -4,12 +4,12 @@ class Complaint {
   final String email;
   final DateTime createdAt;
   final DateTime updatedAt;
-  final int status;                  // 1..6
-  final String? decision;            // 'accepted' | 'rejected' | null
-  final String? reportLink;          // URL zum Bericht (optional)
-  final Map<String, dynamic>? payload; // optionaler Nutzinhalt (z.B. article)
+  final int status;
+  final String? decision;
+  final String? reportLink;
+  final Map<String, dynamic>? payload;
 
-  // 🆕 Interne DFS-Reklamationsnummer (vom Backend geliefert; optional)
+  // ⬇️ NEU: interne Reklamationsnummer
   final String? internalNo;
 
   Complaint({
@@ -21,11 +21,9 @@ class Complaint {
     this.decision,
     this.reportLink,
     this.payload,
-    this.internalNo,
+    this.internalNo, // ⬅️ NEU
   });
 
-  /// Bequemer Anzeigename des Artikels (falls vom Backend mitgeschickt).
-  /// Sucht zuerst 'article', dann deutsch 'Artikel'.
   String get articleLabel {
     final p = payload;
     if (p == null) return '';
@@ -33,21 +31,41 @@ class Complaint {
     return (a ?? '').toString();
   }
 
-  // ---------- Parser-Helper ----------
+  // ⬇️ Helper zum robusten Lesen der internen Nummer (mehrere mögliche Keys)
+  static String? _parseInternal(dynamic j) {
+    // Top-Level Varianten
+    final top =
+        (j is Map && j['internalNo'] != null) ? j['internalNo'] :
+        (j is Map && j['internalId'] != null) ? j['internalId'] :
+        (j is Map && j['internal']   != null) ? j['internal']   : null;
+    if (top != null) {
+      final s = top.toString().trim();
+      if (s.isNotEmpty) return s;
+    }
+    // Falls in payload mitgegeben
+    try {
+      final p = (j is Map && j['payload'] is Map)
+          ? (j['payload'] as Map).cast<String, dynamic>()
+          : const <String,dynamic>{};
+      final pay = p['internalNo'] ?? p['internalId'] ?? p['internal'];
+      if (pay != null) {
+        final s = pay.toString().trim();
+        if (s.isNotEmpty) return s;
+      }
+    } catch (_) {}
+    return null;
+  }
 
-  /// Robuste Timestamp-PARSER (int ms, int-String, oder ISO-String)
+  // ---------- bestehende Parser-Helper ----------
   static DateTime _parseDate(dynamic v) {
     if (v == null) return DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
-    // int (ms since epoch)
     if (v is int) return DateTime.fromMillisecondsSinceEpoch(v, isUtc: true);
-    // int als String
     if (v is String && v.trim().isNotEmpty) {
       final s = v.trim();
       final n = int.tryParse(s);
       if (n != null) {
         return DateTime.fromMillisecondsSinceEpoch(n, isUtc: true);
       }
-      // ISO String
       try {
         return DateTime.parse(s).toUtc();
       } catch (_) {
@@ -57,7 +75,6 @@ class Complaint {
     return DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
   }
 
-  /// Status 1..6 (akzeptiert Zahl oder Zahl-String; sonst Default)
   static int _parseInt(dynamic v, {int def = 1}) {
     if (v is int) return v;
     if (v is num) return v.toInt();
@@ -68,37 +85,25 @@ class Complaint {
     return def;
   }
 
-  /// Normalisiert decision auf 'accepted' | 'rejected' | null
   static String? _parseDecision(dynamic v) {
     if (v == null) return null;
     final s = v.toString().trim().toLowerCase();
     if (s.isEmpty) return null;
     if (s == 'accepted' || s == 'rejected') return s;
-    return null; // Unbekannte Werte ignorieren
+    return null;
   }
 
-  /// Payload sicher zu Map<String,dynamic> casten
   static Map<String, dynamic>? _parsePayload(dynamic v) {
     if (v is Map) {
       try {
         return v.cast<String, dynamic>();
       } catch (_) {
-        // Fallback: harte Kopie in Map<String,dynamic>
         final out = <String, dynamic>{};
-        v.forEach((key, value) {
-          out['$key'] = value;
-        });
+        v.forEach((key, value) => out['$key'] = value);
         return out;
       }
     }
     return null;
-  }
-
-  /// Interne Reklamationsnummer als String (leer => null)
-  static String? _parseInternalNo(dynamic v) {
-    if (v == null) return null;
-    final s = v.toString().trim();
-    return s.isEmpty ? null : s;
   }
 
   factory Complaint.fromJson(Map<String, dynamic> j) {
@@ -113,7 +118,7 @@ class Complaint {
           ? null
           : j['reportLink']!.toString().trim(),
       payload: _parsePayload(j['payload']),
-      internalNo: _parseInternalNo(j['internalNo']), // 🆕
+      internalNo: _parseInternal(j), // ⬅️ NEU
     );
   }
 }
