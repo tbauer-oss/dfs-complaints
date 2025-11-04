@@ -865,6 +865,7 @@ class AdminComplaint {
   int status;               // 1..6 (mutierbar für UI)
   String? decision;         // 'accepted' | 'rejected' | null
   String? reportLink;
+  String? internalNo;
 
   // komplettes Payload vom Backend (für Wunsch etc.)
   final Map<String, dynamic>? payload;
@@ -877,6 +878,7 @@ class AdminComplaint {
     required this.status,
     this.decision,
     this.reportLink,
+    this.internalNo,
     this.payload,
   });
 
@@ -898,6 +900,7 @@ class AdminComplaint {
           ? null
           : j['decision']?.toString(),
       reportLink: j['reportLink']?.toString(),
+      internalNo: j['internalNo']?.toString(),
       payload: (j['payload'] is Map)
           ? (j['payload'] as Map).cast<String, dynamic>()
           : null,
@@ -912,6 +915,7 @@ class AdminComplaint {
         'status': status,
         'decision': decision,
         'reportLink': reportLink,
+        'internalNo': internalNo,
         'payload': payload,
       };
 
@@ -920,7 +924,7 @@ class AdminComplaint {
     if (p == null) return '—';
     final v = p['handling'] ?? p['Wunsch'] ?? '';
     final s = v.toString().trim();
-    return s.isEmpty ? '—' : s; // Ersatz | Gutschrift | Nacharbeit
+    return s.isEmpty ? '—' : s;
   }
 }
 
@@ -981,6 +985,7 @@ class _ComplaintDetailsDialog extends StatelessWidget {
                 row('Beschreibung', (payload['desc'] ?? '').toString()),
                 row('Produkte zurückgeschickt?', (payload['returned'] ?? '').toString()),
                 row('Gewünschte Behandlung', (payload['handling'] ?? '').toString()),
+                row('Interne DFS-Nr.', (data['internalNo'] ?? '').toString()),
                 if ((payload['applied'] ?? '') != '')
                   row('Am Patienten angewendet?', (payload['applied'] ?? '').toString()),
                 if ((payload['injury'] ?? '') != '')
@@ -1020,8 +1025,25 @@ class _ComplaintEditor extends StatefulWidget {
 
 class _ComplaintEditorState extends State<_ComplaintEditor> {
   final _reportCtrl = TextEditingController();
+  final _dfsNoCtrl  = TextEditingController();
   bool _busy = false;
   bool _expanded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _reportCtrl.text = widget.c.reportLink ?? '';
+    _dfsNoCtrl.text  = widget.c.internalNo ?? '';
+    _status = widget.c.status;
+    _decision = widget.c.decision;
+  }
+
+  @override
+  void dispose() {
+    _reportCtrl.dispose();
+    _dfsNoCtrl.dispose();
+    super.dispose();
+  }
 
   int? _status; // 1..6
   String? _decision; // null | accepted | rejected
@@ -1118,6 +1140,30 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       if (mounted) setState(() => _busy = false);
     }
   }
+
+    Future<void> _saveInternalNumber() async {
+      setState(() => _busy = true);
+      try {
+        final no = _dfsNoCtrl.text.trim();
+        final updated = await widget.api.adminComplaintUpdate(
+          ticket: widget.c.ticket,
+          internalNo: no,  // leerer String = löschen
+        );
+        widget.c.internalNo = updated.internalNo;
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Interne Reklamationsnummer gespeichert.')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+        }
+      } finally {
+        if (mounted) setState(() => _busy = false);
+      }
+    }
 
   Future<void> _deleteComplaint() async {
     final ok = await showDialog<bool>(
@@ -1326,6 +1372,13 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                 Text('Status: ${_statusLabel(widget.c.status)}'),
                 const SizedBox(width: 12),
                 Text('Entscheidung: ${widget.c.decision?.toString() == 'accepted' ? 'Angenommen' : widget.c.decision == 'rejected' ? 'Abgelehnt' : '—'}'),
+                const SizedBox(width: 12),
+                Flexible(
+                  child: Text(
+                    'Interne Nr.: ${widget.c.internalNo?.isNotEmpty == true ? widget.c.internalNo : '—'}',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
                 const Spacer(),
                 TextButton.icon(
                   onPressed: () => setState(() => _expanded = !_expanded),
@@ -1395,6 +1448,23 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                 ],
               ),
               const SizedBox(height: 12),
+              TextField(
+                controller: _dfsNoCtrl,
+                enabled: widget.c.status != 6, // bei „Abgeschlossen“ sperren
+                decoration: InputDecoration(
+                  labelText: 'Interne DFS-Reklamationsnummer',
+                  hintText: 'z. B. R820-25-034',
+                  border: const OutlineInputBorder(),
+                  suffixIcon: IconButton(
+                    tooltip: 'Speichern',
+                    icon: const Icon(Icons.save_outlined),
+                    onPressed: _busy ? null : _saveInternalNumber,
+                  ),
+                ),
+                onSubmitted: (_) => _saveInternalNumber(),
+              ),
+              const SizedBox(height: 12),
+              
               TextField(
                 controller: _reportCtrl,
                 decoration: InputDecoration(
@@ -1553,11 +1623,13 @@ class AdminApi {
     int? status,
     String? decision,
     String? reportLink,
+    String? internalNo,
   }) async {
     final body = <String, dynamic>{'ticket': ticket};
     if (status != null) body['status'] = status;
     body['decision'] = decision ?? '';
     if (reportLink != null) body['reportLink'] = reportLink;
+    if (internalNo != null) body['internalNo'] = internalNo;
 
     final res = await _request('POST', '/api/admin/complaints', body: body);
     if (res.status != 200) {
