@@ -11,60 +11,19 @@ class RepProfilePage extends StatefulWidget {
 }
 
 class _RepProfilePageState extends State<RepProfilePage> {
+  RepMe? _me; // ← Map -> Modell
+  bool _loading = true;
+  String? _err;
+
+  // Profileingaben (anzeigen / ggf. später aktualisieren)
   final _first = TextEditingController();
   final _last  = TextEditingController();
   final _region = TextEditingController();
-  final _oldPw = TextEditingController();
-  final _newPw = TextEditingController();
-  final _newPw2 = TextEditingController();
 
-  bool _busy = false;
-  String? _msg;
-
-  Future<void> _load() async {
-    setState(() => _busy = true);
-    try {
-      final me = await widget.api.getMyRep();
-      _first.text = me.firstName ?? '';
-      _last.text  = me.lastName ?? '';
-      _region.text = me.region ?? '';
-    } catch (e) {
-      _msg = 'Fehler beim Laden: $e';
-    } finally {
-      setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _saveProfile() async {
-    setState(() => _msg = null);
-    try {
-      await widget.api.repUpdate({
-        'firstName': _first.text.trim(),
-        'lastName':  _last.text.trim(),
-        'region':    _region.text.trim(),
-      });
-      setState(() => _msg = 'Daten gespeichert.');
-    } catch (e) {
-      setState(() => _msg = 'Fehler: $e');
-    }
-  }
-
-  Future<void> _changePw() async {
-    if (_newPw.text != _newPw2.text) {
-      setState(() => _msg = 'Passwörter stimmen nicht überein.');
-      return;
-    }
-    try {
-      await widget.api.repChangePasswordAuth(
-        oldPw: _oldPw.text,
-        newPw: _newPw.text,
-      );
-      setState(() => _msg = 'Passwort erfolgreich geändert.');
-      _oldPw.clear(); _newPw.clear(); _newPw2.clear();
-    } catch (e) {
-      setState(() => _msg = 'Fehler: $e');
-    }
-  }
+  // Passwort ändern
+  final _pw1 = TextEditingController();
+  final _pw2 = TextEditingController();
+  bool _busyPw = false;
 
   @override
   void initState() {
@@ -72,71 +31,238 @@ class _RepProfilePageState extends State<RepProfilePage> {
     _load();
   }
 
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _err = null;
+    });
+    try {
+      final m = await widget.api.repMe(); // Map<String, dynamic>
+      final me = RepMe.fromJson(m);
+      _me = me;
+
+      // Felder setzen – null-safe
+      _first.text  = me.firstName;
+      _last.text   = me.lastName;
+      _region.text = me.region;
+
+      if (mounted) setState(() {});
+    } catch (e) {
+      if (mounted) setState(() => _err = '$e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  // Platzhalter – bis Server-Endpoint existiert.
+  // Verhindert Buildfehler, ruft aber keinen nicht vorhandenen ApiClient-Call auf.
+  Future<void> _saveProfile() async {
+    if (_me == null) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Profil-Update ist aktuell nicht aktiviert.')),
+    );
+
+    // Wenn dein Backend /api/rep/update bereit ist UND du im ApiClient
+    // z.B. `Future<void> repUpdateProfile(Map data)` ergänzt hast,
+    // kannst du folgenden Block aktivieren:
+    //
+    // try {
+    //   await widget.api.repUpdateProfile({
+    //     'firstName': _first.text.trim(),
+    //     'lastName' : _last.text.trim(),
+    //     'region'   : _region.text.trim(),
+    //   });
+    //   ScaffoldMessenger.of(context).showSnackBar(
+    //     const SnackBar(content: Text('Profil gespeichert.')),
+    //   );
+    //   await _load();
+    // } catch (e) {
+    //   ScaffoldMessenger.of(context).showSnackBar(
+    //     SnackBar(content: Text('Speichern fehlgeschlagen: $e')),
+    //   );
+    // }
+  }
+
+  Future<void> _changePassword() async {
+    final a = _pw1.text;
+    final b = _pw2.text;
+    if (a.isEmpty || b.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bitte neues Passwort zweimal eingeben.')),
+      );
+      return;
+    }
+    if (a != b) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Passwörter stimmen nicht überein.')),
+      );
+      return;
+    }
+    if (a.length < 8) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Passwort muss mindestens 8 Zeichen haben.')),
+      );
+      return;
+    }
+
+    setState(() => _busyPw = true);
+    try {
+      // WICHTIG: vorhandene ApiClient-Methode verwenden
+      await widget.api.repChangePassword(a);
+      if (!mounted) return;
+      _pw1.clear();
+      _pw2.clear();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Passwort geändert.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Passwort ändern fehlgeschlagen: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _busyPw = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _first.dispose();
+    _last.dispose();
+    _region.dispose();
+    _pw1.dispose();
+    _pw2.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final title = const Text('Profil & Passwort');
+
+    if (_loading) {
+      return Scaffold(
+        appBar: AppBar(title: title),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_err != null) {
+      return Scaffold(
+        appBar: AppBar(title: title),
+        body: Center(child: Text(_err!, style: const TextStyle(color: Colors.red))),
+      );
+    }
+
+    final email = _me?.email ?? '';
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Mein Profil')),
-      body: _busy
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Persönliche Daten',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 12),
-                  TextField(controller: _first, decoration: const InputDecoration(labelText: 'Vorname')),
-                  const SizedBox(height: 8),
-                  TextField(controller: _last, decoration: const InputDecoration(labelText: 'Nachname')),
-                  const SizedBox(height: 8),
-                  TextField(controller: _region, decoration: const InputDecoration(labelText: 'Region')),
-                  const SizedBox(height: 12),
-                  FilledButton(
-                    onPressed: _saveProfile,
-                    child: const Text('Speichern'),
-                  ),
-                  const Divider(height: 40),
-                  const Text('Passwort ändern',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _oldPw,
-                    obscureText: true,
-                    decoration:
-                        const InputDecoration(labelText: 'Altes Passwort'),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _newPw,
-                    obscureText: true,
-                    decoration:
-                        const InputDecoration(labelText: 'Neues Passwort'),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _newPw2,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                        labelText: 'Neues Passwort (Wiederholung)'),
-                  ),
-                  const SizedBox(height: 12),
-                  FilledButton(
-                    onPressed: _changePw,
-                    child: const Text('Passwort ändern'),
-                  ),
-                  const SizedBox(height: 12),
-                  if (_msg != null)
-                    Text(_msg!,
-                        style: TextStyle(
-                            color: _msg!.startsWith('Fehler')
-                                ? Colors.red
-                                : Colors.green)),
-                ],
+      appBar: AppBar(title: title),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Card(
+              elevation: 4,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Meine Daten',
+                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _first,
+                      decoration: const InputDecoration(
+                        labelText: 'Vorname',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _last,
+                      decoration: const InputDecoration(
+                        labelText: 'Nachname',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _region,
+                      decoration: const InputDecoration(
+                        labelText: 'Region',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      enabled: false,
+                      controller: TextEditingController(text: email),
+                      decoration: const InputDecoration(
+                        labelText: 'E-Mail (fest)',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: _saveProfile, // aktuell Info-Toast
+                        icon: const Icon(Icons.save),
+                        label: const Text('Profil speichern'),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
+            const SizedBox(height: 16),
+            Card(
+              elevation: 4,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Passwort ändern',
+                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _pw1,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Neues Passwort',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _pw2,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Neues Passwort (Wiederholung)',
+                        border: OutlineInputBorder(),
+                      ),
+                      onSubmitted: (_) => _busyPw ? null : _changePassword(),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: _busyPw ? null : _changePassword,
+                        icon: _busyPw
+                            ? const SizedBox(
+                                width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Icon(Icons.key),
+                        label: const Text('Passwort speichern'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
