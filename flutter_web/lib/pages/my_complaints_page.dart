@@ -1,6 +1,6 @@
 // lib/pages/my_complaints_page.dart
 import 'dart:async';
-import 'dart:html' as html; // nur Web – für Link-Öffnen
+import 'dart:html' as html; // nur Web – für Link-Öffnen & mailto
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../models/complaint.dart';
@@ -50,7 +50,6 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     try {
       // Nutzt neuen Detail-Endpunkt (JWT), liefert volle Felder
       final raw = await widget.api.myComplaintsDetailed();
-      // in dein Modell mappen (falls Complaint.fromJson existiert)
       final list = raw.map(Complaint.fromJson).toList(growable: false);
 
       // Neueste zuerst (nach updatedAt, dann createdAt)
@@ -88,21 +87,21 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
   String _statusTextLocalized(AppLocalizations t, int s, String? decision) {
     switch (s) {
       case 1:
-        return t.status_sent; // gesendet
+        return t.status_sent;
       case 2:
-        return t.status_in_progress; // in Bearbeitung
+        return t.status_in_progress;
       case 3:
-        return t.status_question; // Rückfrage erforderlich
+        return t.status_question;
       case 4:
-        if (decision == 'rejected') return t.status_rejected; // abgelehnt
-        if (decision == 'accepted') return t.status_accepted; // angenommen
-        return t.status_decision; // Entscheidung
+        if (decision == 'rejected') return t.status_rejected;
+        if (decision == 'accepted') return t.status_accepted;
+        return t.status_decision;
       case 5:
-        return t.status_rework; // in Nacharbeit
+        return t.status_rework;
       case 6:
-        return t.status_closed; // abgeschlossen
+        return t.status_closed;
       default:
-        return t.status_unknown; // unbekannt
+        return t.status_unknown;
     }
   }
 
@@ -198,8 +197,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
               child: Container(
                 width: double.infinity,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
                   color: Colors.blue.withOpacity(0.08),
                   border: Border.all(color: Colors.blue, width: 1),
@@ -209,15 +207,40 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                   children: [
                     const Icon(Icons.handshake_outlined, size: 20),
                     const SizedBox(width: 10),
+
+                    // Name + Details
                     Expanded(
-                      child: Text(
-                        'Ihr Ansprechpartner (Vertreter): '
-                        '${repName.isEmpty ? "—" : repName}'
-                        '${_myRep!.email.isNotEmpty ? " • ${_myRep!.email}" : ""}'
-                        '${_myRep!.region.isNotEmpty ? " • ${_myRep!.region}" : ""}',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            t.rep_banner_title(repName.isEmpty ? '—' : repName),
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 2),
+                          Text([
+                            if (_myRep!.email.isNotEmpty) _myRep!.email,
+                            if (_myRep!.region.isNotEmpty) _myRep!.region,
+                          ].join(' • ')),
+                        ],
                       ),
                     ),
+
+                    const SizedBox(width: 8),
+
+                    // E-Mail Button (mailto)
+                    Tooltip(
+                      message: t.rep_email_tooltip,
+                        child: TextButton.icon(
+                          onPressed: () {
+                            final subject = Uri.encodeComponent(t.mail_subject_rep);
+                            final mailto = 'mailto:${_myRep!.email}?subject=$subject';
+                            html.window.open(mailto, '_self');
+                          },
+                          icon: const Icon(Icons.email_outlined),
+                          label: Text(t.rep_email_button),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -234,76 +257,47 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                         : RefreshIndicator(
                             onRefresh: () => _load(silent: false),
                             child: ListView.separated(
-                              physics:
-                                  const AlwaysScrollableScrollPhysics(),
+                              physics: const AlwaysScrollableScrollPhysics(),
                               itemCount: _items.length,
-                              separatorBuilder: (_, __) =>
-                                  const Divider(height: 1),
+                              separatorBuilder: (_, __) => const Divider(height: 1),
                               itemBuilder: (_, i) {
                                 final c = _items[i];
-                                final statusText = _statusTextLocalized(
-                                    t, c.status, c.decision);
-                                final statusColor =
-                                    _statusColor(c.status, c.decision);
-                                final reportLink =
-                                    (c.reportLink ?? '').trim();
-                                final canOpenReport =
-                                    _canOpenReportLink(c);
+                                final statusText = _statusTextLocalized(t, c.status, c.decision);
+                                final statusColor = _statusColor(c.status, c.decision);
+                                final reportLink = (c.reportLink ?? '').trim();
+                                final canOpenReport = _canOpenReportLink(c);
 
                                 return ListTile(
-                                  contentPadding:
-                                      const EdgeInsets.symmetric(
-                                          horizontal: 16, vertical: 10),
-                                  title: Text(
-                                    c.ticket,
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.w600),
-                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                  title: Text(c.ticket, style: const TextStyle(fontWeight: FontWeight.w600)),
                                   subtitle: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                          '${t.created}: ${_fmt(c.createdAt)}'),
-                                      if (c.internalNo != null &&
-                                          c.internalNo!.isNotEmpty)
+                                      Text('${t.created}: ${_fmt(c.createdAt)}'),
+                                      if (c.internalNo != null && c.internalNo!.isNotEmpty)
                                         Padding(
-                                          padding: const EdgeInsets.only(
-                                              top: 4.0, bottom: 4.0),
-                                          child: Row(
-                                            children: [
-                                              Icon(Icons.tag,
-                                                  size: 18,
-                                                  color:
-                                                      Colors.grey[600]),
-                                              const SizedBox(width: 6),
-                                              Text(
-                                                'Interne DFS-Nr.: ${c.internalNo}',
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .bodyMedium
-                                                    ?.copyWith(
-                                                      color:
-                                                          Colors.grey[800],
-                                                      fontWeight:
-                                                          FontWeight.w500,
-                                                    ),
-                                              ),
-                                            ],
+                                            padding: const EdgeInsets.only(top: 4.0, bottom: 4.0),
+                                            child: Row(
+                                              children: [
+                                                Icon(Icons.tag, size: 18, color: Colors.grey[600]),
+                                                const SizedBox(width: 6),
+                                                Text(
+                                                  '${t.internal_no_label}: ${c.internalNo}',
+                                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                                        color: Colors.grey[800],
+                                                        fontWeight: FontWeight.w500,
+                                                      ),
+                                                ),
+                                              ],
+                                            ),
                                           ),
-                                        ),
-                                      if (c.updatedAt
-                                              .millisecondsSinceEpoch >
-                                          0)
-                                        Text(
-                                            '${t.updated}: ${_fmt(c.updatedAt)}'),
+                                      if (c.updatedAt.millisecondsSinceEpoch > 0)
+                                        Text('${t.updated}: ${_fmt(c.updatedAt)}'),
                                       if (canOpenReport) ...[
                                         const SizedBox(height: 6),
                                         TextButton.icon(
-                                          onPressed: () => html.window
-                                              .open(reportLink, '_blank'),
-                                          icon: const Icon(
-                                              Icons.open_in_new),
+                                          onPressed: () => html.window.open(reportLink, '_blank'),
+                                          icon: const Icon(Icons.open_in_new),
                                           label: Text(t.report_open),
                                         ),
                                       ],
@@ -311,71 +305,40 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                   ),
                                   trailing: Column(
                                     mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.end,
+                                    crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
                                       // Status-Badge
                                       Container(
-                                        padding: const EdgeInsets
-                                            .symmetric(
-                                                horizontal: 10,
-                                                vertical: 6),
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                         decoration: BoxDecoration(
-                                          color: statusColor
-                                              .withOpacity(0.12),
-                                          border: Border.all(
-                                              color: statusColor,
-                                              width: 1),
-                                          borderRadius:
-                                              BorderRadius.circular(12),
+                                          color: statusColor.withOpacity(0.12),
+                                          border: Border.all(color: statusColor, width: 1),
+                                          borderRadius: BorderRadius.circular(12),
                                         ),
                                         child: Text(
                                           '${t.status}: $statusText',
-                                          style: TextStyle(
-                                              color: statusColor,
-                                              fontWeight:
-                                                  FontWeight.w600),
+                                          style: TextStyle(color: statusColor, fontWeight: FontWeight.w600),
                                         ),
                                       ),
 
                                       // Entscheidungs-Badge (nur wenn gesetzt)
-                                      if ((c.decision ?? '')
-                                          .isNotEmpty) ...[
+                                      if ((c.decision ?? '').isNotEmpty) ...[
                                         const SizedBox(height: 6),
                                         Builder(
                                           builder: (_) {
                                             final dec = c.decision!;
-                                            final decText =
-                                                (dec == 'accepted')
-                                                    ? t.decision_accepted
-                                                    : t.decision_rejected;
-                                            final decColor =
-                                                (dec == 'accepted')
-                                                    ? Colors.green
-                                                    : Colors.red;
+                                            final decText = (dec == 'accepted') ? t.decision_accepted : t.decision_rejected;
+                                            final decColor = (dec == 'accepted') ? Colors.green : Colors.red;
                                             return Container(
-                                              padding:
-                                                  const EdgeInsets
-                                                      .symmetric(
-                                                          horizontal: 10,
-                                                          vertical: 6),
+                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                               decoration: BoxDecoration(
-                                                color: decColor
-                                                    .withOpacity(0.12),
-                                                border: Border.all(
-                                                    color: decColor,
-                                                    width: 1),
-                                                borderRadius:
-                                                    BorderRadius
-                                                        .circular(12),
+                                                color: decColor.withOpacity(0.12),
+                                                border: Border.all(color: decColor, width: 1),
+                                                borderRadius: BorderRadius.circular(12),
                                               ),
                                               child: Text(
                                                 '${t.decision}: $decText',
-                                                style: TextStyle(
-                                                    color: decColor,
-                                                    fontWeight:
-                                                        FontWeight
-                                                            .w600),
+                                                style: TextStyle(color: decColor, fontWeight: FontWeight.w600),
                                               ),
                                             );
                                           },
@@ -389,13 +352,10 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                         onPressed: () async {
                                           await showDialog(
                                             context: context,
-                                            builder: (_) =>
-                                                _MyComplaintDetailsDialog(
-                                                    c: c),
+                                            builder: (_) => _MyComplaintDetailsDialog(c: c),
                                           );
                                         },
-                                        icon: const Icon(
-                                            Icons.info_outline),
+                                        icon: const Icon(Icons.info_outline),
                                         label: Text(t.details),
                                       ),
                                     ],
@@ -420,8 +380,7 @@ class _MyComplaintDetailsDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
-    final Map<String, dynamic> payload =
-        c.payload ?? const <String, dynamic>{};
+    final Map<String, dynamic> payload = c.payload ?? const <String, dynamic>{};
 
     Widget row(String l, String v) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 2),
@@ -430,10 +389,7 @@ class _MyComplaintDetailsDialog extends StatelessWidget {
             children: [
               SizedBox(
                 width: 160,
-                child: Text(
-                  l,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
+                child: Text(l, style: const TextStyle(fontWeight: FontWeight.w600)),
               ),
               Expanded(child: Text(v.isEmpty ? '—' : v)),
             ],
@@ -467,21 +423,17 @@ class _MyComplaintDetailsDialog extends StatelessWidget {
                   row(t.injury, (payload['injury'] ?? '').toString()),
                 if ((payload['injuryDesc'] ?? '').toString().trim().isNotEmpty)
                   row(t.injury_desc, (payload['injuryDesc'] ?? '').toString()),
-                // Optional: weitere Felder sauber ergänzen, falls in payload vorhanden
                 if ((payload['customerName'] ?? '').toString().isNotEmpty)
-                  row('Kunde', (payload['customerName'] ?? '').toString()),
+                  row(t.customer_label, (payload['customerName'] ?? '').toString()),
                 if ((payload['country'] ?? '').toString().isNotEmpty)
-                  row('Land', (payload['country'] ?? '').toString()),
+                  row(t.country_label, (payload['country'] ?? '').toString()),
               ],
             ],
           ),
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(t.close),
-        ),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(t.close)),
       ],
     );
   }
