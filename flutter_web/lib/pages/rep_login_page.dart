@@ -53,7 +53,6 @@ class _RepLoginPageState extends State<RepLoginPage> {
   }
 
   // ---- Step 2a: Secret (Einmalpasswort) prüfen ----
-  // Erwartet REP_JWT_SECRET. Backend antwortet mit { ok, mustChangePw } bzw. { token?, mustChangePw:true }.
   Future<void> _submitOtp() async {
     _setErr(null);
     final otp = _otp.text.trim();
@@ -69,7 +68,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
         _setErr('Einmalpasswort falsch oder nicht zulässig.');
         return;
       }
-      // Nach Secret-Login muss das Passwort gesetzt werden.
+      // Nach Secret-Login: in Passwort-Setzen wechseln
       setState(() => _step = _RepStep.setPassword);
     } catch (e) {
       _setErr('Login fehlgeschlagen: $e');
@@ -100,13 +99,12 @@ class _RepLoginPageState extends State<RepLoginPage> {
         return;
       }
       if (res.mustChange) {
-        // Falls Backend noch mustChangePw==true hat → in Passwort-Setzen wechseln
         setState(() => _step = _RepStep.setPassword);
         return;
       }
 
-      // --- Erfolgreicher normaler Login ---
-      html.window.localStorage['dfs_mode'] = 'rep'; // Modus markieren
+      // Erfolgreich: direkt ins Dashboard
+      html.window.localStorage['dfs_mode'] = 'rep';
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => RepDashboardPage(api: widget.api)),
@@ -119,7 +117,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
     }
   }
 
-  // ---- Step 3: Neues Passwort setzen und sofort normal einloggen ----
+  // ---- Step 3: Neues Passwort setzen -> SOFORT ins Portal (ohne Re-Login) ----
   Future<void> _setNewPassword() async {
     _setErr(null);
     final a = _new1.text;
@@ -140,19 +138,14 @@ class _RepLoginPageState extends State<RepLoginPage> {
 
     _setBusy(true);
     try {
-      // 1) Passwort im Backend setzen
+      // 1) Passwort im Backend setzen – wir sind zu diesem Zeitpunkt bereits mit repToken autorisiert.
       await widget.api.repChangePassword(a);
 
-      // 2) Direkt normal einloggen (sichert frisches JWT, falls Secret-Login kein Token gab)
-      final email = _email.text.trim().toLowerCase();
-      final res = await widget.api.repLogin(email, a);
-      if (!res.ok) {
-        _setErr('Passwort wurde gesetzt, aber der Login ist fehlgeschlagen.');
-        return;
-      }
-
-      // --- Erfolgreich: Modus setzen & ins Dashboard (Stack leeren) ---
+      // 2) OHNE erneuten Login direkt ins Vertreter-Portal:
+      //    - repToken ist noch gültig (vom Secret-Login)
+      //    - mustChangePw wurde serverseitig auf false gesetzt
       html.window.localStorage['dfs_mode'] = 'rep';
+
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => RepDashboardPage(api: widget.api)),
