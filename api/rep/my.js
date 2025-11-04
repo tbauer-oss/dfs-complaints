@@ -22,14 +22,15 @@ function setCors(res) {
 
 export default async function handler(req, res) {
   setCors(res);
-
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'GET') return res.status(405).end();
 
   const email = getEmailFromJwt(req);
   if (!email) return res.status(401).json({ error: 'unauthorized' });
 
+  // Muss deine Admin-Zuweisungen (E-Mail-Liste je Rep) zurückgeben:
   const reps = await getAllRepsWithCustomers(); // [{firstName,lastName,email,region,customers:[...]}]
+
   const rep = reps.find(r =>
     Array.isArray(r.customers) &&
     r.customers.some(c => (c || '').trim().toLowerCase() === email)
