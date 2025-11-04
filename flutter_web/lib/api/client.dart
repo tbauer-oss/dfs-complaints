@@ -1,488 +1,437 @@
-// lib/pages/my_complaints_page.dart
-import 'dart:async';
-import 'dart:html' as html; // nur Web – für Link-Öffnen
-import 'package:flutter/material.dart';
-import '../api/client.dart';
+// lib/api/client.dart
+import 'dart:convert';
+import 'dart:html' as html; // Web: LocalStorage & Window
+import 'package:http/http.dart' as http;
 import '../models/complaint.dart';
-import '../l10n/app_localizations.dart';
 
-class MyComplaintsPage extends StatefulWidget {
-  final ApiClient api;
-  const MyComplaintsPage({super.key, required this.api});
-
+class ApiError implements Exception {
+  final int status;
+  final String message;
+  ApiError(this.status, this.message);
   @override
-  State<MyComplaintsPage> createState() => _MyComplaintsPageState();
+  String toString() => 'HTTP $status: $message';
 }
 
-class _MyComplaintsPageState extends State<MyComplaintsPage> {
-  bool _busy = false;
-  String? _err;
-  List<Complaint> _items = const [];
-  MyRep? _myRep;
+String _extractMessage(String body) {
+  try {
+    final j = jsonDecode(body);
+    if (j is Map && j['error'] is String) return j['error'] as String;
+    if (j is Map && j['message'] is String) return j['message'] as String;
+    return body.isNotEmpty ? body : 'Unknown error';
+  } catch (_) {
+    return body.isNotEmpty ? body : 'Unknown error';
+  }
+}
 
-  Timer? _poll; // Auto-Refresh
+class ApiClient {
+  // ---------- Konfiguration ----------
+  static const String _apiBase =
+      String.fromEnvironment('API_BASE', defaultValue: '');
 
-  @override
-  void initState() {
-    super.initState();
-    _load(); // initial
-    widget.api.getMyRep().then((rep) {
-      if (!mounted) return;
-      setState(() => _myRep = rep);
-    });
-    // sanftes Polling alle 10s, ohne UI-Spinner
-    _poll = Timer.periodic(const Duration(seconds: 10), (_) => _load(silent: true));
+  String? token;        // JWT
+  String? gate;         // optionales Gate-Token
+  String? adminSecret;  // für X-Admin-Secret
+
+  // ---------- Session persistieren ----------
+  void _saveSession() {
+    final ls = html.window.localStorage;
+
+    // Token
+    if (token != null) {
+      ls['dfs_token'] = token!;
+    } else {
+      ls.remove('dfs_token');
+    }
+
+    // Admin-Secret
+    if (adminSecret != null) {
+      ls['dfs_admin'] = adminSecret!;
+    } else {
+      ls.remove('dfs_admin');
+    }
+
+    // Gate
+    if (gate != null) {
+      ls['dfs_gate'] = gate!;
+    } else {
+      ls.remove('dfs_gate');
+    }
   }
 
-  @override
-  void dispose() {
-    _poll?.cancel();
-    super.dispose();
+  Future<void> restoreSession() async {
+    final ls = html.window.localStorage;
+    token       = ls['dfs_token'];
+    adminSecret = ls['dfs_admin'];
+    gate        = ls['dfs_gate'];
   }
 
-  Future<void> _load({bool silent = false}) async {
-    if (!silent) {
-      setState(() {
-        _busy = true;
-        _err = null;
-      });
+  Future<void> logout() async {
+    token = null;
+    adminSecret = null;
+    gate = null;
+    _saveSession();
+  }
+
+  void setAdminSecret(String? s) {
+    adminSecret = (s ?? '').trim().isEmpty ? null : s!.trim();
+    _saveSession();
+  }
+
+  void clearAdminSecret() {
+    adminSecret = null;
+    _saveSession();
+  }
+
+  // ---------- Header-Helfer ----------
+  Map<String, String> _headers({bool auth = false, Map<String, String>? extra}) {
+    final h = <String, String>{
+      'Content-Type': 'application/json; charset=utf-8',
+      if (gate != null) 'X-Gate': gate!,
+      if (auth && token != null) 'Authorization': 'Bearer $token',
+    };
+    if (extra != null) h.addAll(extra);
+    return h;
+  }
+
+  Map<String, String> _adminHeaders({bool auth = false, Map<String, String>? extra}) {
+    final h = _headers(auth: auth, extra: extra);
+    if (adminSecret != null && adminSecret!.isNotEmpty) {
+      h['X-Admin-Secret'] = adminSecret!;
+    }
+    return h;
+  }
+
+  Uri _u(String path) {
+    final base = _apiBase.isEmpty ? '' : _apiBase;
+    return Uri.parse('$base$path');
+  }
+
+  // ---------- Low-level HTTP ----------
+  Future<http.Response> _get(String path, {bool auth = false, Map<String,String>? extra}) {
+    return http.get(_u(path), headers: _headers(auth: auth, extra: extra));
+  }
+
+  Future<http.Response> _post(String path, Map body,
+      {bool auth = false, Map<String, String>? extraHeaders}) {
+    return http.post(
+      _u(path),
+      headers: _headers(auth: auth, extra: extraHeaders),
+      body: jsonEncode(body),
+    );
+  }
+
+  Future<http.Response> _put(String path, Map body, {bool auth = false}) {
+    return http.put(
+      _u(path),
+      headers: _headers(auth: auth),
+      body: jsonEncode(body),
+    );
+  }
+
+  Future<http.Response> _patch(String path, Map body, {bool auth = false}) {
+    return http.patch(
+      _u(path),
+      headers: _headers(auth: auth),
+      body: jsonEncode(body),
+    );
+  }
+
+  Future<http.Response> _delete(String path, {Map? body, bool auth = false}) {
+    return http.delete(
+      _u(path),
+      headers: _headers(auth: auth),
+      body: body == null ? null : jsonEncode(body),
+    );
+  }
+
+  // ---------- Gate ----------
+  Future<bool> gateUnlock(String password) async {
+    final r = await _post('/api/gate', {'password': password});
+    if (r.statusCode != 200) return false;
+    try {
+      final j = jsonDecode(r.body);
+      if (j is Map && j['gate'] is String) {
+        gate = j['gate'] as String;
+        _saveSession();
+        return true;
+      }
+      if (j is Map && j['ok'] == true) {
+        gate = 'ok';
+        _saveSession();
+        return true;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // ---------- Auth ----------
+  Future<bool> login(String email, String password) async {
+    final r = await _post('/api/auth/login', {'email': email, 'password': password});
+    if (r.statusCode != 200) return false;
+    final j = jsonDecode(r.body);
+    if (j is Map && j['token'] is String) {
+      token = j['token'] as String;
+      _saveSession();
+      return true;
+    }
+    return false;
+  }
+
+  /// Registrierung: `null` = Erfolg, sonst Fehlermeldung
+  Future<String?> register(Map<String, dynamic> data) async {
+    final r = await _post('/api/auth/register', data);
+    if (r.statusCode == 200 || r.statusCode == 201) {
+      return null;
     }
     try {
-      // Nutzt neuen Detail-Endpunkt (JWT), liefert volle Felder
-      final raw = await widget.api.myComplaintsDetailed();
-      // in dein Modell mappen (falls Complaint.fromJson existiert)
-      final list = raw.map(Complaint.fromJson).toList(growable: false);
+      final body = r.body;
+      if (body.isNotEmpty) return body;
+    } catch (_) {}
+    return 'register failed: ${r.statusCode}';
+  }
 
-      // Neueste zuerst (nach updatedAt, dann createdAt)
-      list.sort((a, b) {
-        final ta = (a.updatedAt.millisecondsSinceEpoch > 0
-            ? a.updatedAt.millisecondsSinceEpoch
-            : a.createdAt.millisecondsSinceEpoch);
-        final tb = (b.updatedAt.millisecondsSinceEpoch > 0
-            ? b.updatedAt.millisecondsSinceEpoch
-            : b.createdAt.millisecondsSinceEpoch);
-        return tb.compareTo(ta);
-      });
+  // ---------- Account ----------
+  Future<Map<String, dynamic>> accountGet() async {
+    final r = await _get('/api/account', auth: true);
+    if (r.statusCode != 200) {
+      throw Exception('GET /api/account failed: ${r.statusCode} ${r.body}');
+    }
+    final j = jsonDecode(r.body);
+    return (j is Map) ? j.cast<String, dynamic>() : <String, dynamic>{};
+  }
 
-      if (!mounted) return;
-      setState(() => _items = list);
-    } catch (e) {
-      final msg = '$e';
-      if (!mounted) return;
-      setState(() => _err = msg);
-      if (msg.contains('401')) {
-        final t = AppLocalizations.of(context)!;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(t.session_invalid)),
-        );
+  Future<void> accountUpdate(Map<String, dynamic> data) async {
+    // 1) Primär: PUT /api/account
+    var r = await _put('/api/account', data, auth: true);
+    if (r.statusCode == 200) return;
+
+    // 2) Fallback: PATCH /api/account (falls PUT nicht erlaubt)
+    if (r.statusCode == 405 || r.statusCode == 404) {
+      r = await _patch('/api/account', data, auth: true);
+      if (r.statusCode == 200) return;
+
+      // 3) Fallback: POST /api/account/update oder POST /api/account
+      if (r.statusCode == 405 || r.statusCode == 404) {
+        r = await _post('/api/account/update', data, auth: true);
+        if (r.statusCode == 200) return;
+
+        if (r.statusCode == 405 || r.statusCode == 404) {
+          r = await _post('/api/account', data, auth: true);
+          if (r.statusCode == 200) return;
+        }
       }
-    } finally {
-      if (!mounted) return;
-      if (!silent) setState(() => _busy = false);
+    }
+
+    throw Exception('PUT/PATCH/POST /api/account failed: ${r.statusCode} ${r.body}');
+  }
+
+  Future<void> accountDelete(String password) async {
+    // 1) Primär: DELETE /api/account (204 = Erfolg)
+    var r = await _delete('/api/account', body: {'password': password}, auth: true);
+    if (r.statusCode == 200 || r.statusCode == 204) {
+      await logout();
+      return;
+    }
+
+    // 2) Fallback: POST /api/account/delete
+    if (r.statusCode == 405 || r.statusCode == 404) {
+      r = await _post('/api/account/delete', {'password': password}, auth: true);
+      if (r.statusCode == 200 || r.statusCode == 204) {
+        await logout();
+        return;
+      }
+    }
+
+    throw Exception('DELETE/POST /api/account failed: ${r.statusCode} ${r.body}');
+  }
+
+  Future<void> accountChangePassword(String oldPw, String newPw) async {
+    final r = await _post('/api/account/password', {'old': oldPw, 'new': newPw}, auth: true);
+    if (r.statusCode != 200) {
+      throw Exception('POST /api/account/password failed: ${r.statusCode} ${r.body}');
     }
   }
 
-  String _fmt(DateTime dt) => dt.toLocal().toString();
-
-  // Lokalisierte Status-Texte
-  String _statusTextLocalized(AppLocalizations t, int s, String? decision) {
-    switch (s) {
-      case 1:
-        return t.status_sent; // gesendet
-      case 2:
-        return t.status_in_progress; // in Bearbeitung
-      case 3:
-        return t.status_question; // Rückfrage erforderlich
-      case 4:
-        if (decision == 'rejected') return t.status_rejected; // abgelehnt
-        if (decision == 'accepted') return t.status_accepted; // angenommen
-        return t.status_decision; // Entscheidung
-      case 5:
-        return t.status_rework; // in Nacharbeit
-      case 6:
-        return t.status_closed; // abgeschlossen
-      default:
-        return t.status_unknown; // unbekannt
+  // ---------- Support ----------
+  Future<void> sendSupport({
+    required String category,
+    required String message,
+    required bool consent,
+  }) async {
+    final r = await _post('/api/support', {
+      'category': category,
+      'message': message,
+      'consent': consent,
+    }, auth: true);
+    if (r.statusCode != 200 && r.statusCode != 201) {
+      throw Exception('POST /api/support failed: ${r.statusCode} ${r.body}');
     }
   }
 
-  Color _statusColor(int s, String? decision) {
-    switch (s) {
-      case 1:
-        return Colors.blue;
-      case 2:
-        return Colors.amber.shade800;
-      case 3:
-        return Colors.orange;
-      case 4:
-        return decision == 'rejected'
-            ? Colors.red
-            : (decision == 'accepted' ? Colors.lightGreen : Colors.grey);
-      case 5:
-        return Colors.amber;
-      case 6:
-        return Colors.green;
-      default:
-        return Colors.grey;
+  // ---------- Complaints ----------
+  Future<Map<String, dynamic>?> complaintCreate(
+    Map<String, dynamic> data, [
+    List<({String name, List<int> bytes, String mime})> files = const [],
+  ]) async {
+    final encFiles = files
+        .map((f) => {
+              'name': f.name,
+              'mime': f.mime,
+              'bytes': base64Encode(f.bytes),
+            })
+        .toList();
+
+    // 🔧 Richtiger Pfad (Singular + create)
+    final r = await _post('/api/complaint/create', {
+      'payload': data,
+      if (encFiles.isNotEmpty) 'files': encFiles,
+    }, auth: true);
+
+    if (r.statusCode != 200 && r.statusCode != 201) {
+      return null;
+    }
+    final j = jsonDecode(r.body);
+    return (j is Map) ? j.cast<String, dynamic>() : <String, dynamic>{};
+  }
+
+  Future<List<Map<String, dynamic>>> complaintListRaw() async {
+    // 🔧 Richtiger Pfad (Singular)
+    final r = await _get('/api/complaint/mine', auth: true);
+    if (r.statusCode != 200) {
+      throw Exception('GET /api/complaint/mine failed: ${r.statusCode} ${r.body}');
+    }
+    final j = jsonDecode(r.body);
+    if (j is List) {
+      return j
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList(growable: false);
+    }
+    return const [];
+  }
+
+  Future<List<Complaint>> complaintList() async {
+    final raw = await complaintListRaw();
+    return raw.map(Complaint.fromJson).toList(growable: false);
+  }
+
+  // ---------- Kundenbereich – Live-Updates ----------
+  /// Liefert die eigenen Reklamationen mit allen Feldern (inkl. status/decision/updatedAt).
+  /// Backend: GET /api/complaint/list?details=1  (JWT erforderlich)
+  Future<List<Map<String, dynamic>>> myComplaintsDetailed() async {
+    final r = await _get('/api/complaint/list?details=1', auth: true);
+    if (r.statusCode != 200) {
+      throw Exception('GET /api/complaint/list?details=1 failed: ${r.statusCode} ${r.body}');
+    }
+    final List data = jsonDecode(r.body);
+    return data.cast<Map<String, dynamic>>();
+  }
+
+  /// Eine eigene Reklamation per Ticket (Validierung gegen User erfolgt im Backend).
+  /// Backend: GET /api/complaint/get?ticket=...  (JWT erforderlich)
+  Future<Map<String, dynamic>> myComplaintByTicket(String ticket) async {
+    final r = await _get('/api/complaint/get?ticket=$ticket', auth: true);
+    if (r.statusCode != 200) {
+      throw Exception('GET /api/complaint/get failed: ${r.statusCode} ${r.body}');
+    }
+    return (jsonDecode(r.body) as Map).cast<String, dynamic>();
+  }
+
+  // ---------- Admin: Secret prüfen (für Dialog) ----------
+  Future<bool> validateAdminSecret(String secret) async {
+    if (secret.trim().isEmpty) return false;
+    try {
+      final r = await _get(
+        '/api/admin/pending',
+        extra: {'X-Admin-Secret': secret.trim()},
+      );
+      return r.statusCode == 200;
+    } catch (_) {
+      return false;
     }
   }
 
-  // Report-Link ist für Kunden sichtbar, wenn gesetzt (unabhängig vom Status)
-  bool _canOpenReportLink(Complaint c) {
-    final link = (c.reportLink ?? '').trim();
-    return link.isNotEmpty;
-  }
-
-  // Entscheidung als Text (robuster Fallback)
-  String _decisionText(String? d) {
-    switch ((d ?? '').trim().toLowerCase()) {
-      case 'accepted':
-        return 'Angenommen';
-      case 'rejected':
-        return 'Abgelehnt';
-      default:
-        return '—';
+  // ---------- Admin: Reklamationen ----------
+  /// Offene Reklamationen (oder nach Query) laden – nutzt Admin-Secret Header.
+  Future<List<Map<String, dynamic>>> adminComplaintsList({String query = ''}) async {
+    final path = query.isEmpty ? '/api/admin/complaints' : '/api/admin/complaints?$query';
+    final r = await http.get(_u(path), headers: _adminHeaders());
+    if (r.statusCode != 200) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
     }
-  }
-
-  Color _decisionColor(String? d) {
-    switch ((d ?? '').trim().toLowerCase()) {
-      case 'accepted':
-        return Colors.green;
-      case 'rejected':
-        return Colors.red;
-      default:
-        return Colors.grey;
+    final j = jsonDecode(r.body);
+    if (j is List) {
+      return j.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList(growable: false);
     }
+    return const [];
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final t = AppLocalizations.of(context)!;
+  /// Admin-Update für eine Reklamation.
+  /// - `reportLink`: wenn `""` (leerer String) übergeben wird, löscht das Backend den Link.
+  /// - Key wird NUR gesendet, wenn Parameter != null (damit keine ungewollten Änderungen passieren).
+  Future<Map<String, dynamic>> adminComplaintUpdate({
+    required String ticket,
+    int? status,
+    String? decision,
+    String? reportLink, // "" => explizit löschen
+  }) async {
+    final body = <String, dynamic>{'ticket': ticket};
+    if (status != null) body['status'] = status;
+    if (decision != null) body['decision'] = decision;
+    if (reportLink != null) body['reportLink'] = reportLink; // wichtig: "" wird gesendet
 
-    // Name/E-Mail/Region des Vertreters (robust; kein displayName nötig)
-    final repName = _myRep == null
-        ? ''
-        : '${(_myRep!.firstName).trim()} ${(_myRep!.lastName).trim()}'.trim();
-
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          tooltip: t.back,
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        title: Text(t.my_complaints_title),
-        actions: [
-          if (_busy)
-            const Padding(
-              padding: EdgeInsets.only(right: 8),
-              child: SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: t.refresh,
-            onPressed: _busy ? null : () => _load(silent: false),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Hinweis-Banner mit Vertreter (falls vorhanden)
-          if (_myRep != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-              child: Container(
-                width: double.infinity,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.08),
-                  border: Border.all(color: Colors.blue, width: 1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.handshake_outlined, size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Ihr Ansprechpartner (Vertreter): '
-                        '${repName.isEmpty ? "—" : repName}'
-                        '${_myRep!.email.isNotEmpty ? " • ${_myRep!.email}" : ""}'
-                        '${_myRep!.region.isNotEmpty ? " • ${_myRep!.region}" : ""}',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-          // Der bisherige Body kommt jetzt in ein Expanded:
-          Expanded(
-            child: _busy
-                ? const Center(child: CircularProgressIndicator())
-                : _err != null
-                    ? Center(child: Text(_err!))
-                    : _items.isEmpty
-                        ? Center(child: Text(t.none_complaints))
-                        : RefreshIndicator(
-                            onRefresh: () => _load(silent: false),
-                            child: ListView.separated(
-                              physics:
-                                  const AlwaysScrollableScrollPhysics(),
-                              itemCount: _items.length,
-                              separatorBuilder: (_, __) =>
-                                  const Divider(height: 1),
-                              itemBuilder: (_, i) {
-                                final c = _items[i];
-                                final statusText = _statusTextLocalized(
-                                    t, c.status, c.decision);
-                                final statusColor =
-                                    _statusColor(c.status, c.decision);
-                                final reportLink =
-                                    (c.reportLink ?? '').trim();
-                                final canOpenReport =
-                                    _canOpenReportLink(c);
-
-                                return ListTile(
-                                  contentPadding:
-                                      const EdgeInsets.symmetric(
-                                          horizontal: 16, vertical: 10),
-                                  title: Text(
-                                    c.ticket,
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.w600),
-                                  ),
-                                  subtitle: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                          '${t.created}: ${_fmt(c.createdAt)}'),
-                                      if (c.internalNo != null &&
-                                          c.internalNo!.isNotEmpty)
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                              top: 4.0, bottom: 4.0),
-                                          child: Row(
-                                            children: [
-                                              Icon(Icons.tag,
-                                                  size: 18,
-                                                  color:
-                                                      Colors.grey[600]),
-                                              const SizedBox(width: 6),
-                                              Text(
-                                                'Interne DFS-Nr.: ${c.internalNo}',
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .bodyMedium
-                                                    ?.copyWith(
-                                                      color:
-                                                          Colors.grey[800],
-                                                      fontWeight:
-                                                          FontWeight.w500,
-                                                    ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      if (c.updatedAt
-                                              .millisecondsSinceEpoch >
-                                          0)
-                                        Text(
-                                            '${t.updated}: ${_fmt(c.updatedAt)}'),
-                                      if (canOpenReport) ...[
-                                        const SizedBox(height: 6),
-                                        TextButton.icon(
-                                          onPressed: () => html.window
-                                              .open(reportLink, '_blank'),
-                                          icon: const Icon(
-                                              Icons.open_in_new),
-                                          label: Text(t.report_open),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                  trailing: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.end,
-                                    children: [
-                                      // Status-Badge
-                                      Container(
-                                        padding: const EdgeInsets
-                                            .symmetric(
-                                                horizontal: 10,
-                                                vertical: 6),
-                                        decoration: BoxDecoration(
-                                          color: statusColor
-                                              .withOpacity(0.12),
-                                          border: Border.all(
-                                              color: statusColor,
-                                              width: 1),
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                        ),
-                                        child: Text(
-                                          '${t.status}: $statusText',
-                                          style: TextStyle(
-                                              color: statusColor,
-                                              fontWeight:
-                                                  FontWeight.w600),
-                                        ),
-                                      ),
-
-                                      // Entscheidungs-Badge (nur wenn gesetzt)
-                                      if ((c.decision ?? '')
-                                          .isNotEmpty) ...[
-                                        const SizedBox(height: 6),
-                                        Builder(
-                                          builder: (_) {
-                                            final dec = c.decision!;
-                                            final decText =
-                                                (dec == 'accepted')
-                                                    ? t.decision_accepted
-                                                    : t.decision_rejected;
-                                            final decColor =
-                                                (dec == 'accepted')
-                                                    ? Colors.green
-                                                    : Colors.red;
-                                            return Container(
-                                              padding:
-                                                  const EdgeInsets
-                                                      .symmetric(
-                                                          horizontal: 10,
-                                                          vertical: 6),
-                                              decoration: BoxDecoration(
-                                                color: decColor
-                                                    .withOpacity(0.12),
-                                                border: Border.all(
-                                                    color: decColor,
-                                                    width: 1),
-                                                borderRadius:
-                                                    BorderRadius
-                                                        .circular(12),
-                                              ),
-                                              child: Text(
-                                                '${t.decision}: $decText',
-                                                style: TextStyle(
-                                                    color: decColor,
-                                                    fontWeight:
-                                                        FontWeight
-                                                            .w600),
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                      ],
-
-                                      const SizedBox(height: 6),
-
-                                      // Details-Button
-                                      TextButton.icon(
-                                        onPressed: () async {
-                                          await showDialog(
-                                            context: context,
-                                            builder: (_) =>
-                                                _MyComplaintDetailsDialog(
-                                                    c: c),
-                                          );
-                                        },
-                                        icon: const Icon(
-                                            Icons.info_outline),
-                                        label: Text(t.details),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-          ),
-        ],
-      ),
+    final r = await http.post(
+      _u('/api/admin/complaints'),
+      headers: _adminHeaders(),
+      body: jsonEncode(body),
     );
+
+    if (r.statusCode < 200 || r.statusCode >= 300) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final j = jsonDecode(r.body);
+    return (j is Map) ? j.cast<String, dynamic>() : <String, dynamic>{};
   }
 }
 
-// ---- Details-Dialog (Kundenbereich) ----
-// WICHTIG: Top-Level (außerhalb der State-Klasse)!
-class _MyComplaintDetailsDialog extends StatelessWidget {
-  final Complaint c;
-  const _MyComplaintDetailsDialog({required this.c});
+// ---- Rep-Model für Kundenbereich ----
+class MyRep {
+  final String firstName;
+  final String lastName;
+  final String email;
+  final String region;
 
-  @override
-  Widget build(BuildContext context) {
-    final t = AppLocalizations.of(context)!;
-    final Map<String, dynamic> payload =
-        c.payload ?? const <String, dynamic>{};
+  MyRep({
+    required this.firstName,
+    required this.lastName,
+    required this.email,
+    required this.region,
+  });
 
-    Widget row(String l, String v) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 160,
-                child: Text(
-                  l,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
-              Expanded(child: Text(v.isEmpty ? '—' : v)),
-            ],
-          ),
-        );
+  factory MyRep.fromJson(Map<String, dynamic> j) => MyRep(
+        firstName: (j['firstName'] ?? '').toString(),
+        lastName:  (j['lastName']  ?? '').toString(),
+        email:     (j['email']     ?? '').toString(),
+        region:    (j['region']    ?? '').toString(),
+      );
+}
 
-    return AlertDialog(
-      title: Text('${t.details} – ${c.ticket}'),
-      content: SizedBox(
-        width: 560,
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (payload.isEmpty) ...[
-                Text(t.no_details),
-              ] else ...[
-                row(t.segment, (payload['segment'] ?? '').toString()),
-                row(t.article, (payload['article'] ?? '').toString()),
-                row(t.batch, (payload['batch'] ?? '').toString()),
-                row(t.quantity, (payload['qty'] ?? '').toString()),
-                row(t.expiry, (payload['expiry'] ?? '').toString()),
-                row(t.description, (payload['desc'] ?? '').toString()),
-                if ((payload['returned'] ?? '').toString().isNotEmpty)
-                  row(t.returned, (payload['returned'] ?? '').toString()),
-                if ((payload['handling'] ?? '').toString().isNotEmpty)
-                  row(t.handling, (payload['handling'] ?? '').toString()),
-                if ((payload['applied'] ?? '').toString().isNotEmpty)
-                  row(t.applied, (payload['applied'] ?? '').toString()),
-                if ((payload['injury'] ?? '').toString().isNotEmpty)
-                  row(t.injury, (payload['injury'] ?? '').toString()),
-                if ((payload['injuryDesc'] ?? '').toString().trim().isNotEmpty)
-                  row(t.injury_desc, (payload['injuryDesc'] ?? '').toString()),
-                // Optional: weitere Felder sauber ergänzen, falls in payload vorhanden
-                if ((payload['customerName'] ?? '').toString().isNotEmpty)
-                  row('Kunde', (payload['customerName'] ?? '').toString()),
-                if ((payload['country'] ?? '').toString().isNotEmpty)
-                  row('Land', (payload['country'] ?? '').toString()),
-              ],
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(t.close),
-        ),
-      ],
-    );
+extension RepApi on ApiClient {
+  Future<MyRep?> getMyRep() async {
+    final r = await _get('/api/rep/my', auth: true);
+    // 204 = kein Vertreter hinterlegt
+    if (r.statusCode == 204 || (r.body).trim().isEmpty) return null;
+    if (r.statusCode != 200) {
+      throw 'HTTP ${r.statusCode} ${r.reasonPhrase} — ${r.body}';
+    }
+    final Map<String, dynamic> j = jsonDecode(r.body) as Map<String, dynamic>;
+    if (((j['email'] ?? '') as String).trim().isEmpty &&
+        ((j['firstName'] ?? '') as String).trim().isEmpty &&
+        ((j['lastName'] ?? '') as String).trim().isEmpty) {
+      return null;
+    }
+    return MyRep.fromJson(j);
   }
 }
