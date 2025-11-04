@@ -8,6 +8,7 @@ class LoginPage extends StatefulWidget {
   final VoidCallback onLoggedIn;
   final VoidCallback onOpenRegister;
   final VoidCallback onOpenAdmin;
+  final VoidCallback onOpenRep; // ← NEU
 
   const LoginPage({
     super.key,
@@ -15,6 +16,7 @@ class LoginPage extends StatefulWidget {
     required this.onLoggedIn,
     required this.onOpenRegister,
     required this.onOpenAdmin,
+    required this.onOpenRep, // ← NEU
   });
 
   @override
@@ -54,14 +56,24 @@ class _LoginPageState extends State<LoginPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Adminbereich (oben rechts)
+            // Adminbereich & Vertreter (oben rechts nebeneinander)
             Align(
               alignment: Alignment.centerRight,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.admin_panel_settings_outlined),
-                // <- fester String statt t.admin_area
-                label: const Text('Adminbereich'),
-                onPressed: _busy ? null : widget.onOpenAdmin,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.admin_panel_settings_outlined),
+                    label: const Text('Adminbereich'),
+                    onPressed: _busy ? null : widget.onOpenAdmin,
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.handshake_outlined),
+                    label: const Text('Vertreter'),
+                    onPressed: _busy ? null : widget.onOpenRep, // ← NEU
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 12),
@@ -92,7 +104,6 @@ class _LoginPageState extends State<LoginPage> {
                 onPressed: _busy ? null : _doLogin,
                 child: _busy
                     ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                    // <- fester String statt t.login
                     : const Text('Login'),
               ),
             ),
@@ -104,7 +115,6 @@ class _LoginPageState extends State<LoginPage> {
 
             const SizedBox(height: 16),
 
-            // Registrieren (unten) – fester String statt t.register
             TextButton.icon(
               icon: const Icon(Icons.person_add_alt),
               label: Text(tx(t?.register, 'Registrieren')),
