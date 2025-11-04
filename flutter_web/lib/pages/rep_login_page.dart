@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../api/client.dart';
 import 'rep_dashboard_page.dart';
 
-enum _RepStep { email, otp, setPassword }
+enum _RepStep { email, otp, password, setPassword }
 
 class RepLoginPage extends StatefulWidget {
   final ApiClient api;
@@ -16,6 +16,7 @@ class RepLoginPage extends StatefulWidget {
 class _RepLoginPageState extends State<RepLoginPage> {
   final _email = TextEditingController();
   final _otp   = TextEditingController(); // Einmalpasswort = REP_JWT_SECRET
+  final _pw    = TextEditingController(); // normaler Passwort-Login
   final _new1  = TextEditingController();
   final _new2  = TextEditingController();
 
@@ -23,11 +24,11 @@ class _RepLoginPageState extends State<RepLoginPage> {
   bool _busy = false;
   String? _err;
 
-  // Hilfen
+  // ---- Helpers ----
   void _setErr(String? msg) => setState(() => _err = msg);
   void _setBusy(bool b) => setState(() => _busy = b);
 
-  // Schritt 1: E-Mail prüfen (existiert & aktiv?)
+  // ---- Step 1: E-Mail prüfen (existiert & aktiv?) ----
   Future<void> _checkEmail() async {
     _setErr(null);
     final email = _email.text.trim().toLowerCase();
@@ -50,12 +51,11 @@ class _RepLoginPageState extends State<RepLoginPage> {
     }
   }
 
-  // Schritt 2: Einmalpasswort prüfen (REP_JWT_SECRET)
-  // Backend gibt { token, mustChangePw: true|false } zurück.
+  // ---- Step 2a: Secret (Einmalpasswort) prüfen ----
+  // Erwartet REP_JWT_SECRET. Backend antwortet mit { ok, mustChangePw } bzw. { token?, mustChangePw:true }.
   Future<void> _submitOtp() async {
     _setErr(null);
-    final email = _email.text.trim().toLowerCase();
-    final otp   = _otp.text; // hier erwartest du REP_JWT_SECRET
+    final otp = _otp.text.trim();
     if (otp.isEmpty) {
       _setErr('Bitte das Einmalpasswort eingeben.');
       return;
@@ -63,18 +63,46 @@ class _RepLoginPageState extends State<RepLoginPage> {
 
     _setBusy(true);
     try {
-      final res = await widget.api.repLogin(email, otp);
-      if (!res.ok) {
+      final ok = await widget.api.repLoginWithSecret(otp);
+      if (!ok) {
         _setErr('Einmalpasswort falsch oder nicht zulässig.');
         return;
       }
+      // Nach Secret-Login muss das Passwort gesetzt werden.
+      setState(() => _step = _RepStep.setPassword);
+    } catch (e) {
+      _setErr('Login fehlgeschlagen: $e');
+    } finally {
+      _setBusy(false);
+    }
+  }
+
+  // ---- Step 2b: Normaler Login mit Passwort ----
+  Future<void> _submitPasswordLogin() async {
+    _setErr(null);
+    final email = _email.text.trim().toLowerCase();
+    final pw    = _pw.text;
+    if (email.isEmpty || !email.contains('@')) {
+      _setErr('Bitte eine gültige E-Mail-Adresse eingeben.');
+      return;
+    }
+    if (pw.isEmpty) {
+      _setErr('Bitte ein Passwort eingeben.');
+      return;
+    }
+
+    _setBusy(true);
+    try {
+      final res = await widget.api.repLogin(email, pw);
+      if (!res.ok) {
+        _setErr('Anmeldung fehlgeschlagen. Bitte E-Mail/Passwort prüfen.');
+        return;
+      }
       if (res.mustChange) {
-        // Direkt in Schritt 3 (neues Passwort setzen)
+        // Falls Backend noch mustChangePw==true hat → in Passwort-Setzen wechseln
         setState(() => _step = _RepStep.setPassword);
         return;
       }
-      // Falls mustChange=false, ist bereits ein eigenes Passwort gesetzt:
-      // -> Direkt ins Dashboard
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => RepDashboardPage(api: widget.api)),
@@ -86,7 +114,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
     }
   }
 
-  // Schritt 3: Neues Passwort setzen (mit Wiederholung)
+  // ---- Step 3: Neues Passwort setzen und sofort normal einloggen ----
   Future<void> _setNewPassword() async {
     _setErr(null);
     final a = _new1.text;
@@ -107,8 +135,17 @@ class _RepLoginPageState extends State<RepLoginPage> {
 
     _setBusy(true);
     try {
+      // 1) Passwort im Backend setzen
       await widget.api.repChangePassword(a);
-      // Danach ist das Passwort gesetzt. Jetzt direkt ins Dashboard.
+
+      // 2) Direkt normal einloggen (sichert frisches JWT, falls Secret-Login kein Token gab)
+      final email = _email.text.trim().toLowerCase();
+      final res = await widget.api.repLogin(email, a);
+      if (!res.ok) {
+        _setErr('Passwort wurde gesetzt, aber der Login ist fehlgeschlagen.');
+        return;
+      }
+
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => RepDashboardPage(api: widget.api)),
@@ -120,7 +157,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
     }
   }
 
-  // UI-Bausteine
+  // ---- UI Blocks ----
 
   Widget _emailStep() {
     final canNext = !_busy && _email.text.trim().isNotEmpty;
@@ -175,7 +212,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
           controller: _otp,
           obscureText: true,
           decoration: InputDecoration(
-            labelText: 'Einmalpasswort (zugesendet/vereinbart)',
+            labelText: 'Einmalpasswort (REP_JWT_SECRET)',
             border: const OutlineInputBorder(),
             suffixIcon: IconButton(
               tooltip: 'Zurück zur E-Mail',
@@ -186,7 +223,16 @@ class _RepLoginPageState extends State<RepLoginPage> {
           onChanged: (_) => setState(() {}),
           onSubmitted: (_) => canNext ? _submitOtp() : null,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            icon: const Icon(Icons.lock),
+            onPressed: _busy ? null : () => setState(() => _step = _RepStep.password),
+            label: const Text('Stattdessen mit Passwort anmelden'),
+          ),
+        ),
+        const SizedBox(height: 8),
         if (_err != null)
           Text(_err!, style: const TextStyle(color: Colors.red)),
         const SizedBox(height: 8),
@@ -194,6 +240,50 @@ class _RepLoginPageState extends State<RepLoginPage> {
           width: double.infinity,
           child: FilledButton.icon(
             onPressed: canNext ? _submitOtp : null,
+            icon: _busy
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.login),
+            label: const Text('Anmelden'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _passwordStep() {
+    final canNext = !_busy && _pw.text.isNotEmpty;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text(
+          'Mit Passwort anmelden',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _pw,
+          obscureText: true,
+          autofillHints: const [AutofillHints.password],
+          decoration: InputDecoration(
+            labelText: 'Passwort',
+            border: const OutlineInputBorder(),
+            suffixIcon: IconButton(
+              tooltip: 'Einmalpasswort verwenden',
+              onPressed: _busy ? null : () => setState(() => _step = _RepStep.otp),
+              icon: const Icon(Icons.key),
+            ),
+          ),
+          onChanged: (_) => setState(() {}),
+          onSubmitted: (_) => canNext ? _submitPasswordLogin() : null,
+        ),
+        const SizedBox(height: 16),
+        if (_err != null)
+          Text(_err!, style: const TextStyle(color: Colors.red)),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: canNext ? _submitPasswordLogin : null,
             icon: _busy
                 ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.login),
@@ -264,10 +354,21 @@ class _RepLoginPageState extends State<RepLoginPage> {
   }
 
   @override
+  void dispose() {
+    _email.dispose();
+    _otp.dispose();
+    _pw.dispose();
+    _new1.dispose();
+    _new2.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final child = switch (_step) {
       _RepStep.email       => _emailStep(),
       _RepStep.otp         => _otpStep(),
+      _RepStep.password    => _passwordStep(),
       _RepStep.setPassword => _setPwStep(),
     };
 
