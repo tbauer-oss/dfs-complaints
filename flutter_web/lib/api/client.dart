@@ -28,10 +28,10 @@ class ApiClient {
   static const String _apiBase =
       String.fromEnvironment('API_BASE', defaultValue: '');
 
-  String? token;        // JWT
+  String? token;        // JWT (Kundenportal)
   String? gate;         // optionales Gate-Token
   String? adminSecret;  // für X-Admin-Secret
-  String? repToken;    // JWT für Vertreter-Login
+  String? repToken;     // JWT für Vertreter-Login
 
   // ---------- Session persistieren ----------
   void _saveSession() {
@@ -57,7 +57,7 @@ class ApiClient {
     } else {
       ls.remove('dfs_gate');
     }
-    
+
     // Rep-Token
     if (repToken != null) {
       ls['dfs_rep_token'] = repToken!;
@@ -71,7 +71,7 @@ class ApiClient {
     token       = ls['dfs_token'];
     adminSecret = ls['dfs_admin'];
     gate        = ls['dfs_gate'];
-    repToken   = ls['dfs_rep_token'];
+    repToken    = ls['dfs_rep_token'];
   }
 
   Future<void> logout() async {
@@ -110,7 +110,7 @@ class ApiClient {
     return h;
   }
 
-    Map<String, String> _repHeaders({Map<String, String>? extra}) {
+  Map<String, String> _repHeaders({Map<String, String>? extra}) {
     final h = <String, String>{
       'Content-Type': 'application/json; charset=utf-8',
       if (gate != null) 'X-Gate': gate!,
@@ -186,7 +186,7 @@ class ApiClient {
     }
   }
 
-  // ---------- Auth ----------
+  // ---------- Auth (Kunden) ----------
   Future<bool> login(String email, String password) async {
     final r = await _post('/api/auth/login', {'email': email, 'password': password});
     if (r.statusCode != 200) return false;
@@ -338,8 +338,6 @@ class ApiClient {
   }
 
   // ---------- Kundenbereich – Live-Updates ----------
-  /// Liefert die eigenen Reklamationen mit allen Feldern (inkl. status/decision/updatedAt).
-  /// Backend: GET /api/complaint/list?details=1  (JWT erforderlich)
   Future<List<Map<String, dynamic>>> myComplaintsDetailed() async {
     final r = await _get('/api/complaint/list?details=1', auth: true);
     if (r.statusCode != 200) {
@@ -349,8 +347,6 @@ class ApiClient {
     return data.cast<Map<String, dynamic>>();
   }
 
-  /// Eine eigene Reklamation per Ticket (Validierung gegen User erfolgt im Backend).
-  /// Backend: GET /api/complaint/get?ticket=...  (JWT erforderlich)
   Future<Map<String, dynamic>> myComplaintByTicket(String ticket) async {
     final r = await _get('/api/complaint/get?ticket=$ticket', auth: true);
     if (r.statusCode != 200) {
@@ -387,8 +383,7 @@ class ApiClient {
       final j = jsonDecode(body);
       if (j is Map) {
         final m = j.cast<String, dynamic>();
-        // Minimalvalidierung
-        if ((m['email'] ?? '').toString().trim().isEmpty) return null;
+        if ((m['email'] ?? '').toString().trim().isEmpty) return null; // Minimalvalidierung
         return MyRep.fromJson(m);
       }
       return null;
@@ -397,94 +392,7 @@ class ApiClient {
     }
   }
 
-  // ---------- Admin: Reklamationen ----------
-  /// Offene Reklamationen (oder nach Query) laden – nutzt Admin-Secret Header.
-  Future<List<Map<String, dynamic>>> adminComplaintsList({String query = ''}) async {
-    final path = query.isEmpty ? '/api/admin/complaints' : '/api/admin/complaints?$query';
-    final r = await http.get(_u(path), headers: _adminHeaders());
-    if (r.statusCode != 200) {
-      throw ApiError(r.statusCode, _extractMessage(r.body));
-    }
-    final j = jsonDecode(r.body);
-    if (j is List) {
-      return j.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList(growable: false);
-    }
-    return const [];
-  }
-
-  /// Admin-Update für eine Reklamation.
-  /// - `reportLink`: wenn `""` (leerer String) übergeben wird, löscht das Backend den Link.
-  /// - Key wird NUR gesendet, wenn Parameter != null (damit keine ungewollten Änderungen passieren).
-  Future<Map<String, dynamic>> adminComplaintUpdate({
-    required String ticket,
-    int? status,
-    String? decision,
-    String? reportLink, // "" => explizit löschen
-  }) async {
-    final body = <String, dynamic>{'ticket': ticket};
-    if (status != null) body['status'] = status;
-    if (decision != null) body['decision'] = decision;
-    if (reportLink != null) body['reportLink'] = reportLink; // wichtig: "" wird gesendet
-
-    final r = await http.post(
-      _u('/api/admin/complaints'),
-      headers: _adminHeaders(),
-      body: jsonEncode(body),
-    );
-
-    if (r.statusCode < 200 || r.statusCode >= 300) {
-      throw ApiError(r.statusCode, _extractMessage(r.body));
-    }
-    final j = jsonDecode(r.body);
-    return (j is Map) ? j.cast<String, dynamic>() : <String, dynamic>{};
-  }
-}
-
-// ===== Model =====
-class MyRep {
-  final String firstName;
-  final String lastName;
-  final String email;
-  final String region;
-  const MyRep({required this.firstName, required this.lastName, required this.email, required this.region});
-
-  String get displayName {
-    final fn = firstName.trim();
-    final ln = lastName.trim();
-    if (fn.isEmpty && ln.isEmpty) return email.trim();
-    return [fn, ln].where((s) => s.isNotEmpty).join(' ');
-  }
-
-  factory MyRep.fromJson(Map<String, dynamic> j) => MyRep(
-    firstName: (j['firstName'] ?? '').toString(),
-    lastName : (j['lastName']  ?? '').toString(),
-    email    : (j['email']     ?? '').toString(),
-    region   : (j['region']    ?? '').toString(),
-  );
-
-// ===== Vertreter: Modelle =====
-class RepMe {
-  final String id;
-  final String firstName;
-  final String lastName;
-  final String email;
-  final String region;
-  final List<String> customers;
-  const RepMe({
-    required this.id, required this.firstName, required this.lastName,
-    required this.email, required this.region, required this.customers,
-  });
-  factory RepMe.fromJson(Map<String,dynamic> j) => RepMe(
-    id: j['id']??'',
-    firstName: j['firstName']??'',
-    lastName:  j['lastName']??'',
-    email:     j['email']??'',
-    region:    j['region']??'',
-    customers: (j['customers'] as List? ?? const[]).cast<String>(),
-  );
-}
-  // ===== Vertreter-API =====
-
+  // ---------- Vertreter-API (Rep-Login & -Aktionen) ----------
   Future<bool> repLogin(String email, String password) async {
     final r = await _post('/api/rep/login', {'email': email, 'password': password});
     if (r.statusCode != 200) return false;
@@ -504,7 +412,6 @@ class RepMe {
     final r = await _post(
       '/api/rep/password',
       {'new': newPw},
-      // wir nutzen den extra-Header-Kanal deines bestehenden _post():
       extraHeaders: _repHeaders(),
     );
     if (r.statusCode != 200 && r.statusCode != 204) {
@@ -569,4 +476,60 @@ class RepMe {
     repToken = null;
     _saveSession();
   }
+
+  // Ende ApiClient
+}
+
+// ===== Modelle =====
+class MyRep {
+  final String firstName;
+  final String lastName;
+  final String email;
+  final String region;
+  const MyRep({
+    required this.firstName,
+    required this.lastName,
+    required this.email,
+    required this.region,
+  });
+
+  String get displayName {
+    final fn = firstName.trim();
+    final ln = lastName.trim();
+    if (fn.isEmpty && ln.isEmpty) return email.trim();
+    return [fn, ln].where((s) => s.isNotEmpty).join(' ');
+  }
+
+  factory MyRep.fromJson(Map<String, dynamic> j) => MyRep(
+        firstName: (j['firstName'] ?? '').toString(),
+        lastName : (j['lastName']  ?? '').toString(),
+        email    : (j['email']     ?? '').toString(),
+        region   : (j['region']    ?? '').toString(),
+      );
+}
+
+class RepMe {
+  final String id;
+  final String firstName;
+  final String lastName;
+  final String email;
+  final String region;
+  final List<String> customers;
+  const RepMe({
+    required this.id,
+    required this.firstName,
+    required this.lastName,
+    required this.email,
+    required this.region,
+    required this.customers,
+  });
+
+  factory RepMe.fromJson(Map<String,dynamic> j) => RepMe(
+    id:       (j['id']        ?? '').toString(),
+    firstName:(j['firstName'] ?? '').toString(),
+    lastName: (j['lastName']  ?? '').toString(),
+    email:    (j['email']     ?? '').toString(),
+    region:   (j['region']    ?? '').toString(),
+    customers: (j['customers'] as List? ?? const []).cast<String>(),
+  );
 }
