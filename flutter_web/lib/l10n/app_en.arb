@@ -33,6 +33,7 @@
   "continueLabel": "Continue",
   "invalid": "Invalid",
   "gateUnlockHint": "Please enter the release password to open the registration area.",
+  "rep_area": "Sales Representative Area",
 
   "cancel": "Cancel",
   "open": "Open",
