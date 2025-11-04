@@ -1,5 +1,7 @@
 // /api/rep/login.js
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+import { loadRepByEmail } from '../_lib/repsStore.js';
 
 const REP_SECRET = process.env.REP_JWT_SECRET;
 
@@ -13,7 +15,7 @@ export default async function handler(req, res) {
   ];
   if (allow.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Vary', 'Origin'); // wichtig für CDN-Caches
+    res.setHeader('Vary', 'Origin');
   }
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
@@ -21,45 +23,56 @@ export default async function handler(req, res) {
     'Access-Control-Allow-Headers',
     'Content-Type, Authorization, X-Admin-Secret, X-Gate, X-Rep-Secret'
   );
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end(); // Preflight: sofort raus
-  }
+  if (req.method === 'OPTIONS') return res.status(204).end();
 
-  // ---- eigentliche Logik ----
+  // ---- Logik ----
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ error: 'method not allowed' });
   }
-
   if (!REP_SECRET) {
     return res.status(500).json({ error: 'server misconfig (REP_JWT_SECRET not set)' });
   }
 
-  // Secret aus Header ODER Body akzeptieren (passt zum Client-Update)
-  const headerSecret = req.headers['x-rep-secret'];
-  const bodySecret =
-    req.body && typeof req.body === 'object' ? (req.body.secret || '') : '';
-  const secret = String(headerSecret || bodySecret || '').trim();
+  const body = (req.body && typeof req.body === 'object') ? req.body : {};
+  const email = String(body.email || '').trim().toLowerCase();
+  const password = String(body.password || '').trim();
 
-  if (!secret) {
-    return res.status(400).json({ error: 'Missing secret' });
+  if (!email || !password) {
+    return res.status(400).json({ error: 'missing credentials' });
   }
 
-  // ✅ Secret validieren
-  if (secret !== REP_SECRET) {
+  // Nur angelegte Vertreter dürfen rein
+  const rep = await loadRepByEmail(email);
+  if (!rep || rep.active === false) {
     return res.status(401).json({ error: 'unauthorized' });
   }
 
-  // ✅ Token erzeugen (Payload kann später mit echten Rep-Daten befüllt werden)
-  const payload = {
-    repId: 'rep-secret',                // Platzhalter (später aus DB)
-    email: 'rep@dfs-diamon.de',         // Platzhalter
-    firstName: 'DFS',
-    lastName: 'Representative',
-    region: 'DACH',
-    role: 'rep',
-  };
+  // Erst-Login: noch kein Passwort gesetzt -> Einmalpasswort = REP_JWT_SECRET
+  let mustChangePw = false;
+  if (!rep.passwordHash) {
+    if (password !== REP_SECRET) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+    mustChangePw = true;
+  } else {
+    // Normale Anmeldung mit gesetztem Passwort (bcrypt)
+    const ok = await bcrypt.compare(password, rep.passwordHash);
+    if (!ok) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+  }
 
-  const token = jwt.sign(payload, REP_SECRET, { expiresIn: '12h' });
+  // JWT ausstellen (wird für /api/rep/me & /api/rep/password genutzt)
+  const token = jwt.sign(
+    {
+      repId: rep.id,
+      email: rep.email,
+      role: 'rep',
+      mustChangePw, // Info für den Client
+    },
+    REP_SECRET,
+    { expiresIn: '12h' }
+  );
 
-  return res.status(200).json({ token });
+  return res.status(200).json({ token, mustChangePw });
 }
