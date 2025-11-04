@@ -1,116 +1,225 @@
 // api/_lib/repsStore.js
+export const config = { runtime: 'nodejs' };
 
-// === Variante A: Vercel KV (empfohlen, falls vorhanden) ===================
-// import { kv } from '@vercel/kv';
-// const KEY = 'dfs:reps:v1';
+import { Redis } from '@upstash/redis';
 
-// async function loadAll() { return (await kv.get(KEY)) || []; }
-// async function saveAll(list) { await kv.set(KEY, list); }
+// ---- Upstash / Redis – ENV akzeptieren mehrere Varianten ----
+const redisUrl =
+  process.env.REDIS_URL ||
+  process.env.UPSTASH_REDIS_REST_URL ||
+  '';
+const redisToken =
+  process.env.REDIS_TOKEN ||
+  process.env.UPSTASH_REDIS_REST_TOKEN ||
+  '';
 
-// === Variante B: Upstash Redis REST (häufig im Projekt vorhanden) =========
-const BASE = process.env.UPSTASH_REDIS_REST_URL;
-const TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
-const KEY = 'dfs:reps:v1';
-
-async function _redisFetch(body) {
-  if (!BASE || !TOKEN) throw new Error('Upstash Redis not configured');
-  const r = await fetch(BASE, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!r.ok) throw new Error(`Upstash error: ${r.status}`);
-  const j = await r.json();
-  return j;
+if (!redisUrl || !redisToken) {
+  // Wir exportieren trotzdem Funktionen, werfen aber konsistente Errors
+  console.warn('[repsStore] Redis not configured (set REDIS_URL/REDIS_TOKEN or UPSTASH_* envs).');
 }
 
-async function loadAll() {
-  if (!BASE || !TOKEN) return []; // Fallback: leer (Dev)
-  const j = await _redisFetch({ op: ['GET', KEY] });
-  const raw = j?.result;
-  if (!raw) return [];
-  try { return JSON.parse(raw); } catch { return []; }
+const redis = (redisUrl && redisToken)
+  ? new Redis({ url: redisUrl, token: redisToken })
+  : null;
+
+// ---- Keys / Indizes ----
+const PFX     = 'dfs:';                               // Projekt-Prefix
+const SET_ALL = `${PFX}reps:all`;                     // Set aller Rep-IDs
+const CNT     = `${PFX}reps:counter`;                 // Zähler für IDs
+const KEY     = (id)      => `${PFX}reps:${id}`;      // Rep-Objekt
+const IDX_E   = (email)   => `${PFX}repBy:${email.toLowerCase()}`; // email -> repId (Eindeutigkeit d. Rep-Emails)
+const SET_CUS = (repId)   => `${PFX}rep:${repId}:customers`;       // Set Kunden-Emails eines Reps
+const IDX_ROF = (email)   => `${PFX}repOf:${email.toLowerCase()}`; // customerEmail -> repId (Reverse-Mapping)
+
+// ---- Helpers ----
+const S = (v) => (v ?? '').toString().trim();
+const nowIso = () => new Date().toISOString();
+
+async function requireRedis() {
+  if (!redis) {
+    throw new Error('redis not configured (REDIS_URL/REDIS_TOKEN or UPSTASH_REDIS_REST_URL/UPSTASH_REDIS_REST_TOKEN)');
+  }
 }
 
-async function saveAll(list) {
-  if (!BASE || !TOKEN) return; // Fallback: no-op (Dev)
-  await _redisFetch({ op: ['SET', KEY, JSON.stringify(list)] });
+// ---- Low-level: IDs / Laden / Speichern ----
+async function nextId() {
+  await requireRedis();
+  const n = await redis.incr(CNT);
+  return `rep_${String(n)}`;
 }
 
-// ==================== Normalizer & Helpers ====================
-const norm = s => (s || '').toString().trim();
-const normLower = s => norm(s).toLowerCase();
-
-function sanitize(rep) {
-  return {
-    id: norm(rep.id || rep.email || ''),
-    firstName: norm(rep.firstName),
-    lastName:  norm(rep.lastName),
-    email:     norm(rep.email),
-    region:    norm(rep.region),
-    customers: Array.isArray(rep.customers)
-      ? [...new Set(rep.customers.map(normLower))] // uniq + lower
-      : [],
-  };
+export async function loadRepById(id) {
+  await requireRedis();
+  if (!id) return null;
+  return await redis.get(KEY(id));
 }
 
-// ==================== Public API ==============================
+export async function loadRepIdByEmail(email) {
+  await requireRedis();
+  email = S(email).toLowerCase();
+  if (!email) return null;
+  return await redis.get(IDX_E(email));
+}
+
+export async function repCustomers(repId) {
+  await requireRedis();
+  return await redis.smembers(SET_CUS(repId));
+}
+
+async function saveRep(rep) {
+  await requireRedis();
+  await redis.set(KEY(rep.id), rep);
+  await redis.sadd(SET_ALL, rep.id);
+  await redis.set(IDX_E(rep.email.toLowerCase()), rep.id);
+}
+
+// ---- Public API ----
+
+// Liste inkl. customers (per Flag in admin/reps.js steuerbar)
+export async function getAllRepIds() {
+  await requireRedis();
+  return await redis.smembers(SET_ALL);
+}
 
 export async function getAllRepsWithCustomers() {
-  const list = await loadAll();
-  return list.map(sanitize);
+  await requireRedis();
+  const ids = await getAllRepIds();
+  if (!ids?.length) return [];
+
+  const keys = ids.map((id) => KEY(id));
+  const reps = (await redis.mget(...keys)).filter(Boolean);
+
+  const withCus = await Promise.all((reps || []).map(async (r) => {
+    const list = await repCustomers(r.id);
+    return { ...r, customers: list || [] };
+  }));
+
+  return withCus;
 }
 
+// Erzeugt oder aktualisiert einen Vertreter (Upsert über id ODER email)
 export async function upsertRep({ id, firstName, lastName, email, region }) {
-  const list = await loadAll();
-  const repId = norm(id || email);
-  let idx = list.findIndex(r => norm(r.id) === repId);
-  if (idx < 0) {
-    list.push(sanitize({ id: repId, firstName, lastName, email, region, customers: [] }));
-  } else {
-    const cur = list[idx];
-    list[idx] = sanitize({
-      id: repId,
-      firstName: firstName ?? cur.firstName,
-      lastName:  lastName  ?? cur.lastName,
-      email:     email     ?? cur.email,
-      region:    region    ?? cur.region,
-      customers: cur.customers || [],
-    });
+  await requireRedis();
+
+  firstName = S(firstName);
+  lastName  = S(lastName);
+  email     = S(email).toLowerCase();
+  region    = S(region);
+
+  if (!firstName || !lastName || !email || !region) {
+    throw new Error('missing fields for upsertRep');
   }
-  await saveAll(list);
-  return list.find(r => norm(r.id) === repId);
+
+  let rep = null;
+  let repId = S(id);
+
+  if (repId) {
+    rep = await loadRepById(repId);
+  }
+  if (!rep) {
+    const viaEmailId = await loadRepIdByEmail(email);
+    if (viaEmailId) {
+      repId = viaEmailId;
+      rep   = await loadRepById(repId);
+    }
+  }
+
+  if (rep) {
+    // Update: Email-Wechsel berücksichtigen (Index neu setzen)
+    const prevEmail = (rep.email || '').toLowerCase();
+    const updated = {
+      ...rep,
+      firstName, lastName, email, region,
+      updatedAt: nowIso(),
+    };
+    if (prevEmail && prevEmail !== email) {
+      await redis.del(IDX_E(prevEmail));
+    }
+    await saveRep(updated);
+    const customers = await repCustomers(updated.id);
+    return { ...updated, customers: customers || [] };
+  } else {
+    // Create
+    const newId = await nextId();
+    const created = {
+      id: newId,
+      firstName, lastName, email, region,
+      createdAt: nowIso(),
+    };
+    await saveRep(created);
+    return { ...created, customers: [] };
+  }
 }
 
 export async function deleteRep(id) {
-  const list = await loadAll();
-  const repId = norm(id);
-  const next = list.filter(r => norm(r.id) !== repId);
-  await saveAll(next);
+  await requireRedis();
+  id = S(id);
+  if (!id) return;
+
+  const rep = await loadRepById(id);
+
+  // Kunden-Umkehrindex bereinigen
+  const customers = await repCustomers(id);
+  if (customers?.length) {
+    const jobs = [];
+    for (const mail of customers) {
+      const key = IDX_ROF(mail);
+      jobs.push(redis.del(key));
+    }
+    await Promise.all(jobs);
+  }
+
+  // Primärdaten & Indizes löschen
+  if (rep?.email) {
+    await redis.del(IDX_E(S(rep.email).toLowerCase()));
+  }
+  await redis.del(SET_CUS(id));
+  await redis.del(KEY(id));
+  await redis.srem(SET_ALL, id);
 }
 
+// Kundenzuordnung setzen: customerEmail -> repId & Set pflegen
 export async function assignCustomer(repId, email) {
-  const list = await loadAll();
-  const rid = norm(repId);
-  const eml = normLower(email);
-  const idx = list.findIndex(r => norm(r.id) === rid);
-  if (idx < 0) throw new Error('rep not found');
-  const set = new Set((list[idx].customers || []).map(normLower));
-  set.add(eml);
-  list[idx].customers = [...set];
-  await saveAll(list);
-  return list[idx].customers;
+  await requireRedis();
+  repId = S(repId);
+  email = S(email).toLowerCase();
+  if (!repId || !email) throw new Error('missing repId or email');
+
+  // Falls Kunde bereits einem anderen Rep zugeordnet → dort entfernen
+  const prevRep = await redis.get(IDX_ROF(email));
+  if (prevRep && prevRep !== repId) {
+    await redis.srem(SET_CUS(prevRep), email);
+  }
+
+  await redis.sadd(SET_CUS(repId), email);
+  await redis.set(IDX_ROF(email), repId);
+
+  return await repCustomers(repId);
 }
 
+// Kundenzuordnung entfernen (nur wenn Index auf diesen Rep zeigt)
 export async function unassignCustomer(repId, email) {
-  const list = await loadAll();
-  const rid = norm(repId);
-  const eml = normLower(email);
-  const idx = list.findIndex(r => norm(r.id) === rid);
-  if (idx < 0) throw new Error('rep not found');
-  list[idx].customers = (list[idx].customers || [])
-    .map(normLower)
-    .filter(e => e !== eml);
-  await saveAll(list);
-  return list[idx].customers;
+  await requireRedis();
+  repId = S(repId);
+  email = S(email).toLowerCase();
+  if (!repId || !email) throw new Error('missing repId or email');
+
+  await redis.srem(SET_CUS(repId), email);
+  const cur = await redis.get(IDX_ROF(email));
+  if (cur === repId) {
+    await redis.del(IDX_ROF(email));
+  }
+
+  return await repCustomers(repId);
+}
+
+// Reverse-Lookup: Welcher Rep betreut die Kunden-Email?
+export async function getRepOf(email) {
+  await requireRedis();
+  email = S(email).toLowerCase();
+  if (!email) return null;
+  const repId = await redis.get(IDX_ROF(email));
+  if (!repId) return null;
+  const rep = await loadRepById(repId);
+  return rep || null;
 }
