@@ -1,5 +1,6 @@
 // lib/pages/dashboard_page.dart
 import 'package:flutter/material.dart';
+
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 
@@ -21,20 +22,6 @@ class DashboardPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
-    final size = MediaQuery.of(context).size;
-    final isPortrait = size.height >= size.width;
-
-    // Responsive Breakpoints
-    int crossAxisCount;
-    if (size.width < 480) {
-      crossAxisCount = 1; // Handy schmal
-    } else if (size.width < 720) {
-      crossAxisCount = 2; // Handy breit oder Querformat
-    } else if (size.width < 1100) {
-      crossAxisCount = 3; // Tablet
-    } else {
-      crossAxisCount = 4; // Desktop
-    }
 
     final tiles = <_Entry>[
       _Entry(t.reportComplaint, Icons.add_circle, () {
@@ -59,142 +46,80 @@ class DashboardPage extends StatelessWidget {
       }),
     ];
 
-    // --- Hauptlayout ---
-    return LayoutBuilder(
-      builder: (ctx, constraints) {
-        return Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 900),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  // ---------- GRID ----------
-                  Expanded(
-                    child: GridView.count(
-                      padding: const EdgeInsets.all(8),
-                      crossAxisCount: crossAxisCount,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: isPortrait ? 1 : 1.3, // Querformat flacher
-                      children: [
-                        for (final e in tiles)
-                          _DashboardCard(entry: e),
-                      ],
-                    ),
-                  ),
+    return SafeArea(
+      child: LayoutBuilder(
+        builder: (ctx, constraints) {
+          final size = MediaQuery.of(ctx).size;
+          final isPortrait = MediaQuery.of(ctx).orientation == Orientation.portrait;
+          final isPhone = size.width < 600;
 
-                  // ---------- LOGOUT-BUTTON ----------
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 360),
-                      child: FilledButton.icon(
-                        icon: const Icon(Icons.logout, size: 22),
-                        label: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          child: Text(
-                            t.logout,
-                            style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w600,
-                            ),
+          // Zielbreiten für Kacheln (maxCrossAxisExtent). Auf dem Phone kleiner.
+          final double maxExtent = isPhone
+              ? (isPortrait ? 160 : 200) // Handy: Portrait knackig, Landscape etwas breiter
+              : (size.width < 1024 ? 220 : 240); // Tablet/Desktop
+
+          // Kompakt-Optik für Phones: kleinere Icons/Schrift und engeres Padding
+          final double iconSize = isPhone ? 28 : 44;
+          final double vGap = isPhone ? 8 : 10;
+          final double fontSize = isPhone ? 12.5 : 14.0;
+          final EdgeInsets cardPad = EdgeInsets.symmetric(
+            horizontal: isPhone ? 6 : 10,
+            vertical: isPhone ? 8 : 12,
+          );
+
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1000),
+              child: GridView.builder(
+                padding: const EdgeInsets.all(16),
+                gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: maxExtent,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  // etwas „flacher“ auf Phones, damit mehr Kacheln auf den Screen passen
+                  childAspectRatio: isPhone ? 1.05 : 1.12,
+                ),
+                itemCount: tiles.length,
+                itemBuilder: (context, i) {
+                  final e = tiles[i];
+                  return Card(
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: e.onTap,
+                      child: Padding(
+                        padding: cardPad,
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(e.icon, size: iconSize),
+                              SizedBox(height: vGap),
+                              Text(
+                                e.label,
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: fontSize,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        style: FilledButton.styleFrom(
-                          minimumSize: Size(
-                            isPortrait ? size.width * 0.7 : size.width * 0.4,
-                            52,
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 14,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        onPressed: () async {
-                          await api.logout();
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(t.loggedOut)),
-                            );
-                          }
-                          onLoggedOut();
-                        },
                       ),
                     ),
-                  ),
-                ],
+                  );
+                },
               ),
             ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-// -----------------------------
-// Card-Komponente (responsive)
-// -----------------------------
-class _DashboardCard extends StatelessWidget {
-  final _Entry entry;
-  const _DashboardCard({required this.entry});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return Card(
-      elevation: isDark ? 1.5 : 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: entry.onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: isDark
-                  ? [Colors.grey.shade900, Colors.grey.shade800]
-                  : [Colors.white, Colors.grey.shade100],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(entry.icon, size: 44, color: theme.colorScheme.primary),
-                const SizedBox(height: 10),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Text(
-                    entry.label,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: theme.colorScheme.onSurface,
-                      fontSize: 15,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
 }
 
-// -----------------------------
-// Modelklasse für Einträge
-// -----------------------------
 class _Entry {
   final String label;
   final IconData icon;
