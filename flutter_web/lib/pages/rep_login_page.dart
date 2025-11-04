@@ -1,4 +1,5 @@
 // lib/pages/rep_login_page.dart
+import 'dart:html' as html; // <- für dfs_mode Persistenz
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import 'rep_dashboard_page.dart';
@@ -103,9 +104,13 @@ class _RepLoginPageState extends State<RepLoginPage> {
         setState(() => _step = _RepStep.setPassword);
         return;
       }
+
+      // --- Erfolgreicher normaler Login ---
+      html.window.localStorage['dfs_mode'] = 'rep'; // Modus markieren
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
+      Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => RepDashboardPage(api: widget.api)),
+        (route) => false,
       );
     } catch (e) {
       _setErr('Login fehlgeschlagen: $e');
@@ -146,9 +151,12 @@ class _RepLoginPageState extends State<RepLoginPage> {
         return;
       }
 
+      // --- Erfolgreich: Modus setzen & ins Dashboard (Stack leeren) ---
+      html.window.localStorage['dfs_mode'] = 'rep';
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
+      Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => RepDashboardPage(api: widget.api)),
+        (route) => false,
       );
     } catch (e) {
       _setErr('Passwort setzen fehlgeschlagen: $e');
