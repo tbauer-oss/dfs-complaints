@@ -26,6 +26,7 @@
   "customer_label": "Kunde",
   "country_label": "Land",
   "internal_no_label": "Interne DFS-Nr.",
+  "rep_area": "Vertreterbereich",
 
   "gate_prompt": "Zugangscode (einmalig für nicht registrierte Kunden)",
   "gate_password": "Passwort",
