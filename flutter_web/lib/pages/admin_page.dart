@@ -328,7 +328,7 @@ class _AdminPageState extends State<AdminPage> {
           setState(() => _view = _AdminView.reps);
           if (_reps.isEmpty) _refreshReps();
         },
-   v ),
+      ),
     ];
 
     return GridView.builder(
