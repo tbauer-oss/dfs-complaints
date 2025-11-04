@@ -1,13 +1,29 @@
 // api/rep/my.js
 import { getAllRepsWithCustomers } from '../_lib/repsStore.js';
 
-function getEmailFromJwt(req) {
+function tryExtractEmailFromJwt(req) {
   const h = req.headers.authorization || '';
   const m = /^Bearer\s+(.+)$/i.exec(h);
   if (!m) return null;
   try {
-    const payload = JSON.parse(Buffer.from(m[1].split('.')[1], 'base64').toString('utf8'));
-    return (payload.email || '').trim().toLowerCase();
+    const token = m[1];
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    const payloadJson = Buffer.from(parts[1], 'base64').toString('utf8');
+    const p = JSON.parse(payloadJson);
+
+    // 1) direkte Felder
+    let email =
+      (p.email?.toString()) ||
+      (p.mail?.toString()) ||
+      // 2) verschachtelt
+      (p.user?.email?.toString()) ||
+      (p.claims?.email?.toString()) ||
+      // 3) sub als Fallback, falls es eine E-Mail ist
+      (/@/.test(p.sub || '') ? p.sub.toString() : '');
+
+    email = (email || '').trim().toLowerCase();
+    return email || null;
   } catch {
     return null;
   }
@@ -25,11 +41,11 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'GET') return res.status(405).end();
 
-  const email = getEmailFromJwt(req);
+  const email = tryExtractEmailFromJwt(req);
   if (!email) return res.status(401).json({ error: 'unauthorized' });
 
-  // Muss deine Admin-Zuweisungen (E-Mail-Liste je Rep) zurückgeben:
-  const reps = await getAllRepsWithCustomers(); // [{firstName,lastName,email,region,customers:[...]}]
+  // Reps mit Kundenlisten laden: [{ firstName,lastName,email,region,customers:[...]}]
+  const reps = await getAllRepsWithCustomers();
 
   const rep = reps.find(r =>
     Array.isArray(r.customers) &&
