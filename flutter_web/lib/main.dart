@@ -6,13 +6,16 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'api/client.dart';
 import 'l10n/app_localizations.dart';
 
-// ⚠️ Präfixierte Imports zur Kollisionsvermeidung:
-import 'pages/login_page.dart' as lp;
+// LoginPage ohne Alias importieren (damit der Konstruktor sicher gefunden wird)
+import 'pages/login_page.dart';
 import 'pages/register_page.dart';
 import 'pages/admin_page.dart';
 import 'pages/dashboard_page.dart';
+
+// Nur Rep-Login präfixen (um Kollisionen sicher zu vermeiden)
 import 'pages/rep_login_page.dart' as rp;
 import 'pages/rep_dashboard_page.dart';
+
 import 'widgets/lang_action.dart';
 
 void main() {
@@ -197,17 +200,10 @@ class _MyAppState extends State<MyApp> {
   }
 
   void _openRepArea() {
+    // RepLoginPage hat keinen onLoggedIn-Parameter → nur öffnen.
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => rp.RepLoginPage(
-          api: api,
-          onLoggedIn: () {
-            if (!mounted) return;
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => RepDashboardPage(api: api)),
-            );
-          },
-        ),
+        builder: (_) => rp.RepLoginPage(api: api),
       ),
     );
   }
@@ -275,12 +271,9 @@ class _MyAppState extends State<MyApp> {
                   appBar: AppBar(
                     title: Text(t.appTitle),
                     actions: [
-                      // Sprache
                       LangAction(onLocaleChanged: _setLocale),
-                      // Theme-Menü (global)
                       _themeMenu(),
                     ],
-                    // Logout unten in der AppBar
                     bottom: PreferredSize(
                       preferredSize: const Size.fromHeight(50),
                       child: Align(
@@ -316,13 +309,13 @@ class _MyAppState extends State<MyApp> {
                     title: Text(t.login),
                     actions: [
                       LangAction(onLocaleChanged: _setLocale),
-                      _themeMenu(), // auch auf Login-Seite
+                      _themeMenu(),
                     ],
                   ),
-                  body: lp.LoginPage(
+                  body: LoginPage(
                     api: api,
-                    // ⤵️ Korrekte, kontextgebundene Closures statt fehlender Methoden
-                    onLoggedIn: _onLoggedIn, // setzt _loggedIn = true
+                    // Korrekte Closures statt nicht vorhandener Methoden
+                    onLoggedIn: _onLoggedIn,                // setzt _loggedIn = true
                     onOpenRegister: () => _openRegister(ctx),
                     onOpenAdmin: () => _openAdmin(ctx),
                     onOpenRep: _openRepArea,
