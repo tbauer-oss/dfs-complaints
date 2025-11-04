@@ -1446,6 +1446,7 @@ class AdminComplaint {
   int status;               // 1..6 (mutierbar für UI)
   String? decision;         // 'accepted' | 'rejected' | null
   String? reportLink;
+  String? internalNo;
 
   // komplettes Payload vom Backend (für Wunsch etc.)
   final Map<String, dynamic>? payload;
@@ -1469,6 +1470,19 @@ class AdminComplaint {
     }
     int _i(v) => (v is num) ? v.toInt() : int.tryParse('${v ?? ''}') ?? 1;
 
+    String? _internal(dynamic root, dynamic pl) {
+      final r = (root?['internalNo'] ?? root?['internal'] ?? '').toString().trim();
+      if (r.isNotEmpty) return r;
+      if (pl is Map) {
+        final p = pl.cast<String, dynamic>();
+        final v = (p['internalNo'] ?? p['internal'] ?? '').toString().trim();
+        if (v.isNotEmpty) return v;
+      }
+      return null;
+    }
+
+    final payload = (j['payload'] is Map) ? (j['payload'] as Map).cast<String, dynamic>() : null;
+
     return AdminComplaint(
       ticket: (j['ticket'] ?? '').toString(),
       email: (j['email'] ?? '').toString(),
@@ -1479,10 +1493,8 @@ class AdminComplaint {
           ? null
           : j['decision']?.toString(),
       reportLink: j['reportLink']?.toString(),
-      payload: (j['payload'] is Map)
-          ? (j['payload'] as Map).cast<String, dynamic>()
-          : null,
-    );
+      payload: payload,
+    )..internalNo = _internal(j, payload);
   }
 
   Map<String, dynamic> toJson() => {
@@ -1493,6 +1505,7 @@ class AdminComplaint {
         'status': status,
         'decision': decision,
         'reportLink': reportLink,
+        'internalNo': internalNo,
         'payload': payload,
       };
 
@@ -1655,6 +1668,7 @@ class _ComplaintEditor extends StatefulWidget {
 
 class _ComplaintEditorState extends State<_ComplaintEditor> {
   final _reportCtrl = TextEditingController();
+  final _internalCtrl = TextEditingController();
   bool _busy = false;
   bool _expanded = false;
 
@@ -1665,6 +1679,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   void initState() {
     super.initState();
     _reportCtrl.text = widget.c.reportLink ?? '';
+    _internalCtrl.text = widget.c.internalNo ?? '';
     _status = widget.c.status;
     _decision = widget.c.decision;
   }
@@ -1672,6 +1687,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   @override
   void dispose() {
     _reportCtrl.dispose();
+    _internalCtrl.dispose();
     super.dispose();
   }
 
@@ -1693,6 +1709,54 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Report-Link gespeichert.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _saveInternalNo() async {
+    setState(() => _busy = true);
+    try {
+      final v = _internalCtrl.text.trim();
+      final updated = await widget.api.adminComplaintUpdate(
+        ticket: widget.c.ticket,
+        internalNo: v.isEmpty ? '' : v, // "" => löschen im Backend
+      );
+      widget.c.internalNo = updated.internalNo; // Model aktualisieren
+      widget.c.status = updated.status;
+      widget.c.decision = updated.decision;
+
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Interne Nummer gespeichert.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _clearInternalNo() async {
+    setState(() => _busy = true);
+    try {
+      final updated = await widget.api.adminComplaintUpdate(
+        ticket: widget.c.ticket,
+        internalNo: '', // leeren
+      );
+      _internalCtrl.text = '';
+      widget.c.internalNo = null;
+
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Interne Nummer entfernt.')));
       }
     } catch (e) {
       if (mounted) {
@@ -1990,6 +2054,55 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
 
             if (_expanded) ...[
               const SizedBox(height: 10),
+              TextField(
+                  controller: _internalCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Interne DFS-Reklamationsnummer',
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.tag),
+                    suffixIcon: IconButton(
+                      tooltip: 'Interne Nummer entfernen',
+                      onPressed: _busy ? null : _clearInternalNo,
+                      icon: const Icon(Icons.delete_outline),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
+                    onPressed: _busy ? null : _saveInternalNo,
+                    icon: const Icon(Icons.save_outlined),
+                    label: const Text('Interne Nummer speichern'),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // (bestehender Report-Link-Block bleibt)
+                TextField(
+                  controller: _reportCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Report-Link (optional)',
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      tooltip: 'Link entfernen',
+                      onPressed: _busy ? null : _clearReportLink,
+                      icon: const Icon(Icons.delete_outline),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
+                    onPressed: _busy ? null : _saveReportLink,
+                    icon: const Icon(Icons.save_outlined),
+                    label: const Text('Link speichern'),
+                  ),
+                ),
+              ],
+              
               Row(
                 children: [
                   Expanded(
@@ -2182,11 +2295,13 @@ class AdminApi {
     int? status,
     String? decision,
     String? reportLink,
+    String? internalNo,
   }) async {
     final body = <String, dynamic>{'ticket': ticket};
     if (status != null) body['status'] = status;
     body['decision'] = decision ?? '';
     if (reportLink != null) body['reportLink'] = reportLink;
+    if (internalNo != null) body['internalNo'] = internalNo;
 
     final res = await _request('POST', '/api/admin/complaints', body: body);
     if (res.status != 200) {
