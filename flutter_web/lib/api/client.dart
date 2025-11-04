@@ -353,7 +353,7 @@ class ApiClient {
     }
   }
 
-   // ---------- Admin: Reklamationen ----------
+  // ---------- Admin: Reklamationen ----------
   /// Offene Reklamationen (oder nach Query) laden – nutzt Admin-Secret Header.
   Future<List<Map<String, dynamic>>> adminComplaintsList({String query = ''}) async {
     final path = query.isEmpty ? '/api/admin/complaints' : '/api/admin/complaints?$query';
@@ -394,48 +394,8 @@ class ApiClient {
     final j = jsonDecode(r.body);
     return (j is Map) ? j.cast<String, dynamic>() : <String, dynamic>{};
   }
-  // Basis-URL exakt wie im AdminApi: ENV first, sonst Origin
-  String get _baseUrl {
-    final b = const String.fromEnvironment('API_BASE', defaultValue: '');
-    if (b.isNotEmpty) return b;
-    return html.window.location.origin;
-  }
-
-  // Kleiner GET-Helper für JSON – optional mit JWT
-  Future<html.HttpRequest> _get(String path, {bool auth = false}) async {
-    final headers = <String, String>{
-      'Content-Type': 'application/json; charset=utf-8',
-    };
-
-    // HINWEIS: Falls dein JWT in der Klasse anders heißt,
-    // _jwt unten bitte gegen die richtige Variable austauschen.
-    final jwt = _jwt; // <-- wenn dein Feld anders heißt: anpassen!
-    if (auth && jwt != null && jwt.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $jwt';
-    }
-
-    try {
-      final res = await html.HttpRequest.request(
-        '$_baseUrl$path',
-        method: 'GET',
-        requestHeaders: headers,
-        withCredentials: true,
-      );
-      return res;
-    } catch (e) {
-      if (e is html.ProgressEvent) {
-        final t = e.target;
-        if (t is html.HttpRequest) {
-          final st  = t.status;
-          final txt = t.responseText ?? '';
-          final stx = t.statusText ?? '';
-          throw 'HTTP $st $stx — ${txt.isEmpty ? "Request fehlgeschlagen" : txt}';
-        }
-      }
-      throw e.toString();
-    }
-  }
 }
+
 // ---- Rep-Model für Kundenbereich ----
 class MyRep {
   final String firstName;
