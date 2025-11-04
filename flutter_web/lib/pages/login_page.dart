@@ -24,7 +24,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
   Future<void> _login() async {
     setState(() { _busy = true; _err = null; });
     try {
-      final ok = await widget.api.Login(_email.text.trim(), _pw.text);
+      final ok = await widget.api.login(_email.text.trim(), _pw.text);
       if (!ok) {
         setState(() => _err = 'Login fehlgeschlagen.');
         return;
