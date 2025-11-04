@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import 'rep_dashboard_page.dart';
+import 'rep_login_page.dart' show RepLoginPage;
 
 class RepLoginPage extends StatefulWidget {
   final ApiClient api;
@@ -23,7 +24,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
   Future<void> _login() async {
     setState(() { _busy = true; _err = null; });
     try {
-      final ok = await widget.api.repLogin(_email.text.trim(), _pw.text);
+      final ok = await widget.api.Login(_email.text.trim(), _pw.text);
       if (!ok) {
         setState(() => _err = 'Login fehlgeschlagen.');
         return;
@@ -171,9 +172,16 @@ class _RepLoginPageState extends State<RepLoginPage> {
                   const SizedBox(height: 8),
                   // Optional: Passwort ändern (setzt vorhandenes Vertreter-Token voraus – also nach Login sinnvoll)
                   TextButton.icon(
-                    onPressed: _busy ? null : _showChangePasswordDialog,
+                    onPressed: _busy ? null : () {}, // dein Handler
                     icon: const Icon(Icons.lock_reset),
-                    child: const Text('Passwort ändern'),
+                    label: const Text('Passwort ändern'),
+                  ),
+                  TextButton.icon(
+                    onPressed: _busy ? null : () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => RepLoginPage(api: widget.api)),
+                    ),
+                    icon: const Icon(Icons.badge_outlined),
+                    label: const Text('Vertreterbereich'),
                   ),
                 ],
               ),
