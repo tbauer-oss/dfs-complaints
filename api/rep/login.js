@@ -1,4 +1,8 @@
 // /api/rep/login.js
+import jwt from 'jsonwebtoken';
+
+const REP_SECRET = process.env.REP_JWT_SECRET;
+
 export default async function handler(req, res) {
   // ---- CORS (kleinstmöglicher Eingriff) ----
   const origin = req.headers.origin || '';
@@ -9,7 +13,7 @@ export default async function handler(req, res) {
   ];
   if (allow.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Vary', 'Origin');
+    res.setHeader('Vary', 'Origin'); // wichtig für CDN-Caches
   }
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
@@ -26,16 +30,36 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  if (!REP_SECRET) {
+    return res.status(500).json({ error: 'server misconfig (REP_JWT_SECRET not set)' });
+  }
+
   // Secret aus Header ODER Body akzeptieren (passt zum Client-Update)
-  const secret =
-    req.headers['x-rep-secret'] ||
-    (req.body && typeof req.body === 'object' ? req.body.secret : '');
+  const headerSecret = req.headers['x-rep-secret'];
+  const bodySecret =
+    req.body && typeof req.body === 'object' ? (req.body.secret || '') : '';
+  const secret = String(headerSecret || bodySecret || '').trim();
 
   if (!secret) {
     return res.status(400).json({ error: 'Missing secret' });
   }
 
-  // TODO: secret validieren -> token erzeugen
-  // const token = sign(...);
-  return res.status(200).json({ ok: true /*, token */ });
+  // ✅ Secret validieren
+  if (secret !== REP_SECRET) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+
+  // ✅ Token erzeugen (Payload kann später mit echten Rep-Daten befüllt werden)
+  const payload = {
+    repId: 'rep-secret',                // Platzhalter (später aus DB)
+    email: 'rep@dfs-diamon.de',         // Platzhalter
+    firstName: 'DFS',
+    lastName: 'Representative',
+    region: 'DACH',
+    role: 'rep',
+  };
+
+  const token = jwt.sign(payload, REP_SECRET, { expiresIn: '12h' });
+
+  return res.status(200).json({ token });
 }
