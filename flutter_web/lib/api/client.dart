@@ -443,3 +443,112 @@ class MyRep {
     region   : (j['region']    ?? '').toString(),
   );
 }
+
+// ===== Vertreter: Modelle =====
+class RepMe {
+  final String id;
+  final String firstName;
+  final String lastName;
+  final String email;
+  final String region;
+  final List<String> customers;
+  const RepMe({
+    required this.id, required this.firstName, required this.lastName,
+    required this.email, required this.region, required this.customers,
+  });
+  factory RepMe.fromJson(Map<String,dynamic> j) => RepMe(
+    id: j['id']??'',
+    firstName: j['firstName']??'',
+    lastName:  j['lastName']??'',
+    email:     j['email']??'',
+    region:    j['region']??'',
+    customers: (j['customers'] as List? ?? const[]).cast<String>(),
+  );
+}
+
+// ===== Vertreter: Session getrennt halten (eigener Token-Key) =====
+extension RepSession on ApiClient {
+  String? repToken; // eigener JWT für Vertreter
+
+  Future<void> restoreRepSession() async {
+    final ls = html.window.localStorage;
+    repToken = ls['dfs_rep_token'];
+  }
+  void _saveRepSession() {
+    final ls = html.window.localStorage;
+    if (repToken == null) ls.remove('dfs_rep_token');
+    else                  ls['dfs_rep_token'] = repToken!;
+  }
+  Future<void> logoutRep() async {
+    repToken = null;
+    _saveRepSession();
+  }
+
+  Map<String,String> _repHeaders() => {
+    'Content-Type': 'application/json; charset=utf-8',
+    if (repToken != null) 'Authorization': 'Bearer $repToken',
+  };
+
+  // Login (liefert mustChangePw, wenn erstes/Initial-PW)
+  Future<(bool ok, bool mustChangePw)> repLogin(String email, String password) async {
+    final r = await http.post(
+      _u('/api/rep/login'),
+      headers: {'Content-Type':'application/json; charset=utf-8'},
+      body: jsonEncode({'email': email, 'password': password}),
+    );
+    if (r.statusCode != 200) return (false, false);
+    final j = jsonDecode(r.body);
+    repToken = (j['token'] ?? '').toString();
+    _saveRepSession();
+    final must = j['mustChangePw'] == true;
+    return (true, must);
+  }
+
+  Future<bool> repChangePassword(String newPw) async {
+    final r = await http.post(
+      _u('/api/rep/password'),
+      headers: _repHeaders(),
+      body: jsonEncode({'new': newPw}),
+    );
+    return r.statusCode == 200;
+  }
+
+  Future<RepMe?> repMe() async {
+    final r = await http.get(_u('/api/rep/me'), headers: _repHeaders());
+    if (r.statusCode != 200) return null;
+    final j = jsonDecode(r.body);
+    return RepMe.fromJson(j);
+  }
+
+  Future<List<String>> repCustomers() async {
+    final r = await http.get(_u('/api/rep/customers'), headers: _repHeaders());
+    if (r.statusCode != 200) return const [];
+    final j = jsonDecode(r.body);
+    return (j as List).cast<String>();
+  }
+
+  Future<bool> repAssignCustomer(String email) async {
+    final r = await http.post(
+      _u('/api/rep/customers'),
+      headers: _repHeaders(),
+      body: jsonEncode({'action':'assign','email': email}),
+    );
+    return r.statusCode == 200;
+  }
+  Future<bool> repUnassignCustomer(String email) async {
+    final r = await http.post(
+      _u('/api/rep/customers'),
+      headers: _repHeaders(),
+      body: jsonEncode({'action':'unassign','email': email}),
+    );
+    return r.statusCode == 200;
+  }
+
+  Future<List<Map<String,dynamic>>> repComplaints({String status = ''}) async {
+    final q = status.isEmpty ? '' : ('?status=${Uri.encodeQueryComponent(status)}');
+    final r = await http.get(_u('/api/rep/complaints$q'), headers: _repHeaders());
+    if (r.statusCode != 200) return const [];
+    final j = jsonDecode(r.body);
+    return (j as List).whereType<Map>().map((e)=>e.cast<String,dynamic>()).toList();
+  }
+}
