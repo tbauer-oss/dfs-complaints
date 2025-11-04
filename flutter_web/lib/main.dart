@@ -6,16 +6,13 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'api/client.dart';
 import 'l10n/app_localizations.dart';
 
-// LoginPage ohne Alias importieren (damit der Konstruktor sicher gefunden wird)
-import 'pages/login_page.dart';
+// ⚠️ BEWUSST ALIASIERT, um Kollisionen auszuschließen:
+import 'pages/login_page.dart' as lp;
 import 'pages/register_page.dart';
 import 'pages/admin_page.dart';
 import 'pages/dashboard_page.dart';
-
-// Nur Rep-Login präfixen (um Kollisionen sicher zu vermeiden)
 import 'pages/rep_login_page.dart' as rp;
 import 'pages/rep_dashboard_page.dart';
-
 import 'widgets/lang_action.dart';
 
 void main() {
@@ -36,7 +33,6 @@ class _MyAppState extends State<MyApp> {
   bool _bootDone = false;
   bool _loggedIn = false;
 
-  // Globaler ThemeMode (persistiert)
   ThemeMode _themeMode = ThemeMode.system;
 
   @override
@@ -87,7 +83,6 @@ class _MyAppState extends State<MyApp> {
     };
   }
 
-  // Kompaktes Theme-Menü mit Icons
   Widget _themeMenu() {
     IconData icon;
     switch (_themeMode) {
@@ -149,7 +144,6 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
-  // Admin-Secret Dialog + Navigation
   Future<void> _openAdmin(BuildContext context) async {
     final t = AppLocalizations.of(context)!;
     final ctrl = TextEditingController(text: api.adminSecret ?? '');
@@ -200,11 +194,9 @@ class _MyAppState extends State<MyApp> {
   }
 
   void _openRepArea() {
-    // RepLoginPage hat keinen onLoggedIn-Parameter → nur öffnen.
+    // RepLoginPage hat KEINEN onLoggedIn-Parameter → nur öffnen.
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => rp.RepLoginPage(api: api),
-      ),
+      MaterialPageRoute(builder: (_) => rp.RepLoginPage(api: api)),
     );
   }
 
@@ -249,11 +241,10 @@ class _MyAppState extends State<MyApp> {
         return const Locale('de'); // Default
       },
 
-      // GLOBAL THEME (Material 3)
       themeMode: _themeMode,
       theme: ThemeData(
         useMaterial3: true,
-        colorSchemeSeed: const Color(0xFF1F4C8F), // DFS-Blau
+        colorSchemeSeed: const Color(0xFF1F4C8F),
         brightness: Brightness.light,
       ),
       darkTheme: ThemeData(
@@ -262,7 +253,6 @@ class _MyAppState extends State<MyApp> {
         brightness: Brightness.dark,
       ),
 
-      // NAVIGATION / START
       home: _loggedIn
           ? Builder(
               builder: (ctx) {
@@ -312,9 +302,8 @@ class _MyAppState extends State<MyApp> {
                       _themeMenu(),
                     ],
                   ),
-                  body: LoginPage(
+                  body: lp.LoginPage(
                     api: api,
-                    // Korrekte Closures statt nicht vorhandener Methoden
                     onLoggedIn: _onLoggedIn,                // setzt _loggedIn = true
                     onOpenRegister: () => _openRegister(ctx),
                     onOpenAdmin: () => _openAdmin(ctx),
