@@ -393,18 +393,28 @@ class ApiClient {
   }
 
   // ---------- Vertreter-API (Rep-Login & -Aktionen) ----------
-  Future<bool> repLogin(String email, String password) async {
-    final r = await _post('/api/rep/login', {'email': email, 'password': password});
-    if (r.statusCode != 200) return false;
+  Future<({bool ok, bool mustChange})> repLogin(String email, String password) async {
     try {
+      final r = await _post('/api/rep/login', {'email': email, 'password': password});
+      if (r.statusCode != 200) {
+        return (ok: false, mustChange: false);
+      }
+
       final j = jsonDecode(r.body);
-      final tok = (j is Map) ? (j['token'] ?? '').toString() : '';
-      if (tok.isEmpty) return false;
+      if (j is! Map) return (ok: false, mustChange: false);
+
+      final tok = (j['token'] ?? '').toString();
+      final mustChange = (j['mustChangePw'] ?? false) == true;
+
+      if (tok.isEmpty) return (ok: false, mustChange: false);
+
+      // Token persistieren
       repToken = tok;
       _saveSession();
-      return true;
+
+      return (ok: true, mustChange: mustChange);
     } catch (_) {
-      return false;
+      return (ok: false, mustChange: false);
     }
   }
 
