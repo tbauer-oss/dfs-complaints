@@ -31,10 +31,17 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
-    widget.api.getMyRep().then((rep) {
+    _loadRep();
+  }
+
+  Future<void> _loadRep() async {
+    try {
+      final rep = await widget.api.getMyRep(); // gibt null zurück, wenn keiner zugewiesen
       if (!mounted) return;
       setState(() => _myRep = rep);
-    });
+    } catch (_) {
+      // still: bei Fehler einfach nichts anzeigen
+    }
   }
 
   @override
@@ -104,11 +111,17 @@ class _DashboardPageState extends State<DashboardPage> {
 
           // Vertreter-Banner (nur wenn vorhanden)
           Widget? repBanner;
-          if (_myRep != null) {
-            final name =
-                '${_myRep!.firstName.trim()} ${_myRep!.lastName.trim()}'.trim();
-            final email = _myRep!.email.trim();
-            final region = _myRep!.region.trim();
+          final rep = _myRep;
+          if (rep != null) {
+            final first = (rep.firstName).trim();
+            final last  = (rep.lastName).trim();
+            final email = (rep.email).trim();
+            final region = (rep.region).trim();
+
+            final name = [first, last].where((s) => s.isNotEmpty).join(' ');
+            final bannerTitle = (name.isNotEmpty)
+                ? t.rep_banner_title(name)
+                : t.rep_banner_title(email.isNotEmpty ? email : '—');
 
             repBanner = Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
@@ -149,7 +162,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            t.rep_banner_title(name.isEmpty ? '—' : name),
+                            bannerTitle,
                             style: const TextStyle(
                               fontWeight: FontWeight.w700,
                               fontSize: 15.5,
@@ -180,7 +193,12 @@ class _DashboardPageState extends State<DashboardPage> {
                           ),
                           onPressed: () {
                             final subject = Uri.encodeComponent(t.mail_subject_rep);
-                            final mailto = 'mailto:$email?subject=$subject';
+                            final body = Uri.encodeComponent(
+                              'Guten Tag ${name.isNotEmpty ? name : ''},\n\n'
+                              'ich melde mich über das DFS Customer Complaint Portal.\n\n'
+                              'Beste Grüße',
+                            );
+                            final mailto = 'mailto:$email?subject=$subject&body=$body';
                             html.window.open(mailto, '_self');
                           },
                           icon: const Icon(Icons.email_outlined),
