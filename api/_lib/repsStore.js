@@ -6,11 +6,8 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN,
 });
 
-// Erwartetes Format im Key "reps":
-// [
-//   { id, firstName, lastName, email, region, customers: ["kunde1@mail", "kunde2@mail", ...] },
-//   ...
-// ]
+// Erwartet Key "reps" im Format:
+// [{ id, firstName, lastName, email, region, customers: ["kunde@mail", ...] }, ...]
 export async function getAllRepsWithCustomers() {
   const list = await redis.get('reps');
   if (!Array.isArray(list)) return [];
