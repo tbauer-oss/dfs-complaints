@@ -865,7 +865,8 @@ class _BusyDot extends StatelessWidget {
       width: 14,
       height: 14,
       child: CircularProgressIndicator(strokeWidth: 2),
-    );
+      );
+    }
   }
 }
 
