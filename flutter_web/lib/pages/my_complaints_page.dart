@@ -354,64 +354,54 @@ class _MyComplaintDetailsDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
-    final payload = c.payload ?? const {};
-
-    // Reihenfolge für die üblichen Felder
-    final orderedKeys = <String>[
-      'segment','article','batch','qty','expiry','desc',
-      'returned','handling','applied','injury','injuryDesc',
-    ];
-
-    String labelFor(String k) {
-      switch (k) {
-        case 'segment':    return t.segment;
-        case 'article':    return t.article;
-        case 'batch':      return t.batch;
-        case 'qty':        return t.quantity;
-        case 'expiry':     return t.expiry;
-        case 'desc':       return t.description;
-        case 'returned':   return 'Produkte zurückgeschickt?';
-        case 'handling':   return 'Gewünschte Behandlung';
-        case 'applied':    return 'Am Patienten angewendet?';
-        case 'injury':     return 'Verletzung?';
-        case 'injuryDesc': return 'Verletzungsbeschreibung';
-        default:           return k;
-      }
-    }
+    final payload = c.payload ?? const <String, dynamic>{};
 
     Widget row(String l, String v) => Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 180, child: Text(l, style: const TextStyle(fontWeight: FontWeight.w600))),
+          SizedBox(width: 160, child: Text(l, style: const TextStyle(fontWeight: FontWeight.w600))),
           Expanded(child: Text(v.isEmpty ? '—' : v)),
         ],
       ),
     );
 
-    final restKeys = payload.keys.where((k) => !orderedKeys.contains(k)).toList();
-
     return AlertDialog(
       title: Text('${t.details} – ${c.ticket}'),
       content: SizedBox(
-        width: 620,
+        width: 560,
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Interne DFS-Nummer prominent
-              row('Interne DFS-Reklamationsnummer', (c.internalNo ?? '').toString()),
-              const SizedBox(height: 6),
-              if (payload.isEmpty) Text(t.no_details) else ...[
-                ...orderedKeys.map((k) => row(labelFor(k), (payload[k] ?? '').toString())),
-                if (restKeys.isNotEmpty) const SizedBox(height: 6),
-                ...restKeys.map((k) => row(labelFor(k), (payload[k] ?? '').toString())),
+              if (payload.isEmpty)
+                Text(t.no_details)
+              else ...[
+                row(t.segment, (payload['segment'] ?? '').toString()),
+                row(t.article, (payload['article'] ?? '').toString()),
+                row(t.batch, (payload['batch'] ?? '').toString()),
+                row(t.quantity, (payload['qty'] ?? '').toString()),
+                row(t.expiry, (payload['expiry'] ?? '').toString()),
+                row(t.description, (payload['desc'] ?? '').toString()),
+                if ((payload['returned'] ?? '').toString().isNotEmpty)
+                  row(t.returned, (payload['returned'] ?? '').toString()),
+                if ((payload['handling'] ?? '').toString().isNotEmpty)
+                  row(t.handling, (payload['handling'] ?? '').toString()),
+                if ((payload['applied'] ?? '').toString().isNotEmpty)
+                  row(t.applied, (payload['applied'] ?? '').toString()),
+                if ((payload['injury'] ?? '').toString().isNotEmpty)
+                  row(t.injury, (payload['injury'] ?? '').toString()),
+                if ((payload['injuryDesc'] ?? '').toString().trim().isNotEmpty)
+                  row(t.injury_desc, (payload['injuryDesc'] ?? '').toString()),
               ],
             ],
           ),
         ),
       ),
-      actions: [ TextButton(onPressed: () => Navigator.pop(context), child: Text(t.close)) ],
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(t.close)),
+      ],
     );
   }
+}
