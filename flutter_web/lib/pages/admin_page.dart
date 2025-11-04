@@ -287,7 +287,7 @@ class _AdminPageState extends State<AdminPage> {
     final compact = isPhone;
 
     final tiles = <Widget>[
-      AdminTile(
+      AdminTilePro(
         label: 'Offene Reklamationen',
         subtitle: 'Bearbeiten & Entscheiden',
         icon: Icons.assignment_late_outlined,
@@ -297,7 +297,7 @@ class _AdminPageState extends State<AdminPage> {
         compact: compact,
         onTap: () => setState(() => _view = _AdminView.open),
       ),
-      AdminTile(
+      AdminTilePro(
         label: 'Anträge / Pending',
         subtitle: 'Registrierungen prüfen',
         icon: Icons.verified_user_outlined,
@@ -307,7 +307,7 @@ class _AdminPageState extends State<AdminPage> {
         compact: compact,
         onTap: () => setState(() => _view = _AdminView.pending),
       ),
-      AdminTile(
+      AdminTilePro(
         label: 'Aktive Nutzer',
         subtitle: 'Firmen & Kontakte',
         icon: Icons.group_outlined,
@@ -317,7 +317,7 @@ class _AdminPageState extends State<AdminPage> {
         compact: compact,
         onTap: () => setState(() => _view = _AdminView.users),
       ),
-      AdminTile(
+      AdminTilePro(
         label: 'Vertreterverwaltung',
         subtitle: 'Zuordnen & Regionen',
         icon: Icons.badge_outlined,
@@ -330,7 +330,6 @@ class _AdminPageState extends State<AdminPage> {
         },
       ),
     ];
-
     return GridView.builder(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
@@ -2382,164 +2381,106 @@ class _ComplaintsResult {
   factory _ComplaintsResult.ok(List<AdminComplaint> list) => _ComplaintsResult._(false, null, list);
 }
 
-// ===== Admin UI: Fancy Tiles (Design only) =====
-
+// ===================================================================
+// Admin UI – Farbpalette & Kachel (Pro)
+// ===================================================================
 class AdminPalette {
-  // etwas „nüchterner“ als im Kundenbereich
-  static const blueA   = Color(0xFF0D47A1);
-  static const blueB   = Color(0xFF1976D2);
-
-  static const tealA   = Color(0xFF004D40);
-  static const tealB   = Color(0xFF00796B);
-
-  static const amberA  = Color(0xFF6D4C00);
-  static const amberB  = Color(0xFFFFA000);
-
-  static const grayA   = Color(0xFF263238);
-  static const grayB   = Color(0xFF455A64);
-
-  static const redA    = Color(0xFF7F0000);
-  static const redB    = Color(0xFFD32F2F);
-
-  static const purpleA = Color(0xFF4A148C);
-  static const purpleB = Color(0xFF7B1FA2);
+  static const redA   = Color(0xFFFDE7E9);
+  static const redB   = Color(0xFFE53935);
+  static const amberA = Color(0xFFFFF4E5);
+  static const amberB = Color(0xFFFF8F00);
+  static const tealA  = Color(0xFFE6F4F1);
+  static const tealB  = Color(0xFF00897B);
+  static const blueA  = Color(0xFFE7F0FF);
+  static const blueB  = Color(0xFF1E88E5);
 }
 
-class AdminTile extends StatelessWidget {
+class AdminTilePro extends StatelessWidget {
   final String label;
-  final String? subtitle;         // kleine Unterzeile (z.B. „Bearbeitung“)
+  final String? subtitle;
   final IconData icon;
-  final Color colorA;
-  final Color colorB;
+  final Color colorA; // Hintergrund (hell)
+  final Color colorB; // Akzent/Ikone
+  final int? count;   // optionaler Zähler
+  final bool compact; // für kleine Screens
   final VoidCallback onTap;
-  final int? count;               // optionaler Badge (z. B. offene Vorgänge)
-  final bool compact;             // für schmalere Screens
 
-  const AdminTile({
+  const AdminTilePro({
     super.key,
     required this.label,
+    this.subtitle,
     required this.icon,
     required this.colorA,
     required this.colorB,
-    required this.onTap,
-    this.subtitle,
     this.count,
     this.compact = false,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final badge = (count != null && count! > 0)
-        ? Positioned(
-            top: 8,
-            right: 10,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: Colors.white.withOpacity(0.35), width: 1),
-              ),
-              child: Text(
-                '$count',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
-              ),
-            ),
-          )
-        : const SizedBox.shrink();
-
-    return Material(
-      elevation: 8,
-      shadowColor: Colors.black.withOpacity(0.12),
-      borderRadius: BorderRadius.circular(16),
+    final card = Card(
+      elevation: 1.5,
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
-        child: Ink(
+        child: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [colorA.withOpacity(0.95), colorB.withOpacity(0.95)],
+              colors: [colorA, Colors.white],
             ),
           ),
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            child: Stack(
-              children: [
-                // dezenter Glanz
-                Positioned(
-                  top: 0,
-                  right: 0,
-                  left: 0,
-                  height: 42,
-                  child: IgnorePointer(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [Colors.white.withOpacity(0.16), Colors.transparent],
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(icon, size: compact ? 36 : 44, color: colorB),
+                  if (count != null)
+                    Positioned(
+                      right: -6,
+                      top: -6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: colorB,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          '$count',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12),
                         ),
                       ),
                     ),
-                  ),
-                ),
-                // optionaler Counter
-                badge,
-                // Inhalt
-                Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: compact ? 44 : 56,
-                        height: compact ? 44 : 56,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.16),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white.withOpacity(0.28), width: 1),
-                        ),
-                        child: Icon(icon, color: Colors.white, size: compact ? 24 : 28),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        label,
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: compact ? 13.5 : 14.5,
-                          letterSpacing: 0.2,
-                          height: 1.15,
-                        ),
-                      ),
-                      if ((subtitle ?? '').isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          subtitle!,
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.92),
-                            fontWeight: FontWeight.w500,
-                            fontSize: compact ? 11.5 : 12.5,
-                          ),
-                        ),
-                      ],
-                    ],
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              if ((subtitle ?? '').isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  subtitle!,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.8),
+                    fontSize: 12.5,
                   ),
                 ),
               ],
-            ),
+            ],
           ),
         ),
       ),
     );
+
+    return card;
   }
 }
