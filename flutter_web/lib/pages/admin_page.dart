@@ -1152,6 +1152,93 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     return (m['label'] ?? 'Status $v').toString();
     }
 
+   // --- Mail-Helfer ----------------------------------------------------------
+
+  String _buildMailSubject(AdminComplaint c) {
+    final wish = c.handlingLabel == '—' ? '' : ' – ${c.handlingLabel}';
+    return '[DFS Complaint ${c.ticket}] Rückfrage zu Ihrer Reklamation$wish';
+  }
+
+  String _buildMailBody(AdminComplaint c) {
+    final p = c.payload ?? const <String, dynamic>{};
+    final company = (widget.companyHint ?? '').trim();
+    final greet = company.isNotEmpty ? 'Guten Tag $company,' : 'Guten Tag,';    
+
+    String line(String k, Object? v) {
+      final s = (v ?? '').toString().trim();
+      return s.isEmpty ? '' : '$k: $s\n';
+    }
+
+    final sb = StringBuffer()
+      ..writeln(greet)
+      ..writeln()
+      ..writeln('wir haben Ihre Reklamation erhalten und benötigen noch eine kurze Rückmeldung zu einigen Punkten.')
+      ..writeln('Nachfolgend finden Sie die bisherigen Angaben zur schnellen Übersicht:')
+      ..writeln()
+      ..writeln('— Reklamationsdetails —')
+      ..write(line('Ticket', c.ticket))
+      ..write(line('Segment', p['segment']))
+      ..write(line('Artikel', p['article']))
+      ..write(line('Charge', p['batch']))
+      ..write(line('Menge', p['qty']))
+      ..write(line('Ablaufdatum', p['expiry']))
+      ..write(line('Beschreibung', p['desc']))
+      ..write(line('Produkte zurückgeschickt', p['returned']))
+      ..write(line('Gewünschte Behandlung', p['handling']))
+      ..writeln()
+      ..writeln('— Interner Bearbeitungsstand —')
+      ..write(line('Status', _labelForStatus(c.status)))
+      ..write(line('Entscheidung', _labelForDecision(c.decision)))
+      ..write(line('Report-Link', c.reportLink))
+      ..writeln()
+      ..writeln('Können Sie uns bitte folgende Punkte kurz bestätigen/ergänzen?')
+      ..writeln('• Sind alle betroffenen Artikel korrekt aufgeführt?')
+      ..writeln('• Falls vorhanden: Bitte Bilder/weitere Hinweise beifügen.')
+      ..writeln('• Bei Rücksendung: Tracking/Datum?')
+      ..writeln()
+      ..writeln('Vielen Dank im Voraus! Bei Rückfragen sind wir jederzeit gerne für Sie da.')
+      ..writeln()
+      ..writeln('Mit freundlichen Grüßen')
+      ..writeln('DFS-DIAMON GmbH – Quality Management');
+
+    return sb.toString();
+  }
+
+  String _labelForStatus(int s) {
+    switch (s) {
+      case 1: return 'Eingegangen';
+      case 2: return 'In Bearbeitung';
+      case 3: return 'Rückfrage erforderlich';
+      case 5: return 'In Nacharbeit';
+      case 6: return 'Abgeschlossen';
+      default: return 'Unbekannt';
+    }
+  }
+
+  String _labelForDecision(String? d) {
+    switch ((d ?? '').trim()) {
+      case 'accepted': return 'Angenommen';
+      case 'rejected': return 'Abgelehnt';
+      case '': return '—';
+      default: return d!.trim();
+    }
+  }
+
+  void _composeMailToCustomer() {
+    final to = widget.c.email.trim();
+    if (to.isEmpty) return;
+
+    final subject = _buildMailSubject(widget.c);
+    final body    = _buildMailBody(widget.c);
+
+    final url = 'mailto:$to'
+        '?subject=${Uri.encodeComponent(subject)}'
+        '&body=${Uri.encodeComponent(body)}';
+
+    // Browser-Compose öffnen
+    html.window.open(url, '_self');
+  }
+
   @override
   Widget build(BuildContext context) {
     final right = (widget.companyHint != null && widget.companyHint!.trim().isNotEmpty)
@@ -1181,14 +1268,35 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Kopfzeile kompakt
-            Row(
-              children: [
-                Text('Ticket: ${widget.c.ticket}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                const Spacer(),
-                Text(right, style: const TextStyle(fontSize: 12, color: Colors.black54)),
-              ],
-            ),
+            // Kopfzeile (Ticket + Aktionen + rechter Hinweis)
+                Row(
+                  children: [
+                    Text(
+                      'Ticket: ${widget.c.ticket}',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const Spacer(),
+
+                    // Mail an Kunden
+                    Tooltip(
+                      message: 'E-Mail an Kunden verfassen',
+                      child: IconButton(
+                        icon: const Icon(Icons.email_outlined),
+                        onPressed: _busy ? null : _composeMailToCustomer,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+
+                    // rechter Hinweis (Firma oder E-Mail)
+                    Text(
+                      (widget.companyHint != null && widget.companyHint!.trim().isNotEmpty)
+                          ? 'Firma: ${widget.companyHint}'
+                          : 'E-Mail: ${widget.c.email}',
+                      style: const TextStyle(fontSize: 12, color: Colors.black54),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
             const SizedBox(height: 8),
 
             // Wunsch-Flag
