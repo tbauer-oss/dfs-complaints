@@ -1,6 +1,5 @@
 // lib/pages/dashboard_page.dart
 import 'package:flutter/material.dart';
-
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 
@@ -13,7 +12,6 @@ class DashboardPage extends StatelessWidget {
   final ApiClient api;
   final VoidCallback onLoggedOut;
 
-  // onLocaleChanged nicht mehr nötig, wir steuern die Sprache im App-Root
   const DashboardPage({
     super.key,
     required this.api,
@@ -23,6 +21,8 @@ class DashboardPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
+    final isWide = MediaQuery.of(context).size.width > 720;
+    final crossAxisCount = isWide ? 4 : 2;
 
     final tiles = <_Entry>[
       _Entry(t.reportComplaint, Icons.add_circle, () {
@@ -47,36 +47,79 @@ class DashboardPage extends StatelessWidget {
       }),
     ];
 
-    // << KEIN Scaffold und KEINE AppBar hier >>
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 900),
-        child: GridView.count(
-          padding: const EdgeInsets.all(24),
-          crossAxisCount: MediaQuery.of(context).size.width > 720 ? 4 : 2,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
+        child: Column(
           children: [
-            for (final e in tiles)
-              Card(
-                child: InkWell(
-                  onTap: e.onTap,
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(e.icon, size: 44),
-                        const SizedBox(height: 10),
-                        Text(
-                          e.label,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                          textAlign: TextAlign.center,
+            // --- GRID-BEREICH ---
+            Expanded(
+              child: GridView.count(
+                padding: const EdgeInsets.all(24),
+                crossAxisCount: crossAxisCount,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                children: [
+                  for (final e in tiles)
+                    Card(
+                      elevation: 3,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: e.onTap,
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(e.icon, size: 44),
+                              const SizedBox(height: 10),
+                              Text(
+                                e.label,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
                         ),
-                      ],
+                      ),
                     ),
+                ],
+              ),
+            ),
+
+            // --- LOGOUT-BUTTON (schön, responsiv, themenabhängig) ---
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: FilledButton.icon(
+                icon: const Icon(Icons.logout, size: 22),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Text(
+                    t.logout,
+                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
                   ),
                 ),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                onPressed: () async {
+                  await api.logout();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(t.loggedOut)),
+                    );
+                  }
+                  onLoggedOut();
+                },
               ),
+            ),
           ],
         ),
       ),
