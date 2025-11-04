@@ -438,28 +438,35 @@ class ApiClient {
 }
 // ---- Rep-Model für Kundenbereich ----
 class MyRep {
-  final String firstName, lastName, email, region;
-  MyRep({required this.firstName, required this.lastName, required this.email, required this.region});
-  String get displayName => ([firstName, lastName].where((s)=>s.trim().isNotEmpty).join(' ')).trim();
+  final String firstName;
+  final String lastName;
+  final String email;
+  final String region;
+
+  MyRep({
+    required this.firstName,
+    required this.lastName,
+    required this.email,
+    required this.region,
+  });
+
   factory MyRep.fromJson(Map<String, dynamic> j) => MyRep(
-    firstName: (j['firstName'] ?? '').toString(),
-    lastName:  (j['lastName']  ?? '').toString(),
-    email:     (j['email']     ?? '').toString(),
-    region:    (j['region']    ?? '').toString(),
-  );
+        firstName: (j['firstName'] ?? '').toString(),
+        lastName:  (j['lastName']  ?? '').toString(),
+        email:     (j['email']     ?? '').toString(),
+        region:    (j['region']    ?? '').toString(),
+      );
 }
 
-// ---- zugewiesener Vertreter des eingeloggten Kunden
-Future<MyRep?> getMyRep() async {
+extension RepApi on ApiClient {
+  Future<MyRep?> getMyRep() async {
     final r = await _get('/api/rep/my', auth: true);
-    if (r.status == 204 || (r.responseText ?? '').trim().isEmpty) {
-      return null; // kein Vertreter hinterlegt
+    // 204 = kein Vertreter hinterlegt
+    if (r.statusCode == 204 || (r.body).trim().isEmpty) return null;
+    if (r.statusCode != 200) {
+      throw 'HTTP ${r.statusCode} ${r.reasonPhrase} — ${r.body}';
     }
-    if (r.status != 200) {
-      throw 'HTTP ${r.status} ${r.statusText} — ${r.responseText ?? ''}';
-    }
-    final Map<String, dynamic> j = jsonDecode(r.responseText!) as Map<String, dynamic>;
-    // Defensive: wenn keine sinnvollen Felder → null
+    final Map<String, dynamic> j = jsonDecode(r.body) as Map<String, dynamic>;
     if (((j['email'] ?? '') as String).trim().isEmpty &&
         ((j['firstName'] ?? '') as String).trim().isEmpty &&
         ((j['lastName'] ?? '') as String).trim().isEmpty) {
@@ -467,3 +474,4 @@ Future<MyRep?> getMyRep() async {
     }
     return MyRep.fromJson(j);
   }
+}
