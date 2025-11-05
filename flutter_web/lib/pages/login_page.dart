@@ -26,7 +26,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
     try {
       final ok = await widget.api.login(_email.text.trim(), _pw.text);
       if (!ok) {
-        setState(() => _err = 'Login fehlgeschlagen.');
+        setState(() => _err = t.login_failed);
         return;
       }
 
@@ -60,7 +60,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
           final a = _new1.text.trim();
           final b = _new2.text.trim();
           if (a.isEmpty || b.isEmpty) {
-            localErr = 'Bitte neues Passwort in beiden Feldern eingeben.';
+            localErr = t.new_password_both_required;
             (ctx as Element).markNeedsBuild();
             return;
           }
