@@ -281,7 +281,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       ),
     );
   }
-
+}
 class _Card extends StatelessWidget {
   final String title;
   final List<Widget>? actions;
