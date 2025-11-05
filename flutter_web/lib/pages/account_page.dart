@@ -48,6 +48,7 @@ class _AccountPageState extends State<AccountPage> {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.t;
     final body = () {
       if (busy) return const Center(child: CircularProgressIndicator());
       if (err != null) return Center(child: Text(err!));
@@ -60,8 +61,8 @@ class _AccountPageState extends State<AccountPage> {
             padding: const EdgeInsets.all(16),
             children: [
               Text('E-Mail: ${acc!['email'] ?? ''}'),
-              Text('${context.t.company_label}: ${acc!['company'] ?? ''}'),
-              Text('${context.t.contact_person_label}: ${v(acc!['contact'])}'),
+              Text('${t.company}: ${acc!['company'] ?? ''}'),
+              Text('${t.contact_person}: ${_v(acc!['contact'])}'),
               const SizedBox(height: 16),
 
               FilledButton.icon(
@@ -71,7 +72,7 @@ class _AccountPageState extends State<AccountPage> {
                     builder: (_) => _AccountEditPage(api: widget.api, initial: acc!),
                   ),
                 ).then((_) => _load()),
-                label: const Text(t.editData),
+                label: Text(t.editData),
               ),
               const SizedBox(height: 12),
 
@@ -80,7 +81,7 @@ class _AccountPageState extends State<AccountPage> {
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => _PasswordPage(api: widget.api)),
                 ),
-                label: const Text(t.changePassword),
+                label: Text(t.changePassword),
               ),
               const SizedBox(height: 12),
 
@@ -92,17 +93,17 @@ class _AccountPageState extends State<AccountPage> {
                   final sure = await showDialog<bool>(
                     context: context,
                     builder: (_) => AlertDialog(
-                      title: const Text(t.accountDeleteTitle),
-                      content: const Text(t.accountDeleteConfirm
+                      title: Text(t.accountDeleteTitle),
+                      content: Text(t.accountDeleteConfirm
                       ),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(context, false),
-                          child: const Text(t.cancel),
+                          child: Text(t.cancel),
                         ),
                         FilledButton(
                           onPressed: () => Navigator.pop(context, true),
-                          child: const Text(t.continueLabel),
+                          child: Text(t.continueLabel),
                         ),
                       ],
                     ),
@@ -115,10 +116,10 @@ class _AccountPageState extends State<AccountPage> {
                     builder: (_) {
                       final ctrl = TextEditingController();
                       return AlertDialog(
-                        title: const Text(t.confirm_password_title),
+                        title: Text(t.confirm_password_title),
                         content: TextField(
                           controller: ctrl, obscureText: true,
-                          decoration: const InputDecoration(labelText: t.gate_password),
+                          decoration: InputDecoration(labelText: t.gate_password),
                         ),
                         actions: [
                           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
@@ -195,6 +196,7 @@ class _AccountEditPageState extends State<_AccountEditPage> {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.t;
     return Scaffold(
       appBar: AppBar(title: const Text('Daten ändern')),
       body: Center(
@@ -319,6 +321,7 @@ class _PasswordPageState extends State<_PasswordPage> {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.t;
     return Scaffold(
       appBar: AppBar(title: const Text('Passwort ändern')),
       body: Center(
