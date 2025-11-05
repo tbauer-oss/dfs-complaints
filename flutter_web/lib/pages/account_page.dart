@@ -53,7 +53,7 @@ class _AccountPageState extends State<AccountPage> {
     final body = () {
       if (busy) return const Center(child: CircularProgressIndicator());
       if (err != null) return Center(child: Text(err!));
-      if (acc == null) return Center(child: Text(t.edit_data));
+      if (acc == null) return Center(child: Text(t.editdata));
 
       return Center(
         child: ConstrainedBox(
