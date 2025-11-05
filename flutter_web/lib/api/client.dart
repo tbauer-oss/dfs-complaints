@@ -35,6 +35,9 @@ class ApiClient {
   String? adminSecret;  // für X-Admin-Secret
   String? repToken;     // JWT für Vertreter-Login
 
+  // Merker für Vertreter-Login-Flow
+  String? _repEmail;    // zuletzt geprüfte/benutzte Vertreter-E-Mail
+
   // ---------- Session persistieren ----------
   void _saveSession() {
     final ls = html.window.localStorage;
@@ -66,6 +69,13 @@ class ApiClient {
     } else {
       ls.remove('dfs_rep_token');
     }
+
+    // Vertreter-E-Mail (nur als Hilfe für Secret-Login, kein Sicherheitskritikum)
+    if (_repEmail != null && _repEmail!.isNotEmpty) {
+      ls['dfs_rep_email'] = _repEmail!;
+    } else {
+      ls.remove('dfs_rep_email');
+    }
   }
 
   Future<void> restoreSession() async {
@@ -74,6 +84,7 @@ class ApiClient {
     adminSecret = ls['dfs_admin'];
     gate        = ls['dfs_gate'];
     repToken    = ls['dfs_rep_token'];
+    _repEmail   = ls['dfs_rep_email'];
   }
 
   Future<void> logout() async {
@@ -397,15 +408,19 @@ class ApiClient {
   /// Prüft, ob ein Vertreter (aktiv) existiert.
   /// Erwartet: 200 { exists: true|false } – alles andere wird als false interpretiert.
   Future<bool> repExists(String email) async {
+    final e = email.trim().toLowerCase();
     try {
-      final r = await _post('/api/rep/exists', {'email': email.trim().toLowerCase()});
+      final r = await _post('/api/rep/exists', {'email': e});
       if (_ok2xx(r.statusCode)) {
         try {
           final j = jsonDecode(r.body);
-          if (j is Map && j['exists'] is bool) return j['exists'] as bool;
-        } catch (_) {
-          // Falls Body nicht parsebar ist, treat as false
-        }
+          final exists = (j is Map && j['exists'] is bool) ? j['exists'] as bool : false;
+          if (exists) {
+            _repEmail = e; // <— Merken, damit Secret-Login die E-Mail mitsenden kann
+            _saveSession();
+          }
+          return exists;
+        } catch (_) {}
       }
       return false;
     } catch (_) {
@@ -416,7 +431,8 @@ class ApiClient {
   /// Bestehender Flow (E-Mail + Passwort).
   Future<({bool ok, bool mustChange})> repLogin(String email, String password) async {
     try {
-      final r = await _post('/api/rep/login', {'email': email, 'password': password});
+      final e = email.trim().toLowerCase();
+      final r = await _post('/api/rep/login', {'email': e, 'password': password});
       if (!_ok2xx(r.statusCode)) {
         return (ok: false, mustChange: false);
       }
@@ -430,6 +446,7 @@ class ApiClient {
       if (tok.isEmpty) return (ok: false, mustChange: false);
 
       repToken = tok;
+      _repEmail = e;
       _saveSession();
 
       return (ok: true, mustChange: mustChange);
@@ -438,19 +455,20 @@ class ApiClient {
     }
   }
 
-  /// Vertreter-Login über Secret.
-  /// Reihenfolge: zuerst Body ({"secret": ...}) -> dann Header (X-Rep-Secret).
+  /// Vertreter-Login über Secret (Einmalpasswort).
+  /// NEU: E-Mail wird (falls bekannt) immer mitgesendet, damit das Backend den Rep eindeutig zuordnen kann.
   /// Erfolg bei 200/201/204. Token aus Body ('token') wird, falls vorhanden, gespeichert.
   Future<bool> repLoginWithSecret(String secret) async {
     final sec = secret.trim();
     if (sec.isEmpty) return false;
 
-    // 1) Body-basierte Auth (keine Sonder-Header -> kein CORS-Preflight)
+    // 1) Body-basierte Auth: {"secret": "...", "email": "..."}  -> vermeidet Preflight
     try {
+      final body = <String, dynamic>{'secret': sec, if ((_repEmail ?? '').isNotEmpty) 'email': _repEmail};
       final rBody = await http.post(
         _u('/api/rep/login'),
-        headers: _repHeaders(), // Content-Type (+ evtl. X-Gate / Authorization wenn repToken gesetzt)
-        body: jsonEncode({'secret': sec}),
+        headers: {'Content-Type': 'application/json; charset=utf-8', if (gate != null) 'X-Gate': gate!},
+        body: jsonEncode(body),
       );
 
       if (_ok2xx(rBody.statusCode)) {
@@ -460,20 +478,27 @@ class ApiClient {
             if (j is Map && j['token'] is String) {
               repToken = j['token'] as String;
             }
+            // Wenn Backend E-Mail zurückgibt, übernehmen (optional)
+            final em = (j is Map ? (j['email'] ?? '') : '').toString().trim().toLowerCase();
+            if (em.isNotEmpty) _repEmail = em;
           }
         } catch (_) {/* ignorieren */}
         _saveSession();
         return true;
       }
     } catch (_) {
-      // Netzwerk-/Preflight-/Parsing-Fehler ignorieren, Header-Variante probieren
+      // Ignorieren und Header-Variante probieren
     }
 
-    // 2) Header-basierte Auth (kann CORS-Preflight auslösen)
+    // 2) Header-basierte Auth (kann Preflight auslösen)
     try {
+      final extra = <String, String>{'X-Rep-Secret': sec};
+      if ((_repEmail ?? '').isNotEmpty) {
+        extra['X-Rep-Email'] = _repEmail!;
+      }
       final rHead = await http.post(
         _u('/api/rep/login'),
-        headers: _repHeaders(extra: {'X-Rep-Secret': sec}),
+        headers: _repHeaders(extra: extra),
         body: jsonEncode(<String, dynamic>{}), // valides, leeres JSON
       );
 
@@ -484,13 +509,15 @@ class ApiClient {
             if (j is Map && j['token'] is String) {
               repToken = j['token'] as String;
             }
+            final em = (j is Map ? (j['email'] ?? '') : '').toString().trim().toLowerCase();
+            if (em.isNotEmpty) _repEmail = em;
           }
         } catch (_) {/* ignorieren */}
         _saveSession();
         return true;
       }
     } catch (_) {
-      // auch hier: stiller Fail -> false
+      // still fail -> false
     }
 
     return false;
@@ -499,15 +526,35 @@ class ApiClient {
   /// Alias, falls der Name dir besser gefällt.
   Future<bool> repLoginSecret(String secret) => repLoginWithSecret(secret);
 
+  /// Passwort ändern (Vertreter). Akzeptiert:
+  /// - 204 (kein Body) ODER
+  /// - 200 { token: '...' } -> Token wird aktualisiert.
   Future<void> repChangePassword(String newPw) async {
-    final r = await _post(
-      '/api/rep/password',
-      {'new': newPw},
-      extraHeaders: _repHeaders(),
+    final r = await http.post(
+      _u('/api/rep/password'),
+      headers: _repHeaders(),
+      body: jsonEncode({'new': newPw}),
     );
-    if (!_ok2xx(r.statusCode)) {
-      throw Exception('POST /api/rep/password failed: ${r.statusCode} ${r.body}');
+
+    if (r.statusCode == 204) {
+      // ok ohne Body
+      return;
     }
+    if (_ok2xx(r.statusCode)) {
+      // evtl. neues Token returned
+      try {
+        if (r.body.isNotEmpty) {
+          final j = jsonDecode(r.body);
+          if (j is Map && j['token'] is String) {
+            repToken = j['token'] as String;
+            _saveSession();
+          }
+        }
+      } catch (_) {}
+      return;
+    }
+
+    throw Exception('POST /api/rep/password failed: ${r.statusCode} ${r.body}');
   }
 
   Future<Map<String, dynamic>> repMe() async {
