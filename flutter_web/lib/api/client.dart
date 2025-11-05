@@ -492,6 +492,23 @@ class ApiClient {
     return repLoginWithSecret(mail, secret);
   }
 
+  /// Prüft das repToken einmalig gegen /api/rep/me.
+  /// Bei 401 wird das Token entfernt (verhindert den 401-Loop nach Reload).
+  Future<bool> ensureRepSession() async {
+    if (repToken == null || repToken!.isEmpty) return false;
+    try {
+      final r = await http.get(_u('/api/rep/me'), headers: _repHeaders());
+      if (_ok2xx(r.statusCode)) return true;
+      // Token ungültig -> räumen
+      repToken = null;
+      _saveSession();
+      return false;
+    } catch (_) {
+      // Netzwerkfehler o.ä.: Session behalten, aber false zurückgeben
+      return false;
+    }
+  }
+  
   /// Passwort ändern (Vertreter). Akzeptiert:
   /// - 204 (kein Body) ODER
   /// - 200 { token: '...' } -> Token wird aktualisiert.
