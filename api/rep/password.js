@@ -1,92 +1,75 @@
 // /api/rep/password.js
+export const config = { runtime: 'nodejs' };
+
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import { setCors } from '../_lib/cors.js';
 import { loadRepById, updateRepPassword } from '../_lib/repsStore.js';
 
 const REP_SECRET = process.env.REP_JWT_SECRET;
 
 function getBearerToken(req) {
-  const h = req.headers.authorization || '';
-  if (!h.toLowerCase().startsWith('bearer ')) return '';
-  return h.slice(7).trim();
+  const h = String(req.headers.authorization || '');
+  return h.toLowerCase().startsWith('bearer ') ? h.slice(7).trim() : '';
 }
 
 export default async function handler(req, res) {
-  // ---- CORS (wie in allen anderen Endpunkten) ----
-  const origin = req.headers.origin || '';
-  const allow = [
-    'https://dfs-complaints-web.vercel.app',
-    'http://localhost:5173',
-    'http://localhost:3000',
-  ];
-  if (allow.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Vary', 'Origin');
-  } else if (process.env.WEB_ORIGIN) {
-    res.setHeader('Access-Control-Allow-Origin', process.env.WEB_ORIGIN);
-  }
-
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, X-Admin-Secret, X-Gate, X-Rep-Secret'
-  );
+  // Einheitliche CORS-Header
+  setCors(req, res, 'Content-Type, Authorization, X-Gate, X-Rep-Secret');
   if (req.method === 'OPTIONS') return res.status(204).end();
-
-  // ---- Method & Server-Check ----
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'method not allowed' });
+    return res.status(405).end(JSON.stringify({ error: 'method not allowed' }));
   }
   if (!REP_SECRET) {
-    return res.status(500).json({ error: 'server misconfig (REP_JWT_SECRET not set)' });
+    return res.status(500).end(JSON.stringify({ error: 'server misconfig (REP_JWT_SECRET not set)' }));
   }
 
   try {
-    // ---- Token prüfen ----
+    // Auth prüfen
     const token = getBearerToken(req);
-    if (!token) return res.status(401).json({ error: 'unauthorized (missing token)' });
+    if (!token) return res.status(401).end(JSON.stringify({ error: 'unauthorized (missing token)' }));
 
     const claims = jwt.verify(token, REP_SECRET);
     const repId = claims?.repId;
-    if (!repId) return res.status(401).json({ error: 'unauthorized (invalid claims)' });
+    if (!repId) return res.status(401).end(JSON.stringify({ error: 'unauthorized (invalid claims)' }));
 
     const rep = await loadRepById(repId);
     if (!rep || rep.active === false) {
-      return res.status(403).json({ error: 'inactive or unknown representative' });
+      return res.status(403).end(JSON.stringify({ error: 'inactive or unknown representative' }));
     }
 
-    // ---- Body auswerten ----
-    const body = (req.body && typeof req.body === 'object') ? req.body : {};
+    // Body robust parsen
+    const raw = (typeof req.body === 'string') ? req.body : JSON.stringify(req.body || {});
+    let body = {};
+    try { body = JSON.parse(raw || '{}'); } catch { body = {}; }
+
     const oldPw = String(body.old || '').trim();
     const newPw = String(body.new || '').trim();
 
     if (!newPw) {
-      return res.status(400).json({ error: 'missing new password' });
+      return res.status(400).end(JSON.stringify({ error: 'missing new password' }));
     }
     if (newPw.length < 8) {
-      return res.status(400).json({ error: 'password too short (min. 8 chars)' });
+      return res.status(400).end(JSON.stringify({ error: 'password too short (min. 8 chars)' }));
     }
 
-    // ---- Optional: altes Passwort prüfen, falls vorhanden ----
+    // Optional: altes Passwort prüfen, wenn bereits gesetzt und übergeben
     if (rep.passHash && oldPw) {
       const match = await bcrypt.compare(oldPw, rep.passHash);
       if (!match) {
-        return res.status(401).json({ error: 'invalid old password' });
+        return res.status(401).end(JSON.stringify({ error: 'invalid old password' }));
       }
     }
 
-    // ---- Neues Passwort setzen ----
+    // Neues Passwort setzen (setzt in repsStore mustChangePw=false)
     const hash = await bcrypt.hash(newPw, 10);
     await updateRepPassword(rep.id, hash);
 
+    // Frisches Token zurückgeben (7 Tage)
     const newToken = jwt.sign({ repId }, REP_SECRET, { expiresIn: '7d' });
-    return res.status(200).json({ token: newToken });
-
-    // ---- Antwort ----
-    return res.status(200).json({ ok: true });
+    return res.status(200).end(JSON.stringify({ token: newToken }));
   } catch (err) {
     console.error('[rep/password]', err);
-    return res.status(401).json({ error: 'unauthorized' });
+    return res.status(401).end(JSON.stringify({ error: 'unauthorized' }));
   }
 }
