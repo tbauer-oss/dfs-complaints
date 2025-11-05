@@ -455,70 +455,53 @@ class ApiClient {
     }
   }
 
-  /// Vertreter-Login über Secret (Einmalpasswort).
-  /// NEU: E-Mail wird (falls bekannt) immer mitgesendet, damit das Backend den Rep eindeutig zuordnen kann.
-  /// Erfolg bei 200/201/204. Token aus Body ('token') wird, falls vorhanden, gespeichert.
-  Future<bool> repLoginWithSecret(String secret) async {
+  // ---- Vertreter-Login über Secret + E-Mail (Einmalpasswort)
+  Future<bool> repLoginWithSecret(String email, String secret) async {
     final sec = secret.trim();
-    if (sec.isEmpty) return false;
+    final mail = email.trim().toLowerCase();
+    if (sec.isEmpty || mail.isEmpty) return false;
 
-    // 1) Body-basierte Auth: {"secret": "...", "email": "..."}  -> vermeidet Preflight
+    // 1) Body-Variante (kein Preflight)
     try {
-      final body = <String, dynamic>{'secret': sec, if ((_repEmail ?? '').isNotEmpty) 'email': _repEmail};
       final rBody = await http.post(
         _u('/api/rep/login'),
-        headers: {'Content-Type': 'application/json; charset=utf-8', if (gate != null) 'X-Gate': gate!},
-        body: jsonEncode(body),
+        headers: _repHeaders(),
+        body: jsonEncode({'email': mail, 'secret': sec}),
       );
-
       if (_ok2xx(rBody.statusCode)) {
         try {
           if (rBody.body.isNotEmpty) {
             final j = jsonDecode(rBody.body);
             if (j is Map && j['token'] is String) {
               repToken = j['token'] as String;
+              _saveSession();
+              return true;
             }
-            // Wenn Backend E-Mail zurückgibt, übernehmen (optional)
-            final em = (j is Map ? (j['email'] ?? '') : '').toString().trim().toLowerCase();
-            if (em.isNotEmpty) _repEmail = em;
           }
-        } catch (_) {/* ignorieren */}
-        _saveSession();
-        return true;
+        } catch (_) {}
       }
-    } catch (_) {
-      // Ignorieren und Header-Variante probieren
-    }
+    } catch (_) {}
 
-    // 2) Header-basierte Auth (kann Preflight auslösen)
+    // 2) Header-Variante (falls nötig)
     try {
-      final extra = <String, String>{'X-Rep-Secret': sec};
-      if ((_repEmail ?? '').isNotEmpty) {
-        extra['X-Rep-Email'] = _repEmail!;
-      }
       final rHead = await http.post(
         _u('/api/rep/login'),
-        headers: _repHeaders(extra: extra),
-        body: jsonEncode(<String, dynamic>{}), // valides, leeres JSON
+        headers: _repHeaders(extra: {'X-Rep-Secret': sec}),
+        body: jsonEncode({'email': mail}),
       );
-
       if (_ok2xx(rHead.statusCode)) {
         try {
           if (rHead.body.isNotEmpty) {
             final j = jsonDecode(rHead.body);
             if (j is Map && j['token'] is String) {
               repToken = j['token'] as String;
+              _saveSession();
+              return true;
             }
-            final em = (j is Map ? (j['email'] ?? '') : '').toString().trim().toLowerCase();
-            if (em.isNotEmpty) _repEmail = em;
           }
-        } catch (_) {/* ignorieren */}
-        _saveSession();
-        return true;
+        } catch (_) {}
       }
-    } catch (_) {
-      // still fail -> false
-    }
+    } catch (_) {}
 
     return false;
   }
