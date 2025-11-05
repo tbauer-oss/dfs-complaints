@@ -35,6 +35,9 @@ class _MyAppState extends State<MyApp> {
 
   ThemeMode _themeMode = ThemeMode.system;
 
+  // Globaler Navigator-Key (für Redirects im builder)
+  final _navKey = GlobalKey<NavigatorState>();
+
   // ---- kleine Helfer für den Gating-Check ----
   bool get _customerLoggedIn => (api.token != null && api.token!.isNotEmpty);
   bool get _repLoggedIn {
@@ -76,7 +79,7 @@ class _MyAppState extends State<MyApp> {
     await api.ensureRepSession(); // invalides repToken nach Deploys o.ä. wegräumen
     setState(() {
       // _loggedIn steuert weiterhin nur den Kundenbereich;
-      // der Vertreterbereich wird unten im build() separat über _repLoggedIn geroutet.
+      // der Vertreterbereich wird via _repLoggedIn im builder geroutet.
       _loggedIn = _customerLoggedIn;
       _bootDone = true;
     });
@@ -200,10 +203,9 @@ class _MyAppState extends State<MyApp> {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => RegisterPage(api: api)));
   }
 
+  // Vertreter-Bereich öffnen: zur Rep-Login-Route
   void _openRepArea(BuildContext ctx) {
-    Navigator.of(ctx).push(
-      MaterialPageRoute(builder: (_) => RepLoginPage(api: api)),
-    );
+    Navigator.of(ctx).pushNamed('/repLogin');
   }
 
   void _onLoggedIn() => setState(() => _loggedIn = true);   // Kundenlogin
@@ -217,52 +219,10 @@ class _MyAppState extends State<MyApp> {
       );
     }
 
-    // ---- NEU: Vertreter-Gating auf Root-Ebene ----
-    // Wenn repToken vorhanden (oder rep-Modus aktiv), direkt Rep-Dashboard zeigen.
-    if (_repLoggedIn) {
-      return MaterialApp(
-        debugShowCheckedModeBanner: false,
-        locale: _locale,
-        supportedLocales: const [
-          Locale('de'), Locale('en'), Locale('fr'), Locale('it'), Locale('es'),
-        ],
-        localizationsDelegates: const [
-          AppLocalizations.delegate,
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        localeListResolutionCallback: (locales, supported) {
-          if (_locale != null) return _locale!;
-          if (locales != null) {
-            for (final loc in locales) {
-              for (final s in supported) {
-                if (s.languageCode.toLowerCase() == loc.languageCode.toLowerCase()) {
-                  return s;
-                }
-              }
-            }
-          }
-          return const Locale('de');
-        },
-        themeMode: _themeMode,
-        theme: ThemeData(
-          useMaterial3: true,
-          colorSchemeSeed: const Color(0xFF1F4C8F),
-          brightness: Brightness.light,
-        ),
-        darkTheme: ThemeData(
-          useMaterial3: true,
-          colorSchemeSeed: const Color(0xFF1F4C8F),
-          brightness: Brightness.dark,
-        ),
-        home: RepDashboardPage(api: api),
-      );
-    }
-
-    // ---- Kunden-Flow (unverändert) ----
+    // Eine (!) MaterialApp mit benannten Routen
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      navigatorKey: _navKey,
       locale: _locale,
       supportedLocales: const [
         Locale('de'), Locale('en'), Locale('fr'), Locale('it'), Locale('es'),
@@ -299,66 +259,132 @@ class _MyAppState extends State<MyApp> {
         brightness: Brightness.dark,
       ),
 
-      home: _loggedIn
-          ? Builder(
-              builder: (ctx) {
-                final t = AppLocalizations.of(ctx)!;
-                return Scaffold(
-                  appBar: AppBar(
-                    title: Text(t.appTitle),
-                    actions: [
-                      LangAction(onLocaleChanged: _setLocale),
-                      _themeMenu(),
-                    ],
-                    bottom: PreferredSize(
-                      preferredSize: const Size.fromHeight(50),
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          child: FilledButton.icon(
-                            icon: const Icon(Icons.logout),
-                            label: Text(t.logout),
-                            onPressed: () async {
-                              await api.logout(); // Kunden-Logout
-                              if (ctx.mounted) {
-                                ScaffoldMessenger.of(ctx).showSnackBar(
-                                  SnackBar(content: Text(t.loggedOut)),
-                                );
-                              }
-                              _onLoggedOut();
-                            },
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  body: DashboardPage(api: api, onLoggedOut: _onLoggedOut),
-                );
-              },
-            )
-          : Builder(
-              builder: (ctx) {
-                final t = AppLocalizations.of(ctx)!;
-                return Scaffold(
-                  appBar: AppBar(
-                    title: Text(t.login),
-                    actions: [
-                      LangAction(onLocaleChanged: _setLocale),
-                      _themeMenu(),
-                    ],
-                  ),
-                  // <<< Eigener, interner Login-Screen – kein externer Import nötig
-                  body: _LoginScreen(
-                    api: api,
-                    onLoggedIn: _onLoggedIn,
-                    onOpenRegister: () => _openRegister(ctx),
-                    onOpenAdmin: () => _openAdmin(ctx),
-                    onOpenRep: () => _openRepArea(ctx),  // Vertreterbereich öffnen
-                  ),
-                );
-              },
+      // Feste Start-Route (Login/Startseite)
+      initialRoute: '/login',
+
+      // Benannte Routen
+      routes: {
+        // Start-/Login-Shell (beinhaltet deinen alten "home:"-Block dynamisch)
+        '/login': (_) => _RootLoginShell(
+              api: api,
+              themeMenu: _themeMenu(),
+              onLocaleChanged: _setLocale,
+              onLoggedIn: _onLoggedIn,
+              onOpenRegister: _openRegister,
+              onOpenAdmin: _openAdmin,
+              onOpenRep: _openRepArea,
+              loggedIn: _loggedIn,
+              onLoggedOut: _onLoggedOut,
             ),
+
+        // Vertreter-Login (deine existierende Seite)
+        '/repLogin': (_) => RepLoginPage(api: api),
+
+        // Vertreter-Dashboard
+        '/rep': (_) => RepDashboardPage(api: api),
+      },
+
+      // Zentraler Redirect je nach Rep-Status
+      builder: (context, child) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final ctx = _navKey.currentContext ?? context;
+          final route = ModalRoute.of(ctx);
+          final name = route?.settings.name;
+
+          if (_repLoggedIn && name != '/rep') {
+            _navKey.currentState?.pushNamedAndRemoveUntil('/rep', (r) => false);
+          } else if (!_repLoggedIn && name == '/rep') {
+            _navKey.currentState?.pushNamedAndRemoveUntil('/login', (r) => false);
+          }
+        });
+        return child!;
+      },
+    );
+  }
+}
+
+// =======================
+// Root-Shell für Kunden-Start/Login (ersetzt vorheriges home:)
+// =======================
+class _RootLoginShell extends StatelessWidget {
+  final ApiClient api;
+  final Widget themeMenu;
+  final void Function(Locale) onLocaleChanged;
+  final VoidCallback onLoggedIn;
+  final void Function(BuildContext) onOpenRegister;
+  final void Function(BuildContext) onOpenAdmin;
+  final void Function(BuildContext) onOpenRep;
+  final bool loggedIn;
+  final VoidCallback onLoggedOut;
+
+  const _RootLoginShell({
+    required this.api,
+    required this.themeMenu,
+    required this.onLocaleChanged,
+    required this.onLoggedIn,
+    required this.onOpenRegister,
+    required this.onOpenAdmin,
+    required this.onOpenRep,
+    required this.loggedIn,
+    required this.onLoggedOut,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+
+    if (loggedIn) {
+      // Dein alter "home:"-Block für eingeloggte Kunden
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(t.appTitle),
+          actions: [
+            LangAction(onLocaleChanged: onLocaleChanged),
+            themeMenu,
+          ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(50),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: FilledButton.icon(
+                  icon: const Icon(Icons.logout),
+                  label: Text(t.logout),
+                  onPressed: () async {
+                    await api.logout();
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(t.loggedOut)),
+                      );
+                    }
+                    onLoggedOut();
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+        body: DashboardPage(api: api, onLoggedOut: onLoggedOut),
+      );
+    }
+
+    // Nicht eingeloggt -> interner Login-Screen
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(t.login),
+        actions: [
+          LangAction(onLocaleChanged: onLocaleChanged),
+          themeMenu,
+        ],
+      ),
+      body: _LoginScreen(
+        api: api,
+        onLoggedIn: onLoggedIn,
+        onOpenRegister: () => onOpenRegister(context),
+        onOpenAdmin: () => onOpenAdmin(context),
+        onOpenRep: () => onOpenRep(context),
+      ),
     );
   }
 }
