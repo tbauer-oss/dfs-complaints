@@ -497,16 +497,6 @@ class _LoginScreenState extends State<_LoginScreen> {
                     onPressed: _busy ? null : widget.onOpenAdmin,
                     label: Text(t.admin_area),
                   ),
-                  TextButton.icon(
-                    icon: const Icon(Icons.handshake),
-                    onPressed: _busy ? null : () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Öffne Vertreterbereich…')),
-                      );
-                      widget.onOpenRep();
-                    },
-                    label: Text(t.rep_area ?? 'Vertreter'),
-                  ),
                 ],
               ),
             ],
