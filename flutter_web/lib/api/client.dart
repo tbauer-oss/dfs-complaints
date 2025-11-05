@@ -461,49 +461,29 @@ class ApiClient {
     final mail = email.trim().toLowerCase();
     if (sec.isEmpty || mail.isEmpty) return false;
 
-    // 1) Body-Variante (kein Preflight)
     try {
-      final rBody = await http.post(
+      final r = await http.post(
         _u('/api/rep/login'),
-        headers: _repHeaders(),
+        headers: _repHeaders(), // nur Content-Type (+ evtl. Gate)
         body: jsonEncode({'email': mail, 'secret': sec}),
       );
-      if (_ok2xx(rBody.statusCode)) {
+
+      if (_ok2xx(r.statusCode)) {
         try {
-          if (rBody.body.isNotEmpty) {
-            final j = jsonDecode(rBody.body);
+          if (r.body.isNotEmpty) {
+            final j = jsonDecode(r.body);
             if (j is Map && j['token'] is String) {
               repToken = j['token'] as String;
-              _saveSession();
-              return true;
             }
           }
         } catch (_) {}
+        _saveSession();
+        return true;
       }
-    } catch (_) {}
-
-    // 2) Header-Variante (falls nötig)
-    try {
-      final rHead = await http.post(
-        _u('/api/rep/login'),
-        headers: _repHeaders(extra: {'X-Rep-Secret': sec}),
-        body: jsonEncode({'email': mail}),
-      );
-      if (_ok2xx(rHead.statusCode)) {
-        try {
-          if (rHead.body.isNotEmpty) {
-            final j = jsonDecode(rHead.body);
-            if (j is Map && j['token'] is String) {
-              repToken = j['token'] as String;
-              _saveSession();
-              return true;
-            }
-          }
-        } catch (_) {}
-      }
-    } catch (_) {}
-
-    return false;
+      return false;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Alias, falls der Name dir besser gefällt.
