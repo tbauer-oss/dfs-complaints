@@ -7,6 +7,11 @@ import '../widgets/lang_action.dart';
 
 enum Salutation { mr, ms, diverse }
 
+// ---- L10n-Helper (top-level, NICHT in der Klasse!) ----
+extension _L10nX on BuildContext {
+  AppLocalizations get t => AppLocalizations.of(this)!;
+}
+
 class RegisterPage extends StatefulWidget {
   final ApiClient api;
   const RegisterPage({super.key, required this.api});
@@ -17,11 +22,7 @@ class RegisterPage extends StatefulWidget {
 
 class _RegisterPageState extends State<RegisterPage> {
   // Gate (AUTH_PASSWORD) – vor Betreten der Registrierung
-  extension _L10nX on BuildContext {
-  AppLocalizations get t => AppLocalizations.of(this)!;
-}
   final _gatePw = TextEditingController();
-  final t = context.t;
   bool _gateBusy = false;
   String? _gateErr;
 
@@ -96,6 +97,7 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<void> _unlockGate() async {
+    final t = context.t;
     setState(() {
       _gateBusy = true;
       _gateErr = null;
@@ -115,7 +117,7 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<void> _submit() async {
-    final t = AppLocalizations.of(context)!;
+    final t = context.t;
     setState(() {
       _busy = true;
       _err = null;
@@ -124,7 +126,6 @@ class _RegisterPageState extends State<RegisterPage> {
 
     try {
       if (_pw.text != _pw2.text) {
-        // Fallback-Text (kein L10n-Key nötig)
         setState(() => _err = t.password_mismatch);
         return;
       }
@@ -158,9 +159,7 @@ class _RegisterPageState extends State<RegisterPage> {
         'lang': _langCode(context),
       };
 
-      // ApiClient.register -> Future<String?> (null = OK, sonst Fehlertext)
       final String? errMsg = await widget.api.register(payload);
-      final t = context.t;
       if (!mounted) return;
 
       if (errMsg == null) {
@@ -170,7 +169,6 @@ class _RegisterPageState extends State<RegisterPage> {
 
       // Fehlertext heuristisch auswerten
       final em = errMsg.toLowerCase();
-      final t = context.t;
       if (em.contains('user_exists') || em.contains('409')) {
         setState(() => _err = t.email_exists);
       } else if (em.contains('pending') || em.contains('resent')) {
@@ -189,13 +187,12 @@ class _RegisterPageState extends State<RegisterPage> {
   @override
   Widget build(BuildContext context) {
     final t = context.t;
-
-    // Gate-Abfrage VOR dem Formular
     final needsGate = widget.api.gate == null || widget.api.gate!.isEmpty;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(needsGate ? t.regFree : t.auth_register),
+        // t.regFree existiert nicht -> nimm vorhandene Keys
+        title: Text(needsGate ? t.unlock : t.auth_register),
         actions: const [LangAction()],
       ),
       body: Center(
@@ -213,9 +210,9 @@ class _RegisterPageState extends State<RegisterPage> {
                 TextField(
                   controller: _gatePw,
                   obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Freigabe-Passwort',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: t.gate_password,
+                    border: const OutlineInputBorder(),
                   ),
                   onSubmitted: (_) => _gateBusy ? null : _unlockGate(),
                 ),
