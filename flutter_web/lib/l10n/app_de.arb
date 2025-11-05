@@ -257,5 +257,11 @@
   "supportCatAccount": "Anfragen zum Account",
   "supportCatPrivacy": "Datenschutz",
   "supportCatFeedback": "Feedback",
-  "supportCatSuggestion": "Vorschlag zur Verbesserung"
+  "supportCatSuggestion": "Vorschlag zur Verbesserung",
+  "email_invalid": "Please enter a valid email address.",
+  "password_required": "Please enter a password.",
+  "correctMail": "Please enter a valid email!",
+  "region": "Region / territory",
+  "myCustomers": "My customers",
+  "passwordChanged": "Password has been changed."
 }
