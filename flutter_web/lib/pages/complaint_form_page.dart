@@ -4,6 +4,10 @@ import 'package:file_picker/file_picker.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 
+extension _L10nX on BuildContext {
+  AppLocalizations get t => AppLocalizations.of(this)!;
+}
+
 class ComplaintFormPage extends StatefulWidget {
   final ApiClient api;
   const ComplaintFormPage({super.key, required this.api});
@@ -39,6 +43,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
 
   Future<bool> _confirmLeaveIfDirty() async {
     if (!_dirty) return true;
+    final t = context.t;
     final res = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -71,6 +76,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
 
   Future<void> pickFiles(AppLocalizations t) async {
     final res = await FilePicker.platform.pickFiles(allowMultiple: true, withData: true);
+    final t = context.t;
     if (res == null) return;
 
     final sum = res.files.fold<int>(0, (s, f) => s + (f.bytes?.length ?? 0));
@@ -101,8 +107,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
 
   @override
   Widget build(BuildContext context) {
-    final t = AppLocalizations.of(context)!;
-
+    final t = context.t;
     final optDentist = t.segment_dentist, optLab = t.segment_lab;
     final optYes = t.yes, optNo = t.no;
     final optReturnedYes = t.yes, optReturnedNo = t.no;
@@ -214,7 +219,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                 ElevatedButton(
                   onPressed: busy ? null : () async {
                     setState(() { busy = true; err = null; info = null; });
-
+                  }
                     // Validierung
                     if (!privacy) { err = t.privacy_required; setState(() => busy = false); return; }
                     if (article.text.trim().isEmpty || desc.text.trim().isEmpty) { err = t.required_fields; setState(() => busy = false); return; }
