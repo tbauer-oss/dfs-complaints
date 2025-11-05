@@ -22,6 +22,7 @@ class RegisterPage extends StatefulWidget {
 class _RegisterPageState extends State<RegisterPage> {
   // Gate (AUTH_PASSWORD) – vor Betreten der Registrierung
   final _gatePw = TextEditingController();
+  final t = context.t;
   bool _gateBusy = false;
   String? _gateErr;
 
