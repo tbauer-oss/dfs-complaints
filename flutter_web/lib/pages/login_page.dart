@@ -6,6 +6,7 @@ import 'rep_login_page.dart' show RepLoginPage;
 
 class RepLoginPage extends StatefulWidget {
   final ApiClient api;
+  final t = AppLocalizations.of(c)!;
   const RepLoginPage({super.key, required this.api});
 
   @override
@@ -38,7 +39,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
         MaterialPageRoute(builder: (_) => RepDashboardPage(api: widget.api)),
       );
     } catch (e) {
-      setState(() => _err = 'Netzwerk-/Serverfehler: $e');
+      setState(() => _err = t.network_error_generic(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -65,7 +66,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
             return;
           }
           if (a != b) {
-            localErr = 'Passwörter stimmen nicht überein.';
+            localErr = t.passwords_no_match;
             (ctx as Element).markNeedsBuild();
             return;
           }
@@ -76,10 +77,10 @@ class _RepLoginPageState extends State<RepLoginPage> {
             if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
             if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Passwort wurde geändert.')),
+              const SnackBar(content: t.password_changed),
             );
           } catch (e) {
-            localErr = 'Fehler: $e';
+            localErr = 'Error: $e';
             saving = false;
             (ctx as Element).markNeedsBuild();
           }
