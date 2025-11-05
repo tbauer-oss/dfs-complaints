@@ -11,7 +11,6 @@
   "theme_system": "System",
   "theme_light": "Hell",
   "theme_dark": "Dunkel",
-  "rep_area": "Vertreterbereich",
   "login_failed": "Login fehlgeschlagen!",
   "new_password_both_required": "Bitte neues Passwort in beiden Feldern eingeben.",
   "network_error_generic": "Netzwerk-/Serverfehler:",
@@ -21,6 +20,8 @@
   "new_password": "Neues Passwort",
   "new_password_repeat": "Neues Passwort (Wiederholung)",
   "save": "Speichern",
+  "rep_login_title": "Vertreter-Login",
+  "
 
 
 
@@ -43,6 +44,7 @@
   "country_label": "Land",
   "internal_no_label": "Interne DFS-Nr.",
   "rep_area": "Vertreterbereich",
+
 
   "customer_login": "Kundenlogin",
   "more_areas": "Weitere Bereiche",
