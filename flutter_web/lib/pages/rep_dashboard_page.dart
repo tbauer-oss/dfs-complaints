@@ -31,7 +31,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
       // Info für den Nutzer
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text(t.sessionExpired)),
+        SnackBar(content: Text(context.t.session_expired_login_again)),
       );
 
       // Sicher bis zur Startseite zurück (nicht nur ein Pop)
