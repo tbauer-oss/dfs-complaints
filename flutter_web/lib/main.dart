@@ -111,7 +111,7 @@ class _MyAppState extends State<MyApp> {
             children: [
               const Icon(Icons.brightness_auto),
               const SizedBox(width: 10),
-              const Text('System'),
+              const Text(t.theme_system),
               if (_themeMode == ThemeMode.system) const Spacer(),
               if (_themeMode == ThemeMode.system)
                 const Icon(Icons.check, color: Colors.green),
@@ -124,7 +124,7 @@ class _MyAppState extends State<MyApp> {
             children: [
               const Icon(Icons.light_mode),
               const SizedBox(width: 10),
-              const Text('Light'),
+              const Text(t.theme_light),
               if (_themeMode == ThemeMode.light) const Spacer(),
               if (_themeMode == ThemeMode.light)
                 const Icon(Icons.check, color: Colors.green),
@@ -137,7 +137,7 @@ class _MyAppState extends State<MyApp> {
             children: [
               const Icon(Icons.dark_mode),
               const SizedBox(width: 10),
-              const Text('Dark'),
+              const Text(t.theme_dark),
               if (_themeMode == ThemeMode.dark) const Spacer(),
               if (_themeMode == ThemeMode.dark)
                 const Icon(Icons.check, color: Colors.green),
@@ -158,7 +158,7 @@ class _MyAppState extends State<MyApp> {
         content: TextField(
           controller: ctrl,
           decoration: const InputDecoration(
-            labelText: 'X-Admin-Secret',
+            labelText: 'Admin Passwort',
             border: OutlineInputBorder(),
           ),
           obscureText: true,
@@ -183,7 +183,7 @@ class _MyAppState extends State<MyApp> {
     final ok = await api.validateAdminSecret(secret);
     if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.errorGeneric('Admin-Secret'))),
+        SnackBar(content: Text(t.errorGeneric('Admin Passwort'))),
       );
       return;
     }
@@ -359,7 +359,7 @@ class _MyAppState extends State<MyApp> {
                                       children: [
                                         FilledButton.tonalIcon(
                                           icon: const Icon(Icons.handshake),
-                                          label: Text(t.rep_area ?? 'Vertreterbereich'),
+                                          label: Text(t.rep_area ?? t.rep_area),
                                           onPressed: () => _openRepArea(ctx),
                                           style: FilledButton.styleFrom(
                                             padding: const EdgeInsets.symmetric(vertical: 14),
