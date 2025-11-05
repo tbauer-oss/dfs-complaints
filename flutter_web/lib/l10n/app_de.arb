@@ -11,20 +11,24 @@
   "theme_system": "System",
   "theme_light": "Hell",
   "theme_dark": "Dunkel",
-  "login_failed": "Login fehlgeschlagen!",
   "new_password_both_required": "Bitte neues Passwort in beiden Feldern eingeben.",
   "network_error_generic": "Netzwerk-/Serverfehler:",
-  "passwords_no_match": "Passwörter stimmen nicht überein.",
-  "password_changed": "Passwort wurde geändert.",
-  "new_password_title": "Neues Passwort setzen",
-  "new_password": "Neues Passwort",
-  "new_password_repeat": "Neues Passwort (Wiederholung)",
+  "passwordsDontMatch": "Passwörter stimmen nicht überein.",
+  "passwordChanged": "Passwort wurde geändert.",
   "save": "Speichern",
   "rep_login_title": "Vertreter-Login",
   "session_expired_login_again": "Sitzung abgelaufen. Bitte neu anmelden",
   "company_label": "Firma:",
   "contact_person_label": "Ansprechpartner:",
-  "confirm_password_title": "Passwort bestätigen",
+  "confirmPassword": "Passwort bestätigen",
+  "noDataFound": "Keine Daten gefunden.",
+  "adress": "Adresse",
+  "saved": "Gespeichert",
+  "oldPassword": "Altes Passwort",
+  "newPassword": "Neues Passwort",
+  "newPasswordRepeat": "Neues Passwort (Wiederholung)",
+
+  
 
 
 
@@ -106,9 +110,17 @@
   "no_details": "Keine Details vorhanden.",
 
   "createdAt": "Erstellt: {ts}",
-  "@createdAt": { "placeholders": { "ts": {} } },
+  "@createdAt": { "placeholders": { "ts": { "type": "String" } } },
+ 
   "updatedAt": "Aktualisiert: {ts}",
-  "@updatedAt": { "placeholders": { "ts": {} } },
+  "@updatedAt": { "placeholders": { "ts": { "type": "String" } } },
+
+  "images_selected": "{count} Datei(en) gewählt",
+  "@images_selected": { "placeholders": { "count": { "type": "int" } } },
+
+  "sent_ticket": "Gesendet. Ticket: {ticket}",
+  "@sent_ticket": { "placeholders": { "ticket": { "type": "String" } } }
+
   "created": "Erstellt",
   "updated": "Aktualisiert",
 
