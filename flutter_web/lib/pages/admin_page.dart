@@ -2514,6 +2514,5 @@ class _AdminTileProState extends State<AdminTilePro> {
         ),
       ),
     );
-    return card;
   }
 }
