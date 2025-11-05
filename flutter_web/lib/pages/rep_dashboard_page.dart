@@ -78,7 +78,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
           if (saving) return;
           final mail = ctrl.text.trim().toLowerCase();
           if (mail.isEmpty || !mail.contains('@')) {
-            locErr = 'Bitte gültige E-Mail eingeben.';
+            locErr = t.correctMail;
             (ctx as Element).markNeedsBuild();
             return;
           }
@@ -89,14 +89,14 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
             await _loadAll();
           } catch (e) {
-            locErr = 'Fehler: $e';
+            locErr = '${context.t.error ?? 'Fehler'}: $e';
             saving = false;
             (ctx as Element).markNeedsBuild();
           }
         }
 
         return AlertDialog(
-          title: const Text('Kunde zuweisen'),
+          title: Text(t.addCustomer),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -113,14 +113,14 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
           actions: [
             TextButton(
               onPressed: saving ? null : () => Navigator.of(ctx).pop(),
-              child: const Text('Abbrechen'),
+              child: Text(t.cancel),
             ),
             ElevatedButton(
               onPressed: saving ? null : save,
               child: saving
                   ? const SizedBox(
                       width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('Zuweisen'),
+                  : Text(t.add),
             ),
           ],
         );
@@ -136,7 +136,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       await _handleUnauthorized(e);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fehler: $e')),
+        SnackBar(content: Text('${context.t.error ?? 'Fehler'}: $e')),
       );
     }
   }
@@ -174,7 +174,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                         elevation: 4,
                         child: ListTile(
                           leading: const Icon(Icons.person_outline),
-                          title: const Text('Profil & Passwort'),
+                          title: Text(t.profilePW),
                           trailing: const Icon(Icons.chevron_right),
                           onTap: () async {
                             await Navigator.of(context).push(
@@ -190,7 +190,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                       const SizedBox(height: 16),
 
                       _Card(
-                        title: 'Meine Daten',
+                        title: t.myData,
                         child: _me == null
                             ? const Text('–')
                             : Wrap(
@@ -199,24 +199,24 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                                 children: [
                                   _Info('Name',
                                       '${_me!['firstName'] ?? ''} ${_me!['lastName'] ?? ''}'.trim()),
-                                  _Info('E-Mail', _me!['email'] ?? ''),
-                                  _Info('Region', _me!['region'] ?? ''),
+                                  _Info(t.email_plain, _me!['email'] ?? ''),
+                                  _Info(t.region, _me!['region'] ?? ''),
                                 ],
                               ),
                       ),
                       const SizedBox(height: 16),
 
                       _Card(
-                        title: 'Meine Kunden',
+                        title: t.myCustomers,
                         actions: [
                           ElevatedButton.icon(
                             onPressed: _assignCustomerDialog,
                             icon: const Icon(Icons.person_add_alt_1),
-                            label: const Text('Kunde zuweisen'),
+                            label: Text(t.addCustomer),
                           ),
                         ],
                         child: _customers.isEmpty
-                            ? const Text('Noch keine Kunden zugewiesen.')
+                            ? Text(t.noAddCustomer)
                             : Column(
                                 children: [
                                   for (final e in _customers)
@@ -225,7 +225,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                                       title: Text(e),
                                       trailing: IconButton(
                                         icon: const Icon(Icons.link_off),
-                                        tooltip: 'Zuweisung entfernen',
+                                        tooltip: t.deleteAdd,
                                         onPressed: () => _unassignCustomer(e),
                                       ),
                                     ),
@@ -235,9 +235,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                       const SizedBox(height: 16),
 
                       _Card(
-                        title: 'Reklamationen meiner Kunden',
+                        title: t.complaintsMyCustomer,
                         child: _complaints.isEmpty
-                            ? const Text('Keine Reklamationen gefunden.')
+                            ? const Text(t.noComplaintsFound)
                             : Column(
                                 children: [
                                   for (final c in _complaints) _ComplaintTile(data: c),
@@ -259,10 +259,10 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       child: Scaffold(
         appBar: AppBar(
           automaticallyImplyLeading: false, // <-- sorgt dafür, dass kein Back-Arrow erscheint
-          title: const Text('Vertreter-Dashboard'),
+          title: Text(t.rep_dashboard),
           actions: [
             IconButton(
-              tooltip: 'Neu laden',
+              tooltip: t.newLoad,
               onPressed: _loading ? null : _loadAll,
               icon: const Icon(Icons.refresh),
             ),
@@ -270,7 +270,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             TextButton.icon(
               onPressed: _logout, // bleibt unverändert: logout + zurück zur Startseite
               icon: const Icon(Icons.logout),
-              label: const Text('Logout'),
+              label: Text(t.logout),
             ),
             const SizedBox(width: 8),
           ],
@@ -348,9 +348,9 @@ class _ComplaintTile extends StatelessWidget {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (customer.isNotEmpty) Text('Kunde: $customer'),
-            if (article.isNotEmpty)  Text('Artikel: $article'),
-            if (segment.isNotEmpty)  Text('Segment: $segment'),
+            if (customer.isNotEmpty) Text('${t.customer_label}: $customer'),
+            if (article.isNotEmpty)  Text('${t.article_plain}: $article'),
+            if (segment.isNotEmpty)  Text('${t.segment_plain}: $segment'),
             Text(
               'Status: $status'
               '${decision.isNotEmpty ? ' • Entscheidung: $decision' : ''}'
