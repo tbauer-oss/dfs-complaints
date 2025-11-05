@@ -2,7 +2,8 @@
 import 'dart:html' as html; // nur Web: Sprache & Theme persistieren
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:flutter_svg/flutter_svg.dart'; // ganz oben ergänzen
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:flutter/services.dart' show rootBundle;
 
 import 'api/client.dart';
 import 'l10n/app_localizations.dart';
@@ -339,7 +340,7 @@ class _MyAppState extends State<MyApp> {
                               Align(
                                 alignment: Alignment.centerLeft,
                                 child: Text(
-                                  'Weitere Bereiche',
+                                  t.more_areas, // lokalisiert
                                   style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
                                         color: Theme.of(ctx).colorScheme.primary,
                                         fontWeight: FontWeight.w700,
@@ -481,6 +482,16 @@ class _LoginScreenState extends State<_LoginScreen> {
   bool _busy = false;
   String? _err;
 
+  // robustes Asset-Checking (SVG → PNG → Text)
+  Future<bool> _assetExists(String path) async {
+    try {
+      await rootBundle.load(path);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _doLogin() async {
     setState(() { _busy = true; _err = null; });
     try {
@@ -509,8 +520,6 @@ class _LoginScreenState extends State<_LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
-    final Color dfsBlue = const Color(0xFF1F4C8F);
-
     final canLogin = !_busy && _email.text.trim().isNotEmpty && _pw.text.isNotEmpty;
 
     return Card(
@@ -523,57 +532,39 @@ class _LoginScreenState extends State<_LoginScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Kopfzeile mit echtem DFS-Logo + App-Titel
+              // Kopfzeile mit DFS-Logo + "Kundenlogin" (lokalisiert)
               Row(
                 children: [
-                  // SVG zuerst versuchen…
-                  Builder(
-                    builder: (_) {
-                      const double h = 40;
-                      try {
-                        return SvgPicture.asset(
-                          'assets/dfs_logo.svg',
-                          height: h,
-                          // colorFilter: const ColorFilter.mode(Color(0xFF1F4C8F), BlendMode.srcIn),
-                        );
-                      } catch (_) {
-                        // Fallback: PNG in hoher Qualität
+                  SizedBox(
+                    height: 40,
+                    child: FutureBuilder<bool>(
+                      future: _assetExists('assets/dfs_logo.svg'),
+                      builder: (context, snap) {
+                        if (snap.connectionState == ConnectionState.done && (snap.data ?? false)) {
+                          return SvgPicture.asset('assets/dfs_logo.svg', height: 40);
+                        }
                         return Image.asset(
                           'assets/dfs_logo.png',
-                          height: h,
+                          height: 40,
                           filterQuality: FilterQuality.high,
                           isAntiAlias: true,
+                          errorBuilder: (_, __, ___) => const Text('DFS'),
                         );
-                      }
-                    },
+                      },
+                    ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Text(
-                      t.appTitle,
+                      t.customer_login, // <<<<<<<<<<<<<< HIER statt t.appTitle
                       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
-              // zarte Divider
               Divider(height: 1, color: Theme.of(context).dividerColor.withOpacity(0.6)),
               const SizedBox(height: 14),
-
-              // „Kundenlogin“ Überschrift
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Kundenlogin',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: dfsBlue,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
 
               // Eingabefelder
               TextField(
@@ -598,15 +589,11 @@ class _LoginScreenState extends State<_LoginScreen> {
                 onChanged: (_) => setState(() {}),
               ),
 
-              // Fehler
               if (_err != null) ...[
                 const SizedBox(height: 12),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text(
-                    _err!,
-                    style: const TextStyle(color: Colors.red),
-                  ),
+                  child: Text(_err!, style: const TextStyle(color: Colors.red)),
                 ),
               ],
 
