@@ -243,7 +243,7 @@ class _MyAppState extends State<MyApp> {
       themeMode: _themeMode,
       theme: ThemeData(
         useMaterial3: true,
-        colorSchemeSeed: const Color(0xFF1F4C8F),
+        colorSchemeSeed: const Color(0xFF1F4C8F), // DFS-Blau
         brightness: Brightness.light,
       ),
       darkTheme: ThemeData(
@@ -259,55 +259,107 @@ class _MyAppState extends State<MyApp> {
         '/': (_) => Builder(
               builder: (ctx) {
                 final t = AppLocalizations.of(ctx)!;
-                return _loggedIn
-                    ? Scaffold(
-                        appBar: AppBar(
-                          title: Text(t.appTitle),
-                          actions: [
-                            LangAction(onLocaleChanged: _setLocale),
-                            _themeMenu(),
-                          ],
-                          bottom: PreferredSize(
-                            preferredSize: const Size.fromHeight(50),
-                            child: Align(
-                              alignment: Alignment.centerRight,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                child: FilledButton.icon(
-                                  icon: const Icon(Icons.logout),
-                                  label: Text(t.logout),
-                                  onPressed: () async {
-                                    await api.logout(); // Kunden-Logout
-                                    if (ctx.mounted) {
-                                      ScaffoldMessenger.of(ctx).showSnackBar(
-                                        SnackBar(content: Text(t.loggedOut)),
-                                      );
-                                    }
-                                    _onLoggedOut();
-                                  },
-                                ),
-                              ),
+
+                // Kunde eingeloggt -> Dashboard
+                if (_loggedIn) {
+                  return Scaffold(
+                    appBar: AppBar(
+                      title: Text(t.appTitle),
+                      actions: [
+                        LangAction(onLocaleChanged: _setLocale),
+                        _themeMenu(),
+                      ],
+                      bottom: PreferredSize(
+                        preferredSize: const Size.fromHeight(50),
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            child: FilledButton.icon(
+                              icon: const Icon(Icons.logout),
+                              label: Text(t.logout),
+                              onPressed: () async {
+                                await api.logout(); // Kunden-Logout
+                                if (ctx.mounted) {
+                                  ScaffoldMessenger.of(ctx).showSnackBar(
+                                    SnackBar(content: Text(t.loggedOut)),
+                                  );
+                                }
+                                _onLoggedOut();
+                              },
                             ),
                           ),
                         ),
-                        body: DashboardPage(api: api, onLoggedOut: _onLoggedOut),
-                      )
-                    : Scaffold(
-                        appBar: AppBar(
-                          title: Text(t.login),
-                          actions: [
-                            LangAction(onLocaleChanged: _setLocale),
-                            _themeMenu(),
-                          ],
+                      ),
+                    ),
+                    body: DashboardPage(api: api, onLoggedOut: _onLoggedOut),
+                  );
+                }
+
+                // Kunde NICHT eingeloggt -> Startseite mit hübscher Login-Card
+                return Scaffold(
+                  appBar: AppBar(
+                    title: Text(t.appTitle),
+                    actions: [
+                      LangAction(onLocaleChanged: _setLocale),
+                      _themeMenu(),
+                    ],
+                  ),
+                  body: Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Color(0xFFEFF3FA), // zartes Blau-Grau
+                          Color(0xFFFFFFFF),
+                        ],
+                      ),
+                    ),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 920),
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Login-Card
+                              _LoginScreen(
+                                api: api,
+                                onLoggedIn: _onLoggedIn,
+                                onOpenRegister: () => _openRegister(ctx),
+                                onOpenAdmin: () => _openAdmin(ctx),
+                                onOpenRep: () => _openRepArea(ctx), // -> /repLogin
+                              ),
+                              const SizedBox(height: 12),
+                              // Sektion: alternative Zugänge dezent rechts
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: Wrap(
+                                  spacing: 8,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    OutlinedButton.icon(
+                                      icon: const Icon(Icons.handshake),
+                                      label: Text(t.rep_area ?? 'Vertreterbereich'),
+                                      onPressed: () => _openRepArea(ctx),
+                                    ),
+                                    TextButton.icon(
+                                      icon: const Icon(Icons.admin_panel_settings),
+                                      label: Text(t.admin_area),
+                                      onPressed: () => _openAdmin(ctx),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        body: _LoginScreen(
-                          api: api,
-                          onLoggedIn: _onLoggedIn,
-                          onOpenRegister: () => _openRegister(ctx),
-                          onOpenAdmin: () => _openAdmin(ctx),
-                          onOpenRep: () => _openRepArea(ctx), // -> /repLogin
-                        ),
-                      );
+                      ),
+                    ),
+                  ),
+                );
               },
             ),
 
@@ -345,7 +397,7 @@ class _MyAppState extends State<MyApp> {
 }
 
 // =======================
-// Interner Login-Screen (Kundenbereich)
+// Interner Login-Screen (Kundenbereich) – HÜBSCHE CARD MIT LOGO
 // =======================
 class _LoginScreen extends StatefulWidget {
   final ApiClient api;
@@ -371,7 +423,7 @@ class _LoginScreenState extends State<_LoginScreen> {
   final _pw    = TextEditingController();
   bool _busy = false;
   String? _err;
-}
+
   Future<void> _doLogin() async {
     setState(() { _busy = true; _err = null; });
     try {
@@ -391,207 +443,131 @@ class _LoginScreenState extends State<_LoginScreen> {
   }
 
   @override
-Widget build(BuildContext context) {
-  final t = AppLocalizations.of(context)!;
-  final cs = Theme.of(context).colorScheme;
-  const dfsBlue = Color(0xFF1F4C8F);
+  void dispose() {
+    _email.dispose();
+    _pw.dispose();
+    super.dispose();
+  }
 
-  final canLogin = !_busy && _email.text.trim().isNotEmpty && _pw.text.isNotEmpty;
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    final Color dfsBlue = const Color(0xFF1F4C8F);
 
-  return Stack(
-    children: [
-      // ---- Hintergrund: dezenter Farbverlauf ----
-      Positioned.fill(
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                dfsBlue.withOpacity(0.08),
-                cs.surfaceVariant.withOpacity(0.1),
-              ],
-            ),
-          ),
-        ),
-      ),
+    final canLogin = !_busy && _email.text.trim().isNotEmpty && _pw.text.isNotEmpty;
 
-      // ---- zentrierter Login-Container ----
-      Center(
+    return Card(
+      elevation: 8,
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
-          child: Card(
-            elevation: 6,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+          constraints: const BoxConstraints(maxWidth: 700),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Kopfzeile mit echtem DFS-Logo + App-Titel
+              Row(
                 children: [
-                  // ---------- Logo & Titel ----------
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 20,
-                        backgroundColor: dfsBlue,
-                        child: const Text(
-                          'DFS',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          t.appTitle,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 22),
-
-                  // ---------- Abschnitt: Kundenlogin ----------
-                  const Text(
-                    'Kundenlogin',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.asset(
+                      'assets/dfs_logo.png',
+                      height: 40,
+                      fit: BoxFit.contain,
                     ),
                   ),
-                  const SizedBox(height: 12),
-
-                  // E-Mail-Feld
-                  TextField(
-                    controller: _email,
-                    keyboardType: TextInputType.emailAddress,
-                    autofillHints: const [AutofillHints.username, AutofillHints.email],
-                    decoration: InputDecoration(
-                      labelText: t.email,
-                      border: const OutlineInputBorder(),
-                      prefixIcon: const Icon(Icons.mail_outline),
-                    ),
-                    enabled: !_busy,
-                    onChanged: (_) => setState(() {}),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Passwort-Feld
-                  TextField(
-                    controller: _pw,
-                    obscureText: true,
-                    autofillHints: const [AutofillHints.password],
-                    decoration: InputDecoration(
-                      labelText: t.password,
-                      border: const OutlineInputBorder(),
-                      prefixIcon: const Icon(Icons.lock_outline),
-                    ),
-                    onSubmitted: (_) => canLogin ? _doLogin() : null,
-                    enabled: !_busy,
-                    onChanged: (_) => setState(() {}),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Fehlermeldung
-                  if (_err != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Text(
-                        _err!,
-                        style: TextStyle(color: cs.error),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      t.appTitle,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-
-                  // Login-Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: canLogin ? _doLogin : null,
-                      style: ButtonStyle(
-                        padding: WidgetStateProperty.all(
-                          const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        backgroundColor: WidgetStateProperty.all(dfsBlue),
-                      ),
-                      child: _busy
-                          ? const SizedBox(
-                              height: 18,
-                              width: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Text(
-                              'Anmelden',
-                              style: TextStyle(color: Colors.white),
-                            ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  // Registrierung-Button direkt unter Login
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _busy ? null : widget.onOpenRegister,
-                      icon: const Icon(Icons.person_add_alt),
-                      label: Text(t.register),
-                    ),
-                  ),
-
-                  const SizedBox(height: 14),
-                  const Divider(height: 24),
-
-                  // ---------- Footer: Admin + Vertreter ----------
-                  Row(
-                    children: [
-                      TextButton.icon(
-                        onPressed: _busy ? null : widget.onOpenAdmin,
-                        style: ButtonStyle(
-                          foregroundColor: WidgetStateProperty.all(
-                            cs.onSurface.withOpacity(0.72),
-                          ),
-                        ),
-                        icon: const Icon(Icons.admin_panel_settings, size: 18),
-                        label: Text(t.admin_area),
-                      ),
-                      const Spacer(),
-                      TextButton.icon(
-                        onPressed: _busy
-                            ? null
-                            : () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Öffne Vertreterbereich…')),
-                                );
-                                widget.onOpenRep();
-                              },
-                        style: ButtonStyle(
-                          foregroundColor: WidgetStateProperty.all(
-                            cs.onSurface.withOpacity(0.72),
-                          ),
-                        ),
-                        icon: const Icon(Icons.handshake, size: 18),
-                        label: Text(t.rep_area ?? 'Vertreterbereich'),
-                      ),
-                    ],
                   ),
                 ],
               ),
-            ),
+              const SizedBox(height: 8),
+              // zarte Divider
+              Divider(height: 1, color: Theme.of(context).dividerColor.withOpacity(0.6)),
+              const SizedBox(height: 14),
+
+              // „Kundenlogin“ Überschrift
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Kundenlogin',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: dfsBlue,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              // Eingabefelder
+              TextField(
+                controller: _email,
+                decoration: InputDecoration(
+                  labelText: t.email,
+                  border: const OutlineInputBorder(),
+                ),
+                enabled: !_busy,
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _pw,
+                obscureText: true,
+                decoration: InputDecoration(
+                  labelText: t.password,
+                  border: const OutlineInputBorder(),
+                ),
+                onSubmitted: (_) => canLogin ? _doLogin() : null,
+                enabled: !_busy,
+                onChanged: (_) => setState(() {}),
+              ),
+
+              // Fehler
+              if (_err != null) ...[
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    _err!,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 14),
+
+              // Login + Registrierung (untereinander)
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: canLogin ? _doLogin : null,
+                  child: _busy
+                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : Text(t.login),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.person_add_alt),
+                  onPressed: _busy ? null : widget.onOpenRegister,
+                  label: Text(t.register),
+                ),
+              ),
+            ],
           ),
         ),
       ),
-    ],
-  );
+    );
+  }
 }
