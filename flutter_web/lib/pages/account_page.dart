@@ -29,7 +29,7 @@ class _AccountPageState extends State<AccountPage> {
       if (s.contains('401')) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Sitzung abgelaufen. Bitte neu anmelden.')),
+            const SnackBar(content: t.session_expired_login_again),
           );
           Navigator.of(context).pop();
         }
