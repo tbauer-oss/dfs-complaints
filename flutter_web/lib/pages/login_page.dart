@@ -87,19 +87,19 @@ class _RepLoginPageState extends State<RepLoginPage> {
         }
 
         return AlertDialog(
-          title: const Text('Neues Passwort setzen'),
+          title: t.new_password_title,
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: _new1,
                 obscureText: true,
-                decoration: const InputDecoration(labelText: 'Neues Passwort'),
+                decoration: const InputDecoration(labelText: t.new_password),
               ),
               TextField(
                 controller: _new2,
                 obscureText: true,
-                decoration: const InputDecoration(labelText: 'Neues Passwort (Wiederholung)'),
+                decoration: const InputDecoration(labelText: t.new_password_repeat),
               ),
               if (localErr != null) ...[
                 const SizedBox(height: 8),
@@ -110,13 +110,13 @@ class _RepLoginPageState extends State<RepLoginPage> {
           actions: [
             TextButton(
               onPressed: saving ? null : () => Navigator.of(ctx).pop(),
-              child: const Text('Abbrechen'),
+              child: t.cancel,
             ),
             ElevatedButton(
               onPressed: saving ? null : save,
               child: saving
                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('Speichern'),
+                  : t.save,
             ),
           ],
         );
