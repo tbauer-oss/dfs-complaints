@@ -140,16 +140,10 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   }
 
   Future<void> _logout() async {
-    await widget.api.repLogout(); // repToken löschen
+    await widget.api.repLogout(); // repToken löschen + persistieren
     if (!mounted) return;
-
-    // Hinweis anzeigen
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Abgemeldet.')),
-    );
-
-    // 🔹 Navigation zurück auf Startseite (alle Routen löschen)
-    Navigator.of(context).pushNamedAndRemoveUntil('/', (Route<dynamic> route) => false);
+    // immer zur Hauptstartseite (Root) navigieren
+    Navigator.of(context).pushNamedAndRemoveUntil('/', (Route<dynamic> r) => false);
   }
 
   @override
@@ -250,39 +244,43 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                 ),
               );
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          tooltip: 'Zurück',
-          onPressed: () {
-            if (Navigator.of(context).canPop()) {
-              Navigator.of(context).pop();
-            } else {
-              Navigator.of(context).pushNamedAndRemoveUntil('/', (r) => false);
-            }
-          },
+    // >>> HIER: WillPopScope um dein Scaffold legen <<<
+    return WillPopScope(
+      onWillPop: () async {
+        // „Zurück“ (Browser/Android) -> **immer** auf die Startseite
+        Navigator.of(context).pushNamedAndRemoveUntil('/', (Route<dynamic> r) => false);
+        return false; // wir haben das Back-Event selbst behandelt
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            tooltip: 'Zurück zur Startseite',
+            onPressed: () {
+              // eigener Zurück-Button -> **immer** Startseite
+              Navigator.of(context).pushNamedAndRemoveUntil('/', (Route<dynamic> r) => false);
+            },
+          ),
+          title: const Text('Vertreter-Dashboard'),
+          actions: [
+            IconButton(
+              tooltip: 'Neu laden',
+              onPressed: _loading ? null : _loadAll,
+              icon: const Icon(Icons.refresh),
+            ),
+            const SizedBox(width: 8),
+            TextButton.icon(
+              onPressed: _logout, // dein bestehendes Logout ruft ebenfalls Startseite auf
+              icon: const Icon(Icons.logout),
+              label: const Text('Logout'),
+            ),
+            const SizedBox(width: 8),
+          ],
         ),
-        title: const Text('Vertreter-Dashboard'),
-        actions: [
-          IconButton(
-            tooltip: 'Neu laden',
-            onPressed: _loading ? null : _loadAll,
-            icon: const Icon(Icons.refresh),
-          ),
-          const SizedBox(width: 8),
-          TextButton.icon(
-            onPressed: _logout,
-            icon: const Icon(Icons.logout),
-            label: const Text('Logout'),
-          ),
-          const SizedBox(width: 8),
-        ],
+        body: body,
       ),
-      body: body,
     );
   }
-}
 
 class _Card extends StatelessWidget {
   final String title;
