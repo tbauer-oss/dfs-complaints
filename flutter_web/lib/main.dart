@@ -101,50 +101,56 @@ class _MyAppState extends State<MyApp> {
     };
 
     return PopupMenuButton<ThemeMode>(
-      tooltip: 'Theme',
+      // Lokalisierter Tooltip aus dem Widget-Kontext
+      tooltip: AppLocalizations.of(context)!.theme,
       icon: Icon(icon),
       onSelected: _setThemeMode,
-      itemBuilder: (ctx) => [
-        PopupMenuItem(
-          value: ThemeMode.system,
-          child: Row(
-            children: [
-              const Icon(Icons.brightness_auto),
-              const SizedBox(width: 10),
-              Text(t.theme_system),
-              if (_themeMode == ThemeMode.system) const Spacer(),
-              if (_themeMode == ThemeMode.system)
-                const Icon(Icons.check, color: Colors.green),
-            ],
+      itemBuilder: (ctx) {
+        // WICHTIG: Lokalisierung aus dem Popup-Kontext holen
+        final t = AppLocalizations.of(ctx)!;
+
+        return [
+          PopupMenuItem(
+            value: ThemeMode.system,
+            child: Row(
+              children: [
+                const Icon(Icons.brightness_auto),
+                const SizedBox(width: 10),
+                Text(t.theme_system),
+                if (_themeMode == ThemeMode.system) const Spacer(),
+                if (_themeMode == ThemeMode.system)
+                  const Icon(Icons.check, color: Colors.green),
+              ],
+            ),
           ),
-        ),
-        PopupMenuItem(
-          value: ThemeMode.light,
-          child: Row(
-            children: [
-              const Icon(Icons.light_mode),
-              const SizedBox(width: 10),
-              Text(t.theme_light),
-              if (_themeMode == ThemeMode.light) const Spacer(),
-              if (_themeMode == ThemeMode.light)
-                const Icon(Icons.check, color: Colors.green),
-            ],
+          PopupMenuItem(
+            value: ThemeMode.light,
+            child: Row(
+              children: [
+                const Icon(Icons.light_mode),
+                const SizedBox(width: 10),
+                Text(t.theme_light),
+                if (_themeMode == ThemeMode.light) const Spacer(),
+                if (_themeMode == ThemeMode.light)
+                  const Icon(Icons.check, color: Colors.green),
+              ],
+            ),
           ),
-        ),
-        PopupMenuItem(
-          value: ThemeMode.dark,
-          child: Row(
-            children: [
-              const Icon(Icons.dark_mode),
-              const SizedBox(width: 10),
-              Text(t.theme_dark),
-              if (_themeMode == ThemeMode.dark) const Spacer(),
-              if (_themeMode == ThemeMode.dark)
-                const Icon(Icons.check, color: Colors.green),
-            ],
+          PopupMenuItem(
+            value: ThemeMode.dark,
+            child: Row(
+              children: [
+                const Icon(Icons.dark_mode),
+                const SizedBox(width: 10),
+                Text(t.theme_dark),
+                if (_themeMode == ThemeMode.dark) const Spacer(),
+                if (_themeMode == ThemeMode.dark)
+                  const Icon(Icons.check, color: Colors.green),
+              ],
+            ),
           ),
-        ),
-      ],
+        ];
+      },
     );
   }
 
