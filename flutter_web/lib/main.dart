@@ -111,7 +111,7 @@ class _MyAppState extends State<MyApp> {
             children: [
               const Icon(Icons.brightness_auto),
               const SizedBox(width: 10),
-              const Text(t.theme_system),
+              Text(t.theme_system),
               if (_themeMode == ThemeMode.system) const Spacer(),
               if (_themeMode == ThemeMode.system)
                 const Icon(Icons.check, color: Colors.green),
@@ -124,7 +124,7 @@ class _MyAppState extends State<MyApp> {
             children: [
               const Icon(Icons.light_mode),
               const SizedBox(width: 10),
-              const Text(t.theme_light),
+              Text(t.theme_light),
               if (_themeMode == ThemeMode.light) const Spacer(),
               if (_themeMode == ThemeMode.light)
                 const Icon(Icons.check, color: Colors.green),
@@ -137,7 +137,7 @@ class _MyAppState extends State<MyApp> {
             children: [
               const Icon(Icons.dark_mode),
               const SizedBox(width: 10),
-              const Text(t.theme_dark),
+              Text(t.theme_dark),
               if (_themeMode == ThemeMode.dark) const Spacer(),
               if (_themeMode == ThemeMode.dark)
                 const Icon(Icons.check, color: Colors.green),
