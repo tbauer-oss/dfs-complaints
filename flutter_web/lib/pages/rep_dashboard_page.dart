@@ -143,7 +143,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     await widget.api.repLogout(); // repToken löschen + persistieren
     if (!mounted) return;
     // immer zur Hauptstartseite (Root) navigieren
-    Navigator.of(context).pushNamedAndRemoveUntil('/', (Route<dynamic> r) => false);
+    Navigator.of(context).pushNamedAndRemoveUntil('/login', (Route<dynamic> r) => false);
   }
 
   @override
@@ -248,7 +248,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     return WillPopScope(
       onWillPop: () async {
         // „Zurück“ (Browser/Android) -> **immer** auf die Startseite
-        Navigator.of(context).pushNamedAndRemoveUntil('/', (Route<dynamic> r) => false);
+        Navigator.of(context).pushNamedAndRemoveUntil('/login', (Route<dynamic> r) => false);
         return false; // wir haben das Back-Event selbst behandelt
       },
       child: Scaffold(
@@ -258,7 +258,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             tooltip: 'Zurück zur Startseite',
             onPressed: () {
               // eigener Zurück-Button -> **immer** Startseite
-              Navigator.of(context).pushNamedAndRemoveUntil('/', (Route<dynamic> r) => false);
+              Navigator.of(context).pushNamedAndRemoveUntil('/login', (Route<dynamic> r) => false);
             },
           ),
           title: const Text('Vertreter-Dashboard'),
