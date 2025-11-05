@@ -7,6 +7,10 @@ import '../widgets/lang_action.dart';
 
 enum Salutation { mr, ms, diverse }
 
+extension _L10nX on BuildContext {
+  AppLocalizations get t => AppLocalizations.of(this)!;
+}
+
 class RegisterPage extends StatefulWidget {
   final ApiClient api;
   const RegisterPage({super.key, required this.api});
@@ -100,11 +104,11 @@ class _RegisterPageState extends State<RegisterPage> {
       final ok = await widget.api.gateUnlock(_gatePw.text);
       if (!mounted) return;
       if (!ok) {
-        setState(() => _gateErr = 'Falsches Passwort.');
+        setState(() => _gateErr = t.wrongPassword);
       }
     } catch (e) {
       if (!mounted) return;
-      setState(() => _gateErr = 'Netzwerk/CORS-Fehler: $e');
+      setState(() => _gateErr = '${t.network_cors_error}: $e');
     } finally {
       if (mounted) setState(() => _gateBusy = false);
     }
@@ -121,7 +125,7 @@ class _RegisterPageState extends State<RegisterPage> {
     try {
       if (_pw.text != _pw2.text) {
         // Fallback-Text (kein L10n-Key nötig)
-        setState(() => _err = 'Passwörter stimmen nicht überein.');
+        setState(() => _err = t.password_mismatch);
         return;
       }
       if (!_privacy) {
@@ -156,6 +160,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
       // ApiClient.register -> Future<String?> (null = OK, sonst Fehlertext)
       final String? errMsg = await widget.api.register(payload);
+      final t = context.t;
       if (!mounted) return;
 
       if (errMsg == null) {
@@ -165,6 +170,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
       // Fehlertext heuristisch auswerten
       final em = errMsg.toLowerCase();
+      final t = context.t;
       if (em.contains('user_exists') || em.contains('409')) {
         setState(() => _err = t.email_exists);
       } else if (em.contains('pending') || em.contains('resent')) {
@@ -174,7 +180,7 @@ class _RegisterPageState extends State<RegisterPage> {
       }
     } catch (e) {
       if (!mounted) return;
-      setState(() => _err = 'Network/CORS error: $e');
+      setState(() => _err = '${t.network_cors_error}: $e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -182,14 +188,14 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   Widget build(BuildContext context) {
-    final t = AppLocalizations.of(context)!;
+    final t = context.t;
 
     // Gate-Abfrage VOR dem Formular
     final needsGate = widget.api.gate == null || widget.api.gate!.isEmpty;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(needsGate ? 'Registrierung freischalten' : t.auth_register),
+        title: Text(needsGate ? t.regFree : t.auth_register),
         actions: const [LangAction()],
       ),
       body: Center(
@@ -200,7 +206,7 @@ class _RegisterPageState extends State<RegisterPage> {
             children: [
               if (needsGate) ...[
                 Text(
-                  'Bitte geben Sie das Freigabe-Passwort ein, um den Registrierungsbereich zu öffnen.',
+                  t.gateUnlockHint,
                   style: const TextStyle(fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: 12),
@@ -218,7 +224,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   onPressed: _gateBusy ? null : _unlockGate,
                   child: _gateBusy
                       ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Entsperren'),
+                      : Text(t.unlock),
                 ),
                 if (_gateErr != null) ...[
                   const SizedBox(height: 8),
@@ -227,7 +233,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 const SizedBox(height: 8),
                 TextButton(
                   onPressed: () => Navigator.of(context).maybePop(),
-                  child: const Text('Zurück'),
+                  child: Text(t.back),
                 ),
               ] else ...[
                 TextField(
@@ -406,7 +412,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     const SizedBox(width: 12),
                     TextButton(
                       onPressed: () => Navigator.of(context).maybePop(),
-                      child: const Text('Zurück'),
+                      child: Text(t.back),
                     ),
                   ],
                 ),
