@@ -7,10 +7,6 @@ import '../widgets/lang_action.dart';
 
 enum Salutation { mr, ms, diverse }
 
-extension _L10nX on BuildContext {
-  AppLocalizations get t => AppLocalizations.of(this)!;
-}
-
 class RegisterPage extends StatefulWidget {
   final ApiClient api;
   const RegisterPage({super.key, required this.api});
@@ -21,6 +17,9 @@ class RegisterPage extends StatefulWidget {
 
 class _RegisterPageState extends State<RegisterPage> {
   // Gate (AUTH_PASSWORD) – vor Betreten der Registrierung
+  extension _L10nX on BuildContext {
+  AppLocalizations get t => AppLocalizations.of(this)!;
+}
   final _gatePw = TextEditingController();
   final t = context.t;
   bool _gateBusy = false;
