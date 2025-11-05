@@ -296,7 +296,6 @@ class _MyAppState extends State<MyApp> {
       },
     );
   }
-}
 
 // =======================
 // Root-Shell für Kunden-Start/Login (ersetzt vorheriges home:)
