@@ -74,9 +74,9 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     super.dispose();
   }
 
-  Future<void> pickFiles(AppLocalizations t) async {
-    final res = await FilePicker.platform.pickFiles(allowMultiple: true, withData: true);
+  Future<void> pickFiles() async {
     final t = context.t;
+    final res = await FilePicker.platform.pickFiles(allowMultiple: true, withData: true);
     if (res == null) return;
 
     final sum = res.files.fold<int>(0, (s, f) => s + (f.bytes?.length ?? 0));
@@ -99,7 +99,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
         final name = f.name;
         final bytes = List<int>.from(f.bytes ?? const []);
         final mime = _guessMime(name);
-        return (name: name, bytes: bytes, mime: mime); // <- Record, kein Map!
+        return (name: name, bytes: bytes, mime: mime); // Record, kein Map!
       }).toList();
       _dirty = true;
     });
@@ -134,7 +134,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                 value: segment,
                 items: [
                   DropdownMenuItem(value: optDentist, child: Text(optDentist)),
-                DropdownMenuItem(value: optLab, child: Text(optLab)),
+                  DropdownMenuItem(value: optLab, child: Text(optLab)),
                 ],
                 onChanged: (v) => setState(() { segment = v ?? optDentist; _dirty = true; }),
                 decoration: InputDecoration(labelText: t.segment),
@@ -163,14 +163,20 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   value: applied,
-                  items: [DropdownMenuItem(value: optYes, child: Text(optYes)), DropdownMenuItem(value: optNo, child: Text(optNo))],
+                  items: [
+                    DropdownMenuItem(value: optYes, child: Text(optYes)),
+                    DropdownMenuItem(value: optNo, child: Text(optNo)),
+                  ],
                   onChanged: (v) => setState(() { applied = v ?? optNo; _dirty = true; }),
                   decoration: InputDecoration(labelText: t.applied_to_patient),
                 ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   value: injury,
-                  items: [DropdownMenuItem(value: optYes, child: Text(optYes)), DropdownMenuItem(value: optNo, child: Text(optNo))],
+                  items: [
+                    DropdownMenuItem(value: optYes, child: Text(optYes)),
+                    DropdownMenuItem(value: optNo, child: Text(optNo)),
+                  ],
                   onChanged: (v) => setState(() { injury = v ?? optNo; _dirty = true; }),
                   decoration: InputDecoration(labelText: t.injury_question),
                 ),
@@ -181,14 +187,20 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
               ],
 
               const SizedBox(height: 8),
-              OutlinedButton.icon(onPressed: () => pickFiles(t), icon: const Icon(Icons.upload),
-                label: Text(files.isEmpty ? t.add_images : t.images_selected(files.length))),
+              OutlinedButton.icon(
+                onPressed: pickFiles,
+                icon: const Icon(Icons.upload),
+                label: Text(files.isEmpty ? t.add_images : t.images_selected(files.length)),
+              ),
 
               const Divider(height: 24),
 
               DropdownButtonFormField<String>(
                 value: returned,
-                items: [DropdownMenuItem(value: optReturnedYes, child: Text(optReturnedYes)), DropdownMenuItem(value: optReturnedNo, child: Text(optReturnedNo))],
+                items: [
+                  DropdownMenuItem(value: optReturnedYes, child: Text(optReturnedYes)),
+                  DropdownMenuItem(value: optReturnedNo, child: Text(optReturnedNo)),
+                ],
                 onChanged: (v) => setState(() { returned = v ?? optReturnedNo; _dirty = true; }),
                 decoration: InputDecoration(labelText: t.returned_question),
               ),
@@ -219,11 +231,15 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                 ElevatedButton(
                   onPressed: busy ? null : () async {
                     setState(() { busy = true; err = null; info = null; });
-                  }
+
                     // Validierung
-                    if (!privacy) { err = t.privacy_required; setState(() => busy = false); return; }
-                    if (article.text.trim().isEmpty || desc.text.trim().isEmpty) { err = t.required_fields; setState(() => busy = false); return; }
-                    if (isDentist && batch.text.trim().isEmpty) { err = t.batch; setState(() => busy = false); return; }
+                    if (!privacy) { setState(() { err = t.privacy_required; busy = false; }); return; }
+                    if (article.text.trim().isEmpty || desc.text.trim().isEmpty) {
+                      setState(() { err = t.required_fields; busy = false; }); return;
+                    }
+                    if (isDentist && batch.text.trim().isEmpty) {
+                      setState(() { err = t.batch; busy = false; }); return;
+                    }
 
                     // Payload
                     final payload = <String, dynamic>{
@@ -242,20 +258,20 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                     };
 
                     try {
-                      // << HIER DER FIX >>: records direkt übergeben, KEINE Maps!
                       final res = await widget.api.complaintCreate(payload, files);
-
-                      setState(() => busy = false);
                       final ticket = (res?['ticket'] ?? '').toString();
 
                       if (ticket.isEmpty) {
-                        setState(() => err = t.send_failed);
+                        setState(() { busy = false; err = t.send_failed; });
                       } else {
-                        setState(() { info = t.sent_ticket(ticket); _dirty = false; });
+                        setState(() { busy = false; info = t.sent_ticket(ticket); _dirty = false; });
                       }
-                     } catch (e) {
-                      setState(() { busy = false; err = t.network_cors_error(e.toString())};
-                    )
+                    } catch (e) {
+                      setState(() {
+                        busy = false;
+                        err = t.network_cors_error(e.toString());
+                      });
+                    }
                   },
                   child: busy
                       ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
