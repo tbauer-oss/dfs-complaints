@@ -1,6 +1,11 @@
 // lib/pages/rep_profile_page.dart
 import 'package:flutter/material.dart';
 import '../api/client.dart';
+import '../l10n/app_localizations.dart';
+
+extension _L10nX on BuildContext {
+  AppLocalizations get t => AppLocalizations.of(this)!;
+}
 
 class RepProfilePage extends StatefulWidget {
   final ApiClient api;
@@ -11,13 +16,13 @@ class RepProfilePage extends StatefulWidget {
 }
 
 class _RepProfilePageState extends State<RepProfilePage> {
-  RepMe? _me; // ← Map -> Modell
+  RepMe? _me;
   bool _loading = true;
   String? _err;
 
-  // Profileingaben (anzeigen / ggf. später aktualisieren)
-  final _first = TextEditingController();
-  final _last  = TextEditingController();
+  // Profileingaben
+  final _first  = TextEditingController();
+  final _last   = TextEditingController();
   final _region = TextEditingController();
 
   // Passwort ändern
@@ -37,8 +42,8 @@ class _RepProfilePageState extends State<RepProfilePage> {
       _err = null;
     });
     try {
-      final m = await widget.api.repMe(); // Map<String, dynamic>
-      final me = RepMe.fromJson(m);
+      final m = await widget.api.repMe();          // Map<String, dynamic>
+      final me = RepMe.fromJson(m);                // dein Modell
       _me = me;
 
       // Felder setzen – null-safe
@@ -55,70 +60,70 @@ class _RepProfilePageState extends State<RepProfilePage> {
   }
 
   // Platzhalter – bis Server-Endpoint existiert.
-  // Verhindert Buildfehler, ruft aber keinen nicht vorhandenen ApiClient-Call auf.
   Future<void> _saveProfile() async {
     if (_me == null) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(t.profile_not_active.)),
+      SnackBar(content: Text(context.t.profile_not_active)),
     );
 
-    // Wenn dein Backend /api/rep/update bereit ist UND du im ApiClient
-    // z.B. `Future<void> repUpdateProfile(Map data)` ergänzt hast,
-    // kannst du folgenden Block aktivieren:
-    //
+    // Wenn /api/rep/update und ApiClient.repUpdateProfile(...) existieren:
     // try {
     //   await widget.api.repUpdateProfile({
     //     'firstName': _first.text.trim(),
     //     'lastName' : _last.text.trim(),
     //     'region'   : _region.text.trim(),
     //   });
+    //   if (!mounted) return;
     //   ScaffoldMessenger.of(context).showSnackBar(
-    //     const SnackBar(content: Text('Profil gespeichert.')),
+    //     SnackBar(content: Text(context.t.saved ?? 'Gespeichert.')),
     //   );
     //   await _load();
     // } catch (e) {
+    //   if (!mounted) return;
     //   ScaffoldMessenger.of(context).showSnackBar(
-    //     SnackBar(content: Text('Speichern fehlgeschlagen: $e')),
+    //     SnackBar(content: Text(context.t.password_set_failed('$e'))),
     //   );
     // }
   }
 
   Future<void> _changePassword() async {
+    final t = context.t;
     final a = _pw1.text;
     final b = _pw2.text;
+
     if (a.isEmpty || b.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.pleaseNewPW)),
+        SnackBar(content: Text(t.password_both_required)),
       );
       return;
     }
     if (a != b) {
+      // nutzt bestehenden Key aus deinem Projekt (Account-Seite)
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.password_not_match)),
+        SnackBar(content: Text(t.passwordsDontMatch ?? t.password_mismatch)),
       );
       return;
     }
     if (a.length < 8) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.pwLong)),
+        SnackBar(content: Text(t.password_min_length)),
       );
       return;
     }
 
     setState(() => _busyPw = true);
     try {
-      // WICHTIG: vorhandene ApiClient-Methode verwenden
-      await widget.api.repChangePassword(a);
+      await widget.api.repChangePassword(a); // setzt ggf. neues Token
       if (!mounted) return;
       _pw1.clear();
       _pw2.clear();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text(t.pwChanged)),
+        SnackBar(content: Text(t.password_changed)),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Passwort ändern fehlgeschlagen: $e')),
+        SnackBar(content: Text(t.password_set_failed('$e'))),
       );
     } finally {
       if (mounted) setState(() => _busyPw = false);
@@ -137,6 +142,7 @@ class _RepProfilePageState extends State<RepProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.t;
     final title = Text(t.profilePW);
 
     if (_loading) {
@@ -167,39 +173,38 @@ class _RepProfilePageState extends State<RepProfilePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(t.myData,
-                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                    Text(t.myData, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _first,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: t.first_name,
-                        border: OutlineInputBorder(),
+                        border: const OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _last,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: t.last_name,
-                        border: OutlineInputBorder(),
+                        border: const OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _region,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: t.region,
-                        border: OutlineInputBorder(),
+                        border: const OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       enabled: false,
                       controller: TextEditingController(text: email),
-                      decoration: const InputDecoration(
-                        labelText: t.pwStay,
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        labelText: t.email,
+                        border: const OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -223,24 +228,23 @@ class _RepProfilePageState extends State<RepProfilePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(t.changePassword,
-                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                    Text(t.changePassword, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _pw1,
                       obscureText: true,
-                      decoration: const InputDecoration(
-                        labelText: t.newPassword,
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        labelText: t.new_password_min8,
+                        border: const OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _pw2,
                       obscureText: true,
-                      decoration: const InputDecoration(
-                        labelText: t.newPasswordRepeat,
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        labelText: t.new_password_repeat_label,
+                        border: const OutlineInputBorder(),
                       ),
                       onSubmitted: (_) => _busyPw ? null : _changePassword(),
                     ),
@@ -250,10 +254,9 @@ class _RepProfilePageState extends State<RepProfilePage> {
                       child: FilledButton.icon(
                         onPressed: _busyPw ? null : _changePassword,
                         icon: _busyPw
-                            ? const SizedBox(
-                                width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                             : const Icon(Icons.key),
-                        label: const Text(t.savePassword),
+                        label: Text(t.save),
                       ),
                     ),
                   ],
