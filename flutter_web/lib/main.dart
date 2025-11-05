@@ -371,7 +371,7 @@ class _LoginScreenState extends State<_LoginScreen> {
   final _pw    = TextEditingController();
   bool _busy = false;
   String? _err;
-
+}
   Future<void> _doLogin() async {
     setState(() { _busy = true; _err = null; });
     try {
