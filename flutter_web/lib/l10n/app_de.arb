@@ -27,6 +27,7 @@
   "oldPassword": "Altes Passwort",
   "newPassword": "Neues Passwort",
   "newPasswordRepeat": "Neues Passwort (Wiederholung)",
+  "wrongPassword": "Falsches Passwort.",
 
   
 
@@ -152,6 +153,7 @@
   "registration_received": "Registrierung eingegangen. Sie werden nach Freigabe informiert.",
   "email_exists": "E-Mail ist bereits registriert.",
   "register_pending_resent": "Registrierung liegt bereits vor. Bestätigungs-E-Mail wurde erneut gesendet.",
+  "regFree": "Registrierung freischalten",
 
   "email": "E-Mail*",
   "password": "Passwort*",
