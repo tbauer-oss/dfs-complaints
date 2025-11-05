@@ -20,16 +20,23 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   String? _err;
 
   // Einheitliche 401/Unauthorized-Behandlung
-  Future<void> _handleUnauthorized(Object e) async {
+  Future<bool> _handleUnauthorized(Object e) async {
     final msg = e.toString();
     if (msg.contains('401')) {
       // Token ungültig/abgelaufen → sauber abmelden und zurück
       await widget.api.repLogout();
-      if (!mounted) return;
-      if (Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
-      }
+      if (!mounted) return true;
+
+      // Info für den Nutzer
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sitzung abgelaufen. Bitte neu anmelden.')),
+      );
+
+      // Sicher bis zur Startseite zurück (nicht nur ein Pop)
+      Navigator.of(context).popUntil((r) => r.isFirst);
+      return true; // signalisiert: wurde gehandhabt
     }
+    return false; // nichts getan
   }
 
   Future<void> _loadAll() async {
@@ -48,9 +55,10 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         _complaints = comp;
       });
     } catch (e) {
-      await _handleUnauthorized(e);
+      final handled = await _handleUnauthorized(e);
       if (!mounted) return;
-      setState(() => _err = '$e');
+      if (handled) return;            // 401 wurde bereits behandelt → NICHT mehr _err setzen
+      setState(() => _err = '$e');    // andere Fehler normal anzeigen
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -132,11 +140,14 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   }
 
   Future<void> _logout() async {
-    await widget.api.repLogout();
+    await widget.api.repLogout();             // repToken löschen + persistieren
     if (!mounted) return;
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-    }
+
+    // Feedback + sicher bis zur Startseite
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Abgemeldet.')),
+    );
+    Navigator.of(context).popUntil((r) => r.isFirst);
   }
 
   @override
@@ -170,9 +181,11 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                                 builder: (_) => RepProfilePage(api: widget.api),
                               ),
                             );
+                            if (!mounted) return;
+                            await _loadAll(); // nach Rückkehr neu laden
+                          },
                             // Nach Rückkehr optional neu laden (falls Daten/Passwort geändert)
                             if (mounted) _loadAll();
-                          },
                         ),
                       ),
                       const SizedBox(height: 16),
