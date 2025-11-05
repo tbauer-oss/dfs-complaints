@@ -34,7 +34,7 @@ class _AccountPageState extends State<AccountPage> {
       if (s.contains('401')) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(t.session_expired_login_again)),
+            SnackBar(content: Text(context.t.session_expired_login_again)),
           );
           Navigator.of(context).pop();
         }
@@ -49,10 +49,11 @@ class _AccountPageState extends State<AccountPage> {
   @override
   Widget build(BuildContext context) {
     final t = context.t;
+    
     final body = () {
       if (busy) return const Center(child: CircularProgressIndicator());
       if (err != null) return Center(child: Text(err!));
-      if (acc == null) return const Center(child: Text(t.edit_data));
+      if (acc == null) return Center(child: Text(t.edit_data));
 
       return Center(
         child: ConstrainedBox(
@@ -62,7 +63,7 @@ class _AccountPageState extends State<AccountPage> {
             children: [
               Text('E-Mail: ${acc!['email'] ?? ''}'),
               Text('${t.company}: ${acc!['company'] ?? ''}'),
-              Text('${t.contact_person}: ${_v(acc!['contact'])}'),
+              Text('${t.contact_person}: ${v(acc!['contact'])}'),
               const SizedBox(height: 16),
 
               FilledButton.icon(
@@ -87,7 +88,7 @@ class _AccountPageState extends State<AccountPage> {
 
               OutlinedButton.icon(
                 icon: const Icon(Icons.delete_forever, color: Colors.red),
-                label: const Text(t.accountDelete, style: TextStyle(color: Colors.red)),
+                label: Text(t.accountDelete, style: const TextStyle(color: Colors.red)),
                 onPressed: () async {
                   // 1) Sicherheitsabfrage
                   final sure = await showDialog<bool>(
@@ -197,6 +198,7 @@ class _AccountEditPageState extends State<_AccountEditPage> {
   @override
   Widget build(BuildContext context) {
     final t = context.t;
+    
     return Scaffold(
       appBar: AppBar(title: const Text('Daten ändern')),
       body: Center(
@@ -322,6 +324,7 @@ class _PasswordPageState extends State<_PasswordPage> {
   @override
   Widget build(BuildContext context) {
     final t = context.t;
+    
     return Scaffold(
       appBar: AppBar(title: const Text('Passwort ändern')),
       body: Center(
