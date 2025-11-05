@@ -1,7 +1,8 @@
 // lib/pages/rep_dashboard_page.dart
 import 'package:flutter/material.dart';
 import '../api/client.dart';
-import 'rep_profile_page.dart'; // ← für Profil & Passwort
+import 'rep_profile_page.dart';
+import 'dart:html' as html;
 
 class RepDashboardPage extends StatefulWidget {
   final ApiClient api;
@@ -140,10 +141,13 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   }
 
   Future<void> _logout() async {
-    await widget.api.repLogout(); // repToken löschen + persistieren
+    // 1) Serverseitig abmelden (repToken löschen & persistieren)
+    await widget.api.repLogout();
+    // 2) Legacy-Schutz: altes Flag entfernen, falls es früher mal gesetzt wurde
+    try { html.window.localStorage.remove('dfs_mode'); } catch (_) {}
+    // 3) Hart zurück auf die Startseite (Kunden-Login)
     if (!mounted) return;
-    // immer zur Hauptstartseite (Root) navigieren
-    Navigator.of(context).pushNamedAndRemoveUntil('/login', (Route<dynamic> r) => false);
+    Navigator.of(context).pushNamedAndRemoveUntil('/', (Route<dynamic> r) => false);
   }
 
   @override
@@ -253,14 +257,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       },
       child: Scaffold(
         appBar: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            tooltip: 'Zurück zur Startseite',
-            onPressed: () {
-              // eigener Zurück-Button -> **immer** Startseite
-              Navigator.of(context).pushNamedAndRemoveUntil('/login', (Route<dynamic> r) => false);
-            },
-          ),
+          automaticallyImplyLeading: false, // <-- sorgt dafür, dass kein Back-Arrow erscheint
           title: const Text('Vertreter-Dashboard'),
           actions: [
             IconButton(
@@ -270,7 +267,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             ),
             const SizedBox(width: 8),
             TextButton.icon(
-              onPressed: _logout, // dein bestehendes Logout ruft ebenfalls Startseite auf
+              onPressed: _logout, // bleibt unverändert: logout + zurück zur Startseite
               icon: const Icon(Icons.logout),
               label: const Text('Logout'),
             ),
