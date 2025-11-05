@@ -105,7 +105,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             children: [
               TextField(
                 controller: ctrl,
-                decoration: InputDecoration(labelText: t.customer_email ?? 'Kunden-E-Mail'),
+                decoration: InputDecoration(labelText: t.customerMail ?? 'Kunden-E-Mail'),
               ),
               if (locErr != null) ...[
                 const SizedBox(height: 8),
