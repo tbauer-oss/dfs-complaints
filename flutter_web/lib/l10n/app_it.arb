@@ -26,6 +26,10 @@
   "country_label": "Paese",
   "internal_no_label": "N. DFS interno",
 
+  "customer_login": "Connexion client",
+  "more_areas": "Autres sections",
+  "opening_rep_area": "Ouverture de l’espace représentant…",
+
   "gate_prompt": "Codice di accesso (una volta per clienti non registrati)",
   "gate_password": "Password",
   "continueLabel": "Continua",
