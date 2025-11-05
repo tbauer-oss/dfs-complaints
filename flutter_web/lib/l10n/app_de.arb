@@ -36,8 +36,8 @@
   "myData": "Meine Daten",
   "region": "Region / Gebiet",
   "myCustomers": "Meine Kunden",
-  "noAddCustomer": "Noch keine Kunden zugewiesen"
-  "deleteAdd": "Zuweisung entfernen"
+  "noAddCustomer": "Noch keine Kunden zugewiesen",
+  "deleteAdd": "Zuweisung entfernen",
   "complaintsMyCustomer": "Reklamationen meiner Kunden",
   "noComplaintsFound": "Keine Reklamationen gefunden.",
   "rep_dashboard": "Vertreter-Dashboard",
