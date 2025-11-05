@@ -63,7 +63,10 @@ class _RepLoginPageState extends State<RepLoginPage> {
 
     _setBusy(true);
     try {
-      final ok = await widget.api.repLoginWithSecret(otp);
+      final ok = await widget.api.repLoginWithSecret(
+         _email.text.trim().toLowerCase(),
+         _otp.text.trim(),
+       );
       if (!ok) {
         _setErr('Einmalpasswort falsch oder nicht zulässig.');
         return;
