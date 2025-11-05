@@ -28,6 +28,10 @@
   "internal_no_label": "Interne DFS-Nr.",
   "rep_area": "Vertreterbereich",
 
+  "customer_login": "Kundenlogin",
+  "more_areas": "Weitere Bereiche",
+  "opening_rep_area": "Öffne Vertreterbereich…",
+
   "gate_prompt": "Zugangscode (einmalig für nicht registrierte Kunden)",
   "gate_password": "Passwort",
   "continueLabel": "Weiter",
