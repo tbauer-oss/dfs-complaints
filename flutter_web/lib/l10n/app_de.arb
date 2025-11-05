@@ -17,6 +17,10 @@
   "network_error_generic": "Netzwerk-/Serverfehler:",
   "passwords_no_match": "Passwörter stimmen nicht überein.",
   "password_changed": "Passwort wurde geändert.",
+  "new_password_title": "Neues Passwort setzen",
+  "new_password": "Neues Passwort",
+  "new_password_repeat": "Neues Passwort (Wiederholung)",
+  "save": "Speichern",
 
 
 
