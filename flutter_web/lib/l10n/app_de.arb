@@ -119,7 +119,7 @@
   "@images_selected": { "placeholders": { "count": { "type": "int" } } },
 
   "sent_ticket": "Gesendet. Ticket: {ticket}",
-  "@sent_ticket": { "placeholders": { "ticket": { "type": "String" } } }
+  "@sent_ticket": { "placeholders": { "ticket": { "type": "String" } } },
 
   "created": "Erstellt",
   "updated": "Aktualisiert",
