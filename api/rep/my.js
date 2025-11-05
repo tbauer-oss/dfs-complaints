@@ -1,101 +1,48 @@
-// api/rep/my.js
+// /api/rep/my.js
 export const config = { runtime: 'nodejs' };
 
-// ---------------- CORS ----------------
-const PROD_FE  = 'https://dfs-complaints-web.vercel.app';
-const PREVIEW  = /^https:\/\/dfs-complaints-web-[a-z0-9-]+(?:-[a-z0-9-]+)?\.vercel\.app$/i;
+import jwt from 'jsonwebtoken';
+import { setCors } from '../_lib/cors.js';
+import { loadRepById } from '../_lib/repsStore.js';
 
-function resolveOrigin(req) {
-  const origin = req.headers.origin || '';
-  if (!origin) return process.env.WEB_ORIGIN || PROD_FE;
-  if (origin === PROD_FE) return origin;
-  if (PREVIEW.test(origin)) return origin;                  // Vercel Preview-URLs erlauben
-  return process.env.WEB_ORIGIN || PROD_FE;                 // Fallback
+const REP_SECRET = process.env.REP_JWT_SECRET;
+
+function getBearerToken(req) {
+  const h = String(req.headers.authorization || '');
+  return h.toLowerCase().startsWith('bearer ') ? h.slice(7).trim() : '';
 }
-
-function setCors(req, res) {
-  const allow = resolveOrigin(req);
-  res.setHeader('Access-Control-Allow-Origin', allow);
-  res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Gate');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
-  // Antworte als JSON, wenn ein Body kommt
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-}
-
-// ---------------- Utils ----------------
-function getEmailFromJwt(req) {
-  const h = req.headers.authorization || '';
-  const m = /^Bearer\s+(.+)$/i.exec(h);
-  if (!m) return null;
-  try {
-    const payload = JSON.parse(Buffer.from(m[1].split('.')[1], 'base64').toString('utf8'));
-    return (payload.email || '').trim().toLowerCase();
-  } catch {
-    return null;
-  }
-}
-
-// Gemeinsamer Store – identisch wie in /api/admin/reps.js
-import { getAllRepsWithCustomers } from '../_lib/repsStore.js';
 
 export default async function handler(req, res) {
+  setCors(req, res, 'Content-Type, Authorization, X-Gate');
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (req.method !== 'GET')
+    return res.status(405).end(JSON.stringify({ error: 'method not allowed' }));
+  if (!REP_SECRET)
+    return res.status(500).end(JSON.stringify({ error: 'REP_JWT_SECRET not set' }));
+
   try {
-    setCors(req, res);
+    const token = getBearerToken(req);
+    if (!token)
+      return res.status(401).end(JSON.stringify({ error: 'missing token' }));
 
-    // Preflight
-    if (req.method === 'OPTIONS') { res.status(204).end(); return; }
+    const claims = jwt.verify(token, REP_SECRET);
+    const repId = claims?.repId;
+    if (!repId)
+      return res.status(401).end(JSON.stringify({ error: 'invalid claims' }));
 
-    if (req.method !== 'GET') {
-      res.status(405).end(JSON.stringify({ error: 'method not allowed' }));
-      return;
-    }
+    const rep = await loadRepById(repId);
+    if (!rep || rep.active === false)
+      return res.status(403).end(JSON.stringify({ error: 'inactive or unknown rep' }));
 
-    const email = getEmailFromJwt(req);
-    if (!email) {
-      res.status(401).end(JSON.stringify({ error: 'unauthorized' }));
-      return;
-    }
-
-    const reps = await getAllRepsWithCustomers(); // [{... , customers: ['user@mail.tld', ...]}]
-    const rep = reps.find(r =>
-      Array.isArray(r.customers) &&
-      r.customers.some(c => (c || '').trim().toLowerCase() === email)
-    );
-
-    // Optionales Debug
-    if (String(req.query?.debug || '') === '1') {
-      res.status(200).end(JSON.stringify({
-        debug: {
-          tokenEmail: email,
-          repsCount : reps.length,
-          sample    : reps.slice(0, 3).map(r => ({
-            id: r.id, email: r.email, customers: (r.customers || []).length
-          })),
-        },
-        matched: !!rep,
-        rep: rep ? {
-          firstName: rep.firstName || '',
-          lastName : rep.lastName  || '',
-          email    : rep.email     || '',
-          region   : rep.region    || '',
-        } : null,
-      }));
-      return;
-    }
-
-    if (!rep) { res.status(204).end(); return; } // kein Body bei 204!
-
-    res.status(200).end(JSON.stringify({
+    return res.status(200).end(JSON.stringify({
+      id: rep.id,
       firstName: rep.firstName || '',
-      lastName : rep.lastName  || '',
-      email    : rep.email     || '',
-      region   : rep.region    || '',
+      lastName:  rep.lastName  || '',
+      email:     rep.email     || '',
+      region:    rep.region    || '',
     }));
   } catch (e) {
-    // Auch im Fehlerfall CORS-Header behalten
-    try { setCors(req, res); } catch {}
-    res.status(500).end(JSON.stringify({ error: String(e?.message || e) }));
+    console.error('[rep/my]', e);
+    return res.status(401).end(JSON.stringify({ error: 'unauthorized' }));
   }
 }
