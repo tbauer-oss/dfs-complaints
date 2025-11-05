@@ -14,6 +14,7 @@
   "new_password_both_required": "Bitte neues Passwort in beiden Feldern eingeben.",
   "network_error_generic": "Netzwerk-/Serverfehler:",
   "passwordsDontMatch": "Passwörter stimmen nicht überein.",
+  "password_mismatch": "Passwörter stimmen nicht überein.",
   "passwordChanged": "Passwort wurde geändert.",
   "save": "Speichern",
   "rep_login_title": "Vertreter-Login",
