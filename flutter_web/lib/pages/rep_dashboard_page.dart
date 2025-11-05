@@ -184,8 +184,6 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                             if (!mounted) return;
                             await _loadAll(); // nach Rückkehr neu laden
                           },
-                            // Nach Rückkehr optional neu laden (falls Daten/Passwort geändert)
-                            if (mounted) _loadAll();
                         ),
                       ),
                       const SizedBox(height: 16),
