@@ -7,6 +7,47 @@ extension _L10nX on BuildContext {
   AppLocalizations get t => AppLocalizations.of(this)!;
 }
 
+/// --- kleine Übersetzungs-Helper mit Fallbacks ---
+/// So läuft der Build auch, wenn einzelne Keys in den ARB-Dateien (noch) fehlen.
+String _trNoData(AppLocalizations t) {
+  try { return (t as dynamic).no_data_found as String; } catch (_) {}
+  try { return (t as dynamic).edit_data as String; } catch (_) {}
+  try { return (t as dynamic).editData as String; } catch (_) {}
+  return 'Keine Daten gefunden.';
+}
+
+String _trConfirmPw(AppLocalizations t) {
+  try { return (t as dynamic).confirm_password_title as String; } catch (_) {}
+  try { return (t as dynamic).confirmPassword as String; } catch (_) {}
+  return 'Passwort bestätigen';
+}
+
+String _trSaved(AppLocalizations t) {
+  try { return (t as dynamic).saved as String; } catch (_) {}
+  return 'Gespeichert.';
+}
+
+String _trPwChanged(AppLocalizations t) {
+  try { return (t as dynamic).password_changed as String; } catch (_) {}
+  return 'Passwort geändert.';
+}
+
+String _trPwMismatch(AppLocalizations t) {
+  try { return (t as dynamic).passwords_not_equal as String; } catch (_) {}
+  return 'Passwörter stimmen nicht überein.';
+}
+
+String _trDeleteAccountAction(AppLocalizations t) {
+  try { return (t as dynamic).accountDeleteAction as String; } catch (_) {}
+  return 'Account löschen';
+}
+
+/// „value or dash“-Helfer
+String v(Object? x) {
+  final s = (x ?? '').toString().trim();
+  return s.isEmpty ? '-' : s;
+}
+
 class AccountPage extends StatefulWidget {
   final ApiClient api;
   const AccountPage({super.key, required this.api});
@@ -49,11 +90,11 @@ class _AccountPageState extends State<AccountPage> {
   @override
   Widget build(BuildContext context) {
     final t = context.t;
-    
+
     final body = () {
       if (busy) return const Center(child: CircularProgressIndicator());
       if (err != null) return Center(child: Text(err!));
-      if (acc == null) return Center(child: Text(t.editdata));
+      if (acc == null) return Center(child: Text(_trNoData(t)));
 
       return Center(
         child: ConstrainedBox(
@@ -95,8 +136,7 @@ class _AccountPageState extends State<AccountPage> {
                     context: context,
                     builder: (_) => AlertDialog(
                       title: Text(t.accountDeleteTitle),
-                      content: Text(t.accountDeleteConfirm
-                      ),
+                      content: Text(t.accountDeleteConfirm),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(context, false),
@@ -117,14 +157,20 @@ class _AccountPageState extends State<AccountPage> {
                     builder: (_) {
                       final ctrl = TextEditingController();
                       return AlertDialog(
-                        title: Text(t.confirm_password_title),
+                        title: Text(_trConfirmPw(t)),
                         content: TextField(
                           controller: ctrl, obscureText: true,
                           decoration: InputDecoration(labelText: t.gate_password),
                         ),
                         actions: [
-                          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
-                          FilledButton(onPressed: () => Navigator.pop(context, ctrl.text), child: const Text('Account löschen')),
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: Text(t.cancel),
+                          ),
+                          FilledButton(
+                            onPressed: () => Navigator.pop(context, ctrl.text),
+                            child: Text(_trDeleteAccountAction(t)),
+                          ),
                         ],
                       );
                     },
@@ -132,14 +178,11 @@ class _AccountPageState extends State<AccountPage> {
                   if (pwd == null || pwd.isEmpty) return;
 
                   try {
-                    // wirft bei Fehler -> catch
                     await widget.api.accountDelete(pwd);
-
                     if (!mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('Account gelöscht.')),
                     );
-
                     // Zur Start-/Loginseite zurück
                     Navigator.of(context).popUntil((r) => r.isFirst);
                   } catch (e) {
@@ -196,9 +239,20 @@ class _AccountEditPageState extends State<_AccountEditPage> {
   bool busy = false;
 
   @override
+  void dispose() {
+    email.dispose();
+    company.dispose();
+    contact.dispose();
+    street.dispose();
+    zip.dispose();
+    city.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final t = context.t;
-    
+
     return Scaffold(
       appBar: AppBar(title: const Text('Daten ändern')),
       body: Center(
@@ -273,7 +327,7 @@ class _AccountEditPageState extends State<_AccountEditPage> {
                         });
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Gespeichert.')),
+                          SnackBar(content: Text(_trSaved(t))),
                         );
                         Navigator.of(context).pop();
                       } catch (e) {
@@ -322,9 +376,17 @@ class _PasswordPageState extends State<_PasswordPage> {
   bool busy = false;
 
   @override
+  void dispose() {
+    oldPw.dispose();
+    newPw1.dispose();
+    newPw2.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final t = context.t;
-    
+
     return Scaffold(
       appBar: AppBar(title: const Text('Passwort ändern')),
       body: Center(
@@ -360,7 +422,7 @@ class _PasswordPageState extends State<_PasswordPage> {
                     onPressed: busy ? null : () async {
                       if (newPw1.text != newPw2.text) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Passwörter stimmen nicht überein.')),
+                          SnackBar(content: Text(_trPwMismatch(t))),
                         );
                         return;
                       }
@@ -371,7 +433,7 @@ class _PasswordPageState extends State<_PasswordPage> {
                         );
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Passwort geändert.')),
+                          SnackBar(content: Text(_trPwChanged(t))),
                         );
                         Navigator.of(context).pop();
                       } catch (e) {
