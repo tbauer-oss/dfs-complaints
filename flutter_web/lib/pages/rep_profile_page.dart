@@ -59,7 +59,7 @@ class _RepProfilePageState extends State<RepProfilePage> {
   Future<void> _saveProfile() async {
     if (_me == null) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Profil-Update ist aktuell nicht aktiviert.')),
+      SnackBar(content: Text(t.profile_not_active.)),
     );
 
     // Wenn dein Backend /api/rep/update bereit ist UND du im ApiClient
@@ -88,19 +88,19 @@ class _RepProfilePageState extends State<RepProfilePage> {
     final b = _pw2.text;
     if (a.isEmpty || b.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bitte neues Passwort zweimal eingeben.')),
+        SnackBar(content: Text(t.pleaseNewPW)),
       );
       return;
     }
     if (a != b) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Passwörter stimmen nicht überein.')),
+        SnackBar(content: Text(t.password_not_match)),
       );
       return;
     }
     if (a.length < 8) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Passwort muss mindestens 8 Zeichen haben.')),
+        SnackBar(content: Text(t.pwLong)),
       );
       return;
     }
@@ -113,7 +113,7 @@ class _RepProfilePageState extends State<RepProfilePage> {
       _pw1.clear();
       _pw2.clear();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Passwort geändert.')),
+        const SnackBar(content: Text(t.pwChanged)),
       );
     } catch (e) {
       if (!mounted) return;
@@ -137,7 +137,7 @@ class _RepProfilePageState extends State<RepProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    final title = const Text('Profil & Passwort');
+    final title = Text(t.profilePW);
 
     if (_loading) {
       return Scaffold(
@@ -167,13 +167,13 @@ class _RepProfilePageState extends State<RepProfilePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Meine Daten',
+                    Text(t.myData,
                         style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _first,
                       decoration: const InputDecoration(
-                        labelText: 'Vorname',
+                        labelText: t.first_name,
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -181,7 +181,7 @@ class _RepProfilePageState extends State<RepProfilePage> {
                     TextField(
                       controller: _last,
                       decoration: const InputDecoration(
-                        labelText: 'Nachname',
+                        labelText: t.last_name,
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -189,7 +189,7 @@ class _RepProfilePageState extends State<RepProfilePage> {
                     TextField(
                       controller: _region,
                       decoration: const InputDecoration(
-                        labelText: 'Region',
+                        labelText: t.region,
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -198,7 +198,7 @@ class _RepProfilePageState extends State<RepProfilePage> {
                       enabled: false,
                       controller: TextEditingController(text: email),
                       decoration: const InputDecoration(
-                        labelText: 'E-Mail (fest)',
+                        labelText: t.pwStay,
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -208,7 +208,7 @@ class _RepProfilePageState extends State<RepProfilePage> {
                       child: FilledButton.icon(
                         onPressed: _saveProfile, // aktuell Info-Toast
                         icon: const Icon(Icons.save),
-                        label: const Text('Profil speichern'),
+                        label: Text(t.save_profile),
                       ),
                     ),
                   ],
@@ -223,14 +223,14 @@ class _RepProfilePageState extends State<RepProfilePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Passwort ändern',
+                    Text(t.changePassword,
                         style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _pw1,
                       obscureText: true,
                       decoration: const InputDecoration(
-                        labelText: 'Neues Passwort',
+                        labelText: t.newPassword,
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -239,7 +239,7 @@ class _RepProfilePageState extends State<RepProfilePage> {
                       controller: _pw2,
                       obscureText: true,
                       decoration: const InputDecoration(
-                        labelText: 'Neues Passwort (Wiederholung)',
+                        labelText: t.newPasswordRepeat,
                         border: OutlineInputBorder(),
                       ),
                       onSubmitted: (_) => _busyPw ? null : _changePassword(),
@@ -253,7 +253,7 @@ class _RepProfilePageState extends State<RepProfilePage> {
                             ? const SizedBox(
                                 width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                             : const Icon(Icons.key),
-                        label: const Text('Passwort speichern'),
+                        label: const Text(t.savePassword),
                       ),
                     ),
                   ],
