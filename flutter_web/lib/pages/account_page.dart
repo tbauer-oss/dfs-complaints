@@ -1,10 +1,14 @@
 // lib/pages/account_page.dart
 import 'package:flutter/material.dart';
 import '../api/client.dart';
+import '../l10n/app_localizations.dart';
+
+extension _L10nX on BuildContext {
+  AppLocalizations get t => AppLocalizations.of(this)!;
+}
 
 class AccountPage extends StatefulWidget {
   final ApiClient api;
-  final t = AppLocalizations.of(ctx)!;
   const AccountPage({super.key, required this.api});
   @override
   State<AccountPage> createState() => _AccountPageState();
@@ -30,7 +34,7 @@ class _AccountPageState extends State<AccountPage> {
       if (s.contains('401')) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: t.session_expired_login_again),
+            const SnackBar(content: Text(t.session_expired_login_again)),
           );
           Navigator.of(context).pop();
         }
@@ -47,7 +51,7 @@ class _AccountPageState extends State<AccountPage> {
     final body = () {
       if (busy) return const Center(child: CircularProgressIndicator());
       if (err != null) return Center(child: Text(err!));
-      if (acc == null) return const Center(child: Text('Keine Daten.'));
+      if (acc == null) return const Center(child: Text(t.edit_data));
 
       return Center(
         child: ConstrainedBox(
