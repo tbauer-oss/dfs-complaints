@@ -40,12 +40,7 @@ class _MyAppState extends State<MyApp> {
 
   // ---- kleine Helfer für den Gating-Check ----
   bool get _customerLoggedIn => (api.token != null && api.token!.isNotEmpty);
-  bool get _repLoggedIn {
-    final repTok = (api.repToken != null && api.repToken!.isNotEmpty);
-    final mode   = (html.window.localStorage['dfs_mode'] ?? '').toLowerCase();
-    final isRepMode = mode == 'rep';
-    // Wenn ein Vertreter-Token da ist ODER der Modus explizit gesetzt wurde, zeigen wir den Rep-Bereich:
-    return repTok || isRepMode;
+  bool get _repLoggedIn => (api.repToken != null && api.repToken!.isNotEmpty);
   }
 
   @override
