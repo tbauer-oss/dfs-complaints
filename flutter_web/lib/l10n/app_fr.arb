@@ -26,6 +26,10 @@
   "country_label": "Pays",
   "internal_no_label": "N° DFS interne",
 
+  "customer_login": "Acceso clientes",
+  "more_areas": "Otras áreas",
+  "opening_rep_area": "Abriendo área de representantes…",
+
   "gate_prompt": "Code d’accès (unique pour les clients non enregistrés)",
   "gate_password": "Mot de passe",
   "continueLabel": "Continuer",
