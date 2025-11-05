@@ -457,6 +457,8 @@ class _MyAppState extends State<MyApp> {
                 }
 
                 // Kunde NICHT eingeloggt -> Startseite mit hübscher Login-Card
+                final scheme = Theme.of(ctx).colorScheme;
+                final isDark = Theme.of(ctx).brightness == Brightness.dark;
                 return Scaffold(
                   appBar: AppBar(
                     title: Text(t.appTitle),
@@ -465,9 +467,6 @@ class _MyAppState extends State<MyApp> {
                       _themeMenu(),
                     ],
                   ),
-                  final scheme = Theme.of(ctx).colorScheme;
-                  final isDark = Theme.of(ctx).brightness == Brightness.dark;
-
                   body: DecoratedBox(
                     decoration: BoxDecoration(
                       // Im Dark-Mode lieber eine ruhige Fläche mit leichtem „Container“-Verlauf
