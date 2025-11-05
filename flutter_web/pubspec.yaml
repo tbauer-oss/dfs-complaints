@@ -19,7 +19,7 @@ dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - _assets/dfs_logo.png
+    - assets/
   generate: true
 
 flutter_intl:
