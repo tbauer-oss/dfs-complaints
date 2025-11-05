@@ -1,10 +1,12 @@
-// api/rep/customers.js
+// /api/rep/customers.js
+export const config = { runtime: 'nodejs' };
+
 import { setCors } from '../_lib/cors.js';
 import { getRepFromAuthHeader } from '../_lib/repAuth.js';
 import { repCustomers, assignCustomer, unassignCustomer } from '../_lib/repsStore.js';
 
 export default async function handler(req, res) {
-  setCors(req, res);
+  setCors(req, res, 'Content-Type, Authorization, X-Gate');
   if (req.method === 'OPTIONS') return res.status(204).end();
 
   const auth = getRepFromAuthHeader(req);
@@ -16,9 +18,12 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
-    const body = (typeof req.body === 'string') ? JSON.parse(req.body||'{}') : (req.body || {});
-    const action = (body.action || '').toString().toLowerCase();
-    const email  = (body.email  || '').toString().toLowerCase();
+    const raw = (typeof req.body === 'string') ? req.body : JSON.stringify(req.body || {});
+    let body = {};
+    try { body = JSON.parse(raw || '{}'); } catch { body = {}; }
+
+    const action = String(body.action || '').toLowerCase();
+    const email  = String(body.email  || '').toLowerCase().trim();
     if (!email) return res.status(400).end(JSON.stringify({ error: 'missing email' }));
 
     if (action === 'assign') {
@@ -32,5 +37,5 @@ export default async function handler(req, res) {
     return res.status(400).end(JSON.stringify({ error: 'invalid action' }));
   }
 
-  res.status(405).end(JSON.stringify({ error: 'method not allowed' }));
+  return res.status(405).end(JSON.stringify({ error: 'method not allowed' }));
 }
