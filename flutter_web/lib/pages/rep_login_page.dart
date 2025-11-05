@@ -55,7 +55,13 @@ class _RepLoginPageState extends State<RepLoginPage> {
   // ---- Step 2a: Secret (Einmalpasswort) prüfen ----
   Future<void> _submitOtp() async {
     _setErr(null);
-    final otp = _otp.text.trim();
+    final email = _email.text.trim().toLowerCase();
+    final otp   = _otp.text.trim();
+
+    if (email.isEmpty || !email.contains('@')) {
+      _setErr('Bitte eine gültige E-Mail-Adresse eingeben.');
+      return;
+    }
     if (otp.isEmpty) {
       _setErr('Bitte das Einmalpasswort eingeben.');
       return;
@@ -63,16 +69,17 @@ class _RepLoginPageState extends State<RepLoginPage> {
 
     _setBusy(true);
     try {
-      final ok = await widget.api.repLoginWithSecret(
-         _email.text.trim().toLowerCase(),
-         _otp.text.trim(),
-       );
+      // WICHTIG: mit E-Mail + Secret aufrufen!
+      final ok = await widget.api.repLoginWithSecret(email, otp);
       if (!ok) {
         _setErr('Einmalpasswort falsch oder nicht zulässig.');
         return;
       }
-      // Nach Secret-Login: in Passwort-Setzen wechseln
-      setState(() => _step = _RepStep.setPassword);
+
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => RepDashboardPage(api: widget.api)),
+      );
     } catch (e) {
       _setErr('Login fehlgeschlagen: $e');
     } finally {
