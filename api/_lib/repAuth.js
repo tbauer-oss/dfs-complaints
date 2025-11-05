@@ -1,42 +1,63 @@
 // api/_lib/repAuth.js
+export const config = { runtime: 'nodejs' };
+
 import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs';
 
-const REP_JWT_SECRET = process.env.REP_JWT_SECRET || process.env.JWT_SECRET; // nutze bestehenden Secret, falls gewünscht
-if (!REP_JWT_SECRET) throw new Error('REP_JWT_SECRET (oder JWT_SECRET) nicht gesetzt');
+const REP_SECRET = process.env.REP_JWT_SECRET;
 
-export function signRepJwt(rep) {
-  // minimale Claims + Role
-  const payload = {
-    role: 'rep',
-    repId: rep.id,
-    email: (rep.email || '').toLowerCase(),
-  };
-  // 12h Gültigkeit (anpassbar)
-  return jwt.sign(payload, REP_JWT_SECRET, { expiresIn: '12h' });
-}
-
+/**
+ * Liest den Authorization-Header ("Bearer <token>"), verifiziert das JWT
+ * gegen REP_JWT_SECRET und gibt bei Erfolg { repId, token, claims } zurück.
+ * Bei Fehlern oder fehlendem Token: null.
+ */
 export function getRepFromAuthHeader(req) {
+  if (!REP_SECRET) return null;
+
+  const h = String(req.headers?.authorization || '');
+  if (!/^Bearer\s+/i.test(h)) return null;
+
+  const token = h.replace(/^Bearer\s+/i, '').trim();
+  if (!token) return null;
+
   try {
-    const h = req.headers.authorization || '';
-    const m = /^Bearer\s+(.+)$/i.exec(h);
-    if (!m) return null;
-    const token = m[1];
-    const payload = jwt.verify(token, REP_JWT_SECRET);
-    if (payload?.role !== 'rep') return null;
+    const claims = jwt.verify(token, REP_SECRET);
+    // Primär nutzen wir "repId", akzeptieren aber zur Sicherheit auch "sub" oder "id"
+    const repId = claims?.repId ?? claims?.sub ?? claims?.id;
+    if (!repId) return null;
+
     return {
-      repId: payload.repId,
-      email: (payload.email || '').toLowerCase(),
+      repId: String(repId),
+      token,
+      claims,
     };
   } catch {
     return null;
   }
 }
 
-export async function hashPassword(plain) {
-  const salt = await bcrypt.genSalt(10);
-  return await bcrypt.hash(plain, salt);
+/**
+ * Optionaler Helper: prüft ein übergebenes Token (z. B. aus Cookies) und gibt
+ * bei Erfolg { repId, claims } zurück, sonst null.
+ */
+export function verifyRepToken(token) {
+  if (!REP_SECRET || !token) return null;
+  try {
+    const claims = jwt.verify(token, REP_SECRET);
+    const repId = claims?.repId ?? claims?.sub ?? claims?.id;
+    if (!repId) return null;
+    return { repId: String(repId), claims };
+  } catch {
+    return null;
+  }
 }
-export async function checkPassword(plain, hash) {
-  try { return await bcrypt.compare(plain, hash); } catch { return false; }
+
+/**
+ * Optionaler Helper: erstellt ein neues Rep-JWT mit { repId }.
+ * Default-Expiry: 7d (kann via opts überschrieben werden).
+ */
+export function signRepToken(repId, opts = {}) {
+  if (!REP_SECRET) throw new Error('REP_JWT_SECRET not set');
+  if (!repId) throw new Error('repId is required');
+  const options = { expiresIn: '7d', ...opts };
+  return jwt.sign({ repId }, REP_SECRET, options);
 }
