@@ -129,7 +129,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
     final canLogin = !_busy && _email.text.trim().isNotEmpty && _pw.text.isNotEmpty;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Vertreter-Login')),
+      appBar: AppBar(title: t.rep_login_title),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
@@ -151,7 +151,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
                     controller: _pw,
                     obscureText: true,
                     autofillHints: const [AutofillHints.password],
-                    decoration: const InputDecoration(labelText: 'Passwort'),
+                    decoration: const InputDecoration(labelText: 'Password'),
                     onChanged: (_) => setState(() {}),
                     onSubmitted: (_) => canLogin ? _login() : null,
                   ),
@@ -175,14 +175,14 @@ class _RepLoginPageState extends State<RepLoginPage> {
                   TextButton.icon(
                     onPressed: _busy ? null : () {}, // dein Handler
                     icon: const Icon(Icons.lock_reset),
-                    label: const Text('Passwort ändern'),
+                    label: t.changePassword,
                   ),
                   TextButton.icon(
                     onPressed: _busy ? null : () => Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => RepLoginPage(api: widget.api)),
                     ),
                     icon: const Icon(Icons.badge_outlined),
-                    label: const Text('Vertreterbereich'),
+                    label: t.rep_area,
                   ),
                 ],
               ),
