@@ -34,7 +34,7 @@ class _AccountPageState extends State<AccountPage> {
       if (s.contains('401')) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text(t.session_expired_login_again)),
+            SnackBar(content: Text(t.session_expired_login_again)),
           );
           Navigator.of(context).pop();
         }
@@ -136,7 +136,7 @@ class _AccountPageState extends State<AccountPage> {
 
                     if (!mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Account gelöscht.')),
+                      SnackBar(content: Text('Account gelöscht.')),
                     );
 
                     // Zur Start-/Loginseite zurück
@@ -270,7 +270,7 @@ class _AccountEditPageState extends State<_AccountEditPage> {
                         });
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Gespeichert.')),
+                          SnackBar(content: Text('Gespeichert.')),
                         );
                         Navigator.of(context).pop();
                       } catch (e) {
@@ -355,7 +355,7 @@ class _PasswordPageState extends State<_PasswordPage> {
                     onPressed: busy ? null : () async {
                       if (newPw1.text != newPw2.text) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Passwörter stimmen nicht überein.')),
+                          SnackBar(content: Text('Passwörter stimmen nicht überein.')),
                         );
                         return;
                       }
@@ -366,7 +366,7 @@ class _PasswordPageState extends State<_PasswordPage> {
                         );
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Passwort geändert.')),
+                          SnackBar(content: Text('Passwort geändert.')),
                         );
                         Navigator.of(context).pop();
                       } catch (e) {
