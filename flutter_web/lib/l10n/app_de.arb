@@ -22,7 +22,7 @@
   "contact_person_label": "Ansprechpartner:",
   "confirmPassword": "Passwort bestätigen",
   "noDataFound": "Keine Daten gefunden.",
-  "adress": "Adresse",
+  "address": "Adresse",
   "saved": "Gespeichert",
   "oldPassword": "Altes Passwort",
   "newPassword": "Neues Passwort",
@@ -81,9 +81,9 @@
 
   "noData": "Keine Daten.",
   "error": "Fehler: {msg}",
-  "@error": { "placeholders": { "msg": {} } },
+  "@error": { "placeholders": { "msg": { "type": "String" } } },
   "errorGeneric": "Fehler: {msg}",
-  "@errorGeneric": { "placeholders": { "msg": {} } },
+  "@errorGeneric": { "placeholders": { "msg": { "type": "String" } } },
 
   "myAccount": "Mein Account",
   "editData": "Daten ändern",
