@@ -13,6 +13,12 @@
   "langNameFR": "French",
   "langNameIT": "Italian",
   "langNameES": "Spanish",
+
+  "theme_system": "System",
+  "theme_light": "Light",
+  "theme_dark": "Dark",
+  "rep_area": "Representative area",
+
   "decision": "Decision",
   "returned": "returned",
   "applied": "applied",
