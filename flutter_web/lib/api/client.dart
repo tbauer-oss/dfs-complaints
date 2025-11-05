@@ -464,7 +464,7 @@ class ApiClient {
     try {
       final r = await http.post(
         _u('/api/rep/login'),
-        headers: _repHeaders(), // nur Content-Type (+ evtl. Gate)
+        headers: _repHeaders(),
         body: jsonEncode({'email': mail, 'secret': sec}),
       );
 
@@ -486,8 +486,11 @@ class ApiClient {
     }
   }
 
-  /// Alias, falls der Name dir besser gefällt.
-  Future<bool> repLoginSecret(String secret) => repLoginWithSecret(secret);
+  /// Alias: verwendet die zuletzt gespeicherte Vertreter-E-Mail.
+  Future<bool> repLoginSecret(String secret) {
+    final mail = _repEmail ?? '';
+    return repLoginWithSecret(mail, secret);
+  }
 
   /// Passwort ändern (Vertreter). Akzeptiert:
   /// - 204 (kein Body) ODER
