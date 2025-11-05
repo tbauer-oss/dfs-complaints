@@ -21,6 +21,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/dfs_logo.png
+    - assets/dfs_logo.svg
   generate: true
 
 flutter_intl:
