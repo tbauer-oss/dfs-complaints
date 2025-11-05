@@ -43,7 +43,7 @@
   "applied": "angewandt",
   "injury": "Verletzung",
   "rep_banner_title": "Ihr Ansprechpartner (Vertreter): {name}",
-  "@rep_banner_title": {"placeholders": { "name": { "type": "String" } }},
+  "@rep_banner_title": {"placeholders": { "name": { "type": "String" } } },
   "rep_email_button": "E-Mail",
   "rep_email_tooltip": "E-Mail an Vertreter",
   "mail_subject_rep": "Anfrage zu Reklamation",
@@ -51,6 +51,10 @@
   "country_label": "Land",
   "internal_no_label": "Interne DFS-Nr.",
   "rep_area": "Vertreterbereich",
+  "network_cors_error": "Netzwerk-/CORS-Fehler: {msg}",
+  "@network_cors_error": {"placeholders": { "msg": { "type": "String" } } },
+  "mail_body_rep": "Guten Tag {name},\n\nich melde mich über das DFS Customer Complaint Portal.\n\nBeste Grüße",
+  "@mail_body_rep": { "placeholders": { "name": { "type": "String" } } },
 
 
   "customer_login": "Kundenlogin",
