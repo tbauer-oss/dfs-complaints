@@ -80,6 +80,9 @@ export default async function handler(req, res) {
     const hash = await bcrypt.hash(newPw, 10);
     await updateRepPassword(rep.id, hash);
 
+    const newToken = jwt.sign({ repId }, REP_SECRET, { expiresIn: '7d' });
+    return res.status(200).json({ token: newToken });
+
     // ---- Antwort ----
     return res.status(200).json({ ok: true });
   } catch (err) {
