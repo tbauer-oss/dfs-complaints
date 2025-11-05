@@ -102,7 +102,7 @@ class _MyAppState extends State<MyApp> {
 
     return PopupMenuButton<ThemeMode>(
       // Lokalisierter Tooltip aus dem Widget-Kontext
-      tooltip: AppLocalizations.of(context)!.theme,
+      tooltip: AppLocalizations.of(context)!'Theme',
       icon: Icon(icon),
       onSelected: _setThemeMode,
       itemBuilder: (ctx) {
