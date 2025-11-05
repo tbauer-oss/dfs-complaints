@@ -333,27 +333,83 @@ class _MyAppState extends State<MyApp> {
                                 onOpenAdmin: () => _openAdmin(ctx),
                                 onOpenRep: () => _openRepArea(ctx), // -> /repLogin
                               ),
-                              const SizedBox(height: 12),
-                              // Sektion: alternative Zugänge dezent rechts
+
+                              // --- Responsive Sektion „Weitere Bereiche“ ---
+                              const SizedBox(height: 18),
                               Align(
-                                alignment: Alignment.centerRight,
-                                child: Wrap(
-                                  spacing: 8,
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  children: [
-                                    OutlinedButton.icon(
-                                      icon: const Icon(Icons.handshake),
-                                      label: Text(t.rep_area ?? 'Vertreterbereich'),
-                                      onPressed: () => _openRepArea(ctx),
-                                    ),
-                                    TextButton.icon(
-                                      icon: const Icon(Icons.admin_panel_settings),
-                                      label: Text(t.admin_area),
-                                      onPressed: () => _openAdmin(ctx),
-                                    ),
-                                  ],
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  'Weitere Bereiche',
+                                  style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
+                                        color: Theme.of(ctx).colorScheme.primary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                 ),
                               ),
+                              const SizedBox(height: 10),
+
+                              LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final isNarrow = constraints.maxWidth < 560;
+                                  if (isNarrow) {
+                                    // Buttons UNTEREINANDER (mobil)
+                                    return Column(
+                                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                                      children: [
+                                        FilledButton.tonalIcon(
+                                          icon: const Icon(Icons.handshake),
+                                          label: Text(t.rep_area ?? 'Vertreterbereich'),
+                                          onPressed: () => _openRepArea(ctx),
+                                          style: FilledButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(vertical: 14),
+                                            shape: const StadiumBorder(),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 10),
+                                        OutlinedButton.icon(
+                                          icon: const Icon(Icons.admin_panel_settings),
+                                          label: Text(t.admin_area),
+                                          onPressed: () => _openAdmin(ctx),
+                                          style: OutlinedButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(vertical: 14),
+                                            shape: const StadiumBorder(),
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  } else {
+                                    // Buttons NEBENEINANDER (breit)
+                                    return Row(
+                                      children: [
+                                        Expanded(
+                                          child: FilledButton.tonalIcon(
+                                            icon: const Icon(Icons.handshake),
+                                            label: Text(t.rep_area ?? 'Vertreterbereich'),
+                                            onPressed: () => _openRepArea(ctx),
+                                            style: FilledButton.styleFrom(
+                                              padding: const EdgeInsets.symmetric(vertical: 14),
+                                              shape: const StadiumBorder(),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: OutlinedButton.icon(
+                                            icon: const Icon(Icons.admin_panel_settings),
+                                            label: Text(t.admin_area),
+                                            onPressed: () => _openAdmin(ctx),
+                                            style: OutlinedButton.styleFrom(
+                                              padding: const EdgeInsets.symmetric(vertical: 14),
+                                              shape: const StadiumBorder(),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  }
+                                },
+                              ),
+                              // --- Ende responsive Sektion ---
                             ],
                           ),
                         ),
@@ -478,7 +534,6 @@ class _LoginScreenState extends State<_LoginScreen> {
                         return SvgPicture.asset(
                           'assets/dfs_logo.svg',
                           height: h,
-                          // optional: Theme-Farbe einblenden, wenn das Logo monochrom ist
                           // colorFilter: const ColorFilter.mode(Color(0xFF1F4C8F), BlendMode.srcIn),
                         );
                       } catch (_) {
