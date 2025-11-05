@@ -530,19 +530,31 @@ class ApiClient {
   /// - 204 (kein Body) ODER
   /// - 200 { token: '...' } -> Token wird aktualisiert.
   Future<void> repChangePassword(String newPw) async {
-    final url = '$baseUrl/api/rep/password';
     final r = await http.post(
-      Uri.parse(url),
-      headers: {
-        'Content-Type': 'application/json',
-        if (repToken != null && repToken!.isNotEmpty)
-          'Authorization': 'Bearer $repToken',
-      },
+      _u('/api/rep/password'),
+      headers: _repHeaders(),
       body: jsonEncode({'new': newPw}),
     );
-    if (r.statusCode != 204) {
-      throw Exception('Fehler ${r.statusCode}: ${r.body}');
+
+    if (r.statusCode == 204) {
+      // ok ohne Body
+      return;
     }
+    if (_ok2xx(r.statusCode)) {
+      // evtl. neues Token returned
+      try {
+        if (r.body.isNotEmpty) {
+          final j = jsonDecode(r.body);
+          if (j is Map && j['token'] is String) {
+            repToken = j['token'] as String;
+            _saveSession();
+          }
+        }
+      } catch (_) {}
+      return;
+    }
+
+    throw Exception('POST /api/rep/password failed: ${r.statusCode} ${r.body}');
   }
 
   Future<Map<String, dynamic>> repMe() async {
