@@ -356,8 +356,8 @@ class _ComplaintTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (customer.isNotEmpty) Text('${t.customer_label}: $customer'),
-            if (article.isNotEmpty)  Text('${t.article_plain}: $article'),
-            if (segment.isNotEmpty)  Text('${t.segment_plain}: $segment'),
+            if (article.isNotEmpty)  Text('${t.articleNo}: $article'),
+            if (segment.isNotEmpty)  Text('${t.segment}: $segment'),
             Text(
               'Status: $status'
               '${decision.isNotEmpty ? ' • ${t.decision}: $decision' : ''}'
