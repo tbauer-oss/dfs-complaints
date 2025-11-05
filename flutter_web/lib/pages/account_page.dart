@@ -7,45 +7,10 @@ extension _L10nX on BuildContext {
   AppLocalizations get t => AppLocalizations.of(this)!;
 }
 
-/// --- kleine Übersetzungs-Helper mit Fallbacks ---
-/// So läuft der Build auch, wenn einzelne Keys in den ARB-Dateien (noch) fehlen.
-String _trNoData(AppLocalizations t) {
-  try { return (t as dynamic).no_data_found as String; } catch (_) {}
-  try { return (t as dynamic).edit_data as String; } catch (_) {}
-  try { return (t as dynamic).editData as String; } catch (_) {}
-  return 'Keine Daten gefunden.';
-}
-
-String _trConfirmPw(AppLocalizations t) {
-  try { return (t as dynamic).confirm_password_title as String; } catch (_) {}
-  try { return (t as dynamic).confirmPassword as String; } catch (_) {}
-  return 'Passwort bestätigen';
-}
-
-String _trSaved(AppLocalizations t) {
-  try { return (t as dynamic).saved as String; } catch (_) {}
-  return 'Gespeichert.';
-}
-
-String _trPwChanged(AppLocalizations t) {
-  try { return (t as dynamic).password_changed as String; } catch (_) {}
-  return 'Passwort geändert.';
-}
-
-String _trPwMismatch(AppLocalizations t) {
-  try { return (t as dynamic).passwords_not_equal as String; } catch (_) {}
-  return 'Passwörter stimmen nicht überein.';
-}
-
-String _trDeleteAccountAction(AppLocalizations t) {
-  try { return (t as dynamic).accountDeleteAction as String; } catch (_) {}
-  return 'Account löschen';
-}
-
-/// „value or dash“-Helfer
-String v(Object? x) {
-  final s = (x ?? '').toString().trim();
-  return s.isEmpty ? '-' : s;
+// kleine Helper für "value or dash"
+String _val(Object? v, [String dash = '-' ]) {
+  final s = (v ?? '').toString().trim();
+  return s.isEmpty ? dash : s;
 }
 
 class AccountPage extends StatefulWidget {
@@ -94,7 +59,8 @@ class _AccountPageState extends State<AccountPage> {
     final body = () {
       if (busy) return const Center(child: CircularProgressIndicator());
       if (err != null) return Center(child: Text(err!));
-      if (acc == null) return Center(child: Text(_trNoData(t)));
+      // FIX: falscher Key (früher: t.editdata) -> nutze vorhandenen Key oder Fallback
+      if (acc == null) return Center(child: Text(t.noDataFound ?? 'Keine Daten gefunden.'));
 
       return Center(
         child: ConstrainedBox(
@@ -102,9 +68,10 @@ class _AccountPageState extends State<AccountPage> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              Text('E-Mail: ${acc!['email'] ?? ''}'),
-              Text('${t.company}: ${acc!['company'] ?? ''}'),
-              Text('${t.contact_person}: ${v(acc!['contact'])}'),
+              Text('E-Mail: ${_val(acc!['email'], '')}'),
+              Text('${t.company}: ${_val(acc!['company'])}'),
+              // FIX: v(...) existierte nicht -> Helper _val
+              Text('${t.contact_person}: ${_val(acc!['contact'])}'),
               const SizedBox(height: 16),
 
               FilledButton.icon(
@@ -157,7 +124,8 @@ class _AccountPageState extends State<AccountPage> {
                     builder: (_) {
                       final ctrl = TextEditingController();
                       return AlertDialog(
-                        title: Text(_trConfirmPw(t)),
+                        // FIX: Key existierte nicht -> kompatibler Key + Fallback
+                        title: Text(t.confirmPassword ?? 'Passwort bestätigen'),
                         content: TextField(
                           controller: ctrl, obscureText: true,
                           decoration: InputDecoration(labelText: t.gate_password),
@@ -169,7 +137,7 @@ class _AccountPageState extends State<AccountPage> {
                           ),
                           FilledButton(
                             onPressed: () => Navigator.pop(context, ctrl.text),
-                            child: Text(_trDeleteAccountAction(t)),
+                            child: Text(t.accountDelete),
                           ),
                         ],
                       );
@@ -179,16 +147,18 @@ class _AccountPageState extends State<AccountPage> {
 
                   try {
                     await widget.api.accountDelete(pwd);
+
                     if (!mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Account gelöscht.')),
+                      SnackBar(content: Text(t.accountDeleted ?? 'Account gelöscht.')),
                     );
+
                     // Zur Start-/Loginseite zurück
                     Navigator.of(context).popUntil((r) => r.isFirst);
                   } catch (e) {
                     if (!mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Fehler: $e')),
+                      SnackBar(content: Text('${t.error ?? 'Fehler'}: $e')),
                     );
                   }
                 },
@@ -205,7 +175,7 @@ class _AccountPageState extends State<AccountPage> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text('Mein Account'),
+        title: Text(t.myAccount ?? 'Mein Account'),
       ),
       body: body,
     );
@@ -254,7 +224,7 @@ class _AccountEditPageState extends State<_AccountEditPage> {
     final t = context.t;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Daten ändern')),
+      appBar: AppBar(title: Text(t.editData ?? 'Daten ändern')),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
@@ -263,29 +233,29 @@ class _AccountEditPageState extends State<_AccountEditPage> {
             children: [
               TextField(
                 controller: email,
-                decoration: const InputDecoration(
-                  labelText: 'E-Mail', border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: t.email, border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: contact,
-                decoration: const InputDecoration(
-                  labelText: 'Ansprechpartner', border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: t.contact_person, border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: company,
-                decoration: const InputDecoration(
-                  labelText: 'Firma', border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: t.company, border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: street,
-                decoration: const InputDecoration(
-                  labelText: 'Adresse', border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: t.address ?? 'Adresse', border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 8),
@@ -294,8 +264,8 @@ class _AccountEditPageState extends State<_AccountEditPage> {
                   Expanded(
                     child: TextField(
                       controller: zip,
-                      decoration: const InputDecoration(
-                        labelText: 'PLZ', border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        labelText: t.zip ?? 'PLZ', border: const OutlineInputBorder(),
                       ),
                     ),
                   ),
@@ -303,8 +273,8 @@ class _AccountEditPageState extends State<_AccountEditPage> {
                   Expanded(
                     child: TextField(
                       controller: city,
-                      decoration: const InputDecoration(
-                        labelText: 'Ort', border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        labelText: t.city ?? 'Ort', border: const OutlineInputBorder(),
                       ),
                     ),
                   ),
@@ -327,13 +297,13 @@ class _AccountEditPageState extends State<_AccountEditPage> {
                         });
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(_trSaved(t))),
+                          SnackBar(content: Text(t.saved ?? 'Gespeichert.')),
                         );
                         Navigator.of(context).pop();
                       } catch (e) {
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Fehler: $e')),
+                            SnackBar(content: Text('${t.error ?? 'Fehler'}: $e')),
                           );
                         }
                       } finally {
@@ -345,12 +315,12 @@ class _AccountEditPageState extends State<_AccountEditPage> {
                             width: 18, height: 18,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Text('Speichern'),
+                        : Text(t.save ?? 'Speichern'),
                   ),
                   const SizedBox(width: 12),
                   OutlinedButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Abbrechen'),
+                    child: Text(t.cancel),
                   ),
                 ],
               ),
@@ -388,7 +358,7 @@ class _PasswordPageState extends State<_PasswordPage> {
     final t = context.t;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Passwort ändern')),
+      appBar: AppBar(title: Text(t.changePassword ?? 'Passwort ändern')),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 560),
@@ -397,22 +367,22 @@ class _PasswordPageState extends State<_PasswordPage> {
             children: [
               TextField(
                 controller: oldPw, obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Altes Passwort', border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: t.oldPassword ?? 'Altes Passwort', border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: newPw1, obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Neues Passwort', border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: t.newPassword ?? 'Neues Passwort', border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: newPw2, obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Neues Passwort (Wdh.)', border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: t.newPasswordRepeat ?? 'Neues Passwort (Wdh.)', border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 16),
@@ -422,7 +392,7 @@ class _PasswordPageState extends State<_PasswordPage> {
                     onPressed: busy ? null : () async {
                       if (newPw1.text != newPw2.text) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(_trPwMismatch(t))),
+                          SnackBar(content: Text(t.passwordsDontMatch ?? 'Passwörter stimmen nicht überein.')),
                         );
                         return;
                       }
@@ -433,13 +403,13 @@ class _PasswordPageState extends State<_PasswordPage> {
                         );
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(_trPwChanged(t))),
+                          SnackBar(content: Text(t.passwordChanged ?? 'Passwort geändert.')),
                         );
                         Navigator.of(context).pop();
                       } catch (e) {
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Fehler: $e')),
+                            SnackBar(content: Text('${t.error ?? 'Fehler'}: $e')),
                           );
                         }
                       } finally {
@@ -451,12 +421,12 @@ class _PasswordPageState extends State<_PasswordPage> {
                             width: 18, height: 18,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Text('Speichern'),
+                        : Text(t.save ?? 'Speichern'),
                   ),
                   const SizedBox(width: 12),
                   OutlinedButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Abbrechen'),
+                    child: Text(t.cancel),
                   ),
                 ],
               ),
