@@ -1,7 +1,6 @@
 {
   "@@locale": "de",
 
-  // ===== App & Sprache =====
   "appTitle": "DFS Customer Complaint",
 
   "langDE": "DE",
@@ -17,12 +16,10 @@
   "langNameIT": "Italienisch",
   "langNameES": "Spanisch",
 
-  // ===== Theme =====
   "theme_system": "System",
   "theme_light": "Hell",
   "theme_dark": "Dunkel",
 
-  // ===== Allgemeine UI-Begriffe =====
   "cancel": "Abbrechen",
   "open": "Öffnen",
   "unlock": "Entsperren",
@@ -34,7 +31,6 @@
   "saved": "Gespeichert",
   "newLoad": "Neu laden",
 
-  // ===== Sitzungsverwaltung =====
   "logout": "Abmelden",
   "loggedOut": "Abgemeldet.",
   "logoutTitle": "Abmelden",
@@ -44,7 +40,6 @@
   "session_invalid": "Sitzung ungültig. Bitte neu anmelden.",
   "sessionInvalidPleaseLogin": "Sitzung ungültig. Bitte neu anmelden.",
 
-  // ===== Fehler & Statusmeldungen =====
   "noData": "Keine Daten.",
   "noDataFound": "Keine Daten gefunden.",
   "error": "Fehler: {msg}",
@@ -57,14 +52,12 @@
   "unsavedChangesTitle": "Ungespeicherte Änderungen",
   "unsavedChangesText": "Es gibt nicht gespeicherte Änderungen. Wirklich verlassen?",
 
-  // ===== Gate / Zugang =====
   "gate_prompt": "Zugangscode (einmalig für nicht registrierte Kunden)",
   "gate_password": "Passwort",
   "continueLabel": "Weiter",
   "invalid": "Ungültig",
   "gateUnlockHint": "Bitte geben Sie das Freigabe-Passwort ein, um den Registrierungsbereich zu öffnen.",
 
-  // ===== Authentifizierung / Registrierung =====
   "auth_login": "Login",
   "auth_register": "Registrieren",
   "login": "Login",
@@ -88,7 +81,6 @@
   "regFree": "Registrierung freischalten",
   "or": "oder",
 
-  // ===== Temporäres Passwort =====
   "register_temp_password_title": "Registrieren (temporäres Passwort)",
   "rep_email_label": "Vertreter-E-Mail",
   "temp_password_label": "Temporäres Passwort (Secret)",
@@ -96,7 +88,6 @@
   "temp_password_invalid": "Temporäres Passwort ungültig oder nicht zulässig.",
   "i_have_temp_password": "Ich habe ein temporäres Passwort",
 
-  // ===== Passwortverwaltung =====
   "oldPassword": "Altes Passwort",
   "newPassword": "Neues Passwort",
   "newPasswordRepeat": "Neues Passwort (Wiederholung)",
@@ -121,7 +112,6 @@
   "pleaseNewPW": "Bitte neues Passwort zweimal eingeben.",
   "pwStay": "E-Mail (fest)",
 
-  // ===== Benutzerkonto =====
   "myAccount": "Mein Account",
   "editData": "Daten ändern",
   "changePassword": "Passwort ändern",
@@ -134,7 +124,6 @@
   "save_profile": "Profil speichern",
   "profile_not_active": "Profil-Update ist aktuell nicht aktiviert.",
 
-  // ===== Personen & Adressen =====
   "email": "E-Mail*",
   "email_plain": "E-Mail",
   "company": "Firma*",
@@ -161,7 +150,6 @@
   "last_name": "Nachname",
   "name_required": "Bitte Vor- und Nachname angeben.",
 
-  // ===== Vertreterbereich =====
   "rep_login_title": "Vertreter-Login",
   "rep_dashboard": "Vertreter-Dashboard",
   "rep_area": "Vertreterbereich",
@@ -180,14 +168,12 @@
   "complaintsMyCustomer": "Reklamationen meiner Kunden",
   "noComplaintsFound": "Keine Reklamationen gefunden.",
 
-  // ===== Kundenbereich =====
   "customer_area": "Kundenbereich",
   "customer_login": "Kundenlogin",
   "customer_label": "Kunde",
   "more_areas": "Weitere Bereiche",
   "opening_rep_area": "Öffne Vertreterbereich…",
 
-  // ===== Reklamationen (Formular) =====
   "tab_complaint": "Reklamation melden",
   "tab_my_complaints": "Meine Reklamationen",
   "segment": "Produktbereich*",
@@ -220,7 +206,6 @@
   "@sent_ticket": { "placeholders": { "ticket": { "type": "String" } } },
   "description": "Beschreibung",
 
-  // ===== Reklamationen (Listen/Status) =====
   "reportComplaint": "Reklamation melden",
   "openComplaintReport": "Reklamationsbericht öffnen",
   "myComplaints": "Meine Reklamationen",
@@ -255,13 +240,11 @@
   "applied": "angewandt",
   "returned": "zurückgegeben",
 
-  // ===== Adminbereich =====
   "adminTitle": "Adminbereich – DFS Customer Complaint",
   "adminArea": "Adminbereich",
   "@adminArea": { "description": "Button zum Adminbereich" },
   "admin_area": "Adminbereich",
 
-  // ===== Support =====
   "supportTitle": "DFS Support",
   "category": "Kategorie",
   "yourMessage": "Ihre Nachricht",
