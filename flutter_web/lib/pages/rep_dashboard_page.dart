@@ -5,6 +5,11 @@ import 'rep_profile_page.dart';
 import 'dart:html' as html;
 import '../l10n/app_localizations.dart';
 
+// ---- L10n-Helper (top-level) ----
+extension _L10nX on BuildContext {
+  AppLocalizations get t => AppLocalizations.of(this)!;
+}
+
 class RepDashboardPage extends StatefulWidget {
   final ApiClient api;
   const RepDashboardPage({super.key, required this.api});
@@ -25,20 +30,16 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   Future<bool> _handleUnauthorized(Object e) async {
     final msg = e.toString();
     if (msg.contains('401')) {
-      // Token ungültig/abgelaufen → sauber abmelden und zurück
       await widget.api.repLogout();
       if (!mounted) return true;
 
-      // Info für den Nutzer
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(context.t.session_expired_login_again)),
       );
-
-      // Sicher bis zur Startseite zurück (nicht nur ein Pop)
       Navigator.of(context).popUntil((r) => r.isFirst);
-      return true; // signalisiert: wurde gehandhabt
+      return true;
     }
-    return false; // nichts getan
+    return false;
   }
 
   Future<void> _loadAll() async {
@@ -59,8 +60,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     } catch (e) {
       final handled = await _handleUnauthorized(e);
       if (!mounted) return;
-      if (handled) return;            // 401 wurde bereits behandelt → NICHT mehr _err setzen
-      setState(() => _err = '$e');    // andere Fehler normal anzeigen
+      if (handled) return;
+      setState(() => _err = '$e');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -74,6 +75,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     await showDialog(
       context: context,
       builder: (ctx) {
+        final t = ctx.t;
+
         Future<void> save() async {
           if (saving) return;
           final mail = ctrl.text.trim().toLowerCase();
@@ -89,7 +92,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
             await _loadAll();
           } catch (e) {
-            locErr = '${context.t.error ?? 'Fehler'}: $e';
+            locErr = '${ctx.t.error ?? 'Fehler'}: $e';
             saving = false;
             (ctx as Element).markNeedsBuild();
           }
@@ -102,7 +105,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             children: [
               TextField(
                 controller: ctrl,
-                decoration: const InputDecoration(labelText: 'Kunden-E-Mail'),
+                decoration: InputDecoration(labelText: t.customer_email ?? 'Kunden-E-Mail'),
               ),
               if (locErr != null) ...[
                 const SizedBox(height: 8),
@@ -118,8 +121,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             ElevatedButton(
               onPressed: saving ? null : save,
               child: saving
-                  ? const SizedBox(
-                      width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                   : Text(t.add),
             ),
           ],
@@ -133,20 +135,19 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       await widget.api.repUnassignCustomer(email);
       await _loadAll();
     } catch (e) {
-      await _handleUnauthorized(e);
+      final handled = await _handleUnauthorized(e);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${context.t.error ?? 'Fehler'}: $e')),
-      );
+      if (!handled) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${context.t.error ?? 'Fehler'}: $e')),
+        );
+      }
     }
   }
 
   Future<void> _logout() async {
-    // 1) Serverseitig abmelden (repToken löschen & persistieren)
     await widget.api.repLogout();
-    // 2) Legacy-Schutz: altes Flag entfernen, falls es früher mal gesetzt wurde
     try { html.window.localStorage.remove('dfs_mode'); } catch (_) {}
-    // 3) Hart zurück auf die Startseite (Kunden-Login)
     if (!mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil('/', (Route<dynamic> r) => false);
   }
@@ -159,6 +160,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.t;
+
     final body = _loading
         ? const Center(child: CircularProgressIndicator())
         : _err != null
@@ -169,7 +172,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 🔹 Neuer Button „Profil & Passwort“ – wie besprochen
+                      // Profil & Passwort
                       Card(
                         elevation: 4,
                         child: ListTile(
@@ -183,7 +186,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                               ),
                             );
                             if (!mounted) return;
-                            await _loadAll(); // nach Rückkehr neu laden
+                            await _loadAll();
                           },
                         ),
                       ),
@@ -197,10 +200,13 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                                 spacing: 16,
                                 runSpacing: 6,
                                 children: [
-                                  _Info('Name',
-                                      '${_me!['firstName'] ?? ''} ${_me!['lastName'] ?? ''}'.trim()),
-                                  _Info(t.email_plain, _me!['email'] ?? ''),
-                                  _Info(t.region, _me!['region'] ?? ''),
+                                  _Info(
+                                    'Name',
+                                    '${(_me!['firstName'] ?? '').toString()} '
+                                    '${(_me!['lastName'] ?? '').toString()}'.trim(),
+                                  ),
+                                  _Info(t.email_plain, (_me!['email'] ?? '').toString()),
+                                  _Info(t.region, (_me!['region'] ?? '').toString()),
                                 ],
                               ),
                       ),
@@ -237,7 +243,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                       _Card(
                         title: t.complaintsMyCustomer,
                         child: _complaints.isEmpty
-                            ? const Text(t.noComplaintsFound)
+                            ? Text(t.noComplaintsFound)
                             : Column(
                                 children: [
                                   for (final c in _complaints) _ComplaintTile(data: c),
@@ -249,16 +255,14 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                 ),
               );
 
-    // >>> HIER: WillPopScope um dein Scaffold legen <<<
     return WillPopScope(
       onWillPop: () async {
-        // „Zurück“ (Browser/Android) -> **immer** auf die Startseite
         Navigator.of(context).pushNamedAndRemoveUntil('/login', (Route<dynamic> r) => false);
-        return false; // wir haben das Back-Event selbst behandelt
+        return false;
       },
       child: Scaffold(
         appBar: AppBar(
-          automaticallyImplyLeading: false, // <-- sorgt dafür, dass kein Back-Arrow erscheint
+          automaticallyImplyLeading: false,
           title: Text(t.rep_dashboard),
           actions: [
             IconButton(
@@ -268,7 +272,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             ),
             const SizedBox(width: 8),
             TextButton.icon(
-              onPressed: _logout, // bleibt unverändert: logout + zurück zur Startseite
+              onPressed: _logout,
               icon: const Icon(Icons.logout),
               label: Text(t.logout),
             ),
@@ -280,6 +284,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     );
   }
 }
+
 class _Card extends StatelessWidget {
   final String title;
   final List<Widget>? actions;
@@ -332,6 +337,8 @@ class _ComplaintTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.t;
+
     final ticket   = (data['ticket'] ?? '').toString();
     final status   = (data['status'] ?? '').toString();
     final decision = (data['decision'] ?? '').toString();
@@ -353,8 +360,8 @@ class _ComplaintTile extends StatelessWidget {
             if (segment.isNotEmpty)  Text('${t.segment_plain}: $segment'),
             Text(
               'Status: $status'
-              '${decision.isNotEmpty ? ' • Entscheidung: $decision' : ''}'
-              '${created.isNotEmpty ? ' • Angelegt: $created' : ''}',
+              '${decision.isNotEmpty ? ' • ${t.decision}: $decision' : ''}'
+              '${created.isNotEmpty ? ' • ${t.created_at ?? 'Angelegt'}: $created' : ''}',
             ),
           ],
         ),
