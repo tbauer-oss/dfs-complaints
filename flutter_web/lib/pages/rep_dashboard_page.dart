@@ -140,14 +140,16 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   }
 
   Future<void> _logout() async {
-    await widget.api.repLogout();             // repToken löschen + persistieren
+    await widget.api.repLogout(); // repToken löschen
     if (!mounted) return;
 
-    // Feedback + sicher bis zur Startseite
+    // Hinweis anzeigen
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Abgemeldet.')),
     );
-    Navigator.of(context).popUntil((r) => r.isFirst);
+
+    // 🔹 Navigation zurück auf Startseite (alle Routen löschen)
+    Navigator.of(context).pushNamedAndRemoveUntil('/', (Route<dynamic> route) => false);
   }
 
   @override
@@ -250,6 +252,17 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Zurück',
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              Navigator.of(context).pushNamedAndRemoveUntil('/', (r) => false);
+            }
+          },
+        ),
         title: const Text('Vertreter-Dashboard'),
         actions: [
           IconButton(
