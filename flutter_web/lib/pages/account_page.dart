@@ -297,13 +297,13 @@ class _AccountEditPageState extends State<_AccountEditPage> {
                         });
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(t.saved ?? 'Gespeichert.')),
+                          SnackBar(content: Text(context.t.saved ?? 'Gespeichert.')),
                         );
                         Navigator.of(context).pop();
                       } catch (e) {
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(context.t.error(e))),
+                            SnackBar(content: Text('${context.t.error ?? 'Fehler'}: $e')),
                           );
                         }
                       } finally {
@@ -311,12 +311,10 @@ class _AccountEditPageState extends State<_AccountEditPage> {
                       }
                     },
                     child: busy
-                        ? const SizedBox(
-                            width: 18, height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Text(t.save ?? 'Speichern'),
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        : Text(context.t.save ?? 'Speichern'),
                   ),
+
                   const SizedBox(width: 12),
                   OutlinedButton(
                     onPressed: () => Navigator.of(context).pop(),
