@@ -60,8 +60,8 @@ class _AccountPageState extends State<AccountPage> {
             padding: const EdgeInsets.all(16),
             children: [
               Text('E-Mail: ${acc!['email'] ?? ''}'),
-              Text('Firma: ${acc!['company'] ?? ''}'),
-              Text('Ansprechpartner: ${acc!['contact'] ?? ''}'),
+              Text('${context.t.company_label}: ${acc!['company'] ?? ''}'),
+              Text('${context.t.contact_person_label}: ${v(acc!['contact'])}'),
               const SizedBox(height: 16),
 
               FilledButton.icon(
@@ -71,7 +71,7 @@ class _AccountPageState extends State<AccountPage> {
                     builder: (_) => _AccountEditPage(api: widget.api, initial: acc!),
                   ),
                 ).then((_) => _load()),
-                label: const Text('Daten ändern'),
+                label: const Text(t.editData),
               ),
               const SizedBox(height: 12),
 
@@ -80,30 +80,29 @@ class _AccountPageState extends State<AccountPage> {
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => _PasswordPage(api: widget.api)),
                 ),
-                label: const Text('Passwort ändern'),
+                label: const Text(t.changePassword),
               ),
               const SizedBox(height: 12),
 
               OutlinedButton.icon(
                 icon: const Icon(Icons.delete_forever, color: Colors.red),
-                label: const Text('Account löschen', style: TextStyle(color: Colors.red)),
+                label: const Text(t.accountDelete, style: TextStyle(color: Colors.red)),
                 onPressed: () async {
                   // 1) Sicherheitsabfrage
                   final sure = await showDialog<bool>(
                     context: context,
                     builder: (_) => AlertDialog(
-                      title: const Text('Account löschen?'),
-                      content: const Text(
-                        'Bist du sicher? Dieser Vorgang kann nicht rückgängig gemacht werden.'
+                      title: const Text(t.accountDeleteTitle),
+                      content: const Text(t.accountDeleteConfirm
                       ),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(context, false),
-                          child: const Text('Abbrechen'),
+                          child: const Text(t.cancel),
                         ),
                         FilledButton(
                           onPressed: () => Navigator.pop(context, true),
-                          child: const Text('Weiter'),
+                          child: const Text(t.continueLabel),
                         ),
                       ],
                     ),
@@ -116,10 +115,10 @@ class _AccountPageState extends State<AccountPage> {
                     builder: (_) {
                       final ctrl = TextEditingController();
                       return AlertDialog(
-                        title: const Text('Passwort bestätigen'),
+                        title: const Text(t.confirm_password_title),
                         content: TextField(
                           controller: ctrl, obscureText: true,
-                          decoration: const InputDecoration(labelText: 'Passwort'),
+                          decoration: const InputDecoration(labelText: t.gate_password),
                         ),
                         actions: [
                           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
