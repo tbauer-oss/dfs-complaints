@@ -2,6 +2,12 @@
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import 'rep_dashboard_page.dart';
+import '../l10n/app_localizations.dart';
+
+// L10n-Helper
+extension _L10nX on BuildContext {
+  AppLocalizations get t => AppLocalizations.of(this)!;
+}
 
 class RepLoginPage extends StatefulWidget {
   final ApiClient api;
@@ -34,16 +40,17 @@ class _RepLoginPageState extends State<RepLoginPage> {
   // LOGIN FLOW (E-Mail + Passwort)
   // =========
   Future<void> _submitPasswordLogin() async {
+    final t = context.t;
     _setErr(null);
     final email = _email.text.trim().toLowerCase();
     final pw    = _pw.text;
 
     if (email.isEmpty || !email.contains('@')) {
-      _setErr('Bitte eine gültige E-Mail-Adresse eingeben.');
+      _setErr(t.email_invalid); // NEU
       return;
     }
     if (pw.isEmpty) {
-      _setErr('Bitte ein Passwort eingeben.');
+      _setErr(t.password_required); // NEU
       return;
     }
 
@@ -51,18 +58,16 @@ class _RepLoginPageState extends State<RepLoginPage> {
     try {
       final res = await widget.api.repLogin(email, pw);
       if (!res.ok) {
-        _setErr('Anmeldung fehlgeschlagen. Bitte E-Mail/Passwort prüfen.');
+        _setErr(t.login_failed_check_credentials); // NEU
         return;
       }
       if (res.mustChange) {
-        // Sofort PW-Änderung erzwingen:
         await _openChangePwDialog();
         return;
       }
-      // Erfolgreich -> Dashboard
       _goRepDashboard();
     } catch (e) {
-      _setErr('Login fehlgeschlagen: $e');
+      _setErr(t.login_failed_with_error('$e')); // NEU (parametrisierter Key)
     } finally {
       _setBusy(false);
     }
@@ -70,11 +75,9 @@ class _RepLoginPageState extends State<RepLoginPage> {
 
   // =========
   // SECRET-REGISTRATION FLOW
-  //   1) Dialog: E-Mail + temporäres Passwort (Secret)
-  //   2) Direkt im Anschluss Passwort ändern
-  //   3) Danach ins Dashboard
   // =========
   Future<void> _openSecretDialog() async {
+    final t = context.t;
     final mailCtrl = TextEditingController(text: _email.text.trim());
     final secCtrl  = TextEditingController();
     String? locErr;
@@ -84,25 +87,25 @@ class _RepLoginPageState extends State<RepLoginPage> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) => AlertDialog(
-          title: const Text('Registrieren (temporäres Passwort)'),
+          title: Text(t.register_temp_password_title), // NEU
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: mailCtrl,
                 keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  labelText: 'Vertreter-E-Mail',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: t.rep_email_label, // NEU
+                  border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: secCtrl,
                 obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Temporäres Passwort (Secret)',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: t.temp_password_label, // NEU
+                  border: const OutlineInputBorder(),
                 ),
               ),
               if (locErr != null) ...[
@@ -114,7 +117,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
           actions: [
             TextButton(
               onPressed: saving ? null : () => Navigator.pop(ctx, false),
-              child: const Text('Abbrechen'),
+              child: Text(t.cancel),
             ),
             FilledButton.icon(
               onPressed: saving
@@ -123,11 +126,11 @@ class _RepLoginPageState extends State<RepLoginPage> {
                       final email = mailCtrl.text.trim().toLowerCase();
                       final sec   = secCtrl.text.trim();
                       if (email.isEmpty || !email.contains('@')) {
-                        setS(() => locErr = 'Bitte eine gültige E-Mail-Adresse eingeben.');
+                        setS(() => locErr = t.email_invalid); // NEU
                         return;
                       }
                       if (sec.isEmpty) {
-                        setS(() => locErr = 'Bitte das temporäre Passwort eingeben.');
+                        setS(() => locErr = t.temp_password_required); // NEU
                         return;
                       }
                       setS(() { saving = true; locErr = null; });
@@ -136,7 +139,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
                         if (!ok) {
                           setS(() {
                             saving = false;
-                            locErr = 'Temporäres Passwort ungültig oder nicht zulässig.';
+                            locErr = t.temp_password_invalid; // NEU
                           });
                           return;
                         }
@@ -144,14 +147,14 @@ class _RepLoginPageState extends State<RepLoginPage> {
                       } catch (e) {
                         setS(() {
                           saving = false;
-                          locErr = 'Fehler: $e';
+                          locErr = '${t.error ?? 'Fehler'}: $e';
                         });
                       }
                     },
               icon: saving
                   ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.login),
-              label: const Text('Weiter'),
+              label: Text(t.continueLabel),
             ),
           ],
         ),
@@ -159,7 +162,6 @@ class _RepLoginPageState extends State<RepLoginPage> {
     );
 
     if (want == true) {
-      // Nach erfolgreichem Secret-Login sofort Passwort-Änderung erzwingen:
       await _openChangePwDialog();
     }
 
@@ -167,8 +169,9 @@ class _RepLoginPageState extends State<RepLoginPage> {
     secCtrl.dispose();
   }
 
-  // Dialog zum Passwort-Ändern (wird nach Secret-Login oder mustChangePw aufgerufen)
+  // Dialog zum Passwort-Ändern (nach Secret-Login oder mustChangePw)
   Future<void> _openChangePwDialog() async {
+    final t = context.t;
     final aCtrl = TextEditingController();
     final bCtrl = TextEditingController();
     String? locErr;
@@ -179,25 +182,25 @@ class _RepLoginPageState extends State<RepLoginPage> {
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) => AlertDialog(
-          title: const Text('Neues Passwort festlegen'),
+          title: Text(t.new_password_title), // NEU
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: aCtrl,
                 obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Neues Passwort (mind. 8 Zeichen)',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: t.new_password_min8, // NEU
+                  border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: bCtrl,
                 obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Neues Passwort (Wiederholung)',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: t.new_password_repeat_label, // NEU
+                  border: const OutlineInputBorder(),
                 ),
                 onSubmitted: (_) async {
                   if (!saving) {
@@ -214,7 +217,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
           actions: [
             TextButton(
               onPressed: saving ? null : () => Navigator.pop(ctx, false),
-              child: const Text('Abbrechen'),
+              child: Text(t.cancel),
             ),
             FilledButton.icon(
               onPressed: saving
@@ -225,7 +228,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
               icon: saving
                   ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.check),
-              label: const Text('Speichern'),
+              label: Text(t.save ?? 'Speichern'),
             ),
           ],
         ),
@@ -236,7 +239,6 @@ class _RepLoginPageState extends State<RepLoginPage> {
     bCtrl.dispose();
 
     if (ok == true) {
-      // Passwort gesetzt → direkt ins Dashboard
       _goRepDashboard();
     }
   }
@@ -249,27 +251,28 @@ class _RepLoginPageState extends State<RepLoginPage> {
     void Function(String?) setLocErr,
     void Function() markSaving,
   ) async {
+    final t = ctx.t;
     final a = aCtrl.text;
     final b = bCtrl.text;
     if (a.isEmpty || b.isEmpty) {
-      setS(() => setLocErr('Bitte das neue Passwort in beiden Feldern eingeben.'));
+      setS(() => setLocErr(t.password_both_required)); // NEU
       return;
     }
     if (a != b) {
-      setS(() => setLocErr('Passwörter stimmen nicht überein.'));
+      setS(() => setLocErr(t.passwordsDontMatch ?? 'Passwörter stimmen nicht überein.'));
       return;
     }
     if (a.length < 8) {
-      setS(() => setLocErr('Das Passwort muss mindestens 8 Zeichen lang sein.'));
+      setS(() => setLocErr(t.password_min_length)); // NEU
       return;
     }
 
     setS(() { markSaving(); setLocErr(null); });
     try {
-      await widget.api.repChangePassword(a); // setzt ggf. neues Token
+      await widget.api.repChangePassword(a);
       if (ctx.mounted) Navigator.pop(ctx, true);
     } catch (e) {
-      setS(() => setLocErr('Passwort setzen fehlgeschlagen: $e'));
+      setS(() => setLocErr(t.password_set_failed('$e'))); // NEU (parametrisiert)
     }
   }
 
@@ -282,10 +285,11 @@ class _RepLoginPageState extends State<RepLoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.t;
     final canLogin = !_busy && _email.text.trim().isNotEmpty && _pw.text.isNotEmpty;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Vertreter-Login')),
+      appBar: AppBar(title: Text(t.rep_login_title)), // NEU
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 520),
@@ -295,14 +299,14 @@ class _RepLoginPageState extends State<RepLoginPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // ---- Login-Formular (immer sichtbar) ----
+                  // ---- Login-Formular ----
                   TextField(
                     controller: _email,
                     keyboardType: TextInputType.emailAddress,
                     autofillHints: const [AutofillHints.username, AutofillHints.email],
-                    decoration: const InputDecoration(
-                      labelText: 'E-Mail',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: t.email,
+                      border: const OutlineInputBorder(),
                     ),
                     onChanged: (_) => setState(() {}),
                   ),
@@ -311,9 +315,9 @@ class _RepLoginPageState extends State<RepLoginPage> {
                     controller: _pw,
                     obscureText: true,
                     autofillHints: const [AutofillHints.password],
-                    decoration: const InputDecoration(
-                      labelText: 'Passwort',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: t.password,
+                      border: const OutlineInputBorder(),
                     ),
                     onChanged: (_) => setState(() {}),
                     onSubmitted: (_) => canLogin ? _submitPasswordLogin() : null,
@@ -331,19 +335,19 @@ class _RepLoginPageState extends State<RepLoginPage> {
                       icon: _busy
                           ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                           : const Icon(Icons.login),
-                      label: const Text('Anmelden'),
+                      label: Text(t.login), // NEU
                     ),
                   ),
 
                   const SizedBox(height: 18),
                   Row(
-                    children: const [
-                      Expanded(child: Divider()),
+                    children: [
+                      const Expanded(child: Divider()),
                       Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 8),
-                        child: Text('oder'),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Text(t.or), // NEU
                       ),
-                      Expanded(child: Divider()),
+                      const Expanded(child: Divider()),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -354,7 +358,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
                     child: OutlinedButton.icon(
                       onPressed: _busy ? null : _openSecretDialog,
                       icon: const Icon(Icons.key),
-                      label: const Text('Ich habe ein temporäres Passwort'),
+                      label: Text(t.i_have_temp_password), // NEU
                     ),
                   ),
                 ],
