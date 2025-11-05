@@ -18,6 +18,166 @@ import 'pages/rep_dashboard_page.dart';
 // Widgets
 import 'widgets/lang_action.dart';
 
+// ===== THEME BRANDING =====
+const kBrandSeed = Color(0xFF1F4C8F); // DFS-Blau – bei Bedarf anpassen
+
+ThemeData _lightTheme() {
+  final scheme = ColorScheme.fromSeed(
+    seedColor: kBrandSeed,
+    brightness: Brightness.light,
+  );
+  return ThemeData(
+    useMaterial3: true,
+    colorScheme: scheme,
+    scaffoldBackgroundColor: scheme.surface,
+    appBarTheme: AppBarTheme(
+      backgroundColor: scheme.surface,
+      foregroundColor: scheme.onSurface,
+      elevation: 0,
+      centerTitle: false,
+    ),
+    cardTheme: CardTheme(
+      color: scheme.surfaceContainerHighest,
+      elevation: 2,
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        foregroundColor: scheme.onPrimary,
+        backgroundColor: scheme.primary,
+        minimumSize: const Size(48, 40),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(48, 40)),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        side: BorderSide(color: scheme.outline),
+        minimumSize: const Size(48, 40),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: scheme.surfaceContainerHighest,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: scheme.outlineVariant),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: scheme.primary, width: 2),
+      ),
+      labelStyle: TextStyle(color: scheme.onSurfaceVariant),
+      hintStyle: TextStyle(color: scheme.onSurfaceVariant.withOpacity(.8)),
+    ),
+    snackBarTheme: SnackBarThemeData(
+      backgroundColor: scheme.inverseSurface,
+      contentTextStyle: TextStyle(color: scheme.onInverseSurface),
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    ),
+    dialogTheme: DialogTheme(
+      backgroundColor: scheme.surfaceContainerHigh,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    ),
+    dividerTheme: DividerThemeData(color: scheme.outlineVariant),
+    listTileTheme: ListTileThemeData(iconColor: scheme.onSurfaceVariant),
+    checkboxTheme: CheckboxThemeData(fillColor: WidgetStatePropertyAll(scheme.primary)),
+    radioTheme: RadioThemeData(fillColor: WidgetStatePropertyAll(scheme.primary)),
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStatePropertyAll(scheme.primary),
+      trackColor: WidgetStatePropertyAll(scheme.primary.withOpacity(.35)),
+    ),
+  );
+}
+
+ThemeData _darkTheme() {
+  final scheme = ColorScheme.fromSeed(
+    seedColor: kBrandSeed,
+    brightness: Brightness.dark,
+  );
+  return ThemeData(
+    useMaterial3: true,
+    colorScheme: scheme,
+    scaffoldBackgroundColor: scheme.surface,
+    appBarTheme: AppBarTheme(
+      backgroundColor: scheme.surface,
+      foregroundColor: scheme.onSurface,
+      elevation: 0,
+      centerTitle: false,
+    ),
+    cardTheme: CardTheme(
+      color: scheme.surfaceContainerHighest,
+      elevation: 1,
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        foregroundColor: scheme.onPrimary,
+        backgroundColor: scheme.primary,
+        minimumSize: const Size(48, 40),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        foregroundColor: scheme.onSecondaryContainer,
+        backgroundColor: scheme.secondaryContainer,
+        minimumSize: const Size(48, 40),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: scheme.onSurface,
+        side: BorderSide(color: scheme.outline),
+        minimumSize: const Size(48, 40),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: scheme.surfaceContainerHigh,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: scheme.outlineVariant),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: scheme.primary, width: 2),
+      ),
+      labelStyle: TextStyle(color: scheme.onSurfaceVariant),
+      hintStyle: TextStyle(color: scheme.onSurfaceVariant.withOpacity(.9)),
+    ),
+    snackBarTheme: SnackBarThemeData(
+      backgroundColor: scheme.inverseSurface,
+      contentTextStyle: TextStyle(color: scheme.onInverseSurface),
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    ),
+    dialogTheme: DialogTheme(
+      backgroundColor: scheme.surfaceContainerHigh,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    ),
+    dividerTheme: DividerThemeData(color: scheme.outlineVariant),
+    listTileTheme: ListTileThemeData(iconColor: scheme.onSurfaceVariant),
+    checkboxTheme: CheckboxThemeData(fillColor: WidgetStatePropertyAll(scheme.primary)),
+    radioTheme: RadioThemeData(fillColor: WidgetStatePropertyAll(scheme.primary)),
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStatePropertyAll(scheme.primary),
+      trackColor: WidgetStatePropertyAll(scheme.primary.withOpacity(.35)),
+    ),
+  );
+}
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
@@ -249,16 +409,8 @@ class _MyAppState extends State<MyApp> {
 
       // ---- Theme ----
       themeMode: _themeMode,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: const Color(0xFF1F4C8F), // DFS-Blau
-        brightness: Brightness.light,
-      ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: const Color(0xFF1F4C8F),
-        brightness: Brightness.dark,
-      ),
+      theme: _lightTheme(),
+      darkTheme: _darkTheme(),
 
       // ---- Routing ----
       initialRoute: '/',
@@ -313,16 +465,29 @@ class _MyAppState extends State<MyApp> {
                       _themeMenu(),
                     ],
                   ),
-                  body: Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Color(0xFFEFF3FA), // zartes Blau-Grau
-                          Color(0xFFFFFFFF),
-                        ],
-                      ),
+                  final scheme = Theme.of(ctx).colorScheme;
+                  final isDark = Theme.of(ctx).brightness == Brightness.dark;
+
+                  body: DecoratedBox(
+                    decoration: BoxDecoration(
+                      // Im Dark-Mode lieber eine ruhige Fläche mit leichtem „Container“-Verlauf
+                      gradient: isDark
+                          ? LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                scheme.surface,                 // Basis
+                                scheme.surfaceContainerHighest, // leichte Abhebung unten
+                              ],
+                            )
+                          : const LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Color(0xFFEFF3FA), // zartes Blau-Grau
+                                Color(0xFFFFFFFF),
+                              ],
+                            ),
                     ),
                     child: Center(
                       child: ConstrainedBox(
