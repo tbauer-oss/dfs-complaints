@@ -158,7 +158,7 @@ class _AccountPageState extends State<AccountPage> {
                   } catch (e) {
                     if (!mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('${t.error ?? 'Fehler'}: $e')),
+                      SnackBar(content: Text('${t.error}: $e')),
                     );
                   }
                 },
