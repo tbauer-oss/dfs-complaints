@@ -7,6 +7,17 @@
   "langES": "ES",
   "langFR": "FR",
   "langIT": "IT",
+
+  "theme_system": "System",
+  "theme_light": "Hell",
+  "theme_dark": "Dunkel",
+  "rep_area": "Vertreterbereich",
+  
+
+
+
+
+
   "langMenuTooltip": "Sprache",
   "langNameDE": "Deutsch",
   "langNameEN": "Englisch",
@@ -17,7 +28,6 @@
   "returned": "zurückgegeben",
   "applied": "angewandt",
   "injury": "Verletzung",
-  "rep_banner_title": "Ihr Ansprechpartner (Vertreter): {name}",
   "rep_banner_title": "Ihr Ansprechpartner (Vertreter): {name}",
   "@rep_banner_title": {"placeholders": { "name": { "type": "String" } }},
   "rep_email_button": "E-Mail",
