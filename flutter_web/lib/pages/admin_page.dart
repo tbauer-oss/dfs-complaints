@@ -2395,7 +2395,7 @@ class AdminPalette {
   static const blueB  = Color(0xFF1E88E5);
 }
 
-class AdminTilePro extends StatelessWidget {
+class AdminTilePro extends StatefulWidget {
   final String label;
   final String? subtitle;
   final IconData icon;
@@ -2418,69 +2418,102 @@ class AdminTilePro extends StatelessWidget {
   });
 
   @override
+  State<AdminTilePro> createState() => _AdminTileProState();
+}
+
+class _AdminTileProState extends State<AdminTilePro> {
+  bool _hovering = false;
+
+  @override
   Widget build(BuildContext context) {
-    final card = Card(
-      elevation: 1.5,
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [colorA, Colors.white],
-            ),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Stack(
-                clipBehavior: Clip.none,
+    final br = BorderRadius.circular(12);
+    final liftY = _hovering ? -6.0 : 0.0; // Bewegung nach oben
+    final scale = _hovering ? 1.01 : 1.0;
+    final elevation = _hovering ? 10.0 : 2.0;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        transform: Matrix4.identity()
+          ..translate(0.0, liftY)
+          ..scale(scale),
+        child: Material(
+          elevation: elevation,
+          borderRadius: br,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: widget.onTap,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: br,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [widget.colorA, Colors.white],
+                ),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(icon, size: compact ? 36 : 44, color: colorB),
-                  if (count != null)
-                    Positioned(
-                      right: -6,
-                      top: -6,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: colorB,
-                          borderRadius: BorderRadius.circular(999),
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Icon(
+                        widget.icon,
+                        size: widget.compact ? 36 : 44,
+                        color: widget.colorB,
+                      ),
+                      if (widget.count != null)
+                        Positioned(
+                          right: -6,
+                          top: -6,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: widget.colorB,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              '${widget.count}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
                         ),
-                        child: Text(
-                          '$count',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12),
-                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    widget.label,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  if ((widget.subtitle ?? '').isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      widget.subtitle!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.8),
+                        fontSize: 12.5,
                       ),
                     ),
+                  ],
                 ],
               ),
-              const SizedBox(height: 12),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              if ((subtitle ?? '').isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text(
-                  subtitle!,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.8),
-                    fontSize: 12.5,
-                  ),
-                ),
-              ],
-            ],
+            ),
           ),
         ),
       ),
     );
-
     return card;
   }
 }
