@@ -248,9 +248,9 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                       } else {
                         setState(() { info = t.sent_ticket(ticket); _dirty = false; });
                       }
-                    } catch (e) {
-                      setState(() { busy = false; err = t.network_cors_error(e.toString());
-                    }
+                     } catch (e) {
+                      setState(() { busy = false; err = t.network_cors_error(e.toString())};
+                    )
                   },
                   child: busy
                       ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
