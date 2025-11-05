@@ -2,6 +2,7 @@
 import 'dart:html' as html; // nur Web: Sprache & Theme persistieren
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_svg/flutter_svg.dart'; // ganz oben ergänzen
 
 import 'api/client.dart';
 import 'l10n/app_localizations.dart';
@@ -469,22 +470,33 @@ class _LoginScreenState extends State<_LoginScreen> {
               // Kopfzeile mit echtem DFS-Logo + App-Titel
               Row(
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.asset(
-                      'assets/dfs_logo.png',
-                      height: 40,
-                      fit: BoxFit.contain,
-                    ),
+                  // SVG zuerst versuchen…
+                  Builder(
+                    builder: (_) {
+                      const double h = 40;
+                      try {
+                        return SvgPicture.asset(
+                          'assets/dfs_logo.svg',
+                          height: h,
+                          // optional: Theme-Farbe einblenden, wenn das Logo monochrom ist
+                          // colorFilter: const ColorFilter.mode(Color(0xFF1F4C8F), BlendMode.srcIn),
+                        );
+                      } catch (_) {
+                        // Fallback: PNG in hoher Qualität
+                        return Image.asset(
+                          'assets/dfs_logo.png',
+                          height: h,
+                          filterQuality: FilterQuality.high,
+                          isAntiAlias: true,
+                        );
+                      }
+                    },
                   ),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Text(
                       t.appTitle,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                     ),
                   ),
                 ],
