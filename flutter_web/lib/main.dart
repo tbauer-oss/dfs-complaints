@@ -73,6 +73,7 @@ class _MyAppState extends State<MyApp> {
 
   Future<void> _boot() async {
     await api.restoreSession();
+    await api.ensureRepSession(); // invalides repToken nach Deploys o.ä. wegräumen
     setState(() {
       // _loggedIn steuert weiterhin nur den Kundenbereich;
       // der Vertreterbereich wird unten im build() separat über _repLoggedIn geroutet.
