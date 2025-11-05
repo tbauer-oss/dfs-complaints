@@ -4,7 +4,7 @@ import '../api/client.dart';
 
 class AccountPage extends StatefulWidget {
   final ApiClient api;
-  final t = AppLocalizations.of(c)!;
+  final t = AppLocalizations.of(ctx)!;
   const AccountPage({super.key, required this.api});
   @override
   State<AccountPage> createState() => _AccountPageState();
