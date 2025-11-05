@@ -42,11 +42,11 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     final res = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Ungespeicherte Änderungen'),
-        content: const Text('Es gibt nicht gespeicherte Änderungen. Wirklich verlassen?'),
+        title: Text(t.unsavedChangesTitle),
+        content: Text(t.unsavedChangesText),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
-          FilledButton.tonal(onPressed: () => Navigator.pop(context, true), child: const Text('Verlassen')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(t.cancel)),
+          FilledButton.tonal(onPressed: () => Navigator.pop(context, true), child: Text(t.leave)),
         ],
       ),
     );
@@ -249,7 +249,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                         setState(() { info = t.sent_ticket(ticket); _dirty = false; });
                       }
                     } catch (e) {
-                      setState(() { busy = false; err = 'Network/CORS error: $e'; });
+                      setState(() { busy = false; err = t.network_cors_error(e.toString());
                     }
                   },
                   child: busy
@@ -257,7 +257,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                       : Text(t.send),
                 ),
                 const SizedBox(width: 12),
-                OutlinedButton(onPressed: _handleCancel, child: const Text('Abbrechen')),
+                OutlinedButton(onPressed: _handleCancel, child: Text(t.cancel)),
               ]),
             ],
           ),
@@ -270,9 +270,9 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
       child: Scaffold(
         appBar: AppBar(
           automaticallyImplyLeading: false,
-          title: const Text('Reklamation melden'),
-          leading: IconButton(icon: const Icon(Icons.arrow_back), tooltip: 'Zurück', onPressed: _handleBack),
-          actions: [ TextButton(onPressed: _handleCancel, child: const Text('Abbrechen')) ],
+          title: Text(t.reportComplaint),
+          leading: IconButton(icon: const Icon(Icons.arrow_back), tooltip: t.back, onPressed: _handleBack),
+          actions: [ TextButton(onPressed: _handleCancel, child: Text(t.cancel)) ],
         ),
         body: body,
       ),
