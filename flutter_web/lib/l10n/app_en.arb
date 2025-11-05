@@ -28,6 +28,10 @@
   "country_label": "Country",
   "internal_no_label": "Internal DFS No.",
 
+  "customer_login": "Customer login",
+  "more_areas": "More areas",
+  "opening_rep_area": "Opening representative area…",
+
   "gate_prompt": "Access code (one-time for unregistered customers)",
   "gate_password": "Password",
   "continueLabel": "Continue",
