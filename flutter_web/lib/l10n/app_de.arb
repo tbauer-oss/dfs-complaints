@@ -22,6 +22,7 @@
   "company_label": "Firma:",
   "contact_person_label": "Ansprechpartner:",
   "confirmPassword": "Passwort bestätigen",
+  "passwordChanged": "Passwort wurde geändert.", 
   "noDataFound": "Keine Daten gefunden.",
   "address": "Adresse",
   "saved": "Gespeichert",
