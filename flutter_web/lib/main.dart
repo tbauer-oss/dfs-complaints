@@ -6,13 +6,14 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'api/client.dart';
 import 'l10n/app_localizations.dart';
 
-// WICHTIG: Keine login_page.dart mehr importieren!
-// import 'pages/login_page.dart'  <-- entfernt
+// Seiten
 import 'pages/register_page.dart';
 import 'pages/admin_page.dart';
 import 'pages/dashboard_page.dart';
-import 'pages/rep_login_page.dart' show RepLoginPage;
+import 'pages/rep_login_page.dart';
 import 'pages/rep_dashboard_page.dart';
+
+// Widgets
 import 'widgets/lang_action.dart';
 
 void main() {
@@ -27,21 +28,19 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
+  // ---- Core ----
   final api = ApiClient();
+  final GlobalKey<NavigatorState> _navKey = GlobalKey<NavigatorState>();
 
   Locale? _locale;
-  bool _bootDone = false;
-  bool _loggedIn = false; // -> bleibt für den Kunden-Login (token) zuständig
-
   ThemeMode _themeMode = ThemeMode.system;
 
-  // Globaler Navigator-Key (für Redirects im builder)
-  final _navKey = GlobalKey<NavigatorState>();
+  bool _bootDone = false;
+  bool _loggedIn = false; // Kundenlogin (token) steuert den Kunden-Flow
 
-  // ---- kleine Helfer für den Gating-Check ----
+  // ---- Helpers ----
   bool get _customerLoggedIn => (api.token != null && api.token!.isNotEmpty);
   bool get _repLoggedIn => (api.repToken != null && api.repToken!.isNotEmpty);
-  }
 
   @override
   void initState() {
@@ -73,9 +72,7 @@ class _MyAppState extends State<MyApp> {
     await api.restoreSession();
     await api.ensureRepSession(); // invalides repToken nach Deploys o.ä. wegräumen
     setState(() {
-      // _loggedIn steuert weiterhin nur den Kundenbereich;
-      // der Vertreterbereich wird via _repLoggedIn im builder geroutet.
-      _loggedIn = _customerLoggedIn;
+      _loggedIn = _customerLoggedIn; // Kunden-Flow bleibt unabhängig vom Vertreter-Flow
       _bootDone = true;
     });
   }
@@ -198,7 +195,6 @@ class _MyAppState extends State<MyApp> {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => RegisterPage(api: api)));
   }
 
-  // Vertreter-Bereich öffnen: zur Rep-Login-Route
   void _openRepArea(BuildContext ctx) {
     Navigator.of(ctx).pushNamed('/repLogin');
   }
@@ -214,10 +210,11 @@ class _MyAppState extends State<MyApp> {
       );
     }
 
-    // Eine (!) MaterialApp mit benannten Routen
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       navigatorKey: _navKey,
+
+      // ---- i18n ----
       locale: _locale,
       supportedLocales: const [
         Locale('de'), Locale('en'), Locale('fr'), Locale('it'), Locale('es'),
@@ -242,6 +239,7 @@ class _MyAppState extends State<MyApp> {
         return const Locale('de');
       },
 
+      // ---- Theme ----
       themeMode: _themeMode,
       theme: ThemeData(
         useMaterial3: true,
@@ -254,131 +252,94 @@ class _MyAppState extends State<MyApp> {
         brightness: Brightness.dark,
       ),
 
-      // Feste Start-Route (Login/Startseite)
-      initialRoute: '/login',
-
-      // Benannte Routen
+      // ---- Routing ----
+      initialRoute: '/',
       routes: {
-        // Start-/Login-Shell (beinhaltet deinen alten "home:"-Block dynamisch)
-        '/login': (_) => _RootLoginShell(
-              api: api,
-              themeMenu: _themeMenu(),
-              onLocaleChanged: _setLocale,
-              onLoggedIn: _onLoggedIn,
-              onOpenRegister: _openRegister,
-              onOpenAdmin: _openAdmin,
-              onOpenRep: _openRepArea,
-              loggedIn: _loggedIn,
-              onLoggedOut: _onLoggedOut,
+        // Root / Startseite: Kunden-Flow
+        '/': (_) => Builder(
+              builder: (ctx) {
+                final t = AppLocalizations.of(ctx)!;
+                return _loggedIn
+                    ? Scaffold(
+                        appBar: AppBar(
+                          title: Text(t.appTitle),
+                          actions: [
+                            LangAction(onLocaleChanged: _setLocale),
+                            _themeMenu(),
+                          ],
+                          bottom: PreferredSize(
+                            preferredSize: const Size.fromHeight(50),
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                child: FilledButton.icon(
+                                  icon: const Icon(Icons.logout),
+                                  label: Text(t.logout),
+                                  onPressed: () async {
+                                    await api.logout(); // Kunden-Logout
+                                    if (ctx.mounted) {
+                                      ScaffoldMessenger.of(ctx).showSnackBar(
+                                        SnackBar(content: Text(t.loggedOut)),
+                                      );
+                                    }
+                                    _onLoggedOut();
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        body: DashboardPage(api: api, onLoggedOut: _onLoggedOut),
+                      )
+                    : Scaffold(
+                        appBar: AppBar(
+                          title: Text(t.login),
+                          actions: [
+                            LangAction(onLocaleChanged: _setLocale),
+                            _themeMenu(),
+                          ],
+                        ),
+                        body: _LoginScreen(
+                          api: api,
+                          onLoggedIn: _onLoggedIn,
+                          onOpenRegister: () => _openRegister(ctx),
+                          onOpenAdmin: () => _openAdmin(ctx),
+                          onOpenRep: () => _openRepArea(ctx), // -> /repLogin
+                        ),
+                      );
+              },
             ),
 
-        // Vertreter-Login (deine existierende Seite)
+        // Vertreter-Login (immer erreichbar; kein Token nötig)
         '/repLogin': (_) => RepLoginPage(api: api),
 
-        // Vertreter-Dashboard
+        // Vertreter-Dashboard (nur gültig, wenn repToken vorhanden)
         '/rep': (_) => RepDashboardPage(api: api),
       },
 
-      // Zentraler Redirect je nach Rep-Status
-      builder: (context, child) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          final ctx = _navKey.currentContext ?? context;
-          final route = ModalRoute.of(ctx);
-          final name = route?.settings.name;
+      // Guard-Logik zentral
+      onGenerateRoute: (settings) {
+        final name = settings.name ?? '/';
 
-          if (_repLoggedIn && name != '/rep') {
-            _navKey.currentState?.pushNamedAndRemoveUntil('/rep', (r) => false);
-          } else if (!_repLoggedIn && name == '/rep') {
-            _navKey.currentState?.pushNamedAndRemoveUntil('/login', (r) => false);
-          }
-        });
-        return child!;
+        // Versucht, direkt ins Rep-Dashboard zu gehen -> nur erlaubt mit repToken
+        if (name == '/rep' && !_repLoggedIn) {
+          return MaterialPageRoute(
+            builder: (_) => RepLoginPage(api: api),
+            settings: const RouteSettings(name: '/repLogin'),
+          );
+        }
+
+        // Ist bereits als Vertreter eingeloggt und ruft /repLogin auf -> auf /rep umbiegen
+        if (name == '/repLogin' && _repLoggedIn) {
+          return MaterialPageRoute(
+            builder: (_) => RepDashboardPage(api: api),
+            settings: const RouteSettings(name: '/rep'),
+          );
+        }
+
+        return null; // standard routing nutzt oben definierte "routes"
       },
-    );
-  }
-
-// =======================
-// Root-Shell für Kunden-Start/Login (ersetzt vorheriges home:)
-// =======================
-class _RootLoginShell extends StatelessWidget {
-  final ApiClient api;
-  final Widget themeMenu;
-  final void Function(Locale) onLocaleChanged;
-  final VoidCallback onLoggedIn;
-  final void Function(BuildContext) onOpenRegister;
-  final void Function(BuildContext) onOpenAdmin;
-  final void Function(BuildContext) onOpenRep;
-  final bool loggedIn;
-  final VoidCallback onLoggedOut;
-
-  const _RootLoginShell({
-    required this.api,
-    required this.themeMenu,
-    required this.onLocaleChanged,
-    required this.onLoggedIn,
-    required this.onOpenRegister,
-    required this.onOpenAdmin,
-    required this.onOpenRep,
-    required this.loggedIn,
-    required this.onLoggedOut,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final t = AppLocalizations.of(context)!;
-
-    if (loggedIn) {
-      // Dein alter "home:"-Block für eingeloggte Kunden
-      return Scaffold(
-        appBar: AppBar(
-          title: Text(t.appTitle),
-          actions: [
-            LangAction(onLocaleChanged: onLocaleChanged),
-            themeMenu,
-          ],
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(50),
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                child: FilledButton.icon(
-                  icon: const Icon(Icons.logout),
-                  label: Text(t.logout),
-                  onPressed: () async {
-                    await api.logout();
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(t.loggedOut)),
-                      );
-                    }
-                    onLoggedOut();
-                  },
-                ),
-              ),
-            ),
-          ),
-        ),
-        body: DashboardPage(api: api, onLoggedOut: onLoggedOut),
-      );
-    }
-
-    // Nicht eingeloggt -> interner Login-Screen
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(t.login),
-        actions: [
-          LangAction(onLocaleChanged: onLocaleChanged),
-          themeMenu,
-        ],
-      ),
-      body: _LoginScreen(
-        api: api,
-        onLoggedIn: onLoggedIn,
-        onOpenRegister: () => onOpenRegister(context),
-        onOpenAdmin: () => onOpenAdmin(context),
-        onOpenRep: () => onOpenRep(context),
-      ),
     );
   }
 }
@@ -433,6 +394,8 @@ class _LoginScreenState extends State<_LoginScreen> {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
 
+    final canLogin = !_busy && _email.text.trim().isNotEmpty && _pw.text.isNotEmpty;
+
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 520),
@@ -448,6 +411,7 @@ class _LoginScreenState extends State<_LoginScreen> {
                   border: const OutlineInputBorder(),
                 ),
                 enabled: !_busy,
+                onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -457,8 +421,9 @@ class _LoginScreenState extends State<_LoginScreen> {
                   labelText: t.password,
                   border: const OutlineInputBorder(),
                 ),
-                onSubmitted: (_) => _busy ? null : _doLogin(),
+                onSubmitted: (_) => canLogin ? _doLogin() : null,
                 enabled: !_busy,
+                onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 16),
               if (_err != null)
@@ -469,7 +434,7 @@ class _LoginScreenState extends State<_LoginScreen> {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: _busy ? null : _doLogin,
+                  onPressed: canLogin ? _doLogin : null,
                   child: _busy
                       ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
                       : Text(t.login),
@@ -490,6 +455,16 @@ class _LoginScreenState extends State<_LoginScreen> {
                     icon: const Icon(Icons.admin_panel_settings),
                     onPressed: _busy ? null : widget.onOpenAdmin,
                     label: Text(t.admin_area),
+                  ),
+                  TextButton.icon(
+                    icon: const Icon(Icons.handshake),
+                    onPressed: _busy ? null : () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Öffne Vertreterbereich…')),
+                      );
+                      widget.onOpenRep(); // -> /repLogin
+                    },
+                    label: Text(t.rep_area ?? 'Vertreter'),
                   ),
                 ],
               ),
