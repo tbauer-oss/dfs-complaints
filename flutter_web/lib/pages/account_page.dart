@@ -303,7 +303,7 @@ class _AccountEditPageState extends State<_AccountEditPage> {
                       } catch (e) {
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('${t.error ?? 'Fehler'}: $e')),
+                            SnackBar(content: Text(context.t.error(msg: e))),
                           );
                         }
                       } finally {
