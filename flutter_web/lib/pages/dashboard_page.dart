@@ -201,9 +201,7 @@ class _DashboardPageState extends State<DashboardPage> {
                           onPressed: () {
                             final subject = Uri.encodeComponent(t.mail_subject_rep);
                             final body = Uri.encodeComponent(
-                              'Guten Tag ${name.isNotEmpty ? name : ''},\n\n'
-                              'ich melde mich über das DFS Customer Complaint Portal.\n\n'
-                              'Beste Grüße',
+                              t.mail_body_rep(name.isNotEmpty ? name : ''),
                             );
                             final mailto = 'mailto:$email?subject=$subject&body=$body';
                             html.window.open(mailto, '_self');
