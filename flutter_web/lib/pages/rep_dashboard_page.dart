@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api/client.dart';
 import 'rep_profile_page.dart';
 import 'dart:html' as html;
+import '../l10n/app_localizations.dart';
 
 class RepDashboardPage extends StatefulWidget {
   final ApiClient api;
@@ -30,7 +31,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
       // Info für den Nutzer
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sitzung abgelaufen. Bitte neu anmelden.')),
+        const SnackBar(content: Text(t.sessionExpired)),
       );
 
       // Sicher bis zur Startseite zurück (nicht nur ein Pop)
