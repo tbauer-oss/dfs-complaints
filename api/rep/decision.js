@@ -31,7 +31,7 @@ async function requireRedis() {
 
 // Key-Struktur für Reklamationen (wie in deinen Complaint-APIs)
 const PFX = 'dfs:complaints:';
-const KEY = id => `${PFX}${id}`;
+const KEY = (id) => `${PFX}${id}`;     // ← Backticks!
 
 // ------------------- HANDLER -------------------
 export default async function handler(req, res) {
@@ -49,12 +49,25 @@ export default async function handler(req, res) {
     await requireRedis();
 
     // ---- Body einlesen ----
-    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-    const repId = S(body.repId);
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const repId  = S(body.repId);
     const ticket = S(body.ticket);
-    const decision = S(body.decision).toLowerCase(); // "approve" oder "reject"
 
-    if (!repId || !ticket || !['approve', 'reject'].includes(decision)) {
+    // ---- Entscheidung robust normalisieren ----
+    const raw = (body.decision ?? '').toString().toLowerCase();
+    const map = {
+      'accept':   'accepted',
+      'accepted': 'accepted',
+      'approve':  'accepted',
+      'approved': 'accepted',
+      'reject':   'rejected',
+      'rejected': 'rejected',
+      'decline':  'rejected',
+      'declined': 'rejected',
+    };
+    const decision = map[raw]; // => 'accepted' | 'rejected' | undefined
+
+    if (!repId || !ticket || !decision) {
       return res.status(400).json({ error: 'invalid data' });
     }
 
@@ -72,10 +85,11 @@ export default async function handler(req, res) {
 
     // ---- Entscheidung setzen ----
     const now = new Date().toISOString();
-    complaint.repDecision = decision;
+    complaint.repDecision   = decision; // 'accepted' | 'rejected'
     complaint.repDecisionAt = now;
 
-    if (decision === 'approve') {
+    // Status passend aktualisieren
+    if (decision === 'accepted') {
       complaint.status = 'approved_by_rep';
     } else {
       complaint.status = 'rejected_by_rep';
