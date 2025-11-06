@@ -150,8 +150,6 @@ class ApiClient {
     'Content-Type': 'application/json; charset=utf-8',
   };
 
-  Uri _u(String path) => Uri.parse('$baseUrl$path');
-
   Future<html.HttpRequest> _request(
     String method,
     String path, {
