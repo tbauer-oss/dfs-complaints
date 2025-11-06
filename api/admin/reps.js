@@ -7,12 +7,26 @@ const PREVIEW  = /^https:\/\/dfs-complaints-web-[a-z0-9-]+(?:-[a-z0-9-]+)?\.verc
 
 function setCors(req, res) {
   const origin = req.headers.origin || '';
-  const allow  = origin && (origin === PROD_FE || PREVIEW.test(origin)) ? origin : (process.env.WEB_ORIGIN || PROD_FE);
+  const allow  = origin && (origin === PROD_FE || PREVIEW.test(origin))
+    ? origin
+    : (process.env.WEB_ORIGIN || PROD_FE);
+
   res.setHeader('Access-Control-Allow-Origin', allow);
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Secret');
+  // wichtig: beide Schreibweisen + Standard-Header erlauben
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    [
+      'Content-Type', 'content-type',
+      'Authorization', 'authorization',
+      'X-Admin-Secret', 'x-admin-secret',
+      'Accept', 'accept',
+      'Origin', 'origin'
+    ].join(', ')
+  );
+  res.setHeader('Access-Control-Expose-Headers', '*');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 }
 
@@ -85,13 +99,6 @@ export default async function handler(req, res) {
           res.status(400).end(JSON.stringify({ error: 'missing repId or email' }));
           return;
         }
-      if (action === 'assign') {
-        const repId = S(body.repId);
-        const email = S(body.email).toLowerCase();
-        if (!repId || !email) {
-          res.status(400).end(JSON.stringify({ error: 'missing repId or email' }));
-          return;
-        }
         try {
           const customers = await assignCustomer(repId, email);
           res.status(200).end(JSON.stringify({ ok: true, repId, customers }));
@@ -101,6 +108,7 @@ export default async function handler(req, res) {
         }
         return;
       }
+
       if (action === 'unassign') {
         const repId = S(body.repId);
         const email = S(body.email).toLowerCase();
@@ -108,8 +116,12 @@ export default async function handler(req, res) {
           res.status(400).end(JSON.stringify({ error: 'missing repId or email' }));
           return;
         }
-        const customers = await unassignCustomer(repId, email);
-        res.status(200).end(JSON.stringify({ ok: true, repId, customers }));
+        try {
+          const customers = await unassignCustomer(repId, email);
+          res.status(200).end(JSON.stringify({ ok: true, repId, customers }));
+        } catch (e) {
+          res.status(500).end(JSON.stringify({ error: String(e?.message || e) }));
+        }
         return;
       }
 
