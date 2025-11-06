@@ -133,6 +133,20 @@ class ApiClient {
     return h;
   }
 
+  // ——— Nur für Vertreter-Endpunkte: POST mit Bearer-Token ———
+  Future<Map<String, dynamic>> _repPostJson(String path, Map<String, dynamic> body) async {
+    final r = await http.post(
+      _u(path),
+      headers: _repHeaders(),
+      body: jsonEncode(body),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw 'HTTP ${r.statusCode} ${r.reasonPhrase} — ${r.body}';
+    }
+    final txt = r.body.trim();
+    return txt.isEmpty ? <String, dynamic>{} : jsonDecode(txt);
+  }
+
   Uri _u(String path) {
     // Wenn API_BASE leer ist (z. B. Preview/Local), nimm die aktuelle Origin
     final base = _apiBase.isNotEmpty ? _apiBase : html.window.location.origin;
@@ -188,16 +202,15 @@ class ApiClient {
     return txt.trim().isEmpty ? <String, dynamic>{} : jsonDecode(txt);
   }
 
-  // ---- Reps: Entscheidung zu Complaint ----
+  // ---- Reps: Entscheidung zu Complaint (mit Bearer-Token) ----
   Future<Map<String, dynamic>> repDecision({
-    required String repId,
     required String ticket,
     required bool approve,
   }) async {
-    return await postJson('/api/rep/decision', {
-      'repId': repId,
+    return await _repPostJson('/api/rep/decision', {
       'ticket': ticket,
       'decision': approve ? 'approve' : 'reject',
+      if ((_repEmail ?? '').isNotEmpty) 'repEmail': _repEmail, // optional
     });
   }
 
@@ -654,8 +667,9 @@ class ApiClient {
     }
   }
 
-  Future<List<Map<String, dynamic>>> repComplaints() async {
-    final r = await http.get(_u('/api/rep/complaints'), headers: _repHeaders());
+  Future<List<Map<String, dynamic>>> repComplaints({String status = 'open'}) async {
+      final q = status.isNotEmpty ? '?status=$status' : '';
+  final r = await http.get(_u('/api/rep/complaints$q'), headers: _repHeaders());
     if (!_ok2xx(r.statusCode)) {
       throw Exception('GET /api/rep/complaints failed: ${r.statusCode} ${r.body}');
     }
