@@ -65,13 +65,15 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       final comp = await widget.api.repComplaints();
 
       // Kunden – tolerant: Strings oder Objekte
-      final rawCustomers = await widget.api.repCustomers(); // List<dynamic> oder List<String>
-      final List<Customer> customers = <Customer>[];        // *** TYP-FIX: Map<String,String>
+      final rawCustomers = await widget.api.repCustomers(); // List<dynamic>
+
+      // HART auf dynamic typisieren (verhindert "String -> int"-Fehler)
+      final List<Map<String, dynamic>> customers = <Map<String, dynamic>>[];
 
       for (final c in rawCustomers) {
         if (c is Map) {
-          // konsequent alle Felder in Strings wandeln
-          final entry = <String, String>{
+          // konsequent alles zu String casten (für Anzeige)
+          final Map<String, dynamic> entry = <String, dynamic>{
             'email'  : (c['email']        ?? '').toString(),
             'name'   : (c['name']         ?? c['company'] ?? c['displayName'] ?? c['email'] ?? '').toString(),
             'company': (c['company']      ?? '').toString(),
@@ -82,19 +84,17 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
           };
           customers.add(entry);
         } else if (c is String) {
-          customers.add(<String, String>{ 'email': c, 'name': c });
+          customers.add(<String, dynamic>{ 'email': c, 'name': c });
         }
       }
 
-      if (!mounted) return;
+      // Übergabe in den State bleibt kompatibel
       setState(() {
         _me = me;
-        // für die UI in dynamic wandeln, ohne Typkonflikte
-        _customers = customers
-            .map((e) => Map<String, dynamic>.from(e))
-            .toList(growable: false);
-        _complaints = comp;
+        _customers = customers;         // List<Map<String, dynamic>>
+        _complaints = comp;             // ← ACHTUNG: comp vorher definieren!
       });
+
     } catch (e) {
       final handled = await _handleUnauthorized(e);
       if (!mounted) return;
