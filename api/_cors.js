@@ -21,14 +21,24 @@ export function corsHeaders(origin) {
   };
 }
 
-export function handlePreflight(req, res) {
-  const h = corsHeaders(req.headers.origin);
-  if (req.method === 'OPTIONS') {
-    res.status(204).setHeader('Content-Length', '0');
-    Object.entries(h).forEach(([k, v]) => res.setHeader(k, v));
-    res.end();
-    return true;
-  }
-  Object.entries(h).forEach(([k, v]) => res.setHeader(k, v));
-  return false;
+export function withCors(handler, {
+  allowOrigin = '*', // kein Cookie-Flow → '*' ist ok
+  allowMethods = 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
+  allowHeaders = 'Content-Type, Authorization, X-Admin-Secret, X-Gate',
+  maxAge = '600',
+} = {}) {
+  return async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
+    res.setHeader('Access-Control-Allow-Methods', allowMethods);
+    res.setHeader('Access-Control-Allow-Headers', allowHeaders);
+    res.setHeader('Access-Control-Max-Age', maxAge);
+
+    if (req.method === 'OPTIONS') {
+      // Preflight sofort beenden
+      return res.status(204).end();
+    }
+
+    // Normale Antworten: CORS-Header sind oben bereits gesetzt
+    return handler(req, res);
+  };
 }
