@@ -360,49 +360,52 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     );
   }
 
-  // ---- Menü mit Kacheln + Counter-Chips ----
+  // ---- Menü mit „schönen“ Kacheln im Admin-Stil ----
   Widget _buildMenu(int allCount, int openCount, int rejectedCount, int finishedCount) {
-    Chip _countChip(int n) => Chip(label: Text('$n'));
-
     return LayoutBuilder(builder: (ctx, c) {
       final width = c.maxWidth;
-      final gridCount = width >= 1100 ? 4 : width >= 820 ? 3 : width >= 540 ? 2 : 1;
+      final gridCount = width >= 1200 ? 4 : width >= 900 ? 3 : width >= 600 ? 2 : 1;
 
       return GridView.count(
         crossAxisCount: gridCount,
-        crossAxisSpacing: 14,
-        mainAxisSpacing: 14,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        padding: const EdgeInsets.only(bottom: 8),
+        childAspectRatio: 1.2,
         children: [
-          _MenuTile(
-            icon: Icons.pending_actions_outlined,
+          _MenuCard(
+            color: Colors.red,
+            icon: Icons.report_gmailerrorred_outlined,
             title: 'Offene Reklamationen',
-            trailing: _countChip(openCount),
+            subtitle: 'Bearbeiten & Entscheiden',
+            count: openCount,
             onTap: () => setState(() {
               _filter = _RepFilter.open;
               _view = _RepView.open;
             }),
           ),
-          _MenuTile(
+          _MenuCard(
+            color: Colors.indigo,
             icon: Icons.all_inbox_outlined,
             title: 'Alle Reklamationen',
-            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-              _countChip(allCount),
-              const SizedBox(width: 6),
-              _countChip(rejectedCount),
-              const SizedBox(width: 6),
-              _countChip(finishedCount),
-            ]),
+            subtitle: 'Filtern & Suchen',
+            count: allCount,
             onTap: () => setState(() => _view = _RepView.all),
           ),
-          _MenuTile(
-            icon: Icons.badge_outlined,
+          _MenuCard(
+            color: Colors.teal,
+            icon: Icons.apartment_outlined,
             title: 'Kundendatenbank',
-            trailing: _countChip(_customers.length),
+            subtitle: 'Firmen & Kontakte',
+            count: _customers.length,
             onTap: () => setState(() => _view = _RepView.customers),
           ),
-          _MenuTile(
+          _MenuCard(
+            color: Colors.blueGrey,
             icon: Icons.person_outline,
             title: 'Mein Account',
+            subtitle: 'Profil & Passwort',
+            count: null,
             onTap: () => setState(() => _view = _RepView.account),
           ),
         ],
@@ -461,6 +464,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         // Filterleiste
         Card(
           elevation: 3,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
             child: Wrap(
@@ -536,6 +540,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
               children: [
                 for (final c in _customers)
                   ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     leading: const Icon(Icons.apartment_outlined),
                     title: Text(
                       (() {
@@ -581,7 +586,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     final t = context.t;
     return Card(
       elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         leading: const Icon(Icons.person_outline),
         title: Text(t.profilePW),
         trailing: const Icon(Icons.chevron_right),
@@ -652,8 +659,10 @@ class _Card extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        // etwas kompakter für Mobile
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -671,43 +680,127 @@ class _Card extends StatelessWidget {
   }
 }
 
-class _MenuTile extends StatelessWidget {
+/// Schöne Menü-Kachel (Admin-Look) mit Farb-Icon, Verlauf und Badge
+class _MenuCard extends StatelessWidget {
+  final Color color;
   final IconData icon;
   final String title;
-  final Widget? trailing;
+  final String subtitle;
+  final int? count;           // null => kein Badge
   final VoidCallback onTap;
 
-  const _MenuTile({
+  const _MenuCard({
+    required this.color,
     required this.icon,
     required this.title,
-    this.trailing,
+    required this.subtitle,
     required this.onTap,
+    this.count,
     super.key,
   });
 
   @override
   Widget build(BuildContext context) {
-    final base = Theme.of(context).colorScheme;
+    final cs = Theme.of(context).colorScheme;
+    final bg1 = color.withOpacity(0.08);
+    final bg2 = cs.surface;
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: base.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: base.outlineVariant),
-          boxShadow: [BoxShadow(color: base.shadow.withOpacity(0.08), blurRadius: 8, offset: const Offset(0, 2))],
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [bg1, bg2],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: cs.outlineVariant),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 3),
+            ),
+          ],
         ),
         child: Row(
           children: [
-            Icon(icon, size: 28),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+            // Icon + Badge
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: color, size: 28),
+                ),
+                if (count != null)
+                  Positioned(
+                    right: -6,
+                    top: -6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: color,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: color.withOpacity(0.35),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        '$count',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                          height: 1.0,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            if (trailing != null) trailing!,
+            const SizedBox(width: 14),
+            // Titel + Untertitel
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      letterSpacing: .2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: cs.onSurface.withOpacity(0.7),
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, size: 22),
           ],
         ),
       ),
@@ -788,7 +881,9 @@ class _ComplaintTile extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         leading: const Icon(Icons.description_outlined),
         title: Text(ticket.isEmpty ? '(ohne Ticket)' : ticket),
         subtitle: Column(
