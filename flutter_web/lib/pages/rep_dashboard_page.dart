@@ -24,12 +24,10 @@ class RepDashboardPage extends StatefulWidget {
 class _RepDashboardPageState extends State<RepDashboardPage> {
   Map<String, dynamic>? _me;
 
-  /// Kundenliste: abwärtskompatibel
-  /// - wenn Backend nur Strings liefert -> wir bauen {email, name=email}
-  /// - wenn Backend Objekte liefert -> nutzen wir Felder
+  /// Kundenliste (robust für Strings/Objekte)
   List<Map<String, dynamic>> _customers = [];
 
-  /// Reklamationen (Objekte vom Backend)
+  /// Reklamationen
   List<Map<String, dynamic>> _complaints = [];
 
   bool _loading = true;
@@ -60,35 +58,37 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       _err = null;
     });
     try {
-      final me = await widget.api.repMe();
+      final me   = await widget.api.repMe();
+      final comp = await widget.api.repComplaints(); // <— FEHLTE ZUVOR
 
-     // Kunden – tolerant: Strings oder Objekte
-     final rawCustomers = await widget.api.repCustomers(); // List<dynamic>
-     final List<Map<String, String>> customers = [];       // << WICHTIG: String/String!
+      // Kunden – tolerant: Strings oder Objekte
+      final rawCustomers = await widget.api.repCustomers(); // List<dynamic>/List<String>
+      final List<Map<String, String>> customers = <Map<String, String>>[]; // TYP FIX
 
-     for (final c in rawCustomers) {
-       if (c is Map) {
-         // explizit als String/String-Map aufbauen
-         final entry = <String, String>{
-           'email'  : (c['email']        ?? '').toString(),
-           'name'   : (c['name']         ?? c['company'] ?? c['displayName'] ?? c['email'] ?? '').toString(),
-           'company': (c['company']      ?? '').toString(),
-           'address': (c['address']      ?? '').toString(),
-           'zip'    : (c['zip']          ?? '').toString(),
-           'city'   : (c['city']         ?? '').toString(),
-           'country': (c['country']      ?? '').toString(),
-         };
-         customers.add(entry);
-       } else if (c is String) {
-         customers.add(<String, String>{ 'email': c, 'name': c });
-       }
-     }
-     
-     setState(() {
-       _me = me;
-       _customers = customers.cast<Map<String, dynamic>>(); // bleibt kompatibel zum restlichen Code
-       _complaints = comp;
-     });
+      for (final c in rawCustomers) {
+        if (c is Map) {
+          // explizit als String/String-Map aufbauen (TYP FIX!)
+          final entry = <String, String>{
+            'email'  : (c['email']        ?? '').toString(),
+            'name'   : (c['name']         ?? c['company'] ?? c['displayName'] ?? c['email'] ?? '').toString(),
+            'company': (c['company']      ?? '').toString(),
+            'address': (c['address']      ?? '').toString(),
+            'zip'    : (c['zip']          ?? '').toString(),
+            'city'   : (c['city']         ?? '').toString(),
+            'country': (c['country']      ?? '').toString(),
+          };
+          customers.add(entry);
+        } else if (c is String) {
+          customers.add(<String, String>{ 'email': c, 'name': c });
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _me = me;
+        _customers = customers.cast<Map<String, dynamic>>(); // kompatibel lassen
+        _complaints = comp;
+      });
     } catch (e) {
       final handled = await _handleUnauthorized(e);
       if (!mounted) return;
@@ -230,7 +230,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       case _RepFilter.rejected:
         return _complaints.where(_isRejected).toList(growable: false);
       case _RepFilter.finished:
-        return _complaints.where((c) => (int.tryParse((c['status'] ?? '').toString()) ?? 0) == 6).toList(growable: false);
+        return _complaints
+            .where((c) => (int.tryParse((c['status'] ?? '').toString()) ?? 0) == 6)
+            .toList(growable: false);
     }
   }
 
