@@ -1,3 +1,4 @@
+// lib/pages/rep_dashboard_page.dart
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import 'rep_profile_page.dart';
@@ -9,6 +10,9 @@ extension _L10nX on BuildContext {
   AppLocalizations get t => AppLocalizations.of(this)!;
 }
 
+// Filtervarianten für die Kachel-Leiste
+enum _RepFilter { all, open, rejected, finished }
+
 class RepDashboardPage extends StatefulWidget {
   final ApiClient api;
   const RepDashboardPage({super.key, required this.api});
@@ -19,11 +23,20 @@ class RepDashboardPage extends StatefulWidget {
 
 class _RepDashboardPageState extends State<RepDashboardPage> {
   Map<String, dynamic>? _me;
-  List<String> _customers = [];
+
+  /// Kundenliste: abwärtskompatibel
+  /// - wenn Backend nur Strings liefert -> wir bauen {email, name=email}
+  /// - wenn Backend Objekte liefert -> nutzen wir Felder
+  List<Map<String, dynamic>> _customers = [];
+
+  /// Reklamationen (Objekte vom Backend)
   List<Map<String, dynamic>> _complaints = [];
 
   bool _loading = true;
   String? _err;
+
+  // aktiver Filter (Kacheln)
+  _RepFilter _filter = _RepFilter.all;
 
   // Einheitliche 401/Unauthorized-Behandlung
   Future<bool> _handleUnauthorized(Object e) async {
@@ -48,12 +61,31 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     });
     try {
       final me = await widget.api.repMe();
-      final cus = await widget.api.repCustomers();
+
+      // Kunden – tolerant: Strings oder Objekte
+      final rawCustomers = await widget.api.repCustomers(); // kann List<String> ODER List<Map> sein
+      final customers = <Map<String, dynamic>>[];
+      for (final c in rawCustomers) {
+        if (c is Map<String, dynamic>) {
+          customers.add({
+            'email': (c['email'] ?? '').toString(),
+            'name' : (c['name']  ?? c['company'] ?? c['displayName'] ?? c['email'] ?? '').toString(),
+            'company': (c['company'] ?? '').toString(),
+            'address': (c['address'] ?? '').toString(),
+            'zip'    : (c['zip'] ?? '').toString(),
+            'city'   : (c['city'] ?? '').toString(),
+            'country': (c['country'] ?? '').toString(),
+          });
+        } else if (c is String) {
+          customers.add({'email': c, 'name': c});
+        }
+      }
+
       final comp = await widget.api.repComplaints();
       if (!mounted) return;
       setState(() {
         _me = me;
-        _customers = cus;
+        _customers = customers;
         _complaints = comp;
       });
     } catch (e) {
@@ -146,7 +178,10 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
   Future<void> _decideComplaint(String ticket, bool approve) async {
     try {
-      await widget.api.repDecision(ticket: ticket, approve: approve);
+      await widget.api.repDecision(
+        ticket: ticket,
+        approve: approve,
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(approve ? context.t.decision_accepted : context.t.decision_rejected)),
@@ -162,9 +197,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
   Future<void> _logout() async {
     await widget.api.repLogout();
-    try {
-      html.window.localStorage.remove('dfs_mode');
-    } catch (_) {}
+    try { html.window.localStorage.remove('dfs_mode'); } catch (_) {}
     if (!mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil('/', (Route<dynamic> r) => false);
   }
@@ -175,57 +208,39 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     _loadAll();
   }
 
-  // --- Statistik-Helfer ---
-  Map<int, int> _statusCounts() {
-    final counts = <int, int>{};
-    for (final c in _complaints) {
-      final s = int.tryParse(c['status'].toString()) ?? 0;
-      counts[s] = (counts[s] ?? 0) + 1;
-    }
-    return counts;
+  // ---- Status-Logik wie im Admin: offen/geschlossen/abgelehnt ----
+  bool _isClosed(Map<String, dynamic> c) {
+    final s = int.tryParse((c['status'] ?? '').toString()) ?? 0;
+    final dec = (c['decision'] ?? '').toString();
+    return s == 6 || (s == 4 && dec == 'rejected');
   }
 
-  Color _statusColor(int s) {
-    switch (s) {
-      case 1: return Colors.blue;
-      case 2: return Colors.orange;
-      case 3: return Colors.amber;
-      case 4: return Colors.red;
-      case 5: return Colors.purple;
-      case 6: return Colors.green;
-      default: return Colors.grey;
-    }
+  bool _isRejected(Map<String, dynamic> c) {
+    final dec = (c['decision'] ?? '').toString();
+    return dec == 'rejected';
   }
 
-  String _statusLabel(BuildContext ctx, int s) {
-    final t = ctx.t;
-    switch (s) {
-      case 1: return t.status_sent;
-      case 2: return t.status_in_progress;
-      case 3: return t.status_needs_info;
-      case 4: return t.status_final_decision;
-      case 5: return t.status_rework;
-      case 6: return t.status_closed;
-      default: return '–';
-    }
-  }
-
-  String _statusText(BuildContext ctx, int s) {
-    final t = ctx.t;
-    switch (s) {
-      case 1: return t.status_sent ?? 'Eingegangen';
-      case 2: return t.status_in_progress ?? 'In Bearbeitung';
-      case 3: return t.status_needs_info ?? 'Rückfrage erforderlich';
-      case 4: return t.status_final_decision ?? 'Entscheidung';
-      case 5: return t.status_rework ?? 'In Nacharbeit';
-      case 6: return t.status_closed ?? 'Abgeschlossen';
-      default: return 'Status $s';
+  List<Map<String, dynamic>> get _filteredComplaints {
+    switch (_filter) {
+      case _RepFilter.all:
+        return _complaints;
+      case _RepFilter.open:
+        return _complaints.where((c) => !_isClosed(c)).toList(growable: false);
+      case _RepFilter.rejected:
+        return _complaints.where(_isRejected).toList(growable: false);
+      case _RepFilter.finished:
+        return _complaints.where((c) => (int.tryParse((c['status'] ?? '').toString()) ?? 0) == 6).toList(growable: false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final t = context.t;
+
+    final allCount      = _complaints.length;
+    final openCount     = _complaints.where((c) => !_isClosed(c)).length;
+    final rejectedCount = _complaints.where(_isRejected).length;
+    final finishedCount = _complaints.where((c) => (int.tryParse((c['status'] ?? '').toString()) ?? 0) == 6).length;
 
     final body = _loading
         ? const Center(child: CircularProgressIndicator())
@@ -237,22 +252,85 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Profil-Kachel
-                      _TileCard(
-                        icon: Icons.person_outline,
-                        title: t.profilePW,
-                        onTap: () async {
-                          await Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => RepProfilePage(api: widget.api),
-                            ),
-                          );
-                          if (mounted) await _loadAll();
-                        },
+                      // ===== Kachel-Zeile (wie im Admin) =====
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          _Tile(
+                            icon: Icons.all_inbox_outlined,
+                            title: 'Alle',
+                            count: allCount,
+                            selected: _filter == _RepFilter.all,
+                            onTap: () => setState(() => _filter = _RepFilter.all),
+                          ),
+                          _Tile(
+                            icon: Icons.pending_actions_outlined,
+                            title: 'Offen',
+                            count: openCount,
+                            selected: _filter == _RepFilter.open,
+                            onTap: () => setState(() => _filter = _RepFilter.open),
+                          ),
+                          _Tile(
+                            icon: Icons.thumb_down_off_alt,
+                            title: 'Abgelehnt',
+                            count: rejectedCount,
+                            selected: _filter == _RepFilter.rejected,
+                            onTap: () => setState(() => _filter = _RepFilter.rejected),
+                          ),
+                          _Tile(
+                            icon: Icons.check_circle_outline,
+                            title: 'Abgeschlossen',
+                            count: finishedCount,
+                            selected: _filter == _RepFilter.finished,
+                            onTap: () => setState(() => _filter = _RepFilter.finished),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 16),
 
-                      // Kunden-Kachel
+                      // ===== Profil & Passwort =====
+                      Card(
+                        elevation: 4,
+                        child: ListTile(
+                          leading: const Icon(Icons.person_outline),
+                          title: Text(t.profilePW),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () async {
+                            await Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => RepProfilePage(api: widget.api),
+                              ),
+                            );
+                            if (!mounted) return;
+                            await _loadAll();
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // ===== Meine Daten =====
+                      _Card(
+                        title: t.myData,
+                        child: _me == null
+                            ? const Text('–')
+                            : Wrap(
+                                spacing: 16,
+                                runSpacing: 6,
+                                children: [
+                                  _Info(
+                                    'Name',
+                                    '${(_me!['firstName'] ?? '').toString()} '
+                                    '${(_me!['lastName'] ?? '').toString()}'.trim(),
+                                  ),
+                                  _Info(t.email_plain, (_me!['email'] ?? '').toString()),
+                                  _Info(t.region, (_me!['region'] ?? '').toString()),
+                                ],
+                              ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // ===== Kundenliste (mit Namen + Detail-Button) =====
                       _Card(
                         title: t.myCustomers,
                         actions: [
@@ -266,14 +344,27 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                             ? Text(t.noAddCustomer)
                             : Column(
                                 children: [
-                                  for (final e in _customers)
+                                  for (final c in _customers)
                                     ListTile(
-                                      leading: const Icon(Icons.person),
-                                      title: Text(e),
-                                      trailing: IconButton(
-                                        icon: const Icon(Icons.link_off),
-                                        tooltip: t.deleteAdd,
-                                        onPressed: () => _unassignCustomer(e),
+                                      leading: const Icon(Icons.apartment_outlined),
+                                      title: Text((c['name'] ?? '').toString().isEmpty
+                                          ? (c['email'] ?? '').toString()
+                                          : (c['name'] as String)),
+                                      subtitle: Text((c['email'] ?? '').toString()),
+                                      trailing: Wrap(
+                                        spacing: 8,
+                                        children: [
+                                          IconButton(
+                                            tooltip: 'Details',
+                                            icon: const Icon(Icons.info_outline),
+                                            onPressed: () => _showCustomerDetails(c),
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(Icons.link_off),
+                                            tooltip: t.deleteAdd,
+                                            onPressed: () => _unassignCustomer((c['email'] ?? '').toString()),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                 ],
@@ -281,41 +372,23 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                       ),
                       const SizedBox(height: 16),
 
-                      // Reklamations-Kachel
+                      // ===== Reklamationen (gefiltert) =====
                       _Card(
                         title: t.complaintsMyCustomer,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 6,
-                              children: _statusCounts().entries.map((e) {
-                                return Chip(
-                                  label: Text('${_statusLabel(context, e.key)} (${e.value})'),
-                                  backgroundColor: _statusColor(e.key).withOpacity(0.15),
-                                  labelStyle: TextStyle(
-                                    color: _statusColor(e.key),
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                );
-                              }).toList(),
-                            ),
-                            const SizedBox(height: 10),
-                            if (_complaints.isEmpty)
-                              Text(t.noComplaintsFound)
-                            else
-                              Column(
+                        child: _filteredComplaints.isEmpty
+                            ? Text(t.noComplaintsFound)
+                            : Column(
                                 children: [
-                                  for (final c in _complaints)
+                                  for (final c in _filteredComplaints)
                                     _ComplaintTile(
                                       data: c,
-                                      onDecision: _decideComplaint,
+                                      isClosed: _isClosed(c),
+                                      onDecision: (c['decision'] ?? '') == '' && !_isClosed(c)
+                                          ? _decideComplaint
+                                          : null,
                                     ),
                                 ],
                               ),
-                          ],
-                        ),
                       ),
                     ],
                   ),
@@ -350,15 +423,45 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       ),
     );
   }
-}
 
-/* ---------------- Hilfskomponenten ---------------- */
+  void _showCustomerDetails(Map<String, dynamic> c) {
+    final name    = (c['name'] ?? '').toString();
+    final email   = (c['email'] ?? '').toString();
+    final company = (c['company'] ?? '').toString();
+    final address = (c['address'] ?? '').toString();
+    final zip     = (c['zip'] ?? '').toString();
+    final city    = (c['city'] ?? '').toString();
+    final country = (c['country'] ?? '').toString();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(name.isEmpty ? email : name),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (company.isNotEmpty) Text(company),
+            if (address.isNotEmpty) Text(address),
+            if (zip.isNotEmpty || city.isNotEmpty) Text('$zip $city'.trim()),
+            if (country.isNotEmpty) Text(country),
+            const SizedBox(height: 8),
+            if (email.isNotEmpty) SelectableText(email),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Schließen')),
+        ],
+      ),
+    );
+  }
+}
 
 class _Card extends StatelessWidget {
   final String title;
   final List<Widget>? actions;
   final Widget child;
-  const _Card({required this.title, this.actions, required this.child});
+  const _Card({required this.title, this.actions, required this.child, super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -383,44 +486,94 @@ class _Card extends StatelessWidget {
   }
 }
 
-class _TileCard extends StatelessWidget {
+class _Tile extends StatelessWidget {
   final IconData icon;
   final String title;
-  final VoidCallback? onTap;
-  const _TileCard({required this.icon, required this.title, this.onTap});
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _Tile({
+    required this.icon,
+    required this.title,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 4,
-      child: ListTile(
-        leading: Icon(icon),
-        title: Text(title),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: onTap,
+    final base = Theme.of(context).colorScheme;
+    final selBg = base.primary.withOpacity(0.10);
+    final selBr = base.primary;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: 240,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: selected ? selBg : null,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: selected ? selBr : base.outlineVariant),
+        ),
+        child: Row(
+          children: [
+            Icon(icon),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text('$count', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+}
+
+class _Info extends StatelessWidget {
+  final String k;
+  final String v;
+  const _Info(this.k, this.v);
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('$k: ', style: const TextStyle(fontWeight: FontWeight.w600)),
+        Text(v),
+      ],
     );
   }
 }
 
 class _ComplaintTile extends StatelessWidget {
   final Map<String, dynamic> data;
+  final bool isClosed;
   final void Function(String ticket, bool approve)? onDecision;
-  const _ComplaintTile({required this.data, this.onDecision});
+  const _ComplaintTile({required this.data, required this.isClosed, this.onDecision});
 
   @override
   Widget build(BuildContext context) {
     final t = context.t;
 
-    final ticket = (data['ticket'] ?? '').toString();
-    final status = (data['status'] ?? '').toString();
+    final ticket   = (data['ticket'] ?? '').toString();
+    final status   = (data['status'] ?? '').toString();
     final decision = (data['decision'] ?? '').toString();
-    final created = (data['createdAt'] ?? data['created'] ?? '').toString();
+    final created  = (data['createdAt'] ?? data['created'] ?? '').toString();
     final customer = (data['customerEmail'] ?? data['email'] ?? '').toString();
-    final article = (data['payload']?['article'] ?? '').toString();
-    final segment = (data['payload']?['segment'] ?? '').toString();
-
-    final isOpen = status == '1' || status == '2' || status == '3';
+    final article  = (data['payload']?['article'] ?? '').toString();
+    final segment  = (data['payload']?['segment'] ?? '').toString();
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
@@ -431,8 +584,8 @@ class _ComplaintTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (customer.isNotEmpty) Text('${t.customer_label}: $customer'),
-            if (article.isNotEmpty) Text('${t.articleNo}: $article'),
-            if (segment.isNotEmpty) Text('${t.segment}: $segment'),
+            if (article.isNotEmpty)  Text('${t.articleNo}: $article'),
+            if (segment.isNotEmpty)  Text('${t.segment}: $segment'),
             Text(
               'Status: $status'
               '${decision.isNotEmpty ? ' • ${t.decision}: $decision' : ''}'
@@ -440,10 +593,12 @@ class _ComplaintTile extends StatelessWidget {
             ),
           ],
         ),
+
+        // Buttons nur, wenn onDecision != null (offen + keine Entscheidung)
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (onDecision != null && isOpen && decision.isEmpty) ...[
+            if (onDecision != null) ...[
               IconButton(
                 tooltip: '${t.decision}: ${t.decision_accepted}',
                 icon: const Icon(Icons.check_circle_outline),
@@ -455,8 +610,10 @@ class _ComplaintTile extends StatelessWidget {
                 onPressed: () => onDecision!(ticket, false),
               ),
             ],
+            if (isClosed) const SizedBox(width: 4),
           ],
         ),
+
         dense: true,
       ),
     );
