@@ -210,10 +210,10 @@ class ApiClient {
   }) async {
     final r = await http.post(
       _u('/api/rep/decision'),
-      headers: _repHeaders(), // <- wichtig: Rep-JWT mitsenden
+      headers: _repHeaders(),
       body: jsonEncode({
         'ticket': ticket,
-        'decision': approve ? 'approve' : 'reject',
+        'decision': approve ? 'accepted' : 'rejected', // ← HIER anpassen
       }),
     );
     if (!_ok2xx(r.statusCode)) {
