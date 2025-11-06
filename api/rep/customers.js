@@ -1,22 +1,47 @@
 // api/rep/customers.js
 export const config = { runtime: 'nodejs' };
 
-import { withCors } from '../_cors.js';
 import { getRepFromAuthHeader } from '../_lib/repAuth.js';
 import { repCustomers, repAssign, repUnassign } from '../_lib/repsStore.js';
 import { userByEmail } from '../_lib/store.js';
 
-async function handler(req, res) {
-  const auth = getRepFromAuthHeader(req);
-  if (!auth) return res.status(401).end(JSON.stringify({ error: 'unauthorized' }));
+// --- CORS: immer setzen, auch bei GET/POST/Fehlern ---
+function applyCors(res) {
+  // wenn du nur von deiner Web-App erlauben willst:
+  // res.setHeader('Access-Control-Allow-Origin', 'https://dfs-complaints-web.vercel.app');
+  // ansonsten tolerant:
+  res.setHeader('Access-Control-Allow-Origin', '*');
 
-  // Zuweisen/Entfernen bleibt wie gehabt (POST)
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Gate');
+  res.setHeader('Access-Control-Max-Age', '86400');
+}
+
+export default async function handler(req, res) {
+  applyCors(res);
+
+  // Preflight sofort bedienen (ohne weitere Checks!)
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+
+  // Ab hier erst auth prüfen – (wichtig: CORS-Header sind bereits gesetzt)
+  const auth = getRepFromAuthHeader(req);
+  if (!auth) {
+    return res.status(401).end(JSON.stringify({ error: 'unauthorized' }));
+  }
+
+  // POST: assign/unassign
   if (req.method === 'POST') {
     try {
       let body = {};
-      try { body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {}); } catch {}
+      try {
+        body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+      } catch {}
       const action = (body.action || '').toString();
       const email  = (body.email  || '').toString().trim().toLowerCase();
+
       if (!email || !email.includes('@')) {
         return res.status(400).end(JSON.stringify({ error: 'invalid email' }));
       }
@@ -35,7 +60,7 @@ async function handler(req, res) {
     }
   }
 
-  // GET – Liste: Strings (kompatibel) ODER Details via ?details=1
+  // GET: Liste als Strings oder Details via ?details=1
   if (req.method === 'GET') {
     try {
       const details = (req.query?.details || '').toString() === '1';
@@ -78,5 +103,3 @@ async function handler(req, res) {
 
   return res.status(405).end(JSON.stringify({ error: 'method not allowed' }));
 }
-
-export default withCors(handler);
