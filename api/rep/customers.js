@@ -1,23 +1,29 @@
 // api/rep/customers.js
 export const config = { runtime: 'nodejs' };
 
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 import { setCors } from '../_lib/cors.js';
-import { getRepFromAuthHeader } from '../_lib/repAuth.js';
-import { repCustomers, repAssign, repUnassign } from '../_lib/repsStore.js';
-import { userByEmail } from '../_lib/store.js';
+import { loadRepByEmail } from '../_lib/repsStore.js';
+
+const REP_SECRET = process.env.REP_JWT_SECRET;
 
 export default async function handler(req, res) {
-  // CORS immer zuerst, wie in rep/complaints.js
-  setCors(req, res, 'Content-Type, Authorization, X-Gate');
+  setCors(req, res, 'Content-Type, Authorization, X-Gate, X-Rep-Secret');
   if (req.method === 'OPTIONS') return res.status(204).end();
+  if (req.method !== 'POST')
+    return res.status(405).json({ error: 'method not allowed' });
 
-  // Auth (Bearer für Vertreter)
+  if (!REP_SECRET)
+    return res.status(500).json({ error: 'server misconfig (REP_JWT_SECRET not set)' });
+
+  // --- Auth prüfen (nur Bearer-Rep) ---
   const auth = getRepFromAuthHeader(req);
   if (!auth) {
     return res.status(401).end(JSON.stringify({ error: 'unauthorized' }));
   }
 
-  // POST: assign / unassign
+  // --- POST: assign / unassign ---
   if (req.method === 'POST') {
     try {
       let body = {};
@@ -49,7 +55,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // GET: Liste (Strings) oder Details (?details=1)
+  // --- GET: Liste (Strings) ODER Details (?details=1) ---
   if (req.method === 'GET') {
     try {
       const details = (req.query?.details || '').toString() === '1';
@@ -60,11 +66,11 @@ export default async function handler(req, res) {
       }
 
       if (!details) {
-        // abwärtskompatibel: nur String-Liste
+        // abwärtskompatibel: nur die E-Mail-Liste
         return res.status(200).end(JSON.stringify(emails));
       }
 
-      // Details (best effort)
+      // Details anreichern (best effort)
       const out = [];
       for (const mail of emails) {
         let name = mail;
@@ -92,10 +98,11 @@ export default async function handler(req, res) {
       return res.status(200).end(JSON.stringify(out));
     } catch (e) {
       console.error('[rep/customers] GET error:', e);
+      // Bei Fehlern wie gehabt: leere Liste zurückgeben (mit CORS-Headern)
       return res.status(200).end(JSON.stringify([]));
     }
   }
 
-  // Sonst: 405
+  // --- Sonst: 405 ---
   return res.status(405).end(JSON.stringify({ error: 'method not allowed' }));
 }
