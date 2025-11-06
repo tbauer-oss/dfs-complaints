@@ -134,6 +134,73 @@ class ApiClient {
     return h;
   }
 
+  // Versucht, das Rep-Token leise zu erneuern (POST /api/rep/refresh)
+  Future<bool> _repTryRefresh() async {
+    try {
+      final r = await http.post(
+        _u('/api/rep/refresh'),
+        headers: _repHeaders(),
+        body: jsonEncode(const {}), // Body optional
+      );
+      if (_ok2xx(r.statusCode)) {
+        final body = r.body.trim().isEmpty ? '{}' : r.body;
+        final j = jsonDecode(body);
+        final tok = (j is Map ? (j['token'] ?? '') : '').toString();
+        if (tok.isNotEmpty) {
+          repToken = tok;
+          _saveSession();
+          return true;
+        }
+      }
+    } catch (_) {
+      // Kein Refresh verfügbar oder Netzwerkfehler -> still
+    }
+    return false;
+  }
+
+  // Zentrales Fetch für Rep-Endpunkte mit 1x 401-Retry nach Refresh
+  Future<http.Response> _repFetch(
+    String path, {
+    String method = 'GET',
+    Map<String, dynamic>? body,
+  }) async {
+    Future<http.Response> _do() {
+      final uri = _u(path);
+      final h = _repHeaders();
+      switch (method) {
+        case 'POST':
+          return http.post(uri, headers: h, body: jsonEncode(body ?? const {}));
+        case 'PUT':
+          return http.put(uri, headers: h, body: jsonEncode(body ?? const {}));
+        case 'PATCH':
+          return http.patch(uri, headers: h, body: jsonEncode(body ?? const {}));
+        case 'DELETE':
+          return http.delete(uri, headers: h, body: jsonEncode(body ?? const {}));
+        default:
+          return http.get(uri, headers: h);
+      }
+    }
+
+    var r = await _do();
+
+    // Bei 401 einmal versuchen zu refreshen und Request wiederholen
+    if (r.statusCode == 401) {
+      final ok = await _repTryRefresh();
+      if (ok) {
+        r = await _do();
+      }
+    }
+
+    // Optional: neues Token aus Header akzeptieren (falls Backend sowas mitschickt)
+    final newTok = r.headers['x-rep-token'];
+    if (newTok != null && newTok.isNotEmpty && newTok != repToken) {
+      repToken = newTok;
+      _saveSession();
+    }
+
+    return r;
+  }
+
   // ——— Nur für Vertreter-Endpunkte: POST mit Bearer-Token ———
   Future<Map<String, dynamic>> _repPostJson(String path, Map<String, dynamic> body) async {
     final r = await http.post(
