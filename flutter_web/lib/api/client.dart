@@ -123,12 +123,10 @@ class ApiClient {
     return h;
   }
 
-  Map<String, String> _repHeaders({Map<String, String>? extra}) {
-    final h = <String, String>{
-      'Content-Type': 'application/json; charset=utf-8',
-      if (gate != null) 'X-Gate': gate!,
-      if (repToken != null && repToken!.isNotEmpty) 'Authorization': 'Bearer $repToken',
-    };
+  Map<String, String> _repHeaders() => {
+    'Content-Type': 'application/json',
+    if ((_repToken ?? '').isNotEmpty) 'Authorization': 'Bearer $_repToken',
+  };
     if (extra != null) h.addAll(extra);
     return h;
   }
@@ -673,19 +671,31 @@ class ApiClient {
     }
   }
 
-  Future<List<Map<String, dynamic>>> repComplaints({String status = 'open'}) async {
-      final q = status.isNotEmpty ? '?status=$status' : '';
-  final r = await http.get(_u('/api/rep/complaints$q'), headers: _repHeaders());
+  Future<List<Map<String, dynamic>>> repComplaints({String status = ''}) async {
+    final path = status.isEmpty
+        ? '/api/rep/complaints'
+        : '/api/rep/complaints?status=$status';
+
+    final r = await http.get(
+      _u(path),
+      headers: _repHeaders(), // MUSS das Bearer-Token enthalten
+    );
+
     if (!_ok2xx(r.statusCode)) {
-      throw Exception('GET /api/rep/complaints failed: ${r.statusCode} ${r.body}');
+      throw Exception('GET $path failed: ${r.statusCode} ${r.body}');
     }
-    final j = jsonDecode(r.body);
-    if (j is List) {
-      return j.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList(growable: false);
+
+    final body = jsonDecode(r.body);
+    if (body is List) {
+      // Erwartet: eine Liste von Complaint-Objekten
+      return body.cast<Map<String, dynamic>>();
+    }
+    // Falls jemand versehentlich mit ?debug=1 ruft (liefert ein Objekt, keine Liste)
+    if (body is Map && body['items'] is List) {
+      return (body['items'] as List).cast<Map<String, dynamic>>();
     }
     return const [];
   }
-
   Future<void> repLogout() async {
     repToken = null;
     _saveSession();
