@@ -698,15 +698,27 @@ class _AdminPageState extends State<AdminPage> {
     }
 
     Future<void> _openRepCustomersDialog(Rep rep) async {
-      // bisher: final emailSet = rep.customers.toSet();
-      var assigned = rep.customers.toSet(); // <- veränderlich, wir aktualisieren nach assign/unassign
+      // Globale Belegung: email -> repId
+      final Map<String, String> emailAssignedToRepId = {};
+      for (final r in _reps) {
+        for (final e in r.customers) {
+          emailAssignedToRepId[e] ??= r.id; // first wins
+        }
+      }
 
-      // Kandidaten = ALLE aktiven User (sichtbar im Dropdown, aber assigned = disabled)
+      // Menge aller bereits irgendwo zugewiesenen Kunden
+      var assignedGlobal = emailAssignedToRepId.keys.toSet();
+
+      // Aktuelle Belegung dieses Reps (veränderlich, wir aktualisieren im Dialog)
+      var assignedThis = rep.customers.toSet();
+
+      // Kandidaten = ALLE aktiven User (im Dropdown sichtbar, aber ggf. disabled)
       final allUserEmails = _users.map((u) => u.email.trim()).where((e) => e.isNotEmpty).toSet();
       final all = allUserEmails.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
+      // Vorauswahl = erster freier (global nicht zugewiesener)
       String? selEmail = all.firstWhere(
-        (e) => !assigned.contains(e),
+        (e) => !assignedGlobal.contains(e),
         orElse: () => '',
       );
       if ((selEmail ?? '').isEmpty) selEmail = null;
@@ -756,11 +768,23 @@ class _AdminPageState extends State<AdminPage> {
               }
             }
 
-            Future<void> doUnassign(String email) async {
+            Future<void> doAssign() async {
+              if (selEmail == null || selEmail!.trim().isEmpty) return;
+
+              // Schutz: Falls ein anderer Rep in der Zwischenzeit zugewiesen hat
+              final otherRepId = emailAssignedToRepId[selEmail!];
+              if (otherRepId != null && otherRepId != rep.id) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Dieser Kunde ist bereits einem anderen Vertreter zugewiesen.')),
+                );
+                return;
+              }
+
               setLocal(() => busy = true);
               try {
-                final customers = await _api.unassignCustomerFromRep(repId: rep.id, email: email);
+                final customers = await _api.assignCustomerToRep(repId: rep.id, email: selEmail!.trim());
 
+                // Parent aktualisieren
                 setState(() {
                   final idx = _reps.indexWhere((x) => x.id == rep.id);
                   if (idx >= 0) {
@@ -775,18 +799,76 @@ class _AdminPageState extends State<AdminPage> {
                   }
                 });
 
-                setLocal(() {
-                  assigned = customers.toSet();
-                  // Falls aktuell gewählter Wert nun „verboten“ ist, auf den nächsten freien springen
-                  if (selEmail != null && assigned.contains(selEmail)) {
-                    selEmail = all.firstWhere(
-                      (e) => !assigned.contains(e),
-                      orElse: () => '',
+                // Zur Sicherheit die gesamte Repliste neu laden (Race-Conditions vermeiden)
+                await _refreshReps();
+
+                // Globale Maps/Mengen nachladen
+                emailAssignedToRepId
+                  ..clear()
+                  ..addEntries(_reps.expand((r) => r.customers.map((e) => MapEntry(e, r.id))));
+                assignedGlobal = emailAssignedToRepId.keys.toSet();
+
+                // Lokale Sets aktualisieren
+                assignedThis = customers.toSet();
+
+                // Neue Vorauswahl: nächster freier Kunde
+                selEmail = all.firstWhere(
+                  (e) => !assignedGlobal.contains(e),
+                  orElse: () => '',
+                );
+                if ((selEmail ?? '').isEmpty) selEmail = null;
+
+                setLocal(() => busy = false);
+              } catch (e) {
+                setLocal(() => busy = false);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+                }
+              }
+            }
+
+            Future<void> doUnassign(String email) async {
+              setLocal(() => busy = true);
+              try {
+                final customers = await _api.unassignCustomerFromRep(repId: rep.id, email: email);
+
+                // Parent aktualisieren
+                setState(() {
+                  final idx = _reps.indexWhere((x) => x.id == rep.id);
+                  if (idx >= 0) {
+                    _reps[idx] = Rep(
+                      id: _reps[idx].id,
+                      firstName: _reps[idx].firstName,
+                      lastName: _reps[idx].lastName,
+                      email: _reps[idx].email,
+                      region: _reps[idx].region,
+                      customers: customers,
                     );
-                    if ((selEmail ?? '').isEmpty) selEmail = null;
                   }
-                  busy = false;
                 });
+
+                // Globale Reps neu ziehen
+                await _refreshReps();
+
+                // Globale Maps/Mengen nachladen
+                emailAssignedToRepId
+                  ..clear()
+                  ..addEntries(_reps.expand((r) => r.customers.map((e) => MapEntry(e, r.id))));
+                assignedGlobal = emailAssignedToRepId.keys.toSet();
+
+                // Lokale Sets aktualisieren
+                assignedThis = customers.toSet();
+
+                // Vorauswahl korrigieren (falls aktuell verbotener Wert selektiert war)
+                if (selEmail != null && assignedGlobal.contains(selEmail)) {
+                  selEmail = all.firstWhere(
+                    (e) => !assignedGlobal.contains(e),
+                    orElse: () => '',
+                  );
+                  if ((selEmail ?? '').isEmpty) selEmail = null;
+                }
+
+                setLocal(() => busy = false);
               } catch (e) {
                 setLocal(() => busy = false);
                 if (mounted) {
@@ -805,8 +887,10 @@ class _AdminPageState extends State<AdminPage> {
                     // Bestehende Kundenliste
                     Align(
                       alignment: Alignment.centerLeft,
-                      child: Text('Zugewiesene Kunden (${rep.customers.length}):',
-                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                      child: Text(
+                        'Zugewiesene Kunden (${rep.customers.length}) – jeder Kunde kann nur genau einem Vertreter zugeordnet sein.',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Container(
@@ -858,15 +942,19 @@ class _AdminPageState extends State<AdminPage> {
                               border: OutlineInputBorder(),
                             ),
                             items: all.map((e) {
-                              final isAssigned = assigned.contains(e);
+                              final isAssignedSomewhere = assignedGlobal.contains(e);
                               final label = _companyByEmail(e) ?? e;
+                              // Optional: zeigen, wo belegt (nur für Klarheit im UI)
+                              final assignedHint = (isAssignedSomewhere && emailAssignedToRepId[e] != rep.id)
+                                  ? ' (bereits zugewiesen)'
+                                  : '';
+
                               return DropdownMenuItem<String>(
                                 value: e,
-                                enabled: !isAssigned, // <- macht den Eintrag nicht wählbar
+                                enabled: !isAssignedSomewhere, // global belegt => disabled
                                 child: Text(
-                                  label,
-                                  // optisch „grau“, wenn assigned
-                                  style: isAssigned
+                                  '$label$assignedHint',
+                                  style: isAssignedSomewhere
                                       ? TextStyle(color: Theme.of(context).disabledColor)
                                       : null,
                                 ),
@@ -876,7 +964,8 @@ class _AdminPageState extends State<AdminPage> {
                                 ? null
                                 : (v) {
                                     if (v == null) return;
-                                    if (assigned.contains(v)) return; // safety
+                                    // Safety: global gesperrt bleibt gesperrt
+                                    if (assignedGlobal.contains(v)) return;
                                     setLocal(() => selEmail = v);
                                   },
                           )
