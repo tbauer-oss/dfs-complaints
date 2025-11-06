@@ -731,45 +731,6 @@ class _AdminPageState extends State<AdminPage> {
           builder: (ctx, setLocal) {
             Future<void> doAssign() async {
               if (selEmail == null || selEmail!.trim().isEmpty) return;
-              setLocal(() => busy = true);
-              try {
-                final customers = await _api.assignCustomerToRep(repId: rep.id, email: selEmail!.trim());
-
-                // Parent-State already updated (_reps[idx] = ...). Lokal ebenfalls aktualisieren:
-                setState(() {
-                  final idx = _reps.indexWhere((x) => x.id == rep.id);
-                  if (idx >= 0) {
-                    _reps[idx] = Rep(
-                      id: _reps[idx].id,
-                      firstName: _reps[idx].firstName,
-                      lastName: _reps[idx].lastName,
-                      email: _reps[idx].email,
-                      region: _reps[idx].region,
-                      customers: customers,
-                    );
-                  }
-                });
-
-                // Neu: assigned + selEmail neu setzen (nächster nicht-zugewiesener)
-                setLocal(() {
-                  assigned = customers.toSet();
-                  selEmail = all.firstWhere(
-                    (e) => !assigned.contains(e),
-                    orElse: () => '',
-                  );
-                  if ((selEmail ?? '').isEmpty) selEmail = null;
-                  busy = false;
-                });
-              } catch (e) {
-                setLocal(() => busy = false);
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
-                }
-              }
-            }
-
-            Future<void> doAssign() async {
-              if (selEmail == null || selEmail!.trim().isEmpty) return;
 
               // Schutz: Falls ein anderer Rep in der Zwischenzeit zugewiesen hat
               final otherRepId = emailAssignedToRepId[selEmail!];
