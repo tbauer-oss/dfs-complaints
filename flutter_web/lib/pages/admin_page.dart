@@ -1719,22 +1719,43 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   }
 
   Future<void> _saveInternalNo() async {
+    if (_busy) return;
     setState(() => _busy = true);
+
+    final newVal = _internalCtrl.text.trim();
+
+    // UI sofort updaten, damit es direkt neben der Ticketnummer erscheint
+    setState(() {
+      widget.c.internalNo = newVal;
+    });
+
     try {
       final updated = await widget.api.adminComplaintUpdate(
         ticket: widget.c.ticket,
-        internalNo: _internalCtrl.text.trim(),
+        internalNo: newVal,
       );
-      widget.c.internalNo = updated.internalNo;
+      // Fallback, falls dein Backend etwas „bereinigt“ zurückgibt
+      setState(() {
+       widget.c.internalNo = updated.internalNo ?? newVal;
+      });
+
       if (updated.status == 6 || updated.decision == 'rejected') {
         widget.onClosed();
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Interne Nummer gespeichert.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Interne Nummer gespeichert.')),
+        );
       }
     } catch (e) {
+      // Bei Fehler: alten Wert wiederherstellen (leer oder vorheriger Text)
+      setState(() {
+        widget.c.internalNo = (widget.c.internalNo ?? '').isEmpty ? null : widget.c.internalNo;
+      });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler: $e')),
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -1742,17 +1763,33 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   }
 
   Future<void> _clearInternalNo() async {
+    if (_busy) return;
     setState(() => _busy = true);
-    try {
-      final updated = await widget.api.adminComplaintUpdate(ticket: widget.c.ticket, internalNo: '');
+
+    // UI sofort leeren
+    setState(() {
       _internalCtrl.text = '';
-      widget.c.internalNo = updated.internalNo;
+      widget.c.internalNo = null;
+    });
+
+    try {
+      final updated = await widget.api.adminComplaintUpdate(
+        ticket: widget.c.ticket,
+        internalNo: '',
+      );
+      setState(() {
+        widget.c.internalNo = updated.internalNo; // bleibt i. d. R. null/leer
+      });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Interne Nummer entfernt.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Interne Nummer entfernt.')),
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler: $e')),
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -2188,7 +2225,9 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                         icon: const Icon(Icons.delete_outline),
                       ),
                     ),
+                    onSubmitted: (_) => _busy ? null : _saveInternalNo(), // ← NEU
                   ),
+
                   const SizedBox(height: 8),
                   Align(
                     alignment: Alignment.centerLeft,
