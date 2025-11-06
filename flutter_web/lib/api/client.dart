@@ -318,7 +318,7 @@ class ApiClient {
       if (j.isNotEmpty && j.first is String) {
         return j.whereType<String>().map((mail) => <String, dynamic>{
           'email': mail,
-          'name': mail,
+          'company': mail,
         }).toList(growable: false);
       }
       return j
