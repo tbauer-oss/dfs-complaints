@@ -258,19 +258,33 @@ export async function complaintUpdate(ticket, patch) {
   return updated;
 }
 
-// Alle Reklamationen eines Kunden (sortiert nach Datum desc)
+/* ---------- ROBUSTE MAIL-ERKENNUNG FÜR COMPLAINTS ---------- */
+function _nm(v) { return (v ?? '').toString().trim().toLowerCase(); }
+
+function _emailsFromComplaint(c) {
+  const out = new Set();
+  // Top-Level
+  out.add(_nm(c?.customerEmail));
+  out.add(_nm(c?.email));
+  out.add(_nm(c?.userEmail));
+  out.add(_nm(c?.account?.email));
+  out.add(_nm(c?.user?.email));
+  // Payload
+  const p = c?.payload || {};
+  out.add(_nm(p.customerEmail));
+  out.add(_nm(p.email));
+  out.add(_nm(p.userEmail));
+  out.add(_nm(p?.account?.email));
+  out.add(_nm(p?.user?.email));
+  return Array.from(out).filter(Boolean);
+}
+
+// Alle Reklamationen eines Kunden (sortiert nach Datum desc) – ROBUST
 export async function complaintsByEmail(email) {
-  email = String(email || '').toLowerCase();
-  const r = getRedis();
-  if (r) {
-    const keys = await rkeys(`${P}complaint:*`);
-    const vals = await Promise.all(keys.map(k => rget(k)));
-    const list = vals.filter(v => v?.email?.toLowerCase() === email);
-    list.sort((a, b) => (b?.createdAt || 0) - (a?.createdAt || 0));
-    return list;
-  }
-  const list = Array.from(mem.complaints.values())
-    .filter(v => v?.email?.toLowerCase() === email);
+  const e = _nm(email);
+  if (!e) return [];
+  const all = await complaintsAll();
+  const list = (all || []).filter(c => _emailsFromComplaint(c).includes(e));
   list.sort((a, b) => (b?.createdAt || 0) - (a?.createdAt || 0));
   return list;
 }
@@ -310,23 +324,20 @@ export async function complaintsOpen() {
   return open;
 }
 
-// === Sammelabruf: mehrere Kunden-Mails auf einmal ===
+// === Sammelabruf: mehrere Kunden-Mails auf einmal (kompatibel, nutzt robustes complaintsByEmail) ===
 export async function complaintsByEmails(emails, { status = '' } = {}) {
   const mails = (Array.isArray(emails) ? emails : [])
-    .map(v => (v ?? '').toString().trim().toLowerCase())
+    .map(v => _nm(v))
     .filter(Boolean);
 
   if (mails.length === 0) return [];
 
-  // vorhandene Funktion wiederverwenden:
-  // complaintsByEmail(email) -> liefert Complaint-Objekte
   const all = [];
   for (const m of mails) {
     try {
       const list = await complaintsByEmail(m);
       if (Array.isArray(list)) all.push(...list);
     } catch (e) {
-      // ruhig bleiben – eine Mail darf fehlschlagen
       console.warn('[store] complaintsByEmail failed for', m, e?.message || e);
     }
   }
@@ -341,13 +352,13 @@ export async function complaintsByEmails(emails, { status = '' } = {}) {
     dedup.push(c);
   }
 
-  // optionaler Statusfilter (dein Admin-Handler nutzt 1..6)
+  // optionaler Statusfilter (1..6)
   const s = (status ?? '').toString().trim();
   const filtered = s
     ? dedup.filter(c => String(c?.status ?? '') === s)
     : dedup;
 
-  // wie im Admin: neueste zuerst
+  // neueste zuerst
   filtered.sort((a, b) => {
     const ta = a?.updatedAt ?? a?.createdAt ?? 0;
     const tb = b?.updatedAt ?? b?.createdAt ?? 0;
@@ -355,4 +366,41 @@ export async function complaintsByEmails(emails, { status = '' } = {}) {
   });
 
   return filtered;
+}
+
+/* ================== NEU: Vertreter-spezifische Abfrage ================== */
+export async function complaintsForRepEmails(emails, { status = '' } = {}) {
+  const wanted = new Set(
+    (Array.isArray(emails) ? emails : [])
+      .map(e => _nm(e))
+      .filter(Boolean)
+  );
+  if (wanted.size === 0) return [];
+
+  const all = await complaintsAll();
+  const wantStatus = (status ?? '').toString().trim();
+
+  const seen = new Set();
+  const out = [];
+
+  for (const c of (all || [])) {
+    const t = (c?.ticket ?? '').toString().trim();
+    if (!t || seen.has(t)) continue;
+
+    if (wantStatus && String(c?.status ?? '') !== wantStatus) continue;
+
+    const mails = _emailsFromComplaint(c);
+    if (!mails.some(m => wanted.has(m))) continue;
+
+    seen.add(t);
+    out.push(c);
+  }
+
+  out.sort((a, b) => {
+    const ta = a?.updatedAt ?? a?.createdAt ?? 0;
+    const tb = b?.updatedAt ?? b?.createdAt ?? 0;
+    return (tb || 0) - (ta || 0);
+  });
+
+  return out;
 }
