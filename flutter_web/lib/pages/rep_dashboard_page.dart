@@ -13,6 +13,9 @@ extension _L10nX on BuildContext {
 // Filtervarianten für die Kachel-Leiste
 enum _RepFilter { all, open, rejected, finished }
 
+// Hart typisierte Customer-Map: alle Werte sind Strings
+typedef Customer = Map<String, String>;
+
 class RepDashboardPage extends StatefulWidget {
   final ApiClient api;
   const RepDashboardPage({super.key, required this.api});
@@ -24,7 +27,7 @@ class RepDashboardPage extends StatefulWidget {
 class _RepDashboardPageState extends State<RepDashboardPage> {
   Map<String, dynamic>? _me;
 
-  /// Kundenliste (robust für Strings/Objekte)
+  /// Kundenliste (intern als dynamic für UI, Quelle ist strikt String/String)
   List<Map<String, dynamic>> _customers = [];
 
   /// Reklamationen
@@ -59,16 +62,16 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     });
     try {
       final me   = await widget.api.repMe();
-      final comp = await widget.api.repComplaints(); // <— FEHLTE ZUVOR
+      final comp = await widget.api.repComplaints();
 
       // Kunden – tolerant: Strings oder Objekte
-      final rawCustomers = await widget.api.repCustomers(); // List<dynamic>/List<String>
-      final List<Map<String, String>> customers = <Map<String, String>>[]; // TYP FIX
+      final rawCustomers = await widget.api.repCustomers(); // List<dynamic> oder List<String>
+      final List<Customer> customers = <Customer>[];        // *** TYP-FIX: Map<String,String>
 
       for (final c in rawCustomers) {
         if (c is Map) {
-          // explizit als String/String-Map aufbauen (TYP FIX!)
-          final Map<String, String> entry = <String, String>{
+          // konsequent alle Felder in Strings wandeln
+          final entry = <String, String>{
             'email'  : (c['email']        ?? '').toString(),
             'name'   : (c['name']         ?? c['company'] ?? c['displayName'] ?? c['email'] ?? '').toString(),
             'company': (c['company']      ?? '').toString(),
@@ -86,7 +89,10 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       if (!mounted) return;
       setState(() {
         _me = me;
-        _customers = customers.cast<Map<String, dynamic>>(); // kompatibel lassen
+        // für die UI in dynamic wandeln, ohne Typkonflikte
+        _customers = customers
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList(growable: false);
         _complaints = comp;
       });
     } catch (e) {
@@ -324,7 +330,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                                   _Info(
                                     'Name',
                                     '${(_me!['firstName'] ?? '').toString()} '
-                                    '${(_me!['lastName'] ?? '').toString()}'.trim(),
+                                    '${(_me!['lastName']  ?? '').toString()}'.trim(),
                                   ),
                                   _Info(t.email_plain, (_me!['email'] ?? '').toString()),
                                   _Info(t.region, (_me!['region'] ?? '').toString()),
@@ -596,8 +602,6 @@ class _ComplaintTile extends StatelessWidget {
             ),
           ],
         ),
-
-        // Buttons nur, wenn onDecision != null (offen + keine Entscheidung)
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -616,7 +620,6 @@ class _ComplaintTile extends StatelessWidget {
             if (isClosed) const SizedBox(width: 4),
           ],
         ),
-
         dense: true,
       ),
     );
