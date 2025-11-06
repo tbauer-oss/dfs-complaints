@@ -68,7 +68,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       for (final c in rawCustomers) {
         if (c is Map) {
           // explizit als String/String-Map aufbauen (TYP FIX!)
-          final entry = <String, String>{
+          final Map<String, String> entry = <String, String>{
             'email'  : (c['email']        ?? '').toString(),
             'name'   : (c['name']         ?? c['company'] ?? c['displayName'] ?? c['email'] ?? '').toString(),
             'company': (c['company']      ?? '').toString(),
