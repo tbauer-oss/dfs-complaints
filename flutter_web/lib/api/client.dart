@@ -1,6 +1,6 @@
 // lib/api/client.dart
 import 'dart:convert';
-import 'dart:html' as html; // Web: LocalStorage & Window
+import 'dart:html' as html;
 import 'package:http/http.dart' as http;
 import '../models/complaint.dart';
 
@@ -137,6 +137,70 @@ class ApiClient {
     // Wenn API_BASE leer ist (z. B. Preview/Local), nimm die aktuelle Origin
     final base = _apiBase.isNotEmpty ? _apiBase : html.window.location.origin;
     return Uri.parse('$base$path');
+  }
+
+    // ---- Basis ----
+  String get baseUrl {
+    const b = String.fromEnvironment('API_BASE', defaultValue: '');
+    if (b.isNotEmpty) return b;
+    return html.window.location.origin; // Fallback lokal
+  }
+
+  Map<String, String> _headersJson() => {
+    'Content-Type': 'application/json; charset=utf-8',
+  };
+
+  Uri _u(String path) => Uri.parse('$baseUrl$path');
+
+  Future<html.HttpRequest> _request(
+    String method,
+    String path, {
+    Object? body,
+  }) async {
+    try {
+      final res = await html.HttpRequest.request(
+        _u(path).toString(),
+        method: method,
+        requestHeaders: _headersJson(),
+        sendData: body == null ? null : jsonEncode(body),
+        withCredentials: true, // wichtig für Cookies/Session
+      );
+      return res;
+    } catch (e) {
+      if (e is html.ProgressEvent) {
+        final t = e.target;
+        if (t is html.HttpRequest) {
+          final st = t.status;
+          final txt = t.responseText ?? '';
+          final stx = t.statusText ?? '';
+          throw 'HTTP $st $stx — ${txt.isEmpty ? "Request fehlgeschlagen" : txt}';
+        }
+      }
+      throw e.toString();
+    }
+  }
+
+  // ---- Generic POST JSON ----
+  Future<Map<String, dynamic>> postJson(String path, Map<String, dynamic> body) async {
+    final r = await _request('POST', path, body: body);
+    if (r.status != 200 && r.status != 201) {
+      throw 'HTTP ${r.status} ${r.statusText} — ${r.responseText ?? ''}';
+    }
+    final txt = r.responseText ?? '{}';
+    return txt.trim().isEmpty ? <String, dynamic>{} : jsonDecode(txt);
+  }
+
+  // ---- Reps: Entscheidung zu Complaint ----
+  Future<Map<String, dynamic>> repDecision({
+    required String repId,
+    required String ticket,
+    required bool approve,
+  }) async {
+    return await postJson('/api/rep/decision', {
+      'repId': repId,
+      'ticket': ticket,
+      'decision': approve ? 'approve' : 'reject',
+    });
   }
 
   // ---------- Low-level HTTP ----------
