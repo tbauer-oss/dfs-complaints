@@ -63,7 +63,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       final comp = await widget.api.repComplaints();
 
       // Kunden – tolerant: Strings oder Objekte
-      final rawCustomers = await widget.api.repCustomers(); // List<dynamic>
+      // neu:
+      final rawCustomers = await widget.api.repCustomersDetailed();
       final List<Map<String, String>> customers = <Map<String, String>>[];
 
       for (final c0 in rawCustomers) {
