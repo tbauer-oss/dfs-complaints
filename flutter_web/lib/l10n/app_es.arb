@@ -20,6 +20,11 @@
   "theme_light": "Claro",
   "theme_dark": "Oscuro",
 
+  "approve": "Aprobar",
+  "reject": "Rechazar",
+  "rep_approved": "Aprobado por el representante.",
+  "rep_rejected": "Rechazado por el representante.",
+
   "cancel": "Cancelar",
   "open": "Abrir",
   "unlock": "Desbloquear",
