@@ -364,14 +364,23 @@ class _ComplaintTile extends StatelessWidget {
     final t = context.t;
 
     final ticket   = (data['ticket'] ?? '').toString();
-    final status   = (data['status'] ?? '').toString();
-    final decision = (data['decision'] ?? '').toString();
+    final status   = (data['status'] ?? '').toString();                // kommt als 1..6
+    final decision = (data['decision'] ?? '').toString();              // 'accepted' | 'rejected' | ''
     final created  = (data['createdAt'] ?? data['created'] ?? '').toString();
     final customer = (data['customerEmail'] ?? data['email'] ?? '').toString();
     final article  = (data['payload']?['article'] ?? '').toString();
     final segment  = (data['payload']?['segment'] ?? '').toString();
 
-    final isOpen = status == 'open' || status == 'pending';
+    // ---- WICHTIG: "offen" korrekt aus den Status-Codes ableiten (1..6) ----
+    // Offen = NICHT (Status == 6 "Abgeschlossen") UND NICHT (Status == 4 && decision == 'rejected')
+    final int s = int.tryParse(status) ?? 0;
+    final bool isOpen = (s != 6) && !(s == 4 && decision == 'rejected');
+
+    // Buttons nur anzeigen, wenn:
+    // - ein Callback vorhanden ist
+    // - der Fall offen ist
+    // - es noch KEINE Entscheidung gibt
+    final bool canDecide = onDecision != null && isOpen && decision.isEmpty;
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
@@ -392,24 +401,24 @@ class _ComplaintTile extends StatelessWidget {
           ],
         ),
 
-        // ↓↓↓ NEU: die beiden Buttons rechts
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (onDecision != null) ...[
-              IconButton(
-                tooltip: '${t.decision}: ${t.decision_accepted}',
-                icon: const Icon(Icons.check_circle_outline),
-                onPressed: () => onDecision!(ticket, true),
-              ),
-              IconButton(
-                tooltip: '${t.decision}: ${t.decision_rejected}',
-                icon: const Icon(Icons.cancel_outlined),
-                onPressed: () => onDecision!(ticket, false),
-              ),
-            ],
-          ],
-        ),
+        // ← GENAU HIER ist der Button-Block: nur wenn canDecide == true
+        trailing: canDecide
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    tooltip: '${t.decision}: ${t.decision_accepted}',
+                    icon: const Icon(Icons.check_circle_outline),
+                    onPressed: () => onDecision!(ticket, true),
+                  ),
+                  IconButton(
+                    tooltip: '${t.decision}: ${t.decision_rejected}',
+                    icon: const Icon(Icons.cancel_outlined),
+                    onPressed: () => onDecision!(ticket, false),
+                  ),
+                ],
+              )
+            : null,
 
         dense: true,
       ),
