@@ -28,7 +28,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   Map<String, dynamic>? _me;
 
   /// Kundenliste (intern als dynamic für UI, Quelle ist strikt String/String)
-  List<Map<String, dynamic>> _customers = [];
+  List<Map<String, Object?>> _customers = [];
 
   /// Reklamationen
   List<Map<String, dynamic>> _complaints = [];
@@ -67,32 +67,33 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       // Kunden – tolerant: Strings oder Objekte
       final rawCustomers = await widget.api.repCustomers(); // List<dynamic>
 
-      // HART auf dynamic typisieren (verhindert "String -> int"-Fehler)
-      final List<Map<String, dynamic>> customers = <Map<String, dynamic>>[];
+      // Explizit JSON-freundlich:
+      final List<Map<String, Object?>> customers = <Map<String, Object?>>[];
 
       for (final c in rawCustomers) {
         if (c is Map) {
-          // konsequent alles zu String casten (für Anzeige)
-          final Map<String, dynamic> entry = <String, dynamic>{
-            'email'  : (c['email']        ?? '').toString(),
-            'name'   : (c['name']         ?? c['company'] ?? c['displayName'] ?? c['email'] ?? '').toString(),
-            'company': (c['company']      ?? '').toString(),
-            'address': (c['address']      ?? '').toString(),
-            'zip'    : (c['zip']          ?? '').toString(),
-            'city'   : (c['city']         ?? '').toString(),
-            'country': (c['country']      ?? '').toString(),
-          };
-          customers.add(entry);
+          // Map Schritt-für-Schritt befüllen, keine Literal-Inferenz
+          final map = <String, Object?>{};
+          map['email']   = (c['email']        ?? '').toString();
+          map['name']    = (c['name']         ?? c['company'] ?? c['displayName'] ?? c['email'] ?? '').toString();
+          map['company'] = (c['company']      ?? '').toString();
+          map['address'] = (c['address']      ?? '').toString();
+          map['zip']     = (c['zip']          ?? '').toString();
+          map['city']    = (c['city']         ?? '').toString();
+          map['country'] = (c['country']      ?? '').toString();
+          customers.add(map);
         } else if (c is String) {
-          customers.add(<String, dynamic>{ 'email': c, 'name': c });
+          customers.add(<String, Object?>{
+            'email': c,
+            'name' : c,
+          });
         }
       }
 
-      // Übergabe in den State bleibt kompatibel
       setState(() {
         _me = me;
-        _customers = customers;         // List<Map<String, dynamic>>
-        _complaints = comp;             // ← ACHTUNG: comp vorher definieren!
+        _customers = customers;   // List<Map<String, Object?>>
+        _complaints = comp;
       });
 
     } catch (e) {
@@ -356,9 +357,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                                   for (final c in _customers)
                                     ListTile(
                                       leading: const Icon(Icons.apartment_outlined),
-                                      title: Text((c['name'] ?? '').toString().isEmpty
-                                          ? (c['email'] ?? '').toString()
-                                          : (c['name'] as String)),
+                                      title: Text(((c['name'] ?? '') as Object?).toString().isEmpty
+                                          ? ((c['email'] ?? '') as Object?).toString()
+                                          : ((c['name'] ?? '') as Object?).toString()),
                                       subtitle: Text((c['email'] ?? '').toString()),
                                       trailing: Wrap(
                                         spacing: 8,
