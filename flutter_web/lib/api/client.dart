@@ -279,9 +279,21 @@ class ApiClient {
   }
 
   Future<void> accountChangePassword(String oldPw, String newPw) async {
-    final r = await _post('/api/account/password', {'old': oldPw, 'new': newPw}, auth: true);
+    // Server erwartet: oldPassword / newPassword
+    final r = await _post(
+      '/api/account/password',
+      {'oldPassword': oldPw, 'newPassword': newPw},
+      auth: true,
+    );
+
     if (!_ok2xx(r.statusCode)) {
-      throw Exception('POST /api/account/password failed: ${r.statusCode} ${r.body}');
+      // bessere Fehlermeldung
+      } catch (e) {
+        final msg = e is ApiError && e.message.toLowerCase().contains('wrong password')
+            ? context.t.password_wrong
+            : '${context.t.error}: $e';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      }
     }
   }
 
