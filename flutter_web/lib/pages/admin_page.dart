@@ -2518,6 +2518,17 @@ class AdminApi {
   }
 }
 
+// Farb-Mixer: mischt "top" mit Deckkraft t über "base"
+Color _blend(Color base, Color top, double t) {
+  return Color.alphaBlend(top.withOpacity(t.clamp(0, 1)), base);
+}
+
+// Kontrastfarbe für Text auf einem Farbfeld ermitteln
+Color _bestOnColor(Color c) {
+  final b = ThemeData.estimateBrightnessForColor(c);
+  return (b == Brightness.dark) ? Colors.white : Colors.black;
+}
+
 // ===================================================================
 // interne Hilfs-Resultklasse
 // ===================================================================
@@ -2576,8 +2587,32 @@ class _AdminTileProState extends State<AdminTilePro> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Akzent bleibt dein colorB
+    final accent = widget.colorB;
+
+    // Basisfläche: an Surface andocken und Akzent nur leicht einblenden
+    // Light: weiche, helle Kachel mit sanftem Akzent
+    // Dark: SurfaceContainer + minimaler Akzentfilm
+    final baseSurface = isDark ? cs.surfaceContainerHighest : cs.surface;
+    final bgA = _blend(baseSurface, accent, isDark ? 0.08 : 0.06);
+    final bgB = _blend(baseSurface, accent, isDark ? 0.04 : 0.00);
+
+    // Icon-Farbe: im Light ruhig Akzent, im Dark etwas gedämpft aber weiterhin Akzent-basiert
+    final iconColor = isDark ? _blend(accent, cs.onSurface, 0.20) : accent;
+  
+    // Titel-/Untertitel-Farben
+    final titleColor = cs.onSurface;
+    final subtitleColor = cs.onSurfaceVariant;
+
+    // Badge (Zähler) – volle Akzentfläche, Text automatisch kontrastierend
+    final badgeBg = accent;
+    final badgeFg = _bestOnColor(badgeBg);
+
     final br = BorderRadius.circular(12);
-    final liftY = _hovering ? -6.0 : 0.0; // Bewegung nach oben
+    final liftY = _hovering ? -6.0 : 0.0;
     final scale = _hovering ? 1.01 : 1.0;
     final elevation = _hovering ? 10.0 : 2.0;
 
@@ -2588,9 +2623,7 @@ class _AdminTileProState extends State<AdminTilePro> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOut,
-        transform: Matrix4.identity()
-          ..translate(0.0, liftY)
-          ..scale(scale),
+        transform: Matrix4.identity()..translate(0.0, liftY)..scale(scale),
         child: Material(
           elevation: elevation,
           borderRadius: br,
@@ -2600,10 +2633,15 @@ class _AdminTileProState extends State<AdminTilePro> {
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: br,
+                // sanfter Verlauf innerhalb der selben Surface-Welt
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [widget.colorA, Colors.white],
+                  colors: [bgA, bgB],
+                ),
+                // feine Outline für Dark (hilft gegen „Matsch“)
+                border: Border.all(
+                  color: isDark ? cs.outlineVariant.withOpacity(0.35) : cs.outlineVariant.withOpacity(0.25),
                 ),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
@@ -2616,7 +2654,7 @@ class _AdminTileProState extends State<AdminTilePro> {
                       Icon(
                         widget.icon,
                         size: widget.compact ? 36 : 44,
-                        color: widget.colorB,
+                        color: iconColor,
                       ),
                       if (widget.count != null)
                         Positioned(
@@ -2625,13 +2663,21 @@ class _AdminTileProState extends State<AdminTilePro> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: widget.colorB,
+                              color: badgeBg,
                               borderRadius: BorderRadius.circular(999),
+                              boxShadow: [
+                                if (isDark)
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.25),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                              ],
                             ),
                             child: Text(
                               '${widget.count}',
-                              style: const TextStyle(
-                                color: Colors.white,
+                              style: TextStyle(
+                                color: badgeFg,
                                 fontWeight: FontWeight.w700,
                                 fontSize: 12,
                               ),
@@ -2644,17 +2690,14 @@ class _AdminTileProState extends State<AdminTilePro> {
                   Text(
                     widget.label,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                    style: TextStyle(fontWeight: FontWeight.w700, color: titleColor),
                   ),
                   if ((widget.subtitle ?? '').isNotEmpty) ...[
                     const SizedBox(height: 6),
                     Text(
                       widget.subtitle!,
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.8),
-                        fontSize: 12.5,
-                      ),
+                      style: TextStyle(color: subtitleColor, fontSize: 12.5),
                     ),
                   ],
                 ],
