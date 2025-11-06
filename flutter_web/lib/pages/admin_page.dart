@@ -1950,7 +1950,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
           return scheme.outline;
       }
     }
-
+  
     Widget _statusChip(int s) {
       final col = _statusColor(s);
       return Container(
@@ -2201,7 +2201,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       ),
     );
   }
-
+}
 // ===================================================================
 // Admin API (Browser, dart:html)
 // ===================================================================
