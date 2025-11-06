@@ -1,15 +1,12 @@
 // api/rep/customers.js
 export const config = { runtime: 'nodejs' };
 
-import { handlePreflight } from '../_cors.js';
+import { withCors } from '../_cors.js';
 import { getRepFromAuthHeader } from '../_lib/repAuth.js';
 import { repCustomers, repAssign, repUnassign } from '../_lib/repsStore.js';
 import { userByEmail } from '../_lib/store.js';
 
-export default async function handler(req, res) {
-  // Einheitliches CORS + OPTIONS
-  if (handlePreflight(req, res)) return;
-
+async function handler(req, res) {
   const auth = getRepFromAuthHeader(req);
   if (!auth) return res.status(401).end(JSON.stringify({ error: 'unauthorized' }));
 
@@ -38,7 +35,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // GET – zurückliefern: Strings (abwärtskompatibel) ODER detailliert, je nach Query
+  // GET – Liste: Strings (kompatibel) ODER Details via ?details=1
   if (req.method === 'GET') {
     try {
       const details = (req.query?.details || '').toString() === '1';
@@ -48,11 +45,9 @@ export default async function handler(req, res) {
       }
 
       if (!details) {
-        // klassischer Modus (kompatibel): Liste von Strings
         return res.status(200).end(JSON.stringify(emails));
       }
 
-      // Details anreichern (best effort)
       const out = [];
       for (const mail of emails) {
         let name = mail;
@@ -83,3 +78,5 @@ export default async function handler(req, res) {
 
   return res.status(405).end(JSON.stringify({ error: 'method not allowed' }));
 }
+
+export default withCors(handler);
