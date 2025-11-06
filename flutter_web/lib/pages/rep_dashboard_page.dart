@@ -153,7 +153,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(approve ? context.t.approved : context.t.rejected)),
+        SnackBar(content: Text(approve ? context.t.decision_accepted : context.t.decision_rejected)),
       );
       await _loadAll();
     } catch (e) {
@@ -398,12 +398,12 @@ class _ComplaintTile extends StatelessWidget {
           children: [
             if (onDecision != null) ...[
               IconButton(
-                tooltip: t.approve ?? 'Freigeben',
+                tooltip: '${t.decision}: ${t.decision_accepted}',
                 icon: const Icon(Icons.check_circle_outline),
                 onPressed: () => onDecision!(ticket, true),
               ),
               IconButton(
-                tooltip: t.reject ?? 'Ablehnen',
+                tooltip: '${t.decision}: ${t.decision_rejected}',
                 icon: const Icon(Icons.cancel_outlined),
                 onPressed: () => onDecision!(ticket, false),
               ),
