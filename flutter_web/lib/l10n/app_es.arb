@@ -25,6 +25,13 @@
   "rep_approved": "Aprobado por el representante.",
   "rep_rejected": "Rechazado por el representante.",
 
+  "profile_edit": "Editar perfil",
+  "@profile_edit": { "description": "Elemento de menú: editar datos del perfil" },
+  "password_change": "Cambiar contraseña",
+  "@password_change": { "description": "Elemento de menú: cambiar la contraseña" },
+  "password_change_hint": "Actualiza tu contraseña de forma segura",
+  "@password_change_hint": { "description": "Subtítulo bajo cambiar contraseña en el menú de cuenta" },
+
   "cancel": "Cancelar",
   "open": "Abrir",
   "unlock": "Desbloquear",
