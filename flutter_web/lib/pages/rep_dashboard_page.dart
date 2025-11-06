@@ -27,8 +27,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   String _s(Object? v) => v?.toString() ?? '';
 
   /// Kundenliste (intern als dynamic für UI, Quelle ist strikt String/String)
-  List<Map<String, Object?>> _customers = <Map<String, Object?>>[];
-
+  List<Map<String, String>> _customers = <Map<String, String>>[];
   /// Reklamationen
   List<Map<String, dynamic>> _complaints = [];
 
@@ -65,34 +64,35 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
       // Kunden – tolerant: Strings oder Objekte
       final rawCustomers = await widget.api.repCustomers(); // List<dynamic>
-      final List<Map<String, Object?>> customers = <Map<String, Object?>>[];
+      final List<Map<String, String>> customers = <Map<String, String>>[];
 
       for (final c0 in rawCustomers) {
         if (c0 is Map) {
-          // WICHTIG: Generics aufbrechen! KEIN Map<String,int> mehr durchschleifen.
+          // Generics konsequent aufbrechen, dann sauber zu String machen:
           final Map<Object?, Object?> c = Map<Object?, Object?>.from(c0 as Map);
 
-          final Map<String, Object?> map = <String, Object?>{};
-          map['email']   = _s(c['email']);
-          map['name']    = _s(c['name'] ?? c['company'] ?? c['displayName'] ?? c['email']);
-          map['company'] = _s(c['company']);
-          map['address'] = _s(c['address']);
-          map['zip']     = _s(c['zip']);
-          map['city']    = _s(c['city']);
-          map['country'] = _s(c['country']);
-
-          customers.add(map);
+          final m = <String, String>{
+            'email'  : _s(c['email']),
+            'name'   : _s(c['name'] ?? c['company'] ?? c['displayName'] ?? c['email']),
+            'company': _s(c['company']),
+            'address': _s(c['address']),
+            'zip'    : _s(c['zip']),
+            'city'   : _s(c['city']),
+            'country': _s(c['country']),
+          };
+          customers.add(m);
         } else if (c0 is String) {
-          customers.add(<String, Object?>{'email': c0, 'name': c0});
+          customers.add(<String, String>{'email': c0, 'name': c0});
         } else {
-          // Fallback: unbekannter Typ, trotzdem nicht crashen
-          customers.add(<String, Object?>{'email': _s(c0), 'name': _s(c0)});
+          // Fallback: unbekannter Typ -> trotzdem lesbar machen
+          final s = _s(c0);
+          customers.add(<String, String>{'email': s, 'name': s});
         }
       }
 
       setState(() {
         _me = me;
-        _customers  = customers;   // bleibt List<Map<String, Object?>>
+        _customers  = customers;   // jetzt List<Map<String,String>>
         _complaints = comp;
       });
 
@@ -436,7 +436,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     );
   }
 
-  void _showCustomerDetails(Map<String, Object?> c) {
+  void _showCustomerDetails(Map<String, String> c) {
     final name    = (c['name'] ?? '').toString();
     final email   = (c['email'] ?? '').toString();
     final company = (c['company'] ?? '').toString();
