@@ -20,6 +20,13 @@
   "theme_light": "Clair",
   "theme_dark": "Sombre",
 
+  "profile_edit": "Modifier le profil",
+  "@profile_edit": { "description": "Élément de menu : modifier les informations du profil" },
+  "password_change": "Changer le mot de passe",
+  "@password_change": { "description": "Élément de menu : changer le mot de passe" },
+  "password_change_hint": "Mettre à jour le mot de passe en toute sécurité",
+  "@password_change_hint": { "description": "Sous-titre sous changer le mot de passe dans le menu du compte" },
+
   "approve": "Approuver",
   "reject": "Refuser",
   "rep_approved": "Approuvé par le représentant.",
