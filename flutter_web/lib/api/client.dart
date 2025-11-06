@@ -295,7 +295,6 @@ class ApiClient {
       throw ApiError(0, e.toString());
     }
   }
- }
 
   // ---------- Support ----------
   Future<void> sendSupport({
