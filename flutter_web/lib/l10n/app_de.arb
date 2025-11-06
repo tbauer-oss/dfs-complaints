@@ -40,6 +40,11 @@
   "session_invalid": "Sitzung ungültig. Bitte neu anmelden.",
   "sessionInvalidPleaseLogin": "Sitzung ungültig. Bitte neu anmelden.",
 
+  "approve": "Freigeben",
+  "reject": "Ablehnen",
+  "rep_approved": "Vom Vertreter freigegeben.",
+  "rep_rejected": "Vom Vertreter abgelehnt.",
+
   "noData": "Keine Daten.",
   "noDataFound": "Keine Daten gefunden.",
   "error": "Fehler: {msg}",
