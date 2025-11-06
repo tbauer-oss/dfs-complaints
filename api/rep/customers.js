@@ -1,23 +1,25 @@
 // api/rep/customers.js
 export const config = { runtime: 'nodejs' };
 
-import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs';
+// CORS exakt wie bei complaints.js
 import { setCors } from '../_lib/cors.js';
-import { loadRepByEmail } from '../_lib/repsStore.js';
+// Auth + Store
+import { getRepFromAuthHeader } from '../_lib/repAuth.js';
+import { repCustomers, repAssign, repUnassign } from '../_lib/repsStore.js';
+import { userByEmail } from '../_lib/store.js';
 
-const REP_SECRET = process.env.REP_JWT_SECRET;
+const FRONTEND = 'https://dfs-complaints-web.vercel.app';
 
 export default async function handler(req, res) {
-  setCors(req, res, 'Content-Type, Authorization, X-Gate, X-Rep-Secret');
+  // --- CORS immer zuerst ---
+  setCors(req, res, 'Content-Type, Authorization, X-Gate');
+  // optional: Header hart setzen, damit der Preflight auch dann nicht "nackt" ist,
+  // wenn du aus Versehen vom Backend-Origin testest:
+  res.setHeader('Access-Control-Allow-Origin', FRONTEND);
+
   if (req.method === 'OPTIONS') return res.status(204).end();
-  if (req.method !== 'POST')
-    return res.status(405).json({ error: 'method not allowed' });
 
-  if (!REP_SECRET)
-    return res.status(500).json({ error: 'server misconfig (REP_JWT_SECRET not set)' });
-
-  // --- Auth prüfen (nur Bearer-Rep) ---
+  // --- Auth prüfen ---
   const auth = getRepFromAuthHeader(req);
   if (!auth) {
     return res.status(401).end(JSON.stringify({ error: 'unauthorized' }));
@@ -66,25 +68,19 @@ export default async function handler(req, res) {
       }
 
       if (!details) {
-        // abwärtskompatibel: nur die E-Mail-Liste
+        // abwärtskompatibel
         return res.status(200).end(JSON.stringify(emails));
       }
 
-      // Details anreichern (best effort)
+      // Details (best effort)
       const out = [];
       for (const mail of emails) {
-        let name = mail;
-        let company = '';
-        let address = '';
-        let zip = '';
-        let city = '';
-        let country = '';
+        let name = mail, company = '', address = '', zip = '', city = '', country = '';
         try {
           const u = await userByEmail(mail);
           if (u && typeof u === 'object') {
             const fullName = `${(u.firstName || '').toString()} ${(u.lastName || '').toString()}`.trim();
-            name = (u.companyName || u.contactName || u.name || fullName || mail)
-              .toString().trim() || mail;
+            name    = (u.companyName || u.contactName || u.name || fullName || mail).toString().trim() || mail;
             company = (u.companyName || '').toString();
             address = (u.address || '').toString();
             zip     = (u.zip || '').toString();
@@ -98,11 +94,9 @@ export default async function handler(req, res) {
       return res.status(200).end(JSON.stringify(out));
     } catch (e) {
       console.error('[rep/customers] GET error:', e);
-      // Bei Fehlern wie gehabt: leere Liste zurückgeben (mit CORS-Headern)
       return res.status(200).end(JSON.stringify([]));
     }
   }
 
-  // --- Sonst: 405 ---
   return res.status(405).end(JSON.stringify({ error: 'method not allowed' }));
 }
