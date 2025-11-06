@@ -145,6 +145,33 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     }
   }
 
+  Future<void> _decideComplaint(String ticket, String decision) async {
+    final t = context.t;
+    try {
+      final res = await widget.api.postJson('/rep/decision', {
+        'repId': _me?['id'] ?? widget.api.repId,
+        'ticket': ticket,
+        'decision': decision, // "approve" oder "reject"
+      });
+      if (res['ok'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(decision == 'approve'
+                ? t.rep_approved
+                : t.rep_rejected),
+          ),
+        );
+        await _loadAll(); // Liste neu laden
+      } else {
+        throw Exception(res['error'] ?? 'unknown error');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${t.error ?? 'Fehler'}: $e')),
+      );
+    }
+  }
+
   Future<void> _logout() async {
     await widget.api.repLogout();
     try { html.window.localStorage.remove('dfs_mode'); } catch (_) {}
@@ -246,7 +273,11 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                             ? Text(t.noComplaintsFound)
                             : Column(
                                 children: [
-                                  for (final c in _complaints) _ComplaintTile(data: c),
+                                  for (final c in _complaints)
+                                    _ComplaintTile(
+                                      data: c,
+                                      onDecision: _decideComplaint,
+                                    ),
                                 ],
                               ),
                       ),
@@ -333,7 +364,9 @@ class _Info extends StatelessWidget {
 
 class _ComplaintTile extends StatelessWidget {
   final Map<String, dynamic> data;
-  const _ComplaintTile({required this.data});
+  final void Function(String ticket, String decision)? onDecision;
+
+  const _ComplaintTile({required this.data, this.onDecision});
 
   @override
   Widget build(BuildContext context) {
@@ -347,14 +380,25 @@ class _ComplaintTile extends StatelessWidget {
     final article  = (data['payload']?['article'] ?? '').toString();
     final segment  = (data['payload']?['segment'] ?? '').toString();
 
+    final isOpen = status == 'open' || status == 'pending';
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
-      child: ListTile(
-        leading: const Icon(Icons.description_outlined),
-        title: Text(ticket.isEmpty ? '(ohne Ticket)' : ticket),
-        subtitle: Column(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Row(
+              children: [
+                const Icon(Icons.description_outlined),
+                const SizedBox(width: 8),
+                Text(ticket.isEmpty ? '(ohne Ticket)' : ticket,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 15)),
+              ],
+            ),
+            const SizedBox(height: 6),
             if (customer.isNotEmpty) Text('${t.customer_label}: $customer'),
             if (article.isNotEmpty)  Text('${t.articleNo}: $article'),
             if (segment.isNotEmpty)  Text('${t.segment}: $segment'),
@@ -363,9 +407,29 @@ class _ComplaintTile extends StatelessWidget {
               '${decision.isNotEmpty ? ' • ${t.decision}: $decision' : ''}'
               '${created.isNotEmpty ? ' • ${t.created_at ?? 'Angelegt'}: $created' : ''}',
             ),
+
+            // ↓↓↓ NEU: Buttons für Vertreter ↓↓↓
+            if (isOpen) ...[
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.close, color: Colors.red),
+                    label: Text(t.reject),
+                    onPressed: () => onDecision?.call(ticket, 'reject'),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton.icon(
+                    icon: const Icon(Icons.check_circle, color: Colors.white),
+                    label: Text(t.approve),
+                    onPressed: () => onDecision?.call(ticket, 'approve'),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
-        dense: true,
       ),
     );
   }
