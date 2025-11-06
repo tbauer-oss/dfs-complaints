@@ -30,13 +30,31 @@ export default async function handler(req, res) {
     return res.status(200).end(JSON.stringify([]));
   }
 
-  const status = String(req.query?.status ?? '').trim();
+  const status = String((req.query?.status || '')).trim();
+  const debug  = req.query?.debug === '1';
 
   try {
-    const items = await complaintsForRepEmails(emails, { status });
+  const items = await complaintsByEmails(emails, { status });
+
+    if (debug) {
+      // nur zu Diagnose-Zwecken – KEINE sensiblen Daten loggen
+      const sample = items.slice(0, 5).map(c => ({
+        ticket: c.ticket,
+        email: (c.email || c.customerEmail || c?.payload?.email || c?.payload?.customerEmail || ''),
+        status: c.status,
+        decision: c.decision ?? null,
+      }));
+      return res.status(200).end(JSON.stringify({
+        repId: auth.repId,
+        emails,                 // zugewiesene Kundenmails
+        count: items.length,    // Trefferzahl
+        sample,                 // kleine Stichprobe
+      }));
+    }
+
     return res.status(200).end(JSON.stringify(items));
   } catch (e) {
-    console.error('[rep/complaints] complaintsForRepEmails failed:', e);
+    console.error('[rep/complaints] complaintsByEmails failed:', e);
     return res.status(200).end(JSON.stringify([]));
   }
 }
