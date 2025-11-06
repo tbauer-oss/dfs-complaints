@@ -62,32 +62,33 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     try {
       final me = await widget.api.repMe();
 
-      // Kunden – tolerant: Strings oder Objekte
-      final rawCustomers = await widget.api.repCustomers(); // kann List<String> ODER List<Map> sein
-      final customers = <Map<String, dynamic>>[];
-      for (final c in rawCustomers) {
-        if (c is Map<String, dynamic>) {
-          customers.add({
-            'email': (c['email'] ?? '').toString(),
-            'name' : (c['name']  ?? c['company'] ?? c['displayName'] ?? c['email'] ?? '').toString(),
-            'company': (c['company'] ?? '').toString(),
-            'address': (c['address'] ?? '').toString(),
-            'zip'    : (c['zip'] ?? '').toString(),
-            'city'   : (c['city'] ?? '').toString(),
-            'country': (c['country'] ?? '').toString(),
-          });
-        } else if (c is String) {
-          customers.add({'email': c, 'name': c});
-        }
-      }
+     // Kunden – tolerant: Strings oder Objekte
+     final rawCustomers = await widget.api.repCustomers(); // List<dynamic>
+     final List<Map<String, String>> customers = [];       // << WICHTIG: String/String!
 
-      final comp = await widget.api.repComplaints();
-      if (!mounted) return;
-      setState(() {
-        _me = me;
-        _customers = customers;
-        _complaints = comp;
-      });
+     for (final c in rawCustomers) {
+       if (c is Map) {
+         // explizit als String/String-Map aufbauen
+         final entry = <String, String>{
+           'email'  : (c['email']        ?? '').toString(),
+           'name'   : (c['name']         ?? c['company'] ?? c['displayName'] ?? c['email'] ?? '').toString(),
+           'company': (c['company']      ?? '').toString(),
+           'address': (c['address']      ?? '').toString(),
+           'zip'    : (c['zip']          ?? '').toString(),
+           'city'   : (c['city']         ?? '').toString(),
+           'country': (c['country']      ?? '').toString(),
+         };
+         customers.add(entry);
+       } else if (c is String) {
+         customers.add(<String, String>{ 'email': c, 'name': c });
+       }
+     }
+     
+     setState(() {
+       _me = me;
+       _customers = customers.cast<Map<String, dynamic>>(); // bleibt kompatibel zum restlichen Code
+       _complaints = comp;
+     });
     } catch (e) {
       final handled = await _handleUnauthorized(e);
       if (!mounted) return;
