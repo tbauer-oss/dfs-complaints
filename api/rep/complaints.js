@@ -4,7 +4,7 @@ export const config = { runtime: 'nodejs' };
 import { setCors } from '../_lib/cors.js';
 import { getRepFromAuthHeader } from '../_lib/repAuth.js';
 import { repCustomers } from '../_lib/repsStore.js';
-import { complaintsForRepEmails } from '../_lib/store.js';
+import { complaintsForRepEmails } from '../_lib/store.js'; // KORREKT
 
 export default async function handler(req, res) {
   setCors(req, res, 'Content-Type, Authorization, X-Gate');
@@ -34,27 +34,36 @@ export default async function handler(req, res) {
   const debug  = req.query?.debug === '1';
 
   try {
-  const items = await complaintsByEmails(emails, { status });
+    // KORRIGIERT: nutzt jetzt complaintsForRepEmails() statt complaintsByEmails()
+    const items = await complaintsForRepEmails(emails, { status });
 
     if (debug) {
-      // nur zu Diagnose-Zwecken – KEINE sensiblen Daten loggen
+      // Nur zu Diagnosezwecken – KEINE sensiblen Daten loggen!
       const sample = items.slice(0, 5).map(c => ({
         ticket: c.ticket,
-        email: (c.email || c.customerEmail || c?.payload?.email || c?.payload?.customerEmail || ''),
+        email:
+          c.email ||
+          c.customerEmail ||
+          c?.payload?.email ||
+          c?.payload?.customerEmail ||
+          '',
         status: c.status,
         decision: c.decision ?? null,
       }));
-      return res.status(200).end(JSON.stringify({
-        repId: auth.repId,
-        emails,                 // zugewiesene Kundenmails
-        count: items.length,    // Trefferzahl
-        sample,                 // kleine Stichprobe
-      }));
+
+      return res.status(200).end(
+        JSON.stringify({
+          repId: auth.repId,
+          emails,              // zugewiesene Kundenmails
+          count: items.length, // Trefferzahl
+          sample,              // kleine Stichprobe
+        })
+      );
     }
 
     return res.status(200).end(JSON.stringify(items));
   } catch (e) {
-    console.error('[rep/complaints] complaintsByEmails failed:', e);
+    console.error('[rep/complaints] complaintsForRepEmails failed:', e);
     return res.status(200).end(JSON.stringify([]));
   }
 }
