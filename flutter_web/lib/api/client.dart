@@ -287,18 +287,14 @@ class ApiClient {
       );
 
       if (!_ok2xx(r.statusCode)) {
-        // Servertext extrahieren (falls vorhanden) und als ApiError werfen
         final msg = _extractMessage(r.body);
         throw ApiError(r.statusCode, msg);
       }
-      // Erfolg: einfach zurück
     } catch (e) {
-      final msg = e is ApiError && e.message.toLowerCase().contains('wrong password')
-          ? context.t.password_wrong
-          : '${context.t.error}: $e';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      if (e is ApiError) rethrow;
+      throw ApiError(0, e.toString());
     }
-   }
+  }
  }
 
   // ---------- Support ----------
