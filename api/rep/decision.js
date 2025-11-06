@@ -33,7 +33,7 @@ function setCors(res) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 }
 
-const PFX = 'dfs:complaints:';
+const PFX = 'dfs:complaint:';
 const KEY = (id) => `${PFX}${id}`;
 
 // ---- Robuster Loader: Ticket -> { key, c } ----
@@ -48,7 +48,7 @@ async function loadComplaintByTicket(ticket) {
     if (c1) return { key: k1, c: c1 };
   } catch (_) {}
 
-  // 2) Index-Hash: dfs:complaints:index   (HGET ticket → key)
+  // 2) Index-Hash: dfs:complaint:index   (HGET ticket → key)
   try {
     const idxKey = `${PFX}index`;
     const mapped = await redis.hget(idxKey, t);
