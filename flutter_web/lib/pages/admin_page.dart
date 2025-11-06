@@ -2001,7 +2001,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 1) Ticket
+                      // 1) Ticket + (optional) Interne Nr. als Tag direkt daneben
                       Row(
                         children: [
                           Text(
@@ -2009,21 +2009,29 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                             style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
                           ),
                           const SizedBox(width: 10),
-                          // 2) Interne Nr. (wenn vorhanden) als Tag
-                          if ((c.internalNo ?? '').isNotEmpty)
+                          if ((c.internalNo ?? '').trim().isNotEmpty)
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
-                                color: scheme.surfaceContainerHighest,
+                                color: Theme.of(context).colorScheme.surfaceVariant,
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: scheme.outlineVariant),
-                              ),
-                              child: Text(
-                                'Intern: ${c.internalNo}',
-                                style: TextStyle(
-                                  color: scheme.onSurfaceVariant,
-                                  fontWeight: FontWeight.w600,
+                                border: Border.all(
+                                  color: Theme.of(context).colorScheme.outlineVariant,
                                 ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.tag, size: 14),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Intern: ${c.internalNo}',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                         ],
