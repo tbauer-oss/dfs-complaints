@@ -15,5 +15,12 @@
         { "key": "Access-Control-Max-Age", "value": "600" }
       ]
     }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "methods": ["OPTIONS"],
+      "dest": "/api/_options"
+    }
   ]
 }
