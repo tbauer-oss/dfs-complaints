@@ -313,10 +313,10 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             ? Center(child: Text(_err!, style: const TextStyle(color: Colors.red)))
             : switch (_view) {
                 _RepView.menu      => _buildMenu(allCount, openCount, rejectedCount, finishedCount),
-                _RepView.open      => _buildOpenComplaints(),
-                _RepView.all       => _buildAllComplaints(),
-                _RepView.customers => _buildCustomersCard(),
-                _RepView.account   => _buildAccountCard(),
+                _RepView.open      => _scrollWrap(_buildOpenComplaints()),
+                _RepView.all       => _scrollWrap(_buildAllComplaints()),
+                _RepView.customers => _scrollWrap(_buildCustomersCard()),
+                _RepView.account   => _scrollWrap(_buildAccountCard()),
               };
 
     final canGoBack = _view != _RepView.menu;
@@ -356,6 +356,19 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
           ],
         ),
         body: Padding(padding: const EdgeInsets.all(16), child: body),
+      ),
+    );
+  }
+
+  // Wrapper: macht Seiten scrollbar (auch auf Handy)
+  Widget _scrollWrap(Widget child) {
+    return LayoutBuilder(
+      builder: (_, cons) => SingleChildScrollView(
+        padding: EdgeInsets.zero,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: cons.maxHeight),
+          child: child,
+        ),
       ),
     );
   }
@@ -423,15 +436,16 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       child: items.isEmpty
           ? Text(t.noComplaintsFound)
           : ListView.separated(
+              // jetzt scrollbar
               shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
+              physics: const BouncingScrollPhysics(),
               itemBuilder: (_, i) {
                 final c = items[i];
                 return _ComplaintTile(
                   data: c,
                   isClosed: false,
                   onDecision: (ticket, approve) => _decideComplaint(ticket, approve),
-                  useColoredButtons: true, // -> grün/rot
+                  useColoredButtons: true, // -> grün/rot modern
                 );
               },
               separatorBuilder: (_, __) => const SizedBox(height: 6),
@@ -508,8 +522,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
           child: list.isEmpty
               ? Text(t.noComplaintsFound)
               : ListView.separated(
+                  // jetzt scrollbar
                   shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
+                  physics: const BouncingScrollPhysics(),
                   itemBuilder: (_, i) {
                     final c = list[i];
                     return _ComplaintTile(
@@ -545,8 +560,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       child: _customers.isEmpty
           ? Text(t.noAddCustomer)
           : ListView.separated(
+              // jetzt scrollbar
               shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
+              physics: const BouncingScrollPhysics(),
               itemBuilder: (_, i) {
                 final c = _customers[i];
                 return ListTile(
@@ -597,7 +613,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     );
   }
 
-  // ---- Seite: Account – jetzt mit zwei getrennten Einträgen ----
+  // ---- Seite: Account – zwei getrennte Einträge (Navigation bleibt wie gehabt) ----
   Widget _buildAccountCard() {
     final t = context.t;
     final labelProfile   = t.profile_edit ?? 'Profil bearbeiten';
@@ -622,20 +638,22 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             title: Text(t.profilePW),
           ),
           const Divider(height: 1),
+          // Profil bearbeiten – zeigt Profilbereich in RepProfilePage
           ListTile(
             leading: const Icon(Icons.manage_accounts_outlined),
             title: Text(labelProfile),
             subtitle: Text(t.profilePW),
             trailing: const Icon(Icons.chevron_right),
-            onTap: _openProfile, // Öffnet deine bestehende Seite
+            onTap: _openProfile,
           ),
           const Divider(height: 1),
+          // Passwort ändern – führt ebenfalls zu RepProfilePage (Funktionen unverändert)
           ListTile(
             leading: const Icon(Icons.lock_reset_outlined),
             title: Text(labelPassword),
             subtitle: Text(t.password_change_hint ?? 'Passwort sicher aktualisieren'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: _openProfile, // gleiche Seite; Trennung erfolgt in der UI
+            onTap: _openProfile,
           ),
         ],
       ),
@@ -847,54 +865,101 @@ class _MenuCard extends StatelessWidget {
   }
 }
 
-class _ComplaintTile extends StatelessWidget {
+class _ComplaintTile extends StatefulWidget {
   final Map<String, dynamic> data;
   final bool isClosed;
   final void Function(String ticket, bool approve)? onDecision;
-  final bool useColoredButtons; // neu: grün/rot
+  final bool useColoredButtons; // neu: modern
 
   const _ComplaintTile({
     required this.data,
     required this.isClosed,
     this.onDecision,
     this.useColoredButtons = false,
+    super.key,
   });
+
+  @override
+  State<_ComplaintTile> createState() => _ComplaintTileState();
+}
+
+class _ComplaintTileState extends State<_ComplaintTile> with SingleTickerProviderStateMixin {
+  bool _hoverAccept = false;
+  bool _hoverReject = false;
 
   @override
   Widget build(BuildContext context) {
     final t = context.t;
 
-    final ticket   = (data['ticket'] ?? '').toString();
-    final status   = (data['status'] ?? '').toString();
-    final decision = (data['decision'] ?? '').toString();
-    final created  = (data['createdAt'] ?? data['created'] ?? '').toString();
-    final customer = (data['customerEmail'] ?? data['email'] ?? '').toString();
-    final article  = (data['payload']?['article'] ?? '').toString();
-    final segment  = (data['payload']?['segment'] ?? '').toString();
+    final ticket   = (widget.data['ticket'] ?? '').toString();
+    final status   = (widget.data['status'] ?? '').toString();
+    final decision = (widget.data['decision'] ?? '').toString();
+    final created  = (widget.data['createdAt'] ?? widget.data['created'] ?? '').toString();
+    final customer = (widget.data['customerEmail'] ?? widget.data['email'] ?? '').toString();
+    final article  = (widget.data['payload']?['article'] ?? '').toString();
+    final segment  = (widget.data['payload']?['segment'] ?? '').toString();
+
+    Widget _modernButton({
+      required bool positive,
+      required VoidCallback onTap,
+      required bool hover,
+      required ValueChanged<bool> setHover,
+      required String label,
+      required IconData icon,
+    }) {
+      final baseColor = positive ? Colors.green : Colors.red;
+      return MouseRegion(
+        onEnter: (_) => setHover(true),
+        onExit: (_) => setHover(false),
+        child: AnimatedScale(
+          scale: hover ? 1.03 : 1.0,
+          duration: const Duration(milliseconds: 120),
+          child: ElevatedButton.icon(
+            onPressed: onTap,
+            icon: Icon(icon),
+            label: Text(label),
+            style: ButtonStyle(
+              elevation: MaterialStateProperty.resolveWith<double>(
+                (states) => states.contains(MaterialState.pressed) ? 1 : 4,
+              ),
+              shadowColor: MaterialStateProperty.all(baseColor.withOpacity(.35)),
+              backgroundColor: MaterialStateProperty.resolveWith<Color>(
+                (states) => states.contains(MaterialState.pressed)
+                    ? baseColor.withOpacity(.85)
+                    : baseColor,
+              ),
+              foregroundColor: MaterialStateProperty.all(Colors.white),
+              shape: MaterialStateProperty.all(
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              padding: MaterialStateProperty.all(const EdgeInsets.symmetric(horizontal: 14, vertical: 12)),
+            ),
+          ),
+        ),
+      );
+    }
 
     Widget _buttons() {
-      if (onDecision == null) return const SizedBox.shrink();
-      if (useColoredButtons) {
+      if (widget.onDecision == null) return const SizedBox.shrink();
+      if (widget.useColoredButtons) {
         return Wrap(
-          spacing: 8,
+          spacing: 10,
           children: [
-            ElevatedButton.icon(
-              onPressed: () => onDecision!(ticket, true),
-              icon: const Icon(Icons.check),
-              label: Text(t.decision_accepted),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-              ),
+            _modernButton(
+              positive: true,
+              onTap: () => widget.onDecision!(ticket, true),
+              hover: _hoverAccept,
+              setHover: (v) => setState(() => _hoverAccept = v),
+              label: t.decision_accepted,
+              icon: Icons.check_rounded,
             ),
-            ElevatedButton.icon(
-              onPressed: () => onDecision!(ticket, false),
-              icon: const Icon(Icons.close),
-              label: Text(t.decision_rejected),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-              ),
+            _modernButton(
+              positive: false,
+              onTap: () => widget.onDecision!(ticket, false),
+              hover: _hoverReject,
+              setHover: (v) => setState(() => _hoverReject = v),
+              label: t.decision_rejected,
+              icon: Icons.close_rounded,
             ),
           ],
         );
@@ -906,12 +971,12 @@ class _ComplaintTile extends StatelessWidget {
           IconButton(
             tooltip: '${t.decision}: ${t.decision_accepted}',
             icon: const Icon(Icons.check_circle_outline),
-            onPressed: () => onDecision!(ticket, true),
+            onPressed: () => widget.onDecision!(ticket, true),
           ),
           IconButton(
             tooltip: '${t.decision}: ${t.decision_rejected}',
             icon: const Icon(Icons.cancel_outlined),
-            onPressed: () => onDecision!(ticket, false),
+            onPressed: () => widget.onDecision!(ticket, false),
           ),
         ],
       );
@@ -943,11 +1008,11 @@ class _ComplaintTile extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    _StatusChip(status: status, decision: decision, closed: isClosed),
+                    _StatusChip(status: status, decision: decision, closed: widget.isClosed),
                   ],
                 ),
                 const SizedBox(height: 8),
-                // Infos als Wrap -> mobilfreundlich, kein vertikales „Buchstabern“
+                // Infos als Wrap -> mobilfreundlich
                 Wrap(
                   spacing: 8,
                   runSpacing: 6,
@@ -959,7 +1024,7 @@ class _ComplaintTile extends StatelessWidget {
                     if (decision.isNotEmpty) _InfoCapsule('${t.decision}: $decision'),
                   ],
                 ),
-                if (onDecision != null && !isClosed) ...[
+                if (widget.onDecision != null && !widget.isClosed) ...[
                   const SizedBox(height: 10),
                   Align(
                     alignment: isNarrow ? Alignment.centerLeft : Alignment.centerRight,
@@ -979,7 +1044,7 @@ class _ComplaintTile extends StatelessWidget {
 
 class _InfoCapsule extends StatelessWidget {
   final String text;
-  const _InfoCapsule(this.text);
+  const _InfoCapsule(this.text, {super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -1004,7 +1069,7 @@ class _StatusChip extends StatelessWidget {
   final String status;
   final String decision;
   final bool closed;
-  const _StatusChip({required this.status, required this.decision, required this.closed});
+  const _StatusChip({required this.status, required this.decision, required this.closed, super.key});
 
   @override
   Widget build(BuildContext context) {
