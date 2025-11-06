@@ -25,6 +25,13 @@
   "rep_approved": "Approved by representative.",
   "rep_rejected": "Rejected by representative.",
 
+  "profile_edit": "Edit profile",
+  "@profile_edit": { "description": "Menu item: edit profile details" },
+  "password_change": "Change password",
+  "@password_change": { "description": "Menu item: change password" },
+  "password_change_hint": "Update your password securely",
+  "@password_change_hint": { "description": "Subtitle under change password in account menu" },
+
   "cancel": "Cancel",
   "open": "Open",
   "unlock": "Unlock",
