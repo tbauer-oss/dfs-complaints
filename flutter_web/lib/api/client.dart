@@ -288,14 +288,15 @@ class ApiClient {
 
     if (!_ok2xx(r.statusCode)) {
       // bessere Fehlermeldung
-      } catch (e) {
+        catch (e) {
         final msg = e is ApiError && e.message.toLowerCase().contains('wrong password')
             ? context.t.password_wrong
             : '${context.t.error}: $e';
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-      }
-    }
-  }
+       }
+     }
+   }
+ }
 
   // ---------- Support ----------
   Future<void> sendSupport({
