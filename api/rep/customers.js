@@ -1,31 +1,23 @@
 // api/rep/customers.js
 export const config = { runtime: 'nodejs' };
 
-// CORS exakt wie bei complaints.js
 import { setCors } from '../_lib/cors.js';
-// Auth + Store
 import { getRepFromAuthHeader } from '../_lib/repAuth.js';
 import { repCustomers, repAssign, repUnassign } from '../_lib/repsStore.js';
 import { userByEmail } from '../_lib/store.js';
 
-const FRONTEND = 'https://dfs-complaints-web.vercel.app';
-
 export default async function handler(req, res) {
-  // --- CORS immer zuerst ---
+  // CORS immer zuerst, wie in rep/complaints.js
   setCors(req, res, 'Content-Type, Authorization, X-Gate');
-  // optional: Header hart setzen, damit der Preflight auch dann nicht "nackt" ist,
-  // wenn du aus Versehen vom Backend-Origin testest:
-  res.setHeader('Access-Control-Allow-Origin', FRONTEND);
-
   if (req.method === 'OPTIONS') return res.status(204).end();
 
-  // --- Auth prüfen ---
+  // Auth (Bearer für Vertreter)
   const auth = getRepFromAuthHeader(req);
   if (!auth) {
     return res.status(401).end(JSON.stringify({ error: 'unauthorized' }));
   }
 
-  // --- POST: assign / unassign ---
+  // POST: assign / unassign
   if (req.method === 'POST') {
     try {
       let body = {};
@@ -57,7 +49,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // --- GET: Liste (Strings) ODER Details (?details=1) ---
+  // GET: Liste (Strings) oder Details (?details=1)
   if (req.method === 'GET') {
     try {
       const details = (req.query?.details || '').toString() === '1';
@@ -68,19 +60,25 @@ export default async function handler(req, res) {
       }
 
       if (!details) {
-        // abwärtskompatibel
+        // abwärtskompatibel: nur String-Liste
         return res.status(200).end(JSON.stringify(emails));
       }
 
       // Details (best effort)
       const out = [];
       for (const mail of emails) {
-        let name = mail, company = '', address = '', zip = '', city = '', country = '';
+        let name = mail;
+        let company = '';
+        let address = '';
+        let zip = '';
+        let city = '';
+        let country = '';
         try {
           const u = await userByEmail(mail);
           if (u && typeof u === 'object') {
             const fullName = `${(u.firstName || '').toString()} ${(u.lastName || '').toString()}`.trim();
-            name    = (u.companyName || u.contactName || u.name || fullName || mail).toString().trim() || mail;
+            name = (u.companyName || u.contactName || u.name || fullName || mail)
+              .toString().trim() || mail;
             company = (u.companyName || '').toString();
             address = (u.address || '').toString();
             zip     = (u.zip || '').toString();
@@ -98,5 +96,6 @@ export default async function handler(req, res) {
     }
   }
 
+  // Sonst: 405
   return res.status(405).end(JSON.stringify({ error: 'method not allowed' }));
 }
