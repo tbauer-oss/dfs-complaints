@@ -35,6 +35,8 @@
   "save": "Salva",
   "saved": "Salvato",
   "newLoad": "Ricarica",
+  "status_needs_info": "Informazioni necessarie",
+  "status_final_decision": "Decisione finale",
 
   "logout": "Disconnetti",
   "loggedOut": "Disconnesso.",
