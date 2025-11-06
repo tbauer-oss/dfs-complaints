@@ -97,7 +97,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         } else if (c is String) {
           customers.add(<String, Object?>{
             'email': c,
-            'name' : c,
+            'company' : c,
           });
         }
       }
