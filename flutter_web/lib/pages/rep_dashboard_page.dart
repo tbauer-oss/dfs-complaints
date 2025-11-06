@@ -78,8 +78,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       for (final c in rawCustomers) {
         if (c is Map) {
           final email   = (c['email']   ?? '').toString();
-          final name    = (c['name']    ?? email).toString();
-          final company = (c['company'] ?? '').toString();
+          final name    = (c['name']    ?? '').toString();
+          final company = (c['company'] ?? email).toString();
           final address = (c['address'] ?? '').toString();
           final zip     = (c['zip']     ?? '').toString();
           final city    = (c['city']    ?? '').toString();
