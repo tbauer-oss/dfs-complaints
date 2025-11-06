@@ -77,27 +77,41 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       final List<Map<String, Object?>> customers = <Map<String, Object?>>[];
       for (final c in rawCustomers) {
         if (c is Map) {
-          final email   = (c['email']   ?? '').toString();
-          final name    = (c['name']    ?? email).toString();
-          final company = (c['company'] ?? '').toString();
-          final address = (c['address'] ?? '').toString();
-          final zip     = (c['zip']     ?? '').toString();
-          final city    = (c['city']    ?? '').toString();
-          final country = (c['country'] ?? '').toString();
+          final email     = (c['email']     ?? '').toString();
+          final name      = (c['name']      ?? '').toString();
+          final company   = (c['company']   ?? '').toString();
+          final address   = (c['address']   ?? '').toString();
+          final zip       = (c['zip']       ?? '').toString();
+          final city      = (c['city']      ?? '').toString();
+          final country   = (c['country']   ?? '').toString();
+          final phone     = (c['phone']     ?? '').toString();
+          final customerNo= (c['customerNo']?? '').toString();
+          final vatId     = (c['vatId']     ?? '').toString();
 
           customers.add(<String, Object?>{
             'email': email,
-            'name': name,
+            'name':  name.isEmpty ? email : name,
             'company': company,
             'address': address,
             'zip': zip,
             'city': city,
             'country': country,
+            'phone': phone,
+            'customerNo': customerNo,
+            'vatId': vatId,
           });
         } else if (c is String) {
           customers.add(<String, Object?>{
             'email': c,
             'name' : c,
+            'company': '',
+            'address': '',
+            'zip': '',
+            'city': '',
+            'country': '',
+            'phone': '',
+            'customerNo': '',
+            'vatId': '',
           });
         }
       }
@@ -372,11 +386,23 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                                     ListTile(
                                       leading: const Icon(Icons.apartment_outlined),
                                       title: Text(
-                                        (c['name'] ?? '').toString().isEmpty
-                                            ? (c['email'] ?? '').toString()
-                                            : (c['name']  ?? '').toString(),
+                                        (() {
+                                          final comp = (c['company'] ?? '').toString();
+                                          final nm   = (c['name'] ?? '').toString();
+                                          final em   = (c['email'] ?? '').toString();
+                                          if (comp.isNotEmpty) return comp;      // Firma zuerst
+                                          if (nm.isNotEmpty)   return nm;        // dann Name
+                                          return em;                              // sonst E-Mail
+                                        })(),
                                       ),
-                                      subtitle: Text((c['email'] ?? '').toString()),
+                                      subtitle: Text(
+                                        (() {
+                                          final nm = (c['name'] ?? '').toString();
+                                          final em = (c['email'] ?? '').toString();
+                                          if (nm.isNotEmpty && em.isNotEmpty) return '$nm • $em';
+                                          return nm.isNotEmpty ? nm : em;
+                                        })(),
+                                      ),
                                       trailing: Wrap(
                                         spacing: 8,
                                         children: [
@@ -451,28 +477,41 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   }
 
   void _showCustomerDetails(Map<String, Object?> c) {
-    final name    = (c['name'] ?? '').toString();
-    final email   = (c['email'] ?? '').toString();
-    final company = (c['company'] ?? '').toString();
-    final address = (c['address'] ?? '').toString();
-    final zip     = (c['zip'] ?? '').toString();
-    final city    = (c['city'] ?? '').toString();
-    final country = (c['country'] ?? '').toString();
+    final name      = (c['name'] ?? '').toString();
+    final email     = (c['email'] ?? '').toString();
+    final company   = (c['company'] ?? '').toString();
+    final address   = (c['address'] ?? '').toString();
+    final zip       = (c['zip'] ?? '').toString();
+    final city      = (c['city'] ?? '').toString();
+    final country   = (c['country'] ?? '').toString();
+    final phone     = (c['phone'] ?? '').toString();
+    final customerNo= (c['customerNo'] ?? '').toString();
+    final vatId     = (c['vatId'] ?? '').toString();
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(name.isEmpty ? email : name),
+        title: Text(
+          company.isNotEmpty
+            ? company
+            : (name.isNotEmpty ? name : email),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (company.isNotEmpty) Text(company),
-            if (address.isNotEmpty) Text(address),
-            if (zip.isNotEmpty || city.isNotEmpty) Text('$zip $city'.trim()),
-            if (country.isNotEmpty) Text(country),
+            if (name.isNotEmpty)    Text(name),
+            if (email.isNotEmpty)   SelectableText(email),
             const SizedBox(height: 8),
-            if (email.isNotEmpty) SelectableText(email),
+            if (address.isNotEmpty) Text(address),
+            if (zip.isNotEmpty || city.isNotEmpty) Text('${zip.isNotEmpty ? '$zip ' : ''}$city'.trim()),
+            if (country.isNotEmpty) Text(country),
+            if (phone.isNotEmpty)   ...[
+              const SizedBox(height: 8),
+              Text('Tel.: $phone'),
+            ],
+            if (customerNo.isNotEmpty) Text('Kundennr.: $customerNo'),
+            if (vatId.isNotEmpty)      Text('USt-Id.: $vatId'),
           ],
         ),
         actions: [
