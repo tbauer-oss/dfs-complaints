@@ -123,10 +123,14 @@ class ApiClient {
     return h;
   }
 
-  Map<String, String> _repHeaders() => {
-    'Content-Type': 'application/json',
-    if ((_repToken ?? '').isNotEmpty) 'Authorization': 'Bearer $_repToken',
-  };
+  // Header für Vertreter-Endpunkte (nimmt automatisch das gespeicherte repToken)
+  Map<String, String> _repHeaders({Map<String, String>? extra}) {
+    final h = <String, String>{
+      'Content-Type': 'application/json',
+      if (gate != null && gate!.isNotEmpty) 'X-Gate': gate!,
+    };
+    final tok = repToken ?? '';
+    if (tok.isNotEmpty) h['Authorization'] = 'Bearer $tok';
     if (extra != null) h.addAll(extra);
     return h;
   }
@@ -151,7 +155,7 @@ class ApiClient {
     return Uri.parse('$base$path');
   }
 
-    // ---- Basis ----
+  // ---- Basis ----
   String get baseUrl {
     const b = String.fromEnvironment('API_BASE', defaultValue: '');
     if (b.isNotEmpty) return b;
@@ -217,7 +221,7 @@ class ApiClient {
       throw Exception('POST /api/rep/decision failed: ${r.statusCode} ${r.body}');
     }
   }
-  
+
   // ---------- Low-level HTTP ----------
   Future<http.Response> _get(String path, {bool auth = false, Map<String,String>? extra}) {
     return http.get(_u(path), headers: _headers(auth: auth, extra: extra));
@@ -598,7 +602,7 @@ class ApiClient {
       return false;
     }
   }
-  
+
   /// Passwort ändern (Vertreter). Akzeptiert:
   /// - 204 (kein Body) ODER
   /// - 200 { token: '...' } -> Token wird aktualisiert.
@@ -696,6 +700,7 @@ class ApiClient {
     }
     return const [];
   }
+
   Future<void> repLogout() async {
     repToken = null;
     _saveSession();
