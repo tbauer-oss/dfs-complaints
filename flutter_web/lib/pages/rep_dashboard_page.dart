@@ -61,7 +61,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     try {
       final me   = await widget.api.repMe();
       final comp = await widget.api.repComplaints();
-
+      final rawCustomers = await widget.api.repCustomers(details: true);
       // Kunden – tolerant: Strings (alt) ODER Objekte (neu, details=1)
       final List<Map<String, Object?>> customers = <Map<String, Object?>>[];
 
@@ -438,7 +438,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     );
   }
 
-  void _showCustomerDetails(Map<String, String> c) {
+  void _showCustomerDetails(Map<String, Object?> c) {
     final name    = (c['name'] ?? '').toString();
     final email   = (c['email'] ?? '').toString();
     final company = (c['company'] ?? '').toString();
