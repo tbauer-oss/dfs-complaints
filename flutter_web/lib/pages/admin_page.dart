@@ -1914,6 +1914,17 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     }
   }
 
+  Color _decisionColor(String? d) {
+    final v = (d ?? '').trim();
+    if (v == 'accepted') return const Color(0xFF1B5E20); // grün
+    if (v == 'rejected') return const Color(0xFFB71C1C); // rot
+    return Theme.of(context).textTheme.bodyMedium?.color ?? Colors.black54;
+  }
+
+  String _fmtDate(DateTime d) {
+    return '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  }
+
   void _composeMailToCustomer() {
     final to = widget.c.email.trim();
     if (to.isEmpty) return;
@@ -2041,25 +2052,34 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
 
                 const SizedBox(width: 8),
 
-                // Rechte Seite: Firma/E-Mail (SCHWARZ) + Mail-Icon
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      (widget.companyHint != null && widget.companyHint!.trim().isNotEmpty)
-                          ? 'Firma: ${widget.companyHint}'
-                          : 'E-Mail: ${c.email}',
-                      // << schwarz, nicht grau
-                      style: const TextStyle(fontSize: 15, color: Colors.black87, fontWeight: FontWeight.w600),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      tooltip: 'E-Mail an Kunden verfassen',
-                      icon: const Icon(Icons.email_outlined),
-                      onPressed: _busy ? null : _composeMailToCustomer,
-                    ),
-                  ],
+                // Rechte Seite: Firma/E-Mail – lesbar (Light: schwarz, Dark: onSurface) + Mail-Icon
+                Builder(
+                  builder: (ctx) {
+                    final isDark = Theme.of(ctx).brightness == Brightness.dark;
+                    final label = (widget.companyHint != null && widget.companyHint!.trim().isNotEmpty)
+                        ? 'Firma: ${widget.companyHint}'
+                        : 'E-Mail: ${c.email}';
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Theme.of(ctx).colorScheme.onSurface : Colors.black,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          tooltip: 'E-Mail an Kunden verfassen',
+                          icon: const Icon(Icons.email_outlined),
+                          onPressed: _busy ? null : _composeMailToCustomer,
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ],
             ),
@@ -2067,20 +2087,31 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
             const SizedBox(height: 10),
 
             // =====================
-            // Nur noch Entscheidung auf der Meta-Zeile
+            // Entscheidung auf eigener Meta-Zeile (farbig)
             // =====================
-            Row(
-              children: [
-                Text(
-                  'Entscheidung: ${c.decision == 'accepted' ? 'Angenommen' : c.decision == 'rejected' ? 'Abgelehnt' : '—'}',
-                ),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: () => setState(() => _expanded = !_expanded),
-                  icon: Icon(_expanded ? Icons.expand_less : Icons.edit),
-                  label: Text(_expanded ? 'Bearbeiten schließen' : 'Bearbeiten'),
-                ),
-              ],
+            Builder(
+              builder: (_) {
+                final decText = _labelForDecision(c.decision);
+                final decCol  = _decisionColor(c.decision);
+                return Row(
+                  children: [
+                    const Text('Entscheidung: '),
+                    Text(
+                      decText,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: decCol,
+                      ),
+                    ),
+                    const Spacer(),
+                    TextButton.icon(
+                      onPressed: () => setState(() => _expanded = !_expanded),
+                      icon: Icon(_expanded ? Icons.expand_less : Icons.edit),
+                      label: Text(_expanded ? 'Bearbeiten schließen' : 'Bearbeiten'),
+                    ),
+                  ],
+                );
+              },
             ),
 
             // KEIN prominenter Wunsch-Banner mehr!
@@ -2587,4 +2618,12 @@ class _AdminTileProState extends State<AdminTilePro> {
       ),
     );
   }
+}
+
+class DfsStatusPalette {
+  static const entered     = Color(0xFF6E7B91); // 1
+  static const inProgress  = Color(0xFF1F4C8F); // 2
+  static const inquiry     = Color(0xFF8A6D00); // 3
+  static const rework      = Color(0xFF0F766E); // 5
+  static const closed      = Color(0xFF1B5E20); // 6
 }
