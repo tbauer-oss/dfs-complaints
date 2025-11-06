@@ -239,15 +239,33 @@ export async function assignCustomer(repId, email) {
   email = S(email).toLowerCase();
   if (!repId || !email) throw new Error('missing repId or email');
 
-  const prevRep = await redis.get(IDX_ROF(email));
-  if (prevRep && prevRep !== repId) {
-    await redis.srem(SET_CUS(prevRep), email);
+  // Exklusiver Index: customerEmail -> repId
+  const key = IDX_ROF(email);
+
+  // 1) Exklusiv belegen (nur wenn noch nicht vorhanden)
+  //    - bei Erstzuweisung: OK
+  //    - wenn schon vorhanden: kein OK → prüfen, wem es gehört
+  const nx = await redis.set(key, repId, { nx: true });
+  if (nx !== 'OK') {
+    const current = await redis.get(key);
+
+    if (current && current !== repId) {
+      // Bereits einem anderen Vertreter zugeordnet → HARTE Sperre
+      const err = new Error('customer already assigned to another rep');
+      err.statusCode = 409; // damit dein Route-Handler sauber 409 senden kann
+      throw err;
+    }
+    // Idempotent: current === repId → weiter (kein Fehler)
   }
 
+  // 2) Kundenliste des Reps aktualisieren (Set nutzen, sortieren)
+  //    (wir fassen keinen Fremd-Rep an – das ist Absicht!)
   await redis.sadd(SET_CUS(repId), email);
-  await redis.set(IDX_ROF(email), repId);
 
-  return await repCustomers(repId);
+  // 3) Ergebnisliste (geordnet) zurückgeben
+  const list = await repCustomers(repId);
+  const sorted = (list || []).map(String).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase(), 'de'));
+  return sorted;
 }
 
 export async function unassignCustomer(repId, email) {
@@ -256,13 +274,17 @@ export async function unassignCustomer(repId, email) {
   email = S(email).toLowerCase();
   if (!repId || !email) throw new Error('missing repId or email');
 
-  await redis.srem(SET_CUS(repId), email);
-  const cur = await redis.get(IDX_ROF(email));
-  if (cur === repId) {
-    await redis.del(IDX_ROF(email));
+  const key = IDX_ROF(email);
+  const current = await redis.get(key);
+
+  if (current === repId) {
+    await redis.del(key);
   }
 
-  return await repCustomers(repId);
+  await redis.srem(SET_CUS(repId), email);
+  const list = await repCustomers(repId);
+  const sorted = (list || []).map(String).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase(), 'de'));
+  return sorted;
 }
 
 export async function getRepOf(email) {
