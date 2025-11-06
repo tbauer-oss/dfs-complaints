@@ -36,8 +36,6 @@
   "saved": "Saved",
   "newLoad": "Reload",
   "status_needs_info": "Needs info",
-  "status_final_decision": "Final decision",
-  "status_needs_info": "Information required",
   "@status_needs_info": { "description": "Status 3 – Additional information or clarification needed" },
   "status_final_decision": "Final decision",
   "@status_final_decision": { "description": "Status 4 – Final decision on the case has been made" },
