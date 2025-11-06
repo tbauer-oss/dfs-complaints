@@ -75,6 +75,8 @@ export default async function handler(req, res) {
       // Details: Lazy import hier – damit TOP-LEVEL nicht crasht
       const { userByEmail } = await import('../_lib/store.js');
 
+      function S(v) { return (v ?? '').toString().trim(); }
+
       const out = [];
       for (const mail of emails) {
         let name = mail;
@@ -83,26 +85,42 @@ export default async function handler(req, res) {
         let zip = '';
         let city = '';
         let country = '';
+        let phone = '';
+        let customerNo = '';
+        let vatId = '';
+
         try {
           const u = await userByEmail(mail);
           if (u && typeof u === 'object') {
-            const fullName = `${(u.firstName || '').toString()} ${(u.lastName || '').toString()}`.trim();
-            name    = (u.companyName || u.contactName || u.name || fullName || mail).toString().trim() || mail;
-            company = (u.companyName || '').toString();
-            address = (u.address || '').toString();
-            zip     = (u.zip || '').toString();
-            city    = (u.city || '').toString();
-            country = (u.country || '').toString();
+            const fullName = S(`${S(u.firstName)} ${S(u.lastName)}`);
+            // viele mögliche Feldnamen abdecken
+            name      = S(u.contactName || u.name || fullName || mail) || mail;
+            company   = S(u.companyName || u.company || u.org);
+            address   = S(u.address || u.street || u.street1 || u.address1);
+            zip       = S(u.zip || u.postcode || u.postalCode || u.plz);
+            city      = S(u.city || u.town || u.ort);
+            country   = S(u.country || u.countryCode || u.land);
+            phone     = S(u.phone || u.tel || u.phoneNumber || u.telephone);
+            customerNo= S(u.customerNo || u.customerId || u.kundennummer || u.kundenNr);
+            vatId     = S(u.vat || u.vatId || u.vatid || u.ustId || u.ustid);
           }
         } catch (_) {}
-        out.push({ email: mail, name, company, address, zip, city, country });
+
+        out.push({
+          email: mail,
+          name,
+          company,
+          address,
+          zip,
+          city,
+          country,
+          phone,
+          customerNo,
+          vatId,
+        });
       }
 
       return res.status(200).end(JSON.stringify(out));
-    } catch (e) {
-      console.error('[rep/customers] GET error:', e);
-      // Bei Fehlern weiterhin leere Liste zurückgeben
-      return res.status(200).end(JSON.stringify([]));
     }
   }
 
