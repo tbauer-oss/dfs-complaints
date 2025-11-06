@@ -203,17 +203,23 @@ class ApiClient {
   }
 
   // ---- Reps: Entscheidung zu Complaint (mit Bearer-Token) ----
-  Future<Map<String, dynamic>> repDecision({
+  Future<void> repDecision({
     required String ticket,
     required bool approve,
   }) async {
-    return await _repPostJson('/api/rep/decision', {
-      'ticket': ticket,
-      'decision': approve ? 'approve' : 'reject',
-      if ((_repEmail ?? '').isNotEmpty) 'repEmail': _repEmail, // optional
-    });
+    final r = await http.post(
+      _u('/api/rep/decision'),
+      headers: _repHeaders(), // <- wichtig: Rep-JWT mitsenden
+      body: jsonEncode({
+        'ticket': ticket,
+        'decision': approve ? 'approve' : 'reject',
+      }),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw Exception('POST /api/rep/decision failed: ${r.statusCode} ${r.body}');
+    }
   }
-
+  
   // ---------- Low-level HTTP ----------
   Future<http.Response> _get(String path, {bool auth = false, Map<String,String>? extra}) {
     return http.get(_u(path), headers: _headers(auth: auth, extra: extra));
