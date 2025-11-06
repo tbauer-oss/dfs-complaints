@@ -20,7 +20,7 @@
     {
       "src": "/api/(.*)",
       "methods": ["OPTIONS"],
-      "dest": "/api/_options"
+      "dest": "/api/_options.js"
     }
   ]
 }
