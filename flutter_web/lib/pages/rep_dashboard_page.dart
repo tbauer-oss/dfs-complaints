@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import 'rep_profile_page.dart';
-import 'dart:convert';
 import 'dart:html' as html;
 import '../l10n/app_localizations.dart';
 
@@ -11,8 +10,11 @@ extension _L10nX on BuildContext {
   AppLocalizations get t => AppLocalizations.of(this)!;
 }
 
-// Filtervarianten für die Kachel-Leiste
+// Filtervarianten (intern noch genutzt)
 enum _RepFilter { all, open, rejected, finished }
+
+// Menü-Views
+enum _RepView { menu, open, all, customers, account }
 
 class RepDashboardPage extends StatefulWidget {
   final ApiClient api;
@@ -24,18 +26,32 @@ class RepDashboardPage extends StatefulWidget {
 
 class _RepDashboardPageState extends State<RepDashboardPage> {
   Map<String, dynamic>? _me;
-  String _s(Object? v) => v?.toString() ?? '';
 
-  /// Kundenliste (intern als dynamic für UI, Quelle ist strikt String/String)
+  /// Kundenliste (aus Backend normalisiert)
   List<Map<String, Object?>> _customers = <Map<String, Object?>>[];
-  /// Reklamationen
+
+  /// Reklamationen (aus Backend)
   List<Map<String, dynamic>> _complaints = [];
 
   bool _loading = true;
   String? _err;
 
-  // aktiver Filter (Kacheln)
+  // alter Filter bleibt intern für _filteredComplaints
   _RepFilter _filter = _RepFilter.all;
+
+  // neue Menü-/Seitenlogik
+  _RepView _view = _RepView.menu;
+
+  // "Alle Reklamationen": Filter
+  final TextEditingController _companyCtrl = TextEditingController();
+  bool _showClosedAll = false;
+  bool _showRejectedAll = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAll();
+  }
 
   // Einheitliche 401/Unauthorized-Behandlung
   Future<bool> _handleUnauthorized(Object e) async {
@@ -66,10 +82,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       // Kunden – tolerant: Details (neu) ODER Strings (alt)
       List<dynamic> rawCustomers;
       try {
-        // bevorzugt: detaillierte Liste [{email,name,company,address,zip,city,country}, ...]
         rawCustomers = await widget.api.repCustomersDetailed();
       } catch (_) {
-        // Fallback: alte String-Liste [ "mail1", "mail2", ... ]
         rawCustomers = await widget.api.repCustomers();
       }
 
@@ -77,20 +91,21 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       final List<Map<String, Object?>> customers = <Map<String, Object?>>[];
       for (final c in rawCustomers) {
         if (c is Map) {
-          final email     = (c['email']     ?? '').toString();
-          final name      = (c['name']      ?? '').toString();
-          final company   = (c['company']   ?? '').toString();
-          final address   = (c['address']   ?? '').toString();
-          final zip       = (c['zip']       ?? '').toString();
-          final city      = (c['city']      ?? '').toString();
-          final country   = (c['country']   ?? '').toString();
-          final phone     = (c['phone']     ?? '').toString();
-          final customerNo= (c['customerNo']?? '').toString();
-          final vatId     = (c['vatId']     ?? '').toString();
+          String s(Object? v) => (v ?? '').toString();
+          final email      = s(c['email']);
+          final name       = s(c['name']).isEmpty ? email : s(c['name']);
+          final company    = s(c['company']);
+          final address    = s(c['address']);
+          final zip        = s(c['zip']);
+          final city       = s(c['city']);
+          final country    = s(c['country']);
+          final phone      = s(c['phone']);
+          final customerNo = s(c['customerNo']);
+          final vatId      = s(c['vatId']);
 
           customers.add(<String, Object?>{
             'email': email,
-            'name':  name.isEmpty ? email : name,
+            'name' : name,
             'company': company,
             'address': address,
             'zip': zip,
@@ -119,7 +134,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       if (!mounted) return;
       setState(() {
         _me = me;
-        _customers  = customers;   // List<Map<String, Object?>>
+        _customers  = customers;
         _complaints = comp;
       });
 
@@ -214,10 +229,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
   Future<void> _decideComplaint(String ticket, bool approve) async {
     try {
-      await widget.api.repDecision(
-        ticket: ticket,
-        approve: approve,
-      );
+      await widget.api.repDecision(ticket: ticket, approve: approve);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(approve ? context.t.decision_accepted : context.t.decision_rejected)),
@@ -238,13 +250,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     Navigator.of(context).pushNamedAndRemoveUntil('/', (Route<dynamic> r) => false);
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _loadAll();
-  }
-
-  // ---- Status-Logik wie im Admin: offen/geschlossen/abgelehnt ----
+  // ---- Status-Logik (wie bisher) ----
   bool _isClosed(Map<String, dynamic> c) {
     final s = int.tryParse((c['status'] ?? '').toString()) ?? 0;
     final dec = (c['decision'] ?? '').toString();
@@ -271,6 +277,19 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     }
   }
 
+  // Mapping E-Mail -> Firma (für Firmenfilter in "Alle Reklamationen")
+  Map<String, String> get _emailToCompany {
+    final m = <String, String>{};
+    for (final c in _customers) {
+      final em = (c['email'] ?? '').toString();
+      final co = (c['company'] ?? '').toString();
+      if (em.isNotEmpty && co.isNotEmpty) m[em] = co;
+    }
+    return m;
+  }
+
+  // -------- UI --------
+
   @override
   Widget build(BuildContext context) {
     final t = context.t;
@@ -280,182 +299,47 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     final rejectedCount = _complaints.where(_isRejected).length;
     final finishedCount = _complaints.where((c) => (int.tryParse((c['status'] ?? '').toString()) ?? 0) == 6).length;
 
+    final title = switch (_view) {
+      _RepView.menu      => t.rep_dashboard,
+      _RepView.open      => t.complaintsMyCustomer,
+      _RepView.all       => 'Alle Reklamationen',
+      _RepView.customers => t.myCustomers,
+      _RepView.account   => t.profilePW,
+    };
+
     final body = _loading
         ? const Center(child: CircularProgressIndicator())
         : _err != null
             ? Center(child: Text(_err!, style: const TextStyle(color: Colors.red)))
-            : Padding(
-                padding: const EdgeInsets.all(16),
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // ===== Kachel-Zeile (wie im Admin) =====
-                      Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
-                        children: [
-                          _Tile(
-                            icon: Icons.all_inbox_outlined,
-                            title: 'Alle',
-                            count: allCount,
-                            selected: _filter == _RepFilter.all,
-                            onTap: () => setState(() => _filter = _RepFilter.all),
-                          ),
-                          _Tile(
-                            icon: Icons.pending_actions_outlined,
-                            title: 'Offen',
-                            count: openCount,
-                            selected: _filter == _RepFilter.open,
-                            onTap: () => setState(() => _filter = _RepFilter.open),
-                          ),
-                          _Tile(
-                            icon: Icons.thumb_down_off_alt,
-                            title: 'Abgelehnt',
-                            count: rejectedCount,
-                            selected: _filter == _RepFilter.rejected,
-                            onTap: () => setState(() => _filter = _RepFilter.rejected),
-                          ),
-                          _Tile(
-                            icon: Icons.check_circle_outline,
-                            title: 'Abgeschlossen',
-                            count: finishedCount,
-                            selected: _filter == _RepFilter.finished,
-                            onTap: () => setState(() => _filter = _RepFilter.finished),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
+            : switch (_view) {
+                _RepView.menu      => _buildMenu(allCount, openCount, rejectedCount, finishedCount),
+                _RepView.open      => _buildOpenComplaints(),
+                _RepView.all       => _buildAllComplaints(),
+                _RepView.customers => _buildCustomersCard(),
+                _RepView.account   => _buildAccountCard(),
+              };
 
-                      // ===== Profil & Passwort =====
-                      Card(
-                        elevation: 4,
-                        child: ListTile(
-                          leading: const Icon(Icons.person_outline),
-                          title: Text(t.profilePW),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () async {
-                            await Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => RepProfilePage(api: widget.api),
-                              ),
-                            );
-                            if (!mounted) return;
-                            await _loadAll();
-                          },
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // ===== Meine Daten =====
-                      _Card(
-                        title: t.myData,
-                        child: _me == null
-                            ? const Text('–')
-                            : Wrap(
-                                spacing: 16,
-                                runSpacing: 6,
-                                children: [
-                                  _Info(
-                                    'Name',
-                                    '${(_me!['firstName'] ?? '').toString()} '
-                                    '${(_me!['lastName']  ?? '').toString()}'.trim(),
-                                  ),
-                                  _Info(t.email_plain, (_me!['email'] ?? '').toString()),
-                                  _Info(t.region, (_me!['region'] ?? '').toString()),
-                                ],
-                              ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // ===== Kundenliste (mit Namen + Detail-Button) =====
-                      _Card(
-                        title: t.myCustomers,
-                        actions: [
-                          ElevatedButton.icon(
-                            onPressed: _assignCustomerDialog,
-                            icon: const Icon(Icons.person_add_alt_1),
-                            label: Text(t.addCustomer),
-                          ),
-                        ],
-                        child: _customers.isEmpty
-                            ? Text(t.noAddCustomer)
-                            : Column(
-                                children: [
-                                  for (final c in _customers)
-                                    ListTile(
-                                      leading: const Icon(Icons.apartment_outlined),
-                                      title: Text(
-                                        (() {
-                                          final comp = (c['company'] ?? '').toString();
-                                          final nm   = (c['name'] ?? '').toString();
-                                          final em   = (c['email'] ?? '').toString();
-                                          if (comp.isNotEmpty) return comp;      // Firma zuerst
-                                          if (nm.isNotEmpty)   return nm;        // dann Name
-                                          return em;                              // sonst E-Mail
-                                        })(),
-                                      ),
-                                      subtitle: Text(
-                                        (() {
-                                          final nm = (c['name'] ?? '').toString();
-                                          final em = (c['email'] ?? '').toString();
-                                          if (nm.isNotEmpty && em.isNotEmpty) return '$nm • $em';
-                                          return nm.isNotEmpty ? nm : em;
-                                        })(),
-                                      ),
-                                      trailing: Wrap(
-                                        spacing: 8,
-                                        children: [
-                                          IconButton(
-                                            tooltip: 'Details',
-                                            icon: const Icon(Icons.info_outline),
-                                            onPressed: () => _showCustomerDetails(c),
-                                          ),
-                                          IconButton(
-                                            icon: const Icon(Icons.link_off),
-                                            tooltip: t.deleteAdd,
-                                            onPressed: () => _unassignCustomer((c['email'] ?? '').toString()),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                ],
-                              ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // ===== Reklamationen (gefiltert) =====
-                      _Card(
-                        title: t.complaintsMyCustomer,
-                        child: _filteredComplaints.isEmpty
-                            ? Text(t.noComplaintsFound)
-                            : Column(
-                                children: [
-                                  for (final c in _filteredComplaints)
-                                    _ComplaintTile(
-                                      data: c,
-                                      isClosed: _isClosed(c),
-                                      onDecision: (c['decision'] ?? '') == '' && !_isClosed(c)
-                                          ? _decideComplaint
-                                          : null,
-                                    ),
-                                ],
-                              ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
+    final canGoBack = _view != _RepView.menu;
 
     return WillPopScope(
       onWillPop: () async {
+        if (canGoBack) {
+          setState(() => _view = _RepView.menu);
+          return false;
+        }
         Navigator.of(context).pushNamedAndRemoveUntil('/login', (Route<dynamic> r) => false);
         return false;
       },
       child: Scaffold(
         appBar: AppBar(
           automaticallyImplyLeading: false,
-          title: Text(t.rep_dashboard),
+          title: Text(title),
+          leading: canGoBack
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => setState(() => _view = _RepView.menu),
+                )
+              : null,
           actions: [
             IconButton(
               tooltip: t.newLoad,
@@ -471,31 +355,265 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             const SizedBox(width: 8),
           ],
         ),
-        body: body,
+        body: Padding(padding: const EdgeInsets.all(16), child: body),
+      ),
+    );
+  }
+
+  // ---- Menü mit Kacheln + Counter-Chips ----
+  Widget _buildMenu(int allCount, int openCount, int rejectedCount, int finishedCount) {
+    Chip _countChip(int n) => Chip(label: Text('$n'));
+
+    return LayoutBuilder(builder: (ctx, c) {
+      final width = c.maxWidth;
+      final gridCount = width >= 1100 ? 4 : width >= 820 ? 3 : width >= 540 ? 2 : 1;
+
+      return GridView.count(
+        crossAxisCount: gridCount,
+        crossAxisSpacing: 14,
+        mainAxisSpacing: 14,
+        children: [
+          _MenuTile(
+            icon: Icons.pending_actions_outlined,
+            title: 'Offene Reklamationen',
+            trailing: _countChip(openCount),
+            onTap: () => setState(() {
+              _filter = _RepFilter.open;
+              _view = _RepView.open;
+            }),
+          ),
+          _MenuTile(
+            icon: Icons.all_inbox_outlined,
+            title: 'Alle Reklamationen',
+            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+              _countChip(allCount),
+              const SizedBox(width: 6),
+              _countChip(rejectedCount),
+              const SizedBox(width: 6),
+              _countChip(finishedCount),
+            ]),
+            onTap: () => setState(() => _view = _RepView.all),
+          ),
+          _MenuTile(
+            icon: Icons.badge_outlined,
+            title: 'Kundendatenbank',
+            trailing: _countChip(_customers.length),
+            onTap: () => setState(() => _view = _RepView.customers),
+          ),
+          _MenuTile(
+            icon: Icons.person_outline,
+            title: 'Mein Account',
+            onTap: () => setState(() => _view = _RepView.account),
+          ),
+        ],
+      );
+    });
+  }
+
+  // ---- Seite: Offene Reklamationen (mit grünen/roten Buttons) ----
+  Widget _buildOpenComplaints() {
+    final t = context.t;
+    final items = _complaints.where((c) => !_isClosed(c)).toList(growable: false);
+
+    return _Card(
+      title: t.complaintsMyCustomer,
+      child: items.isEmpty
+          ? Text(t.noComplaintsFound)
+          : Column(
+              children: [
+                for (final c in items)
+                  _ComplaintTile(
+                    data: c,
+                    isClosed: false,
+                    onDecision: (ticket, approve) => _decideComplaint(ticket, approve),
+                    useColoredButtons: true, // -> grün/rot
+                  ),
+              ],
+            ),
+    );
+  }
+
+  // ---- Seite: Alle Reklamationen (Firmenfilter + Chips) ----
+  Widget _buildAllComplaints() {
+    final t = context.t;
+    final email2Co = _emailToCompany;
+    final query = _companyCtrl.text.trim().toLowerCase();
+
+    List<Map<String, dynamic>> list = List<Map<String, dynamic>>.from(_complaints);
+
+    if (!_showClosedAll) {
+      list = list.where((c) => !_isClosed(c)).toList();
+    }
+    if (_showRejectedAll) {
+      list = list.where(_isRejected).toList();
+    }
+    if (query.isNotEmpty) {
+      list = list.where((c) {
+        final em = (c['customerEmail'] ?? c['email'] ?? '').toString();
+        final co = (email2Co[em] ?? '').toLowerCase();
+        return co.contains(query);
+      }).toList();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Filterleiste
+        Card(
+          elevation: 3,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+            child: Wrap(
+              spacing: 14,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                SizedBox(
+                  width: 280,
+                  child: TextField(
+                    controller: _companyCtrl,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      labelText: 'Firmenname filtern',
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                  ),
+                ),
+                FilterChip(
+                  label: const Text('Abgeschlossen anzeigen'),
+                  selected: _showClosedAll,
+                  onSelected: (v) => setState(() => _showClosedAll = v),
+                ),
+                FilterChip(
+                  label: const Text('Nur abgelehnte'),
+                  selected: _showRejectedAll,
+                  onSelected: (v) => setState(() => _showRejectedAll = v),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Liste
+        _Card(
+          title: 'Alle Reklamationen',
+          child: list.isEmpty
+              ? Text(t.noComplaintsFound)
+              : Column(
+                  children: [
+                    for (final c in list)
+                      _ComplaintTile(
+                        data: c,
+                        isClosed: _isClosed(c),
+                        // in "Alle" keine Auto-Buttons, außer offen & ohne Entscheidung
+                        onDecision: (c['decision'] ?? '') == '' && !_isClosed(c)
+                            ? _decideComplaint
+                            : null,
+                        useColoredButtons: true,
+                      ),
+                  ],
+                ),
+        ),
+      ],
+    );
+  }
+
+  // ---- Seite: Kundendatenbank ----
+  Widget _buildCustomersCard() {
+    final t = context.t;
+    return _Card(
+      title: t.myCustomers,
+      actions: [
+        ElevatedButton.icon(
+          onPressed: _assignCustomerDialog,
+          icon: const Icon(Icons.person_add_alt_1),
+          label: Text(t.addCustomer),
+        ),
+      ],
+      child: _customers.isEmpty
+          ? Text(t.noAddCustomer)
+          : Column(
+              children: [
+                for (final c in _customers)
+                  ListTile(
+                    leading: const Icon(Icons.apartment_outlined),
+                    title: Text(
+                      (() {
+                        final comp = (c['company'] ?? '').toString();
+                        final nm   = (c['name'] ?? '').toString();
+                        final em   = (c['email'] ?? '').toString();
+                        if (comp.isNotEmpty) return comp;      // Firma zuerst
+                        if (nm.isNotEmpty)   return nm;        // dann Name
+                        return em;                              // sonst E-Mail
+                      })(),
+                    ),
+                    subtitle: Text(
+                      (() {
+                        final nm = (c['name'] ?? '').toString();
+                        final em = (c['email'] ?? '').toString();
+                        if (nm.isNotEmpty && em.isNotEmpty) return '$nm • $em';
+                        return nm.isNotEmpty ? nm : em;
+                      })(),
+                    ),
+                    trailing: Wrap(
+                      spacing: 8,
+                      children: [
+                        IconButton(
+                          tooltip: 'Details',
+                          icon: const Icon(Icons.info_outline),
+                          onPressed: () => _showCustomerDetails(c),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.link_off),
+                          tooltip: t.deleteAdd,
+                          onPressed: () => _unassignCustomer((c['email'] ?? '').toString()),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+    );
+  }
+
+  // ---- Seite: Account (leitet in deine vorhandene Seite) ----
+  Widget _buildAccountCard() {
+    final t = context.t;
+    return Card(
+      elevation: 4,
+      child: ListTile(
+        leading: const Icon(Icons.person_outline),
+        title: Text(t.profilePW),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () async {
+          await Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => RepProfilePage(api: widget.api)),
+          );
+          if (!mounted) return;
+          await _loadAll();
+        },
       ),
     );
   }
 
   void _showCustomerDetails(Map<String, Object?> c) {
-    final name      = (c['name'] ?? '').toString();
-    final email     = (c['email'] ?? '').toString();
-    final company   = (c['company'] ?? '').toString();
-    final address   = (c['address'] ?? '').toString();
-    final zip       = (c['zip'] ?? '').toString();
-    final city      = (c['city'] ?? '').toString();
-    final country   = (c['country'] ?? '').toString();
-    final phone     = (c['phone'] ?? '').toString();
-    final customerNo= (c['customerNo'] ?? '').toString();
-    final vatId     = (c['vatId'] ?? '').toString();
+    String s(Object? v) => (v ?? '').toString();
+
+    final name       = s(c['name']);
+    final email      = s(c['email']);
+    final company    = s(c['company']);
+    final address    = s(c['address']);
+    final zip        = s(c['zip']);
+    final city       = s(c['city']);
+    final country    = s(c['country']);
+    final phone      = s(c['phone']);
+    final customerNo = s(c['customerNo']);
+    final vatId      = s(c['vatId']);
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(
-          company.isNotEmpty
-            ? company
-            : (name.isNotEmpty ? name : email),
-        ),
+        title: Text(company.isNotEmpty ? company : (name.isNotEmpty ? name : email)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -521,6 +639,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     );
   }
 }
+
+// ----------------- UI Bausteine -----------------
 
 class _Card extends StatelessWidget {
   final String title;
@@ -551,18 +671,16 @@ class _Card extends StatelessWidget {
   }
 }
 
-class _Tile extends StatelessWidget {
+class _MenuTile extends StatelessWidget {
   final IconData icon;
   final String title;
-  final int count;
-  final bool selected;
+  final Widget? trailing;
   final VoidCallback onTap;
 
-  const _Tile({
+  const _MenuTile({
     required this.icon,
     required this.title,
-    required this.count,
-    required this.selected,
+    this.trailing,
     required this.onTap,
     super.key,
   });
@@ -570,54 +688,29 @@ class _Tile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final base = Theme.of(context).colorScheme;
-    final selBg = base.primary.withOpacity(0.10);
-    final selBr = base.primary;
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
-        width: 240,
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: selected ? selBg : null,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: selected ? selBr : base.outlineVariant),
+          color: base.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: base.outlineVariant),
+          boxShadow: [BoxShadow(color: base.shadow.withOpacity(0.08), blurRadius: 8, offset: const Offset(0, 2))],
         ),
         child: Row(
           children: [
-            Icon(icon),
+            Icon(icon, size: 28),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 2),
-                  Text('$count', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                ],
-              ),
+              child: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
             ),
+            if (trailing != null) trailing!,
           ],
         ),
       ),
-    );
-  }
-}
-
-class _Info extends StatelessWidget {
-  final String k;
-  final String v;
-  const _Info(this.k, this.v);
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text('$k: ', style: const TextStyle(fontWeight: FontWeight.w600)),
-        Text(v),
-      ],
     );
   }
 }
@@ -626,7 +719,14 @@ class _ComplaintTile extends StatelessWidget {
   final Map<String, dynamic> data;
   final bool isClosed;
   final void Function(String ticket, bool approve)? onDecision;
-  const _ComplaintTile({required this.data, required this.isClosed, this.onDecision});
+  final bool useColoredButtons; // neu: grün/rot
+
+  const _ComplaintTile({
+    required this.data,
+    required this.isClosed,
+    this.onDecision,
+    this.useColoredButtons = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -639,6 +739,52 @@ class _ComplaintTile extends StatelessWidget {
     final customer = (data['customerEmail'] ?? data['email'] ?? '').toString();
     final article  = (data['payload']?['article'] ?? '').toString();
     final segment  = (data['payload']?['segment'] ?? '').toString();
+
+    Widget _buttons() {
+      if (onDecision == null) return const SizedBox.shrink();
+      if (useColoredButtons) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ElevatedButton.icon(
+              onPressed: () => onDecision!(ticket, true),
+              icon: const Icon(Icons.check),
+              label: Text(t.decision_accepted),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 8),
+            ElevatedButton.icon(
+              onPressed: () => onDecision!(ticket, false),
+              icon: const Icon(Icons.close),
+              label: Text(t.decision_rejected),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        );
+      }
+      // Fallback (Icons)
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: '${t.decision}: ${t.decision_accepted}',
+            icon: const Icon(Icons.check_circle_outline),
+            onPressed: () => onDecision!(ticket, true),
+          ),
+          IconButton(
+            tooltip: '${t.decision}: ${t.decision_rejected}',
+            icon: const Icon(Icons.cancel_outlined),
+            onPressed: () => onDecision!(ticket, false),
+          ),
+        ],
+      );
+    }
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
@@ -658,24 +804,7 @@ class _ComplaintTile extends StatelessWidget {
             ),
           ],
         ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (onDecision != null) ...[
-              IconButton(
-                tooltip: '${t.decision}: ${t.decision_accepted}',
-                icon: const Icon(Icons.check_circle_outline),
-                onPressed: () => onDecision!(ticket, true),
-              ),
-              IconButton(
-                tooltip: '${t.decision}: ${t.decision_rejected}',
-                icon: const Icon(Icons.cancel_outlined),
-                onPressed: () => onDecision!(ticket, false),
-              ),
-            ],
-            if (isClosed) const SizedBox(width: 4),
-          ],
-        ),
+        trailing: onDecision != null && !isClosed ? _buttons() : null,
         dense: true,
       ),
     );
