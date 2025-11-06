@@ -2,26 +2,21 @@
 export const config = { runtime: 'nodejs' };
 
 import { Redis } from '@upstash/redis';
-import { getRepFromAuthHeader } from '../_lib/repAuth.js'; // JWT aus Header lesen
+import { getRepFromAuthHeader } from '../_lib/repAuth.js';
 
-// ---- Upstash-Verbindung (unverändert) ----
+// ---- Upstash ----
 const redisUrl =
   process.env.REDIS_URL ||
   process.env.UPSTASH_REDIS_REST_URL || '';
 const redisToken =
   process.env.REDIS_TOKEN ||
   process.env.UPSTASH_REDIS_REST_TOKEN || '';
+const redis = (redisUrl && redisToken) ? new Redis({ url: redisUrl, token: redisToken }) : null;
 
-const redis = (redisUrl && redisToken)
-  ? new Redis({ url: redisUrl, token: redisToken })
-  : null;
+function requireRedis() { if (!redis) throw new Error('Redis not configured'); }
+const S = (v) => (v ?? '').toString().trim();
 
-function requireRedis() {
-  if (!redis) throw new Error('Redis not configured');
-}
-function S(v) { return (v ?? '').toString().trim(); }
-
-// ---- CORS helper (einheitlich mit anderen Endpunkten) ----
+// ---- CORS (wie bei dir) ----
 function setCors(res) {
   const origin = process.env.WEB_ORIGIN || 'https://dfs-complaints-web.vercel.app';
   res.setHeader('Access-Control-Allow-Origin', origin);
@@ -33,51 +28,71 @@ function setCors(res) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 }
 
-const PFX = 'dfs:complaint:';
-const KEY = (id) => `${PFX}${id}`;
+// ---- Key-Präfixe (beide Varianten unterstützen) ----
+const PFXS = ['dfs:complaints:', 'dfs:complaint:']; // plural + singular
+const INDEX_KEYS = ['dfs:complaints:index', 'dfs:complaint:index'];
 
-// ---- Robuster Loader: Ticket -> { key, c } ----
+// try get + parse json if needed
+async function redisGetParsed(key) {
+  const v = await redis.get(key);
+  if (!v) return null;
+  if (typeof v === 'string') {
+    try { return JSON.parse(v); } catch { return null; }
+  }
+  return v; // bereits Objekt
+}
+
+// Robuster Loader: ticket -> { key, c }
 async function loadComplaintByTicket(ticket) {
   const t = S(ticket);
   if (!t) return null;
 
-  // 1) direkter Key
-  try {
-    const k1 = KEY(t);
-    const c1 = await redis.get(k1);
-    if (c1) return { key: k1, c: c1 };
-  } catch (_) {}
+  // 1) direkter Key (über beide Präfixe)
+  for (const pfx of PFXS) {
+    const k = `${pfx}${t}`;
+    try {
+      const c = await redisGetParsed(k);
+      if (c) return { key: k, c };
+    } catch {}
+  }
 
-  // 2) Index-Hash: dfs:complaint:index   (HGET ticket → key)
-  try {
-    const idxKey = `${PFX}index`;
-    const mapped = await redis.hget(idxKey, t);
-    if (S(mapped)) {
-      const c2 = await redis.get(mapped);
-      if (c2) return { key: mapped, c: c2 };
-    }
-  } catch (_) {}
+  // 2) Index-Hash (über beide möglichen Index-Namen)
+  for (const idx of INDEX_KEYS) {
+    try {
+      const mapped = await redis.hget(idx, t);
+      if (S(mapped)) {
+        const c = await redisGetParsed(mapped);
+        if (c) return { key: mapped, c };
+      }
+    } catch {}
+  }
 
-  // 3) Fallback: scan über Prefix mit Abgleich von value.ticket / value.id
-  try {
-    let cursor = 0;
-    do {
-      const [next, keys] = await redis.scan(cursor, { match: `${PFX}*`, count: 200 });
-      cursor = Number(next || 0);
-      if (keys && keys.length) {
-        const vals = await redis.mget(...keys);
-        for (let i = 0; i < keys.length; i++) {
-          const v = vals[i];
-          if (!v || typeof v !== 'object') continue;
-          const vt = S(v.ticket);
-          const vid = S(v.id);
-          if (vt === t || vid === t) {
-            return { key: keys[i], c: v };
+  // 3) Fallback: SCAN beider Präfixe + Abgleich value.ticket / value.id
+  for (const pfx of PFXS) {
+    try {
+      let cursor = 0;
+      do {
+        const [next, keys] = await redis.scan(cursor, { match: `${pfx}*`, count: 200 });
+        cursor = Number(next || 0);
+        if (keys && keys.length) {
+          const vals = await redis.mget(...keys);
+          for (let i = 0; i < keys.length; i++) {
+            const v = vals[i];
+            let obj = v;
+            if (!obj) continue;
+            if (typeof obj === 'string') {
+              try { obj = JSON.parse(obj); } catch { continue; }
+            }
+            const vt = S(obj.ticket);
+            const vid = S(obj.id);
+            if (vt === t || vid === t) {
+              return { key: keys[i], c: obj };
+            }
           }
         }
-      }
-    } while (cursor !== 0);
-  } catch (_) {}
+      } while (cursor !== 0);
+    } catch {}
+  }
 
   return null;
 }
@@ -90,70 +105,55 @@ export default async function handler(req, res) {
   try {
     requireRedis();
 
-    // --- Auth aus Bearer-Token (nicht aus Body) ---
+    // Auth aus Bearer
     let auth = null;
     try { auth = getRepFromAuthHeader(req); } catch {}
-    if (!auth || !auth.repId) {
-      return res.status(401).json({ error: 'unauthorized' });
-    }
+    if (!auth || !auth.repId) return res.status(401).json({ error: 'unauthorized' });
     const repId = S(auth.repId);
 
-    // --- Body robust parsen (auch wenn text/plain kommt) ---
+    // Body robust parsen
     let body = req.body;
-    if (typeof body === 'string') {
-      try { body = JSON.parse(body || '{}'); } catch { body = {}; }
-    }
+    if (typeof body === 'string') { try { body = JSON.parse(body || '{}'); } catch { body = {}; } }
     body = body || {};
 
     const ticket = S(body.ticket || body.id);
 
-    // decision akzeptiert Varianten:
-    //  - decision: "accept"/"accepted"/"approve"/"approved"/"reject"/"rejected"/"decline"
-    //  - approve: true/false
+    // decision-Mapping (accept/approve/... → accepted | rejected) + approve:boolean
     const rawByDecision = S(body.decision).toLowerCase();
     const rawByApprove  = (body.approve === true)  ? 'accept'
                          : (body.approve === false) ? 'reject'
                          : '';
-    const raw = (rawByDecision || rawByApprove);
+    const raw = rawByDecision || rawByApprove;
 
     const map = {
-      'accept': 'accepted',
-      'accepted': 'accepted',
-      'approve': 'accepted',
-      'approved': 'accepted',
-      'reject': 'rejected',
-      'rejected': 'rejected',
-      'decline': 'rejected',
+      accept: 'accepted', accepted: 'accepted', approve: 'accepted', approved: 'accepted',
+      reject: 'rejected', rejected: 'rejected', decline: 'rejected'
     };
     const decision = map[raw];
 
-    if (!ticket || !decision) {
-      return res.status(400).json({ error: 'invalid data' });
-    }
+    if (!ticket || !decision) return res.status(400).json({ error: 'invalid data' });
 
-    // ---- Reklamation laden (robust) ----
+    // Reklamation laden (jetzt mit singular/plural & index)
     const found = await loadComplaintByTicket(ticket);
-    if (!found) {
-      return res.status(404).json({ error: 'complaint not found' });
-    }
+    if (!found) return res.status(404).json({ error: 'complaint not found' });
+
     const { key, c: complaint } = found;
 
-    // Wenn der Datensatz eine Zuordnung enthält, prüfen
+    // Falls bereits repId gesetzt → prüfen
     if (complaint.repId && S(complaint.repId) !== repId) {
       return res.status(403).json({ error: 'forbidden (wrong rep)' });
     }
 
-    // ---- Entscheidung setzen (vereinheitlicht + kompatibel) ----
+    // Entscheidung setzen (kompatibel)
     const now = new Date().toISOString();
-    complaint.decision      = decision;          // Frontend liest 'decision'
-    complaint.decisionAt    = now;               // dein bisheriges Feld
+    complaint.decision      = decision;          // dein Frontend-Feld
+    complaint.decisionAt    = now;
     complaint.repDecision   = decision;          // kompatibles Feld
     complaint.repDecisionAt = now;
     complaint.repId         = complaint.repId || repId;
 
-    // Optionaler Statusübergang (deine bisherige Logik beibehalten)
-    complaint.status =
-      (decision === 'accepted') ? 'approved_by_rep' : 'rejected_by_rep';
+    // Statusübergang wie gehabt
+    complaint.status = (decision === 'accepted') ? 'approved_by_rep' : 'rejected_by_rep';
 
     await redis.set(key, complaint);
 
