@@ -13,9 +13,6 @@ extension _L10nX on BuildContext {
 // Filtervarianten für die Kachel-Leiste
 enum _RepFilter { all, open, rejected, finished }
 
-// Hart typisierte Customer-Map: alle Werte sind Strings
-typedef Customer = Map<String, String>;
-
 class RepDashboardPage extends StatefulWidget {
   final ApiClient api;
   const RepDashboardPage({super.key, required this.api});
@@ -28,7 +25,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   Map<String, dynamic>? _me;
 
   /// Kundenliste (intern als dynamic für UI, Quelle ist strikt String/String)
-  List<Map<String, Object?>> _customers = [];
+  List<Map<String, Object?>> _customers = <Map<String, Object?>>[];
 
   /// Reklamationen
   List<Map<String, dynamic>> _complaints = [];
@@ -357,9 +354,11 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                                   for (final c in _customers)
                                     ListTile(
                                       leading: const Icon(Icons.apartment_outlined),
-                                      title: Text(((c['name'] ?? '') as Object?).toString().isEmpty
-                                          ? ((c['email'] ?? '') as Object?).toString()
-                                          : ((c['name'] ?? '') as Object?).toString()),
+                                      title: Text(
+                                        (c['name'] ?? '').toString().isEmpty
+                                            ? (c['email'] ?? '').toString()
+                                            : (c['name']  ?? '').toString(),
+                                      ),
                                       subtitle: Text((c['email'] ?? '').toString()),
                                       trailing: Wrap(
                                         spacing: 8,
@@ -434,7 +433,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     );
   }
 
-  void _showCustomerDetails(Map<String, dynamic> c) {
+  void _showCustomerDetails(Map<String, Object?> c) {
     final name    = (c['name'] ?? '').toString();
     final email   = (c['email'] ?? '').toString();
     final company = (c['company'] ?? '').toString();
