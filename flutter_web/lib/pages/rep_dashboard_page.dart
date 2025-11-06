@@ -145,33 +145,31 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     }
   }
 
-  Future<void> _decideComplaint(String ticket, String decision) async {
-    final t = context.t;
+  Future<void> _decideComplaint(String ticket, bool approve) async {
     try {
-      final res = await widget.api.postJson('/rep/decision', {
-        'repId': _me?['id'] ?? widget.api.repId,
-        'ticket': ticket,
-        'decision': decision, // "approve" oder "reject"
-      });
-      if (res['ok'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(decision == 'approve'
-                ? t.rep_approved
-                : t.rep_rejected),
-          ),
-        );
-        await _loadAll(); // Liste neu laden
-      } else {
-        throw Exception(res['error'] ?? 'unknown error');
+      final repId = (_me?['id'] ?? '').toString();
+      if (repId.isEmpty) {
+        throw 'missing rep id';
       }
-    } catch (e) {
+      await widget.api.repDecision(
+        repId: repId,
+        ticket: ticket,
+        approve: approve,
+      );
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${t.error ?? 'Fehler'}: $e')),
+        SnackBar(content: Text(approve ? context.t.rep_approved : context.t.rep_rejected)),
+      );
+      await _loadAll(); // Liste neu laden
+    } catch (e) {
+      final handled = await _handleUnauthorized(e);
+      if (!mounted || handled) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${context.t.error ?? "Fehler"}: $e')),
       );
     }
   }
-
+  
   Future<void> _logout() async {
     await widget.api.repLogout();
     try { html.window.localStorage.remove('dfs_mode'); } catch (_) {}
@@ -276,7 +274,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                                   for (final c in _complaints)
                                     _ComplaintTile(
                                       data: c,
-                                      onDecision: _decideComplaint,
+                                      onDecision: _decideComplaint, // ← NEU: Callback übergeben
                                     ),
                                 ],
                               ),
@@ -364,8 +362,7 @@ class _Info extends StatelessWidget {
 
 class _ComplaintTile extends StatelessWidget {
   final Map<String, dynamic> data;
-  final void Function(String ticket, String decision)? onDecision;
-
+  final void Function(String ticket, bool approve)? onDecision;
   const _ComplaintTile({required this.data, this.onDecision});
 
   @override
@@ -384,21 +381,12 @@ class _ComplaintTile extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        child: Column(
+      child: ListTile(
+        leading: const Icon(Icons.description_outlined),
+        title: Text(ticket.isEmpty ? '(ohne Ticket)' : ticket),
+        subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                const Icon(Icons.description_outlined),
-                const SizedBox(width: 8),
-                Text(ticket.isEmpty ? '(ohne Ticket)' : ticket,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w700, fontSize: 15)),
-              ],
-            ),
-            const SizedBox(height: 6),
             if (customer.isNotEmpty) Text('${t.customer_label}: $customer'),
             if (article.isNotEmpty)  Text('${t.articleNo}: $article'),
             if (segment.isNotEmpty)  Text('${t.segment}: $segment'),
@@ -407,29 +395,29 @@ class _ComplaintTile extends StatelessWidget {
               '${decision.isNotEmpty ? ' • ${t.decision}: $decision' : ''}'
               '${created.isNotEmpty ? ' • ${t.created_at ?? 'Angelegt'}: $created' : ''}',
             ),
+          ],
+        ),
 
-            // ↓↓↓ NEU: Buttons für Vertreter ↓↓↓
-            if (isOpen) ...[
-              const SizedBox(height: 10),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  OutlinedButton.icon(
-                    icon: const Icon(Icons.close, color: Colors.red),
-                    label: Text(t.reject),
-                    onPressed: () => onDecision?.call(ticket, 'reject'),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton.icon(
-                    icon: const Icon(Icons.check_circle, color: Colors.white),
-                    label: Text(t.approve),
-                    onPressed: () => onDecision?.call(ticket, 'approve'),
-                  ),
-                ],
+        // ↓↓↓ NEU: die beiden Buttons rechts
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (onDecision != null) ...[
+              IconButton(
+                tooltip: t.approve ?? 'Freigeben',
+                icon: const Icon(Icons.check_circle_outline),
+                onPressed: () => onDecision!(ticket, true),
+              ),
+              IconButton(
+                tooltip: t.reject ?? 'Ablehnen',
+                icon: const Icon(Icons.cancel_outlined),
+                onPressed: () => onDecision!(ticket, false),
               ),
             ],
           ],
         ),
+
+        dense: true,
       ),
     );
   }
