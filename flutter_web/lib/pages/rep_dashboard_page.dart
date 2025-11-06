@@ -27,7 +27,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   String _s(Object? v) => v?.toString() ?? '';
 
   /// Kundenliste (intern als dynamic für UI, Quelle ist strikt String/String)
-  List<Map<String, String>> _customers = <Map<String, String>>[];
+  List<Map<String, Object?>> _customers = <Map<String, Object?>>[];
   /// Reklamationen
   List<Map<String, dynamic>> _complaints = [];
 
@@ -62,38 +62,39 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       final me   = await widget.api.repMe();
       final comp = await widget.api.repComplaints();
 
-      // Kunden – tolerant: Strings oder Objekte
-      // neu:
-      final rawCustomers = await widget.api.repCustomersDetailed();
-      final List<Map<String, String>> customers = <Map<String, String>>[];
+      // Kunden – tolerant: Strings (alt) ODER Objekte (neu, details=1)
+      final List<Map<String, Object?>> customers = <Map<String, Object?>>[];
 
-      for (final c0 in rawCustomers) {
-        if (c0 is Map) {
-          // Generics konsequent aufbrechen, dann sauber zu String machen:
-          final Map<Object?, Object?> c = Map<Object?, Object?>.from(c0 as Map);
+      for (final c in rawCustomers) {
+        if (c is Map) {
+          final email   = (c['email']   ?? '').toString();
+          final name    = (c['name']    ?? email).toString();
+          final company = (c['company'] ?? '').toString();
+          final address = (c['address'] ?? '').toString();
+          final zip     = (c['zip']     ?? '').toString();
+          final city    = (c['city']    ?? '').toString();
+          final country = (c['country'] ?? '').toString();
 
-          final m = <String, String>{
-            'email'  : _s(c['email']),
-            'name'   : _s(c['name'] ?? c['company'] ?? c['displayName'] ?? c['email']),
-            'company': _s(c['company']),
-            'address': _s(c['address']),
-            'zip'    : _s(c['zip']),
-            'city'   : _s(c['city']),
-            'country': _s(c['country']),
-          };
-          customers.add(m);
-        } else if (c0 is String) {
-          customers.add(<String, String>{'email': c0, 'name': c0});
-        } else {
-          // Fallback: unbekannter Typ -> trotzdem lesbar machen
-          final s = _s(c0);
-          customers.add(<String, String>{'email': s, 'name': s});
+          customers.add(<String, Object?>{
+            'email': email,
+            'name': name,
+            'company': company,
+            'address': address,
+            'zip': zip,
+            'city': city,
+            'country': country,
+          });
+        } else if (c is String) {
+          customers.add(<String, Object?>{
+            'email': c,
+            'name' : c,
+          });
         }
       }
 
       setState(() {
         _me = me;
-        _customers  = customers;   // jetzt List<Map<String,String>>
+        _customers  = customers;   // List<Map<String, Object?>>
         _complaints = comp;
       });
 
