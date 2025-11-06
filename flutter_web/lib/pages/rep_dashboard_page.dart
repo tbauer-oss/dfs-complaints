@@ -210,6 +210,19 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     }
   }
 
+  String _statusText(BuildContext ctx, int s) {
+    final t = ctx.t;
+    switch (s) {
+      case 1: return t.status_sent ?? 'Eingegangen';
+      case 2: return t.status_in_progress ?? 'In Bearbeitung';
+      case 3: return t.status_needs_info ?? 'Rückfrage erforderlich';
+      case 4: return t.status_final_decision ?? 'Entscheidung';
+      case 5: return t.status_rework ?? 'In Nacharbeit';
+      case 6: return t.status_closed ?? 'Abgeschlossen';
+      default: return 'Status $s';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.t;
