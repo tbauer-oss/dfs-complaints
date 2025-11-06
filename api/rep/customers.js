@@ -1,23 +1,17 @@
 // api/rep/customers.js
 export const config = { runtime: 'nodejs' };
 
-import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs';
 import { setCors } from '../_lib/cors.js';
-import { loadRepByEmail } from '../_lib/repsStore.js';
-
-const REP_SECRET = process.env.REP_JWT_SECRET;
+import { getRepFromAuthHeader } from '../_lib/repAuth.js';
+import { repCustomers, repAssign, repUnassign } from '../_lib/repsStore.js';
+import { userByEmail } from '../_lib/store.js';
 
 export default async function handler(req, res) {
-  setCors(req, res, 'Content-Type, Authorization, X-Gate, X-Rep-Secret');
+  // --- CORS immer zuerst (wie bei rep/complaints.js) ---
+  setCors(req, res, 'Content-Type, Authorization, X-Gate');
   if (req.method === 'OPTIONS') return res.status(204).end();
-  if (req.method !== 'POST')
-    return res.status(405).json({ error: 'method not allowed' });
 
-  if (!REP_SECRET)
-    return res.status(500).json({ error: 'server misconfig (REP_JWT_SECRET not set)' });
-
-  // --- Auth prüfen (nur Bearer-Rep) ---
+  // --- Auth (Bearer für Vertreter) ---
   const auth = getRepFromAuthHeader(req);
   if (!auth) {
     return res.status(401).end(JSON.stringify({ error: 'unauthorized' }));
@@ -66,11 +60,11 @@ export default async function handler(req, res) {
       }
 
       if (!details) {
-        // abwärtskompatibel: nur die E-Mail-Liste
+        // abwärtskompatibel
         return res.status(200).end(JSON.stringify(emails));
       }
 
-      // Details anreichern (best effort)
+      // Details (best effort)
       const out = [];
       for (const mail of emails) {
         let name = mail;
@@ -83,8 +77,7 @@ export default async function handler(req, res) {
           const u = await userByEmail(mail);
           if (u && typeof u === 'object') {
             const fullName = `${(u.firstName || '').toString()} ${(u.lastName || '').toString()}`.trim();
-            name = (u.companyName || u.contactName || u.name || fullName || mail)
-              .toString().trim() || mail;
+            name    = (u.companyName || u.contactName || u.name || fullName || mail).toString().trim() || mail;
             company = (u.companyName || '').toString();
             address = (u.address || '').toString();
             zip     = (u.zip || '').toString();
@@ -98,7 +91,6 @@ export default async function handler(req, res) {
       return res.status(200).end(JSON.stringify(out));
     } catch (e) {
       console.error('[rep/customers] GET error:', e);
-      // Bei Fehlern wie gehabt: leere Liste zurückgeben (mit CORS-Headern)
       return res.status(200).end(JSON.stringify([]));
     }
   }
