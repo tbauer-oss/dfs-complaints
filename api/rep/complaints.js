@@ -4,6 +4,7 @@ export const config = { runtime: 'nodejs' };
 import { setCors } from '../_lib/cors.js';
 import { getRepFromAuthHeader } from '../_lib/repAuth.js';
 import { repCustomers } from '../_lib/repsStore.js';
+import { complaintsByEmails } from '../_lib/store.js';
 
 export default async function handler(req, res) {
   setCors(req, res, 'Content-Type, Authorization, X-Gate');
@@ -28,22 +29,11 @@ export default async function handler(req, res) {
 
   const status = String((req.query?.status || '')).trim();
 
-  let items = [];
-  try {
-    const store = await import('../_lib/complaintsStore.js').catch(() => null);
-    if (store && typeof store.getComplaintsByEmails === 'function') {
-      items = await store.getComplaintsByEmails(emails, { status });
-    } else if (store && typeof store.listComplaintsForRepEmails === 'function') {
-      items = await store.listComplaintsForRepEmails(emails, { status });
-    } else {
-      console.warn('[rep/complaints] complaintsStore has no compatible export – returning empty list.');
-      items = [];
-    }
+    try {
+    const items = await complaintsByEmails(emails, { status });
+    return res.status(200).end(JSON.stringify(items));
   } catch (e) {
-    console.error('[rep/complaints] loading complaints failed:', e);
-    items = [];
+    console.error('[rep/complaints] complaintsByEmails failed:', e);
+    return res.status(200).end(JSON.stringify([]));
   }
-
-  if (!Array.isArray(items)) items = [];
-  return res.status(200).end(JSON.stringify(items));
 }
