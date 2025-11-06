@@ -30,6 +30,8 @@
   "save": "Speichern",
   "saved": "Gespeichert",
   "newLoad": "Neu laden",
+  "status_needs_info": "Rückfrage erforderlich",
+  "status_final_decision": "Entscheidung",
 
   "logout": "Abmelden",
   "loggedOut": "Abgemeldet.",
