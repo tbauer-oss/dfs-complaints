@@ -134,69 +134,6 @@ class ApiClient {
     return h;
   }
 
-  // Versucht, das Rep-Token leise zu erneuern (POST /api/rep/refresh)
-  Future<bool> _repTryRefresh() async {
-    try {
-      final r = await http.post(
-        _u('/api/rep/refresh'),
-        headers: _repHeaders(),
-      );
-      if (_ok2xx(r.statusCode)) {
-        final body = r.body.trim().isEmpty ? '{}' : r.body;
-        final j = jsonDecode(body);
-        final tok = (j is Map ? (j['token'] ?? '') : '').toString();
-        if (tok.isNotEmpty) {
-          repToken = tok;
-          _saveSession();
-          return true;
-        }
-      }
-    } catch (_) {}
-    return false;
-  }
-
-  // Zentrales Fetch für Rep-Endpunkte mit 1x 401-Retry nach Refresh
-  Future<http.Response> _repFetch(
-    String path, {
-    String method = 'GET',
-    Map<String, dynamic>? body,
-  }) async {
-    Future<http.Response> _do() {
-      final uri = _u(path);
-      final h = _repHeaders();
-      switch (method) {
-        case 'POST':
-          return http.post(uri, headers: h, body: jsonEncode(body ?? const {}));
-        case 'PUT':
-          return http.put(uri, headers: h, body: jsonEncode(body ?? const {}));
-        case 'PATCH':
-          return http.patch(uri, headers: h, body: jsonEncode(body ?? const {}));
-        case 'DELETE':
-          return http.delete(uri, headers: h, body: jsonEncode(body ?? const {}));
-        default:
-          return http.get(uri, headers: h);
-      }
-    }
-
-    http.Response r = await _do();
-
-    // Falls 401 → einmal Refresh versuchen und wiederholen
-    if (r.statusCode == 401) {
-      final ok = await _repTryRefresh();
-      if (ok) {
-        r = await _do();
-      }
-    }
-
-    // Optional: neues Token aus Header akzeptieren (falls Backend es mitschickt)
-    final newTok = r.headers['x-rep-token'];
-    if (newTok != null && newTok.isNotEmpty && newTok != repToken) {
-      repToken = newTok;
-      _saveSession();
-    }
-    return r;
-  }
-
   // ——— Nur für Vertreter-Endpunkte: POST mit Bearer-Token ———
   Future<Map<String, dynamic>> _repPostJson(String path, Map<String, dynamic> body) async {
     final r = await http.post(
@@ -731,28 +668,6 @@ class ApiClient {
     throw Exception('POST /api/rep/password failed: ${r.statusCode} ${r.body}');
   }
 
-  Future<Map<String, dynamic>> repMe() async {
-    final r = await http.get(_u('/api/rep/me'), headers: _repHeaders());
-    if (!_ok2xx(r.statusCode)) {
-      throw Exception('GET /api/rep/me failed: ${r.statusCode} ${r.body}');
-    }
-    final j = jsonDecode(r.body);
-    return (j is Map) ? j.cast<String, dynamic>() : <String, dynamic>{};
-  }
-
-  Future<List<dynamic>> repCustomers() async {
-    final r = await http.get(_u('/api/rep/customers'), headers: _repHeaders());
-    if (!_ok2xx(r.statusCode)) {
-      throw Exception('GET /api/rep/customers failed: ${r.statusCode} ${r.body}');
-    }
-    final j = jsonDecode(r.body);
-    if (j is List) {
-      // Wir erlauben Strings ODER Maps; UI macht daraus Strings
-      return j; // List<dynamic>
-    }
-    return const <dynamic>[];
-      }
-
   Future<void> repAssignCustomer(String email) async {
     final r = await http.post(
       _u('/api/rep/customers'),
@@ -773,32 +688,6 @@ class ApiClient {
     if (!_ok2xx(r.statusCode)) {
       throw Exception('POST /api/rep/customers unassign failed: ${r.statusCode} ${r.body}');
     }
-  }
-
-  Future<List<Map<String, dynamic>>> repComplaints({String status = ''}) async {
-    final path = status.isEmpty
-        ? '/api/rep/complaints'
-        : '/api/rep/complaints?status=$status';
-
-    final r = await http.get(
-      _u(path),
-      headers: _repHeaders(), // MUSS das Bearer-Token enthalten
-    );
-
-    if (!_ok2xx(r.statusCode)) {
-      throw Exception('GET $path failed: ${r.statusCode} ${r.body}');
-    }
-
-    final body = jsonDecode(r.body);
-    if (body is List) {
-      // Erwartet: eine Liste von Complaint-Objekten
-      return body.cast<Map<String, dynamic>>();
-    }
-    // Falls jemand versehentlich mit ?debug=1 ruft (liefert ein Objekt, keine Liste)
-    if (body is Map && body['items'] is List) {
-      return (body['items'] as List).cast<Map<String, dynamic>>();
-    }
-    return const [];
   }
 
   Future<void> repLogout() async {
