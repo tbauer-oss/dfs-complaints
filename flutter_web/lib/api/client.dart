@@ -643,15 +643,18 @@ class ApiClient {
     return (j is Map) ? j.cast<String, dynamic>() : <String, dynamic>{};
   }
 
-  Future<List<String>> repCustomers() async {
+  Future<List<dynamic>> repCustomers() async {
     final r = await http.get(_u('/api/rep/customers'), headers: _repHeaders());
     if (!_ok2xx(r.statusCode)) {
       throw Exception('GET /api/rep/customers failed: ${r.statusCode} ${r.body}');
     }
     final j = jsonDecode(r.body);
-    if (j is List) return j.whereType<String>().toList(growable: false);
-    return const [];
-  }
+    if (j is List) {
+      // Wir erlauben Strings ODER Maps; UI macht daraus Strings
+      return j; // List<dynamic>
+    }
+    return const <dynamic>[];
+      }
 
   Future<void> repAssignCustomer(String email) async {
     final r = await http.post(
