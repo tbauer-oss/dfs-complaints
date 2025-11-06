@@ -7,16 +7,17 @@ import { repCustomers, repAssign, repUnassign } from '../_lib/repsStore.js';
 import { userByEmail } from '../_lib/store.js';
 
 export default async function handler(req, res) {
-  // CORS exakt wie in /api/rep/complaints.js
+  // --- CORS immer und als erstes, exakt wie in complaints.js ---
   setCors(req, res, 'Content-Type, Authorization, X-Gate');
   if (req.method === 'OPTIONS') return res.status(204).end();
 
+  // --- Auth prüfen (nur Bearer-Rep) ---
   const auth = getRepFromAuthHeader(req);
   if (!auth) {
     return res.status(401).end(JSON.stringify({ error: 'unauthorized' }));
   }
 
-  // POST – assign/unassign (unverändert, nur CORS oben zentral gesetzt)
+  // --- POST: assign / unassign ---
   if (req.method === 'POST') {
     try {
       let body = {};
@@ -24,7 +25,7 @@ export default async function handler(req, res) {
         body = typeof req.body === 'string'
           ? JSON.parse(req.body || '{}')
           : (req.body || {});
-      } catch (_) {}
+      } catch {}
 
       const action = (body.action || '').toString();
       const email  = (body.email  || '').toString().trim().toLowerCase();
@@ -41,7 +42,6 @@ export default async function handler(req, res) {
         await repUnassign(auth.repId, email);
         return res.status(204).end();
       }
-
       return res.status(400).end(JSON.stringify({ error: 'invalid action' }));
     } catch (e) {
       console.error('[rep/customers] POST error:', e);
@@ -49,7 +49,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // GET – Strings (kompatibel) oder Details mit ?details=1
+  // --- GET: Liste (Strings) ODER Details (?details=1) ---
   if (req.method === 'GET') {
     try {
       const details = (req.query?.details || '').toString() === '1';
@@ -60,11 +60,11 @@ export default async function handler(req, res) {
       }
 
       if (!details) {
-        // klassischer Modus: Liste von E-Mail-Strings
+        // abwärtskompatibel: nur die E-Mail-Liste
         return res.status(200).end(JSON.stringify(emails));
       }
 
-      // Detailanreicherung (best effort)
+      // Details anreichern (best effort)
       const out = [];
       for (const mail of emails) {
         let name = mail;
@@ -77,24 +77,26 @@ export default async function handler(req, res) {
           const u = await userByEmail(mail);
           if (u && typeof u === 'object') {
             const fullName = `${(u.firstName || '').toString()} ${(u.lastName || '').toString()}`.trim();
-            name = (u.companyName || u.contactName || u.name || fullName || mail).toString().trim() || mail;
+            name = (u.companyName || u.contactName || u.name || fullName || mail)
+              .toString().trim() || mail;
             company = (u.companyName || '').toString();
             address = (u.address || '').toString();
             zip     = (u.zip || '').toString();
             city    = (u.city || '').toString();
             country = (u.country || '').toString();
           }
-        } catch (_) {}
+        } catch {}
         out.push({ email: mail, name, company, address, zip, city, country });
       }
 
       return res.status(200).end(JSON.stringify(out));
     } catch (e) {
       console.error('[rep/customers] GET error:', e);
-      // wie gehabt: bei Fehlern leere Liste zurück
+      // Bei Fehlern wie gehabt: leere Liste zurückgeben (mit CORS-Headern)
       return res.status(200).end(JSON.stringify([]));
     }
   }
 
+  // --- Sonst: 405 ---
   return res.status(405).end(JSON.stringify({ error: 'method not allowed' }));
 }
