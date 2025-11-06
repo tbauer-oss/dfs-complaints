@@ -1,72 +1,63 @@
-// api/_lib/store.js  (ESM)
+// =======================================================
+// api/_lib/store.js  (ESM) – DFS Complaints Backend
+// =======================================================
 import { Redis } from '@upstash/redis';
 
 /* =========================================================
    KV / Redis – ENV robust erkennen (Upstash & Vercel KV)
    ========================================================= */
 const REDIS_URL =
-  process.env.UPSTASH_REDIS_REST_KV_REST_API_URL ||   // bei dir vorhanden
-  process.env.UPSTASH_REDIS_REST_URL ||               // klassisch Upstash
-  process.env.KV_REST_API_URL ||                      // Vercel KV
-  process.env.REDIS_URL ||                            // Fallback
+  process.env.UPSTASH_REDIS_REST_KV_REST_API_URL ||
+  process.env.UPSTASH_REDIS_REST_URL ||
+  process.env.KV_REST_API_URL ||
+  process.env.REDIS_URL ||
   null;
 
 const REDIS_TOKEN =
-  process.env.UPSTASH_REDIS_REST_KV_REST_API_TOKEN || // bei dir vorhanden (WRITE)
-  process.env.UPSTASH_REDIS_REST_TOKEN ||             // klassisch Upstash
-  process.env.KV_REST_API_TOKEN ||                    // Vercel KV
-  process.env.REDIS_TOKEN ||                          // Fallback
+  process.env.UPSTASH_REDIS_REST_KV_REST_API_TOKEN ||
+  process.env.UPSTASH_REDIS_REST_TOKEN ||
+  process.env.KV_REST_API_TOKEN ||
+  process.env.REDIS_TOKEN ||
   null;
 
-// Lazy-Init (verhindert Crash bei Preflight/CORS)
 let _redis = null;
 function getRedis() {
   if (_redis) return _redis;
-  if (!REDIS_URL || !REDIS_TOKEN) return null; // Fallback: In-Memory
+  if (!REDIS_URL || !REDIS_TOKEN) return null;
   _redis = new Redis({ url: REDIS_URL, token: REDIS_TOKEN });
   return _redis;
 }
 
-// Präfix
 const P = 'dfs:';
 
-// In-Memory Fallback (nur Dev/Preview)
+// ===== In-Memory Fallback (Preview / Dev) =====
 const mem = {
-  users: new Map(),         // key: email
-  pending: new Map(),       // key: email
-  complaints: new Map(),    // key: ticket
+  users: new Map(),
+  pending: new Map(),
+  complaints: new Map(),
   counters: { ticket: 1 },
 };
 
-// ---------------- Helpers ----------------
-async function rget(key) {
-  try { const r = getRedis(); if (!r) return null; return await r.get(key); }
-  catch (e) { console.error('KV GET failed:', key, e?.message || e); return null; }
-}
-async function rset(key, v) {
-  try { const r = getRedis(); if (!r) return null; return await r.set(key, v); }
-  catch (e) { console.error('KV SET failed:', key, e?.message || e); return null; }
-}
-async function rdel(key) {
-  try { const r = getRedis(); if (!r) return null; return await r.del(key); }
-  catch (e) { console.error('KV DEL failed:', key, e?.message || e); return null; }
-}
+// ===== Helper (Redis IO) =====
+async function rget(k) { try { const r = getRedis(); return r ? await r.get(k) : null; } catch (e) { console.error('KV GET', k, e); return null; } }
+async function rset(k, v) { try { const r = getRedis(); return r ? await r.set(k, v) : null; } catch (e) { console.error('KV SET', k, e); return null; } }
+async function rdel(k) { try { const r = getRedis(); return r ? await r.del(k) : null; } catch (e) { console.error('KV DEL', k, e); return null; } }
 
-// KEYS/SCAN – kompatibel für Upstash SDK
+// ===== Key-Scan kompatibel zu Upstash =====
 async function rkeys(pattern) {
   const r = getRedis();
   if (!r) return [];
   if (typeof r.keys === 'function') {
-    try { return await r.keys(pattern); } catch { /* fallthrough */ }
+    try { return await r.keys(pattern); } catch { /* continue */ }
   }
   if (typeof r.scan === 'function') {
     let cursor = 0, out = [];
     do {
       const res = await r.scan(cursor, { match: pattern, count: 1000 });
-      if (Array.isArray(res)) {               // [cursor, keys[]]
+      if (Array.isArray(res)) {
         cursor = Number(res[0]);
         out.push(...(res[1] || []));
-      } else {                                // { cursor, members/keys }
+      } else {
         cursor = Number(res.cursor || 0);
         out.push(...(res.members || res.keys || []));
       }
@@ -76,41 +67,34 @@ async function rkeys(pattern) {
   return [];
 }
 
-/* -------------- Diagnose für /api/diag/kv --------------- */
+/* ============== Diagnose /api/diag/kv ============== */
 export async function kvStatus() {
   const r = getRedis();
   if (!r) {
     return {
-      ok: true,
-      useRedis: false,
+      ok: true, useRedis: false,
       reason: 'missing Upstash/Vercel KV ENV',
-      needed: [
-        'KV_REST_API_URL & KV_REST_API_TOKEN',
-        'oder',
-        'UPSTASH_REDIS_REST_URL & UPSTASH_REDIS_REST_TOKEN',
-      ],
+      needed: ['KV_REST_API_URL & KV_REST_API_TOKEN', 'oder', 'UPSTASH_REDIS_REST_URL & UPSTASH_REDIS_REST_TOKEN'],
     };
   }
   const t0 = Date.now();
   try {
-    const pong = await r.ping();     // erwartet "PONG"
+    const pong = await r.ping();
     const pingMs = Date.now() - t0;
-    const prefix = P;
-    const keys = await rkeys(`${prefix}*`);
+    const keys = await rkeys(`${P}*`);
     const counts = {
-      users:      keys.filter(k => k.startsWith(`${prefix}user:`)).length,
-      pending:    keys.filter(k => k.startsWith(`${prefix}pending:`)).length,
-      complaints: keys.filter(k => k.startsWith(`${prefix}complaint:`)).length,
+      users: keys.filter(k => k.startsWith(`${P}user:`)).length,
+      pending: keys.filter(k => k.startsWith(`${P}pending:`)).length,
+      complaints: keys.filter(k => k.startsWith(`${P}complaint:`)).length,
       total: keys.length,
     };
-    return { ok: true, useRedis: true, ping: pong, pingMs, prefix, counts };
+    return { ok: true, useRedis: true, ping: pong, pingMs, prefix: P, counts };
   } catch (e) {
     return { ok: false, useRedis: true, error: e?.message || String(e) };
   }
 }
-/* -------------- Ende Diagnose --------------- */
 
-// ================= Tickets ==================
+/* ============== Tickets ============== */
 export async function nextTicket() {
   const r = getRedis();
   if (r) {
@@ -121,7 +105,7 @@ export async function nextTicket() {
   return `DFS_CP${String(n).padStart(6, '0')}`;
 }
 
-// ================= Users ====================
+/* ============== Users ============== */
 export async function userByEmail(email) {
   if (!email) return null;
   const key = `${P}user:${String(email).toLowerCase()}`;
@@ -130,22 +114,21 @@ export async function userByEmail(email) {
   return mem.users.get(String(email).toLowerCase()) ?? null;
 }
 
-export async function userSave(user) {
-  const email = String(user?.email || '').toLowerCase();
+export async function userSave(u) {
+  const email = String(u?.email || '').toLowerCase();
   if (!email) return false;
   const key = `${P}user:${email}`;
   const r = getRedis();
-  if (r) { await rset(key, user); return true; }
-  mem.users.set(email, user); return true;
+  if (r) await rset(key, u); else mem.users.set(email, u);
+  return true;
 }
 
 export async function userDelete(email) {
   email = String(email || '').toLowerCase();
-  if (!email) return false;
   const key = `${P}user:${email}`;
   const r = getRedis();
-  if (r) { await rdel(key); return true; }
-  return mem.users.delete(email);
+  if (r) await rdel(key); else mem.users.delete(email);
+  return true;
 }
 
 export async function usersList() {
@@ -158,35 +141,30 @@ export async function usersList() {
   return Array.from(mem.users.values());
 }
 
-// ================= Pending ==================
-export async function pendingSave(entry) {
-  const email = String(entry?.email || '').toLowerCase();
-  if (!email) return false;
-  const key = `${P}pending:${email}`;
+/* ============== Pending Registrations ============== */
+export async function pendingSave(e) {
+  const mail = String(e?.email || '').toLowerCase();
+  if (!mail) return false;
+  const key = `${P}pending:${mail}`;
   const r = getRedis();
-  if (r) { await rset(key, entry); return true; }
-  mem.pending.set(email, entry); return true;
+  if (r) await rset(key, e); else mem.pending.set(mail, e);
+  return true;
 }
 
 export async function pendingGet(email) {
   email = String(email || '').toLowerCase();
-  if (!email) return null;
   const key = `${P}pending:${email}`;
   const r = getRedis();
   if (r) return await rget(key);
   return mem.pending.get(email) ?? null;
 }
 
-// Alias (kompatibel)
-export async function pendingByEmail(email) { return pendingGet(email); }
-
 export async function pendingDelete(email) {
   email = String(email || '').toLowerCase();
-  if (!email) return false;
   const key = `${P}pending:${email}`;
   const r = getRedis();
-  if (r) { await rdel(key); return true; }
-  return mem.pending.delete(email);
+  if (r) await rdel(key); else mem.pending.delete(email);
+  return true;
 }
 
 export async function pendingList() {
@@ -199,43 +177,31 @@ export async function pendingList() {
   return Array.from(mem.pending.values());
 }
 
-// =============== Complaints =================
+/* ============== Complaints Core ============== */
 
-// Status-Enum (Farblogik liegt im Frontend, Werte fixieren wir hier)
 export const Status = {
-  SENT: 1,            // gesendet (blau)
-  IN_PROGRESS: 2,     // in Bearbeitung (gelb)
-  NEEDS_INFO: 3,      // Rückfrage erforderlich (orange)
-  FINAL_DECISION: 4,  // Entscheidung (rot/hellgrün via decision)
-  REWORK: 5,          // in Nacharbeit (optional)
-  CLOSED: 6,          // abgeschlossen (grün)
+  SENT: 1,
+  IN_PROGRESS: 2,
+  NEEDS_INFO: 3,
+  FINAL_DECISION: 4,
+  REWORK: 5,
+  CLOSED: 6,
 };
 
-// complaintSave: legt an/überschreibt komplettes Objekt
-// Erwartetes Schema:
-// {
-//   ticket, email,
-//   createdAt, updatedAt,
-//   status: 1..6,
-//   decision: 'accepted'|'rejected'|null,
-//   reportLink: string|null,
-//   payload: {...}
-// }
 export async function complaintSave(c) {
   if (!c?.ticket) c.ticket = await nextTicket();
   const key = `${P}complaint:${c.ticket}`;
   const r = getRedis();
-  if (r) { await rset(key, c); return c; }
-  mem.complaints.set(c.ticket, c); return c;
+  if (r) await rset(key, c); else mem.complaints.set(c.ticket, c);
+  return c;
 }
 
-// Complaint löschen (Hard-Delete)
 export async function complaintDelete(ticket) {
   if (!ticket) return false;
   const key = `${P}complaint:${ticket}`;
   const r = getRedis();
-  if (r) { await rdel(key); return true; }
-  return mem.complaints.delete(ticket);
+  if (r) await rdel(key); else mem.complaints.delete(ticket);
+  return true;
 }
 
 export async function complaintGet(ticket) {
@@ -245,71 +211,48 @@ export async function complaintGet(ticket) {
   return mem.complaints.get(ticket) ?? null;
 }
 
-// Partielle Updates (status, decision, reportLink, payload …)
 export async function complaintUpdate(ticket, patch) {
   const cur = await complaintGet(ticket);
   if (!cur) return null;
-  const updated = {
-    ...cur,
-    ...patch,
-    updatedAt: Date.now(),
-  };
+  const updated = { ...cur, ...patch, updatedAt: Date.now() };
   await complaintSave(updated);
   return updated;
 }
 
-/* ---------- ROBUSTE MAIL-ERKENNUNG FÜR COMPLAINTS ---------- */
+/* ============== Mail-Normalisierung ============== */
 function _nm(v) { return (v ?? '').toString().trim().toLowerCase(); }
 
 function _emailsFromComplaint(c) {
   const out = new Set();
-  // Top-Level
-  out.add(_nm(c?.customerEmail));
-  out.add(_nm(c?.email));
-  out.add(_nm(c?.userEmail));
-  out.add(_nm(c?.account?.email));
-  out.add(_nm(c?.user?.email));
-  // Payload
   const p = c?.payload || {};
-  out.add(_nm(p.customerEmail));
-  out.add(_nm(p.email));
-  out.add(_nm(p.userEmail));
-  out.add(_nm(p?.account?.email));
-  out.add(_nm(p?.user?.email));
-  return Array.from(out).filter(Boolean);
+  [_nm(c?.email), _nm(c?.customerEmail), _nm(c?.userEmail),
+   _nm(c?.account?.email), _nm(c?.user?.email),
+   _nm(p?.email), _nm(p?.customerEmail),
+   _nm(p?.userEmail), _nm(p?.account?.email), _nm(p?.user?.email)]
+    .forEach(e => e && out.add(e));
+  return Array.from(out);
 }
 
-// Alle Reklamationen eines Kunden (sortiert nach Datum desc)
+/* ============== Complaint-Filter nach Email ============== */
 export async function complaintsByEmail(email) {
-  const target = String(email || '').toLowerCase();
+  const target = _nm(email);
+  if (!target) return [];
   const r = getRedis();
-
-  // Helper, um die Kundenmail aus unterschiedlichen Strukturen robust zu ziehen
-  const extractMail = (c) => String(
-    c?.email ??
-    c?.customerEmail ??
-    c?.payload?.email ??
-    c?.payload?.customerEmail ??
-    ''
-  ).toLowerCase();
+  const extract = (c) => _emailsFromComplaint(c).includes(target);
 
   if (r) {
     const keys = await rkeys(`${P}complaint:*`);
     const vals = await Promise.all(keys.map(k => rget(k)));
-    const list = vals.filter((v) => extractMail(v) === target);
+    const list = vals.filter(v => extract(v));
     list.sort((a, b) => (b?.createdAt || 0) - (a?.createdAt || 0));
     return list;
   }
-
-  const list = Array.from(mem.complaints.values())
-    .filter((v) => extractMail(v) === target);
+  const list = Array.from(mem.complaints.values()).filter(v => extract(v));
   list.sort((a, b) => (b?.createdAt || 0) - (a?.createdAt || 0));
   return list;
 }
 
-/* ================== NEU für Admin/Open-Views ================== */
-
-// Alle Reklamationen (Redis oder Memory), unsortiert – Sortierung im Aufrufer möglich
+/* ============== Komplettlisten / Admin / Rep ============== */
 export async function complaintsAll() {
   const r = getRedis();
   if (r) {
@@ -320,34 +263,26 @@ export async function complaintsAll() {
   return Array.from(mem.complaints.values());
 }
 
-// Alias: Einzel-Complaint per Ticket
 export async function complaintByTicket(ticket) {
-  ticket = String(ticket || '').trim();
-  if (!ticket) return null;
   return await complaintGet(ticket);
 }
 
-// Offene Reklamationen im Sinne deiner Definition:
-// Offen = NICHT (Status == 6 "Abgeschlossen") UND NICHT (Status == 4 && decision == 'rejected')
 export async function complaintsOpen() {
   const all = await complaintsAll();
   const open = all.filter(c => {
     const s = Number(c?.status || 0);
     const dec = (c?.decision || '').toString();
-    const closedByStatus    = (s === Status.CLOSED);
-    const closedByRejection = (s === Status.FINAL_DECISION && dec === 'rejected');
-    return !(closedByStatus || closedByRejection);
+    const closedByStatus = (s === Status.CLOSED);
+    const closedByRej = (s === Status.FINAL_DECISION && dec === 'rejected');
+    return !(closedByStatus || closedByRej);
   });
   open.sort((a, b) => (b?.createdAt || 0) - (a?.createdAt || 0));
   return open;
 }
 
-// === Sammelabruf: mehrere Kunden-Mails auf einmal (kompatibel, nutzt robustes complaintsByEmail) ===
+/* ============== Mehrfach-Abruf (Emails[]) ============== */
 export async function complaintsByEmails(emails, { status = '' } = {}) {
-  const mails = (Array.isArray(emails) ? emails : [])
-    .map(v => _nm(v))
-    .filter(Boolean);
-
+  const mails = (Array.isArray(emails) ? emails : []).map(_nm).filter(Boolean);
   if (mails.length === 0) return [];
 
   const all = [];
@@ -355,12 +290,10 @@ export async function complaintsByEmails(emails, { status = '' } = {}) {
     try {
       const list = await complaintsByEmail(m);
       if (Array.isArray(list)) all.push(...list);
-    } catch (e) {
-      console.warn('[store] complaintsByEmail failed for', m, e?.message || e);
-    }
+    } catch (e) { console.warn('[store] complaintsByEmail failed for', m, e?.message); }
   }
 
-  // Tickets deduplizieren
+  // Dedup Tickets
   const seen = new Set();
   const dedup = [];
   for (const c of all) {
@@ -370,13 +303,10 @@ export async function complaintsByEmails(emails, { status = '' } = {}) {
     dedup.push(c);
   }
 
-  // optionaler Statusfilter (1..6)
+  // Filter optional nach Status
   const s = (status ?? '').toString().trim();
-  const filtered = s
-    ? dedup.filter(c => String(c?.status ?? '') === s)
-    : dedup;
+  const filtered = s ? dedup.filter(c => String(c?.status ?? '') === s) : dedup;
 
-  // neueste zuerst
   filtered.sort((a, b) => {
     const ta = a?.updatedAt ?? a?.createdAt ?? 0;
     const tb = b?.updatedAt ?? b?.createdAt ?? 0;
@@ -386,13 +316,9 @@ export async function complaintsByEmails(emails, { status = '' } = {}) {
   return filtered;
 }
 
-/* ================== NEU: Vertreter-spezifische Abfrage ================== */
+/* ============== Vertreter-spezifische Sammelabfrage ============== */
 export async function complaintsForRepEmails(emails, { status = '' } = {}) {
-  const wanted = new Set(
-    (Array.isArray(emails) ? emails : [])
-      .map(e => _nm(e))
-      .filter(Boolean)
-  );
+  const wanted = new Set((Array.isArray(emails) ? emails : []).map(_nm).filter(Boolean));
   if (wanted.size === 0) return [];
 
   const all = await complaintsAll();
@@ -404,7 +330,6 @@ export async function complaintsForRepEmails(emails, { status = '' } = {}) {
   for (const c of (all || [])) {
     const t = (c?.ticket ?? '').toString().trim();
     if (!t || seen.has(t)) continue;
-
     if (wantStatus && String(c?.status ?? '') !== wantStatus) continue;
 
     const mails = _emailsFromComplaint(c);
