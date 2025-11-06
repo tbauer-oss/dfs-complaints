@@ -2215,24 +2215,58 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
 
             const SizedBox(height: 10),
 
-            // =====================
-            // Entscheidung auf eigener Meta-Zeile (farbig)
-            // =====================
+            // ===================== Entscheidung + Wunsch (gemeinsame Meta-Zeile) =====================
             Builder(
               builder: (_) {
                 final decText = _labelForDecision(c.decision);
                 final decCol  = _decisionColor(c.decision);
+                final wish    = c.handlingLabel; // kommt aus payload['handling'] / 'Wunsch'
+
+                // Linker Teil: Entscheidung (farbig) + Wunsch (neutral)
+                final left = Wrap(
+                  spacing: 12,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('Entscheidung: '),
+                        Text(
+                          decText,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: decCol,
+                          ),
+                        ),
+                      ],
+                    ),
+                    // Trenner-Punkt
+                    const Text('•'),
+                    // Wunsch des Kunden (immer anzeigen, Strich wenn leer)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('Wunsch: ',
+                          style: TextStyle(fontWeight: FontWeight.w400),
+                        ),
+                        Text(
+                          (wish.trim().isEmpty || wish == '—') ? '—' : wish,
+                          style: TextStyle(
+                            fontStyle: FontStyle.italic,
+                            color: Theme.of(context).textTheme.bodyMedium?.color,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+
                 return Row(
                   children: [
-                    const Text('Entscheidung: '),
-                    Text(
-                      decText,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: decCol,
-                      ),
-                    ),
-                    const Spacer(),
+                    // links: Entscheidung + Wunsch im Wrap (bricht sauber auf kleinen Screens)
+                    Expanded(child: left),
+                    // rechts: Bearbeiten-Button wie gehabt
                     TextButton.icon(
                       onPressed: () => setState(() => _expanded = !_expanded),
                       icon: Icon(_expanded ? Icons.expand_less : Icons.edit),
