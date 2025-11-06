@@ -413,7 +413,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     });
   }
 
-  // ---- Seite: Offene Reklamationen (mit grünen/roten Buttons) ----
+  // ---- Seite: Offene Reklamationen (mobilfreundlich) ----
   Widget _buildOpenComplaints() {
     final t = context.t;
     final items = _complaints.where((c) => !_isClosed(c)).toList(growable: false);
@@ -422,16 +422,20 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       title: t.complaintsMyCustomer,
       child: items.isEmpty
           ? Text(t.noComplaintsFound)
-          : Column(
-              children: [
-                for (final c in items)
-                  _ComplaintTile(
-                    data: c,
-                    isClosed: false,
-                    onDecision: (ticket, approve) => _decideComplaint(ticket, approve),
-                    useColoredButtons: true, // -> grün/rot
-                  ),
-              ],
+          : ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemBuilder: (_, i) {
+                final c = items[i];
+                return _ComplaintTile(
+                  data: c,
+                  isClosed: false,
+                  onDecision: (ticket, approve) => _decideComplaint(ticket, approve),
+                  useColoredButtons: true, // -> grün/rot
+                );
+              },
+              separatorBuilder: (_, __) => const SizedBox(height: 6),
+              itemCount: items.length,
             ),
     );
   }
@@ -503,19 +507,23 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
           title: 'Alle Reklamationen',
           child: list.isEmpty
               ? Text(t.noComplaintsFound)
-              : Column(
-                  children: [
-                    for (final c in list)
-                      _ComplaintTile(
-                        data: c,
-                        isClosed: _isClosed(c),
-                        // in "Alle" keine Auto-Buttons, außer offen & ohne Entscheidung
-                        onDecision: (c['decision'] ?? '') == '' && !_isClosed(c)
-                            ? _decideComplaint
-                            : null,
-                        useColoredButtons: true,
-                      ),
-                  ],
+              : ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemBuilder: (_, i) {
+                    final c = list[i];
+                    return _ComplaintTile(
+                      data: c,
+                      isClosed: _isClosed(c),
+                      // in "Alle" keine Auto-Buttons, außer offen & ohne Entscheidung
+                      onDecision: (c['decision'] ?? '') == '' && !_isClosed(c)
+                          ? _decideComplaint
+                          : null,
+                      useColoredButtons: true,
+                    );
+                  },
+                  separatorBuilder: (_, __) => const SizedBox(height: 6),
+                  itemCount: list.length,
                 ),
         ),
       ],
@@ -536,69 +544,100 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       ],
       child: _customers.isEmpty
           ? Text(t.noAddCustomer)
-          : Column(
-              children: [
-                for (final c in _customers)
-                  ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    leading: const Icon(Icons.apartment_outlined),
-                    title: Text(
-                      (() {
-                        final comp = (c['company'] ?? '').toString();
-                        final nm   = (c['name'] ?? '').toString();
-                        final em   = (c['email'] ?? '').toString();
-                        if (comp.isNotEmpty) return comp;      // Firma zuerst
-                        if (nm.isNotEmpty)   return nm;        // dann Name
-                        return em;                              // sonst E-Mail
-                      })(),
-                    ),
-                    subtitle: Text(
-                      (() {
-                        final nm = (c['name'] ?? '').toString();
-                        final em = (c['email'] ?? '').toString();
-                        if (nm.isNotEmpty && em.isNotEmpty) return '$nm • $em';
-                        return nm.isNotEmpty ? nm : em;
-                      })(),
-                    ),
-                    trailing: Wrap(
-                      spacing: 8,
-                      children: [
-                        IconButton(
-                          tooltip: 'Details',
-                          icon: const Icon(Icons.info_outline),
-                          onPressed: () => _showCustomerDetails(c),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.link_off),
-                          tooltip: t.deleteAdd,
-                          onPressed: () => _unassignCustomer((c['email'] ?? '').toString()),
-                        ),
-                      ],
-                    ),
+          : ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemBuilder: (_, i) {
+                final c = _customers[i];
+                return ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  leading: const Icon(Icons.apartment_outlined),
+                  title: Text(
+                    (() {
+                      final comp = (c['company'] ?? '').toString();
+                      final nm   = (c['name'] ?? '').toString();
+                      final em   = (c['email'] ?? '').toString();
+                      if (comp.isNotEmpty) return comp;      // Firma zuerst
+                      if (nm.isNotEmpty)   return nm;        // dann Name
+                      return em;                              // sonst E-Mail
+                    })(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-              ],
+                  subtitle: Text(
+                    (() {
+                      final nm = (c['name'] ?? '').toString();
+                      final em = (c['email'] ?? '').toString();
+                      if (nm.isNotEmpty && em.isNotEmpty) return '$nm • $em';
+                      return nm.isNotEmpty ? nm : em;
+                    })(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: Wrap(
+                    spacing: 8,
+                    children: [
+                      IconButton(
+                        tooltip: 'Details',
+                        icon: const Icon(Icons.info_outline),
+                        onPressed: () => _showCustomerDetails(c),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.link_off),
+                        tooltip: t.deleteAdd,
+                        onPressed: () => _unassignCustomer((c['email'] ?? '').toString()),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemCount: _customers.length,
             ),
     );
   }
 
-  // ---- Seite: Account (leitet in deine vorhandene Seite) ----
+  // ---- Seite: Account – jetzt mit zwei getrennten Einträgen ----
   Widget _buildAccountCard() {
     final t = context.t;
+    final labelProfile   = t.profile_edit ?? 'Profil bearbeiten';
+    final labelPassword  = t.password_change ?? 'Passwort ändern';
+
+    Future<void> _openProfile() async {
+      await Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => RepProfilePage(api: widget.api)),
+      );
+      if (!mounted) return;
+      await _loadAll();
+    }
+
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        leading: const Icon(Icons.person_outline),
-        title: Text(t.profilePW),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () async {
-          await Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => RepProfilePage(api: widget.api)),
-          );
-          if (!mounted) return;
-          await _loadAll();
-        },
+      child: Column(
+        children: [
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            leading: const Icon(Icons.person_outline),
+            title: Text(t.profilePW),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.manage_accounts_outlined),
+            title: Text(labelProfile),
+            subtitle: Text(t.profilePW),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _openProfile, // Öffnet deine bestehende Seite
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.lock_reset_outlined),
+            title: Text(labelPassword),
+            subtitle: Text(t.password_change_hint ?? 'Passwort sicher aktualisieren'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _openProfile, // gleiche Seite; Trennung erfolgt in der UI
+          ),
+        ],
       ),
     );
   }
@@ -836,8 +875,8 @@ class _ComplaintTile extends StatelessWidget {
     Widget _buttons() {
       if (onDecision == null) return const SizedBox.shrink();
       if (useColoredButtons) {
-        return Row(
-          mainAxisSize: MainAxisSize.min,
+        return Wrap(
+          spacing: 8,
           children: [
             ElevatedButton.icon(
               onPressed: () => onDecision!(ticket, true),
@@ -848,7 +887,6 @@ class _ComplaintTile extends StatelessWidget {
                 foregroundColor: Colors.white,
               ),
             ),
-            const SizedBox(width: 8),
             ElevatedButton.icon(
               onPressed: () => onDecision!(ticket, false),
               icon: const Icon(Icons.close),
@@ -879,28 +917,117 @@ class _ComplaintTile extends StatelessWidget {
       );
     }
 
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        leading: const Icon(Icons.description_outlined),
-        title: Text(ticket.isEmpty ? '(ohne Ticket)' : ticket),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (customer.isNotEmpty) Text('${t.customer_label}: $customer'),
-            if (article.isNotEmpty)  Text('${t.articleNo}: $article'),
-            if (segment.isNotEmpty)  Text('${t.segment}: $segment'),
-            Text(
-              'Status: $status'
-              '${decision.isNotEmpty ? ' • ${t.decision}: $decision' : ''}'
-              '${created.isNotEmpty ? ' • ${t.created_at ?? 'Angelegt'}: $created' : ''}',
+    return LayoutBuilder(
+      builder: (ctx, cons) {
+        final isNarrow = cons.maxWidth < 420;
+
+        return Card(
+          margin: const EdgeInsets.symmetric(vertical: 6),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Kopfzeile: Ticket + Status/Decision Chips
+                Row(
+                  children: [
+                    const Icon(Icons.description_outlined, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        ticket.isEmpty ? '(ohne Ticket)' : ticket,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _StatusChip(status: status, decision: decision, closed: isClosed),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // Infos als Wrap -> mobilfreundlich, kein vertikales „Buchstabern“
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    if (customer.isNotEmpty) _InfoCapsule('${t.customer_label}: $customer'),
+                    if (article.isNotEmpty)  _InfoCapsule('${t.articleNo}: $article'),
+                    if (segment.isNotEmpty)  _InfoCapsule('${t.segment}: $segment'),
+                    if (created.isNotEmpty)  _InfoCapsule('${t.created_at ?? 'Angelegt'}: $created'),
+                    if (decision.isNotEmpty) _InfoCapsule('${t.decision}: $decision'),
+                  ],
+                ),
+                if (onDecision != null && !isClosed) ...[
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: isNarrow ? Alignment.centerLeft : Alignment.centerRight,
+                    child: _buttons(),
+                  ),
+                ],
+              ],
             ),
-          ],
-        ),
-        trailing: onDecision != null && !isClosed ? _buttons() : null,
-        dense: true,
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ---------- kleine UI-Helfer für die mobilfreundliche Liste ----------
+
+class _InfoCapsule extends StatelessWidget {
+  final String text;
+  const _InfoCapsule(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: cs.surfaceVariant.withOpacity(.6),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        text,
+        overflow: TextOverflow.ellipsis,
+        maxLines: 1,
+        style: TextStyle(fontSize: 12.5, color: cs.onSurface.withOpacity(.9)),
+      ),
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  final String status;
+  final String decision;
+  final bool closed;
+  const _StatusChip({required this.status, required this.decision, required this.closed});
+
+  @override
+  Widget build(BuildContext context) {
+    Color c;
+    if (closed) {
+      c = Colors.grey;
+    } else if (decision == 'rejected') {
+      c = Colors.red;
+    } else if (decision == 'accepted') {
+      c = Colors.green;
+    } else {
+      c = Theme.of(context).colorScheme.primary;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: c.withOpacity(.12),
+        border: Border.all(color: c),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        'Status $status',
+        style: TextStyle(color: c, fontSize: 12, fontWeight: FontWeight.w600),
       ),
     );
   }
