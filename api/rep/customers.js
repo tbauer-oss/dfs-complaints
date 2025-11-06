@@ -1,4 +1,6 @@
 // api/rep/customers.js
+export const config = { runtime: 'nodejs' };
+
 import { getRepFromAuthHeader } from '../_lib/repAuth.js';
 import { repCustomers, repAssign, repUnassign } from '../_lib/repsStore.js';
 import { userByEmail } from '../_lib/store.js';
