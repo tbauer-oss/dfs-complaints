@@ -15,10 +15,13 @@ class RepDashboardPage extends StatefulWidget {
   const RepDashboardPage({super.key, required this.api});
 
   @override
-  State<RepDashboardPage> createState() => RepDashboardPageState();
+  State<RepDashboardPage> createState() => RepDashboardPageState(); // <- KORREKT
 }
 
-class RepDashboardPage extends State<RepDashboardPage> {
+// ------------------------------------------------------
+// Wichtig: Die State-Klasse darf NICHT mehr "RepDashboardPage" heißen!
+// ------------------------------------------------------
+class RepDashboardPageState extends State<RepDashboardPage> {
   Map<String, dynamic>? _me;
   List<String> _customers = [];
   List<Map<String, dynamic>> _complaints = [];
