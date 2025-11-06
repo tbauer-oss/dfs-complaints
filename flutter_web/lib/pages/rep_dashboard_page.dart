@@ -18,7 +18,7 @@ class RepDashboardPage extends StatefulWidget {
   State<RepDashboardPage> createState() => _RepDashboardPageState();
 }
 
-class _RepDashboardPageState extends State<RepDashboardPage> {
+class _RepDashboardPage extends State<RepDashboardPage> {
   Map<String, dynamic>? _me;
   List<String> _customers = [];
   List<Map<String, dynamic>> _complaints = [];
@@ -163,7 +163,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       );
     }
   }
-  
+
   Future<void> _logout() async {
     await widget.api.repLogout();
     try { html.window.localStorage.remove('dfs_mode'); } catch (_) {}
@@ -187,94 +187,114 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             ? Center(child: Text(_err!, style: const TextStyle(color: Colors.red)))
             : Padding(
                 padding: const EdgeInsets.all(16),
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Profil & Passwort
-                      Card(
-                        elevation: 4,
-                        child: ListTile(
-                          leading: const Icon(Icons.person_outline),
-                          title: Text(t.profilePW),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () async {
-                            await Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => RepProfilePage(api: widget.api),
+                child: LayoutBuilder(
+                  builder: (ctx, c) {
+                    final w = c.maxWidth;
+                    // 1 Spalte (<=720), 2 Spalten (<=1100), 3 Spalten darüber
+                    final cols = w <= 720 ? 1 : (w <= 1100 ? 2 : 3);
+                    return SingleChildScrollView(
+                      child: _DashboardGrid(
+                        columns: cols,
+                        children: [
+                          // Kachel: Profil/Passwort
+                          _DashboardTile(
+                            icon: Icons.manage_accounts_outlined,
+                            title: t.profilePW,
+                            actions: [
+                              IconButton(
+                                tooltip: t.newLoad,
+                                onPressed: _loading ? null : _loadAll,
+                                icon: const Icon(Icons.refresh),
                               ),
-                            );
-                            if (!mounted) return;
-                            await _loadAll();
-                          },
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      _Card(
-                        title: t.myData,
-                        child: _me == null
-                            ? const Text('–')
-                            : Wrap(
-                                spacing: 16,
-                                runSpacing: 6,
-                                children: [
-                                  _Info(
-                                    'Name',
-                                    '${(_me!['firstName'] ?? '').toString()} '
-                                    '${(_me!['lastName'] ?? '').toString()}'.trim(),
+                            ],
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: const Icon(Icons.person_outline),
+                              title: Text(t.profilePW),
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: () async {
+                                await Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => RepProfilePage(api: widget.api),
                                   ),
-                                  _Info(t.email_plain, (_me!['email'] ?? '').toString()),
-                                  _Info(t.region, (_me!['region'] ?? '').toString()),
-                                ],
-                              ),
-                      ),
-                      const SizedBox(height: 16),
+                                );
+                                if (!mounted) return;
+                                await _loadAll();
+                              },
+                            ),
+                          ),
 
-                      _Card(
-                        title: t.myCustomers,
-                        actions: [
-                          ElevatedButton.icon(
-                            onPressed: _assignCustomerDialog,
-                            icon: const Icon(Icons.person_add_alt_1),
-                            label: Text(t.addCustomer),
+                          // Kachel: Meine Daten
+                          _DashboardTile(
+                            icon: Icons.badge_outlined,
+                            title: t.myData,
+                            child: _me == null
+                                ? const Text('–')
+                                : Wrap(
+                                    spacing: 16,
+                                    runSpacing: 8,
+                                    children: [
+                                      _Info('Name',
+                                          '${(_me!['firstName'] ?? '').toString()} ${(_me!['lastName'] ?? '').toString()}'.trim()),
+                                      _Info(t.email_plain, (_me!['email'] ?? '').toString()),
+                                      _Info(t.region, (_me!['region'] ?? '').toString()),
+                                    ],
+                                  ),
+                          ),
+
+                          // Kachel: Meine Kunden (links Liste, oben Action)
+                          _DashboardTile(
+                            icon: Icons.groups_outlined,
+                            title: t.myCustomers,
+                            actions: [
+                              ElevatedButton.icon(
+                                onPressed: _assignCustomerDialog,
+                                icon: const Icon(Icons.person_add_alt_1),
+                                label: Text(t.addCustomer),
+                              ),
+                            ],
+                            child: _customers.isEmpty
+                                ? Text(t.noAddCustomer)
+                                : Column(
+                                    children: [
+                                      for (final e in _customers)
+                                        ListTile(
+                                          contentPadding: EdgeInsets.zero,
+                                          leading: const Icon(Icons.person),
+                                          title: Text(e),
+                                          trailing: IconButton(
+                                            icon: const Icon(Icons.link_off),
+                                            tooltip: t.deleteAdd,
+                                            onPressed: () => _unassignCustomer(e),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                          ),
+
+                          // Kachel: Reklamationen der zugewiesenen Kunden
+                          _DashboardTile(
+                            icon: Icons.description_outlined,
+                            title: t.complaintsMyCustomer,
+                            subtitle: _complaints.isNotEmpty
+                                ? Text('${_complaints.length} ${t.complaintsMyCustomer}')
+                                : null,
+                            child: _complaints.isEmpty
+                                ? Text(t.noComplaintsFound)
+                                : Column(
+                                    children: [
+                                      for (final c in _complaints)
+                                        _ComplaintTile(
+                                          data: c,
+                                          onDecision: _decideComplaint,
+                                        ),
+                                    ],
+                                  ),
                           ),
                         ],
-                        child: _customers.isEmpty
-                            ? Text(t.noAddCustomer)
-                            : Column(
-                                children: [
-                                  for (final e in _customers)
-                                    ListTile(
-                                      leading: const Icon(Icons.person),
-                                      title: Text(e),
-                                      trailing: IconButton(
-                                        icon: const Icon(Icons.link_off),
-                                        tooltip: t.deleteAdd,
-                                        onPressed: () => _unassignCustomer(e),
-                                      ),
-                                    ),
-                                ],
-                              ),
                       ),
-                      const SizedBox(height: 16),
-
-                      _Card(
-                        title: t.complaintsMyCustomer,
-                        child: _complaints.isEmpty
-                            ? Text(t.noComplaintsFound)
-                            : Column(
-                                children: [
-                                  for (final c in _complaints)
-                                    _ComplaintTile(
-                                      data: c,
-                                      onDecision: _decideComplaint, // ← NEU: Callback übergeben
-                                    ),
-                                ],
-                              ),
-                      ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               );
 
@@ -308,28 +328,85 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   }
 }
 
-class _Card extends StatelessWidget {
+/* =======================
+   Dashboard-Grundelemente
+   ======================= */
+
+class _DashboardGrid extends StatelessWidget {
+  final int columns;
+  final List<Widget> children;
+  const _DashboardGrid({required this.columns, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.count(
+      crossAxisCount: columns,
+      mainAxisSpacing: 16,
+      crossAxisSpacing: 16,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      childAspectRatio: 1.25, // dezent breiter; passt zu "Admin-Kacheln"
+      children: children,
+    );
+  }
+}
+
+class _DashboardTile extends StatelessWidget {
+  final IconData icon;
   final String title;
-  final List<Widget>? actions;
   final Widget child;
-  const _Card({required this.title, this.actions, required this.child, super.key});
+  final List<Widget>? actions;
+  final Widget? subtitle;
+
+  const _DashboardTile({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.child,
+    this.actions,
+    this.subtitle,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      elevation: 4,
+      elevation: 3,
+      clipBehavior: Clip.antiAlias,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-              const Spacer(),
-              if (actions != null) ...actions!,
-            ]),
-            const SizedBox(height: 10),
-            child,
+            // Header mit Icon + Titel + Actions
+            Row(
+              children: [
+                Icon(icon),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                      if (subtitle != null) DefaultTextStyle.merge(
+                        style: Theme.of(context).textTheme.bodySmall!,
+                        child: subtitle!,
+                      ),
+                    ],
+                  ),
+                ),
+                if (actions != null) ...actions!,
+              ],
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: SingleChildScrollView(
+                  child: child,
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -344,83 +421,112 @@ class _Info extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text('$k: ', style: const TextStyle(fontWeight: FontWeight.w600)),
-        Text(v),
-      ],
+    return Chip(
+      label: Text('$k: $v'),
+      visualDensity: VisualDensity.compact,
     );
   }
 }
+
+/* ==========================
+   Complaint-ListTile (Kachel)
+   ========================== */
 
 class _ComplaintTile extends StatelessWidget {
   final Map<String, dynamic> data;
   final void Function(String ticket, bool approve)? onDecision;
   const _ComplaintTile({required this.data, this.onDecision});
 
+  Color _statusColor(int s, String decision) {
+    // einfache, zur Admin-Logik passende Grundfarben
+    switch (s) {
+      case 1: return Colors.blue;               // SENT
+      case 2: return Colors.amber[800] ?? Colors.amber;
+      case 3: return Colors.orange;
+      case 4: return (decision == 'accepted') ? Colors.lightGreen[700]! : Colors.redAccent;
+      case 5: return Colors.teal;
+      case 6: return Colors.green;
+      default: return Colors.grey;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.t;
 
     final ticket   = (data['ticket'] ?? '').toString();
-    final status   = (data['status'] ?? '').toString();                // kommt als 1..6
+    final status   = (data['status'] ?? '').toString();                // numerisch (1..6)
     final decision = (data['decision'] ?? '').toString();              // 'accepted' | 'rejected' | ''
     final created  = (data['createdAt'] ?? data['created'] ?? '').toString();
     final customer = (data['customerEmail'] ?? data['email'] ?? '').toString();
     final article  = (data['payload']?['article'] ?? '').toString();
     final segment  = (data['payload']?['segment'] ?? '').toString();
 
-    // ---- WICHTIG: "offen" korrekt aus den Status-Codes ableiten (1..6) ----
-    // Offen = NICHT (Status == 6 "Abgeschlossen") UND NICHT (Status == 4 && decision == 'rejected')
     final int s = int.tryParse(status) ?? 0;
     final bool isOpen = (s != 6) && !(s == 4 && decision == 'rejected');
-
-    // Buttons nur anzeigen, wenn:
-    // - ein Callback vorhanden ist
-    // - der Fall offen ist
-    // - es noch KEINE Entscheidung gibt
     final bool canDecide = onDecision != null && isOpen && decision.isEmpty;
 
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      child: ListTile(
-        leading: const Icon(Icons.description_outlined),
-        title: Text(ticket.isEmpty ? '(ohne Ticket)' : ticket),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (customer.isNotEmpty) Text('${t.customer_label}: $customer'),
-            if (article.isNotEmpty)  Text('${t.articleNo}: $article'),
-            if (segment.isNotEmpty)  Text('${t.segment}: $segment'),
-            Text(
-              'Status: $status'
-              '${decision.isNotEmpty ? ' • ${t.decision}: $decision' : ''}'
-              '${created.isNotEmpty ? ' • ${t.created_at ?? 'Angelegt'}: $created' : ''}',
-            ),
-          ],
-        ),
+    final color = _statusColor(s, decision);
 
-        // ← GENAU HIER ist der Button-Block: nur wenn canDecide == true
-        trailing: canDecide
-            ? Row(
-                mainAxisSize: MainAxisSize.min,
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: color.withOpacity(0.35), width: 1),
+        borderRadius: BorderRadius.circular(12),
+        color: color.withOpacity(0.06),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.description_outlined, color: color),
+          const SizedBox(width: 12),
+          Expanded(
+            child: DefaultTextStyle(
+              style: Theme.of(context).textTheme.bodyMedium!,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  IconButton(
-                    tooltip: '${t.decision}: ${t.decision_accepted}',
-                    icon: const Icon(Icons.check_circle_outline),
-                    onPressed: () => onDecision!(ticket, true),
-                  ),
-                  IconButton(
-                    tooltip: '${t.decision}: ${t.decision_rejected}',
-                    icon: const Icon(Icons.cancel_outlined),
-                    onPressed: () => onDecision!(ticket, false),
+                  Text(ticket.isEmpty ? '(ohne Ticket)' : ticket,
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 6),
+                  if (customer.isNotEmpty) Text('${t.customer_label}: $customer'),
+                  if (article.isNotEmpty)  Text('${t.articleNo}: $article'),
+                  if (segment.isNotEmpty)  Text('${t.segment}: $segment'),
+                  Text(
+                    'Status: $status'
+                    '${decision.isNotEmpty ? ' • ${t.decision}: $decision' : ''}'
+                    '${created.isNotEmpty ? ' • ${t.created_at ?? 'Angelegt'}: $created' : ''}',
                   ),
                 ],
-              )
-            : null,
-
-        dense: true,
+              ),
+            ),
+          ),
+          if (canDecide) ...[
+            const SizedBox(width: 12),
+            Wrap(
+              spacing: 6,
+              children: [
+                Tooltip(
+                  message: '${t.decision}: ${t.decision_accepted}',
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.check_circle_outline),
+                    label: Text(t.decision_accepted),
+                    onPressed: () => onDecision!(ticket, true),
+                  ),
+                ),
+                Tooltip(
+                  message: '${t.decision}: ${t.decision_rejected}',
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.cancel_outlined),
+                    label: Text(t.decision_rejected),
+                    onPressed: () => onDecision!(ticket, false),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
       ),
     );
   }
