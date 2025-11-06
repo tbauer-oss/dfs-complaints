@@ -62,8 +62,18 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       final me   = await widget.api.repMe();
       final comp = await widget.api.repComplaints();
       final rawCustomers = await widget.api.repCustomers(details: true);
-      // Kunden – tolerant: Strings (alt) ODER Objekte (neu, details=1)
+      // Kunden – tolerant: Details (neu) ODER Strings (alt)
       final List<Map<String, Object?>> customers = <Map<String, Object?>>[];
+
+      // Erst versuchen: detailliert
+      List<dynamic> rawCustomers;
+      try {
+        rawCustomers = await widget.api.repCustomersDetailed();
+      } catch (_) {
+        // Fallback: alte String-Liste
+        final ls = await widget.api.repCustomers();
+        rawCustomers = ls; // List<String>
+      }
 
       for (final c in rawCustomers) {
         if (c is Map) {
@@ -97,7 +107,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         _customers  = customers;   // List<Map<String, Object?>>
         _complaints = comp;
       });
-
+      
     } catch (e) {
       final handled = await _handleUnauthorized(e);
       if (!mounted) return;
