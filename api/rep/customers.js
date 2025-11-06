@@ -1,14 +1,14 @@
 // api/rep/customers.js
 export const config = { runtime: 'nodejs' };
 
-import { setCors } from '../_lib/cors.js';
+import { handlePreflight } from '../_cors.js';
 import { getRepFromAuthHeader } from '../_lib/repAuth.js';
 import { repCustomers, repAssign, repUnassign } from '../_lib/repsStore.js';
 import { userByEmail } from '../_lib/store.js';
 
 export default async function handler(req, res) {
-  setCors(req, res, 'Content-Type, Authorization, X-Gate');
-  if (req.method === 'OPTIONS') return res.status(204).end();
+  // Einheitliches CORS + OPTIONS
+  if (handlePreflight(req, res)) return;
 
   const auth = getRepFromAuthHeader(req);
   if (!auth) return res.status(401).end(JSON.stringify({ error: 'unauthorized' }));
@@ -38,7 +38,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // GET – zurückliefern: Strings (abwärtskompatibel) ODER detailiert, je nach Query
+  // GET – zurückliefern: Strings (abwärtskompatibel) ODER detailliert, je nach Query
   if (req.method === 'GET') {
     try {
       const details = (req.query?.details || '').toString() === '1';
