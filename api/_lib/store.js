@@ -279,12 +279,30 @@ function _emailsFromComplaint(c) {
   return Array.from(out).filter(Boolean);
 }
 
-// Alle Reklamationen eines Kunden (sortiert nach Datum desc) – ROBUST
+// Alle Reklamationen eines Kunden (sortiert nach Datum desc)
 export async function complaintsByEmail(email) {
-  const e = _nm(email);
-  if (!e) return [];
-  const all = await complaintsAll();
-  const list = (all || []).filter(c => _emailsFromComplaint(c).includes(e));
+  const target = String(email || '').toLowerCase();
+  const r = getRedis();
+
+  // Helper, um die Kundenmail aus unterschiedlichen Strukturen robust zu ziehen
+  const extractMail = (c) => String(
+    c?.email ??
+    c?.customerEmail ??
+    c?.payload?.email ??
+    c?.payload?.customerEmail ??
+    ''
+  ).toLowerCase();
+
+  if (r) {
+    const keys = await rkeys(`${P}complaint:*`);
+    const vals = await Promise.all(keys.map(k => rget(k)));
+    const list = vals.filter((v) => extractMail(v) === target);
+    list.sort((a, b) => (b?.createdAt || 0) - (a?.createdAt || 0));
+    return list;
+  }
+
+  const list = Array.from(mem.complaints.values())
+    .filter((v) => extractMail(v) === target);
   list.sort((a, b) => (b?.createdAt || 0) - (a?.createdAt || 0));
   return list;
 }
