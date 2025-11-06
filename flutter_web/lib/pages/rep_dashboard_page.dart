@@ -70,7 +70,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       for (final c in rawCustomers) {
         if (c is Map) {
           // Map Schritt-für-Schritt befüllen, keine Literal-Inferenz
-          final map = <String, Object?>{};
+          final Map<String, Object?> map = <String, Object?>{};
           map['email']   = (c['email']        ?? '').toString();
           map['name']    = (c['name']         ?? c['company'] ?? c['displayName'] ?? c['email'] ?? '').toString();
           map['company'] = (c['company']      ?? '').toString();
