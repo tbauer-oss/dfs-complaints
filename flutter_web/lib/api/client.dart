@@ -308,18 +308,27 @@ class ApiClient {
   }
 
   Future<List<Map<String, dynamic>>> repCustomersDetailed() async {
-    final r = await http.get(_u('/api/rep/customers?details=1'), headers: _repHeaders());
-    if (!_ok2xx(r.statusCode)) {
+    final r = await _repFetch('/api/rep/customers?details=1');
+      if (!_ok2xx(r.statusCode)) {
       throw Exception('GET /api/rep/customers?details=1 failed: ${r.statusCode} ${r.body}');
     }
     final j = jsonDecode(r.body);
     if (j is List) {
-      // erwartet: [{ email, name, company, address, zip, city, country }, ...]
-      return j.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList(growable: false);
+      // Falls Backend ausnahmsweise doch nur Strings liefert → tolerant mappen
+      if (j.isNotEmpty && j.first is String) {
+        return j.whereType<String>().map((mail) => <String, dynamic>{
+          'email': mail,
+          'name': mail,
+        }).toList(growable: false);
+      }
+      return j
+          .whereType<Map>()                       // List<Map>
+          .map((e) => e.cast<String, dynamic>())  // Map<String,dynamic>
+          .toList(growable: false);
     }
     return const [];
   }
-
+  
   Future<List<Map<String, dynamic>>> repComplaints({String status = ''}) async {
     final path = status.isEmpty
         ? '/api/rep/complaints'
