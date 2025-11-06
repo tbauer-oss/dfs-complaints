@@ -2,7 +2,7 @@
 export const config = { runtime: 'nodejs' };
 
 import { Redis } from '@upstash/redis';
-import { getRepFromAuthHeader } from '../_lib/repAuth.js'; // <— neu: JWT aus Header lesen
+import { getRepFromAuthHeader } from '../_lib/repAuth.js'; // JWT aus Header lesen
 
 // ---- Upstash-Verbindung (unverändert) ----
 const redisUrl =
@@ -36,6 +36,52 @@ function setCors(res) {
 const PFX = 'dfs:complaints:';
 const KEY = (id) => `${PFX}${id}`;
 
+// ---- Robuster Loader: Ticket -> { key, c } ----
+async function loadComplaintByTicket(ticket) {
+  const t = S(ticket);
+  if (!t) return null;
+
+  // 1) direkter Key
+  try {
+    const k1 = KEY(t);
+    const c1 = await redis.get(k1);
+    if (c1) return { key: k1, c: c1 };
+  } catch (_) {}
+
+  // 2) Index-Hash: dfs:complaints:index   (HGET ticket → key)
+  try {
+    const idxKey = `${PFX}index`;
+    const mapped = await redis.hget(idxKey, t);
+    if (S(mapped)) {
+      const c2 = await redis.get(mapped);
+      if (c2) return { key: mapped, c: c2 };
+    }
+  } catch (_) {}
+
+  // 3) Fallback: scan über Prefix mit Abgleich von value.ticket / value.id
+  try {
+    let cursor = 0;
+    do {
+      const [next, keys] = await redis.scan(cursor, { match: `${PFX}*`, count: 200 });
+      cursor = Number(next || 0);
+      if (keys && keys.length) {
+        const vals = await redis.mget(...keys);
+        for (let i = 0; i < keys.length; i++) {
+          const v = vals[i];
+          if (!v || typeof v !== 'object') continue;
+          const vt = S(v.ticket);
+          const vid = S(v.id);
+          if (vt === t || vid === t) {
+            return { key: keys[i], c: v };
+          }
+        }
+      }
+    } while (cursor !== 0);
+  } catch (_) {}
+
+  return null;
+}
+
 export default async function handler(req, res) {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(204).end();
@@ -65,7 +111,7 @@ export default async function handler(req, res) {
     //  - decision: "accept"/"accepted"/"approve"/"approved"/"reject"/"rejected"/"decline"
     //  - approve: true/false
     const rawByDecision = S(body.decision).toLowerCase();
-    const rawByApprove  = (body.approve === true) ? 'accept'
+    const rawByApprove  = (body.approve === true)  ? 'accept'
                          : (body.approve === false) ? 'reject'
                          : '';
     const raw = (rawByDecision || rawByApprove);
@@ -85,24 +131,27 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'invalid data' });
     }
 
-    // ---- Reklamation laden & prüfen ----
-    const key = KEY(ticket);
-    const complaint = await redis.get(key);
-    if (!complaint) {
+    // ---- Reklamation laden (robust) ----
+    const found = await loadComplaintByTicket(ticket);
+    if (!found) {
       return res.status(404).json({ error: 'complaint not found' });
     }
+    const { key, c: complaint } = found;
+
     // Wenn der Datensatz eine Zuordnung enthält, prüfen
     if (complaint.repId && S(complaint.repId) !== repId) {
       return res.status(403).json({ error: 'forbidden (wrong rep)' });
     }
 
-    // ---- Entscheidung setzen (vereinheitlicht) ----
+    // ---- Entscheidung setzen (vereinheitlicht + kompatibel) ----
     const now = new Date().toISOString();
-    complaint.decision = decision;          // Frontend liest 'decision'
-    complaint.decisionAt = now;             // optional, konsistent benennen
-    complaint.repId = complaint.repId || repId;
+    complaint.decision      = decision;          // Frontend liest 'decision'
+    complaint.decisionAt    = now;               // dein bisheriges Feld
+    complaint.repDecision   = decision;          // kompatibles Feld
+    complaint.repDecisionAt = now;
+    complaint.repId         = complaint.repId || repId;
 
-    // Optionaler Statusübergang (falls du das nutzt):
+    // Optionaler Statusübergang (deine bisherige Logik beibehalten)
     complaint.status =
       (decision === 'accepted') ? 'approved_by_rep' : 'rejected_by_rep';
 
