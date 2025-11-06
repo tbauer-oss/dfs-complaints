@@ -1,15 +1,21 @@
 // api/rep/customers.js
 export const config = { runtime: 'nodejs' };
 
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 import { setCors } from '../_lib/cors.js';
-import { getRepFromAuthHeader } from '../_lib/repAuth.js';
-import { repCustomers, repAssign, repUnassign } from '../_lib/repsStore.js';
-import { userByEmail } from '../_lib/store.js';
+import { loadRepByEmail } from '../_lib/repsStore.js';
+
+const REP_SECRET = process.env.REP_JWT_SECRET;
 
 export default async function handler(req, res) {
-  // --- CORS immer und als erstes, exakt wie in complaints.js ---
-  setCors(req, res, 'Content-Type, Authorization, X-Gate');
+  setCors(req, res, 'Content-Type, Authorization, X-Gate, X-Rep-Secret');
   if (req.method === 'OPTIONS') return res.status(204).end();
+  if (req.method !== 'POST')
+    return res.status(405).json({ error: 'method not allowed' });
+
+  if (!REP_SECRET)
+    return res.status(500).json({ error: 'server misconfig (REP_JWT_SECRET not set)' });
 
   // --- Auth prüfen (nur Bearer-Rep) ---
   const auth = getRepFromAuthHeader(req);
