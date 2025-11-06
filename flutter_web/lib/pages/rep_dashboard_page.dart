@@ -58,23 +58,23 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       _loading = true;
       _err = null;
     });
+
     try {
       final me   = await widget.api.repMe();
       final comp = await widget.api.repComplaints();
-      final rawCustomers = await widget.api.repCustomers(details: true);
-      // Kunden – tolerant: Details (neu) ODER Strings (alt)
-      final List<Map<String, Object?>> customers = <Map<String, Object?>>[];
 
-      // Erst versuchen: detailliert
+      // Kunden – tolerant: Details (neu) ODER Strings (alt)
       List<dynamic> rawCustomers;
       try {
+        // bevorzugt: detaillierte Liste [{email,name,company,address,zip,city,country}, ...]
         rawCustomers = await widget.api.repCustomersDetailed();
       } catch (_) {
-        // Fallback: alte String-Liste
-        final ls = await widget.api.repCustomers();
-        rawCustomers = ls; // List<String>
+        // Fallback: alte String-Liste [ "mail1", "mail2", ... ]
+        rawCustomers = await widget.api.repCustomers();
       }
 
+      // Normalisieren auf List<Map<String, Object?>>
+      final List<Map<String, Object?>> customers = <Map<String, Object?>>[];
       for (final c in rawCustomers) {
         if (c is Map) {
           final email   = (c['email']   ?? '').toString();
@@ -102,19 +102,21 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         }
       }
 
+      if (!mounted) return;
       setState(() {
         _me = me;
         _customers  = customers;   // List<Map<String, Object?>>
         _complaints = comp;
       });
-      
+
     } catch (e) {
       final handled = await _handleUnauthorized(e);
       if (!mounted) return;
       if (handled) return;
       setState(() => _err = '$e');
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (!mounted) return;
+      setState(() => _loading = false);
     }
   }
 
