@@ -698,13 +698,19 @@ class _AdminPageState extends State<AdminPage> {
     }
 
     Future<void> _openRepCustomersDialog(Rep rep) async {
-      final emailSet = rep.customers.toSet();
+      // bisher: final emailSet = rep.customers.toSet();
+      var assigned = rep.customers.toSet(); // <- veränderlich, wir aktualisieren nach assign/unassign
 
-      // Kandidaten: alle aktiven User (E-Mail-Liste), die noch NICHT zugewiesen sind
+      // Kandidaten = ALLE aktiven User (sichtbar im Dropdown, aber assigned = disabled)
       final allUserEmails = _users.map((u) => u.email.trim()).where((e) => e.isNotEmpty).toSet();
-      final available = allUserEmails.difference(emailSet).toList()..sort((a,b)=>a.toLowerCase().compareTo(b.toLowerCase()));
+      final all = allUserEmails.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
-      String? selEmail = available.isNotEmpty ? available.first : null;
+      String? selEmail = all.firstWhere(
+        (e) => !assigned.contains(e),
+        orElse: () => '',
+      );
+      if ((selEmail ?? '').isEmpty) selEmail = null;
+
       bool busy = false;
 
       await showDialog<void>(
@@ -716,7 +722,8 @@ class _AdminPageState extends State<AdminPage> {
               setLocal(() => busy = true);
               try {
                 final customers = await _api.assignCustomerToRep(repId: rep.id, email: selEmail!.trim());
-                // _reps aktualisieren (rep.customers ersetzen)
+
+                // Parent-State already updated (_reps[idx] = ...). Lokal ebenfalls aktualisieren:
                 setState(() {
                   final idx = _reps.indexWhere((x) => x.id == rep.id);
                   if (idx >= 0) {
@@ -730,10 +737,15 @@ class _AdminPageState extends State<AdminPage> {
                     );
                   }
                 });
-                // lokale Auswahl aktualisieren
+
+                // Neu: assigned + selEmail neu setzen (nächster nicht-zugewiesener)
                 setLocal(() {
-                  available.remove(selEmail);
-                  selEmail = available.isNotEmpty ? available.first : null;
+                  assigned = customers.toSet();
+                  selEmail = all.firstWhere(
+                    (e) => !assigned.contains(e),
+                    orElse: () => '',
+                  );
+                  if ((selEmail ?? '').isEmpty) selEmail = null;
                   busy = false;
                 });
               } catch (e) {
@@ -748,6 +760,7 @@ class _AdminPageState extends State<AdminPage> {
               setLocal(() => busy = true);
               try {
                 final customers = await _api.unassignCustomerFromRep(repId: rep.id, email: email);
+
                 setState(() {
                   final idx = _reps.indexWhere((x) => x.id == rep.id);
                   if (idx >= 0) {
@@ -761,10 +774,16 @@ class _AdminPageState extends State<AdminPage> {
                     );
                   }
                 });
+
                 setLocal(() {
-                  if (!available.contains(email)) {
-                    available.add(email);
-                    available.sort((a,b)=>a.toLowerCase().compareTo(b.toLowerCase()));
+                  assigned = customers.toSet();
+                  // Falls aktuell gewählter Wert nun „verboten“ ist, auf den nächsten freien springen
+                  if (selEmail != null && assigned.contains(selEmail)) {
+                    selEmail = all.firstWhere(
+                      (e) => !assigned.contains(e),
+                      orElse: () => '',
+                    );
+                    if ((selEmail ?? '').isEmpty) selEmail = null;
                   }
                   busy = false;
                 });
@@ -838,14 +857,29 @@ class _AdminPageState extends State<AdminPage> {
                               labelText: 'Kunde (E-Mail)',
                               border: OutlineInputBorder(),
                             ),
-                            items: available
-                                .map((e) => DropdownMenuItem<String>(
-                                      value: e,
-                                      child: Text(_companyByEmail(e) ?? e),
-                                    ))
-                                .toList(),
-                            onChanged: busy ? null : (v) => setLocal(() => selEmail = v),
-                          ),
+                            items: all.map((e) {
+                              final isAssigned = assigned.contains(e);
+                              final label = _companyByEmail(e) ?? e;
+                              return DropdownMenuItem<String>(
+                                value: e,
+                                enabled: !isAssigned, // <- macht den Eintrag nicht wählbar
+                                child: Text(
+                                  label,
+                                  // optisch „grau“, wenn assigned
+                                  style: isAssigned
+                                      ? TextStyle(color: Theme.of(context).disabledColor)
+                                      : null,
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: busy
+                                ? null
+                                : (v) {
+                                    if (v == null) return;
+                                    if (assigned.contains(v)) return; // safety
+                                    setLocal(() => selEmail = v);
+                                  },
+                          )
                         ),
                         const SizedBox(width: 10),
                         FilledButton.icon(
