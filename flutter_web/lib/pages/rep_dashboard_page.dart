@@ -147,25 +147,19 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
   Future<void> _decideComplaint(String ticket, bool approve) async {
     try {
-      final repId = (_me?['id'] ?? '').toString();
-      if (repId.isEmpty) {
-        throw 'missing rep id';
-      }
       await widget.api.repDecision(
-        repId: repId,
         ticket: ticket,
         approve: approve,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(approve ? context.t.rep_approved : context.t.rep_rejected)),
+        SnackBar(content: Text(approve ? context.t.approved : context.t.rejected)),
       );
-      await _loadAll(); // Liste neu laden
+      await _loadAll();
     } catch (e) {
-      final handled = await _handleUnauthorized(e);
-      if (!mounted || handled) return;
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${context.t.error ?? "Fehler"}: $e')),
+        SnackBar(content: Text('${context.t.error ?? 'Fehler'}: $e')),
       );
     }
   }
