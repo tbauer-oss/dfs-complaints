@@ -309,3 +309,50 @@ export async function complaintsOpen() {
   open.sort((a, b) => (b?.createdAt || 0) - (a?.createdAt || 0));
   return open;
 }
+
+// === Sammelabruf: mehrere Kunden-Mails auf einmal ===
+export async function complaintsByEmails(emails, { status = '' } = {}) {
+  const mails = (Array.isArray(emails) ? emails : [])
+    .map(v => (v ?? '').toString().trim().toLowerCase())
+    .filter(Boolean);
+
+  if (mails.length === 0) return [];
+
+  // vorhandene Funktion wiederverwenden:
+  // complaintsByEmail(email) -> liefert Complaint-Objekte
+  const all = [];
+  for (const m of mails) {
+    try {
+      const list = await complaintsByEmail(m);
+      if (Array.isArray(list)) all.push(...list);
+    } catch (e) {
+      // ruhig bleiben – eine Mail darf fehlschlagen
+      console.warn('[store] complaintsByEmail failed for', m, e?.message || e);
+    }
+  }
+
+  // Tickets deduplizieren
+  const seen = new Set();
+  const dedup = [];
+  for (const c of all) {
+    const t = (c?.ticket ?? '').toString().trim();
+    if (!t || seen.has(t)) continue;
+    seen.add(t);
+    dedup.push(c);
+  }
+
+  // optionaler Statusfilter (dein Admin-Handler nutzt 1..6)
+  const s = (status ?? '').toString().trim();
+  const filtered = s
+    ? dedup.filter(c => String(c?.status ?? '') === s)
+    : dedup;
+
+  // wie im Admin: neueste zuerst
+  filtered.sort((a, b) => {
+    const ta = a?.updatedAt ?? a?.createdAt ?? 0;
+    const tb = b?.updatedAt ?? b?.createdAt ?? 0;
+    return (tb || 0) - (ta || 0);
+  });
+
+  return filtered;
+}
