@@ -42,6 +42,12 @@
   "@status_rework": { "description": "Status 5 – Weitere Arbeiten/Überarbeitung erforderlich" },
   "status_closed": "Abgeschlossen",
   "@status_closed": { "description": "Status 6 – Ticket ist abgeschlossen" },
+  "profile_edit": "Profil bearbeiten",
+  "@profile_edit": { "description": "Menüpunkt: Profildaten bearbeiten" },
+  "password_change": "Passwort ändern",
+  "@password_change": { "description": "Menüpunkt: Passwort ändern" },
+  "password_change_hint": "Passwort sicher aktualisieren",
+  "@password_change_hint": { "description": "Untertitel unter 'Passwort ändern' im Account-Menü" },
 
   "logout": "Abmelden",
   "loggedOut": "Abgemeldet.",
