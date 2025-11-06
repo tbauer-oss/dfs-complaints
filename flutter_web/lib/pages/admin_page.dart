@@ -1930,20 +1930,46 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
 
   @override
   Widget build(BuildContext context) {
-    final wish = widget.c.handlingLabel;
-    Color wishCol;
-    switch (wish) {
-      case 'Ersatz':
-        wishCol = Colors.indigo;
-        break;
-      case 'Gutschrift':
-        wishCol = Colors.teal;
-        break;
-      case 'Nacharbeit':
-        wishCol = Colors.deepOrange;
-        break;
-      default:
-        wishCol = Colors.grey;
+    final c = widget.c;
+    final scheme = Theme.of(context).colorScheme;
+
+    Color _statusColor(int s) {
+      // gleiche Logik/Farben wie im Kundenbereich
+      switch (s) {
+        case 1:
+          return scheme.outline; // Eingegangen – neutral
+        case 2:
+          return scheme.primary; // In Bearbeitung – primär
+        case 3:
+          return scheme.tertiary; // Rückfrage – tertiary/amber-ähnlich
+        case 5:
+          return scheme.secondary; // In Nacharbeit
+        case 6:
+          return Colors.green; // Abgeschlossen
+        default:
+          return scheme.outline;
+      }
+    }
+
+    Widget _statusChip(int s) {
+      final col = _statusColor(s);
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: col.withOpacity(0.12),
+          border: Border.all(color: col, width: 1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          _statusLabel(s),
+          style: TextStyle(color: col, fontWeight: FontWeight.w700),
+        ),
+      );
+    }
+
+    String _fmtDate(DateTime d) {
+      String two(int n) => n < 10 ? '0$n' : '$n';
+      return '${two(d.day)}.${two(d.month)}.${d.year}';
     }
 
     return Card(
@@ -1953,79 +1979,115 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Kopfzeile (Ticket + Aktionen + rechter Hinweis)
+            // =====================
+            // Kopfzeile (übersichtlich)
+            // =====================
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Ticket: ${widget.c.ticket}',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const Spacer(),
-
-                // Mail an Kunden
-                Tooltip(
-                  message: 'E-Mail an Kunden verfassen',
-                  child: IconButton(
-                    icon: const Icon(Icons.email_outlined),
-                    onPressed: _busy ? null : _composeMailToCustomer,
+                // Linke Seite: Ticket + Interne Nr. + Datum + Status-Chip
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 1) Ticket
+                      Row(
+                        children: [
+                          Text(
+                            'Ticket: ${c.ticket}',
+                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                          ),
+                          const SizedBox(width: 10),
+                          // 2) Interne Nr. (wenn vorhanden) als Tag
+                          if ((c.internalNo ?? '').isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: scheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: scheme.outlineVariant),
+                              ),
+                              child: Text(
+                                'Intern: ${c.internalNo}',
+                                style: TextStyle(
+                                  color: scheme.onSurfaceVariant,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      // 3) Datum + Status
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.event, size: 16),
+                              const SizedBox(width: 6),
+                              Text('Eingang: ${_fmtDate(c.createdAt)}'),
+                            ],
+                          ),
+                          _statusChip(c.status),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
+
                 const SizedBox(width: 8),
 
-                // rechter Hinweis (Firma oder E-Mail)
-                Text(
-                  (widget.companyHint != null && widget.companyHint!.trim().isNotEmpty)
-                      ? 'Firma: ${widget.companyHint}'
-                      : 'E-Mail: ${widget.c.email}',
-                  style: const TextStyle(fontSize: 16, color: Colors.black54),
-                  overflow: TextOverflow.ellipsis,
+                // Rechte Seite: Firma/E-Mail (SCHWARZ) + Mail-Icon
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      (widget.companyHint != null && widget.companyHint!.trim().isNotEmpty)
+                          ? 'Firma: ${widget.companyHint}'
+                          : 'E-Mail: ${c.email}',
+                      // << schwarz, nicht grau
+                      style: const TextStyle(fontSize: 15, color: Colors.black87, fontWeight: FontWeight.w600),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: 'E-Mail an Kunden verfassen',
+                      icon: const Icon(Icons.email_outlined),
+                      onPressed: _busy ? null : _composeMailToCustomer,
+                    ),
+                  ],
                 ),
               ],
             ),
-            const SizedBox(height: 8),
 
-            // Wunsch-Flag
-            if (wish != '—')
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                margin: const EdgeInsets.only(bottom: 8),
-                decoration: BoxDecoration(
-                  color: wishCol.withOpacity(0.10),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: wishCol),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.flag, size: 18),
-                    const SizedBox(width: 8),
-                    Text('Gewünschte Behandlung: $wish',
-                        style: TextStyle(fontWeight: FontWeight.w700, color: wishCol)),
-                  ],
-                ),
-              ),
+            const SizedBox(height: 10),
 
-            // kompakte Anzeige + Expand
+            // =====================
+            // Nur noch Entscheidung auf der Meta-Zeile
+            // =====================
             Row(
               children: [
-                Text('Status: ${_statusLabel(widget.c.status)}'),
-                const SizedBox(width: 12),
-                Text('Entscheidung: ${widget.c.decision == 'accepted' ? 'Angenommen' : widget.c.decision == 'rejected' ? 'Abgelehnt' : '—'}'),
-                const SizedBox(width: 12),
-                Text('Interne Nr.: ${widget.c.internalNo?.isNotEmpty == true ? widget.c.internalNo : '—'}'),
+                Text(
+                  'Entscheidung: ${c.decision == 'accepted' ? 'Angenommen' : c.decision == 'rejected' ? 'Abgelehnt' : '—'}',
+                ),
                 const Spacer(),
                 TextButton.icon(
                   onPressed: () => setState(() => _expanded = !_expanded),
                   icon: Icon(_expanded ? Icons.expand_less : Icons.edit),
                   label: Text(_expanded ? 'Bearbeiten schließen' : 'Bearbeiten'),
                 ),
-                const SizedBox(width: 4),
-                // … (Details- und Löschen-Buttons wie bisher)
               ],
             ),
 
+            // KEIN prominenter Wunsch-Banner mehr!
+
             if (_expanded) ...[
               const SizedBox(height: 10),
+              // ====== Editor-Bereich (unverändert inhaltlich) ======
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -2121,6 +2183,16 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                       label: const Text('Link speichern'),
                     ),
                   ),
+
+                  const SizedBox(height: 6),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: _busy ? null : _deleteComplaint,
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('Ticket löschen'),
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -2129,7 +2201,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       ),
     );
   }
-}
+
 // ===================================================================
 // Admin API (Browser, dart:html)
 // ===================================================================
