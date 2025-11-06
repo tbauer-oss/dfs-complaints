@@ -85,11 +85,22 @@ export default async function handler(req, res) {
           res.status(400).end(JSON.stringify({ error: 'missing repId or email' }));
           return;
         }
-        const customers = await assignCustomer(repId, email);
-        res.status(200).end(JSON.stringify({ ok: true, repId, customers }));
+      if (action === 'assign') {
+        const repId = S(body.repId);
+        const email = S(body.email).toLowerCase();
+        if (!repId || !email) {
+          res.status(400).end(JSON.stringify({ error: 'missing repId or email' }));
+          return;
+        }
+        try {
+          const customers = await assignCustomer(repId, email);
+          res.status(200).end(JSON.stringify({ ok: true, repId, customers }));
+        } catch (e) {
+          const code = e?.statusCode === 409 ? 409 : 500;
+          res.status(code).end(JSON.stringify({ error: String(e?.message || e) }));
+        }
         return;
       }
-
       if (action === 'unassign') {
         const repId = S(body.repId);
         const email = S(body.email).toLowerCase();
