@@ -30,10 +30,6 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   /// Zugewiesene Kunden dieses Vertreters (voll, für Anzeige & Mapping)
   List<Map<String, Object?>> _customers = <Map<String, Object?>>[];
 
-  /// Freie Kunden (nur für Zuweisen-Dialog – gleiche Logik wie im Admin)
-  /// Struktur: [{ 'email': 'x@x', 'label': 'Firma oder Name • email' }]
-  List<Map<String, String>> _freeCustomers = <Map<String, String>>[];
-
   /// Reklamationen
   List<Map<String, dynamic>> _complaints = [];
 
@@ -135,15 +131,11 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         }
       }
 
-      // Freie Kunden (nur für Dialog)
-      final free = await _fetchAssignableCustomersAdminStyle();
-
       if (!mounted) return;
       setState(() {
-        _me            = me;
-        _customers     = customers;     // Anzeige
-        _freeCustomers = free;          // für Dialog
-        _complaints    = comp;
+        _me         = me;
+        _customers  = customers;     // Anzeige
+        _complaints = comp;
       });
 
     } catch (e) {
@@ -157,10 +149,13 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     }
   }
 
-  /// ---- Admin-Style: ausschließlich echte freie Kunden holen ----
-  Future<List<Map<String, String>>> _fetchAssignableCustomersAdminStyle() async {
-    List<Map<String, String>> normalize(dynamic raw) {
-      final List<Map<String, String>> out = [];
+  /// ---- Quelle für Zuweisen-Dialog: Admin-Style "alle Kunden mit Zuordnung" ----
+  ///
+  /// Liefert eine Liste von Maps:
+  /// { email, label, assigneeEmail? , assigneeName? , selectable (bool) }
+  Future<List<Map<String, Object?>>> _fetchAllCustomersWithAssignee() async {
+    List<Map<String, Object?>> normalize(dynamic raw) {
+      final List<Map<String, Object?>> out = [];
       if (raw is List) {
         for (final it in raw) {
           if (it is Map) {
@@ -170,42 +165,87 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             final company = s(it['company']);
             final name    = s(it['name']);
             final label   = company.isNotEmpty ? company : (name.isNotEmpty ? '$name • $email' : email);
-            out.add({'email': email, 'label': label});
+
+            // Verschiedene Feldnamen tolerant lesen:
+            final assigneeEmail = s(it['assigneeEmail']).isEmpty
+                ? (s(it['repEmail']).isEmpty ? null : s(it['repEmail']))
+                : s(it['assigneeEmail']);
+            final assigneeName  = s(it['assigneeName']).isEmpty
+                ? (s(it['repName']).isEmpty ? null : s(it['repName']))
+                : s(it['assigneeName']);
+
+            out.add({
+              'email'         : email,
+              'label'         : label,
+              'assigneeEmail' : (assigneeEmail ?? '').toString().isEmpty ? null : assigneeEmail,
+              'assigneeName'  : (assigneeName  ?? '').toString().isEmpty ? null : assigneeName,
+            });
           }
         }
       }
-      out.sort((a, b) => a['label']!.toLowerCase().compareTo(b['label']!.toLowerCase()));
+      out.sort((a, b) => a['label']!.toString().toLowerCase().compareTo(b['label']!.toString().toLowerCase()));
       return out;
     }
+
+    final List<Map<String, Object?>> result = [];
 
     try {
       final dyn = widget.api as dynamic;
       final secret = html.window.localStorage['dfs_admin'] ?? '';
 
-      // 1) Admin: reps/free-customers
+      // 1) Admin-Hauptquelle wie im Adminbereich
       if (secret.isNotEmpty) {
+        // a) reps/customers (bevorzugt)
         try {
-          final r = await dyn.getJson('/api/admin/reps/free-customers', headers: {'X-Admin-Secret': secret});
+          final r = await dyn.getJson('/api/admin/reps/customers', headers: {'X-Admin-Secret': secret});
           final list = normalize(r);
           if (list.isNotEmpty) return list;
         } catch (_) {}
-        // 2) Admin: free-customers (Alternative)
+        // b) /api/admin/customers (Fallback)
         try {
-          final r = await dyn.getJson('/api/admin/free-customers', headers: {'X-Admin-Secret': secret});
+          final r = await dyn.getJson('/api/admin/customers', headers: {'X-Admin-Secret': secret});
+          final list = normalize(r);
+          if (list.isNotEmpty) return list;
+        } catch (_) {}
+        // c) /api/admin/all-customers (fallback)
+        try {
+          final r = await dyn.getJson('/api/admin/all-customers', headers: {'X-Admin-Secret': secret});
           final list = normalize(r);
           if (list.isNotEmpty) return list;
         } catch (_) {}
       }
 
-      // 3) Public Fallback (nur freie Kunden)
+      // 2) Public: freie Kunden (ohne Assignee-Info) + eigene (grau)
+      List<Map<String, Object?>> free = [];
       try {
         final r = await dyn.getJson('/api/public/free-customers');
-        final list = normalize(r);
-        if (list.isNotEmpty) return list;
+        free = normalize(r);
       } catch (_) {}
+
+      // Eigene bereits zugewiesene (grau, assignee = ich)
+      final myAssignedEmails = _customers.map((c) => (c['email'] ?? '').toString().toLowerCase()).where((e) => e.isNotEmpty).toSet();
+      final myName = [ _me?['firstName'], _me?['lastName'] ].where((e) => (e ?? '').toString().isNotEmpty).join(' ').trim();
+      final meEmail = (_me?['email'] ?? '').toString().toLowerCase();
+
+      final own = myAssignedEmails.map<Map<String, Object?>>((em) {
+        final comp = _emailToCompany[em] ?? em;
+        return {
+          'email': em,
+          'label': comp.isNotEmpty ? comp : em,
+          'assigneeEmail': meEmail,
+          'assigneeName': myName.isNotEmpty ? myName : meEmail,
+        };
+      }).toList();
+
+      // Merge (freie + eigene). Andere (fremd zugewiesene) sind ohne Admin nicht ermittelbar.
+      final seen = <String>{};
+      for (final it in [...own, ...free]) {
+        final em = (it['email'] ?? '').toString();
+        if (seen.add(em)) result.add(it);
+      }
     } catch (_) {}
 
-    return <Map<String, String>>[];
+    return result;
   }
 
   // Mail/Benachrichtigung bei Selbst-Zuweisung
@@ -225,77 +265,154 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   }
 
   Future<void> _assignCustomerDialog() async {
-    String? selectedEmail;
-    String? selectedLabel;
-    String? locErr;
-    bool saving = false;
+    // Optionen laden (alle + assignee)
+    final raw = await _fetchAllCustomersWithAssignee();
 
-    // Admin-/Public-Liste nutzen
-    List<Map<String, String>> options = _freeCustomers;
-    if (options.isEmpty) {
-      options = await _fetchAssignableCustomersAdminStyle();
-      if (mounted) setState(() => _freeCustomers = options);
-    }
+    // in auswählbare Struktur überführen
+    final meEmail = (_me?['email'] ?? '').toString().toLowerCase();
+
+    final List<_AssignItem> all = raw.map((m) {
+      final email = (m['email'] ?? '').toString();
+      final label = (m['label'] ?? '').toString();
+      final assEm = (m['assigneeEmail'] ?? '') as String?;
+      final assNm = (m['assigneeName'] ?? '') as String?;
+      final assigned = (assEm != null && assEm.isNotEmpty);
+      final assignedToMe = assigned && assEm!.toLowerCase() == meEmail;
+      return _AssignItem(
+        email: email,
+        label: label,
+        assigned: assigned,
+        assignedToMe: assignedToMe,
+        assigneeEmail: assEm,
+        assigneeName: assNm,
+      );
+    }).toList();
+
+    String query = '';
+    String? selectedEmail;
+    String? errorText;
+    bool saving = false;
 
     await showDialog(
       context: context,
       builder: (ctx) {
         final t = ctx.t;
+        return StatefulBuilder(
+          builder: (ctx, setLoc) {
+            List<_AssignItem> view = all.where((it) {
+              if (query.trim().isEmpty) return true;
+              final q = query.toLowerCase();
+              return it.label.toLowerCase().contains(q) || it.email.toLowerCase().contains(q);
+            }).toList();
 
-        Future<void> save() async {
-          if (saving) return;
-          if (selectedEmail == null || selectedEmail!.isEmpty) {
-            locErr = t.selectCustomer ?? 'Bitte Kunden auswählen';
-            (ctx as Element).markNeedsBuild();
-            return;
-          }
-          saving = true;
-          (ctx as Element).markNeedsBuild();
-          try {
-            await widget.api.repAssignCustomer(selectedEmail!);
-            await _notifySelfAssignment(customerEmail: selectedEmail!, company: selectedLabel);
-            if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
-            await _loadAll(); // danach verschwindet er aus der freien Liste, erscheint in der eigenen Liste
-          } catch (e) {
-            locErr = '${ctx.t.error ?? "Fehler"}: $e';
-            saving = false;
-            (ctx as Element).markNeedsBuild();
-          }
-        }
+            Future<void> save() async {
+              if (saving) return;
+              if (selectedEmail == null || selectedEmail!.isEmpty) {
+                setLoc(() => errorText = t.selectCustomer ?? 'Bitte Kunden auswählen');
+                return;
+              }
+              final picked = view.firstWhere((e) => e.email == selectedEmail, orElse: () => _AssignItem(email: '', label: ''));
+              if (picked.assigned) {
+                setLoc(() => errorText = t.errorGeneric('Dieser Kunde ist bereits zugewiesen.'));
+                return;
+              }
+              setLoc(() { saving = true; errorText = null; });
+              try {
+                await widget.api.repAssignCustomer(selectedEmail!);
+                await _notifySelfAssignment(customerEmail: selectedEmail!, company: picked.label);
+                if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
+                await _loadAll();
+              } catch (e) {
+                setLoc(() { saving = false; errorText = '${t.error ?? "Fehler"}: $e'; });
+              }
+            }
 
-        return AlertDialog(
-          title: Text(t.addCustomer),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<String>(
-                isExpanded: true,
-                value: selectedEmail,
-                items: options.isEmpty
-                    ? [DropdownMenuItem(value: '', child: Text(t.noAddCustomer))]
-                    : options.map((opt) => DropdownMenuItem<String>(
-                          value: opt['email'],
-                          child: Text(opt['label']!),
-                          onTap: () => selectedLabel = opt['label'],
-                        )).toList(),
-                onChanged: (v) => selectedEmail = v,
-                decoration: InputDecoration(labelText: t.chooseCustomer ?? 'Kunde wählen'),
+            return AlertDialog(
+              title: Text(t.addCustomer),
+              content: SizedBox(
+                width: 520,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.search),
+                        hintText: 'Suchen (Firma / Name / E-Mail)',
+                      ),
+                      onChanged: (v) => setLoc(() => query = v),
+                    ),
+                    const SizedBox(height: 10),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 360),
+                      child: Material(
+                        elevation: 0,
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: view.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (_, i) {
+                            final it = view[i];
+                            final disabled = it.assigned;
+                            final assignedTo = it.assigned
+                                ? (it.assignedToMe
+                                    ? t.you ?? 'Du'
+                                    : (it.assigneeName?.isNotEmpty == true ? it.assigneeName! : (it.assigneeEmail ?? 'andere:r Vertreter')))
+                                : null;
+                            return RadioListTile<String>(
+                              value: it.email,
+                              groupValue: selectedEmail,
+                              onChanged: disabled ? null : (v) => setLoc(() => selectedEmail = v),
+                              title: Text(
+                                it.label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: disabled
+                                    ? TextStyle(color: Theme.of(context).disabledColor)
+                                    : null,
+                              ),
+                              subtitle: Text(
+                                disabled
+                                    ? (it.assignedToMe ? 'Zugewiesen (du)' : 'Zugewiesen an: $assignedTo')
+                                    : it.email,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: disabled
+                                    ? TextStyle(color: Theme.of(context).disabledColor)
+                                    : TextStyle(color: Theme.of(context).textTheme.bodySmall?.color),
+                              ),
+                              secondary: disabled
+                                  ? const Icon(Icons.lock_outline, size: 18)
+                                  : const Icon(Icons.person_add_alt_1, size: 18),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    if (errorText != null) ...[
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(errorText!, style: const TextStyle(color: Colors.red)),
+                      ),
+                    ],
+                  ],
+                ),
               ),
-              if (locErr != null) ...[
-                const SizedBox(height: 8),
-                Align(alignment: Alignment.centerLeft, child: Text(locErr!, style: const TextStyle(color: Colors.red))),
+              actions: [
+                TextButton(
+                  onPressed: saving ? null : () => Navigator.of(ctx).pop(),
+                  child: Text(t.cancel),
+                ),
+                ElevatedButton.icon(
+                  onPressed: saving ? null : save,
+                  icon: saving
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.add),
+                  label: Text(t.add),
+                ),
               ],
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: saving ? null : () => Navigator.of(ctx).pop(), child: Text(t.cancel)),
-            ElevatedButton(
-              onPressed: saving || options.isEmpty ? null : save,
-              child: saving
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                  : Text(t.add),
-            ),
-          ],
+            );
+          },
         );
       },
     );
@@ -682,7 +799,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   }
 
   // ---- Seite: Kundendatenbank ----
-  // Zeigt **zugewiesene** Kunden als Liste + Button "Kunde zuweisen" (Dialog mit **freien** Kunden).
+  // Zeigt **zugewiesene** Kunden als Liste + Button "Kunde zuweisen" (Dialog mit allen Kunden: freie auswählbar, zugewiesene grau).
   Widget _buildCustomersCard() {
     final t = context.t;
     return _Card(
@@ -695,18 +812,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         ),
       ],
       child: _customers.isEmpty
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Keine zugewiesenen Kunden.'),
-                const SizedBox(height: 8),
-                Text(
-                  _freeCustomers.isEmpty
-                      ? (t.noAddCustomer) // „Keine (freien) Kunden zum Zuweisen verfügbar“
-                      : 'Freie Kunden sind verfügbar – über „${t.addCustomer}“ zuweisen.',
-                ),
-              ],
-            )
+          ? Text('Noch keine Kunden zugewiesen.')
           : ListView.separated(
               shrinkWrap: true,
               physics: const BouncingScrollPhysics(),
@@ -896,6 +1002,24 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       ),
     );
   }
+}
+
+// ----------------- Datenklasse für Zuweisen-Dialog -----------------
+class _AssignItem {
+  final String email;
+  final String label;
+  final bool assigned;      // zugewiesen (irgendwer)
+  final bool assignedToMe;  // speziell an mich
+  final String? assigneeEmail;
+  final String? assigneeName;
+  const _AssignItem({
+    required this.email,
+    required this.label,
+    this.assigned = false,
+    this.assignedToMe = false,
+    this.assigneeEmail,
+    this.assigneeName,
+  });
 }
 
 // ----------------- UI Bausteine -----------------
