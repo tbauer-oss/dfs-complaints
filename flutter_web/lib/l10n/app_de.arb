@@ -19,7 +19,8 @@
   "theme_system": "System",
   "theme_light": "Hell",
   "theme_dark": "Dunkel",
-  
+
+  "decision_withdrawn": "Entscheidung zurückgenommen",  
   "decision_withdraw": "Entscheidung zurücknehmen",
   "decision_withdraw_confirm": "Möchtest du deine Entscheidung wirklich zurücknehmen?",
   "no_decision_yet": "Noch keine Entscheidung",
