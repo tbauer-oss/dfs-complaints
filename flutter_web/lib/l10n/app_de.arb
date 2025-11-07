@@ -20,8 +20,8 @@
   "theme_light": "Hell",
   "theme_dark": "Dunkel",
   
-  "decision_withdrawn": "Entscheidung zurücknehmen",
-  "decision_withdrawn_confirm": "Möchtest du deine Entscheidung wirklich zurücknehmen?",
+  "decision_withdraw": "Entscheidung zurücknehmen",
+  "decision_withdraw_confirm": "Möchtest du deine Entscheidung wirklich zurücknehmen?",
   "no_decision_yet": "Noch keine Entscheidung",
   "my_decision": "Meine Bewertung",
   "ok": "OK",
