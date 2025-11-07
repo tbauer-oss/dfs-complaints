@@ -3,90 +3,114 @@ export const config = { runtime: 'nodejs' };
 
 import { setCors } from '../_lib/cors.js';
 import { getRepFromAuthHeader } from '../_lib/repAuth.js';
-import { repCustomers } from '../_lib/repsStore.js';
+import { repCustomers as storeRepCustomers } from '../_lib/repsStore.js';
 
 function S(v) { return (v ?? '').toString().trim(); }
 
-// ------- Minimaler Upstash-Client (REST, unabhängig von _lib/upstash.js) -------
+// ------- Minimaler Upstash-Client (REST) -------
+// nutzt ausschließlich Set-Befehle + kleine Helfer
 const UP_URL   = process.env.UPSTASH_REDIS_REST_URL  || '';
 const UP_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || '';
 
-async function kvGet(key) {
+async function upReq(path, { method = 'POST' } = {}) {
   if (!UP_URL || !UP_TOKEN) throw new Error('UPSTASH env missing');
-  const r = await fetch(`${UP_URL}/get/${encodeURIComponent(key)}`, {
+  const r = await fetch(`${UP_URL}${path}`, {
+    method,
     headers: { Authorization: `Bearer ${UP_TOKEN}` },
     cache: 'no-store',
   });
   const j = await r.json().catch(() => ({}));
-  return j?.result ?? null;
-}
-
-async function kvSet(key, value) {
-  if (!UP_URL || !UP_TOKEN) throw new Error('UPSTASH env missing');
-  const r = await fetch(`${UP_URL}/set/${encodeURIComponent(key)}/${encodeURIComponent(value)}`, {
-    headers: { Authorization: `Bearer ${UP_TOKEN}` },
-    method: 'POST',
-    cache: 'no-store',
-  });
-  // Upstash gibt { result: "OK" } zurück – Fehler werfen:
-  if (!r.ok) throw new Error(`Upstash SET failed: ${r.status}`);
-}
-
-async function kvDel(key) {
-  if (!UP_URL || !UP_TOKEN) throw new Error('UPSTASH env missing');
-  const r = await fetch(`${UP_URL}/del/${encodeURIComponent(key)}`, {
-    headers: { Authorization: `Bearer ${UP_TOKEN}` },
-    method: 'POST',
-    cache: 'no-store',
-  });
-  if (!r.ok) throw new Error(`Upstash DEL failed: ${r.status}`);
-}
-
-// ------- Fallback-Assign/Unassign (falls repsStore keine Funktionen exportiert) -------
-async function fallbackRepAssign(repId, email) {
-  // Mapping Kunde -> Rep
-  await kvSet(`dfs:repOf:${email}`, repId);
-
-  // Liste dfs:repCustomers:<repId> pflegen (JSON-Array)
-  const listKey = `dfs:repCustomers:${repId}`;
-  let list = [];
-  try {
-    const raw = await kvGet(listKey);
-    if (raw) {
-      const j = JSON.parse(raw);
-      if (Array.isArray(j)) list = j.map(S);
-    }
-  } catch { /* egal */ }
-
-  if (!list.includes(email)) {
-    list.push(email);
-    await kvSet(listKey, JSON.stringify(list));
+  if (!r.ok) {
+    const msg = j?.error || j?.message || `Upstash error ${r.status}`;
+    throw new Error(msg);
   }
+  return j?.result;
+}
+
+// Set-Helfer (SADD/SREM/SMEMBERS) – Members werden URL-encoded
+async function kvSAdd(key, ...members) {
+  const m = members.filter(Boolean);
+  if (!m.length) return 0;
+  const seg = m.map(encodeURIComponent).join('/');
+  return await upReq(`/sadd/${encodeURIComponent(key)}/${seg}`);
+}
+async function kvSRem(key, ...members) {
+  const m = members.filter(Boolean);
+  if (!m.length) return 0;
+  const seg = m.map(encodeURIComponent).join('/');
+  return await upReq(`/srem/${encodeURIComponent(key)}/${seg}`);
+}
+async function kvSMembers(key) {
+  const res = await upReq(`/smembers/${encodeURIComponent(key)}`);
+  return Array.isArray(res) ? res.map(S) : [];
+}
+
+// klassische GET/SET/DEL nur für Migration des Legacy-Keys
+async function kvGet(key) { return await upReq(`/get/${encodeURIComponent(key)}`, { method: 'GET' }); }
+async function kvSet(key, value) { return await upReq(`/set/${encodeURIComponent(key)}/${encodeURIComponent(value)}`); }
+async function kvDel(key) { return await upReq(`/del/${encodeURIComponent(key)}`); }
+
+// Key-Schema
+const KEY_SET   = (repId) => `dfs:rep:${repId}:customers`;     // ✅ korrektes Ziel (Set)
+const KEY_LEG   = (repId) => `dfs:repCustomers:${repId}`;      // ❌ Legacy (String JSON)
+const KEY_REP_OF = (email) => `dfs:repOf:${email}`;            // Mapping Kunde -> Rep
+
+// Einmalige Migration Legacy(String-JSON) -> Set
+async function migrateLegacyToSet(repId) {
+  try {
+    const legacyKey = KEY_LEG(repId);
+    const raw = await kvGet(legacyKey);
+    if (!raw) return;
+    let arr = null;
+    if (typeof raw === 'string' && raw.trim().startsWith('[')) {
+      try { arr = JSON.parse(raw); } catch { /* ignore */ }
+    }
+    if (Array.isArray(arr) && arr.length) {
+      const emails = arr
+        .map(x => S(x).toLowerCase())
+        .filter(x => x && x.includes('@'));
+      if (emails.length) {
+        await kvSAdd(KEY_SET(repId), ...emails);
+      }
+    }
+    await kvDel(legacyKey); // Legacy aufräumen
+  } catch (e) {
+    console.warn('[rep/customers] legacy migration skipped:', e?.message || e);
+  }
+}
+
+// ------- Fallback-Assign/Unassign (nur Set, kein JSON mehr) -------
+async function fallbackRepAssign(repId, email) {
+  const em = S(email).toLowerCase();
+  if (!repId || !em || !em.includes('@')) return;
+  await migrateLegacyToSet(repId);
+  await kvSAdd(KEY_SET(repId), em);       // ⇒ Set pflegen
+  await kvSet(KEY_REP_OF(em), repId);     // Mapping Kunde -> Rep aktualisieren
 }
 
 async function fallbackRepUnassign(repId, email) {
-  // Mapping entfernen
-  try { await kvDel(`dfs:repOf:${email}`); } catch { /* egal */ }
+  const em = S(email).toLowerCase();
+  if (!repId || !em) return;
+  await migrateLegacyToSet(repId);
+  await kvSRem(KEY_SET(repId), em);       // ⇒ aus Set entfernen
+  try { await kvDel(KEY_REP_OF(em)); } catch { /* ignore */ }
+}
 
-  // Aus Liste entfernen
-  const listKey = `dfs:repCustomers:${repId}`;
-  let list = [];
+// Sicheres Lesen der Kundenliste: bevorzugt storeRepCustomers(),
+// sonst Fallback direkt aus dem Set. Legacy wird davor migriert.
+async function readRepCustomers(repId) {
+  await migrateLegacyToSet(repId);
   try {
-    const raw = await kvGet(listKey);
-    if (raw) {
-      const j = JSON.parse(raw);
-      if (Array.isArray(j)) list = j.map(S);
+    if (typeof storeRepCustomers === 'function') {
+      const list = await storeRepCustomers(repId);
+      if (Array.isArray(list) && list.length) return list.map(S);
     }
-  } catch { /* egal */ }
-
-  const next = list.filter(e => e.toLowerCase() !== email.toLowerCase());
-  if (next.length !== list.length) {
-    await kvSet(listKey, JSON.stringify(next));
-  }
+  } catch { /* ignore, dann Fallback */ }
+  return await kvSMembers(KEY_SET(repId));
 }
 
 export default async function handler(req, res) {
-  // CORS bleibt – inkl. X-Debug für Browser-Tests
+  // CORS inkl. X-Debug für Browser-Tests
   setCors(req, res, 'Content-Type, Authorization, X-Gate, X-Debug');
   if (req.method === 'OPTIONS') return res.status(204).end();
 
@@ -115,10 +139,9 @@ export default async function handler(req, res) {
           return res.status(400).end(JSON.stringify({ error: 'invalid email' }));
         }
 
-        // repsStore (falls vorhanden) nutzen, sonst Fallback
+        // repsStore (falls vorhanden) bevorzugen, andernfalls Set-Fallback
         let store = {};
         try { store = await import('../_lib/repsStore.js'); } catch { /* ignore */ }
-
         const hasAssign   = typeof store.repAssign   === 'function';
         const hasUnassign = typeof store.repUnassign === 'function';
 
@@ -138,7 +161,6 @@ export default async function handler(req, res) {
       } catch (e) {
         const xdbg = S(req.headers['x-debug']);
         console.error('[rep/customers] POST error:', e);
-        // Bei Debug-Header mehr Details
         if (xdbg) {
           return res.status(500).end(JSON.stringify({
             error: 'server error',
@@ -154,7 +176,7 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       try {
         const details = (req.query?.details || '').toString() === '1';
-        const emails = await repCustomers(auth.repId);
+        const emails = await readRepCustomers(auth.repId);
         if (!Array.isArray(emails) || emails.length === 0) {
           return res.status(200).end(JSON.stringify([]));
         }
