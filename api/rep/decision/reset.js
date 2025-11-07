@@ -1,8 +1,8 @@
 export const config = { runtime: 'nodejs' };
 
-import { setCors } from '../../_lib/cors.js';
-import { getRepFromAuthHeader } from '../../_lib/repAuth.js';
-import { redisGet, redisSet } from '../../_lib/upstash.js';
+import { setCors } from '../_lib/cors.js';
+import { getRepFromAuthHeader } from '../_lib/repAuth.js';
+import { redisGet, redisSet } from '../_lib/upstash.js';
 
 // ---------- Helpers ----------
 const S = (v) => (v ?? '').toString().trim();
