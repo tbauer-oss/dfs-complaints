@@ -1,9 +1,9 @@
 // api/rep/decision/reset.js
 export const config = { runtime: 'nodejs' };
 
-import { setCors } from '../../_lib/cors.js';
-import { getRepFromAuthHeader } from '../../_lib/repAuth.js';
-import { redisGet, redisSet, redisHGet, redisHSet, redisDel, redisHDel } from '../../_lib/upstash.js';
+import { setCors } from '../_lib/cors.js';
+import { getRepFromAuthHeader } from '../_lib/repAuth.js';
+import { redisGet, redisSet, redisHGet, redisHSet, redisDel, redisHDel } from '../_lib/upstash.js';
 
 function S(v) { return (v ?? '').toString().trim(); }
 
