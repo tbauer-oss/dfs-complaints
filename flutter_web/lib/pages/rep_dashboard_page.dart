@@ -182,60 +182,87 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   // ---- Admin-gleiche „freie Kunden“-Quelle holen (identisch & live) ----
   // NEU: zieht jetzt aus /api/rep/assignable-customers?all=1
   // und liefert: email, label, assigned(bool), assignedToLabel (String)
-  Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
-    List<Map<String, Object?>> normalize(dynamic raw) {
-      final List<Map<String, Object?>> out = [];
-      if (raw is List) {
-        for (final it in raw) {
-          if (it is Map) {
-            String s(Object? v) => (v ?? '').toString();
-            final email = s(it['email']).toLowerCase();
-            if (email.isEmpty) continue;
-
-            final company = s(it['company']);
-            final name    = s(it['name']);
-            final label   = company.isNotEmpty
-                ? company
-                : (name.isNotEmpty ? '$name • $email' : email);
-
-            final assigned = (it['assigned'] == true);
-            final assignedToName  = s(it['assignedToName']);
-            final assignedToEmail = s(it['assignedToEmail']);
-            final assignedToLabel = assignedToName.isNotEmpty
-                ? assignedToName
-                : (assignedToEmail.isNotEmpty ? assignedToEmail : s(it['assignedTo']));
-
-            out.add({
-              'email': email,
-              'label': label,
-              'assigned': assigned,
-              'assignedToLabel': assignedToLabel,
-            });
-          }
-        }
-      }
-      out.sort((a, b) {
-        // zuerst frei, dann alphabetisch
-        final aa = (a['assigned'] == true);
-        final bb = (b['assigned'] == true);
-        if (aa != bb) return aa ? 1 : -1;
-        return (a['label'] as String).toLowerCase().compareTo((b['label'] as String).toLowerCase());
-      });
-      return out;
-    }
+  Future<void> _loadAll() async {
+    setState(() {
+      _loading = true;
+      _err = null;
+    });
 
     try {
-      final dyn = widget.api as dynamic;
+      // Sicherstellen, dass repToken gültig ist
+      await widget.api.ensureRepSession();
 
-      // 1) Neue Rep-Route – zeigt alle, markiert assigned
+      final me   = await widget.api.repMe();
+      final comp = await widget.api.repComplaints();
+
+      // Kunden – tolerant: Details (neu) ODER Strings (alt)
+      List<dynamic> rawCustomers;
       try {
-        final r = await dyn.getJson('/api/rep/assignable-customers?all=1');
-        final list = normalize(r);
-        if (list.isNotEmpty) return list;
-      } catch (_) {}
-    } catch (_) {}
+        rawCustomers = await widget.api.repCustomersDetailed();
+      } catch (_) {
+        rawCustomers = await widget.api.repCustomers();
+      }
 
-    return [];
+      // Normalisieren auf List<Map<String, Object?>>
+      final List<Map<String, Object?>> customers = <Map<String, Object?>>[];
+      for (final c in rawCustomers) {
+        if (c is Map) {
+          String s(Object? v) => (v ?? '').toString();
+          final email      = s(c['email']);
+          final name       = s(c['name']).isEmpty ? email : s(c['name']);
+          final company    = s(c['company']);
+          final address    = s(c['address']);
+          final zip        = s(c['zip']);
+          final city       = s(c['city']);
+          final country    = s(c['country']);
+          final phone      = s(c['phone']);
+          final customerNo = s(c['customerNo']);
+          final vatId      = s(c['vatId']);
+
+          customers.add(<String, Object?>{
+            'email': email,
+            'name' : name,
+            'company': company,
+            'address': address,
+            'zip': zip,
+            'city': city,
+            'country': country,
+            'phone': phone,
+            'customerNo': customerNo,
+            'vatId': vatId,
+          });
+        } else if (c is String) {
+          customers.add(<String, Object?>{
+            'email': c,
+            'name' : c,
+            'company': '',
+            'address': '',
+            'zip': '',
+            'city': '',
+            'country': '',
+            'phone': '',
+            'customerNo': '',
+            'vatId': '',
+          });
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _me = me;
+        _customers  = customers;
+        _complaints = comp;
+      });
+
+    } catch (e) {
+      final handled = await _handleUnauthorized(e);
+      if (!mounted) return;
+      if (handled) return;
+      setState(() => _err = '$e');
+    } finally {
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
   }
 
   // Mail/Benachrichtigung an complaint@dfs-diamon.de bei Selbst-Zuweisung
