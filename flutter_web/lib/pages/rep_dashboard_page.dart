@@ -181,22 +181,20 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
   // ---- Admin-gleiche „freie Kunden“-Quelle holen (identisch & live) ----
   Future<List<Map<String, String>>> _fetchAssignableCustomers() async {
-    // Diese Liste liefert NUR Kunden ohne Vertreter – identisch zum Adminbereich
-    List<Map<String, String>> _normalize(dynamic raw) {
+    List<Map<String, String>> normalize(dynamic raw) {
       final List<Map<String, String>> out = [];
       if (raw is List) {
         for (final it in raw) {
-          if (it is String) {
-            final em = it.toLowerCase();
-            if (em.isNotEmpty) out.add({'email': em, 'label': it});
-          } else if (it is Map) {
+          if (it is Map) {
             String s(Object? v) => (v ?? '').toString();
-            final em = s(it['email']).toLowerCase();
-            if (em.isEmpty) continue;
+            final email = s(it['email']).toLowerCase();
+            if (email.isEmpty) continue;
             final company = s(it['company']);
             final name = s(it['name']);
-            final label = company.isNotEmpty ? company : (name.isNotEmpty ? '$name • $em' : em);
-            out.add({'email': em, 'label': label});
+            final label = company.isNotEmpty
+                ? company
+                : (name.isNotEmpty ? '$name • $email' : email);
+            out.add({'email': email, 'label': label});
           }
         }
       }
@@ -207,41 +205,34 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     try {
       final dyn = widget.api as dynamic;
 
-      // 1) dedizierter Rep-Endpunkt (falls vorhanden)
+      // 1️⃣ Erst prüfen, ob Admin-Secret vorhanden
+      final secret = html.window.localStorage['dfs_admin'] ?? '';
+      if (secret.isNotEmpty) {
+        try {
+          final r = await dyn.getJson('/api/admin/reps/free-customers', headers: {
+            'X-Admin-Secret': secret,
+          });
+          final list = normalize(r);
+          if (list.isNotEmpty) return list;
+        } catch (_) {}
+      }
+
+      // 2️⃣ Fallback: öffentlicher Endpunkt (nur freie Kunden)
       try {
-        final r = await dyn.repAssignableCustomers();
-        final list = _normalize(r);
+        final r = await dyn.getJson('/api/public/free-customers');
+        final list = normalize(r);
         if (list.isNotEmpty) return list;
       } catch (_) {}
 
-      // 2) Admin-Endpunkte, die die „freien Kunden“ liefern (wie Adminbereich)
+      // 3️⃣ letzte Rückfallebene: eigene repCustomersDetailed
       try {
-        final r = await dyn.adminAssignableCustomers();
-        final list = _normalize(r);
-        if (list.isNotEmpty) return list;
-      } catch (_) {}
-
-      try {
-        final r = await dyn.adminRepFreeCustomers();
-        final list = _normalize(r);
-        if (list.isNotEmpty) return list;
-      } catch (_) {}
-
-      // 3) Feste Routen (Fallbacks)
-      try {
-        final r = await dyn.getJson('/api/admin/reps/free-customers');
-        final list = _normalize(r);
-        if (list.isNotEmpty) return list;
-      } catch (_) {}
-      try {
-        final r = await dyn.getJson('/api/admin/assignable-customers');
-        final list = _normalize(r);
+        final r = await dyn.repCustomersDetailed();
+        final list = normalize(r);
         if (list.isNotEmpty) return list;
       } catch (_) {}
     } catch (_) {}
 
-    // Wenn wirklich nichts kommt: leere Liste → UI zeigt disabled Zuweisen
-    return <Map<String, String>>[];
+    return [];
   }
 
   // Mail/Benachrichtigung an complaint@dfs-diamon.de bei Selbst-Zuweisung
