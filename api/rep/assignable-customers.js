@@ -1,180 +1,144 @@
-// /api/rep/assignable-customers.js
-// Vercel (Node.js) – Upstash KV angebunden, robust & CORS-fähig
+// api/rep/assignable-customers.js
+export const config = { runtime: 'nodejs' };
 
-const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '*';
-const ADMIN_SECRET   = process.env.ADMIN_SECRET || '';
+import { setCors } from '../_lib/cors.js';
+import { getRepFromAuthHeader } from '../_lib/repAuth.js';
 
-/** ---------- CORS Helper ---------- */
-function setCors(res) {
-  res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers',
-    'Content-Type, Authorization, X-Gate, X-Admin-Secret');
-  res.setHeader('Access-Control-Max-Age', '600');
-}
-function send(res, code, body) {
-  setCors(res);
-  res.statusCode = code;
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-store');
-  res.end(JSON.stringify(body));
-}
-function ok(res, body)  { send(res, 200, body); }
-function bad(res, c, m) { send(res, c, { error: m }); }
-
-/** ---------- Upstash KV (REST) ---------- */
+// Upstash REST (ENV-Namen exakt wie gefordert)
 const KV_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const KV_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 
-async function kvCmd(cmd) {
-  // POST { "cmd": ["SCAN", "0", "MATCH", "dfs:user:*", "COUNT", "1000"] }
+function S(v) { return (v ?? '').toString().trim(); }
+
+// ---------------- Upstash (REST) ----------------
+async function kv(cmd) {
   const r = await fetch(KV_URL, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${KV_TOKEN}`,
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ cmd })
+    body: JSON.stringify({ cmd }),
   });
-  if (!r.ok) {
-    const t = await r.text().catch(()=>'');
-    throw new Error(`Upstash error ${r.status}: ${t||r.statusText}`);
-  }
+  if (!r.ok) throw new Error(`Upstash ${r.status}: ${await r.text()}`);
   return r.json();
 }
 
-// Vollständiges SCAN über ein Pattern (holt alle Seiten)
-async function kvScanAll(pattern, count = 1000) {
+async function scanAll(pattern, count = 1000) {
   const keys = [];
   let cursor = '0';
   do {
-    const { result } = await kvCmd(['SCAN', cursor, 'MATCH', pattern, 'COUNT', String(count)]);
-    cursor = result[0];
-    const batch = result[1] || [];
+    const { result } = await kv(['SCAN', cursor, 'MATCH', pattern, 'COUNT', String(count)]);
+    cursor = result?.[0] ?? '0';
+    const batch = result?.[1] ?? [];
     keys.push(...batch);
   } while (cursor !== '0');
   return keys;
 }
-async function kvMGet(keys) {
-  if (!keys.length) return [];
-  const { result } = await kvCmd(['MGET', ...keys]);
+
+async function mget(keys) {
+  if (!keys?.length) return [];
+  const { result } = await kv(['MGET', ...keys]);
   return result;
 }
 
-/** ---------- Datenquellen-Mapping ----------
- * Kunden:    Keys  dfs:user:*          (JSON, enthält "email","company","name", …)
- * Zuweisung: Keys  dfs:repOf<email>    → Value = Vertreter-E-Mail
- * (Beispiele siehst du im Screenshot: dfs:user:… , dfs:repOfdancinlutin@web.de)
- * ----------------------------------------- */
+// ----------- Daten aus KV normalisieren -----------
+function isActiveCustomer(u) {
+  if (!u || typeof u !== 'object') return false;
+  const em = S(u.email).toLowerCase();
+  if (!em) return false;
+  const status  = S(u.status).toLowerCase();
+  const revoked = Boolean(u.revoked);
+  return status === 'active' && !revoked;
+}
 
-function buildLabel(user) {
-  const em = (user.email || '').toLowerCase();
-  const co = (user.company || '').trim();
-  const nm = (user.name || '').trim();
+function labelFor(u) {
+  const em = S(u.email).toLowerCase();
+  const co = S(u.company || u.companyName || u.org);
+  const nm = S(u.name || u.contact || `${S(u.firstName)} ${S(u.lastName)}`.trim());
   return co || (nm ? `${nm} • ${em}` : em);
 }
 
-function isActiveCustomer(user) {
-  // konservativ: nur aktive, nicht widerrufene Datensätze
-  if (!user || typeof user !== 'object') return false;
-  const em = (user.email || '').toString().toLowerCase();
-  if (!em) return false;
-  const status = (user.status || '').toString().toLowerCase();
-  const revoked = Boolean(user.revoked);
-  // optional: nur Einträge mit Firma sinnvoll
-  // const hasCompany = (user.company || '').toString().trim().length > 0;
-  return status === 'active' && !revoked; // && hasCompany;
-}
+async function loadCustomers() {
+  const userKeys = await scanAll('dfs:user:*');              // Kunden-Stammsätze
+  const userVals = await mget(userKeys);
 
-async function loadAllCustomersFromKV() {
-  // alle Kundenobjekte aus dfs:user:*
-  const keys = await kvScanAll('dfs:user:*');
-  if (!keys.length) return [];
-
-  const raw = await kvMGet(keys);
-  const out = [];
-  for (const v of raw) {
-    if (!v) continue;
-    let obj = null;
-    try { obj = typeof v === 'string' ? JSON.parse(v) : v; } catch (_) {}
-    if (!obj) continue;
-    if (!isActiveCustomer(obj)) continue;
-
-    out.push({
-      email: String(obj.email || '').toLowerCase(),
-      company: String(obj.company || ''),
-      name: String(obj.name || obj.contact || ''), // kleine Toleranz
+  const items = [];
+  for (const v of userVals) {
+    let u = null;
+    try { u = typeof v === 'string' ? JSON.parse(v) : v; } catch {}
+    if (!isActiveCustomer(u)) continue;
+    items.push({
+      email: S(u.email).toLowerCase(),
+      company: S(u.company || u.companyName || u.org),
+      name: S(u.name || u.contact || `${S(u.firstName)} ${S(u.lastName)}`.trim()),
+      _raw: u,
     });
   }
-  // Eindeutig nach E-Mail
-  const dedup = new Map();
-  for (const c of out) dedup.set(c.email, c);
-  return Array.from(dedup.values());
+  // dedupe nach E-Mail
+  const map = new Map();
+  for (const it of items) map.set(it.email, it);
+  return Array.from(map.values());
 }
 
-async function loadAssignmentsFromKV() {
-  // Zuweisungen in Keys dfs:repOf<email>  →  value = repEmail
-  const keys = await kvScanAll('dfs:repOf*');
-  if (!keys.length) return {};
-  const vals = await kvMGet(keys);
-  const map = {};
+async function loadAssignments() {
+  // Zuweisungen liegen als Keys: dfs:repOf<customerEmail> -> value = repEmail
+  const keys = await scanAll('dfs:repOf*');
+  const vals = await mget(keys);
+  const out = {};
   for (let i = 0; i < keys.length; i++) {
-    const k = keys[i];
-    const v = vals[i];
-    const email = k.replace(/^dfs:repOf/i, '').toLowerCase();
-    const rep   = (v || '').toString().toLowerCase();
-    if (email) map[email] = rep || null;
+    const email = keys[i].replace(/^dfs:repOf/i, '').toLowerCase();
+    const rep   = S(vals[i]).toLowerCase();
+    if (email) out[email] = rep || null;
   }
-  return map;
+  return out;
 }
 
-/** ---------- Admin-Check ---------- */
-function isAdmin(req) {
-  const s = req.headers['x-admin-secret'] || req.headers['X-Admin-Secret'];
-  return ADMIN_SECRET && s === ADMIN_SECRET;
-}
+// -------------------- Handler --------------------
+export default async function handler(req, res) {
+  // 1) CORS immer zuerst – identisch zu customers.js
+  setCors(req, res, 'Content-Type, Authorization, X-Gate');
+  if (req.method === 'OPTIONS') return res.status(204).end();
 
-/** ---------- Handler ---------- */
-module.exports = async function handler(req, res) {
   try {
-    setCors(res);
-    if (req.method === 'OPTIONS') { res.statusCode = 204; return res.end(); }
-    if (req.method !== 'GET')     { return bad(res, 405, 'Method Not Allowed'); }
+    // 2) Nur GET erlaubt; Auth wie rep/customers.js
+    if (req.method !== 'GET') {
+      return res.status(405).end(JSON.stringify({ error: 'method not allowed' }));
+    }
 
-    const wantAdminView = isAdmin(req); // Admin wie im Adminbereich
+    let auth = null;
+    try { auth = getRepFromAuthHeader(req); } catch {}
+    if (!auth) {
+      return res.status(401).end(JSON.stringify({ error: 'unauthorized' }));
+    }
+    // auth.repId (E-Mail) steht jetzt bereit – aktuell nicht zwingend benötigt,
+    // aber so bleibt das Verhalten konsistent.
 
-    // Laden (robust; niemals 500 auf leere Datensätze)
+    // 3) Daten robust laden – niemals 500 zurückgeben
     let customers = [];
     let assigned  = {};
-    try { customers = await loadAllCustomersFromKV(); } catch (_) {}
-    try { assigned  = await loadAssignmentsFromKV();   } catch (_) {}
+    try { customers = await loadCustomers(); } catch (e) {
+      console.warn('[assignable-customers] loadCustomers failed:', e?.message || e);
+    }
+    try { assigned  = await loadAssignments(); } catch (e) {
+      console.warn('[assignable-customers] loadAssignments failed:', e?.message || e);
+    }
 
-    // Liste formen
-    const list = customers.map((c) => {
-      const ass = assigned[c.email] || null;
-      return {
+    // 4) Nur NICHT zugewiesene Kunden für Vertreter zurückgeben
+    const free = customers
+      .filter(c => !assigned[c.email]) // kein Eintrag => frei
+      .map(c => ({
         email: c.email,
         company: c.company,
         name: c.name,
-        label: buildLabel(c),
-        assigneeEmail: ass,   // null = frei
-        assigneeName: null,   // optional, wenn du Namen der Reps auflösen willst
-      };
-    });
+        label: labelFor(c._raw || c),
+      }))
+      .sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase(), 'de'));
 
-    // Sortiert zurück (de, case-insensitive)
-    list.sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase(), 'de'));
-
-    if (wantAdminView) {
-      // Admin: komplette Liste inkl. assignee (grau/disabled im UI)
-      return ok(res, list);
-    } else {
-      // Vertreter/Public: nur freie Kunden zeigen
-      const free = list.filter((x) => !x.assigneeEmail);
-      return ok(res, free);
-    }
+    return res.status(200).end(JSON.stringify(free));
   } catch (e) {
-    return bad(res, 500, (e && e.message) ? e.message : String(e));
+    console.error('[rep/assignable-customers] FATAL:', e);
+    // CORS bleibt gesetzt; stabil mit leerer Liste antworten
+    return res.status(200).end(JSON.stringify([]));
   }
-};
+}
