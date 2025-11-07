@@ -2820,6 +2820,7 @@ class _AdminTileProState extends State<AdminTilePro> {
       ),
     );
   }
+}
 
 class DfsStatusPalette {
   static const entered     = Color(0xFF6E7B91); // 1
