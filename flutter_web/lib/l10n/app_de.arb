@@ -20,6 +20,8 @@
   "theme_light": "Hell",
   "theme_dark": "Dunkel",
 
+  "assigned_to": "zugewiesen an",
+  "assigned": "zugewiesen",
   "you": "Du",
   "cancel": "Abbrechen",
   "open": "Öffnen",
