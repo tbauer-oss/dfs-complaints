@@ -1177,6 +1177,51 @@ class _BusyDot extends StatelessWidget {
   }
 }
 
+class _RepOpinionBadge extends StatelessWidget {
+  final String? opinion; // 'accepted' | 'rejected' | 'pending' | null
+  const _RepOpinionBadge({required this.opinion});
+
+  @override
+  Widget build(BuildContext context) {
+    final v = (opinion ?? '').trim().toLowerCase();
+    Color bg;
+    Color fg;
+    String label;
+
+    switch (v) {
+      case 'accepted':
+        bg = Colors.green;
+        label = 'Vertreter: akzeptiert';
+        break;
+      case 'rejected':
+        bg = Colors.red;
+        label = 'Vertreter: abgelehnt';
+        break;
+      case 'pending':
+      case '':
+        bg = Colors.amber;
+        label = 'Vertreter: offen';
+        break;
+      default:
+        // unbekannt → neutral
+        bg = Theme.of(context).colorScheme.outline;
+        label = 'Vertreter: ${v}';
+        break;
+    }
+    fg = ThemeData.estimateBrightnessForColor(bg) == Brightness.dark ? Colors.white : Colors.black;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: bg.withOpacity(0.12),
+        border: Border.all(color: bg, width: 1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(label, style: TextStyle(color: bg, fontWeight: FontWeight.w700)),
+    );
+  }
+}
+
 class _PendingTile extends StatefulWidget {
   final PendingUser data;
   final AdminApi api;
@@ -1547,6 +1592,20 @@ class AdminComplaint {
 
   final Map<String, dynamic>? payload;
 
+class AdminComplaint {
+  final String ticket;
+  final String email;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  int status;
+  String? decision;
+  String? reportLink;
+  String? internalNo;
+  final Map<String, dynamic>? payload;
+
+  // ↓↓↓ NEU
+  String? repOpinion; // 'accepted' | 'rejected' | 'pending' (oder null)
+
   AdminComplaint({
     required this.ticket,
     required this.email,
@@ -1555,8 +1614,9 @@ class AdminComplaint {
     required this.status,
     this.decision,
     this.reportLink,
-    this.internalNo, // ← NEU
+    this.internalNo,
     this.payload,
+    this.repOpinion, // ← NEU
   });
 
   factory AdminComplaint.fromJson(Map<String, dynamic> j) {
@@ -1567,6 +1627,26 @@ class AdminComplaint {
     }
     int _i(v) => (v is num) ? v.toInt() : int.tryParse('${v ?? ''}') ?? 1;
 
+    // ---- NEU: Vertreter-Meinung normalisieren
+    String? _norm(String? v) {
+      final s = (v ?? '').trim().toLowerCase();
+      if (s.isEmpty) return null;
+      if (s == 'accepted' || s == 'accept' || s == 'green' || s == 'gruen' || s == 'grün') return 'accepted';
+      if (s == 'rejected' || s == 'reject' || s == 'red' || s == 'rot') return 'rejected';
+      if (s == 'pending' || s == 'wait' || s == 'gelb' || s == 'yellow' || s == 'open') return 'pending';
+      return s; // falls Backend z. B. 'needs_info' liefert – wir zeigen dann neutral
+    }
+
+    final payload = (j['payload'] is Map) ? (j['payload'] as Map).cast<String, dynamic>() : null;
+    // Wir versuchen mehrere gängige Schlüssel
+    String? repRaw =
+        (j['repOpinion'] ?? j['rep_opinion'] ?? j['repDecision'] ?? j['rep_decision'] ?? j['repStatus'] ?? j['rep_status'])
+            ?.toString();
+    if ((repRaw == null || repRaw.trim().isEmpty) && payload != null) {
+      repRaw = (payload['repOpinion'] ?? payload['rep_opinion'] ?? payload['repDecision'] ?? payload['rep_decision'] ?? payload['repStatus'] ?? payload['rep_status'])
+          ?.toString();
+    }
+
     return AdminComplaint(
       ticket: (j['ticket'] ?? '').toString(),
       email: (j['email'] ?? '').toString(),
@@ -1575,8 +1655,9 @@ class AdminComplaint {
       status: _i(j['status']),
       decision: (j['decision'] == null || (j['decision'] as String?)?.isEmpty == true) ? null : j['decision']?.toString(),
       reportLink: j['reportLink']?.toString(),
-      internalNo: (j['internalNo']?.toString().trim().isEmpty ?? true) ? null : j['internalNo']!.toString().trim(), // ← NEU
-      payload: (j['payload'] is Map) ? (j['payload'] as Map).cast<String, dynamic>() : null,
+      internalNo: (j['internalNo']?.toString().trim().isEmpty ?? true) ? null : j['internalNo']!.toString().trim(),
+      payload: payload,
+      repOpinion: _norm(repRaw), // ← NEU
     );
   }
 
@@ -1588,8 +1669,10 @@ class AdminComplaint {
     'status': status,
     'decision': decision,
     'reportLink': reportLink,
-    'internalNo': internalNo, // ← NEU
+    'internalNo': internalNo,
     'payload': payload,
+    // optional zurückgeben:
+    if (repOpinion != null) 'repOpinion': repOpinion,
   };
 
   String get handlingLabel {
@@ -2173,6 +2256,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                             ],
                           ),
                           _statusChip(c.status),
+                          _RepOpinionBadge(opinion: c.repOpinion),
                         ],
                       ),
                     ],
