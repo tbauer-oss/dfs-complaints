@@ -20,6 +20,7 @@
   "theme_light": "Light",
   "theme_dark": "Dark",
 
+  "decision_withdrawn": "Decision withdrawn",  
   "decision_withdraw": "Withdraw decision",
   "decision_withdraw_confirm": "Do you really want to withdraw your decision?",
   "no_decision_yet": "No decision yet",
