@@ -149,39 +149,103 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     }
   }
 
-  // ---- helper: vorhandene (bekannte) Kunden-Auswahlliste (wie im Adminbereich) ----
-  // Quelle: alle in Reklamationen vorkommenden Kunden + ggf. bereits zugewiesene (vereinheitlicht)
-  List<Map<String, String>> _knownCustomerOptions() {
+  // ---- Admin-gleiche „freie Kunden“-Quelle holen (robust, ohne ApiClient zu brechen) ----
+  // 1) Versucht dedizierte Assignable-/Free-Customer-Endpunkte (wie Adminbereich).
+  // 2) Fällt zurück auf lokale Heuristik (alle bekannten Kunden minus bereits zugewiesene).
+  Future<List<Map<String, String>>> _fetchAssignableCustomers() async {
+    // bereits zugewiesene E-Mails dieses Reps
     final assignedEmails = _customers
         .map((c) => (c['email'] ?? '').toString().toLowerCase())
         .where((e) => e.isNotEmpty)
         .toSet();
 
-    // Kandidaten aus allen Reklamationen sammeln
+    // Helper zum Normieren beliebiger API-Formate auf {email,label}
+    List<Map<String, String>> _normalize(dynamic raw) {
+      final List<Map<String, String>> out = [];
+      if (raw is List) {
+        for (final it in raw) {
+          if (it is String) {
+            final em = it.toLowerCase();
+            if (em.isNotEmpty && !assignedEmails.contains(em)) {
+              out.add({'email': em, 'label': it});
+            }
+          } else if (it is Map) {
+            String s(Object? v) => (v ?? '').toString();
+            final em = s(it['email']).toLowerCase();
+            if (em.isEmpty || assignedEmails.contains(em)) continue;
+            final company = s(it['company']);
+            final name = s(it['name']);
+            final label = company.isNotEmpty ? company : (name.isNotEmpty ? '$name • $em' : em);
+            out.add({'email': em, 'label': label});
+          }
+        }
+      }
+      // sortieren nach Label
+      out.sort((a, b) => a['label']!.toLowerCase().compareTo(b['label']!.toLowerCase()));
+      return out;
+    }
+
+    // 1) Versuche dedizierte API-Calls (gleich wie Admin-Verwaltung)
+    try {
+      // häufige Kandidaten-Methoden – via dynamic, damit es kompiliert, auch wenn Methode fehlt
+      final dyn = widget.api as dynamic;
+
+      // a) repAssignableCustomers()
+      try {
+        final r = await dyn.repAssignableCustomers();
+        final list = _normalize(r);
+        if (list.isNotEmpty) return list;
+      } catch (_) {}
+
+      // b) adminAssignableCustomers()  (falls der Admin-Endpunkt geteilt wurde)
+      try {
+        final r = await dyn.adminAssignableCustomers();
+        final list = _normalize(r);
+        if (list.isNotEmpty) return list;
+      } catch (_) {}
+
+      // c) adminRepFreeCustomers()
+      try {
+        final r = await dyn.adminRepFreeCustomers();
+        final list = _normalize(r);
+        if (list.isNotEmpty) return list;
+      } catch (_) {}
+
+      // d) generische GETs – falls ApiClient Hilfsmethoden anbietet
+      try {
+        final r = await dyn.getJson('/api/rep/assignable-customers');
+        final list = _normalize(r);
+        if (list.isNotEmpty) return list;
+      } catch (_) {}
+      try {
+        final r = await dyn.getJson('/api/admin/reps/free-customers');
+        final list = _normalize(r);
+        if (list.isNotEmpty) return list;
+      } catch (_) {}
+    } catch (_) {
+      // ignorieren – wir haben noch das Fallback
+    }
+
+    // 2) Fallback: aus allen bekannten Kunden + Complaints, abzüglich bereits zugewiesener
     final Map<String, String> pool = {};
     for (final c in _complaints) {
       final em = (c['customerEmail'] ?? c['email'] ?? '').toString().toLowerCase();
-      if (em.isEmpty) continue;
+      if (em.isEmpty || assignedEmails.contains(em)) continue;
       final co = _emailToCompany[em] ?? '';
-      // Anzeigename: Firma, sonst E-Mail
       pool[em] = co.isNotEmpty ? co : em;
     }
-    // Auch evtl. bekannte Kunden einmischen (falls ohne Reklamationen)
     for (final c in _customers) {
       final em = (c['email'] ?? '').toString().toLowerCase();
-      if (em.isEmpty) continue;
+      if (em.isEmpty || assignedEmails.contains(em)) continue;
       final co = (c['company'] ?? '').toString();
       pool[em] = co.isNotEmpty ? co : em;
     }
 
-    // Nur Kunden, die noch NICHT zugewiesen sind (doppelte Vergabe sperren)
-    final remaining = pool.entries
-        .where((e) => !assignedEmails.contains(e.key))
+    final list = pool.entries
         .map((e) => <String, String>{'email': e.key, 'label': e.value})
-        .toList();
-
-    remaining.sort((a, b) => a['label']!.toLowerCase().compareTo(b['label']!.toLowerCase()));
-    return remaining;
+        .toList()
+      ..sort((a, b) => a['label']!.toLowerCase().compareTo(b['label']!.toLowerCase()));
+    return list;
   }
 
   Future<void> _assignCustomerDialog() async {
@@ -189,7 +253,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     String? locErr;
     bool saving = false;
 
-    final options = _knownCustomerOptions();
+    // NEU: Liste aus Admin-Quelle (oder Fallback) laden
+    final options = await _fetchAssignableCustomers();
 
     await showDialog(
       context: context,
@@ -232,15 +297,20 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
               DropdownButtonFormField<String>(
                 isExpanded: true,
                 value: selectedEmail,
-                items: options.map((opt) {
-                  return DropdownMenuItem<String>(
-                    value: opt['email'],
-                    child: Text(opt['label']!),
-                  );
-                }).toList(),
-                onChanged: (v) {
-                  selectedEmail = v;
-                },
+                items: options.isEmpty
+                    ? [
+                        DropdownMenuItem(
+                          value: '',
+                          child: Text(t.noAddCustomer),
+                        ),
+                      ]
+                    : options.map((opt) {
+                        return DropdownMenuItem<String>(
+                          value: opt['email'],
+                          child: Text(opt['label']!),
+                        );
+                      }).toList(),
+                onChanged: (v) => selectedEmail = v,
                 decoration: InputDecoration(
                   labelText: t.chooseCustomer ?? 'Kunde wählen',
                 ),
@@ -260,7 +330,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
               child: Text(t.cancel),
             ),
             ElevatedButton(
-              onPressed: saving ? null : save,
+              onPressed: saving || options.isEmpty ? null : save,
               child: saving
                   ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                   : Text(t.add),
@@ -770,7 +840,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         builder: (ctx) {
           Future<void> _submit() async {
             if (busy) return;
-            final oldPw = oldCtrl.text; // wird aktuell nicht an die API gegeben, bleibt aber im UI
+            final oldPw = oldCtrl.text; // UI-seitig abgefragt
             final n1 = new1Ctrl.text;
             final n2 = new2Ctrl.text;
             if (oldPw.isEmpty || n1.isEmpty || n2.isEmpty) {
@@ -786,7 +856,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             busy = true;
             (ctx as Element).markNeedsBuild();
             try {
-              await widget.api.repChangePassword(n1); // laut aktueller Client-API
+              await widget.api.repChangePassword(n1); // aktuelle Client-API
               if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
               if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.saved)));
