@@ -336,3 +336,11 @@ export async function setRepActive(repId, isActive) {
   const customers = await repCustomers(repId);
   return { ...saved, customers: customers || [] };
 }
+
+export async function repAssign(repId, email) {
+  return await assignCustomer(repId, email);
+}
+
+export async function repUnassign(repId, email) {
+  return await unassignCustomer(repId, email);
+}
