@@ -126,7 +126,6 @@ class ApiClient {
   // Header für Vertreter-Endpunkte (nimmt automatisch das gespeicherte repToken)
   Map<String, String> _repHeaders({Map<String, String>? extra}) {
     final h = <String, String>{
-      // WICHTIG: JSON-Header hinzufügen!
       'Content-Type': 'application/json; charset=utf-8',
       if (gate != null && gate!.isNotEmpty) 'X-Gate': gate!,
     };
@@ -142,7 +141,7 @@ class ApiClient {
       final r = await http.post(
         _u('/api/rep/refresh'),
         headers: _repHeaders(),
-        body: jsonEncode(const {}), // Body optional
+        body: jsonEncode(const {}),
       );
       if (_ok2xx(r.statusCode)) {
         final body = r.body.trim().isEmpty ? '{}' : r.body;
@@ -154,9 +153,7 @@ class ApiClient {
           return true;
         }
       }
-    } catch (_) {
-      // Kein Refresh verfügbar oder Netzwerkfehler -> still
-    }
+    } catch (_) {}
     return false;
   }
 
@@ -185,7 +182,6 @@ class ApiClient {
 
     var r = await _do();
 
-    // Bei 401 einmal versuchen zu refreshen und Request wiederholen
     if (r.statusCode == 401) {
       final ok = await _repTryRefresh();
       if (ok) {
@@ -193,7 +189,6 @@ class ApiClient {
       }
     }
 
-    // Optional: neues Token aus Header akzeptieren (falls Backend sowas mitschickt)
     final newTok = r.headers['x-rep-token'];
     if (newTok != null && newTok.isNotEmpty && newTok != repToken) {
       repToken = newTok;
@@ -207,7 +202,7 @@ class ApiClient {
   Future<Map<String, dynamic>> _repPostJson(String path, Map<String, dynamic> body) async {
     final r = await http.post(
       _u(path),
-      headers: _repHeaders(),                 // <- JSON Header aktiv
+      headers: _repHeaders(),
       body: jsonEncode(body),
     );
     if (!_ok2xx(r.statusCode)) {
@@ -218,7 +213,6 @@ class ApiClient {
   }
 
   Uri _u(String path) {
-    // Wenn API_BASE leer ist (z. B. Preview/Local), nimm die aktuelle Origin
     final base = _apiBase.isNotEmpty ? _apiBase : html.window.location.origin;
     return Uri.parse('$base$path');
   }
@@ -227,7 +221,7 @@ class ApiClient {
   String get baseUrl {
     const b = String.fromEnvironment('API_BASE', defaultValue: '');
     if (b.isNotEmpty) return b;
-    return html.window.location.origin; // Fallback lokal
+    return html.window.location.origin;
   }
 
   Map<String, String> _headersJson() => {
@@ -245,7 +239,7 @@ class ApiClient {
         method: method,
         requestHeaders: _headersJson(),
         sendData: body == null ? null : jsonEncode(body),
-        withCredentials: true, // wichtig für Cookies/Session
+        withCredentials: true,
       );
       return res;
     } catch (e) {
@@ -282,7 +276,7 @@ class ApiClient {
       method: 'POST',
       body: {
         'ticket': ticket,
-        'decision': approve ? 'accepted' : 'rejected', // ← bleibt so!
+        'decision': approve ? 'accepted' : 'rejected',
       },
     );
     if (!_ok2xx(r.statusCode)) {
@@ -290,19 +284,14 @@ class ApiClient {
     }
   }
 
-  // lib/api/client.dart (ergänzen)
+  // ✅ FIX: Reset nutzt jetzt sauber _repFetch (kein _authHeaders mehr)
   Future<void> repDecisionReset({required String ticket}) async {
-    final url = '$_apiBase/api/rep/decision/reset';
-    final headers = await _authHeaders(rep:true); // wie bei deinen anderen rep-Calls
-    final r = await http.post(
-      Uri.parse(url),
-      headers: {
-        ...headers,
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({'ticket': ticket}),
+    final r = await _repFetch(
+      '/api/rep/decision/reset',
+      method: 'POST',
+      body: {'ticket': ticket},
     );
-    if (!_ok2xx(r.statusCode)) {
+    if (r.statusCode != 204 && !_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
   }
@@ -328,12 +317,11 @@ class ApiClient {
 
   Future<List<Map<String, dynamic>>> repCustomersDetailed() async {
     final r = await _repFetch('/api/rep/customers?details=1');
-      if (!_ok2xx(r.statusCode)) {
+    if (!_ok2xx(r.statusCode)) {
       throw Exception('GET /api/rep/customers?details=1 failed: ${r.statusCode} ${r.body}');
     }
     final j = jsonDecode(r.body);
     if (j is List) {
-      // Falls Backend ausnahmsweise doch nur Strings liefert → tolerant mappen
       if (j.isNotEmpty && j.first is String) {
         return j.whereType<String>().map((mail) => <String, dynamic>{
           'email': mail,
@@ -341,13 +329,13 @@ class ApiClient {
         }).toList(growable: false);
       }
       return j
-          .whereType<Map>()                       // List<Map>
-          .map((e) => e.cast<String, dynamic>())  // Map<String,dynamic>
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
           .toList(growable: false);
     }
     return const [];
   }
-  
+
   Future<List<Map<String, dynamic>>> repComplaints({String status = ''}) async {
     final path = status.isEmpty
         ? '/api/rep/complaints'
@@ -365,10 +353,6 @@ class ApiClient {
   }
 
   // ---------- NEU: Vertreter – zuweisbare Kunden (free oder all) ----------
-  /// Holt die Liste der zuweisbaren Kunden für den eingeloggten Vertreter.
-  /// - `all: false` → nur freie Kunden
-  /// - `all: true`  → alle Kunden; zugewiesene Einträge enthalten Felder
-  ///   `assigned`, `assignedTo`, `assignedToName`, `assignedToEmail`.
   Future<List<Map<String, dynamic>>> repAssignableCustomers({bool all = false}) async {
     final q = all ? '?all=1' : '';
     final r = await _repFetch('/api/rep/assignable-customers$q');
@@ -482,16 +466,13 @@ class ApiClient {
   }
 
   Future<void> accountUpdate(Map<String, dynamic> data) async {
-    // 1) Primär: PUT /api/account
     var r = await _put('/api/account', data, auth: true);
     if (_ok2xx(r.statusCode)) return;
 
-    // 2) Fallback: PATCH /api/account (falls PUT nicht erlaubt)
     if (r.statusCode == 405 || r.statusCode == 404) {
       r = await _patch('/api/account', data, auth: true);
       if (_ok2xx(r.statusCode)) return;
 
-      // 3) Fallback: POST /api/account/update oder POST /api/account
       if (r.statusCode == 405 || r.statusCode == 404) {
         r = await _post('/api/account/update', data, auth: true);
         if (_ok2xx(r.statusCode)) return;
@@ -507,14 +488,12 @@ class ApiClient {
   }
 
   Future<void> accountDelete(String password) async {
-    // 1) Primär: DELETE /api/account (204 = Erfolg)
     var r = await _delete('/api/account', body: {'password': password}, auth: true);
     if (_ok2xx(r.statusCode)) {
       await logout();
       return;
     }
 
-    // 2) Fallback: POST /api/account/delete
     if (r.statusCode == 405 || r.statusCode == 404) {
       r = await _post('/api/account/delete', {'password': password}, auth: true);
       if (_ok2xx(r.statusCode)) {
@@ -573,7 +552,6 @@ class ApiClient {
             })
         .toList();
 
-    // Richtiger Pfad (Singular + create)
     final r = await _post('/api/complaint/create', {
       'payload': data,
       if (encFiles.isNotEmpty) 'files': encFiles,
@@ -587,7 +565,6 @@ class ApiClient {
   }
 
   Future<List<Map<String, dynamic>>> complaintListRaw() async {
-    // Richtiger Pfad (Singular)
     final r = await _get('/api/complaint/mine', auth: true);
     if (!_ok2xx(r.statusCode)) {
       throw Exception('GET /api/complaint/mine failed: ${r.statusCode} ${r.body}');
@@ -640,20 +617,18 @@ class ApiClient {
   }
 
   // ---------- Vertreter (Kundenbereich) ----------
-  /// Liefert den zugewiesenen Vertreter für den eingeloggten Kunden.
-  /// Backend: GET /api/rep/my  (JWT erforderlich)
   Future<MyRep?> getMyRep() async {
     try {
       final r = await _get('/api/rep/my', auth: true);
-      if (r.statusCode == 204) return null;          // kein Vertreter
-      if (!_ok2xx(r.statusCode)) return null;         // still schlucken, Banner dann nicht anzeigen
+      if (r.statusCode == 204) return null;
+      if (!_ok2xx(r.statusCode)) return null;
       final body = r.body.trim();
       if (body.isEmpty) return null;
 
       final j = jsonDecode(body);
       if (j is Map) {
         final m = j.cast<String, dynamic>();
-        if ((m['email'] ?? '').toString().trim().isEmpty) return null; // Minimalvalidierung
+        if ((m['email'] ?? '').toString().trim().isEmpty) return null;
         return MyRep.fromJson(m);
       }
       return null;
@@ -663,9 +638,6 @@ class ApiClient {
   }
 
   // ---------- Vertreter-API (Rep-Login & -Aktionen) ----------
-
-  /// Prüft, ob ein Vertreter (aktiv) existiert.
-  /// Erwartet: 200 { exists: true|false } – alles andere wird als false interpretiert.
   Future<bool> repExists(String email) async {
     final e = email.trim().toLowerCase();
     try {
@@ -675,7 +647,7 @@ class ApiClient {
           final j = jsonDecode(r.body);
           final exists = (j is Map && j['exists'] is bool) ? j['exists'] as bool : false;
           if (exists) {
-            _repEmail = e; // <— Merken, damit Secret-Login die E-Mail mitsenden kann
+            _repEmail = e;
             _saveSession();
           }
           return exists;
@@ -687,7 +659,6 @@ class ApiClient {
     }
   }
 
-  /// Bestehender Flow (E-Mail + Passwort).
   Future<({bool ok, bool mustChange})> repLogin(String email, String password) async {
     try {
       final e = email.trim().toLowerCase();
@@ -714,7 +685,6 @@ class ApiClient {
     }
   }
 
-  // ---- Vertreter-Login über Secret + E-Mail (Einmalpasswort)
   Future<bool> repLoginWithSecret(String email, String secret) async {
     final sec = secret.trim();
     final mail = email.trim().toLowerCase();
@@ -745,32 +715,24 @@ class ApiClient {
     }
   }
 
-  /// Alias: verwendet die zuletzt gespeicherte Vertreter-E-Mail.
   Future<bool> repLoginSecret(String secret) {
     final mail = _repEmail ?? '';
     return repLoginWithSecret(mail, secret);
   }
 
-  /// Prüft das repToken einmalig gegen /api/rep/me.
-  /// Bei 401 wird das Token entfernt (verhindert den 401-Loop nach Reload).
   Future<bool> ensureRepSession() async {
     if (repToken == null || repToken!.isEmpty) return false;
     try {
       final r = await http.get(_u('/api/rep/me'), headers: _repHeaders());
       if (_ok2xx(r.statusCode)) return true;
-      // Token ungültig -> räumen
       repToken = null;
       _saveSession();
       return false;
     } catch (_) {
-      // Netzwerkfehler o.ä.: Session behalten, aber false zurückgeben
       return false;
     }
   }
 
-  /// Passwort ändern (Vertreter). Akzeptiert:
-  /// - 204 (kein Body) ODER
-  /// - 200 { token: '...' } -> Token wird aktualisiert.
   Future<void> repChangePassword(String newPw) async {
     final r = await http.post(
       _u('/api/rep/password'),
@@ -779,11 +741,9 @@ class ApiClient {
     );
 
     if (r.statusCode == 204) {
-      // ok ohne Body
       return;
     }
     if (_ok2xx(r.statusCode)) {
-      // evtl. neues Token returned
       try {
         if (r.body.isNotEmpty) {
           final j = jsonDecode(r.body);
@@ -802,7 +762,7 @@ class ApiClient {
   Future<void> repAssignCustomer(String email) async {
     final r = await http.post(
       _u('/api/rep/customers'),
-      headers: _repHeaders(),                 // <- JSON Header aktiv
+      headers: _repHeaders(),
       body: jsonEncode({'action': 'assign', 'email': email}),
     );
     if (!_ok2xx(r.statusCode)) {
@@ -813,7 +773,7 @@ class ApiClient {
   Future<void> repUnassignCustomer(String email) async {
     final r = await http.post(
       _u('/api/rep/customers'),
-      headers: _repHeaders(),                 // <- JSON Header aktiv
+      headers: _repHeaders(),
       body: jsonEncode({'action': 'unassign', 'email': email}),
     );
     if (!_ok2xx(r.statusCode)) {
