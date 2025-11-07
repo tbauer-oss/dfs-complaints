@@ -153,113 +153,42 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   ///
   /// Liefert eine Liste:
   /// { email, label, assigneeEmail? , assigneeName? }
+  /// Holt alle Kunden inkl. Zuordnung (assigneeEmail/Name).
   Future<List<Map<String, Object?>>> _fetchAllCustomersWithAssignee() async {
-    List<Map<String, Object?>> normalize(dynamic raw) {
-      final List<Map<String, Object?>> out = [];
-      if (raw is List) {
-        for (final it in raw) {
-          if (it is String) {
-            final email = it.toLowerCase();
-            if (email.isEmpty) continue;
-            out.add({'email': email, 'label': email});
-          } else if (it is Map) {
-            String s(Object? v) => (v ?? '').toString();
-            final email = s(it['email']).toLowerCase();
-            if (email.isEmpty) continue;
-            final company = s(it['company']);
-            final name    = s(it['name']);
-            final label   = company.isNotEmpty ? company : (name.isNotEmpty ? '$name • $email' : email);
-
-            // Mögliche Feldnamen für Zuordnung
-            final assigneeEmail = [
-              s(it['assigneeEmail']),
-              s(it['repEmail']),
-              s(it['assignedToEmail']),
-              s(it['assignedTo'])
-            ].firstWhere((v) => v.isNotEmpty, orElse: () => '');
-            final assigneeName  = [
-              s(it['assigneeName']),
-              s(it['repName']),
-              s(it['assignedToName'])
-            ].firstWhere((v) => v.isNotEmpty, orElse: () => '');
-
-            out.add({
-              'email'         : email,
-              'label'         : label,
-              'assigneeEmail' : assigneeEmail.isEmpty ? null : assigneeEmail,
-              'assigneeName'  : assigneeName.isEmpty  ? null : assigneeName,
-            });
-          }
-        }
-      }
-      out.sort((a, b) => a['label']!.toString().toLowerCase().compareTo(b['label']!.toString().toLowerCase()));
-      return out;
-    }
-
-    final List<Map<String, Object?>> result = [];
+    final dyn = widget.api as dynamic;
 
     try {
-      final dyn = widget.api as dynamic;
-      final secret = html.window.localStorage['dfs_admin'] ?? '';
+      final r = await dyn.getJson('/api/rep/assignable-customers'); // <— EIN fixer Endpunkt
+      final out = <Map<String, Object?>>[];
 
-      // 1) Admin-Quellen – wie im Adminbereich (mehrere Varianten probieren)
-      if (secret.isNotEmpty) {
-        final adminUrls = <String>[
-          '/api/admin/reps/customers',      // bevorzugt: alle + assignee
-          '/api/admin/customers',           // alt: alle + assignee
-          '/api/admin/all-customers',       // alternativ
-          '/api/admin/reps/free-customers', // nur freie
-        ];
-        for (final url in adminUrls) {
-          try {
-            final r = await dyn.getJson(url, headers: {'X-Admin-Secret': secret});
-            final list = normalize(r);
-            if (list.isNotEmpty) return list;
-          } catch (_) {}
+      if (r is List) {
+        String s(Object? v) => (v ?? '').toString();
+        for (final it in r) {
+          if (it is! Map) continue;
+          final email = s(it['email']).toLowerCase();
+          if (email.isEmpty) continue;
+          final company = s(it['company']);
+          final name    = s(it['name']);
+          final label   = company.isNotEmpty ? company : (name.isNotEmpty ? '$name • $email' : email);
+          final assEm   = s(it['assigneeEmail']).toLowerCase();
+          final assNm   = s(it['assigneeName']);
+
+          out.add({
+            'email'        : email,
+            'label'        : label,
+            'assigneeEmail': assEm.isEmpty ? null : assEm,
+            'assigneeName' : assNm.isEmpty ? null : assNm,
+          });
         }
       }
 
-      // 2) Public/Rep – freie Kunden
-      final publicUrls = <String>[
-        '/api/public/free-customers',
-        '/api/public/customers',
-        '/api/rep/free-customers',
-      ];
-      for (final url in publicUrls) {
-        try {
-          final r = await dyn.getJson(url);
-          final list = normalize(r);
-          if (list.isNotEmpty) {
-            // Diese enthalten i.d.R. keine Assignee-Infos → nur freie
-            return list;
-          }
-        } catch (_) {}
-      }
-
-      // 3) Letzter Fallback: bekannte E-Mails/Firmen aus UI-Daten
-      //    (deine zugewiesenen + Firmen aus Reklamationen) → alle auflisten,
-      //    schon zugewiesene werden später gesperrt.
-      final seen = <String>{};
-      // a) bereits zugewiesene (aus _customers)
-      for (final c in _customers) {
-        final em = (c['email'] ?? '').toString().toLowerCase();
-        if (em.isEmpty || !seen.add(em)) continue;
-        final comp = (c['company'] ?? '').toString();
-        final nm   = (c['name'] ?? '').toString();
-        final label = comp.isNotEmpty ? comp : (nm.isNotEmpty ? '$nm • $em' : em);
-        result.add({'email': em, 'label': label, 'assigneeEmail': (_me?['email'] ?? '').toString(), 'assigneeName': [ _me?['firstName'], _me?['lastName'] ].where((e)=> (e??'').toString().isNotEmpty).join(' ')});
-      }
-      // b) aus Reklamationen (falls weitere Firmen sichtbar)
-      for (final c in _complaints) {
-        final em = (c['customerEmail'] ?? c['email'] ?? '').toString().toLowerCase();
-        if (em.isEmpty || !seen.add(em)) continue;
-        final comp = (c['payload']?['company'] ?? '').toString();
-        final label = comp.isNotEmpty ? comp : em;
-        result.add({'email': em, 'label': label});
-      }
-    } catch (_) {}
-
-    return result;
+      out.sort((a, b) => a['label']!.toString().toLowerCase().compareTo(b['label']!.toString().toLowerCase()));
+      return out;
+    } catch (e) {
+      // Optional: Loggen hilft beim Debuggen
+      // print('assignable-customers failed: $e');
+      return <Map<String, Object?>>[];
+    }
   }
 
   // Mail/Benachrichtigung bei Selbst-Zuweisung
