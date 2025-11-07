@@ -27,8 +27,13 @@ class RepDashboardPage extends StatefulWidget {
 class _RepDashboardPageState extends State<RepDashboardPage> {
   Map<String, dynamic>? _me;
 
-  /// Kundenliste (aus Backend normalisiert) – zugewiesene Kunden dieses Vertreters
+  /// Kundenliste (aus Backend normalisiert) – **zugewiesene** Kunden dieses Vertreters
+  /// (wird nicht mehr in der Kundendatenbank-Seite angezeigt, bleibt aber für Mapping/Badges erhalten)
   List<Map<String, Object?>> _customers = <Map<String, Object?>>[];
+
+  /// **Freie Kunden (wie im Adminbereich)** – Quelle für die Kundendatenbank-Seite
+  /// Struktur: [{ 'email': 'x@x', 'label': 'Firma oder Name • email' }]
+  List<Map<String, String>> _freeCustomers = <Map<String, String>>[];
 
   /// Reklamationen (aus Backend)
   List<Map<String, dynamic>> _complaints = [];
@@ -161,11 +166,15 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         }
       }
 
+      // **zusätzlich**: freie Kunden wie im Adminbereich laden
+      final free = await _fetchAssignableCustomers();
+
       if (!mounted) return;
       setState(() {
         _me = me;
-        _customers  = customers;
-        _complaints = comp;
+        _customers    = customers;     // nur noch für Mapping/Badges
+        _freeCustomers = free;         // Anzeigequelle für Kundendatenbank
+        _complaints   = comp;
       });
 
     } catch (e) {
@@ -224,7 +233,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         if (list.isNotEmpty) return list;
       } catch (_) {}
 
-      // 3️⃣ letzte Rückfallebene: eigene repCustomersDetailed
+      // 3️⃣ letzte Rückfallebene: eigene repCustomersDetailed (falls Backend das schon so liefert)
       try {
         final r = await dyn.repCustomersDetailed();
         final list = normalize(r);
@@ -265,7 +274,12 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     String? locErr;
     bool saving = false;
 
-    final options = await _fetchAssignableCustomers();
+    // Optionen aus bereits geladenem _freeCustomers; wenn leer → live nachladen
+    List<Map<String, String>> options = _freeCustomers;
+    if (options.isEmpty) {
+      options = await _fetchAssignableCustomers();
+      if (mounted) setState(() => _freeCustomers = options);
+    }
 
     await showDialog(
       context: context,
@@ -285,9 +299,6 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
           try {
             await widget.api.repAssignCustomer(selectedEmail!);
 
-            // NEW-Badge für frisch zugewiesenen Kunden erst entfernt,
-            // wenn der Vertreter den Eintrag erstmals öffnet → hier NICHT _markCustomerSeen.
-
             // Admin-Notify (Selbstzuweisung)
             await _notifySelfAssignment(
               customerEmail: selectedEmail!,
@@ -295,6 +306,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             );
 
             if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
+
+            // Nach erfolgreicher Zuweisung: alles neu laden
             await _loadAll();
           } catch (e) {
             locErr = '${ctx.t.error ?? 'Fehler'}: $e';
@@ -368,7 +381,6 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       if (!handled) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${context.t.error ?? 'Fehler'}: $e')),
-//
         );
       }
     }
@@ -562,6 +574,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
   // ---- Menü (kompakt skaliert) ----
   Widget _buildMenu(int allCount, int openCount, int rejectedCount, int finishedCount) {
+    // **Zähler für freie Kunden** (statt eigener zugewiesener Kunden)
+    final freeCount = _freeCustomers.length;
+
     return LayoutBuilder(builder: (ctx, c) {
       final width = c.maxWidth;
       final gridCount = width >= 1200 ? 4 : width >= 900 ? 3 : width >= 600 ? 2 : 1;
@@ -603,8 +618,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             color: Colors.teal,
             icon: Icons.apartment_outlined,
             title: 'Kundendatenbank',
-            subtitle: 'Firmen & Kontakte',
-            count: _customers.length,
+            subtitle: 'Freie Kunden (Admin-Logik)',
+            count: freeCount,
             compact: compact,
             scale: scale,
             onTap: () => setState(() => _view = _RepView.customers),
@@ -821,9 +836,10 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     );
   }
 
-  // ---- Seite: Kundendatenbank ----
+  // ---- Seite: Kundendatenbank (JETZT: **freie Kunden wie Admin**) ----
   Widget _buildCustomersCard() {
     final t = context.t;
+    final items = _freeCustomers; // Quelle: Admin-Logik
     return _Card(
       title: t.myCustomers,
       actions: [
@@ -833,86 +849,125 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
           label: Text(t.addCustomer),
         ),
       ],
-      child: _customers.isEmpty
-          ? Text(t.noAddCustomer)
+      child: items.isEmpty
+          ? Text(t.noAddCustomer) // "Keine freien Kunden verfügbar"
           : ListView.separated(
               shrinkWrap: true,
               physics: const BouncingScrollPhysics(),
               itemBuilder: (_, i) {
-                final c = _customers[i];
-                final email = (c['email'] ?? '').toString();
-                final isNew = !_seenCustomers.contains(email.toLowerCase());
+                final entry = items[i];
+                final email = (entry['email'] ?? '').toLowerCase();
+                final label = (entry['label'] ?? '').toString();
+                final isNew = !_seenCustomers.contains(email);
 
-                final tile = InkWell(
-                  onTap: () {
-                    // Beim ersten Öffnen → NEW weg
-                    _markCustomerSeen(email);
-                    _showCustomerDetails(c);
-                  },
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    leading: const Icon(Icons.apartment_outlined),
-                    title: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            (() {
-                              final comp = (c['company'] ?? '').toString();
-                              final nm   = (c['name'] ?? '').toString();
-                              final em   = email;
-                              if (comp.isNotEmpty) return comp;
-                              if (nm.isNotEmpty)   return nm;
-                              return em;
-                            })(),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                // Für freie Kunden gibt es **keinen** Unassign-Button – nur "Details" (Label anzeigen) + "Zuweisen"
+                final tile = ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  leading: const Icon(Icons.apartment_outlined),
+                  title: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          label.isEmpty ? email : label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        if (isNew) const SizedBox(width: 8),
-                        if (isNew)
-                          const _PulseNewBadge(), // ← ersetzt den statischen NEW-Container (pulsierend)
-                      ],
-                    ),
-                    subtitle: Text(
-                      (() {
-                        final nm = (c['name'] ?? '').toString();
-                        final em = email;
-                        if (nm.isNotEmpty && em.isNotEmpty) return '$nm • $em';
-                        return nm.isNotEmpty ? nm : em;
-                      })(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    trailing: Wrap(
-                      spacing: 8,
-                      children: [
-                        IconButton(
-                          tooltip: 'Details',
-                          icon: const Icon(Icons.info_outline),
-                          onPressed: () {
-                            _markCustomerSeen(email);
-                            _showCustomerDetails(c);
-                          },
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.link_off),
-                          tooltip: t.deleteAdd,
-                          onPressed: () => _unassignCustomer(email),
-                        ),
-                      ],
-                    ),
+                      ),
+                      if (isNew) const SizedBox(width: 8),
+                      if (isNew) const _PulseNewBadge(),
+                    ],
                   ),
+                  subtitle: Text(
+                    email,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: Wrap(
+                    spacing: 8,
+                    children: [
+                      IconButton(
+                        tooltip: 'Info',
+                        icon: const Icon(Icons.info_outline),
+                        onPressed: () {
+                          _markCustomerSeen(email);
+                          _showFreeCustomerInfo(label: label, email: email);
+                        },
+                      ),
+                      IconButton(
+                        tooltip: t.addCustomer,
+                        icon: const Icon(Icons.person_add_alt_1),
+                        onPressed: () async {
+                          // Direkt zuweisen (ohne Dropdown), da der Eintrag bereits feststeht
+                          try {
+                            await widget.api.repAssignCustomer(email);
+                            await _notifySelfAssignment(customerEmail: email, company: label);
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(t.saved)),
+                            );
+                            await _loadAll(); // aktualisiert _freeCustomers (wird kleiner)
+                          } catch (e) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('${t.error ?? 'Fehler'}: $e')),
+                            );
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                  onTap: () {
+                    _markCustomerSeen(email);
+                    _showFreeCustomerInfo(label: label, email: email);
+                  },
                 );
 
-                // Sanftes Aufleuchten (Fade-in) pro Karte, leicht gestaffelt
                 return _FadeInOnce(
                   delayMs: 35 * i,
                   child: tile,
                 );
               },
               separatorBuilder: (_, __) => const Divider(height: 1),
-              itemCount: _customers.length,
+              itemCount: items.length,
             ),
+    );
+  }
+
+  // Info-Dialog für freien Kunden (nur Label + Email, da Admin-Endpunkt meist knapp liefert)
+  void _showFreeCustomerInfo({required String label, required String email}) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(label.isEmpty ? email : label),
+        content: SelectableText(email),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Schließen'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              try {
+                await widget.api.repAssignCustomer(email);
+                await _notifySelfAssignment(customerEmail: email, company: label);
+                if (!mounted) return;
+                Navigator.of(ctx).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(context.t.saved)),
+                );
+                await _loadAll();
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('${context.t.error ?? 'Fehler'}: $e')),
+                );
+              }
+            },
+            icon: const Icon(Icons.person_add_alt_1),
+            label: Text(context.t.addCustomer),
+          ),
+        ],
+      ),
     );
   }
 
