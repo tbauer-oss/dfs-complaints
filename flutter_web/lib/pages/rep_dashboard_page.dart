@@ -16,6 +16,49 @@ enum _RepFilter { all, open, rejected, finished }
 // Menü-Views
 enum _RepView { menu, open, all, customers, account }
 
+class RepProfilePage extends StatefulWidget {
+  final ApiClient api;
+
+  // NEU: Schalter, um den Passwortbereich auszublenden
+  final bool hidePasswordSection;
+
+  const RepProfilePage({
+    super.key,
+    required this.api,
+    this.hidePasswordSection = false, // default: wie bisher (sichtbar)
+  });
+
+  @override
+  State<RepProfilePage> createState() => _RepProfilePageState();
+}
+
+class _RepProfilePageState extends State<RepProfilePage> {
+  // ... dein bestehender State/Code unverändert ...
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+
+    return Scaffold(
+      appBar: AppBar(title: Text(t.profilePW)),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            // ===== Dein bestehender Profil-Block bleibt 1:1 erhalten =====
+            _buildProfileCard(),  // <-- deine vorhandene Methode/Widgets
+
+            const SizedBox(height: 16),
+
+            // ===== Passwort-Block nur noch anzeigen, wenn NICHT ausgeblendet =====
+            if (!widget.hidePasswordSection)
+              _buildPasswordCard(), // <-- dein bisheriger Passwortbereich unverändert
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class RepDashboardPage extends StatefulWidget {
   final ApiClient api;
   const RepDashboardPage({super.key, required this.api});
@@ -664,7 +707,12 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
     Future<void> _openProfile() async {
       await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => RepProfilePage(api: widget.api)), // Profilseite (ohne Passwort)
+        MaterialPageRoute(
+          builder: (_) => RepProfilePage(
+            api: widget.api,
+            hidePasswordSection: true, // << neu: Passwortbereich ausblenden
+          ),
+        ),
       );
       if (!mounted) return;
       await _loadAll();
