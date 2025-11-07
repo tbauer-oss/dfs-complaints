@@ -20,12 +20,13 @@
   "theme_light": "Claro",
   "theme_dark": "Oscuro",
 
+  "assigned_to": "asignado a",
+  "assigned": "asignado",
   "you": "Tú",
   "approve": "Aprobar",
   "reject": "Rechazar",
   "rep_approved": "Aprobado por el representante.",
   "rep_rejected": "Rechazado por el representante.",
-
   "profile_edit": "Editar perfil",
   "@profile_edit": { "description": "Elemento de menú: editar datos del perfil" },
   "password_change": "Cambiar contraseña",
