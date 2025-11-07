@@ -10,7 +10,7 @@ const rid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice
 function setCorsFallback(
   req,
   res,
-  allowHeaders = 'Content-Type, Authorization, X-Admin-Secret, X-Gate, X-Debug'
+  allowHeaders = 'Content-Type, Authorization, X-Admin-Secret, X-Gate, X-Rep-Secret, X-Debug'
 ) {
   const PROD_FE = 'https://dfs-complaints-web.vercel.app';
   const origin = req.headers?.origin || '';
@@ -43,74 +43,94 @@ async function ensureCors(req, res, allowHeaders) {
   }
 }
 
-// --- Upstash-Facade: passt sich an deine tatsächlichen Exporte an ---
+// --- Upstash-Facade: passt sich an eure Exporte an; mit lokalem Fallback ---
 async function loadUpstashFacade() {
-  const mod = await import(new URL('../../_lib/upstash.js', import.meta.url));
-  const exp = mod || {};
+  // 1) Versuche eure _lib/upstash.js zu laden
+  let exp = {};
+  try {
+    const mod = await import(new URL('../../_lib/upstash.js', import.meta.url));
+    exp = mod || {};
+  } catch {
+    // ignorieren – wir versuchen Fallback
+  }
 
-  // GET-Kandidatenauswahl
-  const get =
+  // 2) Kandidaten aus eurer Facade
+  let get =
     exp.redisGet ??
     exp.get ??
     exp.redisGetJSON ??
-    (async (key) => {
-      // letzter Fallback via MGET
-      if (typeof exp.redisMGet === 'function') {
-        const arr = await exp.redisMGet([key]);
-        return Array.isArray(arr) ? arr[0] ?? null : null;
-      }
-      throw new Error('No redis get function available');
-    });
+    null;
 
-  // SET-Kandidatenauswahl (mit TTL-Unterstützung, wo vorhanden)
-  const set = async (key, value, ttlSec) => {
-    if (typeof exp.redisSet === 'function') {
-      return exp.redisSet(key, value, ttlSec);
+  let set = null;
+
+  // 3) Falls noch kein set/get: lokaler Upstash-Client per ENV aufbauen
+  const url =
+    process.env.REDIS_URL ||
+    process.env.UPSTASH_REDIS_REST_URL ||
+    '';
+  const token =
+    process.env.REDIS_TOKEN ||
+    process.env.UPSTASH_REDIS_REST_TOKEN ||
+    '';
+
+  let client = null;
+  if ((!get || !set) && url && token) {
+    try {
+      const { Redis } = await import('@upstash/redis');
+      client = new Redis({ url, token });
+    } catch {
+      // kein Client verfügbar – dann bleiben wir ohne Fallback
     }
-    if (typeof exp.set === 'function') {
-      // Upstash JS-Client erwartet i.d.R. Optionen-Objekt für TTL
+  }
+
+  // 4) Falls get noch fehlt, nutze Client.get
+  if (!get && client) {
+    get = async (key) => client.get(key);
+  } else if (!get && typeof exp.redisMGet === 'function') {
+    // dein ursprünglicher MGET-Fallback
+    get = async (key) => {
+      const arr = await exp.redisMGet([key]);
+      return Array.isArray(arr) ? (arr[0] ?? null) : null;
+    };
+  }
+
+  // 5) set-Kandidatenauswahl (inkl. Client-Fallback)
+  if (typeof exp.redisSet === 'function') {
+    set = (key, value, ttlSec) => exp.redisSet(key, value, ttlSec);
+  } else if (typeof exp.set === 'function') {
+    set = (key, value, ttlSec) => {
       const opts = ttlSec ? { ex: ttlSec } : undefined;
       return exp.set(key, value, opts);
-    }
-    if (typeof exp.redisSetEx === 'function') {
-      return exp.redisSetEx(key, value, ttlSec || 0);
-    }
-    if (typeof exp.redisSetJSON === 'function') {
-      return exp.redisSetJSON(key, value, ttlSec);
-    }
-    throw new Error('No redis set function available');
-  };
+    };
+  } else if (typeof exp.redisSetEx === 'function') {
+    set = (key, value, ttlSec) => exp.redisSetEx(key, value, ttlSec || 0);
+  } else if (typeof exp.redisSetJSON === 'function') {
+    set = (key, value, ttlSec) => exp.redisSetJSON(key, value, ttlSec);
+  } else if (client) {
+    // *** WICHTIGER FIX: lokaler Fallback, damit "No redis set function available" nicht mehr auftritt ***
+    set = (key, value, ttlSec) => {
+      const opts = ttlSec ? { ex: ttlSec } : undefined;
+      return client.set(key, value, opts);
+    };
+  }
 
-  return { get, set, _exports: Object.keys(exp) };
+  if (!get) throw new Error('No redis get function available');
+  if (!set) throw new Error('No redis set function available');
+
+  return {
+    get,
+    set,
+    _exports: Object.keys(exp),
+  };
 }
 
-// --- repAuth laden (robust; named/default) ---
+// --- repAuth laden ---
 async function loadRepAuth() {
-  const url = new URL('../../_lib/repAuth.js', import.meta.url);
-  let mod;
-  try {
-    mod = await import(url);
-  } catch (e) {
-    const err = new Error('repAuth import failed');
-    err._inner = e;
-    err._url = url.toString();
-    throw err;
+  const mod = await import(new URL('../../_lib/repAuth.js', import.meta.url));
+  if (typeof mod.getRepFromAuthHeader !== 'function') {
+    throw new Error('repAuth export missing');
   }
-
-  const cands = [
-    mod.getRepFromAuthHeader,
-    mod.default?.getRepFromAuthHeader,
-    mod.default, // falls die Funktion als default exportiert ist
-  ].filter(Boolean);
-
-  for (const fn of cands) {
-    if (typeof fn === 'function') return fn;
-  }
-
-  const err = new Error('repAuth export missing');
-  err._keys = Object.keys(mod || {});
-  err._hasDefault = !!mod?.default;
-  throw err;
+  return mod.getRepFromAuthHeader;
 }
 
 // --- Handler ---
@@ -140,16 +160,7 @@ export default async function handler(req, res) {
   } catch (e) {
     console.error('[rep/decision/reset] repAuth load error:', e);
     return debug
-      ? res.status(500).json({
-          ok: false,
-          reqId,
-          error: 'repAuth import failed',
-          at: 'loadRepAuth',
-          url: e?._url,
-          inner: String(e?._inner || ''),
-          keys: e?._keys || null,
-          hasDefault: e?._hasDefault ?? null,
-        })
+      ? res.status(500).json({ ok: false, reqId, error: 'repAuth import failed' })
       : res.status(500).json({ error: 'repAuth import failed' });
   }
 
