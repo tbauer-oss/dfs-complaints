@@ -368,6 +368,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       if (!handled) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${context.t.error ?? 'Fehler'}: $e')),
+//
         );
       }
     }
@@ -842,7 +843,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                 final email = (c['email'] ?? '').toString();
                 final isNew = !_seenCustomers.contains(email.toLowerCase());
 
-                return InkWell(
+                final tile = InkWell(
                   onTap: () {
                     // Beim ersten Öffnen → NEW weg
                     _markCustomerSeen(email);
@@ -869,23 +870,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                         ),
                         if (isNew) const SizedBox(width: 8),
                         if (isNew)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.withOpacity(.15),
-                              border: Border.all(color: Colors.orange),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: const Text(
-                              'NEW',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 11,
-                                color: Colors.orange,
-                                letterSpacing: .4,
-                              ),
-                            ),
-                          ),
+                          const _PulseNewBadge(), // ← ersetzt den statischen NEW-Container (pulsierend)
                       ],
                     ),
                     subtitle: Text(
@@ -917,6 +902,12 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                       ],
                     ),
                   ),
+                );
+
+                // Sanftes Aufleuchten (Fade-in) pro Karte, leicht gestaffelt
+                return _FadeInOnce(
+                  delayMs: 35 * i,
+                  child: tile,
                 );
               },
               separatorBuilder: (_, __) => const Divider(height: 1),
@@ -1504,6 +1495,103 @@ class _StatusChip extends StatelessWidget {
       child: Text(
         'Status $status',
         style: TextStyle(color: c, fontSize: 12, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
+/// ===============================================================
+///  Visuelle Helfer: sanftes Fade-in + pulsierender NEW-Badge
+/// ===============================================================
+
+class _FadeInOnce extends StatefulWidget {
+  final Widget child;
+  final int delayMs;
+  final int durationMs;
+  const _FadeInOnce({
+    required this.child,
+    this.delayMs = 0,
+    this.durationMs = 320,
+    super.key,
+  });
+
+  @override
+  State<_FadeInOnce> createState() => _FadeInOnceState();
+}
+
+class _FadeInOnceState extends State<_FadeInOnce> with SingleTickerProviderStateMixin {
+  double _opacity = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(Duration(milliseconds: widget.delayMs), () {
+      if (!mounted) return;
+      setState(() => _opacity = 1.0);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      opacity: _opacity,
+      duration: Duration(milliseconds: widget.durationMs),
+      curve: Curves.easeOut,
+      child: widget.child,
+    );
+  }
+}
+
+class _PulseNewBadge extends StatefulWidget {
+  const _PulseNewBadge({super.key});
+
+  @override
+  State<_PulseNewBadge> createState() => _PulseNewBadgeState();
+}
+
+class _PulseNewBadgeState extends State<_PulseNewBadge> with SingleTickerProviderStateMixin {
+  late final AnimationController _ac;
+  late final Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _ac = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+    _opacity = Tween<double>(begin: 0.35, end: 1.0).animate(CurvedAnimation(
+      parent: _ac,
+      curve: Curves.easeInOut,
+    ));
+  }
+
+  @override
+  void dispose() {
+    _ac.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _opacity,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: Colors.orange.withOpacity(.15),
+          border: Border.all(color: Colors.orange),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: const Text(
+          'NEW',
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 11,
+            color: Colors.orange,
+            letterSpacing: .4,
+          ),
+        ),
       ),
     );
   }
