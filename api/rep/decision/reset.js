@@ -4,20 +4,10 @@ export const config = { runtime: 'nodejs' };
 import { Redis } from '@upstash/redis';
 import { getRepFromAuthHeader } from '../_lib/repAuth.js';
 
-// ---------- Utils ----------
+// ---------- Helpers ----------
 const S = (v) => (v ?? '').toString().trim();
 
-const redisUrl =
-  process.env.REDIS_URL ||
-  process.env.UPSTASH_REDIS_REST_URL || '';
-const redisToken =
-  process.env.REDIS_TOKEN ||
-  process.env.UPSTASH_REDIS_REST_TOKEN || '';
-const redis = (redisUrl && redisToken) ? new Redis({ url: redisUrl, token: redisToken }) : null;
-
-function requireRedis() { if (!redis) throw new Error('Redis not configured'); }
-
-// ---------- CORS (GANZ OBEN, IMMER ZUERST SETZEN!) ----------
+// ---------- CORS (immer zuerst setzen) ----------
 function setCors(res) {
   const allowOrigin = process.env.WEB_ORIGIN || 'https://dfs-complaints-web.vercel.app';
   res.setHeader('Access-Control-Allow-Origin', allowOrigin);
@@ -29,19 +19,28 @@ function setCors(res) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 }
 
-// ---------- Key-Präfixe & Index ----------
+// ---------- Upstash (wie in /api/rep/decision.js) ----------
+const redisUrl =
+  process.env.REDIS_URL ||
+  process.env.UPSTASH_REDIS_REST_URL || '';
+const redisToken =
+  process.env.REDIS_TOKEN ||
+  process.env.UPSTASH_REDIS_REST_TOKEN || '';
+const redis = (redisUrl && redisToken) ? new Redis({ url: redisUrl, token: redisToken }) : null;
+function requireRedis() { if (!redis) throw new Error('Redis not configured'); }
+
+// gleiche Präfixe/Indexnamen wie bei decision.js
 const PFXS = ['dfs:complaints:', 'dfs:complaint:'];
 const INDEX_KEYS = ['dfs:complaints:index', 'dfs:complaint:index'];
 
 async function redisGetParsed(key) {
   const v = await redis.get(key);
   if (!v) return null;
-  if (typeof v === 'string') {
-    try { return JSON.parse(v); } catch { return null; }
-  }
+  if (typeof v === 'string') { try { return JSON.parse(v); } catch { return null; } }
   return v;
 }
 
+// ticket -> { key, c }
 async function loadComplaintByTicket(ticket) {
   const t = S(ticket);
   if (!t) return null;
@@ -66,7 +65,7 @@ async function loadComplaintByTicket(ticket) {
     } catch {}
   }
 
-  // 3) Fallback SCAN
+  // 3) Fallback: SCAN
   for (const pfx of PFXS) {
     try {
       let cursor = 0;
@@ -78,9 +77,7 @@ async function loadComplaintByTicket(ticket) {
           for (let i = 0; i < keys.length; i++) {
             let obj = vals[i];
             if (!obj) continue;
-            if (typeof obj === 'string') {
-              try { obj = JSON.parse(obj); } catch { continue; }
-            }
+            if (typeof obj === 'string') { try { obj = JSON.parse(obj); } catch { continue; } }
             const vt = S(obj.ticket);
             const vid = S(obj.id);
             if (vt === t || vid === t) return { key: keys[i], c: obj };
@@ -95,25 +92,25 @@ async function loadComplaintByTicket(ticket) {
 
 // ---------- Handler ----------
 export default async function handler(req, res) {
-  // *** CORS IMMER ZUERST ***
+  // CORS zuerst
   setCors(res);
 
-  // Preflight sofort beantworten
+  // Preflight
   if (req.method === 'OPTIONS') return res.status(204).end();
 
-  // Nur POST zulassen (Headers sind bereits gesetzt)
+  // Nur POST
   if (req.method !== 'POST') return res.status(405).json({ error: 'method not allowed' });
 
   try {
     requireRedis();
 
-    // Auth
+    // Auth (wie decision.js)
     let auth = null;
     try { auth = getRepFromAuthHeader(req); } catch {}
     if (!auth || !auth.repId) return res.status(401).json({ error: 'unauthorized' });
     const repId = S(auth.repId);
 
-    // Body
+    // Body robust
     let body = req.body;
     if (typeof body === 'string') { try { body = JSON.parse(body || '{}'); } catch { body = {}; } }
     body = body || {};
@@ -131,23 +128,23 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'forbidden (wrong rep)' });
     }
 
-    // Vertreter-Felder entfernen (Admin-Felder unberührt)
+    // Vertreter-Felder entfernen (Admin-Felder bleiben unberührt)
     delete c.repDecision;
     delete c.repDecisionAt;
     delete c.repDecisionBy;
     delete c.repId;
     c.updatedAt = Date.now();
 
+    // Speichern – direktes redis.set wie in decision.js
     await redis.set(key, c);
 
-    // Debug optional
+    // Debug-Ausgabe optional
     if (S(req.query?.debug) === '1') {
       return res.status(200).json({ ok: true, ticket, savedKey: key });
     }
     return res.status(204).end();
 
   } catch (e) {
-    // Fehler – CORS ist bereits gesetzt, Response kommt mit CORS zurück
     console.error('[rep/decision/reset] error', e);
     return res.status(500).json({ error: String(e?.message || e) });
   }
