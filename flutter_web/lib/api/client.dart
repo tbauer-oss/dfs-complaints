@@ -284,16 +284,28 @@ class ApiClient {
     }
   }
 
-  // ✅ FIX: Reset nutzt jetzt sauber _repFetch (kein _authHeaders mehr)
+  // ✅ Reset: 204 (ohne Body) oder 200 (Debug) als Erfolg behandeln.
+  //    Zusätzlich: falls repToken leer ist, einmalig aus LocalStorage nachladen.
   Future<void> repDecisionReset({required String ticket}) async {
+    if (repToken == null || repToken!.isEmpty) {
+      // defensive: Token aus LocalStorage ziehen, ohne anderes zu verändern
+      final lsTok = html.window.localStorage['dfs_rep_token'];
+      if (lsTok != null && lsTok.isNotEmpty) {
+        repToken = lsTok;
+      }
+    }
+
     final r = await _repFetch(
       '/api/rep/decision/reset',
       method: 'POST',
       body: {'ticket': ticket},
     );
-    if (r.statusCode != 204 && !_ok2xx(r.statusCode)) {
-      throw ApiError(r.statusCode, _extractMessage(r.body));
-    }
+
+    // Erfolg ohne Body (204) oder Debug-Erfolg (200 mit JSON)
+    if (r.statusCode == 204) return;
+    if (_ok2xx(r.statusCode)) return;
+
+    throw ApiError(r.statusCode, _extractMessage(r.body));
   }
 
   Future<Map<String, dynamic>> repMe() async {
