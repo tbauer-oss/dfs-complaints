@@ -1177,6 +1177,90 @@ class _BusyDot extends StatelessWidget {
   }
 }
 
+class _RepTrafficLight extends StatelessWidget {
+  /// 'accepted' | 'rejected' | 'pending' | andere/leer -> keine Anzeige
+  final String? opinion;
+  final bool compact; // für enge Layouts
+  const _RepTrafficLight({required this.opinion, this.compact = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final v = (opinion ?? '').trim().toLowerCase();
+    if (v.isEmpty) return const SizedBox.shrink(); // keine Ampel ohne Meinung
+
+    // Farben
+    const colRed    = Colors.red;
+    const colAmber  = Colors.amber;
+    const colGreen  = Colors.green;
+
+    // aktives Licht bestimmen
+    bool onRed   = v == 'rejected';
+    bool onAmber = v == 'pending' || v == 'open' || v == 'yellow' || v == 'gelb';
+    bool onGreen = v == 'accepted' || v == 'accept' || v == 'green' || v == 'gruen' || v == 'grün';
+
+    // Falls unbekannter Wert -> neutrale Anzeige vermeiden (Ampel ganz weglassen)
+    if (!(onRed || onAmber || onGreen)) {
+      return const SizedBox.shrink();
+    }
+
+    // Maße
+    final size    = compact ? 10.0 : 12.0;     // Kreis-Durchmesser
+    final gap     = compact ? 4.0  : 6.0;      // Abstand zwischen Kreisen
+    final radius  = size / 2;
+
+    Widget dot(Color c, bool on) => Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: on ? c : c.withOpacity(0.18),
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: on ? c : c.withOpacity(0.6), width: 1),
+        boxShadow: on
+            ? [BoxShadow(color: c.withOpacity(0.45), blurRadius: 6, spreadRadius: 0)]
+            : const [],
+      ),
+    );
+
+    // Beschriftung rechts daneben (kompakt gehalten)
+    String label;
+    if (onGreen)      label = 'Vertreter: akzeptiert';
+    else if (onRed)   label = 'Vertreter: abgelehnt';
+    else              label = 'Vertreter: offen';
+
+    final textStyle = TextStyle(
+      fontWeight: FontWeight.w700,
+      color: onGreen ? colGreen : (onRed ? colRed : colAmber),
+    );
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Ampel (vertikal)
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.35),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              dot(colRed, onRed),
+              SizedBox(height: gap),
+              dot(colAmber, onAmber),
+              SizedBox(height: gap),
+              dot(colGreen, onGreen),
+            ],
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(label, style: textStyle),
+      ],
+    );
+  }
+}
+
 class _RepOpinionBadge extends StatelessWidget {
   final String? opinion; // 'accepted' | 'rejected' | 'pending' | null
   const _RepOpinionBadge({required this.opinion});
@@ -2243,7 +2327,10 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                             ],
                           ),
                           _statusChip(c.status),
-                          _RepOpinionBadge(opinion: c.repOpinion),
+
+                          // ↓↓↓ NEU: Ampel NUR anzeigen, wenn es überhaupt eine Vertretermeinung gibt
+                          if ((c.repOpinion ?? '').trim().isNotEmpty)
+                            _RepTrafficLight(opinion: c.repOpinion, compact: true),
                         ],
                       ),
                     ],
