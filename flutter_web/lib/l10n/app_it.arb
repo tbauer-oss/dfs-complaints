@@ -20,6 +20,8 @@
   "theme_light": "Chiaro",
   "theme_dark": "Scuro",
 
+  "assigned_to": "assegnato a",
+  "assigned": "assegnato",
   "you": "Tu",
   "approve": "Approvare",
   "reject": "Rifiutare",
