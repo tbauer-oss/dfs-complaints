@@ -9,7 +9,15 @@ extension _L10nX on BuildContext {
 
 class RepProfilePage extends StatefulWidget {
   final ApiClient api;
-  const RepProfilePage({super.key, required this.api});
+
+  /// NEU: Wenn true, wird der Passwort-Bereich ausgeblendet
+  final bool hidePasswordSection;
+
+  const RepProfilePage({
+    super.key,
+    required this.api,
+    this.hidePasswordSection = false,
+  });
 
   @override
   State<RepProfilePage> createState() => _RepProfilePageState();
@@ -221,48 +229,51 @@ class _RepProfilePageState extends State<RepProfilePage> {
               ),
             ),
             const SizedBox(height: 16),
-            Card(
-              elevation: 4,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(t.changePassword, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _pw1,
-                      obscureText: true,
-                      decoration: InputDecoration(
-                        labelText: t.new_password_min8,
-                        border: const OutlineInputBorder(),
+
+            // Passwort-Bereich nur anzeigen, wenn NICHT ausgeblendet
+            if (!widget.hidePasswordSection)
+              Card(
+                elevation: 4,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(t.changePassword, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _pw1,
+                        obscureText: true,
+                        decoration: InputDecoration(
+                          labelText: t.new_password_min8,
+                          border: const OutlineInputBorder(),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _pw2,
-                      obscureText: true,
-                      decoration: InputDecoration(
-                        labelText: t.new_password_repeat_label,
-                        border: const OutlineInputBorder(),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _pw2,
+                        obscureText: true,
+                        decoration: InputDecoration(
+                          labelText: t.new_password_repeat_label,
+                          border: const OutlineInputBorder(),
+                        ),
+                        onSubmitted: (_) => _busyPw ? null : _changePassword(),
                       ),
-                      onSubmitted: (_) => _busyPw ? null : _changePassword(),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        onPressed: _busyPw ? null : _changePassword,
-                        icon: _busyPw
-                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Icon(Icons.key),
-                        label: Text(t.save),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: _busyPw ? null : _changePassword,
+                          icon: _busyPw
+                              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                              : const Icon(Icons.key),
+                          label: Text(t.save),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
           ],
         ),
       ),
