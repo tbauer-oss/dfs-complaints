@@ -20,6 +20,8 @@
   "theme_light": "Clair",
   "theme_dark": "Sombre",
 
+  "search": "Rechercher…",
+  "free": "Libre",
   "assigned_to": "attribué à",
   "assigned": "attribué",
   "you": "Vous",
