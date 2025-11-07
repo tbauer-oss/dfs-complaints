@@ -30,7 +30,7 @@ function setCorsFallback(req, res, allowHeaders =
 async function ensureCors(req, res, allowHeaders) {
   try {
     // Normpfad: Datei liegt unter api/_lib/cors.js
-    const mod = await import('../../_lib/cors.js');
+    const mod = await import('../_lib/cors.js');
     if (typeof mod.setCors === 'function') {
       mod.setCors(req, res, allowHeaders);
       return 'lib';
@@ -48,7 +48,7 @@ async function ensureCors(req, res, allowHeaders) {
 // Lazy-Loader für repAuth (robust, 2 Pfade)
 async function loadRepAuth(debug = false) {
   let mod = null, e1 = null, e2 = null;
-  try { mod = await import('../../_lib/repAuth.js'); } catch (e) { e1 = e; }
+  try { mod = await import('../_lib/repAuth.js'); } catch (e) { e1 = e; }
   if (!mod) { try { mod = await import('../_lib/repAuth.js'); } catch (e) { e2 = e; } }
   if (!mod || typeof mod.getRepFromAuthHeader !== 'function') {
     const err = new Error('repAuth import failed');
@@ -64,7 +64,7 @@ async function loadRepAuth(debug = false) {
 
 // Lazy-Loader für Upstash-Helpers (nur ein Pfad nötig)
 async function loadUpstash() {
-  const mod = await import('../../_lib/upstash.js');
+  const mod = await import('../_lib/upstash.js');
   return { redisGet: mod.redisGet, redisSet: mod.redisSet };
 }
 
