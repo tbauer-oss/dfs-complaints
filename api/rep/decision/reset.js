@@ -1,7 +1,7 @@
 export const config = { runtime: 'nodejs' };
 
-import { setCors } from '../../_lib/cors.js';
-import { redisGet, redisSet } from '../../_lib/upstash.js';
+import { setCors } from '../_lib/cors.js';
+import { redisGet, redisSet } from '../_lib/upstash.js';
 
 // ---------- kleine Utils ----------
 const S = (v) => (v ?? '').toString().trim();
@@ -22,7 +22,7 @@ async function loadRepAuth(debug = false) {
 
   // Pfad 1: wenn reset.js in api/rep/decision/reset.js liegt -> ../../_lib/repAuth.js
   try {
-    mod = await import('../../_lib/repAuth.js');
+    mod = await import('../_lib/repAuth.js');
   } catch (e) { error1 = e; }
 
   // Fallback Pfad 2: falls die Route woanders liegt -> ../_lib/repAuth.js
