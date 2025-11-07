@@ -190,101 +190,59 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   }
 
   // ======= FEHLENDE METHODE (jetzt robust mit Token-GET) =======
-  Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
-    // 1) Token aus deinem ApiClient holen
-    final dyn = widget.api as dynamic;
-    final String? token = (dyn.token is String && (dyn.token as String).isNotEmpty) ? dyn.token as String : null;
+Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
+  // Session prüfen (entfernt ungültiges repToken & verhindert leere Antworten)
+  await widget.api.ensureRepSession();
 
-    // 2) Direktes GET auf das Backend (CORS ist für die Web-App bereits erlaubt)
-    //    Wenn du den Host änderst, nur diese BASE_URL anpassen.
-    const String BASE_URL = 'https://dfs-complaints-backend.vercel.app';
-    final uri = Uri.parse('$BASE_URL/api/rep/assignable-customers?all=1');
-
-    final headers = <String, String>{
-      'Accept': 'application/json',
-      if (token != null) 'Authorization': 'Bearer $token',
-    };
-
-    List<Map<String, Object?>> normalize(dynamic raw) {
-      final List<Map<String, Object?>> out = [];
-      final list = (raw is List)
-          ? raw
-          : (raw is Map && raw['items'] is List ? raw['items'] as List : const []);
-      for (final it in list) {
-        if (it is String) {
-          final email = it.toLowerCase();
-          if (email.isEmpty) continue;
-          out.add({
-            'email': email,
-            'label': email,
-            'assigned': false,
-            'assignedToLabel': '',
-          });
-        } else if (it is Map) {
-          String s(Object? v) => (v ?? '').toString();
-          final email = s(it['email']).toLowerCase();
-          if (email.isEmpty) continue;
-
-          final company = s(it['company']);
-          final name    = s(it['name']);
-          final label   = company.isNotEmpty
-              ? company
-              : (name.isNotEmpty ? '$name • $email' : email);
-
-          final assigned = (it['assigned'] == true) ||
-                           (s(it['assigned']).toLowerCase() == 'true');
-
-          final assignedToLabel =
-              s(it['assignedToName']).isNotEmpty ? s(it['assignedToName'])
-            : s(it['assignedToEmail']).isNotEmpty ? s(it['assignedToEmail'])
-            : s(it['assignedTo']);
-
-          out.add({
-            'email': email,
-            'label': label,
-            'assigned': assigned,
-            'assignedToLabel': assignedToLabel,
-          });
-        }
-      }
-      out.sort((a, b) {
-        final aa = (a['assigned'] == true);
-        final bb = (b['assigned'] == true);
-        if (aa != bb) return aa ? 1 : -1; // freie zuerst
-        return (a['label'] as String).toLowerCase().compareTo((b['label'] as String).toLowerCase());
-      });
-      return out;
-    }
-
-    try {
-      final resp = await http.get(uri, headers: headers);
-      if (resp.statusCode >= 200 && resp.statusCode < 300) {
-        final json = convert.jsonDecode(resp.body);
-        return normalize(json);
-      }
-    } catch (_) {}
-
-    // Fallbacks (optional): ohne ?all=1 bzw. Admin-Route
-    try {
-      final r2 = await http.get(Uri.parse('$BASE_URL/api/rep/assignable-customers'), headers: headers);
-      if (r2.statusCode >= 200 && r2.statusCode < 300) {
-        final json = convert.jsonDecode(r2.body);
-        final list = normalize(json);
-        if (list.isNotEmpty) return list;
-      }
-    } catch (_) {}
-
-    try {
-      final r3 = await http.get(Uri.parse('$BASE_URL/api/admin/assignable-customers?all=1'), headers: headers);
-      if (r3.statusCode >= 200 && r3.statusCode < 300) {
-        final json = convert.jsonDecode(r3.body);
-        final list = normalize(json);
-        if (list.isNotEmpty) return list;
-      }
-    } catch (_) {}
-
+  // 1) Liste über deinen ApiClient holen (kümmert sich um BaseURL, X-Gate, Bearer, Retry)
+  List<Map<String, dynamic>> raw;
+  try {
+    raw = await widget.api.repAssignableCustomers(all: true);
+  } catch (_) {
+    // stabil bleiben
     return <Map<String, Object?>>[];
   }
+
+  // 2) Normalisieren -> { email, label, assigned, assignedToLabel }
+  String s(Object? v) => (v ?? '').toString();
+
+  final out = <Map<String, Object?>>[];
+  for (final it in raw) {
+    final email = s(it['email']).toLowerCase();
+    if (email.isEmpty) continue;
+
+    final company = s(it['company']);
+    final name    = s(it['name']);
+    final label   = company.isNotEmpty
+        ? company
+        : (name.isNotEmpty ? '$name • $email' : email);
+
+    final assigned = (it['assigned'] == true) ||
+                     (s(it['assigned']).toLowerCase() == 'true');
+
+    final assignedToLabel =
+        s(it['assignedToName']).isNotEmpty ? s(it['assignedToName'])
+      : s(it['assignedToEmail']).isNotEmpty ? s(it['assignedToEmail'])
+      : s(it['assignedTo']);
+
+    out.add({
+      'email': email,
+      'label': label,
+      'assigned': assigned,
+      'assignedToLabel': assignedToLabel,
+    });
+  }
+
+  // 3) Freie zuerst, danach alphabetisch
+  out.sort((a, b) {
+    final aa = (a['assigned'] == true);
+    final bb = (b['assigned'] == true);
+    if (aa != bb) return aa ? 1 : -1;
+    return (a['label'] as String).toLowerCase().compareTo((b['label'] as String).toLowerCase());
+  });
+
+  return out;
+}
   // ======= /FEHLENDE METHODE =======
 
   // Mail/Benachrichtigung an complaint@dfs-diamon.de bei Selbst-Zuweisung
