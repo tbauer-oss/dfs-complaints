@@ -20,6 +20,7 @@
   "theme_light": "Light",
   "theme_dark": "Dark",
 
+  "you": "You",
   "approve": "Approve",
   "reject": "Reject",
   "rep_approved": "Approved by representative.",
