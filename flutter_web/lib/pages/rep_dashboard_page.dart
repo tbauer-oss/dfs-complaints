@@ -151,14 +151,18 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
   /// ---- Quelle für Zuweisen-Dialog: Admin-Style "alle Kunden mit Zuordnung" ----
   ///
-  /// Liefert eine Liste von Maps:
-  /// { email, label, assigneeEmail? , assigneeName? , selectable (bool) }
+  /// Liefert eine Liste:
+  /// { email, label, assigneeEmail? , assigneeName? }
   Future<List<Map<String, Object?>>> _fetchAllCustomersWithAssignee() async {
     List<Map<String, Object?>> normalize(dynamic raw) {
       final List<Map<String, Object?>> out = [];
       if (raw is List) {
         for (final it in raw) {
-          if (it is Map) {
+          if (it is String) {
+            final email = it.toLowerCase();
+            if (email.isEmpty) continue;
+            out.add({'email': email, 'label': email});
+          } else if (it is Map) {
             String s(Object? v) => (v ?? '').toString();
             final email = s(it['email']).toLowerCase();
             if (email.isEmpty) continue;
@@ -166,19 +170,24 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             final name    = s(it['name']);
             final label   = company.isNotEmpty ? company : (name.isNotEmpty ? '$name • $email' : email);
 
-            // Verschiedene Feldnamen tolerant lesen:
-            final assigneeEmail = s(it['assigneeEmail']).isEmpty
-                ? (s(it['repEmail']).isEmpty ? null : s(it['repEmail']))
-                : s(it['assigneeEmail']);
-            final assigneeName  = s(it['assigneeName']).isEmpty
-                ? (s(it['repName']).isEmpty ? null : s(it['repName']))
-                : s(it['assigneeName']);
+            // Mögliche Feldnamen für Zuordnung
+            final assigneeEmail = [
+              s(it['assigneeEmail']),
+              s(it['repEmail']),
+              s(it['assignedToEmail']),
+              s(it['assignedTo'])
+            ].firstWhere((v) => v.isNotEmpty, orElse: () => '');
+            final assigneeName  = [
+              s(it['assigneeName']),
+              s(it['repName']),
+              s(it['assignedToName'])
+            ].firstWhere((v) => v.isNotEmpty, orElse: () => '');
 
             out.add({
               'email'         : email,
               'label'         : label,
-              'assigneeEmail' : (assigneeEmail ?? '').toString().isEmpty ? null : assigneeEmail,
-              'assigneeName'  : (assigneeName  ?? '').toString().isEmpty ? null : assigneeName,
+              'assigneeEmail' : assigneeEmail.isEmpty ? null : assigneeEmail,
+              'assigneeName'  : assigneeName.isEmpty  ? null : assigneeName,
             });
           }
         }
@@ -193,55 +202,60 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       final dyn = widget.api as dynamic;
       final secret = html.window.localStorage['dfs_admin'] ?? '';
 
-      // 1) Admin-Hauptquelle wie im Adminbereich
+      // 1) Admin-Quellen – wie im Adminbereich (mehrere Varianten probieren)
       if (secret.isNotEmpty) {
-        // a) reps/customers (bevorzugt)
+        final adminUrls = <String>[
+          '/api/admin/reps/customers',      // bevorzugt: alle + assignee
+          '/api/admin/customers',           // alt: alle + assignee
+          '/api/admin/all-customers',       // alternativ
+          '/api/admin/reps/free-customers', // nur freie
+        ];
+        for (final url in adminUrls) {
+          try {
+            final r = await dyn.getJson(url, headers: {'X-Admin-Secret': secret});
+            final list = normalize(r);
+            if (list.isNotEmpty) return list;
+          } catch (_) {}
+        }
+      }
+
+      // 2) Public/Rep – freie Kunden
+      final publicUrls = <String>[
+        '/api/public/free-customers',
+        '/api/public/customers',
+        '/api/rep/free-customers',
+      ];
+      for (final url in publicUrls) {
         try {
-          final r = await dyn.getJson('/api/admin/reps/customers', headers: {'X-Admin-Secret': secret});
+          final r = await dyn.getJson(url);
           final list = normalize(r);
-          if (list.isNotEmpty) return list;
-        } catch (_) {}
-        // b) /api/admin/customers (Fallback)
-        try {
-          final r = await dyn.getJson('/api/admin/customers', headers: {'X-Admin-Secret': secret});
-          final list = normalize(r);
-          if (list.isNotEmpty) return list;
-        } catch (_) {}
-        // c) /api/admin/all-customers (fallback)
-        try {
-          final r = await dyn.getJson('/api/admin/all-customers', headers: {'X-Admin-Secret': secret});
-          final list = normalize(r);
-          if (list.isNotEmpty) return list;
+          if (list.isNotEmpty) {
+            // Diese enthalten i.d.R. keine Assignee-Infos → nur freie
+            return list;
+          }
         } catch (_) {}
       }
 
-      // 2) Public: freie Kunden (ohne Assignee-Info) + eigene (grau)
-      List<Map<String, Object?>> free = [];
-      try {
-        final r = await dyn.getJson('/api/public/free-customers');
-        free = normalize(r);
-      } catch (_) {}
-
-      // Eigene bereits zugewiesene (grau, assignee = ich)
-      final myAssignedEmails = _customers.map((c) => (c['email'] ?? '').toString().toLowerCase()).where((e) => e.isNotEmpty).toSet();
-      final myName = [ _me?['firstName'], _me?['lastName'] ].where((e) => (e ?? '').toString().isNotEmpty).join(' ').trim();
-      final meEmail = (_me?['email'] ?? '').toString().toLowerCase();
-
-      final own = myAssignedEmails.map<Map<String, Object?>>((em) {
-        final comp = _emailToCompany[em] ?? em;
-        return {
-          'email': em,
-          'label': comp.isNotEmpty ? comp : em,
-          'assigneeEmail': meEmail,
-          'assigneeName': myName.isNotEmpty ? myName : meEmail,
-        };
-      }).toList();
-
-      // Merge (freie + eigene). Andere (fremd zugewiesene) sind ohne Admin nicht ermittelbar.
+      // 3) Letzter Fallback: bekannte E-Mails/Firmen aus UI-Daten
+      //    (deine zugewiesenen + Firmen aus Reklamationen) → alle auflisten,
+      //    schon zugewiesene werden später gesperrt.
       final seen = <String>{};
-      for (final it in [...own, ...free]) {
-        final em = (it['email'] ?? '').toString();
-        if (seen.add(em)) result.add(it);
+      // a) bereits zugewiesene (aus _customers)
+      for (final c in _customers) {
+        final em = (c['email'] ?? '').toString().toLowerCase();
+        if (em.isEmpty || !seen.add(em)) continue;
+        final comp = (c['company'] ?? '').toString();
+        final nm   = (c['name'] ?? '').toString();
+        final label = comp.isNotEmpty ? comp : (nm.isNotEmpty ? '$nm • $em' : em);
+        result.add({'email': em, 'label': label, 'assigneeEmail': (_me?['email'] ?? '').toString(), 'assigneeName': [ _me?['firstName'], _me?['lastName'] ].where((e)=> (e??'').toString().isNotEmpty).join(' ')});
+      }
+      // b) aus Reklamationen (falls weitere Firmen sichtbar)
+      for (final c in _complaints) {
+        final em = (c['customerEmail'] ?? c['email'] ?? '').toString().toLowerCase();
+        if (em.isEmpty || !seen.add(em)) continue;
+        final comp = (c['payload']?['company'] ?? '').toString();
+        final label = comp.isNotEmpty ? comp : em;
+        result.add({'email': em, 'label': label});
       }
     } catch (_) {}
 
@@ -280,7 +294,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       final assignedToMe = assigned && assEm!.toLowerCase() == meEmail;
       return _AssignItem(
         email: email,
-        label: label,
+        label: label.isEmpty ? email : label,
         assigned: assigned,
         assignedToMe: assignedToMe,
         assigneeEmail: assEm,
@@ -312,6 +326,10 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                 return;
               }
               final picked = view.firstWhere((e) => e.email == selectedEmail, orElse: () => _AssignItem(email: '', label: ''));
+              if (picked.email.isEmpty) {
+                setLoc(() => errorText = t.errorGeneric('Ungültige Auswahl.'));
+                return;
+              }
               if (picked.assigned) {
                 setLoc(() => errorText = t.errorGeneric('Dieser Kunde ist bereits zugewiesen.'));
                 return;
@@ -343,50 +361,56 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                     ),
                     const SizedBox(height: 10),
                     ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 360),
-                      child: Material(
-                        elevation: 0,
-                        child: ListView.separated(
-                          shrinkWrap: true,
-                          itemCount: view.length,
-                          separatorBuilder: (_, __) => const Divider(height: 1),
-                          itemBuilder: (_, i) {
-                            final it = view[i];
-                            final disabled = it.assigned;
-                            final assignedTo = it.assigned
-                                ? (it.assignedToMe
-                                    ? t.you ?? 'Du'
-                                    : (it.assigneeName?.isNotEmpty == true ? it.assigneeName! : (it.assigneeEmail ?? 'andere:r Vertreter')))
-                                : null;
-                            return RadioListTile<String>(
-                              value: it.email,
-                              groupValue: selectedEmail,
-                              onChanged: disabled ? null : (v) => setLoc(() => selectedEmail = v),
-                              title: Text(
-                                it.label,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: disabled
-                                    ? TextStyle(color: Theme.of(context).disabledColor)
-                                    : null,
+                      constraints: const BoxConstraints(maxHeight: 360, minHeight: 120),
+                      child: view.isEmpty
+                          ? Center(
+                              child: Text(
+                                'Keine Kunden gefunden.\n(Prüfe Admin-Secret oder Public-Endpoint)',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: Theme.of(context).disabledColor),
                               ),
-                              subtitle: Text(
-                                disabled
-                                    ? (it.assignedToMe ? 'Zugewiesen (du)' : 'Zugewiesen an: $assignedTo')
-                                    : it.email,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: disabled
-                                    ? TextStyle(color: Theme.of(context).disabledColor)
-                                    : TextStyle(color: Theme.of(context).textTheme.bodySmall?.color),
+                            )
+                          : Material(
+                              elevation: 0,
+                              child: ListView.separated(
+                                shrinkWrap: true,
+                                itemCount: view.length,
+                                separatorBuilder: (_, __) => const Divider(height: 1),
+                                itemBuilder: (_, i) {
+                                  final it = view[i];
+                                  final disabled = it.assigned;
+                                  final assignedTo = it.assigned
+                                      ? (it.assignedToMe
+                                          ? t.you ?? 'Du'
+                                          : (it.assigneeName?.isNotEmpty == true ? it.assigneeName! : (it.assigneeEmail ?? 'andere:r Vertreter')))
+                                      : null;
+                                  return RadioListTile<String>(
+                                    value: it.email,
+                                    groupValue: selectedEmail,
+                                    onChanged: disabled ? null : (v) => setLoc(() => selectedEmail = v),
+                                    title: Text(
+                                      it.label,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: disabled
+                                          ? TextStyle(color: Theme.of(context).disabledColor)
+                                          : null,
+                                    ),
+                                    subtitle: Text(
+                                      disabled ? (it.assignedToMe ? 'Zugewiesen (du)' : 'Zugewiesen an: $assignedTo') : it.email,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: disabled
+                                          ? TextStyle(color: Theme.of(context).disabledColor)
+                                          : TextStyle(color: Theme.of(context).textTheme.bodySmall?.color),
+                                    ),
+                                    secondary: disabled
+                                        ? const Icon(Icons.lock_outline, size: 18)
+                                        : const Icon(Icons.person_add_alt_1, size: 18),
+                                  );
+                                },
                               ),
-                              secondary: disabled
-                                  ? const Icon(Icons.lock_outline, size: 18)
-                                  : const Icon(Icons.person_add_alt_1, size: 18),
-                            );
-                          },
-                        ),
-                      ),
+                            ),
                     ),
                     if (errorText != null) ...[
                       const SizedBox(height: 8),
@@ -404,7 +428,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                   child: Text(t.cancel),
                 ),
                 ElevatedButton.icon(
-                  onPressed: saving ? null : save,
+                  onPressed: saving || view.isEmpty ? null : save,
                   icon: saving
                       ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                       : const Icon(Icons.add),
@@ -1237,7 +1261,7 @@ class _ComplaintTileState extends State<_ComplaintTile> {
         );
       }
       return Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: MainSize.min,
         children: [
           IconButton(tooltip: '${t.decision}: ${t.decision_accepted}', icon: const Icon(Icons.check_circle_outline), onPressed: () => widget.onDecision!(ticket, true)),
           IconButton(tooltip: '${t.decision}: ${t.decision_rejected}', icon: const Icon(Icons.cancel_outlined),   onPressed: () => widget.onDecision!(ticket, false)),
