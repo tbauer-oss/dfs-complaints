@@ -1549,7 +1549,8 @@ class _ComplaintTileState extends State<_ComplaintTile> {
                     const SizedBox(width: 8),
                     _StatusChip(status: status, decision: decision, closed: widget.isClosed),
                     const SizedBox(width: 6),
-                    _RepDecisionChip(repDecision: repDecision), // ← NEU: Vertreter-Ampel
+                    if ((repDecision).trim().isNotEmpty)
+                      _RepTrafficLight(opinion: repDecision, compact: true),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -1607,6 +1608,83 @@ class _InfoCapsule extends StatelessWidget {
         maxLines: 1,
         style: TextStyle(fontSize: 12.5, color: cs.onSurface.withOpacity(.9)),
       ),
+    );
+  }
+}
+
+// ======================================
+//  Ampel-Widget (wie Admin, 3 Lichter)
+// ======================================
+class _RepTrafficLight extends StatelessWidget {
+  /// opinion: 'accepted' | 'rejected' | 'pending' | ''/null -> keine Anzeige
+  final String? opinion;
+  final bool compact; // für enge Layouts (z. B. Zeile neben Status)
+  const _RepTrafficLight({required this.opinion, this.compact = false, super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final v = (opinion ?? '').trim().toLowerCase();
+    if (v.isEmpty) return const SizedBox.shrink(); // keine Ampel ohne Meinung
+
+    const colRed   = Colors.red;
+    const colAmber = Colors.amber;
+    const colGreen = Colors.green;
+
+    final onRed   = v == 'rejected';
+    final onGreen = v == 'accepted';
+    final onAmber = !(onRed || onGreen); // „pending“ / unklar → gelb
+
+    // falls irgendein exotischer Wert, Ampel weglassen
+    if (!(onRed || onAmber || onGreen)) return const SizedBox.shrink();
+
+    final size   = compact ? 10.0 : 12.0;
+    final gap    = compact ? 4.0  : 6.0;
+    final radius = size / 2;
+
+    Widget dot(Color c, bool on) => Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: on ? c : c.withOpacity(0.18),
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: on ? c : c.withOpacity(0.6), width: 1),
+        boxShadow: on ? [BoxShadow(color: c.withOpacity(0.45), blurRadius: 6)] : const [],
+      ),
+    );
+
+    String label;
+    Color labelColor;
+    if (onGreen)      { label = context.t.decision_accepted; labelColor = colGreen; }
+    else if (onRed)   { label = context.t.decision_rejected; labelColor = colRed; }
+    else              { label = context.t.no_decision_yet ?? 'Noch keine Entscheidung'; labelColor = colAmber; }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.35),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              dot(colRed, onRed),
+              SizedBox(height: gap),
+              dot(colAmber, onAmber),
+              SizedBox(height: gap),
+              dot(colGreen, onGreen),
+            ],
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          '${context.t.my_decision ?? 'Meine Bewertung'}: $label',
+          style: TextStyle(fontWeight: FontWeight.w700, color: labelColor, fontSize: compact ? 12 : 13),
+        ),
+      ],
     );
   }
 }
