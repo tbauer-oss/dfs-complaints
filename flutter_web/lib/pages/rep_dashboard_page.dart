@@ -27,7 +27,7 @@ class RepDashboardPage extends StatefulWidget {
 class _RepDashboardPageState extends State<RepDashboardPage> {
   Map<String, dynamic>? _me;
 
-  /// Kundenliste (aus Backend normalisiert)
+  /// Kundenliste (aus Backend normalisiert) – zugewiesene Kunden dieses Vertreters
   List<Map<String, Object?>> _customers = <Map<String, Object?>>[];
 
   /// Reklamationen (aus Backend)
@@ -42,15 +42,45 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   // neue Menü-/Seitenlogik
   _RepView _view = _RepView.menu;
 
-  // "Alle Reklamationen": Filter
-  String? _selectedCompany; // Dropdown-Filter (Firma)
+  // Firmenfilter (Dropdown) – gilt für „Alle Reklamationen“ und „Offene Reklamationen“
+  String? _selectedCompany;
   bool _showClosedAll = false;
   bool _showRejectedAll = false;
+
+  // "NEU"-Badges: lokal gemerkte "schon gesehen" Kunden (E-Mails als Key)
+  static const _seenKey = 'rep_seen_customers_v1';
+  late final Set<String> _seenCustomers;
 
   @override
   void initState() {
     super.initState();
+    _seenCustomers = _loadSeen();
     _loadAll();
+  }
+
+  Set<String> _loadSeen() {
+    try {
+      final raw = html.window.localStorage[_seenKey];
+      if (raw == null || raw.isEmpty) return <String>{};
+      final parts = raw.split(';').map((e) => e.trim().toLowerCase()).where((e) => e.isNotEmpty).toSet();
+      return parts;
+    } catch (_) {
+      return <String>{};
+    }
+  }
+
+  void _persistSeen() {
+    try {
+      html.window.localStorage[_seenKey] = _seenCustomers.join(';');
+    } catch (_) {}
+  }
+
+  void _markCustomerSeen(String email) {
+    final em = email.toLowerCase();
+    if (_seenCustomers.add(em)) {
+      _persistSeen();
+      if (mounted) setState(() {});
+    }
   }
 
   // Einheitliche 401/Unauthorized-Behandlung
@@ -149,26 +179,20 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     }
   }
 
-  // ---- Admin-gleiche „freie Kunden“-Quelle holen ----
+  // ---- Admin-gleiche „freie Kunden“-Quelle holen (identisch & live) ----
   Future<List<Map<String, String>>> _fetchAssignableCustomers() async {
-    final assignedEmails = _customers
-        .map((c) => (c['email'] ?? '').toString().toLowerCase())
-        .where((e) => e.isNotEmpty)
-        .toSet();
-
+    // Diese Liste liefert NUR Kunden ohne Vertreter – identisch zum Adminbereich
     List<Map<String, String>> _normalize(dynamic raw) {
       final List<Map<String, String>> out = [];
       if (raw is List) {
         for (final it in raw) {
           if (it is String) {
             final em = it.toLowerCase();
-            if (em.isNotEmpty && !assignedEmails.contains(em)) {
-              out.add({'email': em, 'label': it});
-            }
+            if (em.isNotEmpty) out.add({'email': em, 'label': it});
           } else if (it is Map) {
             String s(Object? v) => (v ?? '').toString();
             final em = s(it['email']).toLowerCase();
-            if (em.isEmpty || assignedEmails.contains(em)) continue;
+            if (em.isEmpty) continue;
             final company = s(it['company']);
             final name = s(it['name']);
             final label = company.isNotEmpty ? company : (name.isNotEmpty ? '$name • $em' : em);
@@ -183,12 +207,14 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     try {
       final dyn = widget.api as dynamic;
 
+      // 1) dedizierter Rep-Endpunkt (falls vorhanden)
       try {
         final r = await dyn.repAssignableCustomers();
         final list = _normalize(r);
         if (list.isNotEmpty) return list;
       } catch (_) {}
 
+      // 2) Admin-Endpunkte, die die „freien Kunden“ liefern (wie Adminbereich)
       try {
         final r = await dyn.adminAssignableCustomers();
         final list = _normalize(r);
@@ -201,42 +227,50 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         if (list.isNotEmpty) return list;
       } catch (_) {}
 
-      try {
-        final r = await dyn.getJson('/api/rep/assignable-customers');
-        final list = _normalize(r);
-        if (list.isNotEmpty) return list;
-      } catch (_) {}
+      // 3) Feste Routen (Fallbacks)
       try {
         final r = await dyn.getJson('/api/admin/reps/free-customers');
         final list = _normalize(r);
         if (list.isNotEmpty) return list;
       } catch (_) {}
+      try {
+        final r = await dyn.getJson('/api/admin/assignable-customers');
+        final list = _normalize(r);
+        if (list.isNotEmpty) return list;
+      } catch (_) {}
     } catch (_) {}
 
-    // Fallback
-    final Map<String, String> pool = {};
-    for (final c in _complaints) {
-      final em = (c['customerEmail'] ?? c['email'] ?? '').toString().toLowerCase();
-      if (em.isEmpty || assignedEmails.contains(em)) continue;
-      final co = _emailToCompany[em] ?? '';
-      pool[em] = co.isNotEmpty ? co : em;
-    }
-    for (final c in _customers) {
-      final em = (c['email'] ?? '').toString().toLowerCase();
-      if (em.isEmpty || assignedEmails.contains(em)) continue;
-      final co = (c['company'] ?? '').toString();
-      pool[em] = co.isNotEmpty ? co : em;
-    }
+    // Wenn wirklich nichts kommt: leere Liste → UI zeigt disabled Zuweisen
+    return <Map<String, String>>[];
+  }
 
-    final list = pool.entries
-        .map((e) => <String, String>{'email': e.key, 'label': e.value})
-        .toList()
-      ..sort((a, b) => a['label']!.toLowerCase().compareTo(b['label']!.toLowerCase()));
-    return list;
+  // Mail/Benachrichtigung an complaint@dfs-diamon.de bei Selbst-Zuweisung
+  Future<void> _notifySelfAssignment({required String customerEmail, required String? company}) async {
+    try {
+      final dyn = widget.api as dynamic;
+      final payload = {
+        'repEmail'    : _me?['email'] ?? '',
+        'repName'     : [ _me?['firstName'], _me?['lastName'] ].where((e) => (e ?? '').toString().isNotEmpty).join(' ').trim(),
+        'customerEmail': customerEmail,
+        'company'     : company ?? '',
+      };
+
+      // 1) Spezifische Methode, falls vorhanden
+      try { await dyn.repAssignmentNotify(payload); return; } catch (_) {}
+
+      // 2) Admin-Notify
+      try { await dyn.postJson('/api/admin/notify-rep-assignment', payload); return; } catch (_) {}
+
+      // 3) Alternative Route
+      try { await dyn.postJson('/api/rep/assignment/notify', payload); return; } catch (_) {}
+    } catch (_) {
+      // still ok – UI muss weiterlaufen
+    }
   }
 
   Future<void> _assignCustomerDialog() async {
     String? selectedEmail;
+    String? selectedLabel;
     String? locErr;
     bool saving = false;
 
@@ -254,17 +288,21 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             (ctx as Element).markNeedsBuild();
             return;
           }
-          final already = _customers.any((c) => ((c['email'] ?? '').toString().toLowerCase() == selectedEmail));
-          if (already) {
-            locErr = t.customer_already_assigned ?? 'Kunde bereits zugewiesen';
-            (ctx as Element).markNeedsBuild();
-            return;
-          }
 
           saving = true;
           (ctx as Element).markNeedsBuild();
           try {
             await widget.api.repAssignCustomer(selectedEmail!);
+
+            // NEW-Badge für frisch zugewiesenen Kunden erst entfernt,
+            // wenn der Vertreter den Eintrag erstmals öffnet → hier NICHT _markCustomerSeen.
+
+            // Admin-Notify (Selbstzuweisung)
+            await _notifySelfAssignment(
+              customerEmail: selectedEmail!,
+              company: selectedLabel,
+            );
+
             if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
             await _loadAll();
           } catch (e) {
@@ -293,6 +331,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                         return DropdownMenuItem<String>(
                           value: opt['email'],
                           child: Text(opt['label']!),
+                          onTap: () {
+                            selectedLabel = opt['label'];
+                          },
                         );
                       }).toList(),
                 onChanged: (v) => selectedEmail = v,
@@ -335,7 +376,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       if (!mounted) return;
       if (!handled) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${context.t.error ?? 'Fehler'}: $e')),
+          SnackBar(content: Text('${context.t.error ?? 'Fehler'}: $e')) },
         );
       }
     }
@@ -352,7 +393,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${context.t.error ?? 'Fehler'}: $e')),
+        SnackBar(content: Text('${context.t.error ?? 'Fehler'}: $e')) },
       );
     }
   }
@@ -612,7 +653,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // NEU: Filterleiste mit Firmen-Dropdown
+        // Filterleiste
         Card(
           elevation: 3,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -801,45 +842,83 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
               physics: const BouncingScrollPhysics(),
               itemBuilder: (_, i) {
                 final c = _customers[i];
-                return ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  leading: const Icon(Icons.apartment_outlined),
-                  title: Text(
-                    (() {
-                      final comp = (c['company'] ?? '').toString();
-                      final nm   = (c['name'] ?? '').toString();
-                      final em   = (c['email'] ?? '').toString();
-                      if (comp.isNotEmpty) return comp;
-                      if (nm.isNotEmpty)   return nm;
-                      return em;
-                    })(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: Text(
-                    (() {
-                      final nm = (c['name'] ?? '').toString();
-                      final em = (c['email'] ?? '').toString();
-                      if (nm.isNotEmpty && em.isNotEmpty) return '$nm • $em';
-                      return nm.isNotEmpty ? nm : em;
-                    })(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: Wrap(
-                    spacing: 8,
-                    children: [
-                      IconButton(
-                        tooltip: 'Details',
-                        icon: const Icon(Icons.info_outline),
-                        onPressed: () => _showCustomerDetails(c),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.link_off),
-                        tooltip: t.deleteAdd,
-                        onPressed: () => _unassignCustomer((c['email'] ?? '').toString()),
-                      ),
-                    ],
+                final email = (c['email'] ?? '').toString();
+                final isNew = !_seenCustomers.contains(email.toLowerCase());
+
+                return InkWell(
+                  onTap: () {
+                    // Beim ersten Öffnen → NEW weg
+                    _markCustomerSeen(email);
+                    _showCustomerDetails(c);
+                  },
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    leading: const Icon(Icons.apartment_outlined),
+                    title: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            (() {
+                              final comp = (c['company'] ?? '').toString();
+                              final nm   = (c['name'] ?? '').toString();
+                              final em   = email;
+                              if (comp.isNotEmpty) return comp;
+                              if (nm.isNotEmpty)   return nm;
+                              return em;
+                            })(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (isNew) const SizedBox(width: 8),
+                        if (isNew)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withOpacity(.15),
+                              border: Border.all(color: Colors.orange),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: const Text(
+                              'NEW',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 11,
+                                color: Colors.orange,
+                                letterSpacing: .4,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    subtitle: Text(
+                      (() {
+                        final nm = (c['name'] ?? '').toString();
+                        final em = email;
+                        if (nm.isNotEmpty && em.isNotEmpty) return '$nm • $em';
+                        return nm.isNotEmpty ? nm : em;
+                      })(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: Wrap(
+                      spacing: 8,
+                      children: [
+                        IconButton(
+                          tooltip: 'Details',
+                          icon: const Icon(Icons.info_outline),
+                          onPressed: () {
+                            _markCustomerSeen(email);
+                            _showCustomerDetails(c);
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.link_off),
+                          tooltip: t.deleteAdd,
+                          onPressed: () => _unassignCustomer(email),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               },
@@ -897,6 +976,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             busy = true;
             (ctx as Element).markNeedsBuild();
             try {
+              // Server erwartet nur neues Passwort? (gemäß bisherigem Client)
               await widget.api.repChangePassword(n1);
               if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
               if (!mounted) return;
