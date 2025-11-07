@@ -43,7 +43,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   _RepView _view = _RepView.menu;
 
   // "Alle Reklamationen": Filter
-  final TextEditingController _companyCtrl = TextEditingController();
+  String? _selectedCompany; // Dropdown-Filter (Firma)
   bool _showClosedAll = false;
   bool _showRejectedAll = false;
 
@@ -149,10 +149,47 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     }
   }
 
+  // ---- helper: vorhandene (bekannte) Kunden-Auswahlliste (wie im Adminbereich) ----
+  // Quelle: alle in Reklamationen vorkommenden Kunden + ggf. bereits zugewiesene (vereinheitlicht)
+  List<Map<String, String>> _knownCustomerOptions() {
+    final assignedEmails = _customers
+        .map((c) => (c['email'] ?? '').toString().toLowerCase())
+        .where((e) => e.isNotEmpty)
+        .toSet();
+
+    // Kandidaten aus allen Reklamationen sammeln
+    final Map<String, String> pool = {};
+    for (final c in _complaints) {
+      final em = (c['customerEmail'] ?? c['email'] ?? '').toString().toLowerCase();
+      if (em.isEmpty) continue;
+      final co = _emailToCompany[em] ?? '';
+      // Anzeigename: Firma, sonst E-Mail
+      pool[em] = co.isNotEmpty ? co : em;
+    }
+    // Auch evtl. bekannte Kunden einmischen (falls ohne Reklamationen)
+    for (final c in _customers) {
+      final em = (c['email'] ?? '').toString().toLowerCase();
+      if (em.isEmpty) continue;
+      final co = (c['company'] ?? '').toString();
+      pool[em] = co.isNotEmpty ? co : em;
+    }
+
+    // Nur Kunden, die noch NICHT zugewiesen sind (doppelte Vergabe sperren)
+    final remaining = pool.entries
+        .where((e) => !assignedEmails.contains(e.key))
+        .map((e) => <String, String>{'email': e.key, 'label': e.value})
+        .toList();
+
+    remaining.sort((a, b) => a['label']!.toLowerCase().compareTo(b['label']!.toLowerCase()));
+    return remaining;
+  }
+
   Future<void> _assignCustomerDialog() async {
-    final ctrl = TextEditingController();
+    String? selectedEmail;
     String? locErr;
     bool saving = false;
+
+    final options = _knownCustomerOptions();
 
     await showDialog(
       context: context,
@@ -161,16 +198,23 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
         Future<void> save() async {
           if (saving) return;
-          final mail = ctrl.text.trim().toLowerCase();
-          if (mail.isEmpty || !mail.contains('@')) {
-            locErr = t.correctMail;
+          if (selectedEmail == null || selectedEmail!.isEmpty) {
+            locErr = t.selectCustomer ?? 'Bitte Kunden auswählen';
             (ctx as Element).markNeedsBuild();
             return;
           }
+          // doppelte Vergabe clientseitig blocken
+          final already = _customers.any((c) => ((c['email'] ?? '').toString().toLowerCase() == selectedEmail));
+          if (already) {
+            locErr = t.customer_already_assigned ?? 'Kunde bereits zugewiesen';
+            (ctx as Element).markNeedsBuild();
+            return;
+          }
+
           saving = true;
           (ctx as Element).markNeedsBuild();
           try {
-            await widget.api.repAssignCustomer(mail);
+            await widget.api.repAssignCustomer(selectedEmail!);
             if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
             await _loadAll();
           } catch (e) {
@@ -185,13 +229,28 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
-                controller: ctrl,
-                decoration: InputDecoration(labelText: t.customerMail ?? 'Kunden-E-Mail'),
+              DropdownButtonFormField<String>(
+                isExpanded: true,
+                value: selectedEmail,
+                items: options.map((opt) {
+                  return DropdownMenuItem<String>(
+                    value: opt['email'],
+                    child: Text(opt['label']!),
+                  );
+                }).toList(),
+                onChanged: (v) {
+                  selectedEmail = v;
+                },
+                decoration: InputDecoration(
+                  labelText: t.chooseCustomer ?? 'Kunde wählen',
+                ),
               ),
               if (locErr != null) ...[
                 const SizedBox(height: 8),
-                Text(locErr!, style: const TextStyle(color: Colors.red)),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(locErr!, style: const TextStyle(color: Colors.red)),
+                ),
               ],
             ],
           ),
@@ -281,16 +340,22 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   Map<String, String> get _emailToCompany {
     final m = <String, String>{};
     for (final c in _customers) {
-      final em = (c['email'] ?? '').toString();
+      final em = (c['email'] ?? '').toString().toLowerCase();
       final co = (c['company'] ?? '').toString();
       if (em.isNotEmpty && co.isNotEmpty) m[em] = co;
+    }
+    // Fallback: auch aus Complaints bekannte Zuordnung merken (falls Firma bekannt)
+    for (final c in _complaints) {
+      final em = (c['customerEmail'] ?? c['email'] ?? '').toString().toLowerCase();
+      final co = (c['payload']?['company'] ?? '').toString();
+      if (em.isNotEmpty && co.isNotEmpty) m.putIfAbsent(em, () => co);
     }
     return m;
   }
 
   // ------ Anzeige-Helper ------
   String _displayCustomerFor(Map<String, dynamic> c) {
-    final em = (c['customerEmail'] ?? c['email'] ?? '').toString();
+    final em = (c['customerEmail'] ?? c['email'] ?? '').toString().toLowerCase();
     final co = _emailToCompany[em] ?? '';
     return co.isNotEmpty ? co : em;
   }
@@ -500,7 +565,13 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   // ---- Seite: Alle Reklamationen ----
   Widget _buildAllComplaints() {
     final t = context.t;
-    final query = _companyCtrl.text.trim().toLowerCase();
+
+    // Firmenliste aus Mapping ableiten
+    final companies = _emailToCompany.values
+        .where((s) => s.trim().isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
     List<Map<String, dynamic>> list = List<Map<String, dynamic>>.from(_complaints);
 
@@ -510,11 +581,11 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     if (_showRejectedAll) {
       list = list.where(_isRejected).toList();
     }
-    if (query.isNotEmpty) {
+    if ((_selectedCompany ?? '').isNotEmpty) {
       list = list.where((c) {
-        final em = (c['customerEmail'] ?? c['email'] ?? '').toString();
-        final co = (_emailToCompany[em] ?? '').toLowerCase();
-        return co.contains(query);
+        final em = (c['customerEmail'] ?? c['email'] ?? '').toString().toLowerCase();
+        final co = (_emailToCompany[em] ?? '');
+        return co == _selectedCompany;
       }).toList();
     }
 
@@ -533,13 +604,24 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 SizedBox(
-                  width: 280,
-                  child: TextField(
-                    controller: _companyCtrl,
-                    onChanged: (_) => setState(() {}),
+                  width: 320,
+                  child: DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    value: _selectedCompany,
+                    items: <DropdownMenuItem<String>>[
+                      DropdownMenuItem<String>(
+                        value: '',
+                        child: Text(t.allCompanies ?? 'Alle Firmen'),
+                      ),
+                      ...companies.map((co) => DropdownMenuItem<String>(
+                            value: co,
+                            child: Text(co),
+                          )),
+                    ],
+                    onChanged: (v) => setState(() => _selectedCompany = (v ?? '')),
                     decoration: const InputDecoration(
                       labelText: 'Firmenname filtern',
-                      prefixIcon: Icon(Icons.search),
+                      prefixIcon: Icon(Icons.apartment_outlined),
                     ),
                   ),
                 ),
@@ -667,7 +749,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         MaterialPageRoute(
           builder: (_) => RepProfilePage(
             api: widget.api,
-            hidePasswordSection: true, // << neu: Passwortbereich ausblenden
+            hidePasswordSection: true, // Passwortbereich ausblenden
           ),
         ),
       );
@@ -688,7 +770,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         builder: (ctx) {
           Future<void> _submit() async {
             if (busy) return;
-            final oldPw = oldCtrl.text;
+            final oldPw = oldCtrl.text; // wird aktuell nicht an die API gegeben, bleibt aber im UI
             final n1 = new1Ctrl.text;
             final n2 = new2Ctrl.text;
             if (oldPw.isEmpty || n1.isEmpty || n2.isEmpty) {
@@ -704,8 +786,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             busy = true;
             (ctx as Element).markNeedsBuild();
             try {
-              // API erwartet offenbar nur das neue Passwort (siehe Build-Fehler)
-              await widget.api.repChangePassword(n1);
+              await widget.api.repChangePassword(n1); // laut aktueller Client-API
               if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
               if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.saved)));
@@ -769,7 +850,6 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Column(
         children: [
-          // Kopfzeile entfällt (kein doppelter Titel)
           ListTile(
             leading: const Icon(Icons.manage_accounts_outlined),
             title: Text(labelProfile),
@@ -781,7 +861,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             leading: const Icon(Icons.lock_reset_outlined),
             title: Text(labelPassword),
             trailing: const Icon(Icons.chevron_right),
-            onTap: _openPasswordChange, // eigener Dialog nur fürs Passwort
+            onTap: _openPasswordChange,
           ),
         ],
       ),
@@ -1036,10 +1116,8 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     final status   = (widget.data['status'] ?? '').toString();
     final decision = (widget.data['decision'] ?? '').toString();
 
-    final createdRaw   = widget.data['createdAt'] ?? widget.data['created'] ?? '';
-    final created      = widget.createdOverride ?? createdRaw.toString();
-    final customerRaw  = (widget.data['customerEmail'] ?? widget.data['email'] ?? '').toString();
-    final customer     = widget.customerOverride ?? customerRaw;
+    final created   = widget.createdOverride ?? (widget.data['createdAt'] ?? widget.data['created'] ?? '').toString();
+    final customer  = widget.customerOverride ?? (widget.data['customerEmail'] ?? widget.data['email'] ?? '').toString();
 
     // kleine Punkt-Buttons (Gradient + Hover)
     Widget _dotButton({
