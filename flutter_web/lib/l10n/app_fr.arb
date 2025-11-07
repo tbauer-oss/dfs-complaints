@@ -20,6 +20,8 @@
   "theme_light": "Clair",
   "theme_dark": "Sombre",
 
+  "assigned_to": "attribué à",
+  "assigned": "attribué",
   "you": "Vous",
   "profile_edit": "Modifier le profil",
   "@profile_edit": { "description": "Élément de menu : modifier les informations du profil" },
