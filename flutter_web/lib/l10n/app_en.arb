@@ -20,6 +20,8 @@
   "theme_light": "Light",
   "theme_dark": "Dark",
 
+  "assigned_to": "assigned to",
+  "assigned": "assigned",
   "you": "You",
   "approve": "Approve",
   "reject": "Reject",
