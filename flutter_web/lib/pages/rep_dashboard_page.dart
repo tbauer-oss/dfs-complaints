@@ -100,8 +100,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   }
 
   // ---- Admin-gleiche „freie Kunden“-Quelle holen (identisch & live) ----
-  // NEU: zieht jetzt aus /api/rep/assignable-customers
-  // (funktioniert mit und ohne ?all=1, mit Array ODER {items:[…]})
+  // NEU: zieht jetzt aus /api/rep/assignable-customers?all=1
+  // und liefert: email, label, assigned(bool), assignedToLabel (String)
   Future<void> _loadAll() async {
     setState(() {
       _loading = true;
@@ -185,23 +185,16 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     }
   }
 
-  // -------- FIX: robuste Quelle für zuweisbare Kunden -------------
+  // ======= FEHLENDE METHODE (jetzt ergänzt) =======
   Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
-    await widget.api.ensureRepSession();
-
-    List<Map<String, Object?>> normalize(dynamic data) {
-      // akzeptiert: List [...], Map {items:[...]}
-      final list = (data is List)
-          ? data
-          : (data is Map && data['items'] is List)
-              ? (data['items'] as List)
-              : const <dynamic>[];
-
-      final out = <Map<String, Object?>>[];
-
+    List<Map<String, Object?>> normalize(dynamic raw) {
+      final List<Map<String, Object?>> out = [];
+      final list = (raw is List)
+          ? raw
+          : (raw is Map && raw['items'] is List ? raw['items'] as List : const []);
       for (final it in list) {
         if (it is String) {
-          final email = it.trim().toLowerCase();
+          final email = it.toLowerCase();
           if (email.isEmpty) continue;
           out.add({
             'email': email,
@@ -220,12 +213,13 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
               ? company
               : (name.isNotEmpty ? '$name • $email' : email);
 
-          final assigned = it['assigned'] == true || s(it['assigned']) == 'true';
-          final assignedToName  = s(it['assignedToName']);
-          final assignedToEmail = s(it['assignedToEmail']);
-          final assignedToLabel = assignedToName.isNotEmpty
-              ? assignedToName
-              : (assignedToEmail.isNotEmpty ? assignedToEmail : s(it['assignedTo']));
+          final assigned = (it['assigned'] == true) ||
+                           (s(it['assigned']).toLowerCase() == 'true');
+
+          final assignedToLabel =
+              s(it['assignedToName']).isNotEmpty ? s(it['assignedToName'])
+            : s(it['assignedToEmail']).isNotEmpty ? s(it['assignedToEmail'])
+            : s(it['assignedTo']);
 
           out.add({
             'email': email,
@@ -235,43 +229,43 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
           });
         }
       }
-
-      // freie zuerst, dann alphabetisch
       out.sort((a, b) {
         final aa = (a['assigned'] == true);
         final bb = (b['assigned'] == true);
-        if (aa != bb) return aa ? 1 : -1;
+        if (aa != bb) return aa ? 1 : -1; // freie zuerst
         return (a['label'] as String).toLowerCase().compareTo((b['label'] as String).toLowerCase());
       });
-
       return out;
     }
 
-    final dyn = widget.api as dynamic;
-
-    // 1) neue Rep-Route mit all=1
     try {
-      final r1 = await dyn.getJson('/api/rep/assignable-customers?all=1');
-      final list = normalize(r1);
-      if (list.isNotEmpty) return list;
-    } catch (_) {}
+      final dyn = widget.api as dynamic;
 
-    // 2) ohne all=1 (falls dein Handler optional filtert)
-    try {
-      final r2 = await dyn.getJson('/api/rep/assignable-customers');
-      final list = normalize(r2);
-      if (list.isNotEmpty) return list;
-    } catch (_) {}
+      // 1) Primär: Rep-Route
+      try {
+        final r = await dyn.getJson('/api/rep/assignable-customers?all=1');
+        final list = normalize(r);
+        if (list.isNotEmpty) return list;
+      } catch (_) {}
 
-    // 3) Fallback: Admin-Spiegel (falls nur dort verfügbar)
-    try {
-      final r3 = await dyn.getJson('/api/admin/assignable-customers?all=1');
-      final list = normalize(r3);
-      if (list.isNotEmpty) return list;
+      // 2) Fallback: ohne all=1
+      try {
+        final r = await dyn.getJson('/api/rep/assignable-customers');
+        final list = normalize(r);
+        if (list.isNotEmpty) return list;
+      } catch (_) {}
+
+      // 3) Admin-Fallback
+      try {
+        final r = await dyn.getJson('/api/admin/assignable-customers?all=1');
+        final list = normalize(r);
+        if (list.isNotEmpty) return list;
+      } catch (_) {}
     } catch (_) {}
 
     return <Map<String, Object?>>[];
   }
+  // ======= /FEHLENDE METHODE =======
 
   // Mail/Benachrichtigung an complaint@dfs-diamon.de bei Selbst-Zuweisung
   Future<void> _notifySelfAssignment({required String customerEmail, required String? company}) async {
