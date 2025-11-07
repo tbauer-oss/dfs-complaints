@@ -20,6 +20,8 @@
   "theme_light": "Hell",
   "theme_dark": "Dunkel",
 
+  "my_decision": "Meine Bewertung",
+  "no_decision_yet": "Noch keine Entscheidung",
   "search": "Suchen…",
   "free": "Frei",
   "assigned_to": "zugewiesen an",
