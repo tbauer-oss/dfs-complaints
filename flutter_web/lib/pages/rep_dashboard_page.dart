@@ -185,6 +185,72 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     }
   }
 
+  // ------- Fehlende Methode ergänzt (für das Auswahl-Sheet) -------
+  // Liefert Liste von auswählbaren Kunden mit Markierung "assigned".
+  // Primär neue Rep-Route, Fallbacks optional.
+  Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
+    List<Map<String, Object?>> normalize(dynamic raw) {
+      final List<Map<String, Object?>> out = [];
+      if (raw is List) {
+        for (final it in raw) {
+          if (it is Map) {
+            String s(Object? v) => (v ?? '').toString();
+            final email = s(it['email']).toLowerCase();
+            if (email.isEmpty) continue;
+
+            final company = s(it['company']);
+            final name    = s(it['name']);
+            final label   = company.isNotEmpty
+                ? company
+                : (name.isNotEmpty ? '$name • $email' : email);
+
+            final assigned = (it['assigned'] == true);
+            final assignedToName  = s(it['assignedToName']);
+            final assignedToEmail = s(it['assignedToEmail']);
+            final assignedToLabel = assignedToName.isNotEmpty
+                ? assignedToName
+                : (assignedToEmail.isNotEmpty ? assignedToEmail : s(it['assignedTo']));
+
+            out.add({
+              'email': email,
+              'label': label,
+              'assigned': assigned,
+              'assignedToLabel': assignedToLabel,
+            });
+          }
+        }
+      }
+      // zuerst frei, dann alphabetisch
+      out.sort((a, b) {
+        final aa = (a['assigned'] == true);
+        final bb = (b['assigned'] == true);
+        if (aa != bb) return aa ? 1 : -1;
+        return (a['label'] as String).toLowerCase().compareTo((b['label'] as String).toLowerCase());
+      });
+      return out;
+    }
+
+    try {
+      final dyn = widget.api as dynamic;
+
+      // 1) Neue Rep-Route – zeigt alle, markiert assigned
+      try {
+        final r = await dyn.getJson('/api/rep/assignable-customers?all=1');
+        final list = normalize(r);
+        if (list.isNotEmpty) return list;
+      } catch (_) {}
+
+      // 2) Fallbacks (optional – nur falls du solche Endpunkte hast)
+      try {
+        final r = await dyn.getJson('/api/admin/assignable-customers?all=1');
+        final list = normalize(r);
+        if (list.isNotEmpty) return list;
+      } catch (_) {}
+    } catch (_) {}
+
+    return [];
+  }
+
   // Mail/Benachrichtigung an complaint@dfs-diamon.de bei Selbst-Zuweisung
   Future<void> _notifySelfAssignment({required String customerEmail, required String? company}) async {
     try {
