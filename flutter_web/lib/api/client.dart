@@ -290,6 +290,23 @@ class ApiClient {
     }
   }
 
+  // lib/api/client.dart (ergänzen)
+  Future<void> repDecisionReset({required String ticket}) async {
+    final url = '$_apiBase/api/rep/decision/reset';
+    final headers = await _authHeaders(rep:true); // wie bei deinen anderen rep-Calls
+    final r = await http.post(
+      Uri.parse(url),
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'ticket': ticket}),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+  }
+
   Future<Map<String, dynamic>> repMe() async {
     final r = await _repFetch('/api/rep/me');
     if (!_ok2xx(r.statusCode)) {
