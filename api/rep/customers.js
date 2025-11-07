@@ -24,37 +24,46 @@ export default async function handler(req, res) {
       return res.status(401).end(JSON.stringify({ error: 'unauthorized' }));
     }
 
-    // 3) POST: assign / unassign  (→ nur hier minimal gehärtet)
+    // 3) POST: assign / unassign
     if (req.method === 'POST') {
+      const WANT_DEBUG = String(req.headers['x-debug'] || '').toLowerCase() === '1';
+      const dbg = (obj) => {
+        if (!WANT_DEBUG) return;
+        try { return JSON.stringify(obj, null, 2); } catch { return String(obj); }
+      };
+
       try {
         let body = {};
         try {
           body = typeof req.body === 'string'
             ? JSON.parse(req.body || '{}')
             : (req.body || {});
-        } catch {}
-
-        // NEU: action/op + email/customerEmail akzeptieren
-        const action = (S(body.action || body.op)).toLowerCase();
-        const email  = S(body.email || body.customerEmail).toLowerCase();
-
-        if (!action) {
-          return res.status(400).end(JSON.stringify({ error: 'invalid action' }));
-        }
-        if (!email || !isEmail(email)) {
-          return res.status(400).end(JSON.stringify({ error: 'invalid email' }));
+        } catch (e) {
+          console.error('[rep/customers] JSON parse failed:', e);
+          return res.status(400).end(JSON.stringify({ error: 'invalid json', ...(WANT_DEBUG ? { details: String(e) } : {}) }));
         }
 
-        // NEU: Kunde muss existieren – sonst 404 statt 500
+        // Aliasse zulassen
+        const action = ( (body.action ?? body.op) ?? '' ).toString().trim().toLowerCase();
+        const email  = ( (body.email  ?? body.customerEmail) ?? '' ).toString().trim().toLowerCase();
+
+        if (!action || !['assign','unassign'].includes(action)) {
+          return res.status(400).end(JSON.stringify({ error: 'invalid action', ...(WANT_DEBUG ? { body: dbg(body) } : {}) }));
+        }
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          return res.status(400).end(JSON.stringify({ error: 'invalid email', ...(WANT_DEBUG ? { email } : {}) }));
+        }
+
+        // Optionaler Existenz-Check (nicht abstürzen, nur 404 wenn sicher leer)
         try {
           const { userByEmail } = await import('../_lib/store.js');
           const u = await userByEmail(email);
           if (!u) {
-            return res.status(404).end(JSON.stringify({ error: 'customer not found' }));
+            return res.status(404).end(JSON.stringify({ error: 'customer not found', ...(WANT_DEBUG ? { email } : {}) }));
           }
         } catch (e) {
-          // Wenn store nicht verfügbar → nicht hart abbrechen, aber loggen
-          console.warn('[rep/customers] userByEmail check skipped:', e?.message || e);
+          // Store kann in Previews fehlen → nur loggen, trotzdem fortfahren
+          if (WANT_DEBUG) console.warn('[rep/customers] userByEmail skipped:', e?.message || e);
         }
 
         const { repAssign, repUnassign } = await import('../_lib/repsStore.js');
@@ -64,16 +73,15 @@ export default async function handler(req, res) {
             await repAssign(auth.repId, email);
             return res.status(204).end();
           } catch (e) {
-            // typische Konflikte sauber mappen
-            const msg = (e?.message || '').toString().toLowerCase();
+            const msg = (e?.message || String(e)).toLowerCase();
             if (msg.includes('already') || msg.includes('assigned')) {
-              return res.status(409).end(JSON.stringify({ error: 'already assigned' }));
+              return res.status(409).end(JSON.stringify({ error: 'already assigned', ...(WANT_DEBUG ? { details: String(e) } : {}) }));
             }
             if (msg.includes('not found') || msg.includes('unknown')) {
-              return res.status(404).end(JSON.stringify({ error: 'customer not found' }));
+              return res.status(404).end(JSON.stringify({ error: 'customer not found', ...(WANT_DEBUG ? { details: String(e) } : {}) }));
             }
             console.error('[rep/customers] repAssign error:', e);
-            return res.status(500).end(JSON.stringify({ error: 'server error' }));
+            return res.status(500).end(JSON.stringify({ error: 'server error', ...(WANT_DEBUG ? { where:'repAssign', details: String(e) } : {}) }));
           }
         }
 
@@ -82,20 +90,21 @@ export default async function handler(req, res) {
             await repUnassign(auth.repId, email);
             return res.status(204).end();
           } catch (e) {
-            const msg = (e?.message || '').toString().toLowerCase();
-            if (msg.includes('not found') || msg.includes('unknown')) {
-              // unassign von „nicht zugewiesen“ ist idempotent
+            const msg = (e?.message || String(e)).toLowerCase();
+            // "nicht zugewiesen" behandeln wir idempotent als ok
+            if (msg.includes('not found') || msg.includes('unknown') || msg.includes('no assignment')) {
               return res.status(204).end();
             }
             console.error('[rep/customers] repUnassign error:', e);
-            return res.status(500).end(JSON.stringify({ error: 'server error' }));
+            return res.status(500).end(JSON.stringify({ error: 'server error', ...(WANT_DEBUG ? { where:'repUnassign', details: String(e) } : {}) }));
           }
         }
 
+        // sollte wegen includes() nie erreicht werden
         return res.status(400).end(JSON.stringify({ error: 'invalid action' }));
       } catch (e) {
-        console.error('[rep/customers] POST error:', e);
-        return res.status(500).end(JSON.stringify({ error: 'server error' }));
+        console.error('[rep/customers] POST fatal:', e);
+        return res.status(500).end(JSON.stringify({ error: 'server error', ...(WANT_DEBUG ? { where:'post-catch', details: String(e) } : {}) }));
       }
     }
 
