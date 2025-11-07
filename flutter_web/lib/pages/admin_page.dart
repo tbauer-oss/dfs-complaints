@@ -2708,31 +2708,24 @@ class _AdminTileProState extends State<AdminTilePro> {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // Akzent bleibt dein colorB
     final accent = widget.colorB;
-
-    // Basisfläche: an Surface andocken und Akzent nur leicht einblenden
-    // Light: weiche, helle Kachel mit sanftem Akzent
-    // Dark: SurfaceContainer + minimaler Akzentfilm
     final baseSurface = isDark ? cs.surfaceContainerHighest : cs.surface;
     final bgA = _blend(baseSurface, accent, isDark ? 0.08 : 0.06);
     final bgB = _blend(baseSurface, accent, isDark ? 0.04 : 0.00);
 
-    // Icon-Farbe: im Light ruhig Akzent, im Dark etwas gedämpft aber weiterhin Akzent-basiert
     final iconColor = isDark ? _blend(accent, cs.onSurface, 0.20) : accent;
-  
-    // Titel-/Untertitel-Farben
     final titleColor = cs.onSurface;
     final subtitleColor = cs.onSurfaceVariant;
 
-    // Badge (Zähler) – volle Akzentfläche, Text automatisch kontrastierend
     final badgeBg = accent;
     final badgeFg = _bestOnColor(badgeBg);
 
-    final br = BorderRadius.circular(12);
-    final liftY = _hovering ? -6.0 : 0.0;
-    final scale = _hovering ? 1.01 : 1.0;
-    final elevation = _hovering ? 10.0 : 2.0;
+    final br = BorderRadius.circular(14);
+    final liftY = _hovering ? -7.0 : 0.0;
+    final scale = _hovering ? 1.015 : 1.0;
+    final elevation = _hovering ? 12.0 : 3.0;
+
+    final iconSize = widget.compact ? 44.0 : 54.0;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -2751,35 +2744,29 @@ class _AdminTileProState extends State<AdminTilePro> {
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: br,
-                // sanfter Verlauf innerhalb der selben Surface-Welt
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [bgA, bgB],
                 ),
-                // feine Outline für Dark (hilft gegen „Matsch“)
                 border: Border.all(
                   color: isDark ? cs.outlineVariant.withOpacity(0.35) : cs.outlineVariant.withOpacity(0.25),
                 ),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      Icon(
-                        widget.icon,
-                        size: widget.compact ? 36 : 44,
-                        color: iconColor,
-                      ),
+                      Icon(widget.icon, size: iconSize, color: iconColor),
                       if (widget.count != null)
                         Positioned(
                           right: -6,
                           top: -6,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
                             decoration: BoxDecoration(
                               color: badgeBg,
                               borderRadius: BorderRadius.circular(999),
@@ -2797,25 +2784,32 @@ class _AdminTileProState extends State<AdminTilePro> {
                               style: TextStyle(
                                 color: badgeFg,
                                 fontWeight: FontWeight.w700,
-                                fontSize: 12,
+                                fontSize: 12.5,
                               ),
                             ),
                           ),
                         ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
                   Text(
                     widget.label,
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontWeight: FontWeight.w700, color: titleColor),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: titleColor,
+                      fontSize: 15.5,
+                    ),
                   ),
                   if ((widget.subtitle ?? '').isNotEmpty) ...[
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     Text(
                       widget.subtitle!,
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: subtitleColor, fontSize: 12.5),
+                      style: TextStyle(
+                        color: subtitleColor,
+                        fontSize: 13.0,
+                      ),
                     ),
                   ],
                 ],
@@ -2826,7 +2820,6 @@ class _AdminTileProState extends State<AdminTilePro> {
       ),
     );
   }
-}
 
 class DfsStatusPalette {
   static const entered     = Color(0xFF6E7B91); // 1
