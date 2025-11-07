@@ -277,7 +277,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     }
   }
 
-  // Mapping E-Mail -> Firma (für Firmenfilter in "Alle Reklamationen")
+  // Mapping E-Mail -> Firma (für Firmenanzeige)
   Map<String, String> get _emailToCompany {
     final m = <String, String>{};
     for (final c in _customers) {
@@ -286,6 +286,38 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       if (em.isNotEmpty && co.isNotEmpty) m[em] = co;
     }
     return m;
+  }
+
+  // ------ Helpers für Anzeige ------
+  String _displayCustomerFor(Map<String, dynamic> c) {
+    final em = (c['customerEmail'] ?? c['email'] ?? '').toString();
+    final co = _emailToCompany[em] ?? '';
+    return co.isNotEmpty ? co : em;
+  }
+
+  String _formatCreated(dynamic v) {
+    final s = v?.toString() ?? '';
+    if (s.isEmpty) return s;
+    int? ms;
+    // Zahl?
+    final n = int.tryParse(s);
+    if (n != null) {
+      // Sekunden vs. Millisekunden heuristisch
+      ms = n > 20000000000 ? n : n * 1000;
+    }
+    if (ms != null) {
+      final dt = DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true).toLocal();
+      String two(int x) => x < 10 ? '0$x' : '$x';
+      return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}';
+    }
+    // ISO-String?
+    DateTime? dt;
+    try { dt = DateTime.parse(s).toLocal(); } catch (_) {}
+    if (dt != null) {
+      String two(int x) => x < 10 ? '0$x' : '$x';
+      return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}';
+    }
+    return s;
   }
 
   // -------- UI --------
@@ -373,43 +405,18 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     );
   }
 
-  // ---- Menü mit „schönen“ Kacheln im Admin-Stil ----
+  // ---- Menü (kompakt skaliert, siehe voriges Update) ----
   Widget _buildMenu(int allCount, int openCount, int rejectedCount, int finishedCount) {
     return LayoutBuilder(builder: (ctx, c) {
       final width = c.maxWidth;
-
-      // kompakter auf allen Breakpoints (auch Desktop)
       final gridCount = width >= 1200 ? 4 : width >= 900 ? 3 : width >= 600 ? 2 : 1;
-
-      // Höheres AspectRatio auf großen Screens -> flachere/kleinere Kacheln
-      final aspect = width >= 1400
-          ? 1.70
-          : width >= 1100
-              ? 1.60
-              : width >= 900
-                  ? 1.55
-                  : width >= 600
-                      ? 1.45
-                      : width >= 480
-                          ? 1.50
-                          : 1.75;
-
-      // Skaliert die internen Abmessungen der Kachel überall leicht runter
-      final scale = width >= 1400
-          ? 0.84
-          : width >= 1100
-              ? 0.88
-              : width >= 900
-                  ? 0.90
-                  : width >= 600
-                      ? 0.95
-                      : 1.00;
-
+      final aspect = width >= 1400 ? 1.70 : width >= 1100 ? 1.60 : width >= 900 ? 1.55 : width >= 600 ? 1.45 : width >= 480 ? 1.50 : 1.75;
+      final scale = width >= 1400 ? 0.84 : width >= 1100 ? 0.88 : width >= 900 ? 0.90 : width >= 600 ? 0.95 : 1.00;
       final compact = width < 600;
 
       return GridView.count(
         crossAxisCount: gridCount,
-        crossAxisSpacing: compact ? 12 : 14, // etwas kompakter
+        crossAxisSpacing: compact ? 12 : 14,
         mainAxisSpacing: compact ? 12 : 14,
         padding: EdgeInsets.only(bottom: compact ? 4 : 8),
         childAspectRatio: aspect,
@@ -462,7 +469,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     });
   }
 
-  // ---- Seite: Offene Reklamationen (mobilfreundlich) ----
+  // ---- Seite: Offene Reklamationen ----
   Widget _buildOpenComplaints() {
     final t = context.t;
     final items = _complaints.where((c) => !_isClosed(c)).toList(growable: false);
@@ -472,16 +479,19 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       child: items.isEmpty
           ? Text(t.noComplaintsFound)
           : ListView.separated(
-              // scrollbar
               shrinkWrap: true,
               physics: const BouncingScrollPhysics(),
               itemBuilder: (_, i) {
                 final c = items[i];
+                final customerDisplay = _displayCustomerFor(c);
+                final createdDisplay  = _formatCreated(c['createdAt'] ?? c['created']);
                 return _ComplaintTile(
                   data: c,
                   isClosed: false,
                   onDecision: (ticket, approve) => _decideComplaint(ticket, approve),
-                  useColoredButtons: true, // runde Punkte
+                  useColoredButtons: true,
+                  customerOverride: customerDisplay,
+                  createdOverride: createdDisplay,
                 );
               },
               separatorBuilder: (_, __) => const SizedBox(height: 6),
@@ -490,10 +500,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     );
   }
 
-  // ---- Seite: Alle Reklamationen (Firmenfilter + Chips) ----
+  // ---- Seite: Alle Reklamationen ----
   Widget _buildAllComplaints() {
     final t = context.t;
-    final email2Co = _emailToCompany;
     final query = _companyCtrl.text.trim().toLowerCase();
 
     List<Map<String, dynamic>> list = List<Map<String, dynamic>>.from(_complaints);
@@ -507,7 +516,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     if (query.isNotEmpty) {
       list = list.where((c) {
         final em = (c['customerEmail'] ?? c['email'] ?? '').toString();
-        final co = (email2Co[em] ?? '').toLowerCase();
+        final co = (_emailToCompany[em] ?? '').toLowerCase();
         return co.contains(query);
       }).toList();
     }
@@ -558,19 +567,21 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
           child: list.isEmpty
               ? Text(t.noComplaintsFound)
               : ListView.separated(
-                  // scrollbar
                   shrinkWrap: true,
                   physics: const BouncingScrollPhysics(),
                   itemBuilder: (_, i) {
                     final c = list[i];
+                    final customerDisplay = _displayCustomerFor(c);
+                    final createdDisplay  = _formatCreated(c['createdAt'] ?? c['created']);
                     return _ComplaintTile(
                       data: c,
                       isClosed: _isClosed(c),
-                      // in "Alle" keine Auto-Buttons, außer offen & ohne Entscheidung
                       onDecision: (c['decision'] ?? '') == '' && !_isClosed(c)
                           ? _decideComplaint
                           : null,
                       useColoredButtons: true,
+                      customerOverride: customerDisplay,
+                      createdOverride: createdDisplay,
                     );
                   },
                   separatorBuilder: (_, __) => const SizedBox(height: 6),
@@ -596,7 +607,6 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       child: _customers.isEmpty
           ? Text(t.noAddCustomer)
           : ListView.separated(
-              // scrollbar
               shrinkWrap: true,
               physics: const BouncingScrollPhysics(),
               itemBuilder: (_, i) {
@@ -609,9 +619,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                       final comp = (c['company'] ?? '').toString();
                       final nm   = (c['name'] ?? '').toString();
                       final em   = (c['email'] ?? '').toString();
-                      if (comp.isNotEmpty) return comp;      // Firma zuerst
-                      if (nm.isNotEmpty)   return nm;        // dann Name
-                      return em;                              // sonst E-Mail
+                      if (comp.isNotEmpty) return comp;
+                      if (nm.isNotEmpty)   return nm;
+                      return em;
                     })(),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -649,7 +659,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     );
   }
 
-  // ---- Seite: Account – zwei getrennte Einträge (Navigation bleibt wie gehabt) ----
+  // ---- Seite: Account – zwei getrennte Einträge ----
   Widget _buildAccountCard() {
     final t = context.t;
     final labelProfile   = t.profile_edit ?? 'Profil bearbeiten';
@@ -674,7 +684,6 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             title: Text(t.profilePW),
           ),
           const Divider(height: 1),
-          // Profil bearbeiten – zeigt Profilbereich in RepProfilePage
           ListTile(
             leading: const Icon(Icons.manage_accounts_outlined),
             title: Text(labelProfile),
@@ -683,7 +692,6 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             onTap: _openProfile,
           ),
           const Divider(height: 1),
-          // Passwort ändern – führt ebenfalls zu RepProfilePage (Funktionen unverändert)
           ListTile(
             leading: const Icon(Icons.lock_reset_outlined),
             title: Text(labelPassword),
@@ -754,7 +762,6 @@ class _Card extends StatelessWidget {
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
-        // etwas kompakter für Mobile
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -773,16 +780,16 @@ class _Card extends StatelessWidget {
   }
 }
 
-/// Schöne Menü-Kachel (Admin-Look) mit Farb-Icon, Verlauf und Badge
+/// Menü-Kachel (kompakt, skaliert)
 class _MenuCard extends StatelessWidget {
   final Color color;
   final IconData icon;
   final String title;
   final String subtitle;
-  final int? count;           // null => kein Badge
+  final int? count;
   final VoidCallback onTap;
-  final bool compact;         // kompakt auf Handy
-  final double scale;         // NEU: globale Verkleinerung (auch Desktop)
+  final bool compact;
+  final double scale;
 
   const _MenuCard({
     required this.color,
@@ -833,7 +840,6 @@ class _MenuCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Icon + Badge
             Stack(
               clipBehavior: Clip.none,
               children: [
@@ -877,7 +883,6 @@ class _MenuCard extends StatelessWidget {
               ],
             ),
             SizedBox(width: compact ? 10 * scale : 14 * scale),
-            // Titel + Untertitel
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -917,13 +922,17 @@ class _ComplaintTile extends StatefulWidget {
   final Map<String, dynamic> data;
   final bool isClosed;
   final void Function(String ticket, bool approve)? onDecision;
-  final bool useColoredButtons; // neu: modern
+  final bool useColoredButtons;
+  final String? customerOverride; // NEU: Anzeige „Kunde“ (Firma bevorzugt)
+  final String? createdOverride;  // NEU: Anzeige „Angelegt“ formatiert
 
   const _ComplaintTile({
     required this.data,
     required this.isClosed,
     this.onDecision,
     this.useColoredButtons = false,
+    this.customerOverride,
+    this.createdOverride,
     super.key,
   });
 
@@ -942,12 +951,14 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     final ticket   = (widget.data['ticket'] ?? '').toString();
     final status   = (widget.data['status'] ?? '').toString();
     final decision = (widget.data['decision'] ?? '').toString();
-    final created  = (widget.data['createdAt'] ?? widget.data['created'] ?? '').toString();
-    final customer = (widget.data['customerEmail'] ?? widget.data['email'] ?? '').toString();
-    final article  = (widget.data['payload']?['article'] ?? '').toString();
-    final segment  = (widget.data['payload']?['segment'] ?? '').toString();
 
-    // --- Kleine Punkt-Buttons mit Gradient, Schatten, Hover/Scale ---
+    // Fallbacks falls Overrides nicht gesetzt:
+    final createdRaw   = widget.data['createdAt'] ?? widget.data['created'] ?? '';
+    final created      = widget.createdOverride ?? createdRaw.toString();
+    final customerRaw  = (widget.data['customerEmail'] ?? widget.data['email'] ?? '').toString();
+    final customer     = widget.customerOverride ?? customerRaw;
+
+    // --- Kleine Punkt-Buttons (Gradient + Hover) ---
     Widget _dotButton({
       required bool positive,
       required String tooltip,
@@ -956,9 +967,8 @@ class _ComplaintTileState extends State<_ComplaintTile> {
       required ValueChanged<bool> setHover,
     }) {
       final gradient = positive
-          ? const LinearGradient(colors: [Color(0xFF2ECC71), Color(0xFF27AE60)]) // grün Verlauf
-          : const LinearGradient(colors: [Color(0xFFE74C3C), Color(0xFFC0392B)]); // rot Verlauf
-
+          ? const LinearGradient(colors: [Color(0xFF2ECC71), Color(0xFF27AE60)])
+          : const LinearGradient(colors: [Color(0xFFE74C3C), Color(0xFFC0392B)]);
       final icon = positive ? Icons.check_rounded : Icons.close_rounded;
 
       return MouseRegion(
@@ -1017,7 +1027,6 @@ class _ComplaintTileState extends State<_ComplaintTile> {
           ],
         );
       }
-      // Fallback (Icons)
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1047,7 +1056,6 @@ class _ComplaintTileState extends State<_ComplaintTile> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Kopfzeile: Ticket + Status/Decision Chips
                 Row(
                   children: [
                     const Icon(Icons.description_outlined, size: 20),
@@ -1065,14 +1073,15 @@ class _ComplaintTileState extends State<_ComplaintTile> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                // Infos als Wrap -> mobilfreundlich
                 Wrap(
                   spacing: 8,
                   runSpacing: 6,
                   children: [
                     if (customer.isNotEmpty) _InfoCapsule('${t.customer_label}: $customer'),
-                    if (article.isNotEmpty)  _InfoCapsule('${t.articleNo}: $article'),
-                    if (segment.isNotEmpty)  _InfoCapsule('${t.segment}: $segment'),
+                    if (widget.data['payload']?['article']?.toString().isNotEmpty ?? false)
+                      _InfoCapsule('${t.articleNo}: ${widget.data['payload']['article']}'),
+                    if (widget.data['payload']?['segment']?.toString().isNotEmpty ?? false)
+                      _InfoCapsule('${t.segment}: ${widget.data['payload']['segment']}'),
                     if (created.isNotEmpty)  _InfoCapsule('${t.created_at ?? 'Angelegt'}: $created'),
                     if (decision.isNotEmpty) _InfoCapsule('${t.decision}: $decision'),
                   ],
@@ -1093,7 +1102,7 @@ class _ComplaintTileState extends State<_ComplaintTile> {
   }
 }
 
-// ---------- kleine UI-Helfer für die mobilfreundliche Liste ----------
+// ---------- kleine UI-Helfer ----------
 
 class _InfoCapsule extends StatelessWidget {
   final String text;
