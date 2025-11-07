@@ -10,6 +10,8 @@ const KV_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 function S(v){ return (v ?? '').toString().trim(); }
 
 async function kv(cmd){
+  setCors(req, res, 'Content-Type, Authorization, X-Gate');
+  if (req.method === 'OPTIONS') return res.status(204).end();
   const r = await fetch(KV_URL, {
     method: 'POST',
     headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type':'application/json' },
