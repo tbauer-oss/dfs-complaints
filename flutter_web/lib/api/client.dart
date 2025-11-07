@@ -345,6 +345,29 @@ class ApiClient {
     return const [];
   }
 
+  // ---------- NEU: Vertreter – zuweisbare Kunden (free oder all) ----------
+  /// Holt die Liste der zuweisbaren Kunden für den eingeloggten Vertreter.
+  /// - `all: false` → nur freie Kunden
+  /// - `all: true`  → alle Kunden; zugewiesene Einträge enthalten Felder
+  ///   `assigned`, `assignedTo`, `assignedToName`, `assignedToEmail`.
+  Future<List<Map<String, dynamic>>> repAssignableCustomers({bool all = false}) async {
+    final q = all ? '?all=1' : '';
+    final r = await _repFetch('/api/rep/assignable-customers$q');
+    if (!_ok2xx(r.statusCode)) {
+      throw Exception('GET /api/rep/assignable-customers failed: ${r.statusCode} ${r.body}');
+    }
+    final body = r.body.trim();
+    if (body.isEmpty) return const [];
+    final j = jsonDecode(body);
+    if (j is List) {
+      return j
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList(growable: false);
+    }
+    return const [];
+  }
+
   // ---------- Low-level HTTP ----------
   Future<http.Response> _get(String path, {bool auth = false, Map<String,String>? extra}) {
     return http.get(_u(path), headers: _headers(auth: auth, extra: extra));
