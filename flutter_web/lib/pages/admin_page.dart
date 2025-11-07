@@ -1588,22 +1588,9 @@ class AdminComplaint {
   int status;
   String? decision;
   String? reportLink;
-  String? internalNo; // ← NEU
-
-  final Map<String, dynamic>? payload;
-
-class AdminComplaint {
-  final String ticket;
-  final String email;
-  final DateTime createdAt;
-  final DateTime updatedAt;
-  int status;
-  String? decision;
-  String? reportLink;
   String? internalNo;
   final Map<String, dynamic>? payload;
 
-  // ↓↓↓ NEU
   String? repOpinion; // 'accepted' | 'rejected' | 'pending' (oder null)
 
   AdminComplaint({
