@@ -20,6 +20,7 @@
   "theme_light": "Chiaro",
   "theme_dark": "Scuro",
 
+  "decision_withdrawn": "Decisione revocata",
   "decision_withdraw": "Ritira decisione",
   "decision_withdraw_confirm": "Vuoi davvero ritirare la tua decisione?",
   "no_decision_yet": "Nessuna decisione",
