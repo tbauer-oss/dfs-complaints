@@ -1,71 +1,101 @@
+// api/rep/decision/reset.js
 export const config = { runtime: 'nodejs' };
 
-import { setCors } from '../_lib/cors.js';
-import { getRepFromAuthHeader } from '../_lib/repAuth.js';
-import { redisGet, redisSet } from '../_lib/upstash.js';
+/**
+ * ---- Ultra-frühes Minimal-CORS (falls Imports fehlschlagen) ----
+ * Setzt ACAO immer, damit der Browser nie ohne CORS-Header bleibt.
+ * Später versuchen wir unsere echte cors.js zu laden (optional).
+ */
+function setCorsMinimal(req, res) {
+  const PROD_FE = 'https://dfs-complaints-web.vercel.app';
+  const origin = req.headers?.origin || '';
+  const preview = /^https:\/\/dfs-complaints-web-[a-z0-9-]+(?:-[a-z0-9-]+)?\.vercel\.app$/i;
+  const allow =
+    origin && (origin === PROD_FE || preview.test(origin) || origin.startsWith('http://localhost'))
+      ? origin
+      : (process.env.WEB_ORIGIN || PROD_FE);
 
-// ---------- Helpers ----------
+  res.setHeader('Access-Control-Allow-Origin', allow);
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Secret, X-Gate, X-Rep-Secret, X-Debug');
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+}
+
+// Helpers
 const S = (v) => (v ?? '').toString().trim();
 const nowIso = () => new Date().toISOString();
 const rid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
-// ---------- Handler ----------
 export default async function handler(req, res) {
-  // ==== CORS IMMER ZUERST ====
-  try {
-    setCors(req, res, 'Content-Type, Authorization, X-Gate, X-Debug');
-  } catch (e) {
-    console.error('[reset] setCors failed:', e);
-  }
+  // === 1) Immer zuerst Minimal-CORS setzen ===
+  try { setCorsMinimal(req, res); } catch {}
 
-  // ==== Preflight ====
+  // === 2) Preflight sofort und sauber beenden ===
   if (req.method === 'OPTIONS') {
-    console.log('[reset] OPTIONS preflight', {
-      origin: req.headers?.origin,
-      acrm: req.headers?.['access-control-request-method'],
-      acah: req.headers?.['access-control-request-headers'],
-    });
-    // wichtig: Header sind bereits gesetzt
+    // Optionales Logging
+    // console.log('[reset] OPTIONS', {
+    //   origin: req.headers?.origin,
+    //   acrm: req.headers?.['access-control-request-method'],
+    //   acah: req.headers?.['access-control-request-headers'],
+    // });
     return res.status(204).end();
   }
 
-  const debug = S(req.query?.debug) === '1' || S(req.headers['x-debug']) === '1';
   const reqId = rid();
+  const debugQ = S(req.query?.debug) === '1';
+  const debugH = S(req.headers?.['x-debug']) === '1';
+  const debug = debugQ || debugH;
 
-  // ==== Nur POST erlaubt ====
-  if (req.method !== 'POST') {
-    if (debug) {
-      return res.status(200).json({
-        ok: false,
-        reqId,
-        error: 'method not allowed',
-        method: req.method,
-      });
-    }
-    return res.status(405).json({ error: 'method not allowed' });
-  }
-
-  // ==== Auth prüfen ====
-  let auth = null;
+  // === 3) Versuche echte cors.js zu laden (nice to have) ===
+  // Wenn das fehlschlägt, bleiben wir bei Minimal-CORS.
   try {
-    auth = getRepFromAuthHeader(req);
+    const { setCors } = await import('../_lib/cors.js');
+    try { setCors(req, res, 'Content-Type, Authorization, X-Admin-Secret, X-Gate, X-Rep-Secret, X-Debug'); } catch {}
   } catch (e) {
-    console.error('[reset] getRepFromAuthHeader failed:', e);
-  }
-  if (!auth?.repId) {
-    if (debug) {
-      return res.status(200).json({
-        ok: false,
-        reqId,
-        error: 'unauthorized',
-        haveAuthHeader: !!req.headers?.authorization,
-        xGate: !!req.headers?.['x-gate'],
-      });
-    }
-    return res.status(401).json({ error: 'unauthorized' });
+    if (debug) console.warn('[reset] cors.js import failed → fallback minimal CORS', e?.message || e);
   }
 
-  // ==== Body parsen ====
+  // === 4) Nur POST erlaubt ===
+  if (req.method !== 'POST') {
+    const payload = { ok: false, reqId, error: 'method not allowed', method: req.method };
+    return debug ? res.status(200).json(payload) : res.status(405).json({ error: 'method not allowed' });
+  }
+
+  // === 5) Auth laden (dynamisch, damit Importfehler nicht CORS killen) ===
+  let getRepFromAuthHeader;
+  try {
+    ({ getRepFromAuthHeader } = await import('../_lib/repAuth.js'));
+  } catch (e) {
+    console.error('[reset] repAuth import failed:', e);
+    return res.status(500).json({ error: 'repAuth import failed' });
+  }
+
+  // === 6) Upstash laden ===
+  let redisGet, redisSet;
+  try {
+    ({ redisGet, redisSet } = await import('../_lib/upstash.js'));
+  } catch (e) {
+    console.error('[reset] upstash import failed:', e);
+    return res.status(500).json({ error: 'upstash import failed' });
+  }
+
+  // === 7) Auth prüfen ===
+  let auth = null;
+  try { auth = getRepFromAuthHeader(req); } catch (e) {}
+  if (!auth?.repId) {
+    const payload = {
+      ok: false,
+      reqId,
+      error: 'unauthorized',
+      haveAuthHeader: !!req.headers?.authorization,
+      xGate: !!req.headers?.['x-gate'],
+    };
+    return debug ? res.status(200).json(payload) : res.status(401).json({ error: 'unauthorized' });
+  }
+
+  // === 8) Body parsen ===
   let ticket = '';
   let bodyRaw = '';
   try {
@@ -80,86 +110,65 @@ export default async function handler(req, res) {
     console.error(`[reset] ${reqId} JSON parse failed:`, e, 'body=', bodyRaw);
     return res.status(400).json({ error: 'invalid json' });
   }
+  if (!ticket) return res.status(400).json({ error: 'ticket required' });
 
-  if (!ticket) {
-    return res.status(400).json({ error: 'ticket required' });
-  }
-
-  console.log('[reset] incoming', {
-    reqId,
-    method: req.method,
-    origin: req.headers?.origin,
-    ticket,
-    repId: auth.repId,
-  });
-
-  // ==== Reset-Logik ====
+  // === 9) Reset-Logik ===
   try {
     const key1 = `dfs:complaint:${ticket}`;
     const key2 = `dfs:complaints:${ticket}`;
 
-    // 1) Complaint aus Redis laden (plural/singular)
+    // laden
     let obj = await redisGet(key1);
     if (!obj) obj = await redisGet(key2);
-
     if (!obj) {
-      console.warn(`[reset] ${reqId} complaint not found for ${ticket}`);
-      return res.status(404).json({ error: 'complaint not found' });
+      const payload = { error: 'complaint not found', reqId, ticket };
+      return res.status(404).json(payload);
     }
 
+    // parse
     let c = obj;
-    if (typeof c === 'string') {
-      try { c = JSON.parse(c); } catch {}
-    }
-
-    if (typeof c !== 'object' || Array.isArray(c)) {
+    if (typeof c === 'string') { try { c = JSON.parse(c); } catch {} }
+    if (typeof c !== 'object' || Array.isArray(c) || !c) {
       return res.status(500).json({ error: 'invalid complaint format' });
     }
 
-    // 2) Prüfen, ob dieser Vertreter dazu gehört
+    // richtige Vertretung?
     if (S(c.repId) && S(c.repId) !== S(auth.repId)) {
       return res.status(403).json({ error: 'forbidden (wrong rep)' });
     }
 
-    // 3) Entferne alle repDecision-Felder
-    const removed = [];
-    ['repDecision', 'repDecisionAt', 'repDecisionBy', 'repId'].forEach(k => {
-      if (k in c) {
-        delete c[k];
-        removed.push(k);
-      }
-    });
-
-    // 4) Aktualisiere updatedAt
+    // Felder entfernen
+    delete c.repDecision;
+    delete c.repDecisionAt;
+    delete c.repDecisionBy;
+    delete c.repId;
     c.updatedAt = Date.now();
 
-    // 5) In Redis zurückschreiben (gleicher Key wie geladen)
-    const saveKey = (await redisGet(key1)) ? key1 : key2;
+    // richtigen Key wiederverwenden
+    const existsKey1 = !!(await redisGet(key1));
+    const saveKey = existsKey1 ? key1 : key2;
     await redisSet(saveKey, JSON.stringify(c));
 
-    // 6) Optional: Audit-Log
+    // Audit (optional)
     try {
       await redisSet(
         `dfs:audit:repDecisionReset:${ticket}:${nowIso()}`,
         JSON.stringify({ by: auth.repId, at: nowIso(), action: 'reset' }),
-        60 * 60 * 24 * 7 // 7 Tage
+        60 * 60 * 24 * 7
       );
     } catch (e) {
-      console.warn('[reset] audit write failed:', e);
+      if (debug) console.warn('[reset] audit write failed:', e?.message || e);
     }
 
-    // 7) Debug-Ausgabe oder leere 204-Antwort
     if (debug) {
       return res.status(200).json({
         ok: true,
         reqId,
         ticket,
-        removed,
+        removed: ['repDecision', 'repDecisionAt', 'repDecisionBy', 'repId'],
         savedKey: saveKey,
       });
     }
-
-    // Erfolg ohne Body
     return res.status(204).end();
   } catch (e) {
     console.error(`[reset] ${reqId} error:`, e);
