@@ -126,6 +126,8 @@ class ApiClient {
   // Header für Vertreter-Endpunkte (nimmt automatisch das gespeicherte repToken)
   Map<String, String> _repHeaders({Map<String, String>? extra}) {
     final h = <String, String>{
+      'Content-Type': 'application/json; charset=utf-8',
+      'Accept': 'application/json',
       if (gate != null && gate!.isNotEmpty) 'X-Gate': gate!,
     };
     final tok = repToken ?? '';
@@ -205,7 +207,7 @@ class ApiClient {
   Future<Map<String, dynamic>> _repPostJson(String path, Map<String, dynamic> body) async {
     final r = await http.post(
       _u(path),
-      headers: _repHeaders(),
+      headers: _repHeaders(),                 // <- JSON Header aktiv
       body: jsonEncode(body),
     );
     if (!_ok2xx(r.statusCode)) {
@@ -783,7 +785,7 @@ class ApiClient {
   Future<void> repAssignCustomer(String email) async {
     final r = await http.post(
       _u('/api/rep/customers'),
-      headers: _repHeaders(),
+      headers: _repHeaders(),                 // <- JSON Header aktiv
       body: jsonEncode({'action': 'assign', 'email': email}),
     );
     if (!_ok2xx(r.statusCode)) {
@@ -794,7 +796,7 @@ class ApiClient {
   Future<void> repUnassignCustomer(String email) async {
     final r = await http.post(
       _u('/api/rep/customers'),
-      headers: _repHeaders(),
+      headers: _repHeaders(),                 // <- JSON Header aktiv
       body: jsonEncode({'action': 'unassign', 'email': email}),
     );
     if (!_ok2xx(r.statusCode)) {
