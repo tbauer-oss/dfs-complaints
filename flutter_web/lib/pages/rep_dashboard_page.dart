@@ -687,20 +687,20 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             final n1 = new1Ctrl.text;
             final n2 = new2Ctrl.text;
             if (oldPw.isEmpty || n1.isEmpty || n2.isEmpty) {
-              err = t.errorGeneric?.replaceFirst('{msg}', t.password_required ?? 'Bitte alle Felder ausfüllen') ?? 'Fehler: Bitte alle Felder ausfüllen';
+              err = t.errorGeneric('Bitte alle Felder ausfüllen');
               (ctx as Element).markNeedsBuild();
               return;
             }
             if (n1 != n2) {
-              err = t.errorGeneric?.replaceFirst('{msg}', t.password_mismatch ?? 'Passwörter stimmen nicht überein') ?? 'Fehler: Passwörter stimmen nicht überein';
+              err = t.errorGeneric('Passwörter stimmen nicht überein');
               (ctx as Element).markNeedsBuild();
               return;
             }
             busy = true;
             (ctx as Element).markNeedsBuild();
             try {
-              // HINWEIS: Falls dein Api-Methodenname abweicht, sag Bescheid – ich passe exakt an.
-              await widget.api.repChangePassword(oldPw, n1);
+              // API erwartet offenbar nur das neue Passwort (siehe Build-Fehler)
+              await widget.api.repChangePassword(n1);
               if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
               if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.saved)));
@@ -719,19 +719,19 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                 TextField(
                   controller: oldCtrl,
                   obscureText: true,
-                  decoration: InputDecoration(labelText: t.password_old ?? 'Altes Passwort'),
+                  decoration: InputDecoration(labelText: t.oldPassword),
                 ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: new1Ctrl,
                   obscureText: true,
-                  decoration: InputDecoration(labelText: t.password_new ?? 'Neues Passwort'),
+                  decoration: InputDecoration(labelText: t.newPassword),
                 ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: new2Ctrl,
                   obscureText: true,
-                  decoration: InputDecoration(labelText: t.password_new_repeat ?? 'Neues Passwort (Wiederholung)'),
+                  decoration: InputDecoration(labelText: t.newPasswordRepeat),
                 ),
                 if (err != null) ...[
                   const SizedBox(height: 10),
