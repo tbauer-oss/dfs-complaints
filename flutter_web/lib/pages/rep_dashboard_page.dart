@@ -149,17 +149,13 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     }
   }
 
-  // ---- Admin-gleiche „freie Kunden“-Quelle holen (robust, ohne ApiClient zu brechen) ----
-  // 1) Versucht dedizierte Assignable-/Free-Customer-Endpunkte (wie Adminbereich).
-  // 2) Fällt zurück auf lokale Heuristik (alle bekannten Kunden minus bereits zugewiesene).
+  // ---- Admin-gleiche „freie Kunden“-Quelle holen ----
   Future<List<Map<String, String>>> _fetchAssignableCustomers() async {
-    // bereits zugewiesene E-Mails dieses Reps
     final assignedEmails = _customers
         .map((c) => (c['email'] ?? '').toString().toLowerCase())
         .where((e) => e.isNotEmpty)
         .toSet();
 
-    // Helper zum Normieren beliebiger API-Formate auf {email,label}
     List<Map<String, String>> _normalize(dynamic raw) {
       final List<Map<String, String>> out = [];
       if (raw is List) {
@@ -180,38 +176,31 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
           }
         }
       }
-      // sortieren nach Label
       out.sort((a, b) => a['label']!.toLowerCase().compareTo(b['label']!.toLowerCase()));
       return out;
     }
 
-    // 1) Versuche dedizierte API-Calls (gleich wie Admin-Verwaltung)
     try {
-      // häufige Kandidaten-Methoden – via dynamic, damit es kompiliert, auch wenn Methode fehlt
       final dyn = widget.api as dynamic;
 
-      // a) repAssignableCustomers()
       try {
         final r = await dyn.repAssignableCustomers();
         final list = _normalize(r);
         if (list.isNotEmpty) return list;
       } catch (_) {}
 
-      // b) adminAssignableCustomers()  (falls der Admin-Endpunkt geteilt wurde)
       try {
         final r = await dyn.adminAssignableCustomers();
         final list = _normalize(r);
         if (list.isNotEmpty) return list;
       } catch (_) {}
 
-      // c) adminRepFreeCustomers()
       try {
         final r = await dyn.adminRepFreeCustomers();
         final list = _normalize(r);
         if (list.isNotEmpty) return list;
       } catch (_) {}
 
-      // d) generische GETs – falls ApiClient Hilfsmethoden anbietet
       try {
         final r = await dyn.getJson('/api/rep/assignable-customers');
         final list = _normalize(r);
@@ -222,11 +211,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         final list = _normalize(r);
         if (list.isNotEmpty) return list;
       } catch (_) {}
-    } catch (_) {
-      // ignorieren – wir haben noch das Fallback
-    }
+    } catch (_) {}
 
-    // 2) Fallback: aus allen bekannten Kunden + Complaints, abzüglich bereits zugewiesener
+    // Fallback
     final Map<String, String> pool = {};
     for (final c in _complaints) {
       final em = (c['customerEmail'] ?? c['email'] ?? '').toString().toLowerCase();
@@ -253,7 +240,6 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     String? locErr;
     bool saving = false;
 
-    // NEU: Liste aus Admin-Quelle (oder Fallback) laden
     final options = await _fetchAssignableCustomers();
 
     await showDialog(
@@ -268,7 +254,6 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             (ctx as Element).markNeedsBuild();
             return;
           }
-          // doppelte Vergabe clientseitig blocken
           final already = _customers.any((c) => ((c['email'] ?? '').toString().toLowerCase() == selectedEmail));
           if (already) {
             locErr = t.customer_already_assigned ?? 'Kunde bereits zugewiesen';
@@ -414,7 +399,6 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       final co = (c['company'] ?? '').toString();
       if (em.isNotEmpty && co.isNotEmpty) m[em] = co;
     }
-    // Fallback: auch aus Complaints bekannte Zuordnung merken (falls Firma bekannt)
     for (final c in _complaints) {
       final em = (c['customerEmail'] ?? c['email'] ?? '').toString().toLowerCase();
       final co = (c['payload']?['company'] ?? '').toString();
@@ -601,34 +585,91 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     });
   }
 
-  // ---- Seite: Offene Reklamationen ----
+  // ---- Seite: Offene Reklamationen (mit Firmen-Dropdown) ----
   Widget _buildOpenComplaints() {
     final t = context.t;
-    final items = _complaints.where((c) => !_isClosed(c)).toList(growable: false);
 
-    return _Card(
-      title: t.complaintsMyCustomer,
-      child: items.isEmpty
-          ? Text(t.noComplaintsFound)
-          : ListView.separated(
-              shrinkWrap: true,
-              physics: const BouncingScrollPhysics(),
-              itemBuilder: (_, i) {
-                final c = items[i];
-                final customerDisplay = _displayCustomerFor(c);
-                final createdDisplay  = _formatCreated(c['createdAt'] ?? c['created']);
-                return _ComplaintTile(
-                  data: c,
-                  isClosed: false,
-                  onDecision: (ticket, approve) => _decideComplaint(ticket, approve),
-                  useColoredButtons: true,
-                  customerOverride: customerDisplay,
-                  createdOverride: createdDisplay,
-                );
-              },
-              separatorBuilder: (_, __) => const SizedBox(height: 6),
-              itemCount: items.length,
+    // Firmenliste wie bei „Alle Reklamationen“
+    final companies = _emailToCompany.values
+        .where((s) => s.trim().isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    // Basissatz „offen“
+    List<Map<String, dynamic>> items =
+        _complaints.where((c) => !_isClosed(c)).toList(growable: false);
+
+    // Firmenfilter anwenden, falls gesetzt
+    if ((_selectedCompany ?? '').isNotEmpty) {
+      items = items.where((c) {
+        final em = (c['customerEmail'] ?? c['email'] ?? '').toString().toLowerCase();
+        final co = (_emailToCompany[em] ?? '');
+        return co == _selectedCompany;
+      }).toList(growable: false);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // NEU: Filterleiste mit Firmen-Dropdown
+        Card(
+          elevation: 3,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+            child: SizedBox(
+              width: 320,
+              child: DropdownButtonFormField<String>(
+                isExpanded: true,
+                value: _selectedCompany,
+                items: <DropdownMenuItem<String>>[
+                  DropdownMenuItem<String>(
+                    value: '',
+                    child: Text(t.allCompanies ?? 'Alle Firmen'),
+                  ),
+                  ...companies.map((co) => DropdownMenuItem<String>(
+                        value: co,
+                        child: Text(co),
+                      )),
+                ],
+                onChanged: (v) => setState(() => _selectedCompany = (v ?? '')),
+                decoration: const InputDecoration(
+                  labelText: 'Firmenname filtern',
+                  prefixIcon: Icon(Icons.apartment_outlined),
+                ),
+              ),
             ),
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Liste der offenen Reklamationen
+        _Card(
+          title: t.complaintsMyCustomer,
+          child: items.isEmpty
+              ? Text(t.noComplaintsFound)
+              : ListView.separated(
+                  shrinkWrap: true,
+                  physics: const BouncingScrollPhysics(),
+                  itemBuilder: (_, i) {
+                    final c = items[i];
+                    final customerDisplay = _displayCustomerFor(c);
+                    final createdDisplay  = _formatCreated(c['createdAt'] ?? c['created']);
+                    return _ComplaintTile(
+                      data: c,
+                      isClosed: false,
+                      onDecision: (ticket, approve) => _decideComplaint(ticket, approve),
+                      useColoredButtons: true,
+                      customerOverride: customerDisplay,
+                      createdOverride: createdDisplay,
+                    );
+                  },
+                  separatorBuilder: (_, __) => const SizedBox(height: 6),
+                  itemCount: items.length,
+                ),
+        ),
+      ],
     );
   }
 
@@ -819,7 +860,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         MaterialPageRoute(
           builder: (_) => RepProfilePage(
             api: widget.api,
-            hidePasswordSection: true, // Passwortbereich ausblenden
+            hidePasswordSection: true,
           ),
         ),
       );
@@ -840,7 +881,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         builder: (ctx) {
           Future<void> _submit() async {
             if (busy) return;
-            final oldPw = oldCtrl.text; // UI-seitig abgefragt
+            final oldPw = oldCtrl.text;
             final n1 = new1Ctrl.text;
             final n2 = new2Ctrl.text;
             if (oldPw.isEmpty || n1.isEmpty || n2.isEmpty) {
@@ -856,7 +897,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             busy = true;
             (ctx as Element).markNeedsBuild();
             try {
-              await widget.api.repChangePassword(n1); // aktuelle Client-API
+              await widget.api.repChangePassword(n1);
               if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
               if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.saved)));
