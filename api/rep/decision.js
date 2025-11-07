@@ -153,7 +153,7 @@ export default async function handler(req, res) {
     complaint.repId         = complaint.repId || repId;
 
     // Statusübergang wie gehabt
-    complaint.status = (decision === 'accepted') ? 'approved_by_rep' : 'rejected_by_rep';
+    complaint.status = (decision === 'accepted') ? 'Freigegeben durch Verteter' : 'Abgelehnt durch Verteter';
 
     await redis.set(key, complaint);
 
