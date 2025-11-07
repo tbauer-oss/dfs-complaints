@@ -376,7 +376,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       if (!mounted) return;
       if (!handled) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${context.t.error ?? 'Fehler'}: $e')) },
+          SnackBar(content: Text('${context.t.error ?? 'Fehler'}: $e')),
         );
       }
     }
@@ -387,13 +387,19 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       await widget.api.repDecision(ticket: ticket, approve: approve);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(approve ? context.t.decision_accepted : context.t.decision_rejected)),
+        SnackBar(
+          content: Text(
+            approve
+                ? context.t.decision_accepted
+                : context.t.decision_rejected,
+          ),
+        ),
       );
       await _loadAll();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${context.t.error ?? 'Fehler'}: $e')) },
+        SnackBar(content: Text('${context.t.error ?? 'Fehler'}: $e')),
       );
     }
   }
