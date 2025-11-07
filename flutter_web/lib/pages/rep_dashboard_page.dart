@@ -185,9 +185,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     }
   }
 
-  // ------- Fehlende Methode ergänzt (für das Auswahl-Sheet) -------
-  // Liefert Liste von auswählbaren Kunden mit Markierung "assigned".
-  // Primär neue Rep-Route, Fallbacks optional.
+  // ------- FEHLENDE METHODE (1:1 ergänzt, sonst NICHTS geändert) -------
   Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     List<Map<String, Object?>> normalize(dynamic raw) {
       final List<Map<String, Object?>> out = [];
@@ -220,11 +218,10 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
           }
         }
       }
-      // zuerst frei, dann alphabetisch
       out.sort((a, b) {
         final aa = (a['assigned'] == true);
         final bb = (b['assigned'] == true);
-        if (aa != bb) return aa ? 1 : -1;
+        if (aa != bb) return aa ? 1 : -1; // freie zuerst
         return (a['label'] as String).toLowerCase().compareTo((b['label'] as String).toLowerCase());
       });
       return out;
@@ -233,14 +230,14 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     try {
       final dyn = widget.api as dynamic;
 
-      // 1) Neue Rep-Route – zeigt alle, markiert assigned
+      // Primär: neue Rep-Route
       try {
         final r = await dyn.getJson('/api/rep/assignable-customers?all=1');
         final list = normalize(r);
         if (list.isNotEmpty) return list;
       } catch (_) {}
 
-      // 2) Fallbacks (optional – nur falls du solche Endpunkte hast)
+      // Optionaler Fallback, falls vorhanden
       try {
         final r = await dyn.getJson('/api/admin/assignable-customers?all=1');
         final list = normalize(r);
