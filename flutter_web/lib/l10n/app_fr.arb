@@ -20,6 +20,8 @@
   "theme_light": "Clair",
   "theme_dark": "Sombre",
 
+  "my_decision": "Mon évaluation",
+  "no_decision_yet": "Aucune décision pour l’instant",
   "search": "Rechercher…",
   "free": "Libre",
   "assigned_to": "attribué à",
