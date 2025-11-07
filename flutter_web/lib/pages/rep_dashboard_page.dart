@@ -4,6 +4,10 @@ import '../api/client.dart';
 import 'rep_profile_page.dart';
 import 'dart:html' as html;
 import '../l10n/app_localizations.dart';
+// ▼▼ NEU für direkten Backend-Call (Token-Auth) ▼▼
+import 'dart:convert' as convert;
+import 'package:http/http.dart' as http;
+// ▲▲ NEU ▲▲
 
 // ---- L10n-Helper (top-level) ----
 extension _L10nX on BuildContext {
@@ -185,8 +189,22 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     }
   }
 
-  // ======= FEHLENDE METHODE (jetzt ergänzt) =======
+  // ======= FEHLENDE METHODE (jetzt robust mit Token-GET) =======
   Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
+    // 1) Token aus deinem ApiClient holen
+    final dyn = widget.api as dynamic;
+    final String? token = (dyn.token is String && (dyn.token as String).isNotEmpty) ? dyn.token as String : null;
+
+    // 2) Direktes GET auf das Backend (CORS ist für die Web-App bereits erlaubt)
+    //    Wenn du den Host änderst, nur diese BASE_URL anpassen.
+    const String BASE_URL = 'https://dfs-complaints-backend.vercel.app';
+    final uri = Uri.parse('$BASE_URL/api/rep/assignable-customers?all=1');
+
+    final headers = <String, String>{
+      'Accept': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+
     List<Map<String, Object?>> normalize(dynamic raw) {
       final List<Map<String, Object?>> out = [];
       final list = (raw is List)
@@ -239,28 +257,30 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     }
 
     try {
-      final dyn = widget.api as dynamic;
+      final resp = await http.get(uri, headers: headers);
+      if (resp.statusCode >= 200 && resp.statusCode < 300) {
+        final json = convert.jsonDecode(resp.body);
+        return normalize(json);
+      }
+    } catch (_) {}
 
-      // 1) Primär: Rep-Route
-      try {
-        final r = await dyn.getJson('/api/rep/assignable-customers?all=1');
-        final list = normalize(r);
+    // Fallbacks (optional): ohne ?all=1 bzw. Admin-Route
+    try {
+      final r2 = await http.get(Uri.parse('$BASE_URL/api/rep/assignable-customers'), headers: headers);
+      if (r2.statusCode >= 200 && r2.statusCode < 300) {
+        final json = convert.jsonDecode(r2.body);
+        final list = normalize(json);
         if (list.isNotEmpty) return list;
-      } catch (_) {}
+      }
+    } catch (_) {}
 
-      // 2) Fallback: ohne all=1
-      try {
-        final r = await dyn.getJson('/api/rep/assignable-customers');
-        final list = normalize(r);
+    try {
+      final r3 = await http.get(Uri.parse('$BASE_URL/api/admin/assignable-customers?all=1'), headers: headers);
+      if (r3.statusCode >= 200 && r3.statusCode < 300) {
+        final json = convert.jsonDecode(r3.body);
+        final list = normalize(json);
         if (list.isNotEmpty) return list;
-      } catch (_) {}
-
-      // 3) Admin-Fallback
-      try {
-        final r = await dyn.getJson('/api/admin/assignable-customers?all=1');
-        final list = normalize(r);
-        if (list.isNotEmpty) return list;
-      } catch (_) {}
+      }
     } catch (_) {}
 
     return <Map<String, Object?>>[];
