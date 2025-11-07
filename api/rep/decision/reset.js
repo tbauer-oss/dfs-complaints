@@ -1,12 +1,12 @@
 // api/rep/decision/reset.js
 export const config = { runtime: 'nodejs' };
 
-// ----- kleine Utils -----
+// --- Utils ---
 const S = (v) => (v ?? '').toString().trim();
 const nowIso = () => new Date().toISOString();
 const rid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
-// ----- Fallback-CORS falls _lib/cors.js nicht ladbar -----
+// --- Fallback-CORS (falls _lib/cors.js nicht ladbar) ---
 function setCorsFallback(req, res, allowHeaders =
   'Content-Type, Authorization, X-Admin-Secret, X-Gate, X-Rep-Secret, X-Debug'
 ) {
@@ -27,7 +27,6 @@ function setCorsFallback(req, res, allowHeaders =
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 }
 
-// ----- CORS laden (mit Fallback) -----
 async function ensureCors(req, res, allowHeaders) {
   try {
     const mod = await import(new URL('../../_lib/cors.js', import.meta.url));
@@ -41,7 +40,52 @@ async function ensureCors(req, res, allowHeaders) {
   }
 }
 
-// ----- repAuth und Upstash aus api/_lib laden -----
+// --- Upstash-Facade: passt sich an deine tatsächlichen Exporte an ---
+async function loadUpstashFacade() {
+  const mod = await import(new URL('../../_lib/upstash.js', import.meta.url));
+  const exp = mod || {};
+
+  // GET-Kandidatenauswahl
+  const get =
+    exp.redisGet ??
+    exp.get ??
+    exp.redisGetJSON ??
+    (async (key) => {
+      // letzter Fallback via MGET
+      if (typeof exp.redisMGet === 'function') {
+        const arr = await exp.redisMGet([key]);
+        return Array.isArray(arr) ? arr[0] ?? null : null;
+      }
+      throw new Error('No redis get function available');
+    });
+
+  // SET-Kandidatenauswahl (mit TTL-Unterstützung, wo vorhanden)
+  const set = async (key, value, ttlSec) => {
+    if (typeof exp.redisSet === 'function') {
+      return exp.redisSet(key, value, ttlSec);
+    }
+    if (typeof exp.set === 'function') {
+      // Upstash JS-Client erwartet i.d.R. Optionen-Objekt für TTL
+      const opts = ttlSec ? { ex: ttlSec } : undefined;
+      return exp.set(key, value, opts);
+    }
+    if (typeof exp.redisSetEx === 'function') {
+      return exp.redisSetEx(key, value, ttlSec || 0);
+    }
+    if (typeof exp.redisSetJSON === 'function') {
+      return exp.redisSetJSON(key, value, ttlSec);
+    }
+    throw new Error('No redis set function available');
+  };
+
+  return {
+    get,
+    set,
+    _exports: Object.keys(exp),
+  };
+}
+
+// --- repAuth laden ---
 async function loadRepAuth() {
   const mod = await import(new URL('../../_lib/repAuth.js', import.meta.url));
   if (typeof mod.getRepFromAuthHeader !== 'function') {
@@ -49,14 +93,10 @@ async function loadRepAuth() {
   }
   return mod.getRepFromAuthHeader;
 }
-async function loadUpstash() {
-  const mod = await import(new URL('../../_lib/upstash.js', import.meta.url));
-  return { redisGet: mod.redisGet, redisSet: mod.redisSet };
-}
 
-// ----- Handler -----
+// --- Handler ---
 export default async function handler(req, res) {
-  // 1) CORS IMMER zuerst
+  // 1) CORS zuerst
   await ensureCors(req, res, 'Content-Type, Authorization, X-Gate, X-Debug');
 
   // 2) Preflight
@@ -74,7 +114,7 @@ export default async function handler(req, res) {
       : res.status(405).json({ error: 'method not allowed' });
   }
 
-  // 4) repAuth laden
+  // 4) repAuth
   let getRepFromAuthHeader;
   try {
     getRepFromAuthHeader = await loadRepAuth();
@@ -85,10 +125,10 @@ export default async function handler(req, res) {
       : res.status(500).json({ error: 'repAuth import failed' });
   }
 
-  // 5) Upstash laden
-  let redisGet, redisSet;
+  // 5) Upstash-Facade
+  let up;
   try {
-    ({ redisGet, redisSet } = await loadUpstash());
+    up = await loadUpstashFacade();
   } catch (e) {
     console.error('[rep/decision/reset] upstash load error:', e);
     return res.status(500).json({ error: 'upstash import failed' });
@@ -131,11 +171,13 @@ export default async function handler(req, res) {
   try {
     const key1 = `dfs:complaint:${ticket}`;   // neu
     const key2 = `dfs:complaints:${ticket}`;  // alt
-    let obj = await redisGet(key1);
-    if (!obj) obj = await redisGet(key2);
+
+    let obj = await up.get(key1);
+    if (!obj) obj = await up.get(key2);
+
     if (!obj) {
       return debug
-        ? res.status(200).json({ ok: false, reqId, error: 'complaint not found', ticket })
+        ? res.status(200).json({ ok: false, reqId, error: 'complaint not found', ticket, upstashExports: up._exports })
         : res.status(404).json({ error: 'complaint not found' });
     }
 
@@ -147,7 +189,7 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'invalid complaint format' });
     }
 
-    // Vertreter darf nur eigene Entscheidung zurücknehmen (falls repId gesetzt)
+    // Nur eigener Rep darf zurücknehmen (wenn im Datensatz repId existiert)
     if (S(c.repId) && S(c.repId) !== S(auth.repId)) {
       return debug
         ? res.status(200).json({ ok: false, reqId, error: 'forbidden (wrong rep)', repIdOnRecord: c.repId })
@@ -159,18 +201,20 @@ export default async function handler(req, res) {
     delete c.repDecisionAt;
     delete c.repDecisionBy;
     delete c.repId;
+
     c.updatedAt = Date.now();
 
-    // speichern unter dem Key, der existierte
-    const saveKey = (await redisGet(key1)) ? key1 : key2;
-    await redisSet(saveKey, JSON.stringify(c));
+    // Speichern unter dem vorhandenen Key
+    const existedInKey1 = !!(await up.get(key1));
+    const saveKey = existedInKey1 ? key1 : key2;
+    await up.set(saveKey, JSON.stringify(c));
 
-    // Audit (Best-Effort)
+    // Audit (Best-Effort, TTL 7 Tage)
     try {
-      await redisSet(
+      await up.set(
         `dfs:audit:repDecisionReset:${ticket}:${nowIso()}`,
         JSON.stringify({ by: auth.repId, at: nowIso(), action: 'reset' }),
-        60 * 60 * 24 * 7 // 7 Tage TTL
+        60 * 60 * 24 * 7
       );
     } catch (e) {
       console.warn('[rep/decision/reset] audit write failed:', e);
@@ -181,6 +225,7 @@ export default async function handler(req, res) {
           ok: true, reqId, ticket,
           removed: ['repDecision', 'repDecisionAt', 'repDecisionBy', 'repId'],
           savedKey: saveKey,
+          upstashExports: up._exports,
         })
       : res.status(204).end();
   } catch (e) {
