@@ -377,14 +377,19 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   Widget _buildMenu(int allCount, int openCount, int rejectedCount, int finishedCount) {
     return LayoutBuilder(builder: (ctx, c) {
       final width = c.maxWidth;
+
+      // kompakter auf schmalen Displays
       final gridCount = width >= 1200 ? 4 : width >= 900 ? 3 : width >= 600 ? 2 : 1;
+      // höheres AspectRatio auf Handy -> weniger Höhe, wirkt kleiner
+      final aspect = width < 480 ? 1.75 : width < 600 ? 1.5 : 1.2;
+      final compact = width < 600;
 
       return GridView.count(
         crossAxisCount: gridCount,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        padding: const EdgeInsets.only(bottom: 8),
-        childAspectRatio: 1.2,
+        crossAxisSpacing: compact ? 12 : 16,
+        mainAxisSpacing: compact ? 12 : 16,
+        padding: EdgeInsets.only(bottom: compact ? 4 : 8),
+        childAspectRatio: aspect,
         children: [
           _MenuCard(
             color: Colors.red,
@@ -392,6 +397,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             title: 'Offene Reklamationen',
             subtitle: 'Bearbeiten & Entscheiden',
             count: openCount,
+            compact: compact,
             onTap: () => setState(() {
               _filter = _RepFilter.open;
               _view = _RepView.open;
@@ -403,6 +409,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             title: 'Alle Reklamationen',
             subtitle: 'Filtern & Suchen',
             count: allCount,
+            compact: compact,
             onTap: () => setState(() => _view = _RepView.all),
           ),
           _MenuCard(
@@ -411,6 +418,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             title: 'Kundendatenbank',
             subtitle: 'Firmen & Kontakte',
             count: _customers.length,
+            compact: compact,
             onTap: () => setState(() => _view = _RepView.customers),
           ),
           _MenuCard(
@@ -419,6 +427,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             title: 'Mein Account',
             subtitle: 'Profil & Passwort',
             count: null,
+            compact: compact,
             onTap: () => setState(() => _view = _RepView.account),
           ),
         ],
@@ -436,7 +445,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       child: items.isEmpty
           ? Text(t.noComplaintsFound)
           : ListView.separated(
-              // jetzt scrollbar
+              // scrollbar
               shrinkWrap: true,
               physics: const BouncingScrollPhysics(),
               itemBuilder: (_, i) {
@@ -445,7 +454,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                   data: c,
                   isClosed: false,
                   onDecision: (ticket, approve) => _decideComplaint(ticket, approve),
-                  useColoredButtons: true, // -> grün/rot modern
+                  useColoredButtons: true, // runde Punkte
                 );
               },
               separatorBuilder: (_, __) => const SizedBox(height: 6),
@@ -522,7 +531,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
           child: list.isEmpty
               ? Text(t.noComplaintsFound)
               : ListView.separated(
-                  // jetzt scrollbar
+                  // scrollbar
                   shrinkWrap: true,
                   physics: const BouncingScrollPhysics(),
                   itemBuilder: (_, i) {
@@ -560,7 +569,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       child: _customers.isEmpty
           ? Text(t.noAddCustomer)
           : ListView.separated(
-              // jetzt scrollbar
+              // scrollbar
               shrinkWrap: true,
               physics: const BouncingScrollPhysics(),
               itemBuilder: (_, i) {
@@ -745,6 +754,7 @@ class _MenuCard extends StatelessWidget {
   final String subtitle;
   final int? count;           // null => kein Badge
   final VoidCallback onTap;
+  final bool compact;         // NEU: kompakte Darstellung auf Handy
 
   const _MenuCard({
     required this.color,
@@ -753,6 +763,7 @@ class _MenuCard extends StatelessWidget {
     required this.subtitle,
     required this.onTap,
     this.count,
+    this.compact = false,
     super.key,
   });
 
@@ -762,23 +773,30 @@ class _MenuCard extends StatelessWidget {
     final bg1 = color.withOpacity(0.08);
     final bg2 = cs.surface;
 
+    final pad = compact ? 12.0 : 18.0;
+    final iconSize = compact ? 22.0 : 28.0;
+    final circle = compact ? 40.0 : 48.0;
+    final titleSize = compact ? 14.0 : 16.0;
+    final subSize = compact ? 12.0 : 13.0;
+    final chevron = compact ? 20.0 : 22.0;
+
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(compact ? 16 : 20),
       child: Container(
-        padding: const EdgeInsets.all(18),
+        padding: EdgeInsets.all(pad),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [bg1, bg2],
           ),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(compact ? 16 : 20),
           border: Border.all(color: cs.outlineVariant),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.06),
-              blurRadius: 12,
+              blurRadius: compact ? 10 : 12,
               offset: const Offset(0, 3),
             ),
           ],
@@ -790,13 +808,13 @@ class _MenuCard extends StatelessWidget {
               clipBehavior: Clip.none,
               children: [
                 Container(
-                  width: 48,
-                  height: 48,
+                  width: circle,
+                  height: circle,
                   decoration: BoxDecoration(
                     color: color.withOpacity(0.12),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(icon, color: color, size: 28),
+                  child: Icon(icon, color: color, size: iconSize),
                 ),
                 if (count != null)
                   Positioned(
@@ -828,7 +846,7 @@ class _MenuCard extends StatelessWidget {
                   ),
               ],
             ),
-            const SizedBox(width: 14),
+            SizedBox(width: compact ? 10 : 14),
             // Titel + Untertitel
             Expanded(
               child: Column(
@@ -838,9 +856,9 @@ class _MenuCard extends StatelessWidget {
                     title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w700,
-                      fontSize: 16,
+                      fontSize: titleSize,
                       letterSpacing: .2,
                     ),
                   ),
@@ -851,13 +869,13 @@ class _MenuCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: cs.onSurface.withOpacity(0.7),
-                      fontSize: 13,
+                      fontSize: subSize,
                     ),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, size: 22),
+            Icon(Icons.chevron_right, size: chevron),
           ],
         ),
       ),
@@ -883,7 +901,7 @@ class _ComplaintTile extends StatefulWidget {
   State<_ComplaintTile> createState() => _ComplaintTileState();
 }
 
-class _ComplaintTileState extends State<_ComplaintTile> with SingleTickerProviderStateMixin {
+class _ComplaintTileState extends State<_ComplaintTile> {
   bool _hoverAccept = false;
   bool _hoverReject = false;
 
@@ -899,40 +917,47 @@ class _ComplaintTileState extends State<_ComplaintTile> with SingleTickerProvide
     final article  = (widget.data['payload']?['article'] ?? '').toString();
     final segment  = (widget.data['payload']?['segment'] ?? '').toString();
 
-    Widget _modernButton({
+    // --- Kleine Punkt-Buttons mit Gradient, Schatten, Hover/Scale ---
+    Widget _dotButton({
       required bool positive,
+      required String tooltip,
       required VoidCallback onTap,
       required bool hover,
       required ValueChanged<bool> setHover,
-      required String label,
-      required IconData icon,
     }) {
-      final baseColor = positive ? Colors.green : Colors.red;
+      final gradient = positive
+          ? const LinearGradient(colors: [Color(0xFF2ECC71), Color(0xFF27AE60)]) // grün Verlauf
+          : const LinearGradient(colors: [Color(0xFFE74C3C), Color(0xFFC0392B)]); // rot Verlauf
+
+      final icon = positive ? Icons.check_rounded : Icons.close_rounded;
+
       return MouseRegion(
         onEnter: (_) => setHover(true),
         onExit: (_) => setHover(false),
         child: AnimatedScale(
-          scale: hover ? 1.03 : 1.0,
+          scale: hover ? 1.08 : 1.0,
           duration: const Duration(milliseconds: 120),
-          child: ElevatedButton.icon(
-            onPressed: onTap,
-            icon: Icon(icon),
-            label: Text(label),
-            style: ButtonStyle(
-              elevation: MaterialStateProperty.resolveWith<double>(
-                (states) => states.contains(MaterialState.pressed) ? 1 : 4,
+          child: Tooltip(
+            message: tooltip,
+            child: InkWell(
+              onTap: onTap,
+              customBorder: const CircleBorder(),
+              child: Ink(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: gradient,
+                  boxShadow: [
+                    BoxShadow(
+                      color: (positive ? Colors.green : Colors.red).withOpacity(.35),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Icon(icon, size: 18, color: Colors.white),
               ),
-              shadowColor: MaterialStateProperty.all(baseColor.withOpacity(.35)),
-              backgroundColor: MaterialStateProperty.resolveWith<Color>(
-                (states) => states.contains(MaterialState.pressed)
-                    ? baseColor.withOpacity(.85)
-                    : baseColor,
-              ),
-              foregroundColor: MaterialStateProperty.all(Colors.white),
-              shape: MaterialStateProperty.all(
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              ),
-              padding: MaterialStateProperty.all(const EdgeInsets.symmetric(horizontal: 14, vertical: 12)),
             ),
           ),
         ),
@@ -945,21 +970,19 @@ class _ComplaintTileState extends State<_ComplaintTile> with SingleTickerProvide
         return Wrap(
           spacing: 10,
           children: [
-            _modernButton(
+            _dotButton(
               positive: true,
+              tooltip: '${t.decision}: ${t.decision_accepted}',
               onTap: () => widget.onDecision!(ticket, true),
               hover: _hoverAccept,
               setHover: (v) => setState(() => _hoverAccept = v),
-              label: t.decision_accepted,
-              icon: Icons.check_rounded,
             ),
-            _modernButton(
+            _dotButton(
               positive: false,
+              tooltip: '${t.decision}: ${t.decision_rejected}',
               onTap: () => widget.onDecision!(ticket, false),
               hover: _hoverReject,
               setHover: (v) => setState(() => _hoverReject = v),
-              label: t.decision_rejected,
-              icon: Icons.close_rounded,
             ),
           ],
         );
