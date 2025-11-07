@@ -288,7 +288,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     return m;
   }
 
-  // ------ Helpers für Anzeige ------
+  // ------ Anzeige-Helper ------
   String _displayCustomerFor(Map<String, dynamic> c) {
     final em = (c['customerEmail'] ?? c['email'] ?? '').toString();
     final co = _emailToCompany[em] ?? '';
@@ -299,10 +299,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     final s = v?.toString() ?? '';
     if (s.isEmpty) return s;
     int? ms;
-    // Zahl?
     final n = int.tryParse(s);
     if (n != null) {
-      // Sekunden vs. Millisekunden heuristisch
       ms = n > 20000000000 ? n : n * 1000;
     }
     if (ms != null) {
@@ -310,7 +308,6 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       String two(int x) => x < 10 ? '0$x' : '$x';
       return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}';
     }
-    // ISO-String?
     DateTime? dt;
     try { dt = DateTime.parse(s).toLocal(); } catch (_) {}
     if (dt != null) {
@@ -405,7 +402,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     );
   }
 
-  // ---- Menü (kompakt skaliert, siehe voriges Update) ----
+  // ---- Menü (kompakt skaliert) ----
   Widget _buildMenu(int allCount, int openCount, int rejectedCount, int finishedCount) {
     return LayoutBuilder(builder: (ctx, c) {
       final width = c.maxWidth;
@@ -659,7 +656,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     );
   }
 
-  // ---- Seite: Account – zwei getrennte Einträge ----
+  // ---- Seite: Account – ohne Doppeltitel/Untertitel + getrennte PW-Änderung ----
   Widget _buildAccountCard() {
     final t = context.t;
     final labelProfile   = t.profile_edit ?? 'Profil bearbeiten';
@@ -667,10 +664,99 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
     Future<void> _openProfile() async {
       await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => RepProfilePage(api: widget.api)),
+        MaterialPageRoute(builder: (_) => RepProfilePage(api: widget.api)), // Profilseite (ohne Passwort)
       );
       if (!mounted) return;
       await _loadAll();
+    }
+
+    Future<void> _openPasswordChange() async {
+      final oldCtrl = TextEditingController();
+      final new1Ctrl = TextEditingController();
+      final new2Ctrl = TextEditingController();
+      String? err;
+      bool busy = false;
+
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) {
+          Future<void> _submit() async {
+            if (busy) return;
+            final oldPw = oldCtrl.text;
+            final n1 = new1Ctrl.text;
+            final n2 = new2Ctrl.text;
+            if (oldPw.isEmpty || n1.isEmpty || n2.isEmpty) {
+              err = t.errorGeneric?.replaceFirst('{msg}', t.password_required ?? 'Bitte alle Felder ausfüllen') ?? 'Fehler: Bitte alle Felder ausfüllen';
+              (ctx as Element).markNeedsBuild();
+              return;
+            }
+            if (n1 != n2) {
+              err = t.errorGeneric?.replaceFirst('{msg}', t.password_mismatch ?? 'Passwörter stimmen nicht überein') ?? 'Fehler: Passwörter stimmen nicht überein';
+              (ctx as Element).markNeedsBuild();
+              return;
+            }
+            busy = true;
+            (ctx as Element).markNeedsBuild();
+            try {
+              // HINWEIS: Falls dein Api-Methodenname abweicht, sag Bescheid – ich passe exakt an.
+              await widget.api.repChangePassword(oldPw, n1);
+              if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.saved)));
+            } catch (e) {
+              err = '${t.error ?? 'Fehler'}: $e';
+              busy = false;
+              (ctx as Element).markNeedsBuild();
+            }
+          }
+
+          return AlertDialog(
+            title: Text(labelPassword),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: oldCtrl,
+                  obscureText: true,
+                  decoration: InputDecoration(labelText: t.password_old ?? 'Altes Passwort'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: new1Ctrl,
+                  obscureText: true,
+                  decoration: InputDecoration(labelText: t.password_new ?? 'Neues Passwort'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: new2Ctrl,
+                  obscureText: true,
+                  decoration: InputDecoration(labelText: t.password_new_repeat ?? 'Neues Passwort (Wiederholung)'),
+                ),
+                if (err != null) ...[
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(err!, style: const TextStyle(color: Colors.red)),
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: busy ? null : () => Navigator.of(ctx).pop(),
+                child: Text(t.cancel),
+              ),
+              ElevatedButton(
+                onPressed: busy ? null : _submit,
+                child: busy
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    : Text(t.save),
+              ),
+            ],
+          );
+        },
+      );
     }
 
     return Card(
@@ -678,16 +764,10 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Column(
         children: [
-          ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            leading: const Icon(Icons.person_outline),
-            title: Text(t.profilePW),
-          ),
-          const Divider(height: 1),
+          // Kopfzeile entfällt (kein doppelter Titel)
           ListTile(
             leading: const Icon(Icons.manage_accounts_outlined),
             title: Text(labelProfile),
-            subtitle: Text(t.profilePW),
             trailing: const Icon(Icons.chevron_right),
             onTap: _openProfile,
           ),
@@ -695,9 +775,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
           ListTile(
             leading: const Icon(Icons.lock_reset_outlined),
             title: Text(labelPassword),
-            subtitle: Text(t.password_change_hint ?? 'Passwort sicher aktualisieren'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: _openProfile,
+            onTap: _openPasswordChange, // eigener Dialog nur fürs Passwort
           ),
         ],
       ),
@@ -923,8 +1002,8 @@ class _ComplaintTile extends StatefulWidget {
   final bool isClosed;
   final void Function(String ticket, bool approve)? onDecision;
   final bool useColoredButtons;
-  final String? customerOverride; // NEU: Anzeige „Kunde“ (Firma bevorzugt)
-  final String? createdOverride;  // NEU: Anzeige „Angelegt“ formatiert
+  final String? customerOverride; // Anzeige „Kunde“ (Firma bevorzugt)
+  final String? createdOverride;  // Anzeige „Angelegt“ formatiert
 
   const _ComplaintTile({
     required this.data,
@@ -952,13 +1031,12 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     final status   = (widget.data['status'] ?? '').toString();
     final decision = (widget.data['decision'] ?? '').toString();
 
-    // Fallbacks falls Overrides nicht gesetzt:
     final createdRaw   = widget.data['createdAt'] ?? widget.data['created'] ?? '';
     final created      = widget.createdOverride ?? createdRaw.toString();
     final customerRaw  = (widget.data['customerEmail'] ?? widget.data['email'] ?? '').toString();
     final customer     = widget.customerOverride ?? customerRaw;
 
-    // --- Kleine Punkt-Buttons (Gradient + Hover) ---
+    // kleine Punkt-Buttons (Gradient + Hover)
     Widget _dotButton({
       required bool positive,
       required String tooltip,
