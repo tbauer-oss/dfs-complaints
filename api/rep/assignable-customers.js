@@ -13,18 +13,7 @@ export default async function handler(req, res) {
   setCors(req, res, 'Content-Type, Authorization, X-Gate');
   if (req.method === 'OPTIONS') return res.status(204).end();
 
-  try {
-    // 2) Auth sicher ermitteln
-    let auth = null;
-    try { auth = getRepFromAuthHeader(req); } catch (e) {
-      console.error('[rep/customers] auth parse failed:', e);
-      return res.status(401).end(JSON.stringify({ error: 'unauthorized' }));
-    }
-    if (!auth) {
-      return res.status(401).end(JSON.stringify({ error: 'unauthorized' }));
-    }
-
-  const allCustomers = await loadAllCustomersWithAssignee(); 
+    const allCustomers = await loadAllCustomersWithAssignee(); 
 
   // Minimalvalidierung + sortieren nach Label
   const norm = (x) => ({
