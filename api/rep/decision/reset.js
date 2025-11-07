@@ -10,7 +10,7 @@ const rid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice
 function setCorsFallback(
   req,
   res,
-  allowHeaders = 'Content-Type, Authorization, X-Admin-Secret, X-Gate, X-Rep-Secret, X-Debug'
+  allowHeaders = 'Content-Type, Authorization, X-Admin-Secret, X-Gate, X-Debug'
 ) {
   const PROD_FE = 'https://dfs-complaints-web.vercel.app';
   const origin = req.headers?.origin || '';
@@ -81,20 +81,36 @@ async function loadUpstashFacade() {
     throw new Error('No redis set function available');
   };
 
-  return {
-    get,
-    set,
-    _exports: Object.keys(exp),
-  };
+  return { get, set, _exports: Object.keys(exp) };
 }
 
-// --- repAuth laden ---
+// --- repAuth laden (robust; named/default) ---
 async function loadRepAuth() {
-  const mod = await import(new URL('../../_lib/repAuth.js', import.meta.url));
-  if (typeof mod.getRepFromAuthHeader !== 'function') {
-    throw new Error('repAuth export missing');
+  const url = new URL('../../_lib/repAuth.js', import.meta.url);
+  let mod;
+  try {
+    mod = await import(url);
+  } catch (e) {
+    const err = new Error('repAuth import failed');
+    err._inner = e;
+    err._url = url.toString();
+    throw err;
   }
-  return mod.getRepFromAuthHeader;
+
+  const cands = [
+    mod.getRepFromAuthHeader,
+    mod.default?.getRepFromAuthHeader,
+    mod.default, // falls die Funktion als default exportiert ist
+  ].filter(Boolean);
+
+  for (const fn of cands) {
+    if (typeof fn === 'function') return fn;
+  }
+
+  const err = new Error('repAuth export missing');
+  err._keys = Object.keys(mod || {});
+  err._hasDefault = !!mod?.default;
+  throw err;
 }
 
 // --- Handler ---
@@ -124,7 +140,16 @@ export default async function handler(req, res) {
   } catch (e) {
     console.error('[rep/decision/reset] repAuth load error:', e);
     return debug
-      ? res.status(500).json({ ok: false, reqId, error: 'repAuth import failed' })
+      ? res.status(500).json({
+          ok: false,
+          reqId,
+          error: 'repAuth import failed',
+          at: 'loadRepAuth',
+          url: e?._url,
+          inner: String(e?._inner || ''),
+          keys: e?._keys || null,
+          hasDefault: e?._hasDefault ?? null,
+        })
       : res.status(500).json({ error: 'repAuth import failed' });
   }
 
