@@ -20,8 +20,11 @@
   "theme_light": "Clair",
   "theme_dark": "Sombre",
 
-  "my_decision": "Mon évaluation",
+  "decision_withdraw": "Retirer la décision",
+  "decision_withdraw_confirm": "Voulez-vous vraiment retirer votre décision ?",
   "no_decision_yet": "Aucune décision pour l’instant",
+  "my_decision": "Mon appréciation",
+  "ok": "OK",
   "search": "Rechercher…",
   "free": "Libre",
   "assigned_to": "attribué à",
