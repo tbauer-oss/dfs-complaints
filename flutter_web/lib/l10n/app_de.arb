@@ -19,9 +19,12 @@
   "theme_system": "System",
   "theme_light": "Hell",
   "theme_dark": "Dunkel",
-
-  "my_decision": "Meine Bewertung",
+  
+  "decision_withdraw": "Entscheidung zurücknehmen",
+  "decision_withdraw_confirm": "Möchtest du deine Entscheidung wirklich zurücknehmen?",
   "no_decision_yet": "Noch keine Entscheidung",
+  "my_decision": "Meine Bewertung",
+  "ok": "OK",
   "search": "Suchen…",
   "free": "Frei",
   "assigned_to": "zugewiesen an",
