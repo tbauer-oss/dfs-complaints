@@ -6,6 +6,7 @@ import { getRepFromAuthHeader } from '../_lib/repAuth.js';
 import { repCustomers } from '../_lib/repsStore.js'; // leichtgewichtig belassen
 
 function S(v) { return (v ?? '').toString().trim(); }
+function isEmail(x) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x); }
 
 export default async function handler(req, res) {
   // 1) CORS IMMER zuerst
@@ -23,7 +24,7 @@ export default async function handler(req, res) {
       return res.status(401).end(JSON.stringify({ error: 'unauthorized' }));
     }
 
-    // 3) POST: assign / unassign
+    // 3) POST: assign / unassign  (→ nur hier minimal gehärtet)
     if (req.method === 'POST') {
       try {
         let body = {};
@@ -33,23 +34,64 @@ export default async function handler(req, res) {
             : (req.body || {});
         } catch {}
 
-        const action = S(body.action);
-        const email  = S(body.email).toLowerCase();
+        // NEU: action/op + email/customerEmail akzeptieren
+        const action = (S(body.action || body.op)).toLowerCase();
+        const email  = S(body.email || body.customerEmail).toLowerCase();
 
-        if (!email || !email.includes('@')) {
+        if (!action) {
+          return res.status(400).end(JSON.stringify({ error: 'invalid action' }));
+        }
+        if (!email || !isEmail(email)) {
           return res.status(400).end(JSON.stringify({ error: 'invalid email' }));
+        }
+
+        // NEU: Kunde muss existieren – sonst 404 statt 500
+        try {
+          const { userByEmail } = await import('../_lib/store.js');
+          const u = await userByEmail(email);
+          if (!u) {
+            return res.status(404).end(JSON.stringify({ error: 'customer not found' }));
+          }
+        } catch (e) {
+          // Wenn store nicht verfügbar → nicht hart abbrechen, aber loggen
+          console.warn('[rep/customers] userByEmail check skipped:', e?.message || e);
         }
 
         const { repAssign, repUnassign } = await import('../_lib/repsStore.js');
 
         if (action === 'assign') {
-          await repAssign(auth.repId, email);
-          return res.status(204).end();
+          try {
+            await repAssign(auth.repId, email);
+            return res.status(204).end();
+          } catch (e) {
+            // typische Konflikte sauber mappen
+            const msg = (e?.message || '').toString().toLowerCase();
+            if (msg.includes('already') || msg.includes('assigned')) {
+              return res.status(409).end(JSON.stringify({ error: 'already assigned' }));
+            }
+            if (msg.includes('not found') || msg.includes('unknown')) {
+              return res.status(404).end(JSON.stringify({ error: 'customer not found' }));
+            }
+            console.error('[rep/customers] repAssign error:', e);
+            return res.status(500).end(JSON.stringify({ error: 'server error' }));
+          }
         }
+
         if (action === 'unassign') {
-          await repUnassign(auth.repId, email);
-          return res.status(204).end();
+          try {
+            await repUnassign(auth.repId, email);
+            return res.status(204).end();
+          } catch (e) {
+            const msg = (e?.message || '').toString().toLowerCase();
+            if (msg.includes('not found') || msg.includes('unknown')) {
+              // unassign von „nicht zugewiesen“ ist idempotent
+              return res.status(204).end();
+            }
+            console.error('[rep/customers] repUnassign error:', e);
+            return res.status(500).end(JSON.stringify({ error: 'server error' }));
+          }
         }
+
         return res.status(400).end(JSON.stringify({ error: 'invalid action' }));
       } catch (e) {
         console.error('[rep/customers] POST error:', e);
