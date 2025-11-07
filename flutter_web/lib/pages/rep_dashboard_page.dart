@@ -233,9 +233,6 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         final list = normalize(r);
         if (list.isNotEmpty) return list;
       } catch (_) {}
-
-      // 2) Fallbacks (nur wenn unbedingt nötig) – hier bewusst leer lassen
-      //    damit keine "falschen" zugewiesenen Einträge auftauchen.
     } catch (_) {}
 
     return [];
@@ -265,149 +262,222 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     }
   }
 
+  // ==========================
+  // Schöne Auswahlliste (Sheet)
+  // ==========================
   Future<void> _assignCustomerDialog() async {
-    String? selectedEmail;
-    String? selectedLabel;
+    final t = context.t;
+    final options = await _fetchAssignableCustomers();
+
+    if (!mounted) return;
+
+    // Nichts da → hübscher leer-State
+    if (options.isEmpty) {
+      await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(t.addCustomer),
+          content: Text(t.noAddCustomer),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text(t.close)),
+          ],
+        ),
+      );
+      return;
+    }
+
+    String query = '';
     String? locErr;
     bool saving = false;
 
-    final options = await _fetchAssignableCustomers();
-
-    await showDialog(
+    await showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
       builder: (ctx) {
-        final t = ctx.t;
+        // lokale Filterfunktion
+        List<Map<String, Object?>> filtered() {
+          if (query.trim().isEmpty) return options;
+          final q = query.toLowerCase();
+          return options.where((o) {
+            final label = (o['label'] as String).toLowerCase();
+            final email = (o['email'] as String).toLowerCase();
+            final assTo = (o['assignedToLabel']?.toString() ?? '').toLowerCase();
+            return label.contains(q) || email.contains(q) || assTo.contains(q);
+          }).toList();
+        }
 
-        Future<void> save() async {
+        // Sektionen bilden
+        List<Map<String, Object?>> free(List<Map<String, Object?>> src) =>
+            src.where((o) => o['assigned'] != true).toList();
+        List<Map<String, Object?>> taken(List<Map<String, Object?>> src) =>
+            src.where((o) => o['assigned'] == true).toList();
+
+        Future<void> doAssign(String email, String label) async {
           if (saving) return;
-          if (selectedEmail == null || selectedEmail!.isEmpty) {
-            locErr = t.selectCustomer ?? 'Bitte Kunden auswählen';
-            (ctx as Element).markNeedsBuild();
-            return;
-          }
-
-          // hartes Guarding: ausgewählter Eintrag darf nicht assigned sein
-          final picked = options.firstWhere(
-            (o) => (o['email']?.toString().toLowerCase() ?? '') == selectedEmail!.toLowerCase(),
-            orElse: () => {},
-          );
-          if ((picked['assigned'] == true)) {
-            // zurücksetzen + Hinweis
-            selectedEmail = null;
-            selectedLabel = null;
-            ScaffoldMessenger.of(ctx).showSnackBar(
-              SnackBar(content: Text(t.noAddCustomer)),
-            );
-            (ctx as Element).markNeedsBuild();
-            return;
-          }
-
           saving = true;
           (ctx as Element).markNeedsBuild();
           try {
-            await widget.api.repAssignCustomer(selectedEmail!);
-
-            // Admin-Notify (Selbstzuweisung)
-            await _notifySelfAssignment(
-              customerEmail: selectedEmail!,
-              company: selectedLabel,
-            );
-
+            await widget.api.repAssignCustomer(email);
+            await _notifySelfAssignment(customerEmail: email, company: label);
             if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
             await _loadAll();
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.t.saved)));
           } catch (e) {
-            locErr = '${ctx.t.error ?? 'Fehler'}: $e';
+            locErr = '${context.t.error ?? 'Fehler'}: $e';
             saving = false;
             (ctx as Element).markNeedsBuild();
           }
         }
 
-        return AlertDialog(
-          title: Text(t.addCustomer),
-          content: Column(
+        final list = filtered();
+        final listFree  = free(list);
+        final listTaken = taken(list);
+
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 12,
+            top: 12, left: 12, right: 12,
+          ),
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              DropdownButtonFormField<String>(
-                isExpanded: true,
-                value: selectedEmail,
-                items: options.isEmpty
-                    ? [
-                        DropdownMenuItem(
-                          value: '',
-                          enabled: false,
-                          child: Text(t.noAddCustomer),
-                        ),
-                      ]
-                    : options.map((opt) {
-                        final email    = (opt['email'] as String);
-                        final label    = (opt['label'] as String);
-                        final assigned = (opt['assigned'] == true);
-                        final assignedTo = (opt['assignedToLabel']?.toString() ?? '');
-                        final text = assigned && assignedTo.isNotEmpty
-                            ? '$label  –  (${t.assigned_to ?? 'zugewiesen an'}: $assignedTo)'
-                            : (assigned ? '$label  –  (${t.assigned ?? 'zugewiesen'})' : label);
-
-                        return DropdownMenuItem<String>(
-                          value: email,
-                          enabled: !assigned, // disabled wenn bereits zugewiesen
-                          child: Opacity(
-                            opacity: assigned ? 0.45 : 1.0,
-                            child: Text(
-                              text,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          onTap: () {
-                            // Nur Label merken, wenn nicht assigned
-                            if (!assigned) selectedLabel = label;
-                          },
-                        );
-                      }).toList(),
-                onChanged: (v) {
-                  if (v == null || v.isEmpty) {
-                    selectedEmail = null;
-                  } else {
-                    final picked = options.firstWhere(
-                      (o) => (o['email']?.toString().toLowerCase() ?? '') == v.toLowerCase(),
-                      orElse: () => {},
-                    );
-                    if (picked.isNotEmpty && picked['assigned'] == true) {
-                      // Sicherheitsnetz – nichts wählen
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(t.noAddCustomer)),
-                      );
-                      return;
-                    }
-                    selectedEmail = v;
-                  }
-                },
-                decoration: InputDecoration(
-                  labelText: t.chooseCustomer ?? 'Kunde wählen',
-                  prefixIcon: const Icon(Icons.apartment_outlined),
+              Container(
+                width: 46, height: 5,
+                margin: const EdgeInsets.only(bottom: 10),
+                decoration: BoxDecoration(
+                  color: Theme.of(ctx).dividerColor,
+                  borderRadius: BorderRadius.circular(99),
                 ),
               ),
+              Row(
+                children: [
+                  const Icon(Icons.person_add_alt_1),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(t.addCustomer, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                  ),
+                  IconButton(
+                    tooltip: t.close,
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                onChanged: (v) { query = v; (ctx as Element).markNeedsBuild(); },
+                decoration: InputDecoration(
+                  hintText: t.search ?? 'Suchen…',
+                  prefixIcon: const Icon(Icons.search),
+                  filled: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  isDense: true,
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              // Sektion: freie Kunden
+              if (listFree.isNotEmpty) ...[
+                Row(
+                  children: [
+                    const Icon(Icons.check_circle_outline, size: 18, color: Colors.green),
+                    const SizedBox(width: 6),
+                    Text(t.free ?? 'Frei', style: const TextStyle(fontWeight: FontWeight.w600)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 320),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: listFree.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (_, i) {
+                      final o = listFree[i];
+                      final email = o['email'] as String;
+                      final label = o['label'] as String;
+                      return ListTile(
+                        onTap: saving ? null : () => doAssign(email, label),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 6),
+                        leading: const CircleAvatar(child: Icon(Icons.apartment, size: 18)),
+                        title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        subtitle: Text(email, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        trailing: saving
+                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Icon(Icons.add_circle_outline),
+                      );
+                    },
+                  ),
+                ),
+              ],
+
+              // Sektion: bereits zugewiesen
+              if (listTaken.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(Icons.lock_outline, size: 18, color: Colors.grey),
+                    const SizedBox(width: 6),
+                    Text(t.assigned ?? 'Zugewiesen', style: const TextStyle(fontWeight: FontWeight.w600)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 220),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: listTaken.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (_, i) {
+                      final o = listTaken[i];
+                      final label = (o['label'] as String);
+                      final email = (o['email'] as String);
+                      final asTo  = (o['assignedToLabel']?.toString() ?? '');
+                      return Opacity(
+                        opacity: 0.50,
+                        child: ListTile(
+                          enabled: false,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 6),
+                          leading: const CircleAvatar(child: Icon(Icons.apartment, size: 18)),
+                          title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+                          subtitle: Text(
+                            asTo.isNotEmpty
+                                ? '$email  •  (${t.assigned_to ?? 'zugewiesen an'}: $asTo)'
+                                : email,
+                            maxLines: 2, overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: const Icon(Icons.do_not_disturb_on, color: Colors.grey),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+
+              if (listFree.isEmpty && listTaken.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  child: Text(
+                    t.noAddCustomer,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+
               if (locErr != null) ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(locErr!, style: const TextStyle(color: Colors.red)),
                 ),
               ],
+              const SizedBox(height: 6),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: saving ? null : () => Navigator.of(ctx).pop(),
-              child: Text(t.cancel),
-            ),
-            ElevatedButton(
-              onPressed: saving || options.isEmpty ? null : save,
-              child: saving
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                  : Text(t.add),
-            ),
-          ],
         );
       },
     );
