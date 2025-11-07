@@ -10,7 +10,7 @@ function isEmail(x) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x); }
 
 export default async function handler(req, res) {
   // 1) CORS IMMER zuerst
-  setCors(req, res, 'Content-Type, Authorization, X-Gate');
+  setCors(req, res, 'Content-Type, Authorization, X-Gate, X-Debug');
   if (req.method === 'OPTIONS') return res.status(204).end();
 
   try {
