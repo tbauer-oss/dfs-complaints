@@ -519,9 +519,8 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            approve
-                ? context.t.decision_accepted
-                : context.t.decision_rejected,
+            (context.t.my_decision ?? 'Meine Bewertung') + ': ' +
+            (approve ? context.t.decision_accepted : context.t.decision_rejected),
           ),
         ),
       );
@@ -943,7 +942,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                     return _ComplaintTile(
                       data: c,
                       isClosed: _isClosed(c),
-                      onDecision: (c['decision'] ?? '') == '' && !_isClosed(c)
+                      onDecision: ((c['repDecision'] ?? '') as String).isEmpty && !_isClosed(c)
                           ? _decideComplaint
                           : null,
                       useColoredButtons: true,
@@ -1432,6 +1431,7 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     final ticket   = (widget.data['ticket'] ?? '').toString();
     final status   = (widget.data['status'] ?? '').toString();
     final decision = (widget.data['decision'] ?? '').toString();
+    final repDecision = (widget.data['repDecision'] ?? '').toString(); // 'accepted' | 'rejected' | ''
 
     final created   = widget.createdOverride ?? (widget.data['createdAt'] ?? widget.data['created'] ?? '').toString();
     final customer  = widget.customerOverride ?? (widget.data['customerEmail'] ?? widget.data['email'] ?? '').toString();
@@ -1548,6 +1548,8 @@ class _ComplaintTileState extends State<_ComplaintTile> {
                     ),
                     const SizedBox(width: 8),
                     _StatusChip(status: status, decision: decision, closed: widget.isClosed),
+                    const SizedBox(width: 6),
+                    _RepDecisionChip(repDecision: repDecision), // ← NEU: Vertreter-Ampel
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -1560,11 +1562,15 @@ class _ComplaintTileState extends State<_ComplaintTile> {
                       _InfoCapsule('${t.articleNo}: ${widget.data['payload']['article']}'),
                     if (widget.data['payload']?['segment']?.toString().isNotEmpty ?? false)
                       _InfoCapsule('${t.segment}: ${widget.data['payload']['segment']}'),
-                    if (created.isNotEmpty)  _InfoCapsule('${t.created_at ?? 'Angelegt'}: $created'),
-                    if (decision.isNotEmpty) _InfoCapsule('${t.decision}: $decision'),
+                    if (created.isNotEmpty)
+                      _InfoCapsule('${t.created_at ?? 'Angelegt'}: $created'),
+                    if (decision.isNotEmpty)
+                      _InfoCapsule('${t.decision ?? 'Admin-Entscheidung'}: $decision'),
+                    if (repDecision.isNotEmpty)
+                      _InfoCapsule('${t.my_decision ?? 'Meine Bewertung'}: $repDecision'),
                   ],
                 ),
-                if (widget.onDecision != null && !widget.isClosed) ...[
+                if (widget.onDecision != null && !widget.isClosed && repDecision.isEmpty) ...[
                   const SizedBox(height: 10),
                   Align(
                     alignment: isNarrow ? Alignment.centerLeft : Alignment.centerRight,
@@ -1630,9 +1636,64 @@ class _StatusChip extends StatelessWidget {
         border: Border.all(color: c),
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Text(
-        'Status $status',
+      child: Text('${context.t.status ?? 'Status'}: $status',
         style: TextStyle(color: c, fontSize: 12, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
+class _RepDecisionChip extends StatelessWidget {
+  final String repDecision; // '', 'accepted', 'rejected'
+  const _RepDecisionChip({required this.repDecision, super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // Ampel: ''  -> gelb (noch keine Entscheidung)
+    //         'accepted' -> grün
+    //         'rejected' -> rot
+    late final Color color;
+    late final String label;
+
+    if (repDecision == 'accepted') {
+      color = Colors.green;
+      label = (context.t.decision_accepted) /* z.B. "angenommen" */ ;
+    } else if (repDecision == 'rejected') {
+      color = Colors.red;
+      label = (context.t.decision_rejected) /* z.B. "abgelehnt" */ ;
+    } else {
+      color = Colors.amber;
+      label = (context.t.no_decision_yet ?? 'Noch keine Entscheidung');
+    }
+
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(.12),
+        border: Border.all(color: color, width: 1),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // kleiner Punkt (Ampel)
+          Container(
+            width: 8,
+            height: 8,
+            margin: const EdgeInsets.only(right: 6),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          Text(
+            (context.t.my_decision ?? 'Meine Bewertung') + ': ' + label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
