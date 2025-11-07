@@ -378,16 +378,39 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     return LayoutBuilder(builder: (ctx, c) {
       final width = c.maxWidth;
 
-      // kompakter auf schmalen Displays
+      // kompakter auf allen Breakpoints (auch Desktop)
       final gridCount = width >= 1200 ? 4 : width >= 900 ? 3 : width >= 600 ? 2 : 1;
-      // höheres AspectRatio auf Handy -> weniger Höhe, wirkt kleiner
-      final aspect = width < 480 ? 1.75 : width < 600 ? 1.5 : 1.2;
+
+      // Höheres AspectRatio auf großen Screens -> flachere/kleinere Kacheln
+      final aspect = width >= 1400
+          ? 1.70
+          : width >= 1100
+              ? 1.60
+              : width >= 900
+                  ? 1.55
+                  : width >= 600
+                      ? 1.45
+                      : width >= 480
+                          ? 1.50
+                          : 1.75;
+
+      // Skaliert die internen Abmessungen der Kachel überall leicht runter
+      final scale = width >= 1400
+          ? 0.84
+          : width >= 1100
+              ? 0.88
+              : width >= 900
+                  ? 0.90
+                  : width >= 600
+                      ? 0.95
+                      : 1.00;
+
       final compact = width < 600;
 
       return GridView.count(
         crossAxisCount: gridCount,
-        crossAxisSpacing: compact ? 12 : 16,
-        mainAxisSpacing: compact ? 12 : 16,
+        crossAxisSpacing: compact ? 12 : 14, // etwas kompakter
+        mainAxisSpacing: compact ? 12 : 14,
         padding: EdgeInsets.only(bottom: compact ? 4 : 8),
         childAspectRatio: aspect,
         children: [
@@ -398,6 +421,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             subtitle: 'Bearbeiten & Entscheiden',
             count: openCount,
             compact: compact,
+            scale: scale,
             onTap: () => setState(() {
               _filter = _RepFilter.open;
               _view = _RepView.open;
@@ -410,6 +434,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             subtitle: 'Filtern & Suchen',
             count: allCount,
             compact: compact,
+            scale: scale,
             onTap: () => setState(() => _view = _RepView.all),
           ),
           _MenuCard(
@@ -419,6 +444,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             subtitle: 'Firmen & Kontakte',
             count: _customers.length,
             compact: compact,
+            scale: scale,
             onTap: () => setState(() => _view = _RepView.customers),
           ),
           _MenuCard(
@@ -428,6 +454,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             subtitle: 'Profil & Passwort',
             count: null,
             compact: compact,
+            scale: scale,
             onTap: () => setState(() => _view = _RepView.account),
           ),
         ],
@@ -754,7 +781,8 @@ class _MenuCard extends StatelessWidget {
   final String subtitle;
   final int? count;           // null => kein Badge
   final VoidCallback onTap;
-  final bool compact;         // NEU: kompakte Darstellung auf Handy
+  final bool compact;         // kompakt auf Handy
+  final double scale;         // NEU: globale Verkleinerung (auch Desktop)
 
   const _MenuCard({
     required this.color,
@@ -764,6 +792,7 @@ class _MenuCard extends StatelessWidget {
     required this.onTap,
     this.count,
     this.compact = false,
+    this.scale = 1.0,
     super.key,
   });
 
@@ -773,16 +802,17 @@ class _MenuCard extends StatelessWidget {
     final bg1 = color.withOpacity(0.08);
     final bg2 = cs.surface;
 
-    final pad = compact ? 12.0 : 18.0;
-    final iconSize = compact ? 22.0 : 28.0;
-    final circle = compact ? 40.0 : 48.0;
-    final titleSize = compact ? 14.0 : 16.0;
-    final subSize = compact ? 12.0 : 13.0;
-    final chevron = compact ? 20.0 : 22.0;
+    final pad = (compact ? 12.0 : 18.0) * scale;
+    final iconSize = (compact ? 22.0 : 28.0) * scale;
+    final circle = (compact ? 40.0 : 48.0) * scale;
+    final titleSize = (compact ? 14.0 : 16.0) * scale;
+    final subSize = (compact ? 12.0 : 13.0) * scale;
+    final chevron = (compact ? 20.0 : 22.0) * scale;
+    final radius = (compact ? 16.0 : 20.0) * scale;
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(compact ? 16 : 20),
+      borderRadius: BorderRadius.circular(radius),
       child: Container(
         padding: EdgeInsets.all(pad),
         decoration: BoxDecoration(
@@ -791,7 +821,7 @@ class _MenuCard extends StatelessWidget {
             end: Alignment.bottomRight,
             colors: [bg1, bg2],
           ),
-          borderRadius: BorderRadius.circular(compact ? 16 : 20),
+          borderRadius: BorderRadius.circular(radius),
           border: Border.all(color: cs.outlineVariant),
           boxShadow: [
             BoxShadow(
@@ -846,7 +876,7 @@ class _MenuCard extends StatelessWidget {
                   ),
               ],
             ),
-            SizedBox(width: compact ? 10 : 14),
+            SizedBox(width: compact ? 10 * scale : 14 * scale),
             // Titel + Untertitel
             Expanded(
               child: Column(
