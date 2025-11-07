@@ -533,6 +533,42 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     }
   }
 
+  Future<void> _withdrawRepDecision(String ticket) async {
+    try {
+      await widget.api.ensureRepSession();
+
+      // a) bevorzugt: direkte Reset-Methode, falls im Client vorhanden
+      try {
+        final dyn = widget.api as dynamic;
+        await dyn.repDecisionReset(ticket);
+      } catch (_) {
+        // b) generische Route: POST /api/rep/decision mit leerer Entscheidung
+        try {
+          final dyn = widget.api as dynamic;
+          await dyn.postJson('/api/rep/decision', {
+            'ticket': ticket,
+            'decision': '', // leert die Entscheidung
+          });
+        } catch (_) {
+          // c) alternative, falls Handler anders heißt
+          final dyn = widget.api as dynamic;
+          await dyn.postJson('/api/rep/decision/reset', {'ticket': ticket});
+        }
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.t.decision_withdrawn ?? 'Entscheidung zurückgenommen')),
+      );
+      await _loadAll();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${context.t.error ?? 'Fehler'}: $e')),
+      );
+    }
+  }
+
   Future<void> _logout() async {
     await widget.api.repLogout();
     try { html.window.localStorage.remove('dfs_mode'); } catch (_) {}
@@ -836,6 +872,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                       data: c,
                       isClosed: false,
                       onDecision: (ticket, approve) => _decideComplaint(ticket, approve),
+                      onWithdraw: (ticket) => _withdrawRepDecision(ticket),
                       useColoredButtons: true,
                       customerOverride: customerDisplay,
                       createdOverride: createdDisplay,
@@ -945,6 +982,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                       onDecision: ((c['repDecision'] ?? '') as String).isEmpty && !_isClosed(c)
                           ? _decideComplaint
                           : null,
+                      onWithdraw: !_isClosed(c) ? (ticket) => _withdrawRepDecision(ticket) : null,
                       useColoredButtons: true,
                       customerOverride: customerDisplay,
                       createdOverride: createdDisplay,
@@ -1402,6 +1440,7 @@ class _ComplaintTile extends StatefulWidget {
   final Map<String, dynamic> data;
   final bool isClosed;
   final void Function(String ticket, bool approve)? onDecision;
+  final void Function(String ticket)? onWithdraw;
   final bool useColoredButtons;
   final String? customerOverride; // Anzeige „Kunde“ (Firma bevorzugt)
   final String? createdOverride;  // Anzeige „Angelegt“ formatiert
@@ -1410,6 +1449,7 @@ class _ComplaintTile extends StatefulWidget {
     required this.data,
     required this.isClosed,
     this.onDecision,
+    this.onWithdraw,
     this.useColoredButtons = false,
     this.customerOverride,
     this.createdOverride,
@@ -1522,6 +1562,8 @@ class _ComplaintTileState extends State<_ComplaintTile> {
       );
     }
 
+    
+
     return LayoutBuilder(
       builder: (ctx, cons) {
         final isNarrow = cons.maxWidth < 420;
@@ -1576,6 +1618,31 @@ class _ComplaintTileState extends State<_ComplaintTile> {
                   Align(
                     alignment: isNarrow ? Alignment.centerLeft : Alignment.centerRight,
                     child: _buttons(),
+                  ),
+                ],
+                if (!widget.isClosed && repDecision.isNotEmpty && widget.onWithdraw != null) ...[
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: isNarrow ? Alignment.centerLeft : Alignment.centerRight,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.undo),
+                      label: Text(context.t.decision_withdraw ?? 'Entscheidung zurücknehmen'),
+                      onPressed: () async {
+                        final ok = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: Text(context.t.decision_withdraw ?? 'Entscheidung zurücknehmen'),
+                            content: Text(context.t.decision_withdraw_confirm ?? 'Möchtest du deine Entscheidung wirklich zurücknehmen?'),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(context.t.cancel)),
+                              ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(context.t.ok ?? 'OK')),
+                            ],
+                          ),
+                        ) ?? false;
+
+                        if (ok) widget.onWithdraw!(ticket);
+                      },
+                    ),
                   ),
                 ],
               ],
