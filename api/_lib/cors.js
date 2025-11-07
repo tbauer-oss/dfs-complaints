@@ -11,7 +11,7 @@ const PREVIEW = /^https:\/\/dfs-complaints-web-[a-z0-9-]+(?:-[a-z0-9-]+)?\.verce
 export function setCors(
   req,
   res,
-  allowHeaders = 'Content-Type, Authorization, X-Admin-Secret, X-Gate, X-Rep-Secret'
+  allowHeaders = 'Content-Type, Authorization, X-Admin-Secret, X-Gate, X-Rep-Secret, X-Debug'
 ) {
   const origin = req.headers.origin || '';
 
