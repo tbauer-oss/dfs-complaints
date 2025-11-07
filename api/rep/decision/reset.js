@@ -29,7 +29,7 @@ function setCorsFallback(req, res, allowHeaders =
 
 async function ensureCors(req, res, allowHeaders) {
   try {
-    const mod = await import(new URL('../../_lib/cors.js', import.meta.url));
+    const mod = await import(new URL('../_lib/cors.js', import.meta.url));
     if (typeof mod.setCors === 'function') {
       mod.setCors(req, res, allowHeaders);
       return;
@@ -42,7 +42,7 @@ async function ensureCors(req, res, allowHeaders) {
 
 // --- Upstash-Facade: passt sich an deine tatsächlichen Exporte an ---
 async function loadUpstashFacade() {
-  const mod = await import(new URL('../../_lib/upstash.js', import.meta.url));
+  const mod = await import(new URL('../_lib/upstash.js', import.meta.url));
   const exp = mod || {};
 
   // GET-Kandidatenauswahl
@@ -87,7 +87,7 @@ async function loadUpstashFacade() {
 
 // --- repAuth laden ---
 async function loadRepAuth() {
-  const mod = await import(new URL('../../_lib/repAuth.js', import.meta.url));
+  const mod = await import(new URL('../_lib/repAuth.js', import.meta.url));
   if (typeof mod.getRepFromAuthHeader !== 'function') {
     throw new Error('repAuth export missing');
   }
