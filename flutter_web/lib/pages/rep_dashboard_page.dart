@@ -533,9 +533,32 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     }
   }
 
+  // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  // NUR HIER GEÄNDERT (Fix 1): ensureRepSession Ergebnis auswerten
+  // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
   Future<void> _withdrawRepDecision(String ticket) async {
     try {
-      await widget.api.ensureRepSession();
+      // Ergebnis robust behandeln, egal ob ensureRepSession() Future<void> oder Future<bool> ist
+      bool sessionOk = true;
+      try {
+        final dyn = widget.api as dynamic;
+        final res = await dyn.ensureRepSession();
+        if (res is bool && res == false) sessionOk = false;
+      } catch (_) {
+        // wenn ensureRepSession() wirft, behandeln wir das unten im catch
+      }
+
+      if (!sessionOk) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.t.session_expired_login_again)),
+        );
+        await widget.api.repLogout();
+        if (mounted) {
+          Navigator.of(context).pushNamedAndRemoveUntil('/login', (r) => false);
+        }
+        return;
+      }
 
       // a) bevorzugt: direkte Reset-Methode, falls im Client vorhanden
       try {
@@ -568,6 +591,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
       );
     }
   }
+  // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
   Future<void> _logout() async {
     await widget.api.repLogout();
@@ -1562,7 +1586,7 @@ class _ComplaintTileState extends State<_ComplaintTile> {
       );
     }
 
-    
+
 
     return LayoutBuilder(
       builder: (ctx, cons) {
