@@ -139,31 +139,22 @@ export default async function handler(req, res) {
 
     const { key, c: complaint } = found;
 
-    // Falls bereits repId gesetzt → prüfen
+    // Falls bereits repId gesetzt → prüfen (falscher Vertreter darf nicht schreiben)
     if (complaint.repId && S(complaint.repId) !== repId) {
       return res.status(403).json({ error: 'forbidden (wrong rep)' });
     }
 
-    // Entscheidung setzen (kompatibel)
+    // *** Nur Vertreter-Meinung setzen – Admin-Entscheidung/Status UNVERÄNDERT lassen! ***
     const now = new Date().toISOString();
-    complaint.decision      = decision;          // dein Frontend-Feld
-    complaint.decisionAt    = now;
-    complaint.repDecision   = decision;          // kompatibles Feld
+    complaint.repDecision   = decision;   // 'accepted' | 'rejected'
     complaint.repDecisionAt = now;
-    complaint.repId         = complaint.repId || repId;
-
-    // Statusübergang wie gehabt
-    complaint.status = (decision === 'accepted') ? 'Freigegeben durch Verteter' : 'Abgelehnt durch Verteter';
+    complaint.repDecisionBy = repId;
+    if (!complaint.repId) complaint.repId = repId;
 
     await redis.set(key, complaint);
 
-    return res.status(200).json({
-      ok: true,
-      ticket,
-      decision: complaint.decision,
-      status: complaint.status,
-      at: now,
-    });
+    // Vertreter-Endpoint liefert bewusst keinen Body (nur Erfolg)
+    return res.status(204).end();
 
   } catch (e) {
     console.error('[rep/decision] error', e);
