@@ -1261,7 +1261,7 @@ class _ComplaintTileState extends State<_ComplaintTile> {
         );
       }
       return Row(
-        mainAxisSize: MainSize.min,
+        mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(tooltip: '${t.decision}: ${t.decision_accepted}', icon: const Icon(Icons.check_circle_outline), onPressed: () => widget.onDecision!(ticket, true)),
           IconButton(tooltip: '${t.decision}: ${t.decision_rejected}', icon: const Icon(Icons.cancel_outlined),   onPressed: () => widget.onDecision!(ticket, false)),
