@@ -17,9 +17,10 @@ function setCorsFallback(
   const isPreview = /^https:\/\/dfs-complaints-web-[a-z0-9-]+(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(origin);
   const isLocal = origin.startsWith('http://localhost');
 
-  const allow = origin && (origin === PROD_FE || isPreview || isLocal)
-    ? origin
-    : (process.env.WEB_ORIGIN || PROD_FE);
+  const allow =
+    origin && (origin === PROD_FE || isPreview || isLocal)
+      ? origin
+      : (process.env.WEB_ORIGIN || PROD_FE);
 
   res.setHeader('Access-Control-Allow-Origin', allow);
   res.setHeader('Vary', 'Origin');
@@ -31,7 +32,7 @@ function setCorsFallback(
 
 async function ensureCors(req, res, allowHeaders) {
   try {
-    const mod = await import(new URL('../_lib/cors.js', import.meta.url));
+    const mod = await import(new URL('../../_lib/cors.js', import.meta.url));
     if (typeof mod.setCors === 'function') {
       mod.setCors(req, res, allowHeaders);
       return;
@@ -44,7 +45,7 @@ async function ensureCors(req, res, allowHeaders) {
 
 // --- Upstash-Facade: passt sich an deine tatsächlichen Exporte an ---
 async function loadUpstashFacade() {
-  const mod = await import(new URL('../_lib/upstash.js', import.meta.url));
+  const mod = await import(new URL('../../_lib/upstash.js', import.meta.url));
   const exp = mod || {};
 
   // GET-Kandidatenauswahl
@@ -89,7 +90,7 @@ async function loadUpstashFacade() {
 
 // --- repAuth laden ---
 async function loadRepAuth() {
-  const mod = await import(new URL('../_lib/repAuth.js', import.meta.url));
+  const mod = await import(new URL('../../_lib/repAuth.js', import.meta.url));
   if (typeof mod.getRepFromAuthHeader !== 'function') {
     throw new Error('repAuth export missing');
   }
@@ -202,7 +203,12 @@ export default async function handler(req, res) {
     // Nur eigener Rep darf zurücknehmen (wenn im Datensatz repId existiert)
     if (S(c.repId) && S(c.repId) !== S(auth.repId)) {
       return debug
-        ? res.status(200).json({ ok: false, reqId, error: 'forbidden (wrong rep)', repIdOnRecord: c.repId })
+        ? res.status(200).json({
+            ok: false,
+            reqId,
+            error: 'forbidden (wrong rep)',
+            repIdOnRecord: c.repId,
+          })
         : res.status(403).json({ error: 'forbidden (wrong rep)' });
     }
 
