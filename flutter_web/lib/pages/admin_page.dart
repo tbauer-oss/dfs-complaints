@@ -334,8 +334,8 @@ class _AdminPageState extends State<AdminPage> {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: isPhone ? 220 : 260,
-        mainAxisSpacing: 20,
-        crossAxisSpacing: 20,
+        mainAxisSpacing: 40,
+        crossAxisSpacing: 40,
         childAspectRatio: isPhone ? 0.92 : 1.0,
       ),
       itemCount: tiles.length,
