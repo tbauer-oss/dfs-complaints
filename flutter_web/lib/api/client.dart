@@ -126,8 +126,8 @@ class ApiClient {
   // Header für Vertreter-Endpunkte (nimmt automatisch das gespeicherte repToken)
   Map<String, String> _repHeaders({Map<String, String>? extra}) {
     final h = <String, String>{
+      // WICHTIG: JSON-Header hinzufügen!
       'Content-Type': 'application/json; charset=utf-8',
-      'Accept': 'application/json',
       if (gate != null && gate!.isNotEmpty) 'X-Gate': gate!,
     };
     final tok = repToken ?? '';
