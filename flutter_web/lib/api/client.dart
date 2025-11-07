@@ -123,11 +123,11 @@ class ApiClient {
     return h;
   }
 
-  // Header für Vertreter-Endpunkte (nimmt automatisch das gespeicherte repToken)
+  // Header für Vertreter-Endpunkte (erzwingt X-Gate: rep)
   Map<String, String> _repHeaders({Map<String, String>? extra}) {
     final h = <String, String>{
       'Content-Type': 'application/json; charset=utf-8',
-      if (gate != null && gate!.isNotEmpty) 'X-Gate': gate!,
+      'X-Gate': (gate != null && gate!.isNotEmpty) ? gate! : 'rep', // <- wichtig
     };
     final tok = repToken ?? '';
     if (tok.isNotEmpty) h['Authorization'] = 'Bearer $tok';
@@ -306,6 +306,19 @@ class ApiClient {
     if (_ok2xx(r.statusCode)) return;
 
     throw ApiError(r.statusCode, _extractMessage(r.body));
+  }
+
+  // Alternative: Entscheidung leeren (falls /api/rep/decision/reset nicht greift)
+  Future<void> repDecisionClear(String ticket) async {
+  // sorgt für Bearer + X-Gate: rep und 401->Refresh via _repFetch
+    final r = await _repFetch(
+      '/api/rep/decision',
+      method: 'POST',
+      body: {'ticket': ticket, 'decision': ''},
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
   }
 
   Future<Map<String, dynamic>> repMe() async {
