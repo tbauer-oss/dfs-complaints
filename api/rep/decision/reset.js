@@ -1,30 +1,24 @@
-// api/rep/decision/reset.js
 export const config = { runtime: 'nodejs' };
 
 import { setCors } from '../../_lib/cors.js';
 import { getRepFromAuthHeader } from '../../_lib/repAuth.js';
-import { redisHDel, redisSet } from '../../_lib/upstash.js'; // HDel & optional Audit
+import { redisGet, redisSet } from '../../_lib/upstash.js';
 
-// -------- Utils --------
-const S = v => (v ?? '').toString().trim();
+// ---------- Helpers ----------
+const S = (v) => (v ?? '').toString().trim();
 const nowIso = () => new Date().toISOString();
 const rid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
-/**
- * Sichert, dass CORS *immer* gesetzt ist – auch bei Fehlern.
- * Gibt optional eine Debug-Antwort (JSON 200) statt 204 zurück.
- */
+// ---------- Handler ----------
 export default async function handler(req, res) {
   // ==== CORS IMMER ZUERST ====
   try {
-    // erlaube genau die Header, die du im Preflight anfragst
-    setCors(req, res, 'Content-Type, Authorization, X-Gate, X-Debug, X-Dry');
+    setCors(req, res, 'Content-Type, Authorization, X-Gate, X-Debug');
   } catch (e) {
-    // selbst wenn setCors hier scheitern würde, loggen:
     console.error('[reset] setCors failed:', e);
   }
 
-  // ===== Preflight =====
+  // ==== Preflight ====
   if (req.method === 'OPTIONS') {
     console.log('[reset] OPTIONS preflight', {
       origin: req.headers?.origin,
@@ -34,144 +28,136 @@ export default async function handler(req, res) {
     return res.status(204).end();
   }
 
-  const debug = (S(req.query?.debug) === '1') || (S(req.headers['x-debug']) === '1');
-  const dry   = (S(req.query?.dry) === '1')   || (S(req.headers['x-dry']) === '1');
+  const debug = S(req.query?.debug) === '1' || S(req.headers['x-debug']) === '1';
   const reqId = rid();
 
-  // Nur POST (außer explizitem Debug-GET)
-  if (req.method !== 'POST' && !(debug && req.method === 'GET')) {
+  // ==== Nur POST erlaubt ====
+  if (req.method !== 'POST') {
     if (debug) {
-      return res.status(200).end(JSON.stringify({
+      return res.status(200).json({
         ok: false,
         reqId,
         error: 'method not allowed',
         method: req.method,
-        hint: 'Use POST (or GET?debug=1 for debug ping).',
-      }));
+      });
     }
-    return res.status(405).end(JSON.stringify({ error: 'method not allowed' }));
+    return res.status(405).json({ error: 'method not allowed' });
   }
 
-  // ===== Auth (Vertreter) =====
+  // ==== Auth prüfen ====
   let auth = null;
   try {
     auth = getRepFromAuthHeader(req);
   } catch (e) {
-    console.error('[reset] getRepFromAuthHeader threw:', e);
+    console.error('[reset] getRepFromAuthHeader failed:', e);
   }
   if (!auth?.repId) {
     if (debug) {
-      return res.status(200).end(JSON.stringify({
+      return res.status(200).json({
         ok: false,
         reqId,
         error: 'unauthorized',
         haveAuthHeader: !!req.headers?.authorization,
-        gate: !!req.headers?.['x-gate'],
-      }));
+        xGate: !!req.headers?.['x-gate'],
+      });
     }
-    return res.status(401).end(JSON.stringify({ error: 'unauthorized' }));
+    return res.status(401).json({ error: 'unauthorized' });
   }
 
-  // ===== Body parsen (bei GET?debug=1 erlauben wir ticket im Query) =====
+  // ==== Body parsen ====
   let ticket = '';
   let bodyRaw = '';
-
   try {
-    if (req.method === 'GET') {
-      ticket = S(req.query?.ticket);
+    if (typeof req.body === 'object' && req.body !== null) {
+      ticket = S(req.body.ticket);
     } else {
-      if (typeof req.body === 'object' && req.body !== null) {
-        ticket = S(req.body.ticket);
-        bodyRaw = '[object]'; // nicht loggen
-      } else {
-        bodyRaw = S(req.body);
-        const j = bodyRaw ? JSON.parse(bodyRaw) : {};
-        ticket = S(j.ticket);
-      }
+      bodyRaw = S(req.body);
+      const j = bodyRaw ? JSON.parse(bodyRaw) : {};
+      ticket = S(j.ticket);
     }
   } catch (e) {
-    const msg = 'invalid json';
-    console.error(`[reset] ${reqId} JSON parse failed:`, e, 'raw=', bodyRaw?.slice(0, 200));
-    if (debug) {
-      return res.status(200).end(JSON.stringify({
-        ok: false,
-        reqId,
-        error: msg,
-        bodyPreview: bodyRaw?.slice(0, 200),
-      }));
-    }
-    return res.status(400).end(JSON.stringify({ error: msg }));
+    console.error(`[reset] ${reqId} JSON parse failed:`, e, 'body=', bodyRaw);
+    return res.status(400).json({ error: 'invalid json' });
   }
 
   if (!ticket) {
-    if (debug) {
-      return res.status(200).end(JSON.stringify({
-        ok: false,
-        reqId,
-        error: 'ticket required',
-      }));
-    }
-    return res.status(400).end(JSON.stringify({ error: 'ticket required' }));
+    return res.status(400).json({ error: 'ticket required' });
   }
 
-  // ===== Debug-Header ins Log (hilft bei CORS-Diagnose) =====
   console.log('[reset] incoming', {
     reqId,
     method: req.method,
-    url: req.url,
     origin: req.headers?.origin,
-    host: req.headers?.host,
-    acrm: req.headers?.['access-control-request-method'],
-    acah: req.headers?.['access-control-request-headers'],
-    contentType: req.headers?.['content-type'],
-    authHeader: !!req.headers?.authorization,
-    xGate: !!req.headers?.['x-gate'],
-    debug,
-    dry,
     ticket,
     repId: auth.repId,
   });
 
-  // ===== Reset-Logik =====
+  // ==== Reset-Logik ====
   try {
-    const redisKey = `dfs:complaint:${ticket}`;
+    const key1 = `dfs:complaint:${ticket}`;
+    const key2 = `dfs:complaints:${ticket}`;
 
-    if (!dry) {
-      await redisHDel(redisKey, 'repDecision'); // eigentlicher Reset
-      // optionale Auditspur, Best-Effort
-      try {
-        await redisSet(
-          `dfs:audit:repDecisionReset:${ticket}:${nowIso()}`,
-          JSON.stringify({ by: auth.repId, at: nowIso(), action: 'reset' }),
-          60 * 60 * 24 * 7 // 7 Tage
-        );
-      } catch (e) {
-        console.warn('[reset] audit write failed:', e);
-      }
+    // 1) Complaint aus Redis laden (plural/singular)
+    let obj = await redisGet(key1);
+    if (!obj) obj = await redisGet(key2);
+
+    if (!obj) {
+      console.warn(`[reset] ${reqId} complaint not found for ${ticket}`);
+      return res.status(404).json({ error: 'complaint not found' });
+    }
+
+    let c = obj;
+    if (typeof c === 'string') {
+      try { c = JSON.parse(c); } catch {}
+    }
+
+    if (typeof c !== 'object' || Array.isArray(c)) {
+      return res.status(500).json({ error: 'invalid complaint format' });
+    }
+
+    // 2) Prüfen, ob dieser Vertreter dazu gehört
+    if (S(c.repId) && S(c.repId) !== S(auth.repId)) {
+      return res.status(403).json({ error: 'forbidden (wrong rep)' });
+    }
+
+    // 3) Entferne alle repDecision-Felder
+    delete c.repDecision;
+    delete c.repDecisionAt;
+    delete c.repDecisionBy;
+    delete c.repId;
+
+    // 4) Aktualisiere updatedAt
+    c.updatedAt = Date.now();
+
+    // 5) In Redis zurückschreiben (gleicher Key wie geladen)
+    const saveKey = obj && (await redisGet(key1)) ? key1 : key2;
+    await redisSet(saveKey, JSON.stringify(c));
+
+    // 6) Optional: Audit-Log
+    try {
+      await redisSet(
+        `dfs:audit:repDecisionReset:${ticket}:${nowIso()}`,
+        JSON.stringify({ by: auth.repId, at: nowIso(), action: 'reset' }),
+        60 * 60 * 24 * 7 // 7 Tage
+      );
+    } catch (e) {
+      console.warn('[reset] audit write failed:', e);
     }
 
     if (debug) {
-      return res.status(200).end(JSON.stringify({
+      return res.status(200).json({
         ok: true,
         reqId,
         ticket,
-        didWrite: !dry,
-        message: dry ? 'DRY-RUN: would reset repDecision' : 'repDecision cleared',
-      }));
+        removed: ['repDecision', 'repDecisionAt', 'repDecisionBy', 'repId'],
+        savedKey: saveKey,
+      });
     }
 
-    // normale Produktion: 204 ohne Body
+    // Erfolg ohne Body
     return res.status(204).end();
   } catch (e) {
-    console.error(`[reset] ${reqId} internal error:`, e);
-    if (debug) {
-      return res.status(200).end(JSON.stringify({
-        ok: false,
-        reqId,
-        error: 'internal error',
-        message: S(e?.message) || S(e),
-      }));
-    }
-    return res.status(500).end(JSON.stringify({ error: 'internal error' }));
+    console.error(`[reset] ${reqId} error:`, e);
+    return res.status(500).json({ error: String(e?.message || e) });
   }
 }
