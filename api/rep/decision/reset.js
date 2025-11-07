@@ -25,6 +25,7 @@ export default async function handler(req, res) {
       acrm: req.headers?.['access-control-request-method'],
       acah: req.headers?.['access-control-request-headers'],
     });
+    // wichtig: Header sind bereits gesetzt
     return res.status(204).end();
   }
 
@@ -121,16 +122,19 @@ export default async function handler(req, res) {
     }
 
     // 3) Entferne alle repDecision-Felder
-    delete c.repDecision;
-    delete c.repDecisionAt;
-    delete c.repDecisionBy;
-    delete c.repId;
+    const removed = [];
+    ['repDecision', 'repDecisionAt', 'repDecisionBy', 'repId'].forEach(k => {
+      if (k in c) {
+        delete c[k];
+        removed.push(k);
+      }
+    });
 
     // 4) Aktualisiere updatedAt
     c.updatedAt = Date.now();
 
     // 5) In Redis zurückschreiben (gleicher Key wie geladen)
-    const saveKey = obj && (await redisGet(key1)) ? key1 : key2;
+    const saveKey = (await redisGet(key1)) ? key1 : key2;
     await redisSet(saveKey, JSON.stringify(c));
 
     // 6) Optional: Audit-Log
@@ -144,12 +148,13 @@ export default async function handler(req, res) {
       console.warn('[reset] audit write failed:', e);
     }
 
+    // 7) Debug-Ausgabe oder leere 204-Antwort
     if (debug) {
       return res.status(200).json({
         ok: true,
         reqId,
         ticket,
-        removed: ['repDecision', 'repDecisionAt', 'repDecisionBy', 'repId'],
+        removed,
         savedKey: saveKey,
       });
     }
