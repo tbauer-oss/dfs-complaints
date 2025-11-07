@@ -327,13 +327,57 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
           if (saving) return;
           saving = true;
           (ctx as Element).markNeedsBuild();
+
+          Future<void> tryAssign() async {
+            // 1) Standard (dein aktueller Handler)
+            try {
+              await widget.api.repAssignCustomer(email);
+              return;
+            } catch (_) {}
+
+            // 2) Alternative Feldnamen (einige Backends erwarten 'customerEmail')
+            try {
+              final dyn = widget.api as dynamic;
+              await dyn._repPostJson('/api/rep/customers', {
+                'action': 'assign',
+                'customerEmail': email,
+              });
+              return;
+            } catch (_) {}
+
+            // 3) Minimal-Variante (ohne 'action', nur Email)
+            try {
+              final dyn = widget.api as dynamic;
+              await dyn._repPostJson('/api/rep/customers', {
+                'email': email,
+              });
+              return;
+            } catch (_) {}
+
+            // 4) Alt-Shape (falls 'op' statt 'action' gebraucht wird)
+            try {
+              final dyn = widget.api as dynamic;
+              await dyn._repPostJson('/api/rep/customers', {
+                'op': 'assign',
+                'email': email,
+              });
+              return;
+            } catch (e) {
+              rethrow; // alles versucht → hochwerfen
+            }
+          }
+
           try {
-            await widget.api.repAssignCustomer(email);
+            await tryAssign();
             await _notifySelfAssignment(customerEmail: email, company: label);
+
             if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
             await _loadAll();
+
             if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.t.saved)));
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(context.t.saved)),
+            );
           } catch (e) {
             locErr = '${context.t.error ?? 'Fehler'}: $e';
             saving = false;
