@@ -1,185 +1,119 @@
-// api/rep/assignable-customers.js
 export const config = { runtime: 'nodejs' };
 
 import { setCors } from '../_lib/cors.js';
 import { getRepFromAuthHeader } from '../_lib/repAuth.js';
+import { redisScanAll, redisGet, redisMGet } from '../_lib/upstash.js';
 
-const KV_URL   = process.env.UPSTASH_REDIS_REST_URL;
-const KV_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+function S(v) { return (v ?? '').toString().trim(); }
+const EMAIL_FROM_USER_KEY = (k) => k.slice('dfs:user:'.length); // "dfs:user:<email>"
 
-function S(v){ return (v ?? '').toString().trim(); }
-
-async function kv(cmd){
-  setCors(req, res, 'Content-Type, Authorization, X-Gate');
-  if (req.method === 'OPTIONS') return res.status(204).end();
-  const r = await fetch(KV_URL, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type':'application/json' },
-    body: JSON.stringify({ cmd }),
-  });
-  if (!r.ok) throw new Error(`Upstash ${r.status}: ${await r.text()}`);
-  return r.json();
-}
-
-async function scanAll(pattern, count=1000){
-  const keys=[]; let cursor='0';
-  do{
-    const j = await kv(['SCAN', cursor, 'MATCH', pattern, 'COUNT', String(count)]);
-    const res = j?.result || j; // Upstash REST: {result:[cursor,[keys]]}
-    cursor = Array.isArray(res) ? (res[0] || '0') : '0';
-    const batch = Array.isArray(res) ? (res[1] || []) : [];
-    keys.push(...batch);
-  } while(cursor !== '0');
-  return keys;
-}
-
-async function mget(keys){
-  if(!keys?.length) return [];
-  const j = await kv(['MGET', ...keys]);
-  return j?.result ?? [];
-}
-
-function isActiveCustomer(u){
-  if (!u || typeof u !== 'object') return false;
-  const em = S(u.email).toLowerCase();
-  if (!em) return false;
-  const status  = S(u.status).toLowerCase();
-  const revoked = Boolean(u.revoked);
-  return (status === '' || status === 'active' || status === 'ok') && !revoked;
-}
-
-function labelFor(u){
-  const em = S(u.email).toLowerCase();
-  const company = S(u.company || u.companyName || u.org);
-  const first = S(u.firstName);
-  const last  = S(u.lastName);
-  const name  = S(u.name || u.contact || `${first} ${last}`.trim());
-  return company || (name ? `${name} • ${em}` : em);
-}
-
-function parseJsonMaybe(v){
-  if (typeof v === 'object' && v !== null) return v;
-  try { return JSON.parse(String(v)); } catch { return null; }
-}
-
-function emailFromRepOfKey(key){
-  // akzeptiert dfs:repOf:mail und dfs:repOfmail
-  let k = key.replace(/^dfs:repof:?/i, '');
-  try { k = decodeURIComponent(k); } catch {}
-  return k.toLowerCase();
-}
-
-async function loadAllCustomers(){
-  const keys = await scanAll('dfs:user:*');
-  const vals = await mget(keys);
-  const map = new Map();
-  for(const v of vals){
-    const u = parseJsonMaybe(v);
-    if(!isActiveCustomer(u)) continue;
-    const email = S(u.email).toLowerCase();
-    map.set(email, { email, _raw: u });
-  }
-  return Array.from(map.values());
-}
-
-async function loadAssignments(){
-  // dfs:repOf:<customerEmail> -> rep_#
-  const keys = await scanAll('dfs:repOf*');
-  const vals = await mget(keys);
-  const out = {};
-  for (let i=0;i<keys.length;i++){
-    const email = emailFromRepOfKey(keys[i]);
-    const repId = S(vals[i]).toLowerCase();
-    if (email) out[email] = repId || null;
-  }
-  return out; // { 'kunde@…':'rep_2', … }
-}
-
-async function loadRepDirectory(){
-  // reps aus dfs:rep:all -> Liste rep_#
-  let ids = [];
-  try{
-    const j = await kv(['GET', 'dfs:rep:all']);
-    const raw = j?.result;
-    if (Array.isArray(raw)) ids = raw;
-    else if (typeof raw === 'string') ids = raw.split(/\s+/).filter(Boolean);
-  }catch{}
-  // Details aus dfs:reps:<id>
-  const keys = ids.map(id => `dfs:reps:${id}`);
-  const vals = await mget(keys);
-  const dir = {};
-  for (let i=0;i<ids.length;i++){
-    const obj = parseJsonMaybe(vals[i]) || {};
-    dir[ids[i]] = {
-      id: ids[i],
-      email: S(obj.email).toLowerCase(),
-      firstName: S(obj.firstName),
-      lastName: S(obj.lastName),
-      name: S(`${obj.firstName ?? ''} ${obj.lastName ?? ''}`).trim(),
-      active: obj.active !== false,
-    };
-  }
-  return dir; // { rep_2: {email:'carsten…', name:'Carsten Kriete'}, … }
-}
-
-export default async function handler(req, res){
-  // CORS zuerst
+export default async function handler(req, res) {
+  // --- CORS immer zuerst ---
   setCors(req, res, 'Content-Type, Authorization, X-Gate');
   if (req.method === 'OPTIONS') return res.status(204).end();
 
-  try{
-    if (req.method !== 'GET'){
-      return res.status(405).end(JSON.stringify({ error: 'method not allowed' }));
+  if (req.method !== 'GET') {
+    return res.status(405).end(JSON.stringify({ error: 'method not allowed' }));
+  }
+
+  // --- Auth: Vertreter ermitteln ---
+  let auth = null;
+  try { auth = getRepFromAuthHeader(req); } catch (e) {}
+  if (!auth?.repId) {
+    return res.status(401).end(JSON.stringify({ error: 'unauthorized' }));
+  }
+  const repId = auth.repId.toString();
+
+  // --- Parameter ---
+  const showAll = (req.query?.all || '').toString() === '1';
+
+  try {
+    // 1) Alle Kundenkeys holen
+    const userKeys = await redisScanAll('dfs:user:*', 1000); // -> ["dfs:user:a@b.de", ...]
+    if (!Array.isArray(userKeys) || userKeys.length === 0) {
+      return res.status(200).end(JSON.stringify([]));
     }
 
-    // Auth (wie /api/rep/customers)
-    let auth=null; try{ auth = getRepFromAuthHeader(req); }catch{}
-    if (!auth) return res.status(401).end(JSON.stringify({ error:'unauthorized' }));
+    // 2) Für alle Emails repOf prüfen (mit und ohne Doppelpunkt)
+    const emails = userKeys.map(EMAIL_FROM_USER_KEY); // ["a@b.de", ...]
+    const repOfColonKeys = emails.map(e => `dfs:repOf:${e.toLowerCase()}`);
+    const repOfNoColonKeys = emails.map(e => `dfs:repOf${e.toLowerCase()}`);
 
-    const wantAll = (req.query?.all || '').toString() === '1';
-
-    // Daten laden
-    const [customers, assigned, reps] = await Promise.all([
-      loadAllCustomers(),
-      loadAssignments(),
-      loadRepDirectory(),
+    const [repOfColonVals, repOfNoColonVals] = await Promise.all([
+      redisMGet(repOfColonKeys),      // gleiche Reihenfolge
+      redisMGet(repOfNoColonKeys),
     ]);
 
-    // zusammenbauen
-    const outAll = customers.map(c=>{
-      const u = c._raw || {};
-      const email = c.email;
-      const company = S(u.company || u.companyName || u.org);
-      const first   = S(u.firstName);
-      const last    = S(u.lastName);
-      const name    = S(u.name || u.contact || `${first} ${last}`.trim()) || email;
+    // 3) Zusammenbauen & filtern
+    const out = [];
+    for (let i = 0; i < emails.length; i++) {
+      const email = emails[i].toLowerCase();
 
-      const repId   = assigned[email] || '';
-      const repInfo = reps[repId] || null;
+      // Normalisiere repOf: first non-empty wins (":email" bevorzugt)
+      const repOf = S(repOfColonVals?.[i]) || S(repOfNoColonVals?.[i]); // "rep_2" oder ""
 
-      return {
+      // assigned?
+      const isAssigned = !!repOf;
+
+      // Wenn nur freie Kunden gewünscht → skip zugewiesene
+      if (!showAll && isAssigned) continue;
+
+      // 4) Basisobjekt
+      const item = {
         email,
-        company,
-        name,
-        label: labelFor(u || c),
-        assigned: Boolean(repId),
-        assignedTo: repId,
-        assignedToEmail: repInfo?.email || '',
-        assignedToName : repInfo?.name  || '',
+        name: email,     // wird später ggf. aus dfs:user:<email> ersetzt
+        company: '',     // dto.
+        label: email,    // fallback (UI-freundlich)
+        assigned: isAssigned,
+        assignedTo: '',
+        assignedToEmail: '',
+        assignedToName: '',
       };
-    }).sort((a,b)=>a.label.toLowerCase().localeCompare(b.label.toLowerCase(), 'de'));
 
-    if (wantAll){
-      // Alle Kunden (zugewiesene markiert)
-      return res.status(200).end(JSON.stringify(outAll));
+      // 5) Wenn zugewiesen → reps:<id> anreichern
+      if (isAssigned) {
+        item.assignedTo = repOf;
+        const repJson = await redisGet(`dfs:reps:${repOf}`);
+        if (repJson) {
+          try {
+            const repObj = JSON.parse(repJson);
+            const rMail = S(repObj.email);
+            const rName = [S(repObj.firstName), S(repObj.lastName)].filter(Boolean).join(' ').trim();
+            item.assignedToEmail = rMail;
+            item.assignedToName  = rName || rMail || repOf;
+          } catch {}
+        }
+      }
+
+      // 6) Kunden-Details (Name/Firma) für hübsches Label
+      const userJson = await redisGet(`dfs:user:${email}`);
+      if (userJson) {
+        try {
+          const u = JSON.parse(userJson);
+          const company = S(u.companyName || u.company || u.org);
+          const first   = S(u.firstName);
+          const last    = S(u.lastName);
+          const full    = S(`${first} ${last}`);
+          const display = company || S(u.contactName || u.name || full) || email;
+          item.company  = company;
+          item.name     = display;
+          item.label    = company || `${display} • ${email}`;
+        } catch {}
+      }
+
+      out.push(item);
     }
 
-    // Nur freie Kunden
-    const free = outAll.filter(x => !x.assigned);
-    return res.status(200).end(JSON.stringify(free));
-  }catch(e){
-    console.error('[rep/assignable-customers] FATAL', e);
-    // nie 500 für's FE
+    // 7) Sortierung: zuerst frei, dann Name/Company
+    out.sort((a, b) => {
+      if (a.assigned !== b.assigned) return a.assigned ? 1 : -1;
+      return a.label.toLowerCase().localeCompare(b.label.toLowerCase());
+    });
+
+    return res.status(200).end(JSON.stringify(out));
+  } catch (e) {
+    console.error('[rep/assignable-customers] error:', e);
+    // Stabil bleiben
     return res.status(200).end(JSON.stringify([]));
   }
 }
