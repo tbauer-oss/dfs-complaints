@@ -20,6 +20,8 @@
   "theme_light": "Light",
   "theme_dark": "Dark",
 
+  "my_decision": "My assessment",
+  "no_decision_yet": "No decision yet",
   "search": "Search…",
   "free": "Free",
   "assigned_to": "assigned to",
