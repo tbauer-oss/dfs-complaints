@@ -284,10 +284,10 @@ class _MyAppState extends State<MyApp> {
       );
     }
 
-    // <<< NEU: prefs global verfügbar machen
+    // prefs global verfügbar machen
     return AppPrefsScope(
-     notifier: _prefs,
-     child: Builder(
+      notifier: _prefs,
+      child: Builder(
         builder: (scopeCtx) {
           final prefs = AppPrefsScope.of(scopeCtx);
 
@@ -320,218 +320,198 @@ class _MyAppState extends State<MyApp> {
               }
               return const Locale('de');
             },
+
+            // ---- Theme ----
+            themeMode: prefs.themeMode,
+            theme: _lightTheme(),
+            darkTheme: _darkTheme(),
+
+            // ---- Routing ----
+            initialRoute: '/',
+            routes: {
+              '/': (_) => Builder(
+                    builder: (ctx) {
+                      final t = AppLocalizations.of(ctx)!;
+
+                      if (_loggedIn) {
+                        return Scaffold(
+                          appBar: AppBar(
+                            title: Text(t.appTitle),
+                            actions: [
+                              LangAction(onLocaleChanged: (l) => prefs.setLang(l.languageCode)),
+                              w.ThemeAction(),
+                            ],
+                            bottom: PreferredSize(
+                              preferredSize: const Size.fromHeight(50),
+                              child: Align(
+                                alignment: Alignment.centerRight,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  child: FilledButton.icon(
+                                    icon: const Icon(Icons.logout),
+                                    label: Text(t.logout),
+                                    onPressed: () async {
+                                      await api.logout();
+                                      if (ctx.mounted) {
+                                        ScaffoldMessenger.of(ctx).showSnackBar(
+                                          SnackBar(content: Text(t.loggedOut)),
+                                        );
+                                      }
+                                      _onLoggedOut();
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          body: DashboardPage(api: api, onLoggedOut: _onLoggedOut),
+                        );
+                      }
+
+                      final scheme = Theme.of(ctx).colorScheme;
+                      final isDark = Theme.of(ctx).brightness == Brightness.dark;
+                      return Scaffold(
+                        appBar: AppBar(
+                          title: Text(t.appTitle),
+                          actions: [
+                            LangAction(onLocaleChanged: (l) => prefs.setLang(l.languageCode)),
+                            w.ThemeAction(),
+                          ],
+                        ),
+                        body: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: isDark
+                                ? LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [scheme.surface, scheme.surfaceContainerHighest],
+                                  )
+                                : const LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [Color(0xFFEFF3FA), Color(0xFFFFFFFF)],
+                                  ),
+                          ),
+                          child: Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 920),
+                              child: Padding(
+                                padding: const EdgeInsets.all(24),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _LoginScreen(
+                                      api: api,
+                                      onLoggedIn: _onLoggedIn,
+                                      onOpenRegister: () => _openRegister(ctx),
+                                      onOpenAdmin: () => _openAdmin(ctx),
+                                      onOpenRep: () => _openRepArea(ctx),
+                                    ),
+                                    const SizedBox(height: 18),
+                                    Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        t.more_areas,
+                                        style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
+                                              color: Theme.of(ctx).colorScheme.primary,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    LayoutBuilder(
+                                      builder: (context, constraints) {
+                                        final isNarrow = constraints.maxWidth < 560;
+                                        if (isNarrow) {
+                                          return Column(
+                                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                                            children: [
+                                              FilledButton.tonalIcon(
+                                                icon: const Icon(Icons.handshake),
+                                                label: Text(t.rep_area ?? t.rep_area),
+                                                onPressed: () => _openRepArea(ctx),
+                                                style: FilledButton.styleFrom(
+                                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                                  shape: const StadiumBorder(),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 10),
+                                              OutlinedButton.icon(
+                                                icon: const Icon(Icons.admin_panel_settings),
+                                                label: Text(t.admin_area),
+                                                onPressed: () => _openAdmin(ctx),
+                                                style: OutlinedButton.styleFrom(
+                                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                                  shape: const StadiumBorder(),
+                                                ),
+                                              ),
+                                            ],
+                                          );
+                                        } else {
+                                          return Row(
+                                            children: [
+                                              Expanded(
+                                                child: FilledButton.tonalIcon(
+                                                  icon: const Icon(Icons.handshake),
+                                                  label: Text(t.rep_area ?? 'Vertreterbereich'),
+                                                  onPressed: () => _openRepArea(ctx),
+                                                  style: FilledButton.styleFrom(
+                                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                                    shape: const StadiumBorder(),
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: OutlinedButton.icon(
+                                                  icon: const Icon(Icons.admin_panel_settings),
+                                                  label: Text(t.admin_area),
+                                                  onPressed: () => _openAdmin(ctx),
+                                                  style: OutlinedButton.styleFrom(
+                                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                                    shape: const StadiumBorder(),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          );
+                                        }
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+              '/repLogin': (_) => RepLoginPage(api: api),
+              '/rep': (_) => RepDashboardPage(api: api),
+            },
+
+            onGenerateRoute: (settings) {
+              final name = settings.name ?? '/';
+              if (name == '/rep' && !_repLoggedIn) {
+                return MaterialPageRoute(
+                  builder: (_) => RepLoginPage(api: api),
+                  settings: const RouteSettings(name: '/repLogin'),
+                );
+              }
+              if (name == '/repLogin' && _repLoggedIn) {
+                return MaterialPageRoute(
+                  builder: (_) => RepDashboardPage(api: api),
+                  settings: const RouteSettings(name: '/rep'),
+                );
+              }
+              return null;
+            },
           );
         },
       ),
     );
   }
-
-
-        // ---- Theme ----
-        themeMode: prefs.themeMode,
-        theme: _lightTheme(),
-        darkTheme: _darkTheme(),
-
-        // ---- Routing ----
-        initialRoute: '/',
-        routes: {
-          // Root / Startseite: Kunden-Flow
-          '/': (_) => Builder(
-                builder: (ctx) {
-                  final t = AppLocalizations.of(ctx)!;
-
-                  // Kunde eingeloggt -> Dashboard
-                  if (_loggedIn) {
-                    return Scaffold(
-                      appBar: AppBar(
-                        title: Text(t.appTitle),
-                        actions: [
-                          LangAction(onLocaleChanged: (l) => prefs.setLang(l.languageCode)),
-                          w.ThemeAction(),
-                        ],
-                        bottom: PreferredSize(
-                          preferredSize: const Size.fromHeight(50),
-                          child: Align(
-                            alignment: Alignment.centerRight,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              child: FilledButton.icon(
-                                icon: const Icon(Icons.logout),
-                                label: Text(t.logout),
-                                onPressed: () async {
-                                  await api.logout(); // Kunden-Logout
-                                  if (ctx.mounted) {
-                                    ScaffoldMessenger.of(ctx).showSnackBar(
-                                      SnackBar(content: Text(t.loggedOut)),
-                                    );
-                                  }
-                                  _onLoggedOut();
-                                },
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      body: DashboardPage(api: api, onLoggedOut: _onLoggedOut),
-                    );
-                  }
-
-                  // Kunde NICHT eingeloggt -> Startseite
-                  final scheme = Theme.of(ctx).colorScheme;
-                  final isDark = Theme.of(ctx).brightness == Brightness.dark;
-                  return Scaffold(
-                    appBar: AppBar(
-                      title: Text(t.appTitle),
-                      actions: [
-                        LangAction(onLocaleChanged: (l) => prefs.setLang(l.languageCode)),
-                        w.ThemeAction(),
-                      ],
-                    ),
-                    body: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: isDark
-                            ? LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [scheme.surface, scheme.surfaceContainerHighest],
-                              )
-                            : const LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [Color(0xFFEFF3FA), Color(0xFFFFFFFF)],
-                              ),
-                      ),
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 920),
-                          child: Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _LoginScreen(
-                                  api: api,
-                                  onLoggedIn: _onLoggedIn,
-                                  onOpenRegister: () => _openRegister(ctx),
-                                  onOpenAdmin: () => _openAdmin(ctx),
-                                  onOpenRep: () => _openRepArea(ctx), // -> /repLogin
-                                ),
-
-                                const SizedBox(height: 18),
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
-                                    t.more_areas,
-                                    style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
-                                          color: Theme.of(ctx).colorScheme.primary,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-
-                                LayoutBuilder(
-                                  builder: (context, constraints) {
-                                    final isNarrow = constraints.maxWidth < 560;
-                                    if (isNarrow) {
-                                      // mobil: Buttons untereinander
-                                      return Column(
-                                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                                        children: [
-                                          FilledButton.tonalIcon(
-                                            icon: const Icon(Icons.handshake),
-                                            label: Text(t.rep_area ?? t.rep_area),
-                                            onPressed: () => _openRepArea(ctx),
-                                            style: FilledButton.styleFrom(
-                                              padding: const EdgeInsets.symmetric(vertical: 14),
-                                              shape: const StadiumBorder(),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 10),
-                                          OutlinedButton.icon(
-                                            icon: const Icon(Icons.admin_panel_settings),
-                                            label: Text(t.admin_area),
-                                            onPressed: () => _openAdmin(ctx),
-                                            style: OutlinedButton.styleFrom(
-                                              padding: const EdgeInsets.symmetric(vertical: 14),
-                                              shape: const StadiumBorder(),
-                                            ),
-                                          ),
-                                        ],
-                                      );
-                                    } else {
-                                      // Desktop: Buttons nebeneinander
-                                      return Row(
-                                        children: [
-                                          Expanded(
-                                            child: FilledButton.tonalIcon(
-                                              icon: const Icon(Icons.handshake),
-                                              label: Text(t.rep_area ?? 'Vertreterbereich'),
-                                              onPressed: () => _openRepArea(ctx),
-                                              style: FilledButton.styleFrom(
-                                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                                shape: const StadiumBorder(),
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: OutlinedButton.icon(
-                                              icon: const Icon(Icons.admin_panel_settings),
-                                              label: Text(t.admin_area),
-                                              onPressed: () => _openAdmin(ctx),
-                                              style: OutlinedButton.styleFrom(
-                                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                                shape: const StadiumBorder(),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      );
-                                    }
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-
-          // Vertreter-Login
-          '/repLogin': (_) => RepLoginPage(api: api),
-
-          // Vertreter-Dashboard
-          '/rep': (_) => RepDashboardPage(api: api),
-        },
-
-        // Guard-Logik zentral
-        onGenerateRoute: (settings) {
-          final name = settings.name ?? '/';
-
-          if (name == '/rep' && !_repLoggedIn) {
-            return MaterialPageRoute(
-              builder: (_) => RepLoginPage(api: api),
-              settings: const RouteSettings(name: '/repLogin'),
-            );
-          }
-
-          if (name == '/repLogin' && _repLoggedIn) {
-            return MaterialPageRoute(
-              builder: (_) => RepDashboardPage(api: api),
-              settings: const RouteSettings(name: '/rep'),
-            );
-          }
-
-          return null;
-        },
-      );
-    } // <<<<<< build korrekt geschlossen
-
-  } // <<<<<< _MyAppState korrekt geschlossen
 
 // =======================
 // Interner Login-Screen (Kundenbereich) – HÜBSCHE CARD MIT LOGO
