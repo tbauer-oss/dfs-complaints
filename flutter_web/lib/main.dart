@@ -21,7 +21,7 @@ import 'pages/rep_dashboard_page.dart' hide ThemeAction;
 import 'widgets/lang_action.dart';
 import 'widgets/theme_action.dart' as w;
 
-// ===== THEME BRANDING =====
+// ===== THEME BRANDING ===== //
 const kBrandSeed = Color(0xFF1F4C8F); // DFS-Blau – bei Bedarf anpassen
 
 ThemeData _lightTheme() {
