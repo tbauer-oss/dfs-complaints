@@ -1677,8 +1677,8 @@ class AdminComplaint {
 
   String? repOpinion; // 'accepted' | 'rejected' | 'pending' (oder null)
 
-  final String? repId;
-  bool get hasRep => (repId ?? '').trim().isNotEmpty;
+  final String? repId;                       // ← NEU
+  bool get hasRep => (repId ?? '').trim().isNotEmpty; // ← NEU
 
   AdminComplaint({
     required this.ticket,
@@ -1691,7 +1691,7 @@ class AdminComplaint {
     this.internalNo,
     this.payload,
     this.repOpinion,
-    this.repId,
+    this.repId,                               // ← NEU
   });
 
   factory AdminComplaint.fromJson(Map<String, dynamic> j) {
@@ -1700,28 +1700,29 @@ class AdminComplaint {
       if (v is String && v.trim().isNotEmpty) return DateTime.tryParse(v) ?? DateTime.now();
       return DateTime.now();
     }
+
     int _i(v) => (v is num) ? v.toInt() : int.tryParse('${v ?? ''}') ?? 1;
 
-    // ---- NEU: Vertreter-Meinung normalisieren
+    // Vertreter-Meinung normalisieren
     String? _norm(String? v) {
       final s = (v ?? '').trim().toLowerCase();
       if (s.isEmpty) return null;
       if (s == 'accepted' || s == 'accept' || s == 'green' || s == 'gruen' || s == 'grün') return 'accepted';
       if (s == 'rejected' || s == 'reject' || s == 'red' || s == 'rot') return 'rejected';
       if (s == 'pending' || s == 'wait' || s == 'gelb' || s == 'yellow' || s == 'open') return 'pending';
-      return s; // falls Backend z. B. 'needs_info' liefert – wir zeigen dann neutral
+      return s; // z. B. 'needs_info'
     }
 
     final payload = (j['payload'] is Map) ? (j['payload'] as Map).cast<String, dynamic>() : null;
-    // Wir versuchen mehrere gängige Schlüssel
-    String? repRaw =
-        (j['repOpinion'] ?? j['rep_opinion'] ?? j['repDecision'] ?? j['rep_decision'] ?? j['repStatus'] ?? j['rep_status'])
-            ?.toString();    
+
+    // repOpinion aus mehreren Keys ziehen
+    String? repRaw = (j['repOpinion'] ?? j['rep_opinion'] ?? j['repDecision'] ?? j['rep_decision'] ?? j['repStatus'] ?? j['rep_status'])?.toString();
     if ((repRaw == null || repRaw.trim().isEmpty) && payload != null) {
-      repRaw = (payload['repOpinion'] ?? payload['rep_opinion'] ?? payload['repDecision'] ?? payload['rep_decision'] ?? payload['repStatus'] ?? payload['rep_status'])
-          ?.toString();
-    // --- NEU: repId aus gängigen Schlüsseln lesen
-    String? _repIdOf(Map<String, dynamic> j, Map<String, dynamic>? p) {
+      repRaw = (payload['repOpinion'] ?? payload['rep_opinion'] ?? payload['repDecision'] ?? payload['rep_decision'] ?? payload['repStatus'] ?? payload['rep_status'])?.toString();
+    }
+
+    // repId robust ermitteln (aus Root oder Payload)
+    String? _pickRepId(Map<String, dynamic> j, Map<String, dynamic>? p) {
       String pick(Object? v) => (v ?? '').toString().trim();
       final direct = pick(j['repId'] ?? j['rep_id'] ?? j['rep'] ?? j['representative']);
       if (direct.isNotEmpty) return direct;
@@ -1731,8 +1732,8 @@ class AdminComplaint {
       }
       return null;
     }
-    final repId = _repIdOf(j, payload);
-    }
+
+    final repIdLocal = _pickRepId(j, payload); // ← NEU
 
     return AdminComplaint(
       ticket: (j['ticket'] ?? '').toString(),
@@ -1745,23 +1746,24 @@ class AdminComplaint {
       internalNo: (j['internalNo']?.toString().trim().isEmpty ?? true) ? null : j['internalNo']!.toString().trim(),
       payload: payload,
       repOpinion: _norm(repRaw),
-      repId: repId,
+      repId: repIdLocal,                      // ← NEU
     );
   }
 
   Map<String, dynamic> toJson() => {
-    'ticket': ticket,
-    'email': email,
-    'createdAt': createdAt.toIso8601String(),
-    'updatedAt': updatedAt.toIso8601String(),
-    'status': status,
-    'decision': decision,
-    'reportLink': reportLink,
-    'internalNo': internalNo,
-    'payload': payload,
-    if (repOpinion != null) 'repOpinion': repOpinion,
-    if (repId != null && repId!.isNotEmpty) 'repId': repId,
-  };
+        'ticket': ticket,
+        'email': email,
+        'createdAt': createdAt.toIso8601String(),
+        'updatedAt': updatedAt.toIso8601String(),
+        'status': status,
+        'decision': decision,
+        'reportLink': reportLink,
+        'internalNo': internalNo,
+        'payload': payload,
+        if (repOpinion != null) 'repOpinion': repOpinion,
+        if (repId != null) 'repId': repId,    // ← NEU (optional zurückgeben)
+      };
+}
 
   String get handlingLabel {
     final p = payload;
