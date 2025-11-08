@@ -286,8 +286,8 @@ class _MyAppState extends State<MyApp> {
 
     // <<< NEU: prefs global verfügbar machen
     return AppPrefsScope(
-      prefs: _prefs,
-      child: Builder(
+     notifier: _prefs,
+     child: Builder(
         builder: (scopeCtx) {
           final prefs = AppPrefsScope.of(scopeCtx);
 
