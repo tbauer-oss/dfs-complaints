@@ -127,7 +127,7 @@ class ApiClient {
   Map<String, String> _repHeaders({Map<String, String>? extra}) {
     final h = <String, String>{
       'Content-Type': 'application/json; charset=utf-8',
-      'X-Gate': (gate != null && gate!.isNotEmpty) ? gate! : 'rep', // <- wichtig
+      'X-Gate': 'rep', // <- wichtig
     };
     final tok = repToken ?? '';
     if (tok.isNotEmpty) h['Authorization'] = 'Bearer $tok';
