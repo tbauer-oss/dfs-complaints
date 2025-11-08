@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
+import 'dart:html' as html;
 
 extension _L10nX on BuildContext {
   AppLocalizations get t => AppLocalizations.of(this)!;
@@ -40,6 +41,12 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   final List<TextEditingController> _ctrls = [];
 
   void _markDirty() { if (!_dirty) setState(() => _dirty = true); }
+
+  static const _privacyUrl = 'https://dfs-diamon.de/de/datenschutz';
+  void _openPrivacy() {
+    // öffnet im neuen Tab/Fenster
+    html.window.open(_privacyUrl, '_blank');
+  }
 
   Future<bool> _confirmLeaveIfDirty() async {
     if (!_dirty) return true;
@@ -218,10 +225,32 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
               ),
 
               const SizedBox(height: 8),
-              Row(children: [
-                Checkbox(value: privacy, onChanged: (v) => setState(() { privacy = v ?? false; _dirty = true; })),
-                Expanded(child: Text(t.privacy_agree)),
-              ]),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Checkbox(
+                    value: privacy,
+                    onChanged: (v) => setState(() { privacy = v ?? false; _dirty = true; }),
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(t.privacy_agree),
+                        TextButton.icon(
+                          onPressed: _openPrivacy,
+                          icon: const Icon(Icons.open_in_new, size: 18),
+                          label: Text(context.t.privacy_view), // l10n: "Datenschutzhinweise ansehen"
+                          style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
 
               if (err != null) Text(err!, style: const TextStyle(color: Colors.red)),
               if (info != null) Text(info!, style: const TextStyle(color: Colors.green)),
