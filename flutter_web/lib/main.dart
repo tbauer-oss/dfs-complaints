@@ -8,7 +8,6 @@ import 'api/client.dart';
 import 'l10n/app_localizations.dart';
 import 'services/app_prefs.dart';
 import 'services/app_prefs_scope.dart';
-import 'widgets/theme_action.dart';
 
 // Seiten
 import 'pages/register_page.dart';
@@ -278,44 +277,58 @@ class _MyAppState extends State<MyApp> {
   void _onLoggedOut() => setState(() => _loggedIn = false); // Kundenlogout
 
   @override
-    Widget build(BuildContext context) {
-      if (!_bootDone) {
-        return const MaterialApp(
-          home: Scaffold(body: Center(child: CircularProgressIndicator())),
-        );
-      }
+  Widget build(BuildContext context) {
+    if (!_bootDone) {
+      return const MaterialApp(
+        home: Scaffold(body: Center(child: CircularProgressIndicator())),
+      );
+    }
 
-      return MaterialApp(
-        debugShowCheckedModeBanner: false,
-        navigatorKey: _navKey,
+    // <<< NEU: prefs global verfügbar machen
+    return AppPrefsScope(
+      prefs: _prefs,
+      child: Builder(
+        builder: (scopeCtx) {
+          final prefs = AppPrefsScope.of(scopeCtx);
 
-        // ---- i18n ----
-        locale: _locale,
-        supportedLocales: const [
-          Locale('de'), Locale('en'), Locale('fr'), Locale('it'), Locale('es'),
-        ],
-        localizationsDelegates: const [
-          AppLocalizations.delegate,
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        localeListResolutionCallback: (locales, supported) {
-          if (_locale != null) return _locale!;
-          if (locales != null) {
-            for (final loc in locales) {
-              for (final s in supported) {
-                if (s.languageCode.toLowerCase() == loc.languageCode.toLowerCase()) {
-                  return s;
+          return MaterialApp(
+            debugShowCheckedModeBanner: false,
+            navigatorKey: _navKey,
+
+            // ---- i18n ----
+            locale: prefs.locale,
+            supportedLocales: const [
+              Locale('de'), Locale('en'), Locale('fr'), Locale('it'), Locale('es'),
+            ],
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            localeListResolutionCallback: (locales, supported) {
+              final forced = prefs.locale;
+              if (forced != null) return forced;
+              if (locales != null) {
+                for (final loc in locales) {
+                  for (final s in supported) {
+                    if (s.languageCode.toLowerCase() == loc.languageCode.toLowerCase()) {
+                      return s;
+                    }
+                  }
                 }
               }
-            }
-          }
-          return const Locale('de');
+              return const Locale('de');
+            },
+          );
         },
+      ),
+    );
+  }
+
 
         // ---- Theme ----
-        themeMode: _themeMode,
+        themeMode: prefs.themeMode,
         theme: _lightTheme(),
         darkTheme: _darkTheme(),
 
@@ -333,7 +346,7 @@ class _MyAppState extends State<MyApp> {
                       appBar: AppBar(
                         title: Text(t.appTitle),
                         actions: [
-                          LangAction(onLocaleChanged: _setLocale),
+                          LangAction(onLocaleChanged: (l) => prefs.setLang(l.languageCode)),
                           w.ThemeAction(),
                         ],
                         bottom: PreferredSize(
@@ -370,7 +383,7 @@ class _MyAppState extends State<MyApp> {
                     appBar: AppBar(
                       title: Text(t.appTitle),
                       actions: [
-                        LangAction(onLocaleChanged: _setLocale),
+                        LangAction(onLocaleChanged: (l) => prefs.setLang(l.languageCode)),
                         w.ThemeAction(),
                       ],
                     ),
