@@ -72,6 +72,17 @@ class _AdminPageState extends State<AdminPage> {
 
     _refreshAll();
     _refreshOpen();
+    _refreshReps();
+  }
+
+  bool _customerHasRep(String email) {
+    final e = email.trim().toLowerCase();
+    for (final r in _reps) {
+      for (final c in r.customers) {
+        if (c.trim().toLowerCase() == e) return true;
+      }
+    }
+    return false;
   }
 
   // Hilfsfunktionen ---------------------------------------------------
@@ -571,8 +582,8 @@ class _AdminPageState extends State<AdminPage> {
                           api: _api,
                           c: c,
                           companyHint: _companyByEmail(c.email),
+                          hasRep: _customerHasRep(c.email), // ← NEU
                           onClosed: () {
-                            // Sofort aus der Offenen-Liste entfernen
                             setState(() {
                               _openComplaints.removeWhere((x) => x.ticket == c.ticket);
                             });
@@ -1504,6 +1515,7 @@ class _ComplaintsDetailList extends StatelessWidget {
   final AdminApi api;
   final VoidCallback onClosed;
   final String? companyHint;
+
   const _ComplaintsDetailList({
     required this.result,
     required this.api,
@@ -1529,7 +1541,7 @@ class _ComplaintsDetailList extends StatelessWidget {
     if (r.error != null) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Text('Fehler beim Laden: ${r.error}', style: const TextStyle(color: Colors.red)),
+        child: Text('Fehler beim Laden: ${r.error}', style: TextStyle(color: Colors.red)),
       );
     }
     if (r.items.isEmpty) {
@@ -1538,6 +1550,10 @@ class _ComplaintsDetailList extends StatelessWidget {
         child: Text('Keine Reklamationen gefunden.'),
       );
     }
+
+    // Einmalig den Parent-State holen (performanter als pro Item)
+    final parent = context.findAncestorStateOfType<_AdminPageState>();
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: Column(
@@ -1546,7 +1562,17 @@ class _ComplaintsDetailList extends StatelessWidget {
           const Divider(),
           const Text('Reklamationen (Details):', style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
-          ...r.items.map((c) => _ComplaintEditor(api: api, c: c, onClosed: onClosed, companyHint: companyHint)).toList(),
+          ...r.items
+              .map((c) => _ComplaintEditor(
+                    api: api,
+                    c: c,
+                    onClosed: onClosed,
+                    companyHint: companyHint,
+                    hasRep: (c.email.isNotEmpty)
+                        ? (parent?._customerHasRep(c.email) ?? false)
+                        : false,
+                  ))
+              .toList(),
         ],
       ),
     );
@@ -1926,12 +1952,14 @@ class _ComplaintEditor extends StatefulWidget {
   final AdminComplaint c;
   final VoidCallback onClosed;
   final String? companyHint;
+  final bool hasRep;
   const _ComplaintEditor({
     super.key,
     required this.api,
     required this.c,
     required this.onClosed,
     this.companyHint,
+    this.hasRep = false,
   });
 
   @override
@@ -2363,13 +2391,15 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                           ),
                           _statusChip(c.status),
 
-                          // ↓↓↓ NEU: Ampel NUR anzeigen, wenn es überhaupt eine Vertretermeinung gibt
-                          if (c.hasRep)
-                            _RepTrafficLight(
-                              opinion: ((c.repOpinion ?? '').trim().isEmpty) ? 'pending' : c.repOpinion,
-                              compact: true,
-                            ),
-                        ],
+                          // Ampel: Zeigen, wenn Kunde einen Vertreter hat
+                            if (widget.hasRep) ...[
+                              _RepTrafficLight(
+                                opinion: ((widget.c.decision == null) || widget.c.decision!.trim().isEmpty)
+                                    ? 'pending'
+                                    : (widget.c.repOpinion ?? '').trim(),
+                                compact: true,
+                              ),
+                            ],
                       ),
                     ],
                   ),
