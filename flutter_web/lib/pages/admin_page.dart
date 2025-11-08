@@ -1953,6 +1953,7 @@ class _ComplaintEditor extends StatefulWidget {
   final VoidCallback onClosed;
   final String? companyHint;
   final bool hasRep;
+  
   const _ComplaintEditor({
     super.key,
     required this.api,
@@ -2375,12 +2376,19 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                         ],
                       ),
                       const SizedBox(height: 6),
-                      // 3) Datum + Status
+                      // 3) Datum + Status + (optional) Vertreter-Ampel
                       Wrap(
                         spacing: 10,
                         runSpacing: 6,
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Icon(Icons.event, size: 16),
+                              SizedBox(width: 6),
+                            ],
+                          ),
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -2391,15 +2399,13 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                           ),
                           _statusChip(c.status),
 
-                          // Ampel: Zeigen, wenn Kunde einen Vertreter hat
-                            if (widget.hasRep) ...[
-                              _RepTrafficLight(
-                                opinion: ((widget.c.decision == null) || widget.c.decision!.trim().isEmpty)
-                                    ? 'pending'
-                                    : (widget.c.repOpinion ?? '').trim(),
-                                compact: true,
-                              ),
-                            ],
+                          // Ampel nur zeigen, wenn Kunde einem Vertreter zugeordnet ist
+                          if (widget.hasRep)
+                            _RepTrafficLight(
+                              opinion: ((c.repOpinion ?? '').trim().isEmpty) ? 'pending' : c.repOpinion,
+                              compact: true,
+                            ),
+                        ],
                       ),
                     ],
                   ),
