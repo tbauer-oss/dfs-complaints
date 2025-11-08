@@ -538,21 +538,8 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
   // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
   Future<void> _withdrawRepDecision(String ticket) async {
     try {
-      await widget.api.ensureRepSession();           // ok, behalt das
+      await widget.api.ensureRepSession();
       await widget.api.repDecisionReset(ticket: ticket);
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.t.decision_withdrawn ?? 'Entscheidung zurückgenommen')),
-      );
-      await _loadAll();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${context.t.error ?? 'Fehler'}: $e')),
-      );
-    }
-  }
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
