@@ -4,6 +4,7 @@ import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 import '../models/country.dart';
 import '../widgets/lang_action.dart';
+import 'dart:html' as html;
 
 enum Salutation { mr, ms, diverse }
 
@@ -379,12 +380,36 @@ class _RegisterPageState extends State<RegisterPage> {
                 const SizedBox(height: 8),
 
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Checkbox(
                       value: _privacy,
                       onChanged: (v) => setState(() => _privacy = v ?? false),
                     ),
-                    Expanded(child: Text(t.privacy_agree)),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Dein Pflichttext aus den L10n-ARB (unverändert)
+                          Text(t.privacy_agree),
+
+                          // Direktlink zur Datenschutz-Seite (immer sichtbar, klar erkennbar)
+                          const SizedBox(height: 4),
+                          InkWell(
+                            onTap: () => html.window.open('https://dfs-diamon.de/de/datenschutz', '_blank'),
+                            child: Text(
+                              t.privacy_view,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.primary,
+                                decoration: TextDecoration.underline,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
 
