@@ -538,42 +538,21 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
   // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
   Future<void> _withdrawRepDecision(String ticket) async {
     try {
-      // Ergebnis robust behandeln, egal ob ensureRepSession() Future<void> oder Future<bool> ist
-      bool sessionOk = true;
-      try {
-        final dyn = widget.api as dynamic;
-        final res = await dyn.ensureRepSession();
-        if (res is bool && res == false) sessionOk = false;
-      } catch (_) {
-        // wenn ensureRepSession() wirft, behandeln wir das unten im catch
-      }
+      await widget.api.ensureRepSession();           // ok, behalt das
+      await widget.api.repDecisionReset(ticket: ticket);
 
-      if (!sessionOk) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.t.session_expired_login_again)),
-        );
-        await widget.api.repLogout();
-        if (mounted) {
-          Navigator.of(context).pushNamedAndRemoveUntil('/login', (r) => false);
-        }
-        return;
-      }
-
-      // a) bevorzugt: direkte Reset-Methode, falls im Client vorhanden
-      try {
-        final dyn = widget.api as dynamic;
-        await dyn.repDecisionReset(ticket);
-      } catch (_) {
-        // b) generische Route – jetzt als Rep-POST:
-        await widget.api.repPostJson('/api/rep/decision', {
-          'ticket': ticket,
-          'decision': '',
-        });
-
-        // c) alternative Handler – ebenfalls Rep-POST:
-        await widget.api.repPostJson('/api/rep/decision/reset', {'ticket': ticket});
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.t.decision_withdrawn ?? 'Entscheidung zurückgenommen')),
+      );
+      await _loadAll();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${context.t.error ?? 'Fehler'}: $e')),
+      );
+    }
+  }
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
