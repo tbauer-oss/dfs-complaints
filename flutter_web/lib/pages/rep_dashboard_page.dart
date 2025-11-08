@@ -565,18 +565,14 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
         final dyn = widget.api as dynamic;
         await dyn.repDecisionReset(ticket);
       } catch (_) {
-        // b) generische Route: POST /api/rep/decision mit leerer Entscheidung
-        try {
-          final dyn = widget.api as dynamic;
-          await dyn.postJson('/api/rep/decision', {
-            'ticket': ticket,
-            'decision': '', // leert die Entscheidung
-          });
-        } catch (_) {
-          // c) alternative, falls Handler anders heißt
-          final dyn = widget.api as dynamic;
-          await dyn.postJson('/api/rep/decision/reset', {'ticket': ticket});
-        }
+        // b) generische Route – jetzt als Rep-POST:
+        await widget.api.repPostJson('/api/rep/decision', {
+          'ticket': ticket,
+          'decision': '',
+        });
+
+        // c) alternative Handler – ebenfalls Rep-POST:
+        await widget.api.repPostJson('/api/rep/decision/reset', {'ticket': ticket});
       }
 
       if (!mounted) return;
@@ -591,6 +587,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
       );
     }
   }
+
   // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
   Future<void> _logout() async {
