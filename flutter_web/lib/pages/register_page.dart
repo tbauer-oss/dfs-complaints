@@ -398,18 +398,22 @@ class _RegisterPageState extends State<RegisterPage> {
                           const SizedBox(height: 4),
                           InkWell(
                             onTap: () => html.window.open('https://dfs-diamon.de/de/datenschutz', '_blank'),
-                            child: Text(
-                              t.privacy_view,
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.primary,
-                                decoration: TextDecoration.underline,
-                                fontWeight: FontWeight.w600,
-                              ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.privacy_tip_outlined, size: 18),
+                                const SizedBox(width: 6),
+                                Text(
+                                  t.privacy_view, // z.B. "Datenschutzhinweise ansehen"
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.primary,
+                                    decoration: TextDecoration.underline,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
-                      ),
-                    ),
                   ],
                 ),
 
