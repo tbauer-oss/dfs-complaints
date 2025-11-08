@@ -1676,10 +1676,19 @@ class AdminComplaint {
   final Map<String, dynamic>? payload;
 
   // Vertreter-Daten
-  String? repOpinion; // 'accepted' | 'rejected' | 'pending' (oder null)
+  String? repOpinion; // 'accepted' | 'rejected' | 'pending'
   final String? repId; // z. B. Rep-UID oder E-Mail
 
   bool get hasRep => (repId ?? '').trim().isNotEmpty;
+
+  // Wunsch/Handling lesbar (für UI/E-Mail)
+  String get handlingLabel {
+    final p = payload;
+    if (p == null) return '—';
+    final v = p['handling'] ?? p['Wunsch'] ?? '';
+    final s = v.toString().trim();
+    return s.isEmpty ? '—' : s;
+  }
 
   AdminComplaint({
     required this.ticket,
@@ -1704,25 +1713,36 @@ class AdminComplaint {
 
     int _i(v) => (v is num) ? v.toInt() : int.tryParse('${v ?? ''}') ?? 1;
 
-    // Vertreter-Meinung normalisieren
     String? _norm(String? v) {
       final s = (v ?? '').trim().toLowerCase();
       if (s.isEmpty) return null;
       if (s == 'accepted' || s == 'accept' || s == 'green' || s == 'gruen' || s == 'grün') return 'accepted';
       if (s == 'rejected' || s == 'reject' || s == 'red' || s == 'rot') return 'rejected';
       if (s == 'pending' || s == 'wait' || s == 'gelb' || s == 'yellow' || s == 'open') return 'pending';
-      return s; // unbekannt bleibt wie geliefert (z. B. 'needs_info')
+      return s;
     }
 
-    final payload = (j['payload'] is Map) ? (j['payload'] as Map).cast<String, dynamic>() : null;
+    final payload =
+        (j['payload'] is Map) ? (j['payload'] as Map).cast<String, dynamic>() : null;
 
-    // repOpinion aus mehreren möglichen Schlüsseln holen
-    String? repRaw = (j['repOpinion'] ?? j['rep_opinion'] ?? j['repDecision'] ?? j['rep_decision'] ?? j['repStatus'] ?? j['rep_status'])?.toString();
+    String? repRaw = (j['repOpinion']
+          ?? j['rep_opinion']
+          ?? j['repDecision']
+          ?? j['rep_decision']
+          ?? j['repStatus']
+          ?? j['rep_status'])
+        ?.toString();
+
     if ((repRaw == null || repRaw.trim().isEmpty) && payload != null) {
-      repRaw = (payload['repOpinion'] ?? payload['rep_opinion'] ?? payload['repDecision'] ?? payload['rep_decision'] ?? payload['repStatus'] ?? payload['rep_status'])?.toString();
+      repRaw = (payload['repOpinion']
+            ?? payload['rep_opinion']
+            ?? payload['repDecision']
+            ?? payload['rep_decision']
+            ?? payload['repStatus']
+            ?? payload['rep_status'])
+          ?.toString();
     }
 
-    // repId aus üblichen Schlüsseln (direkt oder in payload)
     String? _pickRepId(Map<String, dynamic> j, Map<String, dynamic>? p) {
       String pick(Object? v) => (v ?? '').toString().trim();
       final direct = pick(j['repId'] ?? j['rep_id'] ?? j['rep'] ?? j['representative']);
@@ -1742,9 +1762,13 @@ class AdminComplaint {
       createdAt: _dt(j['createdAt']),
       updatedAt: _dt(j['updatedAt']),
       status: _i(j['status']),
-      decision: (j['decision'] == null || (j['decision'] as String?)?.isEmpty == true) ? null : j['decision']?.toString(),
+      decision: (j['decision'] == null || (j['decision'] as String?)?.isEmpty == true)
+          ? null
+          : j['decision']?.toString(),
       reportLink: j['reportLink']?.toString(),
-      internalNo: (j['internalNo']?.toString().trim().isEmpty ?? true) ? null : j['internalNo']!.toString().trim(),
+      internalNo: (j['internalNo']?.toString().trim().isEmpty ?? true)
+          ? null
+          : j['internalNo']!.toString().trim(),
       payload: payload,
       repOpinion: _norm(repRaw),
       repId: repIdLocal,
@@ -1764,15 +1788,6 @@ class AdminComplaint {
         if (repOpinion != null) 'repOpinion': repOpinion,
         if (repId != null) 'repId': repId,
       };
-}
-
-  String get handlingLabel {
-    final p = payload;
-    if (p == null) return '—';
-    final v = p['handling'] ?? p['Wunsch'] ?? '';
-    final s = v.toString().trim();
-    return s.isEmpty ? '—' : s;
-  }
 }
 
 class Rep {
