@@ -115,6 +115,7 @@
   "@login_failed_with_error": { "placeholders": { "error": { "type": "String" } } },
   "register_failed": "Registration failed: {reason}",
   "privacy_required": "Please confirm data privacy.",
+  "privacy_view": "View privacy policy",
   "required_fields": "Please fill in all required fields.",
   "privacy_link": "Privacy Policy",
   "privacy_agree": "I agree to the privacy policy.*",
