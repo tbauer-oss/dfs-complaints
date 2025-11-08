@@ -1,5 +1,4 @@
 // lib/main.dart
-import 'dart:html' as html; // nur Web: Sprache & Theme persistieren
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -7,6 +6,9 @@ import 'package:flutter/services.dart' show rootBundle;
 
 import 'api/client.dart';
 import 'l10n/app_localizations.dart';
+import 'services/app_prefs.dart';
+import 'services/app_prefs_scope.dart';
+import 'widgets/theme_action.dart';
 
 // Seiten
 import 'pages/register_page.dart';
@@ -193,9 +195,7 @@ class _MyAppState extends State<MyApp> {
   // ---- Core ----
   final api = ApiClient();
   final GlobalKey<NavigatorState> _navKey = GlobalKey<NavigatorState>();
-
-  Locale? _locale;
-  ThemeMode _themeMode = ThemeMode.system;
+  final _prefs = AppPrefs(); // zentrale Quelle für Theme & Locale
 
   bool _bootDone = false;
   bool _loggedIn = false; // Kundenlogin (token) steuert den Kunden-Flow
@@ -207,27 +207,8 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-
-    // Sprache laden
-    final savedLang = html.window.localStorage['dfs_lang'];
-    if (savedLang != null && savedLang.isNotEmpty) {
-      _locale = Locale(savedLang);
-    }
-
-    // ThemeMode laden
-    final savedTheme = (html.window.localStorage['dfs_theme'] ?? '').toLowerCase();
-    switch (savedTheme) {
-      case 'light':
-        _themeMode = ThemeMode.light;
-        break;
-      case 'dark':
-        _themeMode = ThemeMode.dark;
-        break;
-      default:
-        _themeMode = ThemeMode.system;
-    }
-
-    _boot();
+    _prefs.load();        // Theme & Sprache laden (triggert Rebuild)
+    _boot();              // deine Session-Logik wie gehabt
   }
 
   Future<void> _boot() async {
@@ -237,81 +218,6 @@ class _MyAppState extends State<MyApp> {
       _loggedIn = _customerLoggedIn; // Kunden-Flow bleibt unabhängig vom Vertreter-Flow
       _bootDone = true;
     });
-  }
-
-  void _setLocale(Locale l) {
-    setState(() => _locale = l);
-    html.window.localStorage['dfs_lang'] = l.languageCode;
-  }
-
-  void _setThemeMode(ThemeMode m) {
-    setState(() => _themeMode = m);
-    html.window.localStorage['dfs_theme'] = switch (m) {
-      ThemeMode.light => 'light',
-      ThemeMode.dark => 'dark',
-      ThemeMode.system => 'system',
-    };
-  }
-
-  Widget _themeMenu() {
-    final icon = switch (_themeMode) {
-      ThemeMode.dark => Icons.dark_mode,
-      ThemeMode.light => Icons.light_mode,
-      _ => Icons.brightness_auto,
-    };
-
-    return PopupMenuButton<ThemeMode>(
-      // Lokalisierter Tooltip aus dem Widget-Kontext
-      tooltip: 'Theme',
-      icon: Icon(icon),
-      onSelected: _setThemeMode,
-      itemBuilder: (ctx) {
-        // WICHTIG: Lokalisierung aus dem Popup-Kontext holen
-        final t = AppLocalizations.of(ctx)!;
-
-        return [
-          PopupMenuItem(
-            value: ThemeMode.system,
-            child: Row(
-              children: [
-                const Icon(Icons.brightness_auto),
-                const SizedBox(width: 10),
-                Text(t.theme_system),
-                if (_themeMode == ThemeMode.system) const Spacer(),
-                if (_themeMode == ThemeMode.system)
-                  const Icon(Icons.check, color: Colors.green),
-              ],
-            ),
-          ),
-          PopupMenuItem(
-            value: ThemeMode.light,
-            child: Row(
-              children: [
-                const Icon(Icons.light_mode),
-                const SizedBox(width: 10),
-                Text(t.theme_light),
-                if (_themeMode == ThemeMode.light) const Spacer(),
-                if (_themeMode == ThemeMode.light)
-                  const Icon(Icons.check, color: Colors.green),
-              ],
-            ),
-          ),
-          PopupMenuItem(
-            value: ThemeMode.dark,
-            child: Row(
-              children: [
-                const Icon(Icons.dark_mode),
-                const SizedBox(width: 10),
-                Text(t.theme_dark),
-                if (_themeMode == ThemeMode.dark) const Spacer(),
-                if (_themeMode == ThemeMode.dark)
-                  const Icon(Icons.check, color: Colors.green),
-              ],
-            ),
-          ),
-        ];
-      },
-    );
   }
 
   Future<void> _openAdmin(BuildContext context) async {
@@ -378,37 +284,39 @@ class _MyAppState extends State<MyApp> {
       );
     }
 
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      navigatorKey: _navKey,
+    return AppPrefsScope(
+      notifier: _prefs,
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        navigatorKey: _navKey,
 
-      // ---- i18n ----
-      locale: _locale,
-      supportedLocales: const [
-        Locale('de'), Locale('en'), Locale('fr'), Locale('it'), Locale('es'),
-      ],
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      localeListResolutionCallback: (locales, supported) {
-        if (_locale != null) return _locale!;
-        if (locales != null) {
-          for (final loc in locales) {
-            for (final s in supported) {
-              if (s.languageCode.toLowerCase() == loc.languageCode.toLowerCase()) {
-                return s;
+        // ---- i18n ----
+        locale: _prefs.locale, // << neu
+        supportedLocales: const [
+          Locale('de'), Locale('en'), Locale('fr'), Locale('it'), Locale('es'),
+        ],
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        localeListResolutionCallback: (locales, supported) {
+          if (_prefs.locale != null) return _prefs.locale!;
+          if (locales != null) {
+            for (final loc in locales) {
+              for (final s in supported) {
+                if (s.languageCode.toLowerCase() == loc.languageCode.toLowerCase()) {
+                  return s;
+                }
               }
             }
           }
-        }
-        return const Locale('de');
-      },
+          return const Locale('de');
+        },
 
       // ---- Theme ----
-      themeMode: _themeMode,
+      themeMode: _prefs.themeMode,  // << neu
       theme: _lightTheme(),
       darkTheme: _darkTheme(),
 
@@ -426,8 +334,8 @@ class _MyAppState extends State<MyApp> {
                     appBar: AppBar(
                       title: Text(t.appTitle),
                       actions: [
-                        LangAction(onLocaleChanged: _setLocale),
-                        _themeMenu(),
+                        LangAction(),   // ohne Callback – kümmert sich selbst via AppPrefs
+                        ThemeAction(),  // neuer Button – kein Reload
                       ],
                       bottom: PreferredSize(
                         preferredSize: const Size.fromHeight(50),
