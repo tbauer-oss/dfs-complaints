@@ -115,6 +115,7 @@
   "@login_failed_with_error": { "placeholders": { "error": { "type": "String" } } },
   "register_failed": "Échec de l’inscription : {reason}",
   "privacy_required": "Veuillez confirmer la politique de confidentialité.",
+  "privacy_view": "Voir la politique de confidentialité",
   "required_fields": "Veuillez remplir tous les champs obligatoires.",
   "privacy_link": "Protection des données",
   "privacy_agree": "J’accepte la politique de confidentialité.*",
