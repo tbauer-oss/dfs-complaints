@@ -289,100 +289,23 @@ class ApiClient {
     }
   }
 
-  // ✅ Reset: 204 (ohne Body) oder 200 (Debug) als Erfolg behandeln.
-  //    Zusätzlich: falls repToken leer ist, einmalig aus LocalStorage nachladen.
-  // ✅ Robust: probiert mehrere zulässige Reset-Varianten durch
-// ✅ Robust: setzt ausdrücklich repDecision zurück (null/''), probiert mehrere Varianten.
-  //    NUR diese Methode ersetzen.
+  // ✅ Dedizierter Reset-Call – erwartet 204 (ohne Body)
   Future<void> repDecisionReset({required String ticket}) async {
-    if ((ticket).trim().isEmpty) {
-      throw ApiError(400, 'invalid data: empty ticket');
-    }
-
-    // sicherstellen, dass wir ein Rep-Token haben (leise aus LS ziehen)
+    // Falls repToken leer ist: defensiv aus LocalStorage ziehen
     if (repToken == null || repToken!.isEmpty) {
       final lsTok = html.window.localStorage['dfs_rep_token'];
       if (lsTok != null && lsTok.isNotEmpty) repToken = lsTok;
     }
 
-    // kleiner Helper
-    Future<http.Response> _req(String path, String method, Map<String, dynamic>? body) {
-      final uri = _u(path);
-      final h = _repHeaders();
-      switch (method) {
-        case 'POST':  return http.post(uri,  headers: h, body: jsonEncode(body ?? const {}));
-        case 'PATCH': return http.patch(uri, headers: h, body: jsonEncode(body ?? const {}));
-        case 'PUT':   return http.put(uri,   headers: h, body: jsonEncode(body ?? const {}));
-        case 'DELETE':return http.delete(uri,headers: h);
-        default:      return http.post(uri,  headers: h, body: jsonEncode(body ?? const {}));
-      }
-    }
+    final r = await http.post(
+      _u('/api/rep/decision/reset'),
+      headers: _repHeaders(),
+      body: jsonEncode({'ticket': ticket}),
+    );
 
-    bool _success(http.Response r) {
-      if (r.statusCode == 204) return true;
-      if (_ok2xx(r.statusCode)) return true;
-      return false;
-    }
-
-    // 🔧 Versuche in sinnvoller Reihenfolge – Schwerpunkt repDecision:
-    final attempts = <({String path, String method, Map<String, dynamic>? body})>[
-      // A) dedizierter Reset-Endpoint mit ticket
-      (path: '/api/rep/decision/reset', method: 'POST',  body: {'ticket': ticket}),
-      // B) gleiche Route, ticket als Query
-      (path: '/api/rep/decision/reset?ticket=${Uri.encodeQueryComponent(ticket)}', method: 'POST', body: const {}),
-      // C) generischer Handler: repDecision explizit auf null setzen
-      (path: '/api/rep/decision', method: 'POST', body: {'ticket': ticket, 'repDecision': null}),
-      // D) generischer Handler: repDecision auf '' leeren
-      (path: '/api/rep/decision', method: 'POST', body: {'ticket': ticket, 'repDecision': ''}),
-      // E) PATCH-Variante (manche erwarten PATCH fürs Zurücknehmen)
-      (path: '/api/rep/decision', method: 'PATCH', body: {'ticket': ticket, 'repDecision': null}),
-      // F) Alternative: action-Schalter (wird oft verwendet)
-      (path: '/api/rep/decision', method: 'POST', body: {'ticket': ticket, 'action': 'reset'}),
-      // G) DELETE mit Query (selten, aber vorhanden)
-      (path: '/api/rep/decision?ticket=${Uri.encodeQueryComponent(ticket)}', method: 'DELETE', body: null),
-    ];
-
-    // 1x Refresh bei 401 probieren
-    bool triedRefresh = false;
-
-    ApiError? lastErr;
-
-    for (final a in attempts) {
-      http.Response r;
-      try {
-        r = await _req(a.path, a.method, a.body);
-      } catch (e) {
-        // Netzwerk/andere Fehler: nächste Variante
-        lastErr = ApiError(0, e.toString());
-        continue;
-      }
-
-      if (r.statusCode == 401 && !triedRefresh) {
-        triedRefresh = await _repTryRefresh();
-        if (triedRefresh) {
-          try {
-            r = await _req(a.path, a.method, a.body);
-          } catch (e) {
-            lastErr = ApiError(0, e.toString());
-            continue;
-          }
-        }
-      }
-
-      if (_success(r)) return;
-
-      // 400/422 „invalid data“ → nächste Variante versuchen
-      if (r.statusCode == 400 || r.statusCode == 422) {
-        lastErr = ApiError(r.statusCode, _extractMessage(r.body));
-        continue;
-      }
-
-      // andere Fehler merken und weiter testen
-      lastErr = ApiError(r.statusCode, _extractMessage(r.body));
-    }
-
-    // Wenn alle Varianten scheitern:
-    throw lastErr ?? ApiError(400, 'invalid data (no matching reset variant accepted)');
+    if (r.statusCode == 204) return;               // Erfolg (ohne Body)
+    if (_ok2xx(r.statusCode)) return;              // z. B. 200 im Debug-Fall
+    throw ApiError(r.statusCode, _extractMessage(r.body));
   }
 
   // Alternative: Entscheidung leeren (falls /api/rep/decision/reset nicht greift)
