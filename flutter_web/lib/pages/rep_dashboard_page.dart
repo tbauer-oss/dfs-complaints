@@ -4,6 +4,7 @@ import '../api/client.dart';
 import 'rep_profile_page.dart';
 import 'dart:html' as html;
 import '../l10n/app_localizations.dart';
+import '../widgets/lang_action.dart'; // Sprachmenü
 
 // ---- L10n-Helper (top-level) ----
 extension _L10nX on BuildContext {
@@ -693,7 +694,11 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
               onPressed: _loading ? null : _loadAll,
               icon: const Icon(Icons.refresh),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 4),
+            const LangAction(),        // ← Sprache
+            const SizedBox(width: 4),
+            const ThemeAction(),       // ← Modus (System/Hell/Dunkel)
+           const SizedBox(width: 8),
             TextButton.icon(
               onPressed: _logout,
               icon: const Icon(Icons.logout),
@@ -1281,6 +1286,54 @@ class _Card extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class ThemeAction extends StatelessWidget {
+  const ThemeAction({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    IconData _iconFor(String m) {
+      switch (m) {
+        case 'dark': return Icons.dark_mode;
+        case 'light': return Icons.light_mode;
+        default: return Icons.brightness_auto;
+      }
+    }
+
+    void _set(String mode) {
+      try {
+        html.window.localStorage['dfs_theme'] = mode; // 'system' | 'light' | 'dark'
+      } catch (_) {}
+      // Rebuild erzwingen, damit MyApp die Einstellung neu lädt:
+      html.window.location.reload();
+    }
+
+    return PopupMenuButton<String>(
+      tooltip: 'Theme',
+      icon: Icon(_iconFor(
+        (html.window.localStorage['dfs_theme'] ?? 'system').toLowerCase(),
+      )),
+      onSelected: _set,
+      itemBuilder: (ctx) {
+        final t = AppLocalizations.of(ctx)!;
+        final curr = (html.window.localStorage['dfs_theme'] ?? 'system').toLowerCase();
+        Widget item(String val, IconData icon, String label) => Row(
+          children: [
+            Icon(icon),
+            const SizedBox(width: 10),
+            Expanded(child: Text(label)),
+            if (curr == val) const Icon(Icons.check, color: Colors.green),
+          ],
+        );
+        return [
+          PopupMenuItem(value: 'system', child: item('system', Icons.brightness_auto, t.theme_system)),
+          PopupMenuItem(value: 'light' , child: item('light' , Icons.light_mode     , t.theme_light )),
+          PopupMenuItem(value: 'dark'  , child: item('dark'  , Icons.dark_mode      , t.theme_dark  )),
+        ];
+      },
     );
   }
 }
