@@ -15,10 +15,11 @@ import 'pages/register_page.dart';
 import 'pages/admin_page.dart';
 import 'pages/dashboard_page.dart';
 import 'pages/rep_login_page.dart';
-import 'pages/rep_dashboard_page.dart';
+import 'pages/rep_dashboard_page.dart'
 
 // Widgets
 import 'widgets/lang_action.dart';
+import 'widgets/theme_action.dart' as w;
 
 // ===== THEME BRANDING =====
 const kBrandSeed = Color(0xFF1F4C8F); // DFS-Blau – bei Bedarf anpassen
@@ -284,58 +285,56 @@ class _MyAppState extends State<MyApp> {
       );
     }
 
-    return AppPrefsScope(
-      notifier: _prefs,
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        navigatorKey: _navKey,
+  return AppPrefsScope(
+    notifier: _prefs,
+    child: MaterialApp(
+      debugShowCheckedModeBanner: false,
+      navigatorKey: _navKey,
 
-        // ---- i18n ----
-        locale: _prefs.locale, // << neu
-        supportedLocales: const [
-          Locale('de'), Locale('en'), Locale('fr'), Locale('it'), Locale('es'),
-        ],
-        localizationsDelegates: const [
-          AppLocalizations.delegate,
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        localeListResolutionCallback: (locales, supported) {
-          if (_prefs.locale != null) return _prefs.locale!;
-          if (locales != null) {
-            for (final loc in locales) {
-              for (final s in supported) {
-                if (s.languageCode.toLowerCase() == loc.languageCode.toLowerCase()) {
-                  return s;
-                }
+      // ---- i18n ----
+      locale: _prefs.locale,
+      supportedLocales: const [
+        Locale('de'), Locale('en'), Locale('fr'), Locale('it'), Locale('es'),
+      ],
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      localeListResolutionCallback: (locales, supported) {
+        if (_prefs.locale != null) return _prefs.locale!;
+        if (locales != null) {
+          for (final loc in locales) {
+            for (final s in supported) {
+              if (s.languageCode.toLowerCase() == loc.languageCode.toLowerCase()) {
+                return s;
               }
             }
           }
-          return const Locale('de');
-        },
+        }
+        return const Locale('de');
+      },
 
       // ---- Theme ----
-      themeMode: _prefs.themeMode,  // << neu
+      themeMode: _prefs.themeMode,
       theme: _lightTheme(),
       darkTheme: _darkTheme(),
 
       // ---- Routing ----
       initialRoute: '/',
       routes: {
-        // Root / Startseite: Kunden-Flow
         '/': (_) => Builder(
               builder: (ctx) {
                 final t = AppLocalizations.of(ctx)!;
 
-                // Kunde eingeloggt -> Dashboard
                 if (_loggedIn) {
                   return Scaffold(
                     appBar: AppBar(
                       title: Text(t.appTitle),
-                      actions: [
-                        LangAction(),   // ohne Callback – kümmert sich selbst via AppPrefs
-                        ThemeAction(),  // neuer Button – kein Reload
+                      actions: const [
+                        LangAction(),
+                        w.ThemeAction(),
                       ],
                       bottom: PreferredSize(
                         preferredSize: const Size.fromHeight(50),
@@ -347,7 +346,7 @@ class _MyAppState extends State<MyApp> {
                               icon: const Icon(Icons.logout),
                               label: Text(t.logout),
                               onPressed: () async {
-                                await api.logout(); // Kunden-Logout
+                                await api.logout();
                                 if (ctx.mounted) {
                                   ScaffoldMessenger.of(ctx).showSnackBar(
                                     SnackBar(content: Text(t.loggedOut)),
@@ -364,36 +363,31 @@ class _MyAppState extends State<MyApp> {
                   );
                 }
 
-                // Kunde NICHT eingeloggt -> Startseite mit hübscher Login-Card
                 final scheme = Theme.of(ctx).colorScheme;
                 final isDark = Theme.of(ctx).brightness == Brightness.dark;
                 return Scaffold(
                   appBar: AppBar(
                     title: Text(t.appTitle),
-                    actions: [
-                      LangAction(onLocaleChanged: _setLocale),
-                      _themeMenu(),
+                    actions: const [
+                      LangAction(),
+                      w.ThemeAction(),
                     ],
                   ),
                   body: DecoratedBox(
                     decoration: BoxDecoration(
-                      // Im Dark-Mode lieber eine ruhige Fläche mit leichtem „Container“-Verlauf
                       gradient: isDark
                           ? LinearGradient(
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
                               colors: [
-                                scheme.surface,                 // Basis
-                                scheme.surfaceContainerHighest, // leichte Abhebung unten
+                                scheme.surface,
+                                scheme.surfaceContainerHighest,
                               ],
                             )
                           : const LinearGradient(
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
-                              colors: [
-                                Color(0xFFEFF3FA), // zartes Blau-Grau
-                                Color(0xFFFFFFFF),
-                              ],
+                              colors: [Color(0xFFEFF3FA), Color(0xFFFFFFFF)],
                             ),
                     ),
                     child: Center(
@@ -404,21 +398,18 @@ class _MyAppState extends State<MyApp> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              // Login-Card
                               _LoginScreen(
                                 api: api,
                                 onLoggedIn: _onLoggedIn,
                                 onOpenRegister: () => _openRegister(ctx),
                                 onOpenAdmin: () => _openAdmin(ctx),
-                                onOpenRep: () => _openRepArea(ctx), // -> /repLogin
+                                onOpenRep: () => _openRepArea(ctx),
                               ),
-
-                              // --- Responsive Sektion „Weitere Bereiche“ ---
                               const SizedBox(height: 18),
                               Align(
                                 alignment: Alignment.centerLeft,
                                 child: Text(
-                                  t.more_areas, // lokalisiert
+                                  t.more_areas,
                                   style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
                                         color: Theme.of(ctx).colorScheme.primary,
                                         fontWeight: FontWeight.w700,
@@ -426,12 +417,10 @@ class _MyAppState extends State<MyApp> {
                                 ),
                               ),
                               const SizedBox(height: 10),
-
                               LayoutBuilder(
                                 builder: (context, constraints) {
                                   final isNarrow = constraints.maxWidth < 560;
                                   if (isNarrow) {
-                                    // Buttons UNTEREINANDER (mobil)
                                     return Column(
                                       crossAxisAlignment: CrossAxisAlignment.stretch,
                                       children: [
@@ -457,7 +446,6 @@ class _MyAppState extends State<MyApp> {
                                       ],
                                     );
                                   } else {
-                                    // Buttons NEBENEINANDER (breit)
                                     return Row(
                                       children: [
                                         Expanded(
@@ -488,7 +476,6 @@ class _MyAppState extends State<MyApp> {
                                   }
                                 },
                               ),
-                              // --- Ende responsive Sektion ---
                             ],
                           ),
                         ),
@@ -498,39 +485,28 @@ class _MyAppState extends State<MyApp> {
                 );
               },
             ),
-
-        // Vertreter-Login (immer erreichbar; kein Token nötig)
         '/repLogin': (_) => RepLoginPage(api: api),
-
-        // Vertreter-Dashboard (nur gültig, wenn repToken vorhanden)
-        '/rep': (_) => RepDashboardPage(api: api),
+        '/rep':      (_) => RepDashboardPage(api: api),
       },
 
-      // Guard-Logik zentral
       onGenerateRoute: (settings) {
         final name = settings.name ?? '/';
-
-        // Versucht, direkt ins Rep-Dashboard zu gehen -> nur erlaubt mit repToken
         if (name == '/rep' && !_repLoggedIn) {
           return MaterialPageRoute(
             builder: (_) => RepLoginPage(api: api),
             settings: const RouteSettings(name: '/repLogin'),
           );
         }
-
-        // Ist bereits als Vertreter eingeloggt und ruft /repLogin auf -> auf /rep umbiegen
         if (name == '/repLogin' && _repLoggedIn) {
           return MaterialPageRoute(
             builder: (_) => RepDashboardPage(api: api),
             settings: const RouteSettings(name: '/rep'),
           );
         }
-
-        return null; // standard routing nutzt oben definierte "routes"
+        return null;
       },
-    );
-  }
-}
+    ),
+  );
 
 // =======================
 // Interner Login-Screen (Kundenbereich) – HÜBSCHE CARD MIT LOGO
