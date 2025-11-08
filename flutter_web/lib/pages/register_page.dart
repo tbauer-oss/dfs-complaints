@@ -414,9 +414,12 @@ class _RegisterPageState extends State<RegisterPage> {
                               ],
                             ),
                           ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
-
+    
                 if (_err != null) ...[
                   const SizedBox(height: 8),
                   Text(_err!, style: const TextStyle(color: Colors.red)),
