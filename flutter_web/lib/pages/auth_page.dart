@@ -258,18 +258,28 @@ class _AuthPageState extends State<AuthPage> {
               const SizedBox(height: 8),
 
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Checkbox(
                     value: _privacy,
                     onChanged: (v) => setState(() => _privacy = v ?? false),
                   ),
-                  Expanded(child: Text(t.privacy_agree)),
-                  TextButton(
-                    onPressed: () => html.window.open(
-                      'https://www.dfs-diamon.de/datenschutz',
-                      '_blank',
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(t.privacy_agree),
+                        TextButton.icon(
+                          onPressed: () => html.window.open('https://dfs-diamon.de/de/datenschutz', '_blank'),
+                          icon: const Icon(Icons.open_in_new, size: 18),
+                          label: Text(t.privacy_view), // z.B. "Datenschutzhinweise ansehen"
+                          style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8)),
+                        ),
+                      ],
                     ),
-                    child: Text(t.privacy_link),
                   ),
                 ],
               ),
