@@ -291,26 +291,78 @@ class ApiClient {
 
   // ✅ Reset: 204 (ohne Body) oder 200 (Debug) als Erfolg behandeln.
   //    Zusätzlich: falls repToken leer ist, einmalig aus LocalStorage nachladen.
+  // ✅ Robust: probiert mehrere zulässige Reset-Varianten durch
   Future<void> repDecisionReset({required String ticket}) async {
+    // Defensiv: gültiges Rep-Token sicherstellen
     if (repToken == null || repToken!.isEmpty) {
-      // defensive: Token aus LocalStorage ziehen, ohne anderes zu verändern
       final lsTok = html.window.localStorage['dfs_rep_token'];
-      if (lsTok != null && lsTok.isNotEmpty) {
-        repToken = lsTok;
+      if (lsTok != null && lsTok.isNotEmpty) repToken = lsTok;
+    }
+    if ((ticket).trim().isEmpty) {
+      throw ApiError(400, 'invalid data: empty ticket');
+    }
+
+    // kleiner Helfer: Request ausführen & Erfolg prüfen
+    Future<http.Response> _req(String path, String method, Map<String, dynamic>? body) {
+      final uri = _u(path);
+      final h = _repHeaders();
+      switch (method) {
+        case 'POST':  return http.post(uri,  headers: h, body: jsonEncode(body ?? const {}));
+        case 'PATCH': return http.patch(uri, headers: h, body: jsonEncode(body ?? const {}));
+        case 'PUT':   return http.put(uri,   headers: h, body: jsonEncode(body ?? const {}));
+        case 'DELETE':return http.delete(uri,headers: h);
+        default:      return http.post(uri,  headers: h, body: jsonEncode(body ?? const {}));
       }
     }
 
-    final r = await _repFetch(
-      '/api/rep/decision/reset',
-      method: 'POST',
-      body: {'ticket': ticket},
-    );
+    Future<bool> _ok(http.Response r) async {
+      if (r.statusCode == 204) return true;         // no content = Erfolg
+      if (_ok2xx(r.statusCode)) return true;        // 200/201 etc.
+      // 4xx/5xx → nicht ok
+      return false;
+    }
 
-    // Erfolg ohne Body (204) oder Debug-Erfolg (200 mit JSON)
-    if (r.statusCode == 204) return;
-    if (_ok2xx(r.statusCode)) return;
+    // Variantenliste (häufigste zuerst):
+    final attempts = <({String path, String method, Map<String, dynamic>? body})>[
+      // A) dedizierter Reset-Endpoint mit Body {ticket}
+      (path: '/api/rep/decision/reset', method: 'POST',  body: {'ticket': ticket}),
+      // B) dedizierter Reset-Endpoint ohne Body (manche Handler ignorieren Body)
+      (path: '/api/rep/decision/reset?ticket=${Uri.encodeQueryComponent(ticket)}', method: 'POST', body: const {}),
+      // C) allgemeiner /decision mit leerer Entscheidung (Feld "decision")
+      (path: '/api/rep/decision', method: 'POST', body: {'ticket': ticket, 'decision': ''}),
+      // D) evtl. anderes Feld (mancher Backend-Code nutzt "repDecision")
+      (path: '/api/rep/decision', method: 'POST', body: {'ticket': ticket, 'repDecision': ''}),
+      // E) PATCH-Variante
+      (path: '/api/rep/decision', method: 'PATCH', body: {'ticket': ticket, 'decision': ''}),
+      // F) DELETE mit Query (selten, aber gesehen)
+      (path: '/api/rep/decision?ticket=${Uri.encodeQueryComponent(ticket)}', method: 'DELETE', body: null),
+    ];
 
-    throw ApiError(r.statusCode, _extractMessage(r.body));
+    // 1x optionaler Refresh bei 401
+    bool triedRefresh = false;
+
+    for (final a in attempts) {
+      final r = await _req(a.path, a.method, a.body);
+
+      if (r.statusCode == 401 && !triedRefresh) {
+        triedRefresh = await _repTryRefresh();
+        if (triedRefresh) {
+          final rr = await _req(a.path, a.method, a.body);
+          if (await _ok(rr)) return;
+          // Wenn nach Refresh 4xx „invalid data“ kommt → nächste Variante probieren
+          continue;
+        }
+      }
+
+      if (await _ok(r)) return;
+
+      // 400/422 „invalid data“ → nächste Variante testen
+      if (r.statusCode == 400 || r.statusCode == 422) continue;
+      // andere harte Fehler → weiterprobieren (oder hier abbrechen, wenn gewünscht)
+    }
+
+    // Wenn alles durch ist, letzten Fehler transparent melden:
+    throw ApiError(400, 'invalid data (no matching reset endpoint accepted the payload)');
   }
 
   // Alternative: Entscheidung leeren (falls /api/rep/decision/reset nicht greift)
