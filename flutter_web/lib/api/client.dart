@@ -217,6 +217,11 @@ class ApiClient {
     return Uri.parse('$base$path');
   }
 
+  // Öffentlicher Wrapper für Rep-POST (mit X-Gate: rep + Bearer)
+  Future<Map<String, dynamic>> repPostJson(String path, Map<String, dynamic> body) {
+    return _repPostJson(path, body);
+  }
+
   // ---- Basis ----
   String get baseUrl {
     const b = String.fromEnvironment('API_BASE', defaultValue: '');
