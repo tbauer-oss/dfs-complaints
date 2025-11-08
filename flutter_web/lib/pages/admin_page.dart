@@ -1681,15 +1681,6 @@ class AdminComplaint {
 
   bool get hasRep => (repId ?? '').trim().isNotEmpty;
 
-  // Wunsch/Handling lesbar (für UI/E-Mail)
-  String get handlingLabel {
-    final p = payload;
-    if (p == null) return '—';
-    final v = p['handling'] ?? p['Wunsch'] ?? '';
-    final s = v.toString().trim();
-    return s.isEmpty ? '—' : s;
-  }
-
   AdminComplaint({
     required this.ticket,
     required this.email,
