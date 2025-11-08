@@ -115,6 +115,7 @@
   "register_failed": "Registrierung fehlgeschlagen: {reason}",
   "privacy_required": "Bitte Datenschutz bestätigen",
   "required_fields": "Bitte Pflichtfelder ausfüllen",
+  "privacy_view": "Datenschutzhinweise ansehen",
   "privacy_link": "Datenschutz",
   "privacy_agree": "Ich stimme der Datenschutzerklärung zu.*",
   "registration_received": "Registrierung eingegangen. Sie werden nach Freigabe informiert.",
