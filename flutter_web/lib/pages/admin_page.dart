@@ -1677,6 +1677,9 @@ class AdminComplaint {
 
   String? repOpinion; // 'accepted' | 'rejected' | 'pending' (oder null)
 
+  final String? repId;
+  bool get hasRep => (repId ?? '').trim().isNotEmpty;
+
   AdminComplaint({
     required this.ticket,
     required this.email,
@@ -1687,7 +1690,8 @@ class AdminComplaint {
     this.reportLink,
     this.internalNo,
     this.payload,
-    this.repOpinion, // ← NEU
+    this.repOpinion,
+    this.repId,
   });
 
   factory AdminComplaint.fromJson(Map<String, dynamic> j) {
@@ -1712,10 +1716,22 @@ class AdminComplaint {
     // Wir versuchen mehrere gängige Schlüssel
     String? repRaw =
         (j['repOpinion'] ?? j['rep_opinion'] ?? j['repDecision'] ?? j['rep_decision'] ?? j['repStatus'] ?? j['rep_status'])
-            ?.toString();
+            ?.toString();    
     if ((repRaw == null || repRaw.trim().isEmpty) && payload != null) {
       repRaw = (payload['repOpinion'] ?? payload['rep_opinion'] ?? payload['repDecision'] ?? payload['rep_decision'] ?? payload['repStatus'] ?? payload['rep_status'])
           ?.toString();
+    // --- NEU: repId aus gängigen Schlüsseln lesen
+    String? _repIdOf(Map<String, dynamic> j, Map<String, dynamic>? p) {
+      String pick(Object? v) => (v ?? '').toString().trim();
+      final direct = pick(j['repId'] ?? j['rep_id'] ?? j['rep'] ?? j['representative']);
+      if (direct.isNotEmpty) return direct;
+      if (p != null) {
+        final inPayload = pick(p['repId'] ?? p['rep_id'] ?? p['rep'] ?? p['representative']);
+        if (inPayload.isNotEmpty) return inPayload;
+      }
+      return null;
+    }
+    final repId = _repIdOf(j, payload);
     }
 
     return AdminComplaint(
@@ -1728,7 +1744,8 @@ class AdminComplaint {
       reportLink: j['reportLink']?.toString(),
       internalNo: (j['internalNo']?.toString().trim().isEmpty ?? true) ? null : j['internalNo']!.toString().trim(),
       payload: payload,
-      repOpinion: _norm(repRaw), // ← NEU
+      repOpinion: _norm(repRaw),
+      repId: repId,
     );
   }
 
@@ -1742,8 +1759,8 @@ class AdminComplaint {
     'reportLink': reportLink,
     'internalNo': internalNo,
     'payload': payload,
-    // optional zurückgeben:
     if (repOpinion != null) 'repOpinion': repOpinion,
+    if (repId != null && repId!.isNotEmpty) 'repId': repId,
   };
 
   String get handlingLabel {
@@ -2329,8 +2346,11 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                           _statusChip(c.status),
 
                           // ↓↓↓ NEU: Ampel NUR anzeigen, wenn es überhaupt eine Vertretermeinung gibt
-                          if ((c.repOpinion ?? '').trim().isNotEmpty)
-                            _RepTrafficLight(opinion: c.repOpinion, compact: true),
+                          if (c.hasRep)
+                            _RepTrafficLight(
+                              opinion: ((c.repOpinion ?? '').trim().isEmpty) ? 'pending' : c.repOpinion,
+                              compact: true,
+                            ),
                         ],
                       ),
                     ],
