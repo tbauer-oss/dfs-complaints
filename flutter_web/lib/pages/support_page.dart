@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
+import 'dart:html' as html;
 
 class SupportPage extends StatefulWidget {
   final ApiClient api;
@@ -82,12 +83,44 @@ class _SupportPageState extends State<SupportPage> {
               ),
               const SizedBox(height: 8),
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Checkbox(
                     value: _consent,
                     onChanged: (v) => setState(() => _consent = v ?? false),
                   ),
-                  Expanded(child: Text(t.supportConsentText)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Pflichttext (unverändert aus L10n)
+                        Text(t.supportConsentText),
+
+                        // Direktlink zur Datenschutz-Seite (immer sichtbar, mit Icon)
+                        const SizedBox(height: 4),
+                        InkWell(
+                          onTap: () => html.window.open('https://dfs-diamon.de/de/datenschutz', '_blank'),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.privacy_tip_outlined, size: 18),
+                              const SizedBox(width: 6),
+                              Text(
+                                // Nutze hier deinen L10n-Key, z. B. "t.privacy_view" / "t.privacy_link"
+                                t.privacy_view,
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  decoration: TextDecoration.underline,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
