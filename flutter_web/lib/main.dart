@@ -329,10 +329,12 @@ class _MyAppState extends State<MyApp> {
             // ---- Routing ----
             initialRoute: '/',
             routes: {
+              // Root / Startseite: Kunden-Flow
               '/': (_) => Builder(
                     builder: (ctx) {
                       final t = AppLocalizations.of(ctx)!;
 
+                      // Kunde eingeloggt -> Dashboard
                       if (_loggedIn) {
                         return Scaffold(
                           appBar: AppBar(
@@ -351,7 +353,7 @@ class _MyAppState extends State<MyApp> {
                                     icon: const Icon(Icons.logout),
                                     label: Text(t.logout),
                                     onPressed: () async {
-                                      await api.logout();
+                                      await api.logout(); // Kunden-Logout
                                       if (ctx.mounted) {
                                         ScaffoldMessenger.of(ctx).showSnackBar(
                                           SnackBar(content: Text(t.loggedOut)),
@@ -368,6 +370,7 @@ class _MyAppState extends State<MyApp> {
                         );
                       }
 
+                      // Kunde NICHT eingeloggt -> Startseite
                       final scheme = Theme.of(ctx).colorScheme;
                       final isDark = Theme.of(ctx).brightness == Brightness.dark;
                       return Scaffold(
@@ -405,8 +408,9 @@ class _MyAppState extends State<MyApp> {
                                       onLoggedIn: _onLoggedIn,
                                       onOpenRegister: () => _openRegister(ctx),
                                       onOpenAdmin: () => _openAdmin(ctx),
-                                      onOpenRep: () => _openRepArea(ctx),
+                                      onOpenRep: () => _openRepArea(ctx), // -> /repLogin
                                     ),
+
                                     const SizedBox(height: 18),
                                     Align(
                                       alignment: Alignment.centerLeft,
@@ -419,10 +423,12 @@ class _MyAppState extends State<MyApp> {
                                       ),
                                     ),
                                     const SizedBox(height: 10),
+
                                     LayoutBuilder(
                                       builder: (context, constraints) {
                                         final isNarrow = constraints.maxWidth < 560;
                                         if (isNarrow) {
+                                          // mobil: Buttons untereinander
                                           return Column(
                                             crossAxisAlignment: CrossAxisAlignment.stretch,
                                             children: [
@@ -448,6 +454,7 @@ class _MyAppState extends State<MyApp> {
                                             ],
                                           );
                                         } else {
+                                          // Desktop: Buttons nebeneinander
                                           return Row(
                                             children: [
                                               Expanded(
@@ -487,24 +494,32 @@ class _MyAppState extends State<MyApp> {
                       );
                     },
                   ),
+
+              // Vertreter-Login
               '/repLogin': (_) => RepLoginPage(api: api),
+
+              // Vertreter-Dashboard
               '/rep': (_) => RepDashboardPage(api: api),
             },
 
+            // Guard-Logik zentral
             onGenerateRoute: (settings) {
               final name = settings.name ?? '/';
+
               if (name == '/rep' && !_repLoggedIn) {
                 return MaterialPageRoute(
                   builder: (_) => RepLoginPage(api: api),
                   settings: const RouteSettings(name: '/repLogin'),
                 );
               }
+
               if (name == '/repLogin' && _repLoggedIn) {
                 return MaterialPageRoute(
                   builder: (_) => RepDashboardPage(api: api),
                   settings: const RouteSettings(name: '/rep'),
                 );
               }
+
               return null;
             },
           );
@@ -512,6 +527,176 @@ class _MyAppState extends State<MyApp> {
       ),
     );
   }
+} // <<< _MyAppState SAUBER geschlossen
+
+// =======================
+// Interner Login-Screen (Kundenbereich)
+// =======================
+class _LoginScreen extends StatefulWidget {
+  final ApiClient api;
+  final VoidCallback onLoggedIn;
+  final VoidCallback onOpenRegister;
+  final VoidCallback onOpenAdmin;
+  final VoidCallback onOpenRep;
+
+  const _LoginScreen({
+    required this.api,
+    required this.onLoggedIn,
+    required this.onOpenRegister,
+    required this.onOpenAdmin,
+    required this.onOpenRep,
+  });
+
+  @override
+  State<_LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<_LoginScreen> {
+  final _email = TextEditingController();
+  final _pw    = TextEditingController();
+  bool _busy = false;
+  String? _err;
+
+  // robustes Asset-Checking (SVG → PNG → Text)
+  Future<bool> _assetExists(String path) async {
+    try {
+      await rootBundle.load(path);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _doLogin() async {
+    setState(() { _busy = true; _err = null; });
+    try {
+      final ok = await widget.api.login(_email.text.trim(), _pw.text); // Kunden-Login
+      if (!mounted) return;
+      if (ok) {
+        widget.onLoggedIn();
+      } else {
+        setState(() => _err = AppLocalizations.of(context)!.invalid);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _err = e.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _email.dispose();
+    _pw.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    final canLogin = !_busy && _email.text.trim().isNotEmpty && _pw.text.isNotEmpty;
+
+    return Card(
+      elevation: 8,
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 700),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  SizedBox(
+                    height: 40,
+                    child: FutureBuilder<bool>(
+                      future: _assetExists('assets/dfs_logo.svg'),
+                      builder: (context, snap) {
+                        if (snap.connectionState == ConnectionState.done && (snap.data ?? false)) {
+                          return SvgPicture.asset('assets/dfs_logo.svg', height: 40);
+                        }
+                        return Image.asset(
+                          'assets/dfs_logo.png',
+                          height: 40,
+                          filterQuality: FilterQuality.high,
+                          isAntiAlias: true,
+                          errorBuilder: (_, __, ___) => const Text('DFS'),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      t.customer_login,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Divider(height: 1, color: Theme.of(context).dividerColor.withOpacity(0.6)),
+              const SizedBox(height: 14),
+
+              TextField(
+                controller: _email,
+                decoration: InputDecoration(
+                  labelText: t.email,
+                  border: const OutlineInputBorder(),
+                ),
+                enabled: !_busy,
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _pw,
+                obscureText: true,
+                decoration: InputDecoration(
+                  labelText: t.password,
+                  border: const OutlineInputBorder(),
+                ),
+                onSubmitted: (_) => canLogin ? _doLogin() : null,
+                enabled: !_busy,
+                onChanged: (_) => setState(() {}),
+              ),
+
+              if (_err != null) ...[
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(_err!, style: const TextStyle(color: Colors.red)),
+                ),
+              ],
+
+              const SizedBox(height: 14),
+
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: canLogin ? _doLogin : null,
+                  child: _busy
+                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : Text(t.login),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.person_add_alt),
+                  onPressed: _busy ? null : widget.onOpenRegister,
+                  label: Text(t.register),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 // =======================
 // Interner Login-Screen (Kundenbereich) – HÜBSCHE CARD MIT LOGO
