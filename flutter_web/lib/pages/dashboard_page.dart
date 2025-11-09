@@ -10,6 +10,9 @@ import 'my_complaints_page.dart';
 import 'account_page.dart';
 import 'support_page.dart';
 
+const _pdfLabUrl  = 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Labor-DE-US-2025-26_1.pdf';
+const _pdfDentUrl = 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf';
+
 class DashboardPage extends StatefulWidget {
   final ApiClient api;
   final VoidCallback onLoggedOut;
@@ -222,6 +225,11 @@ class _DashboardPageState extends State<DashboardPage> {
               child: Column(
                 children: [
                   if (repBanner != null) repBanner,
+                  Padding(
+                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                   child: _buildCatalogsCard(context),
+                  ),
+                  const SizedBox(height: 8),
                   Expanded(
                     child: GridView.builder(
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
@@ -264,6 +272,130 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
     );
   }
+  Widget _buildCatalogsCard(BuildContext context) {
+    final t  = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+
+    Widget tile({
+      required String title,
+      required String desc,
+      required String url,
+      required Color accent,
+      required IconData icon,
+    }) {
+      return InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => html.window.open(url, '_blank'),
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: cs.outlineVariant),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft, end: Alignment.bottomRight,
+              colors: [accent.withOpacity(.08), cs.surface],
+            ),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(.06), blurRadius: 10, offset: const Offset(0, 3)),
+            ],
+          ),
+          child: Stack(
+            children: [
+              Positioned(
+                left: 16, top: 16,
+                child: Container(
+                  width: 54, height: 54,
+                  decoration: BoxDecoration(color: accent.withOpacity(.14), shape: BoxShape.circle),
+                  child: Icon(icon, color: accent, size: 28),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(88, 14, 14, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Align(
+                      alignment: Alignment.topRight,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(999)),
+                        child: const Text('PDF', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 11)),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(title, maxLines: 2, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16.5, letterSpacing: .2),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(desc, maxLines: 2, overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: cs.onSurface.withOpacity(.7), height: 1.25),
+                    ),
+                    const Spacer(),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton.icon(
+                          onPressed: () => html.window.open(url, '_blank'),
+                          icon: const Icon(Icons.picture_as_pdf_outlined),
+                          label: Text(t.catalog_open),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+  return Card(
+    elevation: 4,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const Icon(Icons.menu_book_outlined, size: 20),
+            const SizedBox(width: 8),
+            Text(t.catalogs_title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
+          ]),
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (_, cons) {
+              final isNarrow = cons.maxWidth < 560;
+              return GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: isNarrow ? 1 : 2,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: isNarrow ? 2.4 : 2.8,
+                children: [
+                  tile(
+                    title: t.catalog_lab_title,
+                    desc:  t.catalog_lab_desc,
+                    url:   _pdfLabUrl,
+                    accent: Colors.indigo,
+                    icon:  Icons.biotech_outlined,
+                  ),
+                  tile(
+                    title: t.catalog_dent_title,
+                    desc:  t.catalog_dent_desc,
+                    url:   _pdfDentUrl,
+                    accent: Colors.teal,
+                    icon:  Icons.medical_services_outlined,
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _Entry {
