@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/legal_footer.dart';
 
 // KEIN dart:html mehr nötig
 
