@@ -2467,6 +2467,43 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     }
   }
 
+  Future<void> _save() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      // Konsolidierter Update-Call (Status, Entscheidung, Report-Link, Interne Nr.)
+      await widget.api.adminComplaintUpdate(
+        ticket: widget.c.ticket,
+        status: _status ?? widget.c.status,
+        decision: _decision ?? '',
+        reportLink: _reportCtrl.text.trim(),
+        internalNo: _internalCtrl.text.trim(),
+      );
+
+        // Lokalen Zustand spiegeln
+        setState(() {
+          widget.c.status     = _status ?? widget.c.status;
+          widget.c.decision   = _decision;
+          widget.c.reportLink = _reportCtrl.text.trim().isEmpty ? null : _reportCtrl.text.trim();
+          widget.c.internalNo = _internalCtrl.text.trim().isEmpty ? null : _internalCtrl.text.trim();
+        });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Status/Entscheidung gespeichert.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _deleteComplaint() async {
     final ok = await showDialog<bool>(
       context: context,
