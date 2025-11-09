@@ -347,8 +347,18 @@ class _AdminPageState extends State<AdminPage> {
 
     final theme = Theme.of(context);
 
-    
-    
+    // ---- Payload-Felder (nur lesend) ----
+    final Map<String, dynamic>? p = (c.payload is Map) ? (c.payload as Map).cast<String, dynamic>() : null;
+    final segment      = _detPickOrNull(p, ['segment','customer_segment','segment_code']);
+    final productType  = _detPickOrNull(p, ['product_type','productType','type']);
+    final articleNo    = _detPickOrNull(p, ['article_no','articleNumber','article','artnr']);
+    final batch        = _detPickOrNull(p, ['batch_no','lot','lot_no','batch']);
+    final serial       = _detPickOrNull(p, ['serial_no','serial','sn']);
+    final qty          = _detPickOrNull(p, ['qty','quantity','amount','menge']);
+    final reason       = _detPickOrNull(p, ['reason','failure_reason','cause']);
+    final desc         = _detPickOrNull(p, ['description','comment','details','failure_desc']);
+    final customerWish = _detPickOrNull(p, ['customer_wish','customerWish','wish','treatment_wish']);
+
     final title = switch (_view) {
       _AdminView.menu    => 'Adminbereich – DFS Customer Complaint',
       _AdminView.pending => 'Pending (Freigabe ausstehend)',
@@ -2243,6 +2253,39 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
 
   int? _status; // 1..6
   String? _decision;
+  
+  // ---- Details-Helper (nur lesend, keine Kollisionen dank Präfix) ----
+  String _detPick(Map<String, dynamic>? p, List<String> keys) {
+    if (p == null) return '';
+    for (final k in keys) {
+      final v = p[k];
+      if (v == null) continue;
+      final s = v.toString().trim();
+      if (s.isNotEmpty) return s;
+    }
+    return '';
+  }
+
+  String? _detPickOrNull(Map<String, dynamic>? p, List<String> keys) {
+    final s = _detPick(p, keys);
+    return s.isEmpty ? null : s;
+  }
+
+  Widget _detKv(String label, String? value, {int maxLines = 2}) {
+    final v = (value ?? '').trim();
+    if (v.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 160, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
+          const SizedBox(width: 8),
+          Expanded(child: Text(v, maxLines: maxLines, overflow: TextOverflow.ellipsis)),
+        ],
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -2781,7 +2824,59 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
 
             if (_expanded) ...[
               const SizedBox(height: 10),
-              // ====== Editor-Bereich (unverändert inhaltlich) ======
+
+              // ---- Toggle + Details-Container (NEU, optional ein/ausklappbar) ----
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  TextButton.icon(
+                    onPressed: () => setState(() => _expanded = !_expanded),
+                    icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+                    label: const Text('Details anzeigen'), // ändert sich unten dynamisch
+                  ),
+                ],
+              ),
+              AnimatedCrossFade(
+                crossFadeState: _expanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+                duration: const Duration(milliseconds: 160),
+                firstChild: Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(top: 4),
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.30),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Details der Reklamation',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 8),
+                      _detKv('Segment',       segment),
+                      _detKv('Produkttyp',    productType),
+                      _detKv('Artikelnummer', articleNo),
+                      Row(
+                       children: [
+                          Expanded(child: _detKv('Charge / LOT', batch)),
+                          const SizedBox(width: 12),
+                          Expanded(child: _detKv('Seriennummer', serial)),
+                          const SizedBox(width: 12),
+                          SizedBox(width: 160, child: _detKv('Menge', qty)),
+                        ],
+                      ),
+                      _detKv('Fehler / Beschreibung', desc, maxLines: 6),
+                      _detKv('Grund / Ursache',       reason, maxLines: 4),
+                      _detKv('Wunsch des Kunden',     customerWish, maxLines: 3),
+                    ],
+                  ),
+                ),
+                secondChild: const SizedBox.shrink(),
+              ),
+
+              // ====== Editor-Bereich (unverändert inhaltlich) ======                        
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
