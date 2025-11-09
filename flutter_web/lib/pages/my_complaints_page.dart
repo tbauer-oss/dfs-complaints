@@ -55,9 +55,12 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
       });
     }
     try {
+      // Nutzt neuen Detail-Endpunkt (JWT), liefert volle Felder
       final raw = await widget.api.myComplaintsDetailed();
       final list = raw.map(Complaint.fromJson).toList(growable: false);
+
       _applySort(list);
+
       if (!mounted) return;
       setState(() => _items = list);
     } catch (e) {
@@ -96,6 +99,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
             a.createdAt.millisecondsSinceEpoch, b.createdAt.millisecondsSinceEpoch));
         break;
       case _SortBy.status:
+        // Status: 1..6 – bei gleicher Zahl nach Updated sortieren
         list.sort((a, b) {
           final s = _asc ? a.status.compareTo(b.status) : b.status.compareTo(a.status);
           if (s != 0) return s;
@@ -112,6 +116,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
   }
 
   String _fmt(DateTime dt) {
+    // kompakt & lokal
     final l = dt.toLocal();
     String two(int x) => x < 10 ? '0$x' : '$x';
     return '${l.year}-${two(l.month)}-${two(l.day)} ${two(l.hour)}:${two(l.minute)}';
@@ -120,58 +125,59 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
   // Lokalisierte Status-Texte
   String _statusTextLocalized(AppLocalizations t, int s, String? decision) {
     switch (s) {
-      case 1: return t.status_sent;
-      case 2: return t.status_in_progress;
-      case 3: return t.status_question;        // deine Keys
+      case 1:
+        return t.status_sent;
+      case 2:
+        return t.status_in_progress;
+      case 3:
+        // je nach Key in deiner L10n: status_question / status_needs_info
+        return (t.status_question ?? t.status_needs_info);
       case 4:
         if (decision == 'rejected') return t.status_rejected;
         if (decision == 'accepted') return t.status_accepted;
         return t.status_decision;
-      case 5: return t.status_rework;
-      case 6: return t.status_closed;
-      default: return t.status_unknown;
+      case 5:
+        return t.status_rework;
+      case 6:
+        return t.status_closed;
+      default:
+        return t.status_unknown;
     }
   }
 
   Color _statusColor(int s, String? decision) {
     switch (s) {
-      case 1: return Colors.blue;
-      case 2: return Colors.amber.shade800;
-      case 3: return Colors.orange;
+      case 1:
+        return Colors.blue;
+      case 2:
+        return Colors.amber.shade800;
+      case 3:
+        return Colors.orange;
       case 4:
         return decision == 'rejected'
             ? Colors.red
             : (decision == 'accepted' ? Colors.lightGreen : Colors.grey);
-      case 5: return Colors.amber;
-      case 6: return Colors.green;
-      default: return Colors.grey;
+      case 5:
+        return Colors.amber;
+      case 6:
+        return Colors.green;
+      default:
+        return Colors.grey;
     }
   }
 
+  // Report-Link ist für Kunden sichtbar, wenn gesetzt (unabhängig vom Status)
   bool _canOpenReportLink(Complaint c) {
     final link = (c.reportLink ?? '').trim();
     return link.isNotEmpty;
   }
 
+  // Segment hübsch: Zahnarzt/Zahntechnik (lokalisiert)
   String _segmentLabel(AppLocalizations t, String raw) {
     final v = (raw).trim().toLowerCase();
     if (v == 'zahnarzt' || v == t.segment_dentist.toLowerCase()) return t.segment_dentist;
     if (v == 'zahntechnik' || v == t.segment_lab.toLowerCase()) return t.segment_lab;
-    return raw;
-  }
-
-  // Produkttyp aus Payload möglichst robust herauslesen
-  String _productTypeFromPayload(Map<String, dynamic> p) {
-    String _s(String k) => (p[k] ?? '').toString().trim();
-    final candidates = <String>[
-      'productType','product_type','type','produktTyp','produkt_typ',
-      'product','productName','product_name','product_group','productGroup','gruppe','group'
-    ];
-    for (final k in candidates) {
-      final v = _s(k);
-      if (v.isNotEmpty) return v;
-    }
-    return '';
+    return raw; // fallback (zeigt Original)
   }
 
   @override
@@ -193,6 +199,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
         ),
         title: Text(t.my_complaints_title),
         actions: [
+          // Sortierleiste in der AppBar (kompakt)
           _SortControls(
             sortBy: _sortBy,
             asc: _asc,
@@ -208,7 +215,8 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
             const Padding(
               padding: EdgeInsets.only(right: 8),
               child: SizedBox(
-                width: 18, height: 18,
+                width: 18,
+                height: 18,
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
             ),
@@ -221,7 +229,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
       ),
       body: Column(
         children: [
-          // Vertreter-Banner
+          // Hinweis-Banner mit Vertreter (falls vorhanden)
           if (repName.isNotEmpty || repEmail.isNotEmpty || repRegion.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
@@ -237,21 +245,30 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                   children: [
                     const Icon(Icons.handshake_outlined, size: 20),
                     const SizedBox(width: 10),
+
+                    // Name + Details
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(t.rep_banner_title(repName.isEmpty ? '—' : repName),
-                              style: const TextStyle(fontWeight: FontWeight.w600)),
+                          Text(
+                            t.rep_banner_title(repName.isEmpty ? '—' : repName),
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
                           const SizedBox(height: 2),
-                          Text([
-                            if (repEmail.isNotEmpty) repEmail,
-                            if (repRegion.isNotEmpty) repRegion,
-                          ].join(' • ')),
+                          Text(
+                            [
+                              if (repEmail.isNotEmpty) repEmail,
+                              if (repRegion.isNotEmpty) repRegion,
+                            ].join(' • '),
+                          ),
                         ],
                       ),
                     ),
+
                     const SizedBox(width: 8),
+
+                    // E-Mail Button (mailto)
                     if (repEmail.isNotEmpty)
                       Tooltip(
                         message: t.rep_email_tooltip,
@@ -270,7 +287,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
               ),
             ),
 
-          // Liste der Reklamationen
+          // Der bisherige Body jetzt schöner in Cards:
           Expanded(
             child: _busy
                 ? const Center(child: CircularProgressIndicator())
@@ -287,6 +304,8 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                               separatorBuilder: (_, __) => const SizedBox(height: 10),
                               itemBuilder: (_, i) {
                                 final c = _items[i];
+
+                                // defensive defaults, damit kein Item-Build crasht:
                                 final ticket = (c.ticket).toString();
                                 final statusText = _statusTextLocalized(t, c.status, c.decision);
                                 final statusColor = _statusColor(c.status, c.decision);
@@ -296,130 +315,106 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                 final p = c.payload ?? const <String, dynamic>{};
                                 final segRaw = (p['segment'] ?? '').toString();
                                 final seg = segRaw.isNotEmpty ? _segmentLabel(t, segRaw) : '';
-                                final articleNo = (p['article'] ?? '').toString().trim();
-                                final productType = _productTypeFromPayload(p);
+                                final art = (p['article'] ?? '').toString();
+                                final returned = (p['returned'] ?? '').toString();
+                                final handling = (p['handling'] ?? '').toString();
 
-                                // HEADER: Status, Artikelnummer, Produkttyp sofort sichtbar
-                                final headerLine = Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  children: [
-                                    _StatusPill(text: statusText, color: statusColor),
-                                    if (articleNo.isNotEmpty)
-                                      _KeyValuePill(icon: Icons.handyman_outlined, label: (t.articleNo ?? t.article), value: articleNo),
-                                    if (productType.isNotEmpty)
-                                      _KeyValuePill(icon: Icons.category_outlined, label: t.product_type ?? 'Produkttyp', value: productType),
-                                    if ((c.decision ?? '').isNotEmpty)
-                                      _StatusPill(
-                                        text: (c.decision == 'accepted') ? t.decision_accepted : t.decision_rejected,
-                                        color: (c.decision == 'accepted') ? Colors.green : Colors.red,
-                                      ),
-                                  ],
-                                );
-
-                                // EXPANSION: alle Details
                                 return Card(
                                   elevation: 2,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                  child: Theme(
-                                    data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                                    child: ExpansionTile(
-                                      tilePadding: const EdgeInsets.fromLTRB(14, 6, 14, 6),
-                                      childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-                                      title: Row(
-                                        children: [
-                                          const Icon(Icons.description_outlined, size: 20),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Text(
-                                              ticket.isEmpty ? '—' : ticket,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  child: Padding(
+                                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        // Kopfzeile: Ticket + Status + Entscheidung
+                                        Row(
+                                          crossAxisAlignment: CrossAxisAlignment.center,
+                                          children: [
+                                            const Icon(Icons.description_outlined, size: 20),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                ticket.isEmpty ? '—' : ticket,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 16,
+                                                ),
+                                              ),
                                             ),
+                                            const SizedBox(width: 8),
+                                            _ChipOutlined(
+                                              text: '${t.status}: $statusText',
+                                              color: statusColor,
+                                            ),
+                                            if ((c.decision ?? '').isNotEmpty) ...[
+                                              const SizedBox(width: 6),
+                                              _ChipOutlined(
+                                                text: '${t.decision}: '
+                                                    '${(c.decision == "accepted") ? t.decision_accepted : t.decision_rejected}',
+                                                color: (c.decision == 'accepted') ? Colors.green : Colors.red,
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+
+                                        const SizedBox(height: 10),
+
+                                        // Info-Chips (Segment, Artikel, interne Nr.)
+                                        Wrap(
+                                          spacing: 8,
+                                          runSpacing: 8,
+                                          children: [
+                                            if (seg.isNotEmpty)
+                                              _InfoChip(icon: Icons.category_outlined, label: t.segment, value: seg),
+                                            if (art.isNotEmpty)
+                                              _InfoChip(icon: Icons.handyman_outlined, label: (t.articleNo ?? t.article), value: art),
+                                            if ((c.internalNo ?? '').toString().isNotEmpty)
+                                              _InfoChip(icon: Icons.tag, label: (t.internal_no_label), value: c.internalNo!),
+                                          ],
+                                        ),
+
+                                        const SizedBox(height: 10),
+
+                                        // Zeiten
+                                        Wrap(
+                                          spacing: 8,
+                                          runSpacing: 8,
+                                          children: [
+                                            _InfoChip(icon: Icons.add_circle_outline, label: t.created, value: _fmt(c.createdAt)),
+                                            if (c.updatedAt.millisecondsSinceEpoch > 0)
+                                              _InfoChip(icon: Icons.update, label: t.updated, value: _fmt(c.updatedAt)),
+                                          ],
+                                        ),
+
+                                        // Rücksendung/Wunsch (falls gesetzt)
+                                        if (returned.isNotEmpty || handling.isNotEmpty) ...[
+                                          const SizedBox(height: 10),
+                                          Wrap(
+                                            spacing: 8,
+                                            runSpacing: 8,
+                                            children: [
+                                              if (returned.isNotEmpty)
+                                                _InfoChip(
+                                                  icon: Icons.local_shipping_outlined,
+                                                  label: (t.returned ?? t.returned_question),
+                                                  value: returned,
+                                                ),
+                                              if (handling.isNotEmpty)
+                                                _InfoChip(
+                                                  icon: Icons.build_circle_outlined,
+                                                  label: t.handling,
+                                                  value: handling,
+                                                ),
+                                            ],
                                           ),
                                         ],
-                                      ),
-                                      subtitle: Padding(
-                                        padding: const EdgeInsets.only(top: 6),
-                                        child: headerLine,
-                                      ),
-                                      children: [
-                                        const SizedBox(height: 8),
-                                        // Sektion: Basisdaten
-                                        _DetailGroup(
-                                          title: t.details,
-                                          children: [
-                                            _kv(t.segment, seg.isEmpty ? '—' : seg),
-                                            _kv(t.article, articleNo.isEmpty ? '—' : articleNo),
-                                            if (productType.isNotEmpty)
-                                              _kv(t.product_type ?? 'Produkttyp', productType),
-                                            if ((p['batch'] ?? '').toString().isNotEmpty)
-                                              _kv(t.batch, (p['batch']).toString()),
-                                            if ((p['qty'] ?? '').toString().isNotEmpty)
-                                              _kv(t.quantity, (p['qty']).toString()),
-                                            if ((p['expiry'] ?? '').toString().isNotEmpty)
-                                              _kv(t.expiry, (p['expiry']).toString()),
-                                            if ((p['desc'] ?? '').toString().isNotEmpty)
-                                              _kv(t.description, (p['desc']).toString()),
-                                          ],
-                                        ),
 
-                                        // Sektion: Rücksendung / Wunsch
-                                        if ((p['returned'] ?? '').toString().isNotEmpty || (p['handling'] ?? '').toString().isNotEmpty)
-                                          _DetailGroup(
-                                            title: t.handling,
-                                            children: [
-                                              if ((p['returned'] ?? '').toString().isNotEmpty)
-                                                _kv(t.returned ?? t.returned_question, (p['returned']).toString()),
-                                              if ((p['handling'] ?? '').toString().isNotEmpty)
-                                                _kv(t.handling, (p['handling']).toString()),
-                                            ],
-                                          ),
+                                        const SizedBox(height: 12),
 
-                                        // Sektion: Patientenbezug
-                                        if ((p['applied'] ?? '').toString().isNotEmpty ||
-                                            (p['injury'] ?? '').toString().isNotEmpty ||
-                                            (p['injuryDesc'] ?? '').toString().trim().isNotEmpty)
-                                          _DetailGroup(
-                                            title: t.applied_to_patient,
-                                            children: [
-                                              if ((p['applied'] ?? '').toString().isNotEmpty)
-                                                _kv(t.applied, (p['applied']).toString()),
-                                              if ((p['injury'] ?? '').toString().isNotEmpty)
-                                                _kv(t.injury, (p['injury']).toString()),
-                                              if ((p['injuryDesc'] ?? '').toString().trim().isNotEmpty)
-                                                _kv(t.injury_desc, (p['injuryDesc']).toString()),
-                                            ],
-                                          ),
-
-                                        // Sektion: Kunde / Land
-                                        if ((p['customerName'] ?? '').toString().isNotEmpty ||
-                                            (p['country'] ?? '').toString().isNotEmpty)
-                                          _DetailGroup(
-                                            title: t.customer_label,
-                                            children: [
-                                              if ((p['customerName'] ?? '').toString().isNotEmpty)
-                                                _kv(t.customer_label, (p['customerName']).toString()),
-                                              if ((p['country'] ?? '').toString().isNotEmpty)
-                                                _kv(t.country_label, (p['country']).toString()),
-                                            ],
-                                          ),
-
-                                        // Zeiten & interne Nr.
-                                        _DetailGroup(
-                                          title: t.timestamps ?? 'Zeitstempel',
-                                          children: [
-                                            _kv(t.created, _fmt(c.createdAt)),
-                                            if (c.updatedAt.millisecondsSinceEpoch > 0)
-                                              _kv(t.updated, _fmt(c.updatedAt)),
-                                            if ((c.internalNo ?? '').toString().isNotEmpty)
-                                              _kv(t.internal_no_label, c.internalNo!),
-                                          ],
-                                        ),
-
-                                        // Aktionen
+                                        // Aktionen: Report öffnen + Details
                                         Row(
                                           children: [
                                             if (canOpenReport)
@@ -454,19 +449,6 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
       bottomNavigationBar: LegalFooter(api: widget.api),
     );
   }
-
-  Widget _kv(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(width: 180, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
-          Expanded(child: Text(value.isEmpty ? '—' : value)),
-        ],
-      ),
-    );
-  }
 }
 
 // ---- Sortier-Steuerung (rechts in der AppBar) ----
@@ -483,6 +465,7 @@ class _SortControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
+
     return Row(
       children: [
         DropdownButton<_SortBy>(
@@ -507,7 +490,7 @@ class _SortControls extends StatelessWidget {
   }
 }
 
-// ---- Details-Dialog (optionaler Deep-Dive, unverändert in der Logik) ----
+// ---- Details-Dialog (Kundenbereich) ----
 class _MyComplaintDetailsDialog extends StatelessWidget {
   final Complaint c;
   const _MyComplaintDetailsDialog({required this.c});
@@ -531,7 +514,10 @@ class _MyComplaintDetailsDialog extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(width: 170, child: Text(l, style: const TextStyle(fontWeight: FontWeight.w600))),
+              SizedBox(
+                width: 170,
+                child: Text(l, style: const TextStyle(fontWeight: FontWeight.w600)),
+              ),
               Expanded(child: Text(v.isEmpty ? '—' : v)),
             ],
           ),
@@ -571,6 +557,7 @@ class _MyComplaintDetailsDialog extends StatelessWidget {
                   row(t.country_label, _safeStr(payload['country'])),
               ],
               const SizedBox(height: 8),
+              // Timestamps unten zusammengefasst
               row(t.created, _fmtLocal(c.createdAt)),
               if (c.updatedAt.millisecondsSinceEpoch > 0)
                 row(t.updated, _fmtLocal(c.updatedAt)),
@@ -593,16 +580,16 @@ class _MyComplaintDetailsDialog extends StatelessWidget {
   }
 }
 
-// ------------------- kleine UI-Helfer (darstellungs-only) -------------------
+// ------------------- kleine UI-Helfer -------------------
 
-class _StatusPill extends StatelessWidget {
+class _ChipOutlined extends StatelessWidget {
   final String text;
   final Color color;
-  const _StatusPill({required this.text, required this.color});
+  const _ChipOutlined({required this.text, required this.color});
 
   @override
   Widget build(BuildContext context) {
-    final safe = text.isEmpty ? '—' : text;
+    final safeText = text.isEmpty ? '—' : text;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -611,24 +598,26 @@ class _StatusPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
-        safe,
+        safeText,
         style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12.5),
       ),
     );
   }
 }
 
-class _KeyValuePill extends StatelessWidget {
+class _InfoChip extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  const _KeyValuePill({required this.icon, required this.label, required this.value});
+  const _InfoChip({required this.icon, required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final safeLabel = (label.isEmpty ? '—' : label);
+    final safeValue = (value.isEmpty ? '—' : value);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
         color: cs.surfaceVariant.withOpacity(.55),
         borderRadius: BorderRadius.circular(10),
@@ -639,36 +628,17 @@ class _KeyValuePill extends StatelessWidget {
         children: [
           Icon(icon, size: 16),
           const SizedBox(width: 6),
-          Text('$label: ', style: const TextStyle(fontWeight: FontWeight.w600)),
-          Flexible(child: Text(value, overflow: TextOverflow.ellipsis, maxLines: 1)),
-        ],
-      ),
-    );
-  }
-}
-
-class _DetailGroup extends StatelessWidget {
-  final String title;
-  final List<Widget> children;
-  const _DetailGroup({required this.title, required this.children});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      decoration: BoxDecoration(
-        color: cs.surfaceVariant.withOpacity(.4),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: cs.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 6),
-          ...children,
+          Text(
+            '$safeLabel: ',
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          Flexible(
+            child: Text(
+              safeValue,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
         ],
       ),
     );
