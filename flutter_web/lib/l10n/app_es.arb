@@ -341,5 +341,17 @@
   "legal_privacy_14_title": "14. Decisiones automatizadas/Perfilado y cambios",
   "legal_privacy_14_text": "En la aplicación no se realizan decisiones automatizadas ni perfilado. Nos reservamos el derecho a actualizar este aviso (cambios técnicos, nuevas normativas o ampliaciones como la futura visualización de catálogos). La versión actual está disponible en la aplicación.",
   "legal_privacy_link_label": "Política de privacidad en el sitio web:",
-  "legal_privacy_stand_prefix": "Versión:"
+  "legal_privacy_stand_prefix": "Versión:",
+
+  "imprint_title": "Aviso legal",
+  "imprint_publisher_title": "Editor",
+  "imprint_publisher_body": "DFS-Diamon GmbH\nLändenstraße 1\nD - 93339 Riedenburg, Alemania\n\nTeléfono +49 (0) 9442 91 89-0\nFax +49 (0) 9442 91 89-37\nCorreo info@dfs-diamon.de",
+  "imprint_register_title": "Datos registrales",
+  "imprint_register_body": "Juzgado de Registro de Regensburg HRB 2966\nN.º de IVA DE 128580122\n\nResponsable del contenido: Dr. Stefan Brand\nRepresentante autorizado: Dr. Stefan Brand",
+  "imprint_disclaimer_title": "Descargo de responsabilidad",
+  "imprint_disclaimer_body": "Nos esforzamos por ofrecer información correcta y completa en este sitio web, pero no asumimos responsabilidad ni garantía por la actualidad, exactitud o integridad de la información proporcionada. Esto también se aplica a todos los enlaces externos a los que este sitio web se refiere directa o indirectamente. No somos responsables del contenido de los sitios externos accesibles a través de dichos enlaces. Toda la información sobre precios, textos e imágenes de productos se facilita sin garantía; se reservan errores y cambios técnicos.",
+  "imprint_copyright_title": "Derechos de autor",
+  "imprint_copyright_body": "Todos los derechos reservados. El contenido y la estructura del sitio web de DFS-Diamon están protegidos por derechos de autor. La información o los datos (texto, imágenes, gráficos, audio, vídeo o archivos de animación) de nuestro sitio web no podrán utilizarse ni reproducirse, ni siquiera parcialmente, sin el consentimiento previo por escrito de DFS-Diamon GmbH.",
+  "imprint_odr_title": "Resolución alternativa de litigios (ODR / VSBG)",
+  "imprint_odr_body": "La Comisión Europea ofrece una plataforma de Resolución de Litigios en Línea (ODR): https://webgate.ec.europa.eu/odr/main/index.cfm?event=main.home.show&lng=ES\nEstamos dispuestos a participar en un procedimiento extrajudicial de resolución de conflictos."
 }
