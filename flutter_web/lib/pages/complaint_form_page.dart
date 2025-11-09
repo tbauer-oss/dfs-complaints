@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
-import 'dart:html' as html;
+
+// KEIN dart:html mehr nötig
 
 extension _L10nX on BuildContext {
   AppLocalizations get t => AppLocalizations.of(this)!;
@@ -41,12 +42,6 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   final List<TextEditingController> _ctrls = [];
 
   void _markDirty() { if (!_dirty) setState(() => _dirty = true); }
-
-  static const _privacyUrl = 'https://dfs-diamon.de/de/datenschutz';
-  void _openPrivacy() {
-    // öffnet im neuen Tab/Fenster
-    html.window.open(_privacyUrl, '_blank');
-  }
 
   Future<bool> _confirmLeaveIfDirty() async {
     if (!_dirty) return true;
@@ -143,7 +138,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                   DropdownMenuItem(value: optDentist, child: Text(optDentist)),
                   DropdownMenuItem(value: optLab, child: Text(optLab)),
                 ],
-                onChanged: (v) => setState(() { segment = v ?? optDentist; _dirty = true; }),
+                onChanged: (v) => setState(() { segment = v ?? optDentist; _dirty = true; } ),
                 decoration: InputDecoration(labelText: t.segment),
               ),
               const SizedBox(height: 8),
@@ -174,7 +169,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                     DropdownMenuItem(value: optYes, child: Text(optYes)),
                     DropdownMenuItem(value: optNo, child: Text(optNo)),
                   ],
-                  onChanged: (v) => setState(() { applied = v ?? optNo; _dirty = true; }),
+                  onChanged: (v) => setState(() { applied = v ?? optNo; _dirty = true; } ),
                   decoration: InputDecoration(labelText: t.applied_to_patient),
                 ),
                 const SizedBox(height: 8),
@@ -184,7 +179,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                     DropdownMenuItem(value: optYes, child: Text(optYes)),
                     DropdownMenuItem(value: optNo, child: Text(optNo)),
                   ],
-                  onChanged: (v) => setState(() { injury = v ?? optNo; _dirty = true; }),
+                  onChanged: (v) => setState(() { injury = v ?? optNo; _dirty = true; } ),
                   decoration: InputDecoration(labelText: t.injury_question),
                 ),
                 if (needInjuryDesc) ...[
@@ -208,7 +203,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                   DropdownMenuItem(value: optReturnedYes, child: Text(optReturnedYes)),
                   DropdownMenuItem(value: optReturnedNo, child: Text(optReturnedNo)),
                 ],
-                onChanged: (v) => setState(() { returned = v ?? optReturnedNo; _dirty = true; }),
+                onChanged: (v) => setState(() { returned = v ?? optReturnedNo; _dirty = true; } ),
                 decoration: InputDecoration(labelText: t.returned_question),
               ),
               const SizedBox(height: 8),
@@ -220,7 +215,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                   DropdownMenuItem(value: optHandlingCredit, child: Text(optHandlingCredit)),
                   DropdownMenuItem(value: optHandlingRework, child: Text(optHandlingRework)),
                 ],
-                onChanged: (v) => setState(() { handling = v ?? optHandlingRep; _dirty = true; }),
+                onChanged: (v) => setState(() { handling = v ?? optHandlingRep; _dirty = true; } ),
                 decoration: InputDecoration(labelText: t.handling),
               ),
 
@@ -232,19 +227,33 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                     value: privacy,
                     onChanged: (v) => setState(() { privacy = v ?? false; _dirty = true; }),
                   ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 6),
                   Expanded(
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      crossAxisAlignment: WrapCrossAlignment.center,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Pflichttext – identisch zur Register-Seite
                         Text(t.privacy_agree),
-                        TextButton.icon(
-                          onPressed: _openPrivacy,
-                          icon: const Icon(Icons.open_in_new, size: 18),
-                          label: Text(context.t.privacy_view), // l10n: "Datenschutzhinweise ansehen"
-                          style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8)),
+
+                        // Interner Link zur LegalPrivacyPage (gleiches Icon & Style)
+                        const SizedBox(height: 4),
+                        InkWell(
+                          onTap: () => Navigator.of(context).pushNamed('/legal/privacy'),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.privacy_tip_outlined, size: 18),
+                              const SizedBox(width: 6),
+                              Text(
+                                t.privacy_view,
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  decoration: TextDecoration.underline,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
