@@ -102,6 +102,19 @@ class _AdminPageState extends State<AdminPage> {
     return p.company.trim().isEmpty ? null : p.company.trim();
   }
 
+  String? _repNameForEmail(String email) {
+    final e = email.trim().toLowerCase();
+    for (final r in _reps) {
+      for (final c in r.customers) {
+        if (c.trim().toLowerCase() == e) {
+          final dn = r.displayName.trim();
+          return dn.isNotEmpty ? dn : r.email;
+        }
+      }
+    }
+    return null;
+  }
+
   Future<void> _refreshAll() async {
     setState(() {
       _err = null;
@@ -558,6 +571,7 @@ class _AdminPageState extends State<AdminPage> {
                       separatorBuilder: (_, __) => const Divider(height: 1),
                       itemBuilder: (ctx, i) {
                         final u = _users[i];
+                        final repName = _repNameForEmail(u.email);
                         return _UserTile(
                           data: u,
                           api: _api,
@@ -585,6 +599,7 @@ class _AdminPageState extends State<AdminPage> {
                             // wenn im Editor geschlossen → Liste „Offen“ aktualisieren
                             _refreshOpen();
                           },
+                          repName: repName,
                         );
                       },
                     ),
@@ -1479,6 +1494,8 @@ class _UserTile extends StatefulWidget {
   final Future<void> Function() onLoadComplaints;
   final _ComplaintsResult? complaints;
   final VoidCallback onClosedFromEditor;
+  final String? repName;
+  
   const _UserTile({
     required this.data,
     required this.api,
@@ -1486,6 +1503,7 @@ class _UserTile extends StatefulWidget {
     required this.onLoadComplaints,
     required this.complaints,
     required this.onClosedFromEditor,
+    this.repName,
   });
 
   @override
@@ -1537,9 +1555,26 @@ class _UserTileState extends State<_UserTile> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(subtitle),
+              if (widget.repName != null && widget.repName!.trim().isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.badge_outlined, size: 16),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Vertreter: ${widget.repName}',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ],
               if (d.selfDeleted) const SizedBox(height: 4),
               if (d.selfDeleted)
-                const Text('Account durch User gelöscht!', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600)),
+                const Text(
+                  'Account durch User gelöscht!',
+                  style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
+                ),
             ],
           ),
           trailing: Wrap(
