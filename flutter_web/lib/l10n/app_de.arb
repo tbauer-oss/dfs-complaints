@@ -20,6 +20,13 @@
   "theme_light": "Hell",
   "theme_dark": "Dunkel",
 
+  "catalogs_title": "Kataloge",
+  "catalog_open": "Ansehen",
+  "catalog_lab_title": "Dentallabor Katalog",
+  "catalog_lab_desc": "Produkte & Hinweise für das Labor",
+  "catalog_dent_title": "Zahnmedizin Katalog",
+  "catalog_dent_desc": "Instrumente & Infos für die Praxis",
+
   "decision_withdrawn": "Entscheidung zurückgenommen",  
   "decision_withdraw": "Entscheidung zurücknehmen",
   "decision_withdraw_confirm": "Möchtest du deine Entscheidung wirklich zurücknehmen?",
