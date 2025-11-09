@@ -402,11 +402,11 @@ class _AdminPageState extends State<AdminPage> {
         children: [
           Text(_err!, style: TextStyle(color: theme.colorScheme.error)),
           const SizedBox(height: 8),
-          Expanded(child: _view == _AdminView.menu ? _buildMenu() : _buildView(companies)),
+          Expanded(child: _view == _AdminView.menu ? _buildMenu() : _buildView()),
         ],
       );
     }
-    return _view == _AdminView.menu ? _buildMenu() : _buildView(companies);
+    return _view == _AdminView.menu ? _buildMenu() : _buildView();
   }
 
   // ------------------ Kachel-Menü (neues Design) ------------------
@@ -482,14 +482,14 @@ class _AdminPageState extends State<AdminPage> {
   }
   
   // ------------------ Panel-Ansichten ------------------
-  Widget _buildView(List<String> companies) {
+  Widget _buildView() {
     switch (_view) {
       case _AdminView.pending:
         return _buildPendingPanel();
       case _AdminView.users:
         return _buildUsersPanel();
       case _AdminView.open:
-        return _buildOpenPanel(companies);
+        return _buildOpenPanel();
       case _AdminView.menu:
         return const SizedBox.shrink();
       case _AdminView.reps:
@@ -666,8 +666,7 @@ Widget _buildUsersPanel() {
                       }.toList()
                         ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
                       return list.map((c) => DropdownMenuItem<String>(value: c, child: Text(c))).toList();
-                    })()
-                        .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
+                    })() => DropdownMenuItem<String>(value: c, child: Text(c)))
                         .toList(),
                     onChanged: (v) => setState(() => _userFilterCompany = v ?? 'Alle Firmen'),
                   ),
@@ -692,8 +691,7 @@ Widget _buildUsersPanel() {
                       }.toList()
                         ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
                       return list.map((c) => DropdownMenuItem<String>(value: c, child: Text(c))).toList();
-                    })()
-                        .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
+                    })() => DropdownMenuItem<String>(value: c, child: Text(c)))
                         .toList(),
                     onChanged: (v) => setState(() => _userFilterCountry = v ?? 'Alle Länder'),
                   ),
@@ -797,7 +795,15 @@ Widget _buildUsersPanel() {
     );
   }
 
-  Widget _buildOpenPanel(List<String> companies) {
+  Widget _buildOpenPanel() {
+    // Firmenliste für Filter-Dropdown (lokal)
+    final List<String> companies = <String>{
+      'Alle Firmen',
+      ..._openComplaints.map((c) => (_companyByEmail(c.email) ?? '')).where((s) => s.trim().isNotEmpty),
+      ..._users.map((e) => e.company).where((s) => s.trim().isNotEmpty),
+    }.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
     // ggf. gefilterte Liste bilden
     final list = (_filterCompany == 'Alle Firmen')
         ? _openComplaints
