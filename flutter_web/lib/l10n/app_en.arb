@@ -20,6 +20,13 @@
   "theme_light": "Light",
   "theme_dark": "Dark",
 
+  "catalogs_title": "Catalogs",
+  "catalog_open": "View",
+  "catalog_lab_title": "Dental Laboratory Catalog",
+  "catalog_lab_desc": "Products & information for the laboratory",
+  "catalog_dent_title": "Dentistry Catalog",
+  "catalog_dent_desc": "Instruments & information for the dental practice",
+
   "decision_withdrawn": "Decision withdrawn",  
   "decision_withdraw": "Withdraw decision",
   "decision_withdraw_confirm": "Do you really want to withdraw your decision?",
