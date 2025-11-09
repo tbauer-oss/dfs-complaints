@@ -30,7 +30,7 @@ class ThemeAction extends StatelessWidget {
     final mode = prefs.themeMode;
 
     return PopupMenuButton<String>(
-      tooltip: t.langMenuTooltip, // kurzer Tooltip; passt in dein Schema
+      tooltip: 'Theme', // kurzer Tooltip; passt in dein Schema
       icon: Icon(iconFor(mode)),
       onSelected: (val) => prefs.setTheme(val), // -> notifyListeners()
       itemBuilder: (ctx) => [
