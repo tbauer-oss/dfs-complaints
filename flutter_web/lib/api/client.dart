@@ -693,23 +693,33 @@ class ApiClient {
 
   // ---------- Vertreter (Kundenbereich) ----------
   Future<MyRep?> getMyRep() async {
-    try {
-      final r = await _get('/api/rep/my', auth: true);
-      if (r.statusCode == 204) return null;
-      if (!_ok2xx(r.statusCode)) return null;
-      final body = r.body.trim();
-      if (body.isEmpty) return null;
+    final base = _apiBase.isEmpty
+        ? (html.window.localStorage['API_BASE'] ?? '')
+        : _apiBase;
 
-      final j = jsonDecode(body);
-      if (j is Map) {
-        final m = j.cast<String, dynamic>();
-        if ((m['email'] ?? '').toString().trim().isEmpty) return null;
-        return MyRep.fromJson(m);
-      }
-      return null;
-    } catch (_) {
-      return null;
+    // NEU: Kunden-Endpoint
+    final url = '$base/api/rep/of-customer';
+
+    final headers = <String, String>{ 'Content-Type': 'application/json' };
+    if (token != null && token!.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $token'; // Kunden-JWT!
     }
+
+    final r = await http.get(Uri.parse(url), headers: headers);
+    if (r.statusCode == 204) return null;
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final j = jsonDecode(r.body);
+    if (j is! Map) return null;
+
+    return MyRep(
+      id:        (j['id']        ?? '').toString(),
+      firstName: (j['firstName'] ?? '').toString(),
+      lastName:  (j['lastName']  ?? '').toString(),
+      email:     (j['email']     ?? '').toString(),
+      region:    (j['region']    ?? '').toString(),
+    );
   }
 
   // ---------- Vertreter-API (Rep-Login & -Aktionen) ----------
