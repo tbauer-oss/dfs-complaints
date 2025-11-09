@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api/client.dart';
 import 'rep_dashboard_page.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/legal_footer.dart';
 
 // L10n-Helper
 extension _L10nX on BuildContext {
@@ -367,6 +368,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
           ),
         ),
       ),
+      bottomNavigationBar: LegalFooter(api: widget.api),
     );
   }
 }
