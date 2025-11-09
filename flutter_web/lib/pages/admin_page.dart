@@ -695,14 +695,22 @@ Widget _buildUsersPanel() {
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
-                    items: (() {
-                      final list = <String>{
-                        'Alle Länder',
-                        ..._users.map((e) => e.country).where((s) => s.trim().isNotEmpty),
-                      }.toList()
-                        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-                      return list.map((c) => DropdownMenuItem<String>(value: c, child: Text(c))).toList();
-                    })(),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('Alle Vertreter'),
+                      ),
+                      const DropdownMenuItem<String?>(
+                        value: '',
+                        child: Text('Ohne Vertreter'),
+                      ),
+                      ..._reps.map(
+                        (r) => DropdownMenuItem<String?>(
+                          value: r.id,
+                          child: Text(r.displayName),
+                        ),
+                      ),
+                    ],
                     onChanged: (v) => setState(() => _userFilterRepId = v),
                   ),
                 ),
