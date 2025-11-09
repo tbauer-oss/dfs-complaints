@@ -27,32 +27,50 @@ class DashboardPage extends StatefulWidget {
   State<DashboardPage> createState() => _DashboardPageState();
 }
 
-class _DashboardPageState extends State<DashboardPage> {
+class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserver {
   MyRep? _myRep;
-  Future<MyRep?>? _repFuture; // stabiler Future-Loader für Banner
+  bool _repLoading = false;
+  bool _repRequested = false; // verhindert mehrfaches Nachladen
   int _hoverIndex = -1;
 
   @override
   void initState() {
     super.initState();
-    _repFuture = _ensureSessionThenGetRep();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _ensureRepOnce());
+    _initRep();
   }
 
-  Future<MyRep?> _ensureSessionThenGetRep() async {
-    if (widget.api.token == null || widget.api.token!.isEmpty) {
-      await widget.api.restoreSession();
-    }
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Falls Session erst nach Build restauriert wurde
+    _ensureRepOnce();
+  }
+
+  Future<void> _initRep() async {
+    if (_repLoading) return;
+    setState(() => _repLoading = true);
     try {
-      final rep = await widget.api.getMyRep(); // null, wenn keiner zugewiesen
-      _myRep = rep;
-      return rep;
+      // Session ggf. herstellen
+      if (widget.api.token == null || widget.api.token!.isEmpty) {
+        await widget.api.restoreSession();
+      }
+      // Vertreter laden
+      final rep = await widget.api.getMyRep(); // Backend: /api/rep/my (JWT)
+      if (!mounted) return;
+      setState(() => _myRep = rep);
     } catch (_) {
-      return null;
+      // still
+    } finally {
+      if (mounted) setState(() => _repLoading = false);
     }
   }
 
-  Future<void> _reloadRep() async {
-    setState(() => _repFuture = _ensureSessionThenGetRep());
+  void _ensureRepOnce() {
+    if (_myRep == null && !_repRequested) {
+      _repRequested = true;
+      _initRep();
+    }
   }
 
   @override
@@ -63,7 +81,7 @@ class _DashboardPageState extends State<DashboardPage> {
       _Entry(
         label: t.reportComplaint,
         icon: Icons.add_circle,
-        colorA: const Color(0xFF1976D2), // DFS-Blau nah
+        colorA: const Color(0xFF1976D2),
         colorB: const Color(0xFF42A5F5),
         onTap: () {
           Navigator.of(context).push(MaterialPageRoute(
@@ -120,160 +138,32 @@ class _DashboardPageState extends State<DashboardPage> {
           final double iconSize = isPhone ? 28 : 40;
           final double fontSize = isPhone ? 13.0 : 14.5;
 
-          // --- Vertreter-Banner als hübsche Card (immer oben, über den Kacheln) ---
-          final repBanner = FutureBuilder<MyRep?>(
-            future: _repFuture,
-            builder: (context, snap) {
-              final rep = snap.data ?? _myRep;
-              if (rep == null) {
-                // Loader-Placeholder, aber nur wenn gerade wirklich geladen wird
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    child: Container(
-                      height: 68,
-                      decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.06),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Colors.blue.withOpacity(0.28), width: 1),
-                      ),
-                      child: const Center(
-                        child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-                      ),
-                    ),
-                  );
-                }
-                return const SizedBox.shrink();
-              }
-
-              final first = rep.firstName.trim();
-              final last  = rep.lastName.trim();
-              final email = rep.email.trim();
-              final region = rep.region.trim();
-              final name = [first, last].where((s) => s.isNotEmpty).join(' ');
-              final bannerTitle = (name.isNotEmpty)
-                  ? t.rep_banner_title(name)
-                  : t.rep_banner_title(email.isNotEmpty ? email : '—');
-
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Material(
-                  elevation: 6,
-                  borderRadius: BorderRadius.circular(16),
-                  clipBehavior: Clip.antiAlias,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          const Color(0xFF1976D2).withOpacity(0.14),
-                          const Color(0xFF42A5F5).withOpacity(0.08),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      border: Border.all(color: const Color(0xFF1976D2).withOpacity(0.45), width: 1),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 40, height: 40,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Color(0xFF1976D2),
-                          ),
-                          child: const Icon(Icons.handshake_outlined, color: Colors.white, size: 22),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                bannerTitle,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 16,
-                                  height: 1.1,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              if (email.isNotEmpty || region.isNotEmpty)
-                                Text(
-                                  [
-                                    if (email.isNotEmpty) email,
-                                    if (region.isNotEmpty) region,
-                                  ].join(' • '),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: Colors.grey[800],
-                                    fontSize: 13.2,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(width: 8),
-
-                        // Primärer Kontakt-Button
-                        Tooltip(
-                          message: t.rep_email_tooltip,
-                          child: TextButton.icon(
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              foregroundColor: Colors.white,
-                              backgroundColor: const Color(0xFF1976D2),
-                            ),
-                            onPressed: email.isEmpty
-                                ? null
-                                : () {
-                                    final subject = Uri.encodeComponent(t.mail_subject_rep);
-                                    final body = Uri.encodeComponent(t.mail_body_rep(name.isNotEmpty ? name : ''));
-                                    final mailto = 'mailto:$email?subject=$subject&body=$body';
-                                    html.window.open(mailto, '_self');
-                                  },
-                            icon: const Icon(Icons.email_outlined, size: 18),
-                            label: Text(t.rep_email_button),
-                          ),
-                        ),
-
-                        const SizedBox(width: 8),
-
-                        // Leichter Refresh rechts
-                        IconButton(
-                          tooltip: t.refresh,
-                          onPressed: _reloadRep,
-                          splashRadius: 20,
-                          icon: const Icon(Icons.refresh),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          );
-
           return Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 1080),
               child: Column(
                 children: [
-                  // 1) Vertreter-Banner (bleibt oben)
-                  repBanner,
+                  // ---------- Vertreter-Banner (oberhalb) ----------
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+                    child: _RepBanner(
+                      rep: _myRep,
+                      loading: _repLoading,
+                      onRefresh: _initRep,
+                      onEmailTap: (email, name) {
+                        final t = AppLocalizations.of(context)!;
+                        final subject = Uri.encodeComponent(t.mail_subject_rep);
+                        final body = Uri.encodeComponent(t.mail_body_rep(name));
+                        final mailto = 'mailto:$email?subject=$subject&body=$body';
+                        html.window.open(mailto, '_self');
+                      },
+                    ),
+                  ),
 
-                  const SizedBox(height: 8),
-
-                  // 2) Kachel-Grid (Hauptfokus)
+                  // ---------- Kacheln ----------
                   Expanded(
                     child: GridView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                       gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                         maxCrossAxisExtent: maxExtent,
                         mainAxisSpacing: 16,
@@ -286,7 +176,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         final hovered = _hoverIndex == i;
                         return MouseRegion(
                           onEnter: (_) => setState(() => _hoverIndex = i),
-                          onExit:  (_) => setState(() => _hoverIndex = -1),
+                          onExit: (_) => setState(() => _hoverIndex = -1),
                           child: AnimatedScale(
                             duration: const Duration(milliseconds: 140),
                             scale: hovered ? 1.02 : 1.0,
@@ -305,10 +195,10 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
                   ),
 
-                  // 3) Dezente Katalog-Card (unter den Kacheln)
+                  // ---------- Dezente Kataloge (unter den Kacheln) ----------
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: _buildCatalogsCard(context),
+                    child: _CatalogButtons(),
                   ),
                 ],
               ),
@@ -318,127 +208,192 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
     );
   }
+}
 
-  Widget _buildCatalogsCard(BuildContext context) {
-    final t  = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
+// ---------------- Komponenten ----------------
 
-    Widget tile({
-      required String title,
-      required String desc,
-      required String url,
-      required IconData icon,
-    }) {
-      return InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: () => html.window.open(url, '_blank'),
-        child: Ink(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: cs.outlineVariant),
-            color: cs.surface, // dezent, ohne Verlauf
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
-            child: Row(
-              children: [
-                // kleine runde Iconfläche
-                Container(
-                  width: 40, height: 40,
-                  decoration: BoxDecoration(
-                    color: cs.primary.withOpacity(.08),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(icon, size: 22, color: cs.primary),
-                ),
-                const SizedBox(width: 12),
+class _RepBanner extends StatelessWidget {
+  final MyRep? rep;
+  final bool loading;
+  final VoidCallback onRefresh;
+  final void Function(String email, String name) onEmailTap;
 
-                // Titel + Beschreibung
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        title,
-                        maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15.5),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        desc,
-                        maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: cs.onSurface.withOpacity(.65), fontSize: 13.0),
-                      ),
-                    ],
-                  ),
-                ),
-  
-                const SizedBox(width: 8),
+  const _RepBanner({
+    required this.rep,
+    required this.loading,
+    required this.onRefresh,
+    required this.onEmailTap,
+  });
 
-                // schlanker „Ansehen“-Button
-                TextButton.icon(
-                  onPressed: () => html.window.open(url, '_blank'),
-                  icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
-                  label: Text(t.catalog_open),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    foregroundColor: cs.primary,
-                  ),
-                ),
-              ],
-            ),
-          ),
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+
+    if (loading) {
+      return Container(
+        height: 68,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: Colors.blue.withOpacity(.06),
+          border: Border.all(color: const Color(0xFF1976D2).withOpacity(.35)),
+        ),
+        child: Row(
+          children: const [
+            SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+            SizedBox(width: 10),
+            Text('…'),
+          ],
         ),
       );
     }
 
+    if (rep == null) {
+      // Kein Vertreter hinterlegt → dezenter Hinweis + Refresh
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.grey.withOpacity(.35)),
+          color: Colors.grey.withOpacity(.07),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.person_search_outlined, size: 20),
+            const SizedBox(width: 10),
+            Expanded(child: Text(t.rep_not_assigned)),
+            IconButton(
+              tooltip: t.refresh,
+              onPressed: onRefresh,
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final first = (rep!.firstName).trim();
+    final last  = (rep!.lastName).trim();
+    final email = (rep!.email).trim();
+    final region = (rep!.region).trim();
+
+    final name = [first, last].where((s) => s.isNotEmpty).join(' ');
+    final bannerTitle = (name.isNotEmpty) ? t.rep_banner_title(name)
+                                          : t.rep_banner_title(email.isNotEmpty ? email : '—');
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF1976D2).withOpacity(0.14),
+            const Color(0xFF42A5F5).withOpacity(0.10),
+          ],
+        ),
+        border: Border.all(color: const Color(0xFF1976D2).withOpacity(0.5), width: 1),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34, height: 34,
+            decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF1976D2)),
+            child: const Icon(Icons.handshake_outlined, color: Colors.white, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(bannerTitle, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15.5)),
+                const SizedBox(height: 2),
+                if (email.isNotEmpty || region.isNotEmpty)
+                  Text(
+                    [if (email.isNotEmpty) email, if (region.isNotEmpty) region].join(' • '),
+                    style: TextStyle(color: Colors.grey[800], fontSize: 13),
+                  ),
+              ],
+            ),
+          ),
+          if (email.isNotEmpty)
+            Tooltip(
+              message: t.rep_email_tooltip,
+              child: TextButton.icon(
+                onPressed: () => onEmailTap(email, name.isNotEmpty ? name : ''),
+                icon: const Icon(Icons.email_outlined),
+                label: Text(t.rep_email_button),
+              ),
+            ),
+          IconButton(
+            tooltip: t.refresh,
+            onPressed: onRefresh,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Dezente Katalog-Leiste: nur zwei OutlinedButtons, mobil sehr kompakt
+class _CatalogButtons extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final t  = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final isPhone = MediaQuery.of(context).size.width < 600;
+
+    Widget btn(String label, String url, IconData icon) {
+      return OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(
+          padding: EdgeInsets.symmetric(horizontal: isPhone ? 10 : 14, vertical: isPhone ? 10 : 12),
+          side: BorderSide(color: cs.outlineVariant),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        onPressed: () => html.window.open(url, '_blank'),
+        icon: Icon(icon, size: isPhone ? 18 : 20),
+        label: Text(label, style: TextStyle(fontSize: isPhone ? 13 : 14)),
+      );
+    }
+
+    final content = Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 10,
+      runSpacing: 8,
+      children: [
+        btn(t.catalog_lab_title,  _pdfLabUrl,  Icons.biotech_outlined),
+        btn(t.catalog_dent_title, _pdfDentUrl, Icons.medical_services_outlined),
+      ],
+    );
+
+    // Auf Desktop in schmaler Card, auf Handy einfach ohne Card (noch dezenter)
+    if (isPhone) return content;
+
     return Card(
-      elevation: 0, // dezent
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      color: Theme.of(context).colorScheme.surface, // ruhig
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(children: [
-              const Icon(Icons.menu_book_outlined, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                t.catalogs_title,
-                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16.5),
-              ),
+            Row(children: const [
+              Icon(Icons.menu_book_outlined, size: 18),
+              SizedBox(width: 8),
+              // bewusst ohne großen Titeltext – dezent
+              // (wenn du einen Titel willst, ersetze die SizedBox durch Text)
             ]),
-            const SizedBox(height: 10),
-
-            LayoutBuilder(
-              builder: (_, cons) {
-                final isNarrow = cons.maxWidth < 560;
-                return GridView.count(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: isNarrow ? 1 : 2,
-                  mainAxisSpacing: 10,
-                  crossAxisSpacing: 10,
-                  childAspectRatio: isNarrow ? 3.6 : 3.8, // flacher, unaufdringlich
-                  children: [
-                    tile(
-                      title: t.catalog_lab_title,
-                      desc:  t.catalog_lab_desc,
-                      url:   _pdfLabUrl,
-                      icon:  Icons.biotech_outlined,
-                    ),
-                    tile(
-                      title: t.catalog_dent_title,
-                      desc:  t.catalog_dent_desc,
-                      url:   _pdfDentUrl,
-                      icon:  Icons.medical_services_outlined,
-                    ),
-                  ],
-                );
-              },
-            ),
+            const SizedBox(height: 6),
+            content,
           ],
         ),
       ),
@@ -461,7 +416,6 @@ class _Entry {
   });
 }
 
-/// Schicke Kachel im Admin-Stil (Gradient, Shadow, runde Ecken, Hover-Lift)
 class _FancyTile extends StatelessWidget {
   final String label;
   final IconData icon;
@@ -505,21 +459,14 @@ class _FancyTile extends StatelessWidget {
             child: Stack(
               children: [
                 Positioned(
-                  top: 0,
-                  right: 0,
-                  left: 0,
-                  height: 46,
+                  top: 0, right: 0, left: 0, height: 46,
                   child: IgnorePointer(
                     child: Container(
                       decoration: BoxDecoration(
                         borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
                         gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.white.withOpacity(0.18),
-                            Colors.white.withOpacity(0.00),
-                          ],
+                          begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                          colors: [Colors.white.withOpacity(0.18), Colors.white.withOpacity(0.00)],
                         ),
                       ),
                     ),
@@ -530,8 +477,7 @@ class _FancyTile extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
-                        width: iconSize + 20,
-                        height: iconSize + 20,
+                        width: iconSize + 20, height: iconSize + 20,
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.16),
                           shape: BoxShape.circle,
@@ -543,14 +489,12 @@ class _FancyTile extends StatelessWidget {
                       Text(
                         label,
                         textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                        maxLines: 2, overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
                           fontSize: fontSize,
-                          height: 1.15,
-                          letterSpacing: 0.2,
+                          height: 1.15, letterSpacing: 0.2,
                         ),
                       ),
                     ],
