@@ -434,6 +434,7 @@ class _PasswordPageState extends State<_PasswordPage> {
           ),
         ),
       ),
+      bottomNavigationBar: LegalFooter(api: widget.api),
     );
   }
 }
