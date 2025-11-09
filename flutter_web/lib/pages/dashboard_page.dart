@@ -73,6 +73,219 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     }
   }
 
+  // --- HILFSFUNKTION: mailto an Vertreter öffnen (mit Betreff + Body aus i18n) ---
+void _mailToRep(BuildContext context) {
+  final t = AppLocalizations.of(context)!;
+  final r = _myRep;
+  if (r == null || (r.email).trim().isEmpty) return;
+
+  final first = (r.firstName).trim();
+  final last  = (r.lastName).trim();
+  final name  = [first, last].where((s) => s.isNotEmpty).join(' ');
+
+  final subject = Uri.encodeComponent(t.mail_subject_rep);
+  final body    = Uri.encodeComponent(t.mail_body_rep(name));
+  final mailto  = 'mailto:${r.email}?subject=$subject&body=$body';
+  html.window.open(mailto, '_self');
+}
+
+// --- KOMPAKTE Variante (eingeklappbar) ---
+Widget _buildRepCardCompact(BuildContext context) {
+  final theme  = Theme.of(context);
+  final t      = AppLocalizations.of(context)!;
+  final r      = _myRep;
+  final name   = (r == null) ? '' : [r.firstName.trim(), r.lastName.trim()].where((s) => s.isNotEmpty).join(' ');
+  final email  = (r?.email ?? '').trim();
+  final region = (r?.region ?? '').trim();
+
+  // Wenn nichts da ist, zeige deinen bisherigen Null-Hinweis (sehr dezent)
+  if (r == null) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.withOpacity(.35)),
+        color: Colors.grey.withOpacity(.07),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.person_search_outlined, size: 20),
+          const SizedBox(width: 10),
+          Expanded(child: Text(t.rep_not_assigned)),
+          IconButton(
+            tooltip: t.refresh,
+            onPressed: _initRep,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+    );
+  }
+
+  return Card(
+    margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+    elevation: 0,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    child: ExpansionTile(
+      initiallyExpanded: false,
+      tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+      childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      leading: const CircleAvatar(child: Icon(Icons.handshake_outlined)),
+      title: Text(
+        t.rep_banner_title(name.isNotEmpty ? name : email),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+      ),
+      subtitle: Text(
+        [if (email.isNotEmpty) email, if (region.isNotEmpty) region].join(' • '),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: theme.textTheme.bodySmall,
+      ),
+      trailing: Wrap(
+        spacing: 4,
+        children: [
+          if (email.isNotEmpty)
+            IconButton(
+              tooltip: t.rep_email_tooltip,
+              icon: const Icon(Icons.mail_outline),
+              onPressed: () => _mailToRep(context),
+            ),
+          IconButton(
+            tooltip: t.refresh,
+            icon: const Icon(Icons.refresh),
+            onPressed: _initRep,
+          ),
+        ],
+      ),
+      // Optional: Details im aufgeklappten Bereich
+      children: [
+        if (region.isNotEmpty)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text('${t.region}: $region', style: theme.textTheme.bodySmall),
+            ),
+          ),
+      ],
+    ),
+  );
+}
+
+// --- GROSSE Variante (wie früher, optisch präsenter) ---
+Widget _buildRepCardLarge(BuildContext context) {
+  final t      = AppLocalizations.of(context)!;
+  final r      = _myRep;
+
+  if (r == null) {
+    // wie oben: Null-Hinweis
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.withOpacity(.35)),
+        color: Colors.grey.withOpacity(.07),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.person_search_outlined, size: 20),
+          const SizedBox(width: 10),
+          Expanded(child: Text(t.rep_not_assigned)),
+          IconButton(
+            tooltip: t.refresh,
+            onPressed: _initRep,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+    );
+  }
+
+  final first  = r.firstName.trim();
+  final last   = r.lastName.trim();
+  final email  = r.email.trim();
+  final region = r.region.trim();
+  final name   = [first, last].where((s) => s.isNotEmpty).join(' ');
+  final bannerTitle = name.isNotEmpty ? t.rep_banner_title(name)
+                                     : t.rep_banner_title(email.isNotEmpty ? email : '—');
+
+  return Card(
+    margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+    elevation: 1.5,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    child: Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF1976D2).withOpacity(0.14),
+            const Color(0xFF42A5F5).withOpacity(0.10),
+          ],
+        ),
+        border: Border.all(color: const Color(0xFF1976D2).withOpacity(0.5), width: 1),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38, height: 38,
+            decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF1976D2)),
+            child: const Icon(Icons.handshake_outlined, color: Colors.white, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(bannerTitle, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                const SizedBox(height: 2),
+                if (email.isNotEmpty || region.isNotEmpty)
+                  Text(
+                    [if (email.isNotEmpty) email, if (region.isNotEmpty) region].join(' • '),
+                    style: TextStyle(color: Colors.grey[800], fontSize: 13),
+                  ),
+              ],
+            ),
+          ),
+          if (email.isNotEmpty)
+            Tooltip(
+              message: t.rep_email_tooltip,
+              child: TextButton.icon(
+                onPressed: () => _mailToRep(context),
+                icon: const Icon(Icons.email_outlined),
+                label: Text(t.rep_email_button),
+              ),
+            ),
+          IconButton(
+            tooltip: t.refresh,
+            onPressed: _initRep,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+// --- RESPONSIVE Umschalter: mobil kompakt, Desktop groß ---
+Widget _buildRepHeaderResponsive(BuildContext context) {
+  // Breakpoint beliebig – 900px ist ein guter Desktop-Schwellenwert
+  final isWide = MediaQuery.of(context).size.width >= 900;
+  return isWide ? _buildRepCardLarge(context)
+                : _buildRepCardCompact(context);
+}
+
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
@@ -143,21 +356,10 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
               constraints: const BoxConstraints(maxWidth: 1080),
               child: Column(
                 children: [
-                  // ---------- Vertreter-Banner (oberhalb) ----------
+                  // ---------- Vertreter-Header (responsiv) ----------
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-                    child: _RepBanner(
-                      rep: _myRep,
-                      loading: _repLoading,
-                      onRefresh: _initRep,
-                      onEmailTap: (email, name) {
-                        final t = AppLocalizations.of(context)!;
-                        final subject = Uri.encodeComponent(t.mail_subject_rep);
-                        final body = Uri.encodeComponent(t.mail_body_rep(name));
-                        final mailto = 'mailto:$email?subject=$subject&body=$body';
-                        html.window.open(mailto, '_self');
-                      },
-                    ),
+                    child: _buildRepHeaderResponsive(context),
                   ),
 
                   // ---------- Kacheln ----------
