@@ -272,6 +272,7 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
     );
   }
+
   Widget _buildCatalogsCard(BuildContext context) {
     final t  = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
@@ -349,54 +350,56 @@ class _DashboardPageState extends State<DashboardPage> {
       );
     }
 
-  return Card(
-    elevation: 4,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-    child: Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            const Icon(Icons.menu_book_outlined, size: 20),
-            const SizedBox(width: 8),
-            Text(t.catalogs_title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
-          ]),
-          const SizedBox(height: 12),
-          LayoutBuilder(
-            builder: (_, cons) {
-              final isNarrow = cons.maxWidth < 560;
-              return GridView.count(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: isNarrow ? 1 : 2,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: isNarrow ? 2.4 : 2.8,
-                children: [
-                  tile(
-                    title: t.catalog_lab_title,
-                    desc:  t.catalog_lab_desc,
-                    url:   _pdfLabUrl,
-                    accent: Colors.indigo,
-                    icon:  Icons.biotech_outlined,
-                  ),
-                  tile(
-                    title: t.catalog_dent_title,
-                    desc:  t.catalog_dent_desc,
-                    url:   _pdfDentUrl,
-                    accent: Colors.teal,
-                    icon:  Icons.medical_services_outlined,
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              const Icon(Icons.menu_book_outlined, size: 20),
+              const SizedBox(width: 8),
+              Text(t.catalogs_title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
+            ]),
+            const SizedBox(height: 12),
+            LayoutBuilder(
+              builder: (_, cons) {
+                final isNarrow = cons.maxWidth < 560;
+                return GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: isNarrow ? 1 : 2,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: isNarrow ? 2.4 : 2.8,
+                  children: [
+                    tile(
+                      title: t.catalog_lab_title,
+                      desc:  t.catalog_lab_desc,
+                      url:   _pdfLabUrl,
+                      accent: Colors.indigo,
+                      icon:  Icons.biotech_outlined,
+                    ),
+                    tile(
+                      title: t.catalog_dent_title,
+                      desc:  t.catalog_dent_desc,
+                      url:   _pdfDentUrl,
+                      accent: Colors.teal,
+                      icon:  Icons.medical_services_outlined,
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  } // <—— DIESE Klammer schließt _DashboardPageState!
+
+} // *** NEU: Klasse _DashboardPageState sauber geschlossen ***
 
 class _Entry {
   final String label;
@@ -431,6 +434,7 @@ class _FancyTile extends StatelessWidget {
     required this.onTap,
     required this.iconSize,
     required this.fontSize,
+    super.key,
   });
 
   @override
