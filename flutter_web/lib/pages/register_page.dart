@@ -4,6 +4,8 @@ import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 import '../models/country.dart';
 import '../widgets/lang_action.dart';
+import '../services/app_prefs_scope.dart';
+import '../widgets/theme_action.dart' as w; // wie in main.dart
 
 enum Salutation { mr, ms, diverse }
 
@@ -188,12 +190,43 @@ class _RegisterPageState extends State<RegisterPage> {
   Widget build(BuildContext context) {
     final t = context.t;
     final needsGate = widget.api.gate == null || widget.api.gate!.isEmpty;
+    final prefs = AppPrefsScope.of(context);
 
-    return Scaffold(
+  return WillPopScope(
+    onWillPop: () async {
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).maybePop();
+        return false;
+      }
+      Navigator.of(context).pushNamedAndRemoveUntil('/', (Route<dynamic> r) => false);
+      return false;
+    },
+    child: Scaffold(
       appBar: AppBar(
-        // t.regFree existiert nicht -> nimm vorhandene Keys
         title: Text(needsGate ? t.unlock : t.auth_register),
-        actions: const [LangAction()],
+        actions: [
+          IconButton(
+            tooltip: t.newLoad,
+            onPressed: _loading ? null : _loadAll,
+            icon: const Icon(Icons.refresh),
+          ),
+          const SizedBox(width: 4),
+
+          // Sprache – exakt wie in main.dart
+          LangAction(onLocaleChanged: (l) => prefs.setLang(l.languageCode)),
+          const SizedBox(width: 4),
+
+          // Theme – globales Widget wie in main.dart (kein Reload)
+          w.ThemeAction(),
+          const SizedBox(width: 8),
+
+          TextButton.icon(
+            onPressed: _logout,
+            icon: const Icon(Icons.logout),
+            label: Text(t.logout),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: Center(
         child: ConstrainedBox(
