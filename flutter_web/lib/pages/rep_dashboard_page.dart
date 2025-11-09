@@ -1276,6 +1276,11 @@ class _Card extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Responsive Titelgröße nur hier (mit context) berechnen:
+    final width   = MediaQuery.of(context).size.width;
+    final isPhone = width < 600;
+    final fsTitle = isPhone ? 17.0 : 19.0;
+
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1283,7 +1288,7 @@ class _Card extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [            
+          children: [
             Row(children: [
               Text(title, style: TextStyle(fontWeight: FontWeight.w700, fontSize: fsTitle)),
               const Spacer(),
