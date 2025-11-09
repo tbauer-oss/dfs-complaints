@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import '../api/client.dart';
+import '../widgets/legal_footer.dart';
 
 // ===================================================================
 // Admin Page – mit Kachel-Menü (wie Kunden-Dashboard)
@@ -325,6 +326,17 @@ class _AdminPageState extends State<AdminPage> {
           ),
         ),
       ),
+      bottomNavigationBar: const SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: 1200),
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: LegalFooter(),
+            ),
+          ),
+        ),
+      ), 
     );
   }
 
