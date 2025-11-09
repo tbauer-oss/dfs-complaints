@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/legal_footer.dart';
 
 extension _L10nX on BuildContext {
   AppLocalizations get t => AppLocalizations.of(this)!;
@@ -326,6 +327,7 @@ class _AccountEditPageState extends State<_AccountEditPage> {
           ),
         ),
       ),
+      bottomNavigationBar: LegalFooter(api: widget.api),
     );
   }
 }
