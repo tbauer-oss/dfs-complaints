@@ -1284,8 +1284,11 @@ class _Card extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            final isPhone = MediaQuery.of(context).size.width < 600;
+            final fsTitle = isPhone ? 17.0 : 19.0;
+
             Row(children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+              Text(title, style: TextStyle(fontWeight: FontWeight.w700, fontSize: fsTitle)),
               const Spacer(),
               if (actions != null) ...actions!,
             ]),
@@ -1326,14 +1329,20 @@ class _MenuCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final bg1 = color.withOpacity(0.08);
     final bg2 = cs.surface;
+    final ts = MediaQuery.of(context).textScaleFactor.clamp(1.0, 1.15);
+    final isPhone = MediaQuery.of(context).size.width < 600;
 
-    final pad = (compact ? 12.0 : 18.0) * scale;
-    final iconSize = (compact ? 22.0 : 28.0) * scale;
-    final circle = (compact ? 40.0 : 48.0) * scale;
-    final titleSize = (compact ? 14.0 : 16.0) * scale;
-    final subSize = (compact ? 12.0 : 13.0) * scale;
-    final chevron = (compact ? 20.0 : 22.0) * scale;
-    final radius = (compact ? 16.0 : 20.0) * scale;
+    final pad      = (compact ? 12.0 : 18.0) * scale;
+    final iconSize = (compact ? 24.0 : 30.0) * scale;     // +2 px
+    final circle   = (compact ? 44.0 : 52.0) * scale;     // +4 px
+
+    final titleSizeBase = (compact ? 15.5 : 18.0);        // +1.5–2 px
+    final subSizeBase   = (compact ? 13.0 : 14.0);        // +1 px
+    final titleSize     = (titleSizeBase * scale * (isPhone ? 1.00 : 1.05)) * ts;
+    final subSize       = (subSizeBase   * scale * (isPhone ? 1.00 : 1.05)) * ts;
+
+    final chevron = (compact ? 22.0 : 24.0) * scale;      // +2 px
+    final radius  = (compact ? 16.0 : 20.0) * scale;
 
     return InkWell(
       onTap: onTap,
@@ -1392,7 +1401,7 @@ class _MenuCard extends StatelessWidget {
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
-                          fontSize: 12,
+                          fontSize: 13,
                           height: 1.0,
                         ),
                       ),
@@ -1585,7 +1594,7 @@ class _ComplaintTileState extends State<_ComplaintTile> {
                         ticket.isEmpty ? '(ohne Ticket)' : ticket,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -1664,7 +1673,7 @@ class _InfoCapsule extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
         color: cs.surfaceVariant.withOpacity(.6),
         borderRadius: BorderRadius.circular(10),
@@ -1673,7 +1682,7 @@ class _InfoCapsule extends StatelessWidget {
         text,
         overflow: TextOverflow.ellipsis,
         maxLines: 1,
-        style: TextStyle(fontSize: 12.5, color: cs.onSurface.withOpacity(.9)),
+        style: TextStyle(fontSize: 13.5, color: cs.onSurface.withOpacity(.9)),
       ),
     );
   }
@@ -1749,7 +1758,7 @@ class _RepTrafficLight extends StatelessWidget {
         const SizedBox(width: 10),
         Text(
           '${context.t.my_decision ?? 'Meine Bewertung'}: $label',
-          style: TextStyle(fontWeight: FontWeight.w700, color: labelColor, fontSize: compact ? 12 : 13),
+          style: TextStyle(fontWeight: FontWeight.w700, color: labelColor, fontSize: compact ? 12.5 : 13.5),
         ),
       ],
     );
@@ -1782,7 +1791,7 @@ class _StatusChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text('${context.t.status ?? 'Status'}: $status',
-        style: TextStyle(color: c, fontSize: 12, fontWeight: FontWeight.w600),
+        style: TextStyle(color: c, fontSize: 13, fontWeight: FontWeight.w600),
       ),
     );
   }
