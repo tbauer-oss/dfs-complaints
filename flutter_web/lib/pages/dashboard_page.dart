@@ -323,7 +323,6 @@ class _FancyTile extends StatelessWidget {
             padding: const EdgeInsets.all(14),
             child: Stack(
               children: [
-                // dezente Glanzfläche
                 Positioned(
                   top: 0,
                   right: 0,
@@ -345,13 +344,10 @@ class _FancyTile extends StatelessWidget {
                     ),
                   ),
                 ),
-
-                // Inhalt
                 Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Icon-Badge
                       Container(
                         width: iconSize + 20,
                         height: iconSize + 20,
