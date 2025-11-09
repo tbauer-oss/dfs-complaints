@@ -20,6 +20,9 @@
   "theme_light": "Hell",
   "theme_dark": "Dunkel",
 
+
+  "product_type": "Produktkategorie",
+  "timestamps": "Zeitstempel",
   "catalogs_title": "Kataloge",
   "catalog_open": "Ansehen",
   "catalog_lab_title": "Dentallabor Katalog",
