@@ -15,6 +15,7 @@ import 'pages/admin_page.dart';
 import 'pages/dashboard_page.dart';
 import 'pages/rep_login_page.dart';
 import 'pages/rep_dashboard_page.dart' hide ThemeAction;
+import 'pages/legal_privacy_page.dart';
 
 // Widgets
 import 'widgets/lang_action.dart';
@@ -497,9 +498,10 @@ class _MyAppState extends State<MyApp> {
 
               // Vertreter-Login
               '/repLogin': (_) => RepLoginPage(api: api),
-
               // Vertreter-Dashboard
               '/rep': (_) => RepDashboardPage(api: api),
+              // NEU: Datenschutz-Seite
+              '/legal/privacy': (_) => const LegalPrivacyPage(),
             },
 
             // Guard-Logik zentral
