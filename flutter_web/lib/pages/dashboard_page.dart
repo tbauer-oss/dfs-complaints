@@ -29,29 +29,30 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   MyRep? _myRep;
+  Future<MyRep?>? _repFuture; // stabiler Future-Loader für Banner
   int _hoverIndex = -1;
 
   @override
   void initState() {
     super.initState();
-    Future(() async {
-      if (widget.api.token == null || widget.api.token!.isEmpty) {
-        await widget.api.restoreSession();
-      }
-      final rep = await widget.api.getMyRep(); // ruft /api/rep/my (mit JWT) auf
-      if (!mounted) return;
-      setState(() => _myRep = rep);
-    });
+    _repFuture = _ensureSessionThenGetRep();
   }
 
-  Future<void> _loadRep() async {
-    try {
-      final rep = await widget.api.getMyRep(); // gibt null zurück, wenn keiner zugewiesen
-      if (!mounted) return;
-      setState(() => _myRep = rep);
-    } catch (_) {
-      // still: bei Fehler einfach nichts anzeigen
+  Future<MyRep?> _ensureSessionThenGetRep() async {
+    if (widget.api.token == null || widget.api.token!.isEmpty) {
+      await widget.api.restoreSession();
     }
+    try {
+      final rep = await widget.api.getMyRep(); // null, wenn keiner zugewiesen
+      _myRep = rep;
+      return rep;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _reloadRep() async {
+    setState(() => _repFuture = _ensureSessionThenGetRep());
   }
 
   @override
@@ -119,117 +120,163 @@ class _DashboardPageState extends State<DashboardPage> {
           final double iconSize = isPhone ? 28 : 40;
           final double fontSize = isPhone ? 13.0 : 14.5;
 
-          // Vertreter-Banner (nur wenn vorhanden)
-          Widget? repBanner;
-          final rep = _myRep;
-          if (rep != null) {
-            final first = (rep.firstName).trim();
-            final last  = (rep.lastName).trim();
-            final email = (rep.email).trim();
-            final region = (rep.region).trim();
-
-            final name = [first, last].where((s) => s.isNotEmpty).join(' ');
-            final bannerTitle = (name.isNotEmpty)
-                ? t.rep_banner_title(name)
-                : t.rep_banner_title(email.isNotEmpty ? email : '—');
-
-            repBanner = Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      const Color(0xFF1976D2).withOpacity(0.14),
-                      const Color(0xFF42A5F5).withOpacity(0.10),
-                    ],
-                  ),
-                  border: Border.all(color: const Color(0xFF1976D2).withOpacity(0.5), width: 1),
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.06),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 34,
-                      height: 34,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Color(0xFF1976D2),
+          // --- Vertreter-Banner als hübsche Card (immer oben, über den Kacheln) ---
+          final repBanner = FutureBuilder<MyRep?>(
+            future: _repFuture,
+            builder: (context, snap) {
+              final rep = snap.data ?? _myRep;
+              if (rep == null) {
+                // Loader-Placeholder, aber nur wenn gerade wirklich geladen wird
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: Container(
+                      height: 68,
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withOpacity(0.06),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.blue.withOpacity(0.28), width: 1),
                       ),
-                      child: const Icon(Icons.handshake_outlined, color: Colors.white, size: 20),
+                      child: const Center(
+                        child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                      ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            bannerTitle,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 15.5,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          if (email.isNotEmpty || region.isNotEmpty)
-                            Text(
-                              [
-                                if (email.isNotEmpty) email,
-                                if (region.isNotEmpty) region,
-                              ].join(' • '),
-                              style: TextStyle(
-                                color: Colors.grey[800],
-                                fontSize: 13,
-                              ),
-                            ),
+                  );
+                }
+                return const SizedBox.shrink();
+              }
+
+              final first = rep.firstName.trim();
+              final last  = rep.lastName.trim();
+              final email = rep.email.trim();
+              final region = rep.region.trim();
+              final name = [first, last].where((s) => s.isNotEmpty).join(' ');
+              final bannerTitle = (name.isNotEmpty)
+                  ? t.rep_banner_title(name)
+                  : t.rep_banner_title(email.isNotEmpty ? email : '—');
+
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Material(
+                  elevation: 6,
+                  borderRadius: BorderRadius.circular(16),
+                  clipBehavior: Clip.antiAlias,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFF1976D2).withOpacity(0.14),
+                          const Color(0xFF42A5F5).withOpacity(0.08),
                         ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
+                      border: Border.all(color: const Color(0xFF1976D2).withOpacity(0.45), width: 1),
+                      borderRadius: BorderRadius.circular(16),
                     ),
-                    if (email.isNotEmpty)
-                      Tooltip(
-                        message: t.rep_email_tooltip,
-                        child: TextButton.icon(
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40, height: 40,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Color(0xFF1976D2),
                           ),
-                          onPressed: () {
-                            final subject = Uri.encodeComponent(t.mail_subject_rep);
-                            final body = Uri.encodeComponent(
-                              t.mail_body_rep(name.isNotEmpty ? name : ''),
-                            );
-                            final mailto = 'mailto:$email?subject=$subject&body=$body';
-                            html.window.open(mailto, '_self');
-                          },
-                          icon: const Icon(Icons.email_outlined),
-                          label: Text(t.rep_email_button),
+                          child: const Icon(Icons.handshake_outlined, color: Colors.white, size: 22),
                         ),
-                      ),
-                  ],
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                bannerTitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 16,
+                                  height: 1.1,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              if (email.isNotEmpty || region.isNotEmpty)
+                                Text(
+                                  [
+                                    if (email.isNotEmpty) email,
+                                    if (region.isNotEmpty) region,
+                                  ].join(' • '),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: Colors.grey[800],
+                                    fontSize: 13.2,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(width: 8),
+
+                        // Primärer Kontakt-Button
+                        Tooltip(
+                          message: t.rep_email_tooltip,
+                          child: TextButton.icon(
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              foregroundColor: Colors.white,
+                              backgroundColor: const Color(0xFF1976D2),
+                            ),
+                            onPressed: email.isEmpty
+                                ? null
+                                : () {
+                                    final subject = Uri.encodeComponent(t.mail_subject_rep);
+                                    final body = Uri.encodeComponent(t.mail_body_rep(name.isNotEmpty ? name : ''));
+                                    final mailto = 'mailto:$email?subject=$subject&body=$body';
+                                    html.window.open(mailto, '_self');
+                                  },
+                            icon: const Icon(Icons.email_outlined, size: 18),
+                            label: Text(t.rep_email_button),
+                          ),
+                        ),
+
+                        const SizedBox(width: 8),
+
+                        // Leichter Refresh rechts
+                        IconButton(
+                          tooltip: t.refresh,
+                          onPressed: _reloadRep,
+                          splashRadius: 20,
+                          icon: const Icon(Icons.refresh),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            );
-          }
+              );
+            },
+          );
 
           return Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 1080),
               child: Column(
                 children: [
-                  if (repBanner != null) repBanner,
+                  // 1) Vertreter-Banner (immer ganz oben, über den Kacheln)
+                  repBanner,
+
+                  // 2) Katalog-Card direkt darunter
                   Padding(
-                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                   child: _buildCatalogsCard(context),
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                    child: _buildCatalogsCard(context),
                   ),
+
                   const SizedBox(height: 8),
+
+                  // 3) Kachel-Grid
                   Expanded(
                     child: GridView.builder(
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
@@ -397,9 +444,8 @@ class _DashboardPageState extends State<DashboardPage> {
         ),
       ),
     );
-  } // <—— DIESE Klammer schließt _DashboardPageState!
-
-} // *** NEU: Klasse _DashboardPageState sauber geschlossen ***
+  } // <—— schließt _DashboardPageState
+}
 
 class _Entry {
   final String label;
