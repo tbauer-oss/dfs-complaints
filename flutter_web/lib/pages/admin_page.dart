@@ -618,18 +618,6 @@ Widget _buildUsersPanel() {
               ),
             ]),
 
-            // --- Lokale Listen für Dropdown-Filter (nur in Aktive-Nutzer-Ansicht) ---
-            final List<String> companies = <String>{
-              'Alle Firmen',
-              ..._users.map((e) => e.company).where((s) => s.trim().isNotEmpty),
-            }.toList()
-              ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-
-            final List<String> countries = <String>{
-              'Alle Länder',
-              ..._users.map((e) => e.country).where((s) => s.trim().isNotEmpty),
-            }.toList()
-              ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
             // >>> NEU: Filterzeile direkt unter der Überschrift <<<
             const SizedBox(height: 8),
@@ -666,8 +654,7 @@ Widget _buildUsersPanel() {
                       }.toList()
                         ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
                       return list.map((c) => DropdownMenuItem<String>(value: c, child: Text(c))).toList();
-                    })() => DropdownMenuItem<String>(value: c, child: Text(c)))
-                        .toList(),
+                    })(),
                     onChanged: (v) => setState(() => _userFilterCompany = v ?? 'Alle Firmen'),
                   ),
                 ),
@@ -691,8 +678,7 @@ Widget _buildUsersPanel() {
                       }.toList()
                         ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
                       return list.map((c) => DropdownMenuItem<String>(value: c, child: Text(c))).toList();
-                    })() => DropdownMenuItem<String>(value: c, child: Text(c)))
-                        .toList(),
+                    })(),
                     onChanged: (v) => setState(() => _userFilterCountry = v ?? 'Alle Länder'),
                   ),
                 ),
@@ -709,22 +695,14 @@ Widget _buildUsersPanel() {
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
-                    items: [
-                      const DropdownMenuItem<String?>(
-                        value: null,
-                        child: Text('Alle Vertreter'),
-                      ),
-                      const DropdownMenuItem<String?>(
-                        value: '',
-                        child: Text('Ohne Vertreter'),
-                      ),
-                      ..._reps.map(
-                        (r) => DropdownMenuItem<String?>(
-                          value: r.id,
-                          child: Text(r.displayName),
-                        ),
-                      ),
-                    ],
+                    items: (() {
+                      final list = <String>{
+                        'Alle Länder',
+                        ..._users.map((e) => e.country).where((s) => s.trim().isNotEmpty),
+                      }.toList()
+                        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+                      return list.map((c) => DropdownMenuItem<String>(value: c, child: Text(c))).toList();
+                    })(),
                     onChanged: (v) => setState(() => _userFilterRepId = v),
                   ),
                 ),
