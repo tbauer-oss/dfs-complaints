@@ -178,7 +178,7 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   Future<void> _editAppMeta(BuildContext context) async {
-    final api = _api.client; // oder direkt: widget.api
+    final api = widget.api
     Map<String, dynamic>? meta;
     try { meta = await widget.api.getAppMeta(refresh: true); } catch (_) {}
 
