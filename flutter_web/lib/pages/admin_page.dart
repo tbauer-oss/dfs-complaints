@@ -28,6 +28,8 @@ class _AdminPageState extends State<AdminPage> {
   bool _loadReps = false;
   String? _fatalErr;
   String? _err;
+  String _userFilterQuery = '';
+  String? _userFilterRepId;
 
   // Vertreter-Form (persistente Felder)
   final _repFirstCtrl = TextEditingController();
@@ -100,6 +102,45 @@ class _AdminPageState extends State<AdminPage> {
       orElse: () => PendingUser.empty(),
     );
     return p.company.trim().isEmpty ? null : p.company.trim();
+  }
+
+  List<ActiveUser> _filterUsers() {
+    final q = _userFilterQuery.trim().toLowerCase();
+    final repId = _userFilterRepId;
+
+    // Basisliste
+    Iterable<ActiveUser> list = _users;
+
+    // Textsuche: Firma, Kontakt, E-Mail, Land
+    if (q.isNotEmpty) {
+      bool m(String s) => s.toLowerCase().contains(q);
+      list = list.where((u) =>
+        m(u.company) || m(u.contact) || m(u.email) || m(u.country));
+    }
+
+    // Vertreter-Filter
+    if (repId != null) {
+      if (repId.isEmpty) {
+        // „Ohne Vertreter“
+        final mapped = <String, String>{};
+        for (final r in _reps) {
+          for (final e in r.customers) {
+            mapped[e.trim().toLowerCase()] = r.id;
+          }
+        }
+        list = list.where((u) =>
+          !mapped.containsKey(u.email.trim().toLowerCase()));
+      } else {
+        final r = _reps.firstWhere(
+          (x) => x.id == repId,
+          orElse: () => Rep(id: '', firstName: '', lastName: '', email: '', region: '', customers: const []),
+        );
+        final emails = r.customers.map((e) => e.trim().toLowerCase()).toSet();
+        list = list.where((u) => emails.contains(u.email.trim().toLowerCase()));
+      }
+    }
+
+    return list.toList();
   }
 
   String? _repNameForEmail(String email) {
@@ -531,7 +572,7 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  Widget _buildUsersPanel() {
+Widget _buildUsersPanel() {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -541,68 +582,138 @@ class _AdminPageState extends State<AdminPage> {
             Row(children: [
               const Icon(Icons.people),
               const SizedBox(width: 8),
-              const Text('Aktive Nutzer', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              const Text(
+                'Aktive Nutzer',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
               const Spacer(),
               IconButton(
                 tooltip: 'Neu laden',
-                onPressed: _loadUsers ? null : () async {
-                  setState(() => _loadUsers = true);
-                  try {
-                    final list = await _api.fetchUsers();
-                    if (!mounted) return;
-                    setState(() => _users = list);
-                  } catch (e) {
-                    setState(() => _err = '$e');
-                  } finally {
-                    if (mounted) setState(() => _loadUsers = false);
-                  }
-                },
+                onPressed: _loadUsers
+                    ? null
+                    : () async {
+                        setState(() => _loadUsers = true);
+                        try {
+                          final list = await _api.fetchUsers();
+                          if (!mounted) return;
+                          setState(() => _users = list);
+                        } catch (e) {
+                          setState(() => _err = '$e');
+                        } finally {
+                          if (mounted) setState(() => _loadUsers = false);
+                        }
+                      },
                 icon: const Icon(Icons.refresh),
               ),
             ]),
+
+            // >>> NEU: Filterzeile direkt unter der Überschrift <<<
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                // Suche (Firma/Kontakt/E-Mail/Land)
+                Expanded(
+                  child: TextField(
+                    decoration: const InputDecoration(
+                      hintText: 'Suchen… (Firma, Kontakt, E-Mail, Land)',
+                      prefixIcon: Icon(Icons.search),
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    onChanged: (v) => setState(() => _userFilterQuery = v),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Vertreter-Dropdown
+                SizedBox(
+                  width: 280,
+                  child: DropdownButtonFormField<String?>(
+                    value: _userFilterRepId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Vertreter',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('Alle Vertreter'),
+                      ),
+                      const DropdownMenuItem<String?>(
+                        value: '',
+                        child: Text('Ohne Vertreter'),
+                      ),
+                      ..._reps.map(
+                        (r) => DropdownMenuItem<String?>(
+                          value: r.id,
+                          child: Text(r.displayName),
+                        ),
+                      ),
+                    ],
+                    onChanged: (v) => setState(() => _userFilterRepId = v),
+                  ),
+                ),
+              ],
+            ),
+            // <<< Ende Filterzeile >>>
+
             const SizedBox(height: 8),
             if (_loadUsers) const LinearProgressIndicator(),
             const SizedBox(height: 8),
+
+            // Gefilterte Daten verwenden
             Expanded(
-              child: _users.isEmpty
-                  ? const Center(child: Text('Keine aktiven Nutzer.'))
-                  : ListView.separated(
-                      itemCount: _users.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (ctx, i) {
-                        final u = _users[i];
-                        final repName = _repNameForEmail(u.email);
-                        return _UserTile(
-                          data: u,
-                          api: _api,
-                          onDelete: () async {
-                            final ok = await _confirm('Nutzer löschen',
-                                'Soll der aktive Nutzer ${u.email} wirklich gelöscht werden?');
-                            if (ok != true) return;
-                            try {
-                              await _api.deleteUser(u.email);
-                              if (mounted) {
-                                ScaffoldMessenger.of(context)
-                                    .showSnackBar(SnackBar(content: Text('Nutzer gelöscht: ${u.email}')));
-                                await _refreshAll();
-                                await _refreshOpen();
+              child: () {
+                final data = _filterUsers();
+                return data.isEmpty
+                    ? const Center(child: Text('Keine aktiven Nutzer.'))
+                    : ListView.separated(
+                        itemCount: data.length,
+                        separatorBuilder: (_, __) =>
+                            const Divider(height: 1),
+                        itemBuilder: (ctx, i) {
+                          final u = data[i];
+                          final repName = _repNameForEmail(u.email);
+                          return _UserTile(
+                            data: u,
+                            api: _api,
+                            onDelete: () async {
+                              final ok = await _confirm(
+                                'Nutzer löschen',
+                                'Soll der aktive Nutzer ${u.email} wirklich gelöscht werden?',
+                              );
+                              if (ok != true) return;
+                              try {
+                                await _api.deleteUser(u.email);
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                          'Nutzer gelöscht: ${u.email}'),
+                                    ),
+                                  );
+                                  await _refreshAll();
+                                  await _refreshOpen();
+                                }
+                              } catch (e) {
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Fehler: $e')),
+                                );
                               }
-                            } catch (e) {
-                              if (!mounted) return;
-                              ScaffoldMessenger.of(context)
-                                  .showSnackBar(SnackBar(content: Text('Fehler: $e')));
-                            }
-                          },
-                          onLoadComplaints: () => _loadComplaintsDetailed(u.email),
-                          complaints: _complaints[u.email],
-                          onClosedFromEditor: () {
-                            // wenn im Editor geschlossen → Liste „Offen“ aktualisieren
-                            _refreshOpen();
-                          },
-                          repName: repName,
-                        );
-                      },
-                    ),
+                            },
+                            onLoadComplaints: () =>
+                                _loadComplaintsDetailed(u.email),
+                            complaints: _complaints[u.email],
+                            onClosedFromEditor: () {
+                              _refreshOpen();
+                            },
+                            repName: repName,
+                          );
+                        },
+                      );
+              }(),
             ),
           ],
         ),
