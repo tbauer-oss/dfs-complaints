@@ -1272,8 +1272,6 @@ class _Card extends StatelessWidget {
   final String title;
   final List<Widget>? actions;
   final Widget child;
-  final isPhone = MediaQuery.of(context).size.width < 600;
-  final fsTitle = isPhone ? 17.0 : 19.0;
   const _Card({required this.title, this.actions, required this.child, super.key});
 
   @override
