@@ -346,6 +346,8 @@ class _AdminPageState extends State<AdminPage> {
     }
 
     final theme = Theme.of(context);
+
+    
     
     final title = switch (_view) {
       _AdminView.menu    => 'Adminbereich – DFS Customer Complaint',
@@ -385,7 +387,7 @@ class _AdminPageState extends State<AdminPage> {
           constraints: const BoxConstraints(maxWidth: 1200),
           child: Padding(
             padding: const EdgeInsets.all(12),
-            child: _buildBody(theme, companies),
+            child: _buildBody(theme),
           ),
         ),
       ),
@@ -393,7 +395,7 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  Widget _buildBody(ThemeData theme, List<String> companies) {
+  Widget _buildBody(ThemeData theme) {
     if (_err != null) {
       return Column(
         mainAxisSize: MainAxisSize.min,
@@ -657,7 +659,14 @@ Widget _buildUsersPanel() {
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
-                    items: companies
+                    items: (() {
+                      final list = <String>{
+                        'Alle Firmen',
+                        ..._users.map((e) => e.company).where((s) => s.trim().isNotEmpty),
+                      }.toList()
+                        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+                      return list.map((c) => DropdownMenuItem<String>(value: c, child: Text(c))).toList();
+                    })()
                         .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
                         .toList(),
                     onChanged: (v) => setState(() => _userFilterCompany = v ?? 'Alle Firmen'),
@@ -676,7 +685,14 @@ Widget _buildUsersPanel() {
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
-                    items: countries
+                    items: (() {
+                      final list = <String>{
+                        'Alle Länder',
+                        ..._users.map((e) => e.country).where((s) => s.trim().isNotEmpty),
+                      }.toList()
+                        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+                      return list.map((c) => DropdownMenuItem<String>(value: c, child: Text(c))).toList();
+                    })()
                         .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
                         .toList(),
                     onChanged: (v) => setState(() => _userFilterCountry = v ?? 'Alle Länder'),
