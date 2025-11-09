@@ -326,17 +326,7 @@ class _AdminPageState extends State<AdminPage> {
           ),
         ),
       ),
-      bottomNavigationBar: const SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: 1200),
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: LegalFooter(),
-            ),
-          ),
-        ),
-      ), 
+      bottomNavigationBar: LegalFooter(api: widget.api),
     );
   }
 
