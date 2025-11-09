@@ -393,6 +393,15 @@ class _AdminPageState extends State<AdminPage> {
           if (_reps.isEmpty) _refreshReps();
         },
       ),
+      AdminTilePro(
+        label: 'App-Version',
+        subtitle: 'Version, Build, Hinweise',
+        icon: Icons.app_settings_alt_outlined,
+        colorA: AdminPalette.blueA,
+        colorB: AdminPalette.blueB,
+        compact: compact,
+        onTap: () => _editAppMeta(context),
+      ),
     ];
     return GridView.builder(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
