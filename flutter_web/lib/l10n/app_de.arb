@@ -20,6 +20,8 @@
   "theme_light": "Hell",
   "theme_dark": "Dunkel",
 
+  "hideDetails": "Details ausblenden",
+  "showDetails": "Details anzeigen",
   "rep_not_assigned": "DFS-Diamon GmbH",
   "product_type": "Produktkategorie",
   "timestamps": "Zeitstempel",
