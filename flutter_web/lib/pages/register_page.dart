@@ -207,25 +207,18 @@ class _RegisterPageState extends State<RegisterPage> {
     final prefs = AppPrefsScope.of(context);
 
     return WillPopScope(
-      onWillPop: () async {
-        // Versuche den aktuellen Route-Stack zu poppen
-        final didPop = await Navigator.maybePop(context);
-        if (!didPop) {
-          // Nichts zu poppen -> zurück auf Startseite
-          Navigator.pushNamedAndRemoveUntil(context, '/', (r) => false);
-        }
-        // Immer false zurückgeben, weil wir das Pop selbst gehandhabt haben
-        return false;
-      },
+      onWillPop: () async => true, // Pop NICHT abfangen – normal durchlassen
       child: Scaffold(
         appBar: AppBar(
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             tooltip: t.back,
-            onPressed: () async {
-              final didPop = await Navigator.maybePop(context);
-              if (!didPop) {
-                Navigator.pushNamedAndRemoveUntil(context, '/', (r) => false);
+            onPressed: () {
+              final nav = Navigator.of(context);
+              if (nav.canPop()) {
+                nav.pop(); // sofort poppen, kein await/maybePop
+              } else {
+                nav.pushReplacementNamed('/'); // Fallback zur Startseite
               }
             },
           ),
@@ -237,19 +230,16 @@ class _RegisterPageState extends State<RegisterPage> {
               icon: const Icon(Icons.refresh),
             ),
             const SizedBox(width: 4),
-
-            // Sprache – exakt wie in main.dart
             LangAction(onLocaleChanged: (l) => prefs.setLang(l.languageCode)),
             const SizedBox(width: 4),
-
-            // Theme – globales Widget wie in main.dart (kein Reload)
             w.ThemeAction(),
             const SizedBox(width: 8),
-
             TextButton.icon(
-              onPressed: _logout,
-              icon: const Icon(Icons.logout),
-              label: Text(t.logout),
+              onPressed: () {
+                Navigator.of(context).pushNamedAndRemoveUntil('/', (r) => false);
+              },
+              icon: const Icon(Icons.home),
+              label: Text(t.back), // oder eigener Key z.B. t.to_home
             ),
             const SizedBox(width: 8),
           ],
@@ -516,7 +506,14 @@ class _RegisterPageState extends State<RegisterPage> {
                       ),
                       const SizedBox(width: 12),
                       TextButton(
-                        onPressed: () => Navigator.of(context).maybePop(),
+                        onPressed: () {
+                          final nav = Navigator.of(context);
+                          if (nav.canPop()) {
+                            nav.pop();
+                          } else {
+                           nav.pushReplacementNamed('/');
+                          }
+                        },
                         child: Text(t.back),
                       ),
                     ],
