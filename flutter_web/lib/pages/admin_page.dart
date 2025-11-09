@@ -346,18 +346,6 @@ class _AdminPageState extends State<AdminPage> {
     }
 
     final theme = Theme.of(context);
-    // --- Lokale Listen für die Filter (nur für Aktive Nutzer) ---
-    final List<String> companies = <String>{
-      'Alle Firmen',
-      ..._users.map((e) => e.company).where((s) => s.trim().isNotEmpty),
-    }.toList()
-      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-
-    final List<String> countries = <String>{
-      'Alle Länder',
-      ..._users.map((e) => e.country).where((s) => s.trim().isNotEmpty),
-    }.toList()
-      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     
     final title = switch (_view) {
       _AdminView.menu    => 'Adminbereich – DFS Customer Complaint',
@@ -628,6 +616,19 @@ Widget _buildUsersPanel() {
               ),
             ]),
 
+            // --- Lokale Listen für Dropdown-Filter (nur in Aktive-Nutzer-Ansicht) ---
+            final List<String> companies = <String>{
+              'Alle Firmen',
+              ..._users.map((e) => e.company).where((s) => s.trim().isNotEmpty),
+            }.toList()
+              ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+            final List<String> countries = <String>{
+              'Alle Länder',
+              ..._users.map((e) => e.country).where((s) => s.trim().isNotEmpty),
+            }.toList()
+              ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
             // >>> NEU: Filterzeile direkt unter der Überschrift <<<
             const SizedBox(height: 8),
             Row(
@@ -682,6 +683,7 @@ Widget _buildUsersPanel() {
                   ),
                 ),
                 const SizedBox(width: 8),
+                
                 // Vertreter-Dropdown
                 SizedBox(
                   width: 280,
