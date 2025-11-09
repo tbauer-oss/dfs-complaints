@@ -2586,12 +2586,14 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     final productType  = _detPickOrNull(p, ['product_type','productType','type']);
     final articleNo    = _detPickOrNull(p, ['article_no','articleNumber','article','artnr']);
     final batch        = _detPickOrNull(p, ['batch_no','lot','lot_no','batch']);
-    final serial       = _detPickOrNull(p, ['serial_no','serial','sn']);
     final qty          = _detPickOrNull(p, ['qty','quantity','amount','menge']);
     final reason       = _detPickOrNull(p, ['reason','failure_reason','cause']);
-    final desc         = _detPickOrNull(p, ['description','comment','details','failure_desc']);
+    final desc         = _detPickOrNull(p, ['desc','description','comment','details','failure_desc']);
     final customerWish = _detPickOrNull(p, ['customer_wish','customerWish','wish','treatment_wish']);
-
+    final applied     = _detPickOrNull(p, ['applied']);          // 'Ja' | 'Nein' | ''
+    final injury      = _detPickOrNull(p, ['injury']);           // 'Ja' | 'Nein' | ''
+    final injuryDesc  = _detPickOrNull(p, ['injuryDesc']);       // Freitext
+    final returned    = _detPickOrNull(p, ['returned']);         // 'Ja' | 'Nein'
 
     Color _statusColor(int s) {
       // gleiche Logik/Farben wie im Kundenbereich
@@ -2857,15 +2859,19 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                       _detKv('Segment',       segment),
                       _detKv('Produkttyp',    productType),
                       _detKv('Artikelnummer', articleNo),
+                      _detKv('Produkte zurückgeschickt?', returned),
+                      _detKv('Am Patienten angewendet?', applied),
+                      _detKv('Verletzung?', injury),
+                      _detKv('Verletzungsbeschreibung', injuryDesc, maxLines: 6),
+
                       Row(
-                       children: [
+                        children: [
                           Expanded(child: _detKv('Charge / LOT', batch)),
                           const SizedBox(width: 12),
                           Expanded(child: _detKv('Seriennummer', serial)),
-                          const SizedBox(width: 12),
-                          SizedBox(width: 160, child: _detKv('Menge', qty)),
                         ],
                       ),
+                      _detKv('Menge', qty),
                       _detKv('Fehler / Beschreibung', desc, maxLines: 6),
                       _detKv('Grund / Ursache',       reason, maxLines: 4),
                       _detKv('Wunsch des Kunden',     customerWish, maxLines: 3),
