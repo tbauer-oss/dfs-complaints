@@ -20,6 +20,12 @@
   "theme_light": "Chiaro",
   "theme_dark": "Scuro",
 
+  "catalogs_title": "Cataloghi",
+  "catalog_open": "Visualizza",
+  "catalog_lab_title": "Catalogo per laboratorio odontotecnico",
+  "catalog_lab_desc": "Prodotti e informazioni per il laboratorio",
+  "catalog_dent_title": "Catalogo odontoiatrico",
+  "catalog_dent_desc": "Strumenti e informazioni per lo studio dentistico",
   "decision_withdrawn": "Decisione revocata",
   "decision_withdraw": "Ritira decisione",
   "decision_withdraw_confirm": "Vuoi davvero ritirare la tua decisione?",
