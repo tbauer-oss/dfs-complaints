@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../models/complaint.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/legal_footer.dart';
 
 class MyComplaintsPage extends StatefulWidget {
   final ApiClient api;
@@ -367,6 +368,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
           ),
         ],
       ),
+      bottomNavigationBar: LegalFooter(api: widget.api),
     );
   }
 }
