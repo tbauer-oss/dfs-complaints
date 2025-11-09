@@ -15,6 +15,8 @@ class MyComplaintsPage extends StatefulWidget {
   State<MyComplaintsPage> createState() => _MyComplaintsPageState();
 }
 
+enum _SortBy { updated, created, status }
+
 class _MyComplaintsPageState extends State<MyComplaintsPage> {
   bool _busy = false;
   String? _err;
@@ -22,6 +24,10 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
   MyRep? _myRep;
 
   Timer? _poll; // Auto-Refresh
+
+  // ---- Sorting ----
+  _SortBy _sortBy = _SortBy.updated;
+  bool _asc = false; // default: neueste zuerst
 
   @override
   void initState() {
@@ -53,16 +59,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
       final raw = await widget.api.myComplaintsDetailed();
       final list = raw.map(Complaint.fromJson).toList(growable: false);
 
-      // Neueste zuerst (nach updatedAt, dann createdAt)
-      list.sort((a, b) {
-        final ta = (a.updatedAt.millisecondsSinceEpoch > 0
-            ? a.updatedAt.millisecondsSinceEpoch
-            : a.createdAt.millisecondsSinceEpoch);
-        final tb = (b.updatedAt.millisecondsSinceEpoch > 0
-            ? b.updatedAt.millisecondsSinceEpoch
-            : b.createdAt.millisecondsSinceEpoch);
-        return tb.compareTo(ta);
-      });
+      _applySort(list);
 
       if (!mounted) return;
       setState(() => _items = list);
@@ -82,7 +79,48 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     }
   }
 
-  String _fmt(DateTime dt) => dt.toLocal().toString();
+  void _applySort(List<Complaint> list) {
+    int cmpNum(int a, int b) => _asc ? a.compareTo(b) : b.compareTo(a);
+
+    switch (_sortBy) {
+      case _SortBy.updated:
+        list.sort((a, b) {
+          final ta = (a.updatedAt.millisecondsSinceEpoch > 0
+              ? a.updatedAt.millisecondsSinceEpoch
+              : a.createdAt.millisecondsSinceEpoch);
+          final tb = (b.updatedAt.millisecondsSinceEpoch > 0
+              ? b.updatedAt.millisecondsSinceEpoch
+              : b.createdAt.millisecondsSinceEpoch);
+          return cmpNum(ta, tb);
+        });
+        break;
+      case _SortBy.created:
+        list.sort((a, b) => cmpNum(
+            a.createdAt.millisecondsSinceEpoch, b.createdAt.millisecondsSinceEpoch));
+        break;
+      case _SortBy.status:
+        // Status: 1..6 – bei gleicher Zahl nach Updated sortieren
+        list.sort((a, b) {
+          final s = _asc ? a.status.compareTo(b.status) : b.status.compareTo(a.status);
+          if (s != 0) return s;
+          final ta = (a.updatedAt.millisecondsSinceEpoch > 0
+              ? a.updatedAt.millisecondsSinceEpoch
+              : a.createdAt.millisecondsSinceEpoch);
+          final tb = (b.updatedAt.millisecondsSinceEpoch > 0
+              ? b.updatedAt.millisecondsSinceEpoch
+              : b.createdAt.millisecondsSinceEpoch);
+          return _asc ? ta.compareTo(tb) : tb.compareTo(ta);
+        });
+        break;
+    }
+  }
+
+  String _fmt(DateTime dt) {
+    // kompakt & lokal
+    final l = dt.toLocal();
+    String two(int x) => x < 10 ? '0$x' : '$x';
+    return '${l.year}-${two(l.month)}-${two(l.day)} ${two(l.hour)}:${two(l.minute)}';
+  }
 
   // Lokalisierte Status-Texte
   String _statusTextLocalized(AppLocalizations t, int s, String? decision) {
@@ -133,27 +171,12 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     return link.isNotEmpty;
   }
 
-  // Entscheidung als Text (robuster Fallback)
-  String _decisionText(String? d) {
-    switch ((d ?? '').trim().toLowerCase()) {
-      case 'accepted':
-        return 'Angenommen';
-      case 'rejected':
-        return 'Abgelehnt';
-      default:
-        return '—';
-    }
-  }
-
-  Color _decisionColor(String? d) {
-    switch ((d ?? '').trim().toLowerCase()) {
-      case 'accepted':
-        return Colors.green;
-      case 'rejected':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
+  // Segment hübsch: Zahnarzt/Zahntechnik (lokalisiert)
+  String _segmentLabel(AppLocalizations t, String raw) {
+    final v = (raw).trim().toLowerCase();
+    if (v == 'zahnarzt' || v == t.segment_dentist.toLowerCase()) return t.segment_dentist;
+    if (v == 'zahntechnik' || v == t.segment_lab.toLowerCase()) return t.segment_lab;
+    return raw; // fallback (zeigt Original)
   }
 
   @override
@@ -174,6 +197,18 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
         ),
         title: Text(t.my_complaints_title),
         actions: [
+          // Sortierleiste in der AppBar (kompakt)
+          _SortControls(
+            sortBy: _sortBy,
+            asc: _asc,
+            onChanged: (s, asc) {
+              setState(() {
+                _sortBy = s;
+                _asc = asc;
+                _applySort(_items);
+              });
+            },
+          ),
           if (_busy)
             const Padding(
               padding: EdgeInsets.only(right: 8),
@@ -202,7 +237,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                 decoration: BoxDecoration(
                   color: Colors.blue.withOpacity(0.08),
                   border: Border.all(color: Colors.blue, width: 1),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
                   children: [
@@ -232,22 +267,22 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                     // E-Mail Button (mailto)
                     Tooltip(
                       message: t.rep_email_tooltip,
-                        child: TextButton.icon(
-                          onPressed: () {
-                            final subject = Uri.encodeComponent(t.mail_subject_rep);
-                            final mailto = 'mailto:${_myRep!.email}?subject=$subject';
-                            html.window.open(mailto, '_self');
-                          },
-                          icon: const Icon(Icons.email_outlined),
-                          label: Text(t.rep_email_button),
-                        ),
+                      child: TextButton.icon(
+                        onPressed: () {
+                          final subject = Uri.encodeComponent(t.mail_subject_rep);
+                          final mailto = 'mailto:${_myRep!.email}?subject=$subject';
+                          html.window.open(mailto, '_self');
+                        },
+                        icon: const Icon(Icons.email_outlined),
+                        label: Text(t.rep_email_button),
                       ),
+                    ),
                   ],
                 ),
               ),
             ),
 
-          // Der bisherige Body kommt jetzt in ein Expanded:
+          // Der bisherige Body jetzt schöner in Cards:
           Expanded(
             child: _busy
                 ? const Center(child: CircularProgressIndicator())
@@ -259,8 +294,9 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                             onRefresh: () => _load(silent: false),
                             child: ListView.separated(
                               physics: const AlwaysScrollableScrollPhysics(),
+                              padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
                               itemCount: _items.length,
-                              separatorBuilder: (_, __) => const Divider(height: 1),
+                              separatorBuilder: (_, __) => const SizedBox(height: 10),
                               itemBuilder: (_, i) {
                                 final c = _items[i];
                                 final statusText = _statusTextLocalized(t, c.status, c.decision);
@@ -268,98 +304,134 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                 final reportLink = (c.reportLink ?? '').trim();
                                 final canOpenReport = _canOpenReportLink(c);
 
-                                return ListTile(
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                                  title: Text(c.ticket, style: const TextStyle(fontWeight: FontWeight.w600)),
-                                  subtitle: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text('${t.created}: ${_fmt(c.createdAt)}'),
-                                      if (c.internalNo != null && c.internalNo!.isNotEmpty)
-                                        Padding(
-                                            padding: const EdgeInsets.only(top: 4.0, bottom: 4.0),
-                                            child: Row(
-                                              children: [
-                                                Icon(Icons.tag, size: 18, color: Colors.grey[600]),
-                                                const SizedBox(width: 6),
-                                                Text(
-                                                  '${t.internal_no_label}: ${c.internalNo}',
-                                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                                        color: Colors.grey[800],
-                                                        fontWeight: FontWeight.w500,
-                                                      ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                      if (c.updatedAt.millisecondsSinceEpoch > 0)
-                                        Text('${t.updated}: ${_fmt(c.updatedAt)}'),
-                                      if (canOpenReport) ...[
-                                        const SizedBox(height: 6),
-                                        TextButton.icon(
-                                          onPressed: () => html.window.open(reportLink, '_blank'),
-                                          icon: const Icon(Icons.open_in_new),
-                                          label: Text(t.report_open),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                  trailing: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      // Status-Badge
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                        decoration: BoxDecoration(
-                                          color: statusColor.withOpacity(0.12),
-                                          border: Border.all(color: statusColor, width: 1),
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: Text(
-                                          '${t.status}: $statusText',
-                                          style: TextStyle(color: statusColor, fontWeight: FontWeight.w600),
-                                        ),
-                                      ),
+                                // Payload-Shorts
+                                final p = c.payload ?? const <String, dynamic>{};
+                                final segRaw = (p['segment'] ?? '').toString();
+                                final seg = segRaw.isNotEmpty ? _segmentLabel(t, segRaw) : '';
+                                final art = (p['article'] ?? '').toString();
+                                final returned = (p['returned'] ?? '').toString();
+                                final handling = (p['handling'] ?? '').toString();
 
-                                      // Entscheidungs-Badge (nur wenn gesetzt)
-                                      if ((c.decision ?? '').isNotEmpty) ...[
-                                        const SizedBox(height: 6),
-                                        Builder(
-                                          builder: (_) {
-                                            final dec = c.decision!;
-                                            final decText = (dec == 'accepted') ? t.decision_accepted : t.decision_rejected;
-                                            final decColor = (dec == 'accepted') ? Colors.green : Colors.red;
-                                            return Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                              decoration: BoxDecoration(
-                                                color: decColor.withOpacity(0.12),
-                                                border: Border.all(color: decColor, width: 1),
-                                                borderRadius: BorderRadius.circular(12),
-                                              ),
+                                // hübsche Karte
+                                return Card(
+                                  elevation: 3,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  child: Padding(
+                                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        // Kopfzeile: Ticket + Status + Entscheidung
+                                        Row(
+                                          crossAxisAlignment: CrossAxisAlignment.center,
+                                          children: [
+                                            const Icon(Icons.description_outlined, size: 20),
+                                            const SizedBox(width: 8),
+                                            Expanded(
                                               child: Text(
-                                                '${t.decision}: $decText',
-                                                style: TextStyle(color: decColor, fontWeight: FontWeight.w600),
+                                                c.ticket,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 16,
+                                                ),
                                               ),
-                                            );
-                                          },
+                                            ),
+                                            const SizedBox(width: 8),
+                                            _ChipOutlined(
+                                              text: '${t.status}: $statusText',
+                                              color: statusColor,
+                                            ),
+                                            if ((c.decision ?? '').isNotEmpty) ...[
+                                              const SizedBox(width: 6),
+                                              _ChipOutlined(
+                                                text:
+                                                    '${t.decision}: ${(c.decision == "accepted") ? t.decision_accepted : t.decision_rejected}',
+                                                color: (c.decision == 'accepted') ? Colors.green : Colors.red,
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+
+                                        const SizedBox(height: 10),
+
+                                        // Info-Chips (Segment, Artikel, interne Nr.)
+                                        Wrap(
+                                          spacing: 8,
+                                          runSpacing: 8,
+                                          children: [
+                                            if (seg.isNotEmpty)
+                                              _InfoChip(icon: Icons.category_outlined, label: t.segment, value: seg),
+                                            if (art.isNotEmpty)
+                                              _InfoChip(icon: Icons.handyman_outlined, label: t.articleNo, value: art),
+                                            if ((c.internalNo ?? '').toString().isNotEmpty)
+                                              _InfoChip(icon: Icons.tag, label: t.internal_no_label, value: c.internalNo!),
+                                          ],
+                                        ),
+
+                                        const SizedBox(height: 10),
+
+                                        // Zeiten
+                                        Wrap(
+                                          spacing: 8,
+                                          runSpacing: 8,
+                                          children: [
+                                            _InfoChip(icon: Icons.add_circle_outline, label: t.created, value: _fmt(c.createdAt)),
+                                            if (c.updatedAt.millisecondsSinceEpoch > 0)
+                                              _InfoChip(icon: Icons.update, label: t.updated, value: _fmt(c.updatedAt)),
+                                          ],
+                                        ),
+
+                                        // Rücksendung/Wunsch (falls gesetzt)
+                                        if (returned.isNotEmpty || handling.isNotEmpty) ...[
+                                          const SizedBox(height: 10),
+                                          Wrap(
+                                            spacing: 8,
+                                            runSpacing: 8,
+                                            children: [
+                                              if (returned.isNotEmpty)
+                                                _InfoChip(
+                                                  icon: Icons.local_shipping_outlined,
+                                                  label: t.returned,
+                                                  value: returned,
+                                                ),
+                                              if (handling.isNotEmpty)
+                                                _InfoChip(
+                                                  icon: Icons.build_circle_outlined,
+                                                  label: t.handling,
+                                                  value: handling,
+                                                ),
+                                            ],
+                                          ),
+                                        ],
+
+                                        const SizedBox(height: 12),
+
+                                        // Aktionen: Report öffnen + Details
+                                        Row(
+                                          children: [
+                                            if (canOpenReport)
+                                              TextButton.icon(
+                                                onPressed: () => html.window.open(reportLink, '_blank'),
+                                                icon: const Icon(Icons.open_in_new),
+                                                label: Text(t.report_open),
+                                              ),
+                                            const Spacer(),
+                                            TextButton.icon(
+                                              onPressed: () async {
+                                                await showDialog(
+                                                  context: context,
+                                                  builder: (_) => _MyComplaintDetailsDialog(c: c),
+                                                );
+                                              },
+                                              icon: const Icon(Icons.info_outline),
+                                              label: Text(t.details),
+                                            ),
+                                          ],
                                         ),
                                       ],
-
-                                      const SizedBox(height: 6),
-
-                                      // Details-Button
-                                      TextButton.icon(
-                                        onPressed: () async {
-                                          await showDialog(
-                                            context: context,
-                                            builder: (_) => _MyComplaintDetailsDialog(c: c),
-                                          );
-                                        },
-                                        icon: const Icon(Icons.info_outline),
-                                        label: Text(t.details),
-                                      ),
-                                    ],
+                                    ),
                                   ),
                                 );
                               },
@@ -369,6 +441,51 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
         ],
       ),
       bottomNavigationBar: LegalFooter(api: widget.api),
+    );
+  }
+}
+
+// ---- Sortier-Steuerung (rechts in der AppBar) ----
+class _SortControls extends StatelessWidget {
+  final _SortBy sortBy;
+  final bool asc;
+  final void Function(_SortBy by, bool asc) onChanged;
+  const _SortControls({
+    required this.sortBy,
+    required this.asc,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+
+    String labelFor(_SortBy s) => switch (s) {
+          _SortBy.updated => '${t.updated} ↓',
+          _SortBy.created => '${t.created} ↓',
+          _SortBy.status  => '${t.status} ↓',
+        };
+
+    return Row(
+      children: [
+        DropdownButton<_SortBy>(
+          value: sortBy,
+          underline: const SizedBox.shrink(),
+          onChanged: (v) {
+            if (v != null) onChanged(v, asc);
+          },
+          items: [
+            DropdownMenuItem(value: _SortBy.updated, child: Text(t.updated)),
+            DropdownMenuItem(value: _SortBy.created, child: Text(t.created)),
+            DropdownMenuItem(value: _SortBy.status,  child: Text(t.status)),
+          ],
+        ),
+        IconButton(
+          tooltip: asc ? 'Aufsteigend' : 'Absteigend',
+          onPressed: () => onChanged(sortBy, !asc),
+          icon: Icon(asc ? Icons.arrow_upward : Icons.arrow_downward),
+        ),
+      ],
     );
   }
 }
@@ -384,13 +501,20 @@ class _MyComplaintDetailsDialog extends StatelessWidget {
     final t = AppLocalizations.of(context)!;
     final Map<String, dynamic> payload = c.payload ?? const <String, dynamic>{};
 
+    String _segLabel(String raw) {
+      final v = raw.trim().toLowerCase();
+      if (v == 'zahnarzt' || v == t.segment_dentist.toLowerCase()) return t.segment_dentist;
+      if (v == 'zahntechnik' || v == t.segment_lab.toLowerCase()) return t.segment_lab;
+      return raw;
+    }
+
     Widget row(String l, String v) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2),
+          padding: const EdgeInsets.symmetric(vertical: 3),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(
-                width: 160,
+                width: 170,
                 child: Text(l, style: const TextStyle(fontWeight: FontWeight.w600)),
               ),
               Expanded(child: Text(v.isEmpty ? '—' : v)),
@@ -401,15 +525,17 @@ class _MyComplaintDetailsDialog extends StatelessWidget {
     return AlertDialog(
       title: Text('${t.details} – ${c.ticket}'),
       content: SizedBox(
-        width: 560,
+        width: 600,
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              row(t.created, DateTime.tryParse(c.createdAt.toIso8601String()) != null ? '' : ''),
               if (payload.isEmpty) ...[
                 Text(t.no_details),
               ] else ...[
-                row(t.segment, (payload['segment'] ?? '').toString()),
+                if ((payload['segment'] ?? '').toString().isNotEmpty)
+                  row(t.segment, _segLabel((payload['segment'] ?? '').toString())),
                 row(t.article, (payload['article'] ?? '').toString()),
                 row(t.batch, (payload['batch'] ?? '').toString()),
                 row(t.quantity, (payload['qty'] ?? '').toString()),
@@ -430,6 +556,13 @@ class _MyComplaintDetailsDialog extends StatelessWidget {
                 if ((payload['country'] ?? '').toString().isNotEmpty)
                   row(t.country_label, (payload['country'] ?? '').toString()),
               ],
+              const SizedBox(height: 8),
+              // Timestamps unten zusammengefasst
+              row(t.created, _fmtLocal(c.createdAt)),
+              if (c.updatedAt.millisecondsSinceEpoch > 0)
+                row(t.updated, _fmtLocal(c.updatedAt)),
+              if ((c.internalNo ?? '').toString().isNotEmpty)
+                row(t.internal_no_label, c.internalNo!),
             ],
           ),
         ),
@@ -437,6 +570,74 @@ class _MyComplaintDetailsDialog extends StatelessWidget {
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: Text(t.close)),
       ],
+    );
+  }
+
+  String _fmtLocal(DateTime dt) {
+    final l = dt.toLocal();
+    String two(int x) => x < 10 ? '0$x' : '$x';
+    return '${l.year}-${two(l.month)}-${two(l.day)} ${two(l.hour)}:${two(l.minute)}';
+  }
+}
+
+// ------------------- kleine UI-Helfer -------------------
+
+class _ChipOutlined extends StatelessWidget {
+  final String text;
+  final Color color;
+  const _ChipOutlined({required this.text, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(.12),
+        border: Border.all(color: color, width: 1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12.5),
+      ),
+    );
+  }
+}
+
+class _InfoChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  const _InfoChip({required this.icon, required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: cs.surfaceVariant.withOpacity(.55),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16),
+          const SizedBox(width: 6),
+          Text(
+            '$label: ',
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          Flexible(
+            child: Text(
+              value,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
