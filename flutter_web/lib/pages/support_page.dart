@@ -41,6 +41,15 @@ class _SupportPageState extends State<SupportPage> {
     }
   }
 
+  // ---- Einheitlicher Datenschutz-Opener (In-App mit Fallback) ----
+  void _openPrivacyPage(BuildContext context) {
+    try {
+      Navigator.of(context).pushNamed('/legal/privacy');
+    } catch (_) {
+      try { html.window.open('https://dfs-diamon.de/de/datenschutz', '_blank'); } catch (_) {}
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
@@ -97,17 +106,16 @@ class _SupportPageState extends State<SupportPage> {
                         // Pflichttext (unverändert aus L10n)
                         Text(t.supportConsentText),
 
-                        // Direktlink zur Datenschutz-Seite (immer sichtbar, mit Icon)
+                        // Interner Link zur Datenschutz-Seite (mit gleichem Icon wie in register_page)
                         const SizedBox(height: 4),
                         InkWell(
-                          onTap: () => html.window.open('https://dfs-diamon.de/de/datenschutz', '_blank'),
+                          onTap: () => _openPrivacyPage(context),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               const Icon(Icons.privacy_tip_outlined, size: 18),
                               const SizedBox(width: 6),
                               Text(
-                                // Nutze hier deinen L10n-Key, z. B. "t.privacy_view" / "t.privacy_link"
                                 t.privacy_view,
                                 style: TextStyle(
                                   color: Theme.of(context).colorScheme.primary,
