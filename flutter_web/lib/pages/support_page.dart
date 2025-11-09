@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 import 'dart:html' as html;
+import '../widgets/legal_footer.dart';
 
 class SupportPage extends StatefulWidget {
   final ApiClient api;
@@ -191,6 +192,7 @@ class _SupportPageState extends State<SupportPage> {
           ),
         ),
       ),
+      bottomNavigationBar: LegalFooter(api: widget.api),
     );
   }
 }
