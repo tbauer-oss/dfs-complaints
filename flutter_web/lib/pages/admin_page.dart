@@ -177,6 +177,57 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  Future<void> _editAppMeta(BuildContext context) async {
+    final api = _api.client; // oder direkt: widget.api
+    Map<String, dynamic>? meta;
+    try { meta = await widget.api.getAppMeta(refresh: true); } catch (_) {}
+
+    final vCtrl = TextEditingController(text: meta?['version']?.toString() ?? '');
+    final bCtrl = TextEditingController(text: meta?['build']?.toString() ?? '');
+    final nCtrl = TextEditingController(text: meta?['notes']?.toString() ?? '');
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('App-Version bearbeiten'),
+        content: SizedBox(
+          width: 420,
+         child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: vCtrl, decoration: const InputDecoration(labelText: 'Version', border: OutlineInputBorder())),
+              const SizedBox(height: 8),
+              TextField(controller: bCtrl, decoration: const InputDecoration(labelText: 'Build', border: OutlineInputBorder())),
+              const SizedBox(height: 8),
+              TextField(controller: nCtrl, minLines: 2, maxLines: 5, decoration: const InputDecoration(labelText: 'Hinweise', border: OutlineInputBorder())),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Speichern')),
+        ],
+      ),
+    );
+
+    if (ok != true) return;
+
+    try {
+      await widget.api.setAppMeta(
+        version: vCtrl.text.trim(),
+        build: bCtrl.text.trim().isEmpty ? null : bCtrl.text.trim(),
+        notes: nCtrl.text.trim().isEmpty ? null : nCtrl.text.trim(),
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert.')));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+      }
+    }
+  }
+
   Future<bool?> _confirm(String title, String msg) {
     return showDialog<bool>(
       context: context,
