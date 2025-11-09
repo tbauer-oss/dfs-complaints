@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
-import '../widgets/legal_footer.dart';
 
 // KEIN dart:html mehr nötig
 
@@ -108,6 +107,64 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     });
   }
 
+  // -----------------------------
+  // UI-Helfer (nur Darstellung)
+  // -----------------------------
+  InputDecoration _dec(BuildContext ctx, String label, {String? hint}) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      filled: true,
+      isDense: true,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Theme.of(ctx).colorScheme.outlineVariant),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    );
+  }
+
+  Widget _section({required IconData icon, required String title, required List<Widget> children}) {
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(icon, size: 20),
+              const SizedBox(width: 8),
+              Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            ]),
+            const SizedBox(height: 12),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _banner({required bool isError, required String text}) {
+    final color = isError ? Colors.red : Colors.green;
+    final bg = isError ? Colors.red.withOpacity(.06) : Colors.green.withOpacity(.06);
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12), border: Border.all(color: color.withOpacity(.25))),
+      child: Row(
+        children: [
+          Icon(isError ? Icons.error_outline : Icons.check_circle_outline, color: color),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: TextStyle(color: color, fontWeight: FontWeight.w600))),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.t;
@@ -126,199 +183,277 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     final needInjuryDesc = isDentist && applied == optYes && injury == optYes;
 
     final body = SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720),
+          constraints: const BoxConstraints(maxWidth: 800),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              DropdownButtonFormField<String>(
-                value: segment,
-                items: [
-                  DropdownMenuItem(value: optDentist, child: Text(optDentist)),
-                  DropdownMenuItem(value: optLab, child: Text(optLab)),
-                ],
-                onChanged: (v) => setState(() { segment = v ?? optDentist; _dirty = true; } ),
-                decoration: InputDecoration(labelText: t.segment),
-              ),
-              const SizedBox(height: 8),
-
-              TextField(controller: article, decoration: InputDecoration(labelText: t.article, border: const OutlineInputBorder())),
-              const SizedBox(height: 8),
-
-              // Sternchen nur bei Zahnarzt
-              TextField(
-                controller: batch,
-                decoration: InputDecoration(labelText: isDentist ? '${t.batch} *' : t.batch, border: const OutlineInputBorder())),
-              const SizedBox(height: 8),
-
-              Row(children: [
-                Expanded(child: TextField(controller: qty, decoration: InputDecoration(labelText: t.qty, border: const OutlineInputBorder()))),
-                const SizedBox(width: 8),
-                Expanded(child: TextField(controller: expiry, decoration: InputDecoration(labelText: t.expiry, border: const OutlineInputBorder()))),
-              ]),
-              const SizedBox(height: 8),
-
-              TextField(controller: desc, maxLines: 4, decoration: InputDecoration(labelText: t.problem_desc, border: const OutlineInputBorder())),
-
-              if (isDentist) ...[
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  value: applied,
-                  items: [
-                    DropdownMenuItem(value: optYes, child: Text(optYes)),
-                    DropdownMenuItem(value: optNo, child: Text(optNo)),
-                  ],
-                  onChanged: (v) => setState(() { applied = v ?? optNo; _dirty = true; } ),
-                  decoration: InputDecoration(labelText: t.applied_to_patient),
-                ),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  value: injury,
-                  items: [
-                    DropdownMenuItem(value: optYes, child: Text(optYes)),
-                    DropdownMenuItem(value: optNo, child: Text(optNo)),
-                  ],
-                  onChanged: (v) => setState(() { injury = v ?? optNo; _dirty = true; } ),
-                  decoration: InputDecoration(labelText: t.injury_question),
-                ),
-                if (needInjuryDesc) ...[
-                  const SizedBox(height: 8),
-                  TextField(controller: injuryDesc, maxLines: 3, decoration: InputDecoration(labelText: t.injury_desc, border: const OutlineInputBorder())),
-                ]
-              ],
-
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: pickFiles,
-                icon: const Icon(Icons.upload),
-                label: Text(files.isEmpty ? t.add_images : t.images_selected(files.length)),
-              ),
-
-              const Divider(height: 24),
-
-              DropdownButtonFormField<String>(
-                value: returned,
-                items: [
-                  DropdownMenuItem(value: optReturnedYes, child: Text(optReturnedYes)),
-                  DropdownMenuItem(value: optReturnedNo, child: Text(optReturnedNo)),
-                ],
-                onChanged: (v) => setState(() { returned = v ?? optReturnedNo; _dirty = true; } ),
-                decoration: InputDecoration(labelText: t.returned_question),
-              ),
-              const SizedBox(height: 8),
-
-              DropdownButtonFormField<String>(
-                value: handling,
-                items: [
-                  DropdownMenuItem(value: optHandlingRep, child: Text(optHandlingRep)),
-                  DropdownMenuItem(value: optHandlingCredit, child: Text(optHandlingCredit)),
-                  DropdownMenuItem(value: optHandlingRework, child: Text(optHandlingRework)),
-                ],
-                onChanged: (v) => setState(() { handling = v ?? optHandlingRep; _dirty = true; } ),
-                decoration: InputDecoration(labelText: t.handling),
-              ),
-
-              const SizedBox(height: 8),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Checkbox(
-                    value: privacy,
-                    onChanged: (v) => setState(() { privacy = v ?? false; _dirty = true; }),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Pflichttext – identisch zur Register-Seite
-                        Text(t.privacy_agree),
-
-                        // Interner Link zur LegalPrivacyPage (gleiches Icon & Style)
-                        const SizedBox(height: 4),
-                        InkWell(
-                          onTap: () => Navigator.of(context).pushNamed('/legal/privacy'),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.privacy_tip_outlined, size: 18),
-                              const SizedBox(width: 6),
-                              Text(
-                                t.privacy_view,
-                                style: TextStyle(
-                                  color: Theme.of(context).colorScheme.primary,
-                                  decoration: TextDecoration.underline,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
+              // Kopfinfo (rein visuell)
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.report_gmailerrorred_outlined),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          t.reportComplaint,
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                         ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Sektion: Allgemein
+              _section(
+                icon: Icons.person_outline,
+                title: t.segment,
+                children: [
+                  DropdownButtonFormField<String>(
+                    value: segment,
+                    items: [
+                      DropdownMenuItem(value: optDentist, child: Text(optDentist)),
+                      DropdownMenuItem(value: optLab, child: Text(optLab)),
+                    ],
+                    onChanged: (v) => setState(() { segment = v ?? optDentist; _dirty = true; } ),
+                    decoration: _dec(context, t.segment),
+                  ),
+                ],
+              ),
+
+              // Sektion: Produktdetails
+              _section(
+                icon: Icons.build_outlined,
+                title: t.article,
+                children: [
+                  TextField(controller: article, decoration: _dec(context, t.article)),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: batch,
+                    decoration: _dec(context, isDentist ? '${t.batch} *' : t.batch, hint: isDentist ? t.batch : null),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    Expanded(child: TextField(controller: qty, decoration: _dec(context, t.qty))),
+                    const SizedBox(width: 10),
+                    Expanded(child: TextField(controller: expiry, decoration: _dec(context, t.expiry))),
+                  ]),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: desc,
+                    maxLines: 4,
+                    decoration: _dec(context, t.problem_desc),
+                  ),
+                ],
+              ),
+
+              // Sektion: Patientenbezug (nur Zahnarzt)
+              if (isDentist)
+                _section(
+                  icon: Icons.healing_outlined,
+                  title: t.applied_to_patient,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      value: applied,
+                      items: [
+                        DropdownMenuItem(value: optYes, child: Text(optYes)),
+                        DropdownMenuItem(value: optNo, child: Text(optNo)),
+                      ],
+                      onChanged: (v) => setState(() { applied = v ?? optNo; _dirty = true; } ),
+                      decoration: _dec(context, t.applied_to_patient),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      value: injury,
+                      items: [
+                        DropdownMenuItem(value: optYes, child: Text(optYes)),
+                        DropdownMenuItem(value: optNo, child: Text(optNo)),
+                      ],
+                      onChanged: (v) => setState(() { injury = v ?? optNo; _dirty = true; } ),
+                      decoration: _dec(context, t.injury_question),
+                    ),
+                    if (needInjuryDesc) ...[
+                      const SizedBox(height: 10),
+                      TextField(controller: injuryDesc, maxLines: 3, decoration: _dec(context, t.injury_desc)),
+                    ],
+                  ],
+                ),
+
+              // Sektion: Bilder / Anhänge
+              _section(
+                icon: Icons.photo_library_outlined,
+                title: t.add_images,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: pickFiles,
+                    icon: const Icon(Icons.upload),
+                    label: Text(files.isEmpty ? t.add_images : t.images_selected(files.length)),
+                  ),
+                  if (files.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final f in files)
+                          Chip(
+                            label: Text(
+                              f.name,
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                            avatar: const Icon(Icons.insert_drive_file_outlined),
+                          ),
                       ],
                     ),
+                  ],
+                ],
+              ),
+
+              // Sektion: Rücksendung & Wunsch
+              _section(
+                icon: Icons.local_shipping_outlined,
+                title: t.returned_question,
+                children: [
+                  DropdownButtonFormField<String>(
+                    value: returned,
+                    items: [
+                      DropdownMenuItem(value: optReturnedYes, child: Text(optReturnedYes)),
+                      DropdownMenuItem(value: optReturnedNo, child: Text(optReturnedNo)),
+                    ],
+                    onChanged: (v) => setState(() { returned = v ?? optReturnedNo; _dirty = true; } ),
+                    decoration: _dec(context, t.returned_question),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    value: handling,
+                    items: [
+                      DropdownMenuItem(value: optHandlingRep, child: Text(optHandlingRep)),
+                      DropdownMenuItem(value: optHandlingCredit, child: Text(optHandlingCredit)),
+                      DropdownMenuItem(value: optHandlingRework, child: Text(optHandlingRework)),
+                    ],
+                    onChanged: (v) => setState(() { handling = v ?? optHandlingRep; _dirty = true; } ),
+                    decoration: _dec(context, t.handling),
                   ),
                 ],
               ),
 
-              if (err != null) Text(err!, style: const TextStyle(color: Colors.red)),
-              if (info != null) Text(info!, style: const TextStyle(color: Colors.green)),
+              // Sektion: Datenschutz
+              _section(
+                icon: Icons.privacy_tip_outlined,
+                title: t.privacy_view,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Checkbox(
+                        value: privacy,
+                        onChanged: (v) => setState(() { privacy = v ?? false; _dirty = true; }),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(t.privacy_agree),
+                            const SizedBox(height: 4),
+                            InkWell(
+                              onTap: () => Navigator.of(context).pushNamed('/legal/privacy'),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.privacy_tip_outlined, size: 18),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    t.privacy_view,
+                                    style: TextStyle(
+                                      color: Theme.of(context).colorScheme.primary,
+                                      decoration: TextDecoration.underline,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
 
-              const SizedBox(height: 12),
-              Row(children: [
-                ElevatedButton(
-                  onPressed: busy ? null : () async {
-                    setState(() { busy = true; err = null; info = null; });
+              if (err != null) _banner(isError: true, text: err!),
+              if (info != null) _banner(isError: false, text: info!),
 
-                    // Validierung
-                    if (!privacy) { setState(() { err = t.privacy_required; busy = false; }); return; }
-                    if (article.text.trim().isEmpty || desc.text.trim().isEmpty) {
-                      setState(() { err = t.required_fields; busy = false; }); return;
-                    }
-                    if (isDentist && batch.text.trim().isEmpty) {
-                      setState(() { err = t.batch; busy = false; }); return;
-                    }
+              const SizedBox(height: 14),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Wrap(
+                  spacing: 12,
+                  children: [
+                    OutlinedButton(onPressed: _handleCancel, child: Text(t.cancel)),
+                    ElevatedButton.icon(
+                      onPressed: busy ? null : () async {
+                        setState(() { busy = true; err = null; info = null; });
 
-                    // Payload
-                    final payload = <String, dynamic>{
-                      'segment': segment == optDentist ? 'Zahnarzt' : 'Zahntechnik',
-                      'article': article.text.trim(),
-                      'batch': batch.text.trim(),
-                      'qty': qty.text.trim(),
-                      'expiry': expiry.text.trim(),
-                      'desc': desc.text.trim(),
-                      'applied': isDentist ? (applied == optYes ? 'Ja' : 'Nein') : '',
-                      'injury': isDentist ? (injury == optYes ? 'Ja' : 'Nein') : '',
-                      'injuryDesc': isDentist ? injuryDesc.text.trim() : '',
-                      'returned': (returned == optReturnedYes ? 'Ja' : 'Nein'),
-                      'handling': handling == optHandlingRep ? 'Ersatz' : (handling == optHandlingCredit ? 'Gutschrift' : 'Nacharbeit'),
-                      'privacy': 'true',
-                    };
+                        // Validierung
+                        if (!privacy) { setState(() { err = t.privacy_required; busy = false; }); return; }
+                        if (article.text.trim().isEmpty || desc.text.trim().isEmpty) {
+                          setState(() { err = t.required_fields; busy = false; }); return;
+                        }
+                        if (isDentist && batch.text.trim().isEmpty) {
+                          setState(() { err = t.batch; busy = false; }); return;
+                        }
 
-                    try {
-                      final res = await widget.api.complaintCreate(payload, files);
-                      final ticket = (res?['ticket'] ?? '').toString();
+                        // Payload
+                        final payload = <String, dynamic>{
+                          'segment': segment == optDentist ? 'Zahnarzt' : 'Zahntechnik',
+                          'article': article.text.trim(),
+                          'batch': batch.text.trim(),
+                          'qty': qty.text.trim(),
+                          'expiry': expiry.text.trim(),
+                          'desc': desc.text.trim(),
+                          'applied': isDentist ? (applied == optYes ? 'Ja' : 'Nein') : '',
+                          'injury': isDentist ? (injury == optYes ? 'Ja' : 'Nein') : '',
+                          'injuryDesc': isDentist ? injuryDesc.text.trim() : '',
+                          'returned': (returned == optReturnedYes ? 'Ja' : 'Nein'),
+                          'handling': handling == optHandlingRep ? 'Ersatz' : (handling == optHandlingCredit ? 'Gutschrift' : 'Nacharbeit'),
+                          'privacy': 'true',
+                        };
 
-                      if (ticket.isEmpty) {
-                        setState(() { busy = false; err = t.send_failed; });
-                      } else {
-                        setState(() { busy = false; info = t.sent_ticket(ticket); _dirty = false; });
-                      }
-                    } catch (e) {
-                      setState(() {
-                        busy = false;
-                        err = t.network_cors_error(e.toString());
-                      });
-                    }
-                  },
-                  child: busy
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                      : Text(t.send),
+                        try {
+                          final res = await widget.api.complaintCreate(payload, files);
+                          final ticket = (res?['ticket'] ?? '').toString();
+
+                          if (ticket.isEmpty) {
+                            setState(() { busy = false; err = t.send_failed; });
+                          } else {
+                            setState(() { busy = false; info = t.sent_ticket(ticket); _dirty = false; });
+                          }
+                        } catch (e) {
+                          setState(() {
+                            busy = false;
+                            err = t.network_cors_error(e.toString());
+                          });
+                        }
+                      },
+                      icon: busy
+                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.send_outlined),
+                      label: Text(t.send),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                OutlinedButton(onPressed: _handleCancel, child: Text(t.cancel)),
-              ]),
+              ),
             ],
           ),
         ),
@@ -335,7 +470,6 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
           actions: [ TextButton(onPressed: _handleCancel, child: Text(t.cancel)) ],
         ),
         body: body,
-        bottomNavigationBar: LegalFooter(api: widget.api),
       ),
     );
   }
