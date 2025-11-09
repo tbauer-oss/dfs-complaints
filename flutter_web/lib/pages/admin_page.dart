@@ -346,19 +346,6 @@ class _AdminPageState extends State<AdminPage> {
     }
 
     final theme = Theme.of(context);
-
-    // ---- Payload-Felder (nur lesend) ----
-    final Map<String, dynamic>? p = (c.payload is Map) ? (c.payload as Map).cast<String, dynamic>() : null;
-    final segment      = _detPickOrNull(p, ['segment','customer_segment','segment_code']);
-    final productType  = _detPickOrNull(p, ['product_type','productType','type']);
-    final articleNo    = _detPickOrNull(p, ['article_no','articleNumber','article','artnr']);
-    final batch        = _detPickOrNull(p, ['batch_no','lot','lot_no','batch']);
-    final serial       = _detPickOrNull(p, ['serial_no','serial','sn']);
-    final qty          = _detPickOrNull(p, ['qty','quantity','amount','menge']);
-    final reason       = _detPickOrNull(p, ['reason','failure_reason','cause']);
-    final desc         = _detPickOrNull(p, ['description','comment','details','failure_desc']);
-    final customerWish = _detPickOrNull(p, ['customer_wish','customerWish','wish','treatment_wish']);
-
     final title = switch (_view) {
       _AdminView.menu    => 'Adminbereich – DFS Customer Complaint',
       _AdminView.pending => 'Pending (Freigabe ausstehend)',
@@ -2593,6 +2580,18 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   Widget build(BuildContext context) {
     final c = widget.c;
     final scheme = Theme.of(context).colorScheme;
+    // ---- Payload-Felder (nur lesend) ----
+    final Map<String, dynamic>? p = (c.payload is Map) ? (c.payload as Map).cast<String, dynamic>() : null;
+    final segment      = _detPickOrNull(p, ['segment','customer_segment','segment_code']);
+    final productType  = _detPickOrNull(p, ['product_type','productType','type']);
+    final articleNo    = _detPickOrNull(p, ['article_no','articleNumber','article','artnr']);
+    final batch        = _detPickOrNull(p, ['batch_no','lot','lot_no','batch']);
+    final serial       = _detPickOrNull(p, ['serial_no','serial','sn']);
+    final qty          = _detPickOrNull(p, ['qty','quantity','amount','menge']);
+    final reason       = _detPickOrNull(p, ['reason','failure_reason','cause']);
+    final desc         = _detPickOrNull(p, ['description','comment','details','failure_desc']);
+    final customerWish = _detPickOrNull(p, ['customer_wish','customerWish','wish','treatment_wish']);
+
 
     Color _statusColor(int s) {
       // gleiche Logik/Farben wie im Kundenbereich
