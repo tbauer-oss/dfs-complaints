@@ -1474,6 +1474,22 @@ class _ComplaintTile extends StatefulWidget {
 class _ComplaintTileState extends State<_ComplaintTile> {
   bool _hoverAccept = false;
   bool _hoverReject = false;
+  bool _expanded = false; // Toggle für Details
+
+  String _pick(Map<String, dynamic>? p, List<String> keys) {
+    if (p == null) return '';
+    for (final k in keys) {
+      final v = p[k];
+      if (v == null) continue;
+      final s = v.toString().trim();
+      if (s.isNotEmpty) return s;
+    }
+    return '';
+  }
+  String? _pickOrNull(Map<String, dynamic>? p, List<String> keys) {
+    final s = _pick(p, keys);
+    return s.isEmpty ? null : s;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1486,6 +1502,27 @@ class _ComplaintTileState extends State<_ComplaintTile> {
 
     final created   = widget.createdOverride ?? (widget.data['createdAt'] ?? widget.data['created'] ?? '').toString();
     final customer  = widget.customerOverride ?? (widget.data['customerEmail'] ?? widget.data['email'] ?? '').toString();
+    
+    final Map<String, dynamic>? p =
+        (widget.data['payload'] is Map) ? (widget.data['payload'] as Map).cast<String, dynamic>() : null;
+
+    final segment      = _pickOrNull(p, ['segment','customer_segment','segment_code']);
+    final productType  = _pickOrNull(p, ['product_type','productType','type']);
+    final articleNo    = _pickOrNull(p, ['article','article_no','articleNumber','artnr']);
+    final batch        = _pickOrNull(p, ['batch','batch_no','lot','lot_no']);
+    final serial       = _pickOrNull(p, ['serial','serial_no','sn']);
+    final qty          = _pickOrNull(p, ['qty','quantity','amount','menge']);
+    final reason       = _pickOrNull(p, ['reason','failure_reason','cause']);
+
+    // desc priorisieren
+    final desc         = _pickOrNull(p, ['desc','description','comment','details','failure_desc']);
+    final customerWish = _pickOrNull(p, ['handling','customer_wish','customerWish','wish','treatment_wish']);
+
+    // NEU (aus complaint_form_page.dart)
+    final returned     = _pickOrNull(p, ['returned']);   // 'Ja' | 'Nein'
+    final applied      = _pickOrNull(p, ['applied']);    // 'Ja' | 'Nein' | ''
+    final injury       = _pickOrNull(p, ['injury']);     // 'Ja' | 'Nein' | ''
+    final injuryDesc   = _pickOrNull(p, ['injuryDesc']); // Freitext
 
     // kleine Punkt-Buttons (Gradient + Hover)
     Widget _dotButton({
@@ -1623,7 +1660,41 @@ class _ComplaintTileState extends State<_ComplaintTile> {
                     if (repDecision.isNotEmpty)
                       _InfoCapsule('${t.my_decision ?? 'Meine Bewertung'}: $repDecision'),
                   ],
+                ),              
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    TextButton.icon(
+                      onPressed: () => setState(() => _expanded = !_expanded),
+                      icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+                      label: Text(_expanded
+                          ? (context.t.hideDetails ?? 'Details verbergen')
+                          : (context.t.showDetails ?? 'Details anzeigen')),
+                    ),
+                  ],
                 ),
+                AnimatedCrossFade(
+                  crossFadeState: _expanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+                  duration: const Duration(milliseconds: 160),
+                  firstChild: _buildDetails(
+                    context,
+                    segment: segment,
+                    productType: productType,
+                    articleNo: articleNo,
+                    batch: batch,
+                    serial: serial,
+                    qty: qty,
+                    reason: reason,
+                    desc: desc,
+                    customerWish: customerWish,
+                    returned: returned,
+                    applied: applied,
+                    injury: injury,
+                    injuryDesc: injuryDesc,
+                  ),
+                  secondChild: const SizedBox.shrink(),
+                ),
+                
                 if (widget.onDecision != null && !widget.isClosed && repDecision.isEmpty) ...[
                   const SizedBox(height: 10),
                   Align(
@@ -1663,6 +1734,82 @@ class _ComplaintTileState extends State<_ComplaintTile> {
       },
     );
   }
+    Widget _buildDetails(
+    BuildContext context, {
+    String? segment,
+    String? productType,
+    String? articleNo,
+    String? batch,
+    String? serial,
+    String? qty,
+    String? reason,
+    String? desc,
+    String? customerWish,
+    String? returned,
+    String? applied,
+    String? injury,
+    String? injuryDesc,
+  }) {
+    Widget kv(String label, String? value, {int maxLines = 2}) {
+      final v = (value ?? '').trim();
+      if (v.isEmpty) return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(width: 160, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
+            const SizedBox(width: 8),
+            Expanded(child: Text(v, maxLines: maxLines, overflow: TextOverflow.ellipsis)),
+          ],
+        ),
+      );
+    }
+
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 4),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.30),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Details', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+
+          kv('Segment', segment),
+          kv('Produkttyp', productType),
+          kv('Artikelnummer', articleNo),
+
+          Row(
+            children: [
+              Expanded(child: kv('Charge / LOT', batch)),
+              const SizedBox(width: 12),
+              Expanded(child: kv('Seriennummer', serial)),
+            ],
+          ),
+
+          // Menge: eigene, gut sichtbare Zeile
+          kv('Menge', qty),
+
+          kv('Fehler / Beschreibung', desc, maxLines: 6),
+          kv('Grund / Ursache',       reason, maxLines: 4),
+          kv('Wunsch des Kunden',     customerWish, maxLines: 3),
+
+          // Zusätzliche Formularfelder
+          kv('Produkte zurückgeschickt?', returned),
+          kv('Am Patienten angewendet?',   applied),
+          kv('Verletzung?',                injury),
+          kv('Verletzungsbeschreibung',    injuryDesc, maxLines: 6),
+        ],
+      ),
+    );
+  }
+
 }
 
 // ---------- kleine UI-Helfer ----------
