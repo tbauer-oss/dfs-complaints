@@ -342,5 +342,17 @@
   "legal_privacy_14_title": "14. Automated decisions/Profiling & changes",
   "legal_privacy_14_text": "No solely automated decisions and no profiling take place in the app. We may update these notes (technical changes, new requirements or feature extensions such as a future catalogue view). The current version is available in the app.",
   "legal_privacy_link_label": "Website privacy policy:",
-  "legal_privacy_stand_prefix": "Version:"
+  "legal_privacy_stand_prefix": "Version:",
+
+  "imprint_title": "Legal Notice",
+  "imprint_publisher_title": "Publisher",
+  "imprint_publisher_body": "DFS-Diamon GmbH\nLändenstraße 1\nD - 93339 Riedenburg, Germany\n\nPhone +49 (0) 9442 91 89-0\nFax +49 (0) 9442 91 89-37\nE-mail info@dfs-diamon.de",
+  "imprint_register_title": "Company Register",
+  "imprint_register_body": "Local Court Regensburg HRB 2966\nVAT ID No. DE 128580122\n\nContent responsible: Dr. Stefan Brand\nAuthorized representative: Dr. Stefan Brand",
+  "imprint_disclaimer_title": "Disclaimer",
+  "imprint_disclaimer_body": "We make every effort to provide accurate and complete information on this website, but we assume no liability or guarantee for the timeliness, accuracy or completeness of the information provided. This also applies to all external links to which this website refers directly or indirectly. We are not responsible for the content of external websites accessed via such links. All information on prices, product texts and images is provided without warranty; errors and technical changes reserved.",
+  "imprint_copyright_title": "Copyright",
+  "imprint_copyright_body": "All rights reserved. The content and structure of the DFS-Diamon website are protected by copyright. Information or data (text, images, graphics, audio, video or animation files) from our website may not be used or reproduced, in whole or in part, without prior written consent from DFS-Diamon GmbH.",
+  "imprint_odr_title": "Alternative Dispute Resolution (ODR / VSBG)",
+  "imprint_odr_body": "The European Commission provides a platform for Online Dispute Resolution (ODR): https://webgate.ec.europa.eu/odr/main/index.cfm?event=main.home.show&lng=EN\nWe are willing to participate in an out-of-court dispute resolution procedure."
 }
