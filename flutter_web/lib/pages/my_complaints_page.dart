@@ -282,7 +282,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
               ),
             ),
 
-          // Der bisherige Body jetzt schöner in Cards:
+          // Der Body in moderner Kartenliste mit Aufklappdetails
           Expanded(
             child: _busy
                 ? const Center(child: CircularProgressIndicator())
@@ -299,140 +299,29 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                               separatorBuilder: (_, __) => const SizedBox(height: 10),
                               itemBuilder: (_, i) {
                                 final c = _items[i];
+
+                                // Status & Farben
                                 final statusText = _statusTextLocalized(t, c.status, c.decision);
                                 final statusColor = _statusColor(c.status, c.decision);
-                                final reportLink = (c.reportLink ?? '').trim();
-                                final canOpenReport = _canOpenReportLink(c);
 
-                                // Payload-Shorts
+                                // Pflicht-Summary: Segment + Artikel
                                 final p = c.payload ?? const <String, dynamic>{};
                                 final segRaw = (p['segment'] ?? '').toString();
                                 final seg = segRaw.isNotEmpty ? _segmentLabel(t, segRaw) : '';
                                 final art = (p['article'] ?? '').toString();
-                                final returned = (p['returned'] ?? '').toString();
-                                final handling = (p['handling'] ?? '').toString();
 
-                                // hübsche Karte
-                                return Card(
-                                  elevation: 3,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                  child: Padding(
-                                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        // Kopfzeile: Ticket + Status + Entscheidung
-                                        Row(
-                                          crossAxisAlignment: CrossAxisAlignment.center,
-                                          children: [
-                                            const Icon(Icons.description_outlined, size: 20),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: Text(
-                                                c.ticket,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: 16,
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            _ChipOutlined(
-                                              text: '${t.status}: $statusText',
-                                              color: statusColor,
-                                            ),
-                                            if ((c.decision ?? '').isNotEmpty) ...[
-                                              const SizedBox(width: 6),
-                                              _ChipOutlined(
-                                                text:
-                                                    '${t.decision}: ${(c.decision == "accepted") ? t.decision_accepted : t.decision_rejected}',
-                                                color: (c.decision == 'accepted') ? Colors.green : Colors.red,
-                                              ),
-                                            ],
-                                          ],
-                                        ),
+                                final canOpenReport = _canOpenReportLink(c);
+                                final reportLink = (c.reportLink ?? '').trim();
 
-                                        const SizedBox(height: 10),
-
-                                        // Info-Chips (Segment, Artikel, interne Nr.)
-                                        Wrap(
-                                          spacing: 8,
-                                          runSpacing: 8,
-                                          children: [
-                                            if (seg.isNotEmpty)
-                                              _InfoChip(icon: Icons.category_outlined, label: t.segment, value: seg),
-                                            if (art.isNotEmpty)
-                                              _InfoChip(icon: Icons.handyman_outlined, label: t.articleNo, value: art),
-                                            if ((c.internalNo ?? '').toString().isNotEmpty)
-                                              _InfoChip(icon: Icons.tag, label: t.internal_no_label, value: c.internalNo!),
-                                          ],
-                                        ),
-
-                                        const SizedBox(height: 10),
-
-                                        // Zeiten
-                                        Wrap(
-                                          spacing: 8,
-                                          runSpacing: 8,
-                                          children: [
-                                            _InfoChip(icon: Icons.add_circle_outline, label: t.created, value: _fmt(c.createdAt)),
-                                            if (c.updatedAt.millisecondsSinceEpoch > 0)
-                                              _InfoChip(icon: Icons.update, label: t.updated, value: _fmt(c.updatedAt)),
-                                          ],
-                                        ),
-
-                                        // Rücksendung/Wunsch (falls gesetzt)
-                                        if (returned.isNotEmpty || handling.isNotEmpty) ...[
-                                          const SizedBox(height: 10),
-                                          Wrap(
-                                            spacing: 8,
-                                            runSpacing: 8,
-                                            children: [
-                                              if (returned.isNotEmpty)
-                                                _InfoChip(
-                                                  icon: Icons.local_shipping_outlined,
-                                                  label: t.returned,
-                                                  value: returned,
-                                                ),
-                                              if (handling.isNotEmpty)
-                                                _InfoChip(
-                                                  icon: Icons.build_circle_outlined,
-                                                  label: t.handling,
-                                                  value: handling,
-                                                ),
-                                            ],
-                                          ),
-                                        ],
-
-                                        const SizedBox(height: 12),
-
-                                        // Aktionen: Report öffnen + Details
-                                        Row(
-                                          children: [
-                                            if (canOpenReport)
-                                              TextButton.icon(
-                                                onPressed: () => html.window.open(reportLink, '_blank'),
-                                                icon: const Icon(Icons.open_in_new),
-                                                label: Text(t.report_open),
-                                              ),
-                                            const Spacer(),
-                                            TextButton.icon(
-                                              onPressed: () async {
-                                                await showDialog(
-                                                  context: context,
-                                                  builder: (_) => _MyComplaintDetailsDialog(c: c),
-                                                );
-                                              },
-                                              icon: const Icon(Icons.info_outline),
-                                              label: Text(t.details),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
+                                return _ComplaintCard(
+                                  c: c,
+                                  statusText: statusText,
+                                  statusColor: statusColor,
+                                  seg: seg,
+                                  art: art,
+                                  reportLink: canOpenReport ? reportLink : null,
+                                  created: _fmt(c.createdAt),
+                                  updated: (c.updatedAt.millisecondsSinceEpoch > 0) ? _fmt(c.updatedAt) : null,
                                 );
                               },
                             ),
@@ -460,12 +349,6 @@ class _SortControls extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
 
-    String labelFor(_SortBy s) => switch (s) {
-          _SortBy.updated => '${t.updated} ↓',
-          _SortBy.created => '${t.created} ↓',
-          _SortBy.status  => '${t.status} ↓',
-        };
-
     return Row(
       children: [
         DropdownButton<_SortBy>(
@@ -490,6 +373,283 @@ class _SortControls extends StatelessWidget {
   }
 }
 
+// =======================
+//   K a r t e  (modern)
+// =======================
+class _ComplaintCard extends StatefulWidget {
+  final Complaint c;
+  final String statusText;
+  final Color statusColor;
+  final String seg;   // Produktgruppe (Segment)
+  final String art;   // Artikel
+  final String? reportLink;
+  final String created;
+  final String? updated;
+
+  const _ComplaintCard({
+    required this.c,
+    required this.statusText,
+    required this.statusColor,
+    required this.seg,
+    required this.art,
+    required this.created,
+    this.updated,
+    this.reportLink,
+    super.key,
+  });
+
+  @override
+  State<_ComplaintCard> createState() => _ComplaintCardState();
+}
+
+class _ComplaintCardState extends State<_ComplaintCard> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final decision = (widget.c.decision ?? '').trim().toLowerCase();
+
+    // Entscheidungs-Chip (optional, nur wenn gesetzt)
+    Widget? decisionChip;
+    if (decision.isNotEmpty) {
+      final ok = decision == 'accepted';
+      final col = ok ? Colors.green : Colors.red;
+      final txt = ok ? t.decision_accepted : t.decision_rejected;
+      decisionChip = _ChipOutlined(text: '${t.decision}: $txt', color: col);
+    }
+
+    // Seitenakzent (Status-Farbe) + moderne Karte
+    return Material(
+      elevation: 3,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: cs.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: cs.outlineVariant),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(.06), blurRadius: 10, offset: const Offset(0, 3)),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // farbige Statusleiste (sofort sichtbar)
+            Container(
+              width: 6,
+              decoration: BoxDecoration(
+                color: widget.statusColor,
+                borderRadius: const BorderRadius.horizontal(left: Radius.circular(16)),
+              ),
+            ),
+            // Inhalt
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                child: Column(
+                  children: [
+                    // Kopfzeile (Ticket, Status, Entscheidung, Expand)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.description_outlined, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            widget.c.ticket.isEmpty ? '(ohne Ticket)' : widget.c.ticket,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _ChipOutlined(text: '${t.status}: ${widget.statusText}', color: widget.statusColor),
+                        if (decisionChip != null) ...[
+                          const SizedBox(width: 6),
+                          decisionChip,
+                        ],
+                        const SizedBox(width: 4),
+                        IconButton(
+                          tooltip: _expanded ? t.close : t.details,
+                          onPressed: () => setState(() => _expanded = !_expanded),
+                          icon: AnimatedRotation(
+                            turns: _expanded ? .5 : 0,
+                            duration: const Duration(milliseconds: 160),
+                            child: const Icon(Icons.expand_more),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    // Pflichtinfos (Segment & Artikel) – immer sichtbar
+                    Wrap(
+                      spacing: 8, runSpacing: 8,
+                      children: [
+                        if (widget.seg.isNotEmpty)
+                          _InfoChip(icon: Icons.category_outlined, label: t.segment, value: widget.seg),
+                        if (widget.art.isNotEmpty)
+                          _InfoChip(icon: Icons.handyman_outlined, label: t.articleNo, value: widget.art),
+                        if ((widget.c.internalNo ?? '').toString().isNotEmpty)
+                          _InfoChip(icon: Icons.tag, label: t.internal_no_label, value: widget.c.internalNo!),
+                      ],
+                    ),
+
+                    // Aufklappbereich (weitere Details)
+                    AnimatedCrossFade(
+                      firstChild: const SizedBox.shrink(),
+                      secondChild: _ExpandedDetails(
+                        c: widget.c,
+                        created: widget.created,
+                        updated: widget.updated,
+                        reportLink: widget.reportLink,
+                      ),
+                      crossFadeState:
+                          _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                      duration: const Duration(milliseconds: 180),
+                      sizeCurve: Curves.easeOut,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// -------- Aufklapp-Inhalt (Details) --------
+class _ExpandedDetails extends StatelessWidget {
+  final Complaint c;
+  final String created;
+  final String? updated;
+  final String? reportLink;
+
+  const _ExpandedDetails({
+    required this.c,
+    required this.created,
+    this.updated,
+    this.reportLink,
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final payload = c.payload ?? const <String, dynamic>{};
+
+    Widget row(String l, String v, {IconData? icon}) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: cs.surfaceVariant.withOpacity(.35),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 18),
+            const SizedBox(width: 8),
+          ],
+          SizedBox(
+            width: 170,
+            child: Text(l, style: const TextStyle(fontWeight: FontWeight.w600)),
+          ),
+          Expanded(child: Text(v.isEmpty ? '—' : v)),
+        ],
+      ),
+    );
+
+    final desc   = (payload['desc'] ?? '').toString();
+    final batch  = (payload['batch'] ?? '').toString();
+    final qty    = (payload['qty'] ?? '').toString();
+    final expiry = (payload['expiry'] ?? '').toString();
+    final returned = (payload['returned'] ?? '').toString();
+    final handling = (payload['handling'] ?? '').toString();
+    final applied  = (payload['applied'] ?? '').toString();
+    final injury   = (payload['injury'] ?? '').toString();
+    final injuryDesc = (payload['injuryDesc'] ?? '').toString();
+    final customerName = (payload['customerName'] ?? '').toString();
+    final country = (payload['country'] ?? '').toString();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Zeit-Infos
+          Wrap(
+            spacing: 8, runSpacing: 8,
+            children: [
+              _InfoChip(icon: Icons.add_circle_outline, label: t.created, value: created),
+              if (updated != null)
+                _InfoChip(icon: Icons.update, label: t.updated, value: updated!),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Detailblöcke als “Cards in Card”
+          Wrap(
+            runSpacing: 8,
+            children: [
+              row(t.description, desc, icon: Icons.notes_outlined),
+              if (batch.isNotEmpty || qty.isNotEmpty || expiry.isNotEmpty)
+                row(
+                  t.article,
+                  [
+                    if (batch.isNotEmpty) '${t.batch}: $batch',
+                    if (qty.isNotEmpty)   '${t.quantity}: $qty',
+                    if (expiry.isNotEmpty) '${t.expiry}: $expiry',
+                  ].join('   •   '),
+                  icon: Icons.inventory_2_outlined,
+                ),
+              if (returned.isNotEmpty) row(t.returned, returned, icon: Icons.local_shipping_outlined),
+              if (handling.isNotEmpty) row(t.handling, handling, icon: Icons.build_circle_outlined),
+              if (applied.isNotEmpty)  row(t.applied, applied, icon: Icons.playlist_add_check_outlined),
+              if (injury.isNotEmpty)   row(t.injury, injury, icon: Icons.health_and_safety_outlined),
+              if (injuryDesc.trim().isNotEmpty) row(t.injury_desc, injuryDesc, icon: Icons.description_outlined),
+              if (customerName.isNotEmpty) row(t.customer_label, customerName, icon: Icons.person_outline),
+              if (country.isNotEmpty)      row(t.country_label, country, icon: Icons.public_outlined),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // Aktionen
+          Row(
+            children: [
+              if ((reportLink ?? '').isNotEmpty)
+                TextButton.icon(
+                  onPressed: () => html.window.open(reportLink!, '_blank'),
+                  icon: const Icon(Icons.open_in_new),
+                  label: Text(t.report_open),
+                ),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: () async {
+                  await showDialog(
+                    context: context,
+                    builder: (_) => _MyComplaintDetailsDialog(c: c),
+                  );
+                },
+                icon: const Icon(Icons.info_outline),
+                label: Text(t.details),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ---- Details-Dialog (Kundenbereich) ----
 // WICHTIG: Top-Level (außerhalb der State-Klasse)!
 class _MyComplaintDetailsDialog extends StatelessWidget {
@@ -500,6 +660,12 @@ class _MyComplaintDetailsDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
     final Map<String, dynamic> payload = c.payload ?? const <String, dynamic>{};
+
+    String _fmtLocal(DateTime dt) {
+      final l = dt.toLocal();
+      String two(int x) => x < 10 ? '0$x' : '$x';
+      return '${l.year}-${two(l.month)}-${two(l.day)} ${two(l.hour)}:${two(l.minute)}';
+    }
 
     String _segLabel(String raw) {
       final v = raw.trim().toLowerCase();
@@ -530,7 +696,6 @@ class _MyComplaintDetailsDialog extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              row(t.created, DateTime.tryParse(c.createdAt.toIso8601String()) != null ? '' : ''),
               if (payload.isEmpty) ...[
                 Text(t.no_details),
               ] else ...[
@@ -571,12 +736,6 @@ class _MyComplaintDetailsDialog extends StatelessWidget {
         TextButton(onPressed: () => Navigator.pop(context), child: Text(t.close)),
       ],
     );
-  }
-
-  String _fmtLocal(DateTime dt) {
-    final l = dt.toLocal();
-    String two(int x) => x < 10 ? '0$x' : '$x';
-    return '${l.year}-${two(l.month)}-${two(l.day)} ${two(l.hour)}:${two(l.minute)}';
   }
 }
 
