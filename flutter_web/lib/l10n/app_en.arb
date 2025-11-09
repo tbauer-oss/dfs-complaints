@@ -20,6 +20,8 @@
   "theme_light": "Light",
   "theme_dark": "Dark",
 
+  "hideDetails": "Hide details",
+  "showDetails": "Show details",
   "catalogs_title": "Catalogs",
   "catalog_open": "View",
   "catalog_lab_title": "Dental Laboratory Catalog",
