@@ -341,5 +341,17 @@
   "legal_privacy_14_title": "14. Automatisierte Entscheidungen/Profiling & Änderungen",
   "legal_privacy_14_text": "In der App finden keine ausschließlich automatisierten Entscheidungen und kein Profiling statt. Wir behalten uns vor, diese Hinweise anzupassen (technische Änderungen, neue Vorgaben oder Erweiterungen wie künftiger Katalogabruf). Die aktuelle Fassung ist in der App einsehbar.",
   "legal_privacy_link_label": "Website-Datenschutzerklärung:",
-  "legal_privacy_stand_prefix": "Stand:"
+  "legal_privacy_stand_prefix": "Stand:",
+
+  "imprint_title": "Impressum",
+  "imprint_publisher_title": "Herausgeber",
+  "imprint_publisher_body": "DFS-Diamon GmbH\nLändenstraße 1\nD - 93339 Riedenburg\n\nTelefon +49 (0) 9442 91 89-0\nTelefax +49 (0) 9442 91 89-37\nE-Mail info@dfs-diamon.de",
+  "imprint_register_title": "Registerdaten",
+  "imprint_register_body": "Amtsgericht Regensburg HRB 2966\nUSt-ID-Nummer DE 128580122\n\nVerantwortlich für die Inhalte: Herr Dr. Stefan Brand\nVertretungsberechtigter: Herr Dr. Stefan Brand",
+  "imprint_disclaimer_title": "Haftungsausschluss",
+  "imprint_disclaimer_body": "Wir bemühen uns, auf dieser Webseite richtige und vollständige Informationen zur Verfügung zu stellen, dennoch übernehmen wir keine Haftung oder Garantie für Aktualität, Richtigkeit und Vollständigkeit der auf dieser Webseite bereitgestellten Informationen. Dies gilt auch für alle weiterführenden Verbindungen (Links), auf die diese Webseite direkt oder indirekt verweist. Wir sind für Inhalte externer Webseiten, die über solche Verbindungen erreicht werden, nicht verantwortlich. Alle Angaben zu Preisen, Produkttexten und Produktbildern sind ohne Gewähr; Irrtümer und technische Änderungen vorbehalten.",
+  "imprint_copyright_title": "Urheberrechte",
+  "imprint_copyright_body": "Alle Rechte vorbehalten. Inhalt und Struktur der DFS-Diamon Website sind urheberrechtlich geschützt. Informationen oder Daten (Text-, Bild-, Grafik-, Ton-, Video- oder Animationsdateien) unserer Website dürfen ohne vorherige schriftliche Zustimmung der DFS-Diamon GmbH weder verwendet noch reproduziert werden – auch nicht auszugsweise.",
+  "imprint_odr_title": "Alternative Streitbeilegung (ODR/ VSBG)",
+  "imprint_odr_body": "Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit: https://webgate.ec.europa.eu/odr/main/index.cfm?event=main.home.show&lng=DE\nWir sind bereit, an einem außergerichtlichen Schlichtungsverfahren teilzunehmen."
 }
