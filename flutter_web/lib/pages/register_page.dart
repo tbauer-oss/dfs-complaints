@@ -208,15 +208,27 @@ class _RegisterPageState extends State<RegisterPage> {
 
     return WillPopScope(
       onWillPop: () async {
-        if (Navigator.of(context).canPop()) {
-          Navigator.of(context).maybePop();
-          return false;
+        // Versuche den aktuellen Route-Stack zu poppen
+        final didPop = await Navigator.maybePop(context);
+        if (!didPop) {
+          // Nichts zu poppen -> zurück auf Startseite
+          Navigator.pushNamedAndRemoveUntil(context, '/', (r) => false);
         }
-        Navigator.of(context).pushNamedAndRemoveUntil('/', (Route<dynamic> r) => false);
+        // Immer false zurückgeben, weil wir das Pop selbst gehandhabt haben
         return false;
       },
       child: Scaffold(
         appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            tooltip: t.back,
+            onPressed: () async {
+              final didPop = await Navigator.maybePop(context);
+              if (!didPop) {
+                Navigator.pushNamedAndRemoveUntil(context, '/', (r) => false);
+              }
+            },
+          ),
           title: Text(needsGate ? t.unlock : t.auth_register),
           actions: [
             IconButton(
