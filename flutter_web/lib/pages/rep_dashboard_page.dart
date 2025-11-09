@@ -7,6 +7,7 @@ import '../l10n/app_localizations.dart';
 import '../widgets/lang_action.dart';
 import '../widgets/theme_action.dart' as w;
 import '../services/app_prefs_scope.dart';
+import '../widgets/legal_footer.dart';
 
 // ---- L10n-Helper (top-level) ----
 extension _L10nX on BuildContext {
@@ -714,6 +715,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
           ],
         ),
         body: Padding(padding: const EdgeInsets.all(16), child: body),
+        bottomNavigationBar: LegalFooter(api: widget.api), 
       ),
     );
   }
