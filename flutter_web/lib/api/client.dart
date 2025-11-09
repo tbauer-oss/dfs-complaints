@@ -115,6 +115,12 @@ class ApiClient {
     return h;
   }
 
+  Map<String, dynamic>? _appMeta;
+  DateTime? _appMetaLoadedAt;
+
+  Map<String, dynamic>? get appMeta => _appMeta;
+  String get appVersion => _appMeta?['version']?.toString() ?? '';
+
   Map<String, String> _adminHeaders({bool auth = false, Map<String, String>? extra}) {
     final h = _headers(auth: auth, extra: extra);
     if (adminSecret != null && adminSecret!.isNotEmpty) {
@@ -222,6 +228,25 @@ class ApiClient {
     return _repPostJson(path, body);
   }
 
+  Future<Map<String, dynamic>?> getAppMeta({bool refresh = false}) async {
+    final cacheValid = _appMeta != null && _appMetaLoadedAt != null &&
+                     DateTime.now().difference(_appMetaLoadedAt!).inMinutes < 5;
+    if (!refresh && cacheValid) return _appMeta;
+
+    final base = _apiBase.isEmpty ? '' : _apiBase;
+    final uri = Uri.parse('$base/api/meta');
+    final r = await http.get(uri, headers: {'Content-Type': 'application/json'});
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final j = jsonDecode(r.body);
+    if (j is Map<String, dynamic>) {
+      _appMeta = j;
+      _appMetaLoadedAt = DateTime.now();
+    }
+    return _appMeta;
+  }
+
   // ---- Basis ----
   String get baseUrl {
     const b = String.fromEnvironment('API_BASE', defaultValue: '');
@@ -319,6 +344,31 @@ class ApiClient {
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
+  }
+
+  Future<void> setAppMeta({
+    required String version,
+    String? build,
+    String? notes,
+  }) async {
+    final base = _apiBase.isEmpty ? '' : _apiBase;
+    final uri = Uri.parse('$base/api/admin/meta');
+    final body = jsonEncode({
+      'version': version,
+      if (build != null) 'build': build,
+      if (notes != null) 'notes': notes,
+    });
+
+    final headers = {
+      'Content-Type': 'application/json',
+      if (adminSecret != null && adminSecret!.isNotEmpty) 'X-Admin-Secret': adminSecret!,
+    };
+
+    final r = await http.post(uri, headers: headers, body: body);
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    _appMetaLoadedAt = null; // Cache invalidieren -> neu laden beim nächsten Zugriff
   }
 
   Future<Map<String, dynamic>> repMe() async {
