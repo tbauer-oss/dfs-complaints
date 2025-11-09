@@ -714,7 +714,6 @@ class ApiClient {
     if (j is! Map) return null;
 
     return MyRep(
-      id:        (j['id']        ?? '').toString(),
       firstName: (j['firstName'] ?? '').toString(),
       lastName:  (j['lastName']  ?? '').toString(),
       email:     (j['email']     ?? '').toString(),
