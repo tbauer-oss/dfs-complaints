@@ -30,8 +30,9 @@ class _AdminPageState extends State<AdminPage> {
   String? _err;
   String _userFilterQuery = '';
   String? _userFilterRepId;
-  String _userFilterQuery = '';
-  String? _userFilterRepId;
+  String _userFilterCompany = 'Alle Firmen';
+  String _userFilterCountry = 'Alle Länder';
+
 
   // Vertreter-Form (persistente Felder)
   final _repFirstCtrl = TextEditingController();
