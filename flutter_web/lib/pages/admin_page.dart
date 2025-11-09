@@ -2586,7 +2586,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     final productType  = _detPickOrNull(p, ['product_type','productType','type']);
     final articleNo    = _detPickOrNull(p, ['article_no','articleNumber','article','artnr']);
     final batch        = _detPickOrNull(p, ['batch_no','lot','lot_no','batch']);
-    final serial       = _pickOrNull(c.payload, ['serial_no', 'serial', 'sn']);
+    final serial       = _detPickOrNull(c.payload, ['serial_no', 'serial', 'sn']);
     final qty          = _detPickOrNull(p, ['qty','quantity','amount','menge']);
     final reason       = _detPickOrNull(p, ['reason','failure_reason','cause']);
     final desc         = _detPickOrNull(p, ['desc','description','comment','details','failure_desc']);
