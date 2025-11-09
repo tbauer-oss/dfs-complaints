@@ -20,6 +20,8 @@
   "theme_light": "Chiaro",
   "theme_dark": "Scuro",
 
+  "hideDetails": "Nascondi dettagli",
+  "showDetails": "Mostra dettagli",
   "catalogs_title": "Cataloghi",
   "catalog_open": "Visualizza",
   "catalog_lab_title": "Catalogo per laboratorio odontotecnico",
