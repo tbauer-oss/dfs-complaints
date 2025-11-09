@@ -17,6 +17,7 @@ import 'pages/rep_login_page.dart';
 import 'pages/rep_dashboard_page.dart' hide ThemeAction;
 import 'pages/legal_privacy_page.dart';
 import 'pages/legal_imprint_page.dart';
+import 'widgets/legal_footer.dart';
 
 // Widgets
 import 'widgets/lang_action.dart';
@@ -369,6 +370,7 @@ class _MyAppState extends State<MyApp> {
                             ),
                           ),
                           body: DashboardPage(api: api, onLoggedOut: _onLoggedOut),
+                          bottomNavigationBar: LegalFooter(api: api),
                         );
                       }
 
@@ -493,6 +495,7 @@ class _MyAppState extends State<MyApp> {
                             ),
                           ),
                         ),
+                        bottomNavigationBar: LegalFooter(api: api),
                       );
                     },
                   ),
