@@ -30,6 +30,8 @@ class _AdminPageState extends State<AdminPage> {
   String? _err;
   String _userFilterQuery = '';
   String? _userFilterRepId;
+  String _userFilterQuery = '';
+  String? _userFilterRepId;
 
   // Vertreter-Form (persistente Felder)
   final _repFirstCtrl = TextEditingController();
@@ -138,6 +140,18 @@ class _AdminPageState extends State<AdminPage> {
         final emails = r.customers.map((e) => e.trim().toLowerCase()).toSet();
         list = list.where((u) => emails.contains(u.email.trim().toLowerCase()));
       }
+    }
+
+    // Firmen-Filter
+    final selCompany = _userFilterCompany.trim();
+    if (selCompany.isNotEmpty && selCompany != 'Alle Firmen') {
+      list = list.where((u) => u.company.trim() == selCompany);
+    }
+
+    // Länder-Filter
+    final selCountry = _userFilterCountry.trim();
+    if (selCountry.isNotEmpty && selCountry != 'Alle Länder') {
+      list = list.where((u) => u.country.trim() == selCountry);
     }
 
     return list.toList();
@@ -335,6 +349,10 @@ class _AdminPageState extends State<AdminPage> {
       'Alle Firmen',
       ..._users.map((e) => e.company).where((s) => s.trim().isNotEmpty),
       ..._pending.map((e) => e.company).where((s) => s.trim().isNotEmpty),
+    }
+    final countries = <String>{
+      'Alle Länder',
+      ..._users.map((e) => e.country).where((s) => s.trim().isNotEmpty),
     }.toList()
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
@@ -621,6 +639,43 @@ Widget _buildUsersPanel() {
                       isDense: true,
                     ),
                     onChanged: (v) => setState(() => _userFilterQuery = v),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Firmen-Dropdown
+                SizedBox(
+                  width: 260,
+                  child: DropdownButtonFormField<String>(
+                    value: _userFilterCompany,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Firma',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    items: companies
+                        .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
+                        .toList(),
+                    onChanged: (v) => setState(() => _userFilterCompany = v ?? 'Alle Firmen'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+
+                // Länder-Dropdown
+                SizedBox(
+                  width: 240,
+                  child: DropdownButtonFormField<String>(
+                    value: _userFilterCountry,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Land',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    items: countries
+                        .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
+                        .toList(),
+                    onChanged: (v) => setState(() => _userFilterCountry = v ?? 'Alle Länder'),
                   ),
                 ),
                 const SizedBox(width: 8),
