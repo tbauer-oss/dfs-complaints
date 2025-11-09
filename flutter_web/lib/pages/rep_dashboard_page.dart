@@ -4,7 +4,9 @@ import '../api/client.dart';
 import 'rep_profile_page.dart';
 import 'dart:html' as html;
 import '../l10n/app_localizations.dart';
-import '../widgets/lang_action.dart'; // Sprachmenü
+import '../widgets/lang_action.dart';
+import '../widgets/theme_action.dart' as w;
+import '../services/app_prefs_scope.dart';
 
 // ---- L10n-Helper (top-level) ----
 extension _L10nX on BuildContext {
@@ -641,12 +643,11 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
   @override
   Widget build(BuildContext context) {
     final t = context.t;
-
+    final prefs = AppPrefsScope.of(context);
     final allCount      = _complaints.length;
     final openCount     = _complaints.where((c) => !_isClosed(c)).length;
     final rejectedCount = _complaints.where(_isRejected).length;
     final finishedCount = _complaints.where((c) => (int.tryParse((c['status'] ?? '').toString()) ?? 0) == 6).length;
-
     final title = switch (_view) {
       _RepView.menu      => t.rep_dashboard,
       _RepView.open      => t.complaintsMyCustomer,
@@ -675,7 +676,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
           setState(() => _view = _RepView.menu);
           return false;
         }
-        Navigator.of(context).pushNamedAndRemoveUntil('/login', (Route<dynamic> r) => false);
+        Navigator.of(context).pushNamedAndRemoveUntil('/', (Route<dynamic> r) => false);
         return false;
       },
       child: Scaffold(
@@ -695,10 +696,15 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
               icon: const Icon(Icons.refresh),
             ),
             const SizedBox(width: 4),
-            const LangAction(),        // ← Sprache
+
+            // Sprache – exakt wie in main.dart
+            LangAction(onLocaleChanged: (l) => prefs.setLang(l.languageCode)),
             const SizedBox(width: 4),
-            const ThemeAction(),       // ← Modus (System/Hell/Dunkel)
-           const SizedBox(width: 8),
+
+            // Theme – globales Widget wie in main.dart (kein Reload)
+            w.ThemeAction(),
+            const SizedBox(width: 8),
+
             TextButton.icon(
               onPressed: _logout,
               icon: const Icon(Icons.logout),
@@ -1286,54 +1292,6 @@ class _Card extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class ThemeAction extends StatelessWidget {
-  const ThemeAction({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    IconData _iconFor(String m) {
-      switch (m) {
-        case 'dark': return Icons.dark_mode;
-        case 'light': return Icons.light_mode;
-        default: return Icons.brightness_auto;
-      }
-    }
-
-    void _set(String mode) {
-      try {
-        html.window.localStorage['dfs_theme'] = mode; // 'system' | 'light' | 'dark'
-      } catch (_) {}
-      // Rebuild erzwingen, damit MyApp die Einstellung neu lädt:
-      html.window.location.reload();
-    }
-
-    return PopupMenuButton<String>(
-      tooltip: 'Theme',
-      icon: Icon(_iconFor(
-        (html.window.localStorage['dfs_theme'] ?? 'system').toLowerCase(),
-      )),
-      onSelected: _set,
-      itemBuilder: (ctx) {
-        final t = AppLocalizations.of(ctx)!;
-        final curr = (html.window.localStorage['dfs_theme'] ?? 'system').toLowerCase();
-        Widget item(String val, IconData icon, String label) => Row(
-          children: [
-            Icon(icon),
-            const SizedBox(width: 10),
-            Expanded(child: Text(label)),
-            if (curr == val) const Icon(Icons.check, color: Colors.green),
-          ],
-        );
-        return [
-          PopupMenuItem(value: 'system', child: item('system', Icons.brightness_auto, t.theme_system)),
-          PopupMenuItem(value: 'light' , child: item('light' , Icons.light_mode     , t.theme_light )),
-          PopupMenuItem(value: 'dark'  , child: item('dark'  , Icons.dark_mode      , t.theme_dark  )),
-        ];
-      },
     );
   }
 }
