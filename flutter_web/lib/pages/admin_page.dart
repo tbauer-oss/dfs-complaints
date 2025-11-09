@@ -346,17 +346,19 @@ class _AdminPageState extends State<AdminPage> {
     }
 
     final theme = Theme.of(context);
-    final companies = <String>{
+    // --- Lokale Listen für die Filter (nur für Aktive Nutzer) ---
+    final List<String> companies = <String>{
       'Alle Firmen',
       ..._users.map((e) => e.company).where((s) => s.trim().isNotEmpty),
-      ..._pending.map((e) => e.company).where((s) => s.trim().isNotEmpty),
-    }
-    final countries = <String>{
+    }.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    final List<String> countries = <String>{
       'Alle Länder',
       ..._users.map((e) => e.country).where((s) => s.trim().isNotEmpty),
     }.toList()
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-
+    
     final title = switch (_view) {
       _AdminView.menu    => 'Adminbereich – DFS Customer Complaint',
       _AdminView.pending => 'Pending (Freigabe ausstehend)',
