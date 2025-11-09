@@ -334,6 +334,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
           actions: [ TextButton(onPressed: _handleCancel, child: Text(t.cancel)) ],
         ),
         body: body,
+        bottomNavigationBar: LegalFooter(api: widget.api),
       ),
     );
   }
