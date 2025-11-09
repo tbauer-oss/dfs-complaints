@@ -265,21 +265,15 @@ class _DashboardPageState extends State<DashboardPage> {
               constraints: const BoxConstraints(maxWidth: 1080),
               child: Column(
                 children: [
-                  // 1) Vertreter-Banner (immer ganz oben, über den Kacheln)
+                  // 1) Vertreter-Banner (bleibt oben)
                   repBanner,
-
-                  // 2) Katalog-Card direkt darunter
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-                    child: _buildCatalogsCard(context),
-                  ),
 
                   const SizedBox(height: 8),
 
-                  // 3) Kachel-Grid
+                  // 2) Kachel-Grid (Hauptfokus)
                   Expanded(
                     child: GridView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                       gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                         maxCrossAxisExtent: maxExtent,
                         mainAxisSpacing: 16,
@@ -290,10 +284,9 @@ class _DashboardPageState extends State<DashboardPage> {
                       itemBuilder: (context, i) {
                         final e = tiles[i];
                         final hovered = _hoverIndex == i;
-
                         return MouseRegion(
                           onEnter: (_) => setState(() => _hoverIndex = i),
-                          onExit: (_) => setState(() => _hoverIndex = -1),
+                          onExit:  (_) => setState(() => _hoverIndex = -1),
                           child: AnimatedScale(
                             duration: const Duration(milliseconds: 140),
                             scale: hovered ? 1.02 : 1.0,
@@ -310,6 +303,12 @@ class _DashboardPageState extends State<DashboardPage> {
                         );
                       },
                     ),
+                  ),
+
+                  // 3) Dezente Katalog-Card (unter den Kacheln)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: _buildCatalogsCard(context),
                   ),
                 ],
               ),
@@ -328,89 +327,91 @@ class _DashboardPageState extends State<DashboardPage> {
       required String title,
       required String desc,
       required String url,
-      required Color accent,
       required IconData icon,
     }) {
       return InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         onTap: () => html.window.open(url, '_blank'),
         child: Ink(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(color: cs.outlineVariant),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft, end: Alignment.bottomRight,
-              colors: [accent.withOpacity(.08), cs.surface],
-            ),
-            boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(.06), blurRadius: 10, offset: const Offset(0, 3)),
-            ],
+            color: cs.surface, // dezent, ohne Verlauf
           ),
-          child: Stack(
-            children: [
-              Positioned(
-                left: 16, top: 16,
-                child: Container(
-                  width: 54, height: 54,
-                  decoration: BoxDecoration(color: accent.withOpacity(.14), shape: BoxShape.circle),
-                  child: Icon(icon, color: accent, size: 28),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+            child: Row(
+              children: [
+                // kleine runde Iconfläche
+                Container(
+                  width: 40, height: 40,
+                  decoration: BoxDecoration(
+                    color: cs.primary.withOpacity(.08),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, size: 22, color: cs.primary),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(88, 14, 14, 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Align(
-                      alignment: Alignment.topRight,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(999)),
-                        child: const Text('PDF', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 11)),
+                const SizedBox(width: 12),
+
+                // Titel + Beschreibung
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15.5),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16.5, letterSpacing: .2),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(desc, maxLines: 2, overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: cs.onSurface.withOpacity(.7), height: 1.25),
-                    ),
-                    const Spacer(),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton.icon(
-                          onPressed: () => html.window.open(url, '_blank'),
-                          icon: const Icon(Icons.picture_as_pdf_outlined),
-                          label: Text(t.catalog_open),
-                        ),
-                      ],
-                    ),
-                  ],
+                      const SizedBox(height: 2),
+                      Text(
+                        desc,
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: cs.onSurface.withOpacity(.65), fontSize: 13.0),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+  
+                const SizedBox(width: 8),
+
+                // schlanker „Ansehen“-Button
+                TextButton.icon(
+                  onPressed: () => html.window.open(url, '_blank'),
+                  icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                  label: Text(t.catalog_open),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    foregroundColor: cs.primary,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
     }
 
     return Card(
-      elevation: 4,
+      elevation: 0, // dezent
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: Theme.of(context).colorScheme.surface, // ruhig
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(children: [
-              const Icon(Icons.menu_book_outlined, size: 20),
+              const Icon(Icons.menu_book_outlined, size: 18),
               const SizedBox(width: 8),
-              Text(t.catalogs_title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
+              Text(
+                t.catalogs_title,
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16.5),
+              ),
             ]),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
+
             LayoutBuilder(
               builder: (_, cons) {
                 final isNarrow = cons.maxWidth < 560;
@@ -418,22 +419,20 @@ class _DashboardPageState extends State<DashboardPage> {
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   crossAxisCount: isNarrow ? 1 : 2,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  childAspectRatio: isNarrow ? 2.4 : 2.8,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  childAspectRatio: isNarrow ? 3.6 : 3.8, // flacher, unaufdringlich
                   children: [
                     tile(
                       title: t.catalog_lab_title,
                       desc:  t.catalog_lab_desc,
                       url:   _pdfLabUrl,
-                      accent: Colors.indigo,
                       icon:  Icons.biotech_outlined,
                     ),
                     tile(
                       title: t.catalog_dent_title,
                       desc:  t.catalog_dent_desc,
                       url:   _pdfDentUrl,
-                      accent: Colors.teal,
                       icon:  Icons.medical_services_outlined,
                     ),
                   ],
@@ -444,7 +443,7 @@ class _DashboardPageState extends State<DashboardPage> {
         ),
       ),
     );
-  } // <—— schließt _DashboardPageState
+  }
 }
 
 class _Entry {
