@@ -5,7 +5,8 @@ import '../l10n/app_localizations.dart';
 import '../models/country.dart';
 import '../widgets/lang_action.dart';
 import '../services/app_prefs_scope.dart';
-import '../widgets/theme_action.dart' as w; // wie in main.dart
+import '../widgets/theme_action.dart' as w;
+import '../widgets/legal_footer.dart';
 
 enum Salutation { mr, ms, diverse }
 
@@ -523,6 +524,7 @@ class _RegisterPageState extends State<RegisterPage> {
             ),
           ),
         ),
+        bottomNavigationBar: LegalFooter(api: widget.api),
       ),
     );
   }
