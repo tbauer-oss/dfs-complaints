@@ -7,12 +7,12 @@
     <title>DFS Complaints</title>
 
     <!-- Icons & Manifest -->
-    <link rel="icon" type="image/png" href="/icons/favicon-96x96.png" sizes="96x96" />
+    <link rel="manifest" href="/manifest.json?v=7" />
+    <link rel="icon" type="image/png" sizes="96x96" href="/icons/favicon-96x96.png" />
     <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
     <link rel="shortcut icon" href="/icons/favicon.ico" />
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-title" content="DFS CP" />
-    <link rel="manifest" href="/manifest.json?v=7" />
 
     <!-- PWA / Theme -->
     <meta name="application-name" content="DFS Complaints" />
@@ -34,36 +34,63 @@
     <!-- Flutter Runtime -->
     <script defer src="flutter.js"></script>
 
-    <!-- Diese Variable lässt Flutter beim Build ggf. ersetzen; null ist ok -->
+    <!-- SW-Version: vom Template ersetzbar; Fallback = null (kein Crash bei undefined) -->
     <script>
-      var serviceWorkerVersion = null;
+      // Wichtig: NICHT entfernen – einige Flutter-Versionen erwarten diese Variable.
+      var serviceWorkerVersion = (typeof serviceWorkerVersion !== 'undefined') ? serviceWorkerVersion : null;
+    </script>
+
+    <!-- Optional: Install-Prompt abfangen (schadet nicht, wenn Chrome es nicht sendet) -->
+    <script>
+      (function () {
+        let deferredPrompt = null;
+        window.__pwaCanInstall = false;
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+          e.preventDefault();
+          deferredPrompt = e;
+          window.__pwaCanInstall = true;
+          window.dispatchEvent(new Event('pwa-can-install'));
+        });
+
+        // Von Dart aufrufbar: window.showInstallPrompt()
+        window.showInstallPrompt = async function () {
+          if (!deferredPrompt) return false;
+          const dp = deferredPrompt;
+          deferredPrompt = null;
+          window.__pwaCanInstall = false;
+          const choice = await dp.prompt();
+          return choice && choice.outcome === 'accepted';
+        };
+      })();
     </script>
 
     <!-- Minimaler, robuster Loader (neuere API mit Fallback) -->
     <script>
       window.addEventListener('load', function () {
-        var loader =
-          (window._flutter && window._flutter.loader) ||
-          window.flutterLoader ||
-          null;
-
+        // Loader je nach Flutter-Version verfügbar machen
+        var loader = (window._flutter && window._flutter.loader) || window.flutterLoader || null;
         if (!loader) {
           console.error('Flutter loader not found. Prüfe <script defer src="flutter.js">.');
           return;
         }
 
-        var loadFn = loader.load || loader.loadEntrypoint;
+        var loadFn = loader.load || loader.loadEntrypoint; // bevorzugt neu, sonst alt
 
-        loadFn({
-          serviceWorker: { serviceWorkerVersion: serviceWorkerVersion },
-          onEntrypointLoaded: function (engineInitializer) {
-            engineInitializer.initializeEngine().then(function (appRunner) {
-              appRunner.runApp();
-            }).catch(function (e) {
-              console.error('initializeEngine failed:', e);
-            });
-          }
-        });
+        try {
+          loadFn({
+            serviceWorker: { serviceWorkerVersion: serviceWorkerVersion },
+            onEntrypointLoaded: function (engineInitializer) {
+              engineInitializer.initializeEngine().then(function (appRunner) {
+                appRunner.runApp();
+              }).catch(function (e) {
+                console.error('initializeEngine failed:', e);
+              });
+            }
+          });
+        } catch (e) {
+          console.error('Flutter load failed:', e);
+        }
       });
     </script>
   </body>
