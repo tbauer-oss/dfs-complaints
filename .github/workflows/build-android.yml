@@ -42,6 +42,12 @@ jobs:
         working-directory: ${{ env.PROJECT_DIR }}
         run: flutter pub get
 
+      - name: Generate l10n
+        run: flutter gen-l10n
+
+      - name: Verify l10n output exists
+        run: test -f lib/l10n/app_localizations.dart || (echo "l10n output missing" && exit 1)
+
       - name: Build debug APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: flutter build apk --debug
