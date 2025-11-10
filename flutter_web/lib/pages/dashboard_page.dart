@@ -11,8 +11,8 @@ import 'my_complaints_page.dart';
 import 'account_page.dart';
 import 'support_page.dart';
 
-const _pdfLabUrl  = '/web/pdfs/DFS-Labor-DE-US-2025-26_1.pdf';
-const _pdfDentUrl = '/web/pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf';
+const _pdfLabUrl  = 'pdfs/DFS-Labor-DE-US-2025-26_1.pdf';
+const _pdfDentUrl = 'pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf';
 
 class DashboardPage extends StatefulWidget {
   final ApiClient api;
