@@ -1,42 +1,52 @@
+// android/app/build.gradle.kts
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
 android {
-    namespace = "de.dfs_diamon.dfs_mobile"
-    compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
-    }
-
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11.toString()
-    }
+    namespace = "de.dfs_diamon.dfs_complaints"
+    compileSdk = 34
 
     defaultConfig {
-        applicationId = "de.dfs_diamon.dfs_complaints"
-        minSdkVersion = 21
-        targetSdkVersion = 34
+        applicationId = "de.dfs_diamon.dfs_complaints" // <- deine Paketkennung
+        minSdk = 21
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0.0"
     }
 
+    // Signierung via key.properties (falls vorhanden)
+    signingConfigs {
+        create("release") {
+            val keystoreProps = java.util.Properties()
+            val kpFile = rootProject.file("key.properties")
+            if (kpFile.exists()) {
+                keystoreProps.load(java.io.FileInputStream(kpFile))
+                storeFile = file(keystoreProps["storeFile"] as String)
+                storePassword = keystoreProps["storePassword"] as String
+                keyAlias = keystoreProps["keyAlias"] as String
+                keyPassword = keystoreProps["keyPassword"] as String
+            }
+        }
+    }
+
     buildTypes {
-        release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = false
+            isShrinkResources = false
+            // ProGuard bei Bedarf:
+            // proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+        getByName("debug") {
+            // optional debug-spezifisches
         }
     }
 }
 
-flutter {
-    source = "../.."
+dependencies {
+    implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.24")
 }
-
