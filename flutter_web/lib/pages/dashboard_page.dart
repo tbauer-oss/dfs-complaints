@@ -401,7 +401,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                   // ---------- Dezente Kataloge (unter den Kacheln) ----------
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: _CatalogButtons(),
+                    child: _CatalogStrip(),
                   ),
                 ],
               ),
@@ -554,64 +554,179 @@ class _RepBanner extends StatelessWidget {
   }
 }
 
-// Dezente Katalog-Leiste: nur zwei OutlinedButtons, mobil sehr kompakt
-class _CatalogButtons extends StatelessWidget {
+class _CatalogStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final t  = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
-    final isPhone = MediaQuery.of(context).size.width < 600;
+    final t = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isPhone = Media.guery.of(context).size.width < 700;
 
-    Widget btn(String label, String url, IconData icon) {
-      return OutlinedButton.icon(
-        style: OutlinedButton.styleFrom(
-          padding: EdgeInsets.symmetric(horizontal: isPhone ? 10 : 14, vertical: isPhone ? 10 : 12),
-          side: BorderSide(color: cs.outlineVariant),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-        onPressed: () {
-          final title = label; // Buttontext als Titel
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => PdfInAppPage(url: url, title: title),
-            ),
-          );
-        },
-        icon: Icon(icon, size: isPhone ? 18 : 20),
-        label: Text(label, style: TextStyle(fontSize: isPhone ? 13 : 14)),
-      );
-    }
-
-    final content = Wrap(
-      alignment: WrapAlignment.center,
-      spacing: 10,
-      runSpacing: 8,
-      children: [
-        btn(t.catalog_lab_title,  _pdfLabUrl,  Icons.biotech_outlined),
-        btn(t.catalog_dent_title, _pdfDentUrl, Icons.medical_services_outlined),
-      ],
+    return Container(
+      decoration: BoxDecoration(
+        color: cs.surfaceVariant.withOpacity(0.35),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.6)),
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.menu_book_outlined, size: 18, color: cs.onSurface.withOpacity(0.7)),
+              const SizedBox(width: 8),
+              Text(
+                t.catalogs_title,
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: cs.onSurface.withOpacity(0.8),
+                  letterSpacing: .2,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            alignment: isPhone ? WrapAlignment.center : WrapAlignment.start,
+            children: [
+              _CatalogTile(
+                title: t.catalog_lab_title,
+                subtitle: t.catalog_lab_desc,
+                icon: Icons.biotech_outlined,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => PdfInAppPage(url: _pdfLabUrl, title: t.catalog_lab_title),
+                    ),
+                  );
+                },
+              ),
+              _CatalogTile(
+                title: t.catalog_dent_title,
+                subtitle: t.catalog_dent_desc,
+                icon: Icons.medical_services_outlined,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => PdfInAppPage(url: _pdfDentUrl, title: t.catalog_dent_title),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
     );
+  }
+}
 
-    // Auf Desktop in schmaler Card, auf Handy einfach ohne Card (noch dezenter)
-    if (isPhone) return content;
+class _CatalogTile extends StatefulWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final VoidCallback onTap;
 
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: const [
-              Icon(Icons.menu_book_outlined, size: 18),
-              SizedBox(width: 8),
-              // bewusst ohne großen Titeltext – dezent
-              // (wenn du einen Titel willst, ersetze die SizedBox durch Text)
-            ]),
-            const SizedBox(height: 6),
-            content,
-          ],
+  const _CatalogTile({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  State<_CatalogTile> createState() => _CatalogTileState();
+}
+
+class _CatalogTileState extends State<_CatalogTile> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isNarrow = MediaQuery.of(context).size.width < 700;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit:  (_) => setState(() => _hover = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        curve: Curves.easeOut,
+        width: isNarrow ? 360 : 400,
+        constraints: const BoxConstraints(minHeight: 84),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: cs.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _hover ? cs.primary.withOpacity(.45) : cs.outlineVariant),
+          boxShadow: _hover
+              ? [BoxShadow(color: Colors.black.withOpacity(.06), blurRadius: 10, offset: const Offset(0, 4))]
+              : const [],
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: widget.onTap,
+          child: Row(
+            children: [
+              Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                  color: cs.primary.withOpacity(0.10),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: cs.primary.withOpacity(0.25)),
+                ),
+                child: Icon(widget.icon, size: 24, color: cs.primary.withOpacity(0.90)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: .2,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      widget.subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: cs.onSurface.withOpacity(.7),
+                        height: 1.15,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              TextButton.icon(
+                onPressed: widget.onTap,
+                style: TextButton.styleFrom(
+                  foregroundColor: cs.primary,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                ),
+                icon: const Icon(Icons.open_in_new, size: 18),
+                label: Text(
+                  AppLocalizations.of(context)!.catalog_open,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: cs.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
