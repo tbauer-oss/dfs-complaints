@@ -11,12 +11,12 @@ plugins {
 
 android {
     namespace = "de.dfs_diamon.dfs_complaints"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "de.dfs_diamon.dfs_complaints" // <- deine Paketkennung
         minSdk = 21
-        targetSdk = 34
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"
     }
@@ -52,4 +52,5 @@ android {
 dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.24")
 }
+
 
