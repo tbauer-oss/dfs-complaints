@@ -1,63 +1,113 @@
-<!-- Kompatibler Install-Prompt Hook (ES5, ohne await/arrow/new Event) -->
-<script>
-  (function () {
-    // keine let/const, kein await, keine Arrow-Funktionen
-    var deferredPrompt = null;
-    window.__pwaCanInstall = false;
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
 
-    // sicher nur registrieren, wenn addEventListener existiert
-    if (window && window.addEventListener) {
-      window.addEventListener('beforeinstallprompt', function (e) {
-        try {
-          if (e && e.preventDefault) e.preventDefault(); // Chrome verlangt preventDefault()
-        } catch (_) {}
+    <!-- Routing (wichtig für korrekte Asset-Pfade) -->
+    <base href="/" />
 
-        deferredPrompt = e;
-        window.__pwaCanInstall = true;
+    <!-- Titel -->
+    <title>DFS Complaints</title>
 
-        // robustes Event-Dispatching (ohne new Event)
-        try {
-          var ev;
-          if (typeof CustomEvent === 'function') {
-            ev = new CustomEvent('pwa-can-install');
-          } else {
-            ev = document.createEvent('Event');
-            ev.initEvent('pwa-can-install', true, true);
-          }
-          window.dispatchEvent(ev);
-        } catch (_) {
-          // notfalls ignorieren
-        }
-        if (window.console && console.log) console.log('PWA install prompt captured.');
-      });
-    }
+    <!-- Manifest & Icons (RELATIVE Pfade wie im Flutter-Template!) -->
+    <link rel="manifest" href="manifest.json" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="apple-touch-icon" href="icons/icon-192.png" />
 
-    // Von Dart aus aufrufbar: window.showInstallPrompt()
-    window.showInstallPrompt = function () {
-      return new Promise(function (resolve) {
-        if (!deferredPrompt || !deferredPrompt.prompt) return resolve(false);
+    <!-- Viewport -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-        var dp = deferredPrompt;
-        deferredPrompt = null;
+    <!-- Optional: falls einzelne Geräte zicken, Renderer auf 'html' setzen -->
+    <!-- <meta name="flutter-web-renderer" content="html" /> -->
+  </head>
+  <body>
+    <!-- Muss existieren; einige Flutter-Versionen erwarten diese Variable -->
+    <script>
+      var serviceWorkerVersion = null;
+    </script>
+
+    <!-- Flutter Runtime -->
+    <script src="flutter.js" defer></script>
+
+    <!-- ES5-kompatibler Install-Prompt Hook (keine Arrow/await/let/const) -->
+    <script>
+      (function () {
+        var deferredPrompt = null;
         window.__pwaCanInstall = false;
 
-        try {
-          var p = dp.prompt();
-          // Manche Browser liefern kein Promise zurück
-          if (p && typeof p.then === 'function') {
-            p.then(function (choice) {
-              var ok = choice && choice.outcome === 'accepted';
-              if (window.console && console.log) console.log('PWA prompt outcome:', choice && choice.outcome);
-              resolve(!!ok);
-            }).catch(function () { resolve(false); });
-          } else {
-            // Fallback: wenn kein Promise, einfach true annehmen
-            resolve(true);
-          }
-        } catch (e) {
-          resolve(false);
+        if (window && window.addEventListener) {
+          window.addEventListener('beforeinstallprompt', function (e) {
+            try { if (e && e.preventDefault) e.preventDefault(); } catch (_) {}
+            deferredPrompt = e;
+            window.__pwaCanInstall = true;
+
+            // robustes Event-Dispatching (ohne new Event)
+            try {
+              var ev;
+              if (typeof CustomEvent === 'function') {
+                ev = new CustomEvent('pwa-can-install');
+              } else {
+                ev = document.createEvent('Event');
+                ev.initEvent('pwa-can-install', true, true);
+              }
+              window.dispatchEvent(ev);
+            } catch (_) {}
+
+            try { if (window.console && console.log) console.log('PWA install prompt captured.'); } catch (_) {}
+          });
         }
+
+        // Von Flutter/Dart aufrufbar: window.showInstallPrompt()
+        window.showInstallPrompt = function () {
+          return new Promise(function (resolve) {
+            if (!deferredPrompt || !deferredPrompt.prompt) return resolve(false);
+
+            var dp = deferredPrompt;
+            deferredPrompt = null;
+            window.__pwaCanInstall = false;
+
+            try {
+              var p = dp.prompt();
+              if (p && typeof p.then === 'function') {
+                p.then(function (choice) {
+                  var ok = choice && choice.outcome === 'accepted';
+                  try { if (window.console && console.log) console.log('PWA prompt outcome:', choice && choice.outcome); } catch (_) {}
+                  resolve(!!ok);
+                }).catch(function () { resolve(false); });
+              } else {
+                resolve(true); // Fallback, wenn kein Promise geliefert wird
+              }
+            } catch (e) {
+              resolve(false);
+            }
+          });
+        };
+      })();
+    </script>
+
+    <!-- Minimaler, robuster Flutter-Loader (Stock, stabil) -->
+    <script>
+      window.addEventListener('load', function () {
+        if ('serviceWorker' in navigator) {
+          window.flutterConfiguration = {
+            serviceWorker: { serviceWorkerVersion: serviceWorkerVersion }
+          };
+        } else {
+          window.flutterConfiguration = {};
+        }
+
+        window.flutterConfiguration.onEntrypointLoaded = function (engineInitializer) {
+          engineInitializer.initializeEngine().then(function (appRunner) {
+            appRunner.runApp();
+          }).catch(function (e) {
+            try { console.error('initializeEngine failed:', e); } catch (_) {}
+          });
+        };
+
+        // Deprecated, aber stabil – vermeidet Whitescreens
+        _flutter.loader.loadEntrypoint(window.flutterConfiguration);
       });
-    };
-  })();
-</script>
+    </script>
+  </body>
+</html>
