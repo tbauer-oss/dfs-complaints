@@ -42,7 +42,7 @@ class ApiClient {
 
   // ---------- Session persistieren ----------
   void _saveSession() {
-    final ls = html.window.localStorage;
+    final ls = kIsWeb ? html.window.localStorage : <String, String>{};
 
     // Token
     if (token != null) {
@@ -81,7 +81,7 @@ class ApiClient {
   }
 
   Future<void> restoreSession() async {
-    final ls = html.window.localStorage;
+    final ls = kIsWeb ? html.window.localStorage : <String, String>{};
     token       = ls['dfs_token'];
     adminSecret = ls['dfs_admin'];
     gate        = ls['dfs_gate'];
@@ -221,7 +221,9 @@ class ApiClient {
   }
 
   Uri _u(String path) {
-    final base = _apiBase.isNotEmpty ? _apiBase : html.window.location.origin;
+    final base = _apiBase.isNotEmpty
+    ? _apiBase
+    : (kIsWeb ? html.window.location.origin : '');
     return Uri.parse('$base$path');
   }
 
@@ -260,34 +262,23 @@ class ApiClient {
     'Content-Type': 'application/json; charset=utf-8',
   };
 
-  Future<html.HttpRequest> _request(
+  Future<dynamic> _request(
     String method,
     String path, {
     Object? body,
   }) async {
-    try {
+    if (kIsWeb) {
       final res = await html.HttpRequest.request(
-        _u(path).toString(),
+        url,
         method: method,
-        requestHeaders: _headersJson(),
-        sendData: body == null ? null : jsonEncode(body),
-        withCredentials: true,
+        requestHeaders: headers,
+        sendData: body,
       );
-      return res;
-    } catch (e) {
-      if (e is html.ProgressEvent) {
-        final t = e.target;
-        if (t is html.HttpRequest) {
-          final st = t.status;
-          final txt = t.responseText ?? '';
-          final stx = t.statusText ?? '';
-          throw 'HTTP $st $stx — ${txt.isEmpty ? "Request fehlgeschlagen" : txt}';
-        }
-      }
-      throw e.toString();
+      return res;  // dynamic
+     } else {
+      throw UnsupportedError('Web-only request used on mobile.');
     }
   }
-
   // ---- Generic POST JSON ----
   Future<Map<String, dynamic>> postJson(String path, Map<String, dynamic> body) async {
     final r = await _request('POST', path, body: body);
