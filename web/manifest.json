@@ -2,6 +2,7 @@
   "name": "DFS Complaints",
   "short_name": "DFS Complaints",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#1976d2",
