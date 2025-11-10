@@ -743,13 +743,13 @@ class _PdfInAppPageState extends State<PdfInAppPage> {
   void initState() {
     super.initState();
 
-    // pdf.js-Viewer mit Suche/Toolbar (bleibt im selben Tab)
+    // pdf.js-Viewer mit Toolbar & Suche
     final pdfUrl = Uri.encodeComponent(widget.url);
-    final src =
-        'https://mozilla.github.io/pdf.js/web/viewer.html?file=$pdfUrl#zoom=page-width&pagemode=none';
+    final src = 'https://mozilla.github.io/pdf.js/web/viewer.html'
+        '?file=$pdfUrl#zoom=page-width&pagemode=none';
 
-    // Einmaligen ViewType registrieren
     _viewType = 'pdfjs-${DateTime.now().millisecondsSinceEpoch}';
+
     // ignore: undefined_prefixed_name
     ui.platformViewRegistry.registerViewFactory(_viewType, (int viewId) {
       final frame = html.IFrameElement()
@@ -764,24 +764,10 @@ class _PdfInAppPageState extends State<PdfInAppPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title, overflow: TextOverflow.ellipsis),
+      appBar: AppBar(title: Text(widget.title, overflow: TextOverflow.ellipsis)),
+      body: SizedBox.expand(
+        child: HtmlElementView(viewType: _viewType),
       ),
-     body: Builder(
-       builder: (_) => SizedBox.expand(
-         child: HtmlElementView(viewType: _viewType),
-       ),
-     ),
     );
   }
-
-  // Workaround: HtmlElementView benötigt den konkreten viewType im Widget-Baum.
-  // Wir lösen das, indem wir ihn per Builder einsetzen:
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-  }
-
-  @override
-  void reassemble() { super.reassemble(); }
 }
