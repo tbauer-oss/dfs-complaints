@@ -12,8 +12,25 @@ import 'my_complaints_page.dart';
 import 'account_page.dart';
 import 'support_page.dart';
 
-const _pdfLabUrl  = 'pdfs/DFS-Labor-DE-US-2025-26_1.pdf';
-const _pdfDentUrl = 'pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf';
+// const _pdfLabUrl  = 'pdfs/DFS-Labor-DE-US-2025-26_1.pdf';
+// const _pdfDentUrl = 'pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf';
+
+// Sprachabhängige Pfadwahl (relativ, ohne führenden Slash!)
+String _pdfLabFor(BuildContext context) {
+  final lc = Localizations.localeOf(context).languageCode.toLowerCase();
+  final esFr = lc == 'es' || lc == 'fr';
+  return esFr
+      ? 'pdfs/DFS-Labor-ES-FR-2025-26_1.pdf'
+      : 'pdfs/DFS-Labor-DE-US-2025-26_1.pdf'; // default: DE/EN/IT
+}
+
+String _pdfDentFor(BuildContext context) {
+  final lc = Localizations.localeOf(context).languageCode.toLowerCase();
+  final esFr = lc == 'es' || lc == 'fr';
+  return esFr
+      ? 'pdfs/DFS-Praxis-ES-FR-2025-2026_1.pdf'
+      : 'pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf'; // default: DE/EN/IT
+}
 
 class DashboardPage extends StatefulWidget {
   final ApiClient api;
@@ -591,6 +608,8 @@ class _CatalogStrip extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final isPhone = MediaQuery.of(context).size.width < 700;
+    final labUrl  = _pdfLabFor(context);
+    final dentUrl = _pdfDentFor(context);
 
     return Container(
       decoration: BoxDecoration(
@@ -630,7 +649,7 @@ class _CatalogStrip extends StatelessWidget {
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => PdfInAppPage(url: _pdfLabUrl, title: t.catalog_lab_title),
+                      builder: (_) => PdfInAppPage(url: labUrl,  title: t.catalog_lab_title),
                     ),
                   );
                 },
@@ -642,7 +661,7 @@ class _CatalogStrip extends StatelessWidget {
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => PdfInAppPage(url: _pdfDentUrl, title: t.catalog_dent_title),
+                      builder: (_) => PdfInAppPage(url: dentUrl, title: t.catalog_dent_title),
                     ),
                   );
                 },
@@ -663,6 +682,8 @@ class _CatalogChips extends StatelessWidget {
     final t  = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     final isPhone = MediaQuery.of(context).size.width < 700;
+    final labUrl  = _pdfLabFor(context);
+    final dentUrl = _pdfDentFor(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -695,7 +716,7 @@ class _CatalogChips extends StatelessWidget {
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => PdfInAppPage(url: _pdfLabUrl, title: t.catalog_lab_title),
+                    builder: (_) => PdfInAppPage(url: labUrl,  title: t.catalog_lab_title),
                   ),
                 );
               },
@@ -706,7 +727,7 @@ class _CatalogChips extends StatelessWidget {
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => PdfInAppPage(url: _pdfDentUrl, title: t.catalog_dent_title),
+                    builder: (_) => PdfInAppPage(url: dentUrl, title: t.catalog_dent_title),
                   ),
                 );
               },
