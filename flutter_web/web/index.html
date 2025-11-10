@@ -79,7 +79,7 @@
 
         try {
           loadFn({
-            serviceWorker: { serviceWorkerVersion: serviceWorkerVersion },
+            // serviceWorker: undefined,
             onEntrypointLoaded: function (engineInitializer) {
               engineInitializer.initializeEngine().then(function (appRunner) {
                 appRunner.runApp();
