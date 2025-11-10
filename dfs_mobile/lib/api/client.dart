@@ -1,6 +1,8 @@
 // lib/api/client.dart
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
+
+// EIN einziger bedingter Import:
 import 'package:dfs_mobile/web_compat/html_stub.dart'
   if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
 import 'package:http/http.dart' as http;
@@ -255,38 +257,114 @@ class ApiClient {
   String get baseUrl {
     const b = String.fromEnvironment('API_BASE', defaultValue: '');
     if (b.isNotEmpty) return b;
-    return html.window.location.origin;
+
+    if (kIsWeb) {
+      // Erst localStorage, dann origin
+      try {
+        final ls = html.window.localStorage['API_BASE'] ?? '';
+        if (ls.trim().isNotEmpty) return ls.trim();
+      } catch (_) {}
+      try {
+        return html.window.location.origin;
+      } catch (_) {}
+    }
+
+    // Mobile/Desktop-Fallback (ohne dart:html)
+    if (_apiBase.isNotEmpty) return _apiBase;
+    return 'https://dfs-complaints-backend.vercel.app';
   }
 
   Map<String, String> _headersJson() => {
     'Content-Type': 'application/json; charset=utf-8',
   };
 
+  // _request: nutzt auf Web html.HttpRequest, sonst package:http
   Future<dynamic> _request(
-    String method,
-    String path, {
+    String url, {
+    required String method,
+    Map<String, String>? headers,
     Object? body,
   }) async {
+    final hdrs = <String, String>{};
+    if (headers != null) hdrs.addAll(headers);
+
+    String? payload;
+    if (body != null) {
+      if (body is String) {
+        payload = body;
+      } else {
+        hdrs.putIfAbsent('Content-Type', () => 'application/json; charset=utf-8');
+        payload = jsonEncode(body);
+      }
+    }
+
     if (kIsWeb) {
+      // ---- WEB-PFAD ----
       final res = await html.HttpRequest.request(
         url,
         method: method,
-        requestHeaders: headers,
-        sendData: body,
+        requestHeaders: hdrs,
+        sendData: payload,
+        withCredentials: false,
       );
-      return res;  // dynamic
-     } else {
-      throw UnsupportedError('Web-only request used on mobile.');
+      return res; // html.HttpRequest auf Web (dynamic getypt)
+    } else {
+      // ---- MOBILE/DESKTOP-PFAD (package:http) ----
+      final uri = Uri.parse(url);
+      http.Response r;
+
+      switch (method.toUpperCase()) {
+        case 'GET':
+          r = await http.get(uri, headers: hdrs);
+          break;
+        case 'POST':
+          r = await http.post(uri, headers: hdrs, body: payload);
+          break;
+        case 'PUT':
+          r = await http.put(uri, headers: hdrs, body: payload);
+          break;
+        case 'DELETE':
+          r = await http.delete(uri, headers: hdrs);
+          break;
+        default:
+          throw UnsupportedError('Unsupported method: $method');
+      }
+
+      // Optional: bei Bedarf Fehler werfen
+      if (r.statusCode >= 400) {
+        throw Exception('HTTP $method $url failed: ${r.statusCode} ${r.body}');
+      }
+      return r; // http.Response auf Mobile/Desktop (dynamic getypt)
     }
   }
   // ---- Generic POST JSON ----
   Future<Map<String, dynamic>> postJson(String path, Map<String, dynamic> body) async {
-    final r = await _request('POST', path, body: body);
-    if (r.status != 200 && r.status != 201) {
-      throw 'HTTP ${r.status} ${r.statusText} — ${r.responseText ?? ''}';
+    final url = _u(path).toString();
+    final res = await _request(
+      url,
+      method: 'POST',
+      headers: _headersJson(),
+      body: body,
+    );
+
+    int status;
+    String text;
+
+    if (kIsWeb) {
+      // html.HttpRequest
+      status = (res.status ?? 0) as int;
+      text   = (res.responseText ?? '').toString();
+    } else {
+      final r = res as http.Response;
+      status = r.statusCode;
+      text   = r.body;
     }
-    final txt = r.responseText ?? '{}';
-    return txt.trim().isEmpty ? <String, dynamic>{} : jsonDecode(txt);
+
+    if (status != 200 && status != 201) {
+      throw 'HTTP $status — $text';
+    }
+    final t = text.trim();
+    return t.isEmpty ? <String, dynamic>{} : (jsonDecode(t) as Map<String, dynamic>);
   }
 
   // ---- Reps: Entscheidung zu Complaint (mit Bearer-Token) ----
@@ -311,8 +389,12 @@ class ApiClient {
   Future<void> repDecisionReset({required String ticket}) async {
     // Falls repToken leer ist: defensiv aus LocalStorage ziehen
     if (repToken == null || repToken!.isEmpty) {
-      final lsTok = html.window.localStorage['dfs_rep_token'];
-      if (lsTok != null && lsTok.isNotEmpty) repToken = lsTok;
+      if (kIsWeb) {
+        try {
+          final lsTok = html.window.localStorage['dfs_rep_token'];
+          if (lsTok != null && lsTok.isNotEmpty) repToken = lsTok;
+        } catch (_) {}
+      }
     }
 
     final r = await http.post(
@@ -686,9 +768,16 @@ class ApiClient {
 
   // ---------- Vertreter (Kundenbereich) ----------
   Future<MyRep?> getMyRep() async {
-    final base = _apiBase.isEmpty
-        ? (html.window.localStorage['API_BASE'] ?? '')
-        : _apiBase;
+    final base = _apiBase.isNotEmpty
+        ? _apiBase
+        : (() {
+            if (!kIsWeb) return '';
+            try {
+              return (html.window.localStorage['API_BASE'] ?? '').toString();
+            } catch (_) {
+              return '';
+            }
+          })();
 
     // NEU: Kunden-Endpoint
     final url = '$base/api/rep/of-customer';
