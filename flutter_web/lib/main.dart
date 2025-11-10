@@ -8,6 +8,7 @@ import 'api/client.dart';
 import 'l10n/app_localizations.dart';
 import 'services/app_prefs.dart';
 import 'services/app_prefs_scope.dart';
+import 'dart:html' as html; // für Web-Tab-Titel
 
 // Seiten
 import 'pages/register_page.dart';
@@ -287,6 +288,9 @@ class _MyAppState extends State<MyApp> {
       );
     }
 
+    // Web-Tab-Titel setzen (failsafe)
+    try { html.document.title = 'DFS Complaints'; } catch (_) {}
+
     // prefs global verfügbar machen
     return AppPrefsScope(
       notifier: _prefs,
@@ -295,6 +299,7 @@ class _MyAppState extends State<MyApp> {
           final prefs = AppPrefsScope.of(scopeCtx);
 
           return MaterialApp(
+            title: 'DFS Complaints',
             debugShowCheckedModeBanner: false,
             navigatorKey: _navKey,
 
