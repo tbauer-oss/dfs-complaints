@@ -2,7 +2,9 @@
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import 'rep_profile_page.dart';
-import 'dart:html' as html;
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'web_compat/html_stub.dart'
+  if (dart.library.html) 'web_compat/html_web.dart' as html;
 import '../l10n/app_localizations.dart';
 import '../widgets/lang_action.dart';
 import '../widgets/theme_action.dart' as w;
