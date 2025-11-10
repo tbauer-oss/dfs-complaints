@@ -1,34 +1,120 @@
 <!DOCTYPE html>
-<html>
+<html lang="de">
   <head>
     <meta charset="UTF-8">
-    <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge">
 
-    <!-- Sichtbarer Titel im Browser-Tab -->
     <title>DFS Complaints</title>
 
-    <!-- PWA: Manifest -->
-    <link rel="manifest" href="manifest.json">
+    <!-- Icons & Manifest -->
+    <link rel="icon" type="image/png" href="/icons/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
+    <link rel="shortcut icon" href="/icons/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="DFS CP" />
+    <link rel="manifest" href="/manifest.json?v=7" />
 
-    <!-- iOS (Homescreen-Titel & Vollbild) -->
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="DFS Complaints">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <!-- PWA / Theme -->
+    <meta name="application-name" content="DFS Complaints" />
+    <meta name="theme-color" content="#1976d2" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="DFS Complaints" />
 
-    <!-- Android/Chrome (optional, schadet nicht) -->
-    <meta name="application-name" content="DFS Complaints">
+    <!-- Routing -->
+    <base href="/" />
 
     <!-- Viewport -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <base href="/">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Optional: Renderer (html | canvaskit). Bei Handyproblemen oft 'html' stabiler -->
+    <!-- <meta name="flutter-web-renderer" content="html" /> -->
   </head>
   <body>
-    <script src="flutter.js" defer></script>
+    <!-- Flutter Runtime -->
+    <script defer src="flutter.js"></script>
+
+    <!-- SW-Version (Flutter ersetzt ggf.; wir haben Fallback) -->
+    <script>
+      // Standard-Templates setzen oft null; wir nutzen später einen Fallback.
+      var serviceWorkerVersion = (typeof serviceWorkerVersion !== 'undefined') ? serviceWorkerVersion : null;
+    </script>
+
+    <!-- Sichtbares Fehler-Logging (hilft bei "weißem Bildschirm") -->
+    <script>
+      window.addEventListener('error', (e) => {
+        console.error('WindowError:', e.message, e.error);
+      });
+      window.addEventListener('unhandledrejection', (e) => {
+        console.error('UnhandledRejection:', e.reason);
+      });
+    </script>
+
+    <!-- Install-Prompt abfangen & aus Flutter auslösbar machen -->
+    <script>
+      (function () {
+        let deferredPrompt = null;
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+          // automatisch zeigen verhindern; wir steuern es selbst
+          e.preventDefault();
+          deferredPrompt = e;
+          window.__pwaCanInstall = true; // Flag, das Flutter abfragen kann
+          window.dispatchEvent(new Event('pwa-can-install'));
+          console.log('PWA install prompt captured.');
+        });
+
+        // Von Flutter per js interop aufrufbar:
+        window.showInstallPrompt = async function () {
+          if (!deferredPrompt) return false;
+          const dp = deferredPrompt;
+          deferredPrompt = null;
+          window.__pwaCanInstall = false;
+          const choice = await dp.prompt();
+          console.log('PWA prompt choice:', choice && choice.outcome);
+          return choice && choice.outcome === 'accepted';
+        };
+      })();
+    </script>
+
+    <!-- Flutter Loader (modern mit Fallback auf alte API) -->
     <script>
       window.addEventListener('load', function () {
-        _flutter.loader.loadEntrypoint({})
-          .then(e => e.initializeEngine())
-          .then(app => app.runApp());
+        // Robuste SW-Version: wenn Template nichts setzt, hart erzwingen, damit Clients updaten
+        const swVersion = (typeof serviceWorkerVersion !== 'undefined' && serviceWorkerVersion)
+          ? serviceWorkerVersion
+          : String(Date.now());
+
+        // Verschiedene Loader je nach Flutter-Version
+        const loader =
+          (window.flutterLoader && typeof window.flutterLoader.load === 'function')
+            ? window.flutterLoader
+            : (window._flutter && window._flutter.loader)
+              ? window._flutter.loader
+              : null;
+
+        if (!loader) {
+          console.error('Flutter loader not found – prüfe <script defer src="flutter.js">.');
+          return;
+        }
+
+        // Moderne API bevorzugen; Fallback auf alte loadEntrypoint
+        const loadFn = loader.load || loader.loadEntrypoint;
+
+        // --- DEBUG: Service Worker zum Testen deaktivieren ---
+        // const swConfig = undefined; // SW aus (nur zum Debug)
+        // -----------------------------------------------------
+
+        const swConfig = { serviceWorkerVersion: swVersion };
+
+        loadFn({
+          serviceWorker: swConfig,
+          onEntrypointLoaded: (engineInitializer) => {
+            engineInitializer.initializeEngine()
+              .then((appRunner) => appRunner.runApp())
+              .catch((e) => console.error('initializeEngine failed:', e));
+          }
+        });
       });
     </script>
   </body>
