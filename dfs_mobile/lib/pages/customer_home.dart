@@ -7,7 +7,9 @@ import 'complaint_form_page.dart';
 import 'my_complaints_page.dart';
 import 'account_page.dart';
 import 'support_page.dart';
-import 'dart:html' as html;
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'web_compat/html_stub.dart'
+  if (dart.library.html) 'web_compat/html_web.dart' as html;
 
 class InstallPwaButton extends StatefulWidget {
   const InstallPwaButton({super.key});
