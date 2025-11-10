@@ -4,8 +4,8 @@ import '../api/client.dart';
 import 'rep_dashboard_page.dart';
 import '../l10n/app_localizations.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'web_compat/html_stub.dart'
-  if (dart.library.html) 'web_compat/html_web.dart' as html;
+import 'package:dfs_mobile/web_compat/html_stub.dart'
+  if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
 
 /// Kleiner Helper, damit du überall bequem auf t zugreifen kannst
 extension _L10nX on BuildContext {
