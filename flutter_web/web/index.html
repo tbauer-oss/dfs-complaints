@@ -1,96 +1,50 @@
 <!DOCTYPE html>
-<html lang="de">
+<html>
   <head>
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
 
-    <title>DFS Complaints</title>
-
-    <!-- Icons & Manifest -->
-    <link rel="manifest" href="/manifest.json?v=7" />
-    <link rel="icon" type="image/png" sizes="96x96" href="/icons/favicon-96x96.png" />
-    <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
-    <link rel="shortcut icon" href="/icons/favicon.ico" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
-    <meta name="apple-mobile-web-app-title" content="DFS CP" />
-
-    <!-- PWA / Theme -->
-    <meta name="application-name" content="DFS Complaints" />
-    <meta name="theme-color" content="#1976d2" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="DFS Complaints" />
-
     <!-- Routing -->
     <base href="/" />
 
+    <!-- Titel -->
+    <title>DFS Complaints</title>
+
+    <!-- Manifest & Icons (RELATIVE Pfade wie im Flutter-Template!) -->
+    <link rel="manifest" href="manifest.json" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="apple-touch-icon" href="icons/Icon-192.png" />
+
     <!-- Viewport -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-    <!-- Optional: falls Handy zickt, Renderer auf 'html' setzen -->
-    <!-- <meta name="flutter-web-renderer" content="html" /> -->
   </head>
   <body>
+    <!-- WICHTIG: Diese Variable MUSS existieren -->
+    <script>
+      var serviceWorkerVersion = null;
+    </script>
+
     <!-- Flutter Runtime -->
-    <script defer src="flutter.js"></script>
+    <script src="flutter.js" defer></script>
 
-    <!-- SW-Version: vom Template ersetzbar; Fallback = null (kein Crash bei undefined) -->
-    <script>
-      // Wichtig: NICHT entfernen – einige Flutter-Versionen erwarten diese Variable.
-      var serviceWorkerVersion = (typeof serviceWorkerVersion !== 'undefined') ? serviceWorkerVersion : null;
-    </script>
-
-    <!-- Optional: Install-Prompt abfangen (schadet nicht, wenn Chrome es nicht sendet) -->
-    <script>
-      (function () {
-        let deferredPrompt = null;
-        window.__pwaCanInstall = false;
-
-        window.addEventListener('beforeinstallprompt', (e) => {
-          e.preventDefault();
-          deferredPrompt = e;
-          window.__pwaCanInstall = true;
-          window.dispatchEvent(new Event('pwa-can-install'));
-        });
-
-        // Von Dart aufrufbar: window.showInstallPrompt()
-        window.showInstallPrompt = async function () {
-          if (!deferredPrompt) return false;
-          const dp = deferredPrompt;
-          deferredPrompt = null;
-          window.__pwaCanInstall = false;
-          const choice = await dp.prompt();
-          return choice && choice.outcome === 'accepted';
-        };
-      })();
-    </script>
-
-    <!-- Minimaler, robuster Loader (neuere API mit Fallback) -->
+    <!-- Loader: exakt wie im Template (zeigt ggf. nur die Deprecation-Warnung, läuft aber stabil) -->
     <script>
       window.addEventListener('load', function () {
-        // Loader je nach Flutter-Version verfügbar machen
-        var loader = (window._flutter && window._flutter.loader) || window.flutterLoader || null;
-        if (!loader) {
-          console.error('Flutter loader not found. Prüfe <script defer src="flutter.js">.');
-          return;
+        if ('serviceWorker' in navigator) {
+          window.flutterConfiguration = {
+            serviceWorker: { serviceWorkerVersion: serviceWorkerVersion },
+          };
+        } else {
+          window.flutterConfiguration = {};
         }
 
-        var loadFn = loader.load || loader.loadEntrypoint; // bevorzugt neu, sonst alt
-
-        try {
-          loadFn({
-            // serviceWorker: undefined,
-            onEntrypointLoaded: function (engineInitializer) {
-              engineInitializer.initializeEngine().then(function (appRunner) {
-                appRunner.runApp();
-              }).catch(function (e) {
-                console.error('initializeEngine failed:', e);
-              });
-            }
+        window.flutterConfiguration.onEntrypointLoaded = function (engineInitializer) {
+          engineInitializer.initializeEngine().then(function (appRunner) {
+            appRunner.runApp();
           });
-        } catch (e) {
-          console.error('Flutter load failed:', e);
-        }
+        };
+
+        _flutter.loader.loadEntrypoint(window.flutterConfiguration);
       });
     </script>
   </body>
