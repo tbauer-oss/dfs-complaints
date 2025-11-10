@@ -4,13 +4,12 @@
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
 
-    <!-- Routing (wichtig für korrekte Asset-Pfade) -->
+    <!-- Routing-Basis für alle relativen Pfade -->
     <base href="/" />
 
-    <!-- Titel -->
     <title>DFS Complaints</title>
 
-    <!-- Manifest & Icons (RELATIVE Pfade wie im Flutter-Template!) -->
+    <!-- PWA: Manifest & Icons -->
     <link rel="manifest" href="manifest.json" />
     <link rel="icon" type="image/png" href="favicon.png" />
     <link rel="apple-touch-icon" href="icons/icon-192.png" />
@@ -18,21 +17,32 @@
     <!-- Viewport -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- Optional: falls einzelne Geräte zicken, Renderer auf 'html' setzen -->
+    <!-- Farben / iOS-Standalone -->
+    <meta name="theme-color" content="#1F4C8F" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+
+    <!-- Optional: Renderer (nur falls einzelne Geräte Probleme machen) -->
     <!-- <meta name="flutter-web-renderer" content="html" /> -->
+
+    <!-- Flutter Runtime (wird vom Flutter-Build bereitgestellt) -->
+    <script src="flutter.js" defer></script>
   </head>
   <body>
-    <!-- Muss existieren; einige Flutter-Versionen erwarten diese Variable -->
+    <noscript>
+      Bitte JavaScript aktivieren, um die Anwendung zu starten.
+    </noscript>
+
+    <!-- Muss existieren; wird vom Flutter-Service-Worker verwendet -->
     <script>
+      /* eslint-disable no-var */
       var serviceWorkerVersion = null;
     </script>
 
-    <!-- Flutter Runtime -->
-    <script src="flutter.js" defer></script>
-
-    <!-- ES5-kompatibler Install-Prompt Hook (keine Arrow/await/let/const) -->
+    <!-- ES5: Install-Prompt Hook (beforeinstallprompt) -->
     <script>
       (function () {
+        /* eslint-disable no-var */
         var deferredPrompt = null;
         window.__pwaCanInstall = false;
 
@@ -42,7 +52,7 @@
             deferredPrompt = e;
             window.__pwaCanInstall = true;
 
-            // robustes Event-Dispatching (ohne new Event)
+            // 'pwa-can-install' an App signalisieren
             try {
               var ev;
               if (typeof CustomEvent === 'function') {
@@ -76,7 +86,7 @@
                   resolve(!!ok);
                 }).catch(function () { resolve(false); });
               } else {
-                resolve(true); // Fallback, wenn kein Promise geliefert wird
+                resolve(true); // sehr alte Browser: einfach true melden
               }
             } catch (e) {
               resolve(false);
@@ -86,7 +96,43 @@
       })();
     </script>
 
-    <!-- Minimaler, robuster Flutter-Loader (Stock, stabil) -->
+    <!-- ES5: ?install=1 Handler + iFrame-Breakout + 'pwa-show-cta' -->
+    <script>
+      (function () {
+        function wantsInstall() {
+          try { return /\binstall=1\b/i.test(window.location.search); } catch (_) { return false; }
+        }
+        function ensureTopLevel() {
+          try {
+            if (window.top !== window.self) {
+              // In iFrames sind Install-Prompts blockiert → Top-Level öffnen
+              window.top.location = window.location.href;
+            }
+          } catch (_) {}
+        }
+
+        // Sobald die App installierbar ist, optional CTA anzeigen lassen
+        window.addEventListener('pwa-can-install', function () {
+          if (wantsInstall()) {
+            try {
+              var ev;
+              if (typeof CustomEvent === 'function') {
+                ev = new CustomEvent('pwa-show-cta');
+              } else {
+                ev = document.createEvent('Event');
+                ev.initEvent('pwa-show-cta', true, true);
+              }
+              window.dispatchEvent(ev);
+            } catch (_) {}
+          }
+        });
+
+        // direkt beim Laden sicherstellen, dass wir Top-Level sind
+        ensureTopLevel();
+      })();
+    </script>
+
+    <!-- Stabiler Flutter-Loader (vermeidet Whitescreens) -->
     <script>
       window.addEventListener('load', function () {
         if ('serviceWorker' in navigator) {
@@ -105,7 +151,7 @@
           });
         };
 
-        // Deprecated, aber stabil – vermeidet Whitescreens
+        // Legacy-Loader der stabil mit flutter.js zusammenspielt
         _flutter.loader.loadEntrypoint(window.flutterConfiguration);
       });
     </script>
