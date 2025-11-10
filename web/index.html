@@ -4,19 +4,17 @@
     <meta charset="UTF-8">
     <meta content="IE=Edge" http-equiv="X-UA-Compatible">
 
-    <!-- Sichtbarer Titel im Browser-Tab -->
+    <!-- Titel für Tab -->
     <title>DFS Complaints</title>
 
-    <!-- PWA: Manifest -->
-    <link rel="manifest" href="manifest.json">
+    <!-- Manifest mit Version-Query, damit Caches brechen -->
+    <link rel="manifest" href="/manifest.json?v=3">
 
-    <!-- iOS (Homescreen-Titel & Vollbild) -->
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="DFS Complaints">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-
-    <!-- Android/Chrome (optional, schadet nicht) -->
+    <!-- Zusätzliche Name-Fallbacks -->
     <meta name="application-name" content="DFS Complaints">
+    <meta name="apple-mobile-web-app-title" content="DFS Complaints">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
 
     <!-- Viewport -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
