@@ -20,6 +20,10 @@
   "theme_light": "Chiaro",
   "theme_dark": "Scuro",
 
+  "addAnother_title": "Aggiungere un’altra segnalazione?",
+  "addAnother_body": "Vuoi segnalare subito un altro articolo?",
+  "addAnother_yes": "Sì, un altro articolo",
+  "addAnother_no": "No, torna alla dashboard",
   "hideDetails": "Nascondi dettagli",
   "showDetails": "Mostra dettagli",
   "catalogs_title": "Cataloghi",
