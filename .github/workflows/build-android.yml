@@ -6,7 +6,7 @@ on:
     branches: [ main ]
 
 env:
-  PROJECT_DIR: flutter_web   # <- hier liegt deine pubspec.yaml
+  PROJECT_DIR: flutter_web
 
 defaults:
   run:
