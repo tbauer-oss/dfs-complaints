@@ -1,6 +1,8 @@
 // lib/pages/my_complaints_page.dart
 import 'dart:async';
-import 'dart:html' as html; // nur Web – für Link-Öffnen & mailto
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'web_compat/html_stub.dart'
+  if (dart.library.html) 'web_compat/html_web.dart' as html;
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../models/complaint.dart';
