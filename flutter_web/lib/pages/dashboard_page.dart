@@ -560,7 +560,7 @@ class _CatalogStrip extends StatelessWidget {
     final t = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final isPhone = Media.guery.of(context).size.width < 700;
+    final isPhone = MediaQuery.of(context).size.width < 700;
 
     return Container(
       decoration: BoxDecoration(
