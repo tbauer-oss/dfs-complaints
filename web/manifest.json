@@ -1,0 +1,9 @@
+{
+  "name": "DFS Complaints",
+  "short_name": "DFS Complaints",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1976d2",
+  "description": "DFS Complaint App – Reklamationen erfassen und nachverfolgen."
+}
