@@ -38,14 +38,16 @@ jobs:
           flutter pub add intl:^0.20.2
           flutter pub upgrade --major-versions
 
-      - name: Flutter pub get
+      - name: Pub get
         working-directory: ${{ env.PROJECT_DIR }}
         run: flutter pub get
 
       - name: Generate l10n
+        working-directory: ${{ env.PROJECT_DIR }}
         run: flutter gen-l10n
 
       - name: Verify l10n output exists
+        working-directory: ${{ env.PROJECT_DIR }}
         run: test -f lib/l10n/app_localizations.dart || (echo "l10n output missing" && exit 1)
 
       - name: Build debug APK
