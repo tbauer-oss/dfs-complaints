@@ -1,6 +1,9 @@
 name: Android APK
 
-on: [workflow_dispatch, push]
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
 
 jobs:
   build:
@@ -15,16 +18,21 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Flutter
+      - name: Setup Flutter (stable)
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 'stable'
-          channel: 'stable'
+          channel: stable   # ← reicht aus
+          cache: true
+
+      - name: Flutter Doctor (diagnose)
+        run: flutter doctor -v
 
       - name: Flutter pub get
         run: flutter pub get
 
-      # Debug-APK (ohne Signierung) – für schnelles Testen
+      # Falls dein Projekt NICHT im Repo-Root liegt:
+      # working-directory: ./pfad/zu/deinem/flutter/projekt
+
       - name: Build debug APK
         run: flutter build apk --debug
 
