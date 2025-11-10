@@ -726,7 +726,6 @@ class _FancyTile extends StatelessWidget {
   }
 }
 
-// ---------------- In-App PDF Viewer (pdf.js) ----------------
 class PdfInAppPage extends StatefulWidget {
   final String url;
   final String title;
@@ -743,17 +742,20 @@ class _PdfInAppPageState extends State<PdfInAppPage> {
   void initState() {
     super.initState();
 
-    // pdf.js-Viewer mit Toolbar & Suche
-    final pdfUrl = Uri.encodeComponent(widget.url);
-    final src = 'https://mozilla.github.io/pdf.js/web/viewer.html'
-        '?file=$pdfUrl#zoom=page-width&pagemode=none';
+    // 1) Proxy-URL (Same-Origin)
+    final origin = html.window.location.origin; // z.B. https://dfs-complaints-web.vercel.app
+    final proxied = '$origin/api/pdf-proxy?url=${Uri.encodeComponent(widget.url)}';
+
+    // 2) pdf.js Viewer mit Suche/Zoom – Datei param auf PROXY zeigen lassen
+    final viewer = 'https://mozilla.github.io/pdf.js/web/viewer.html'
+        '?file=${Uri.encodeComponent(proxied)}#zoom=page-width&pagemode=none';
 
     _viewType = 'pdfjs-${DateTime.now().millisecondsSinceEpoch}';
 
     // ignore: undefined_prefixed_name
     ui.platformViewRegistry.registerViewFactory(_viewType, (int viewId) {
       final frame = html.IFrameElement()
-        ..src = src
+        ..src = viewer
         ..style.border = '0'
         ..style.width = '100%'
         ..style.height = '100%';
