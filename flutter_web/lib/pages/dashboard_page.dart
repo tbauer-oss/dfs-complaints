@@ -1,5 +1,6 @@
 // lib/pages/dashboard_page.dart
 import 'dart:html' as html; // für mailto
+import 'dart:ui' as ui show platformViewRegistry; // nur für Web
 import 'package:flutter/material.dart';
 
 import '../api/client.dart';
@@ -726,8 +727,6 @@ class _FancyTile extends StatelessWidget {
 }
 
 // ---------------- In-App PDF Viewer (pdf.js) ----------------
-import 'dart:ui' as ui show platformViewRegistry; // nur für Web
-
 class PdfInAppPage extends StatefulWidget {
   final String url;
   final String title;
