@@ -188,14 +188,14 @@ ThemeData _darkTheme() {
 
 void main() {
   if (html.window.navigator.userAgent.contains('Chrome')) {
-    html.window.addEventListener('beforeinstallprompt', (event) {
-      event.preventDefault(); // verhindert automatisches Anzeigen
-      final deferredPrompt = event as html.BeforeInstallPromptEvent;
-      // Beispiel-Button oder Timer:
-      Future.delayed(const Duration(seconds: 5), () {
-        deferredPrompt.prompt();
+    if (kIsWeb) {
+      html.window.addEventListener('beforeinstallprompt', (event) {
+        final deferredPrompt = event; // als dynamic behandeln, kein spezieller Typ
+        // ggf. deine Logik hier, ohne Typ-Cast
       });
-    });
+
+      try { html.document.title = 'DFS Complaints'; } catch (_) {}
+    }
   }
 
   runApp(const MyApp());
