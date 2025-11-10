@@ -20,6 +20,10 @@
   "theme_light": "Light",
   "theme_dark": "Dark",
 
+  "addAnother_title": "Add another complaint?",
+  "addAnother_body": "Would you like to report another item?",
+  "addAnother_yes": "Yes, another item",
+  "addAnother_no": "No, back to homepage",
   "hideDetails": "Hide details",
   "showDetails": "Show details",
   "catalogs_title": "Catalogs",
