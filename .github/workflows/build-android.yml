@@ -9,25 +9,19 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      PROJECT_DIR: flutter_web   # <-- Pfad zu deiner pubspec.yaml
-
+      PROJECT_DIR: flutter_web
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
-      - name: Setup Flutter (stable)
-        uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
 
-      - name: Sanity check (zeigt Dateien an)
+      - name: Sanity check
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           pwd
@@ -37,6 +31,12 @@ jobs:
       - name: Flutter doctor
         working-directory: ${{ env.PROJECT_DIR }}
         run: flutter doctor -v
+
+      - name: Bump intl to 0.20.2 (match flutter_localizations)
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          flutter pub add intl:^0.20.2
+          flutter pub upgrade --major-versions
 
       - name: Flutter pub get
         working-directory: ${{ env.PROJECT_DIR }}
