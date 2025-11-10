@@ -5,6 +5,13 @@ on:
   push:
     branches: [ main ]
 
+env:
+  PROJECT_DIR: flutter_web   # <- hier liegt deine pubspec.yaml
+
+defaults:
+  run:
+    working-directory: ${{ env.PROJECT_DIR }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -21,18 +28,22 @@ jobs:
       - name: Setup Flutter (stable)
         uses: subosito/flutter-action@v2
         with:
-          channel: stable   # ← reicht aus
+          channel: stable
           cache: true
 
-      - name: Flutter Doctor (diagnose)
+      - name: Sanity check (zeigt Dateien an)
+        run: |
+          pwd
+          ls -la
+          test -f pubspec.yaml
+
+      - name: Flutter doctor
         run: flutter doctor -v
 
       - name: Flutter pub get
         run: flutter pub get
 
-      # Falls dein Projekt NICHT im Repo-Root liegt:
-      # working-directory: ./pfad/zu/deinem/flutter/projekt
-
+      # Debug-APK (ohne Signierung)
       - name: Build debug APK
         run: flutter build apk --debug
 
@@ -40,4 +51,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-debug.apk
