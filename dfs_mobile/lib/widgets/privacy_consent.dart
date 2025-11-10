@@ -1,6 +1,8 @@
 // lib/widgets/privacy_consent.dart
 import 'package:flutter/material.dart';
-import 'dart:html' as html;
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'web_compat/html_stub.dart'
+  if (dart.library.html) 'web_compat/html_web.dart' as html;
 import '../constants.dart';
 
 class PrivacyConsent extends StatelessWidget {
