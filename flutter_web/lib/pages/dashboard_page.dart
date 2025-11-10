@@ -743,14 +743,22 @@ class _PdfInAppPageState extends State<PdfInAppPage> {
   void initState() {
     super.initState();
 
-    final viewer = '/pdfjs/web/viewer.html'
-      '?file=${Uri.encodeComponent(widget.url)}#zoom=page-width&pagemode=none';
+    // 1) PDF-URL relativ zum aktuellen Base-Pfad auflösen
+    final pdfUrl = Uri.base.resolve(widget.url).toString();
+
+    // 2) Lokalen pdf.js-Viewer RELATIV aufrufen (kein führender Slash!)
+    final viewerPath = 'pdfjs/web/viewer.html'
+        '?file=${Uri.encodeComponent(pdfUrl)}#zoom=page-width&pagemode=none';
+
+    // 3) Auch den Viewer relativ auflösen (deckt Unterpfade ab)
+    final viewerUrl = Uri.base.resolve(viewerPath).toString();
+
     _viewType = 'pdfjs-${DateTime.now().millisecondsSinceEpoch}';
 
     // ignore: undefined_prefixed_name
     ui.platformViewRegistry.registerViewFactory(_viewType, (int viewId) {
       final frame = html.IFrameElement()
-        ..src = viewer
+        ..src = viewerUrl
         ..style.border = '0'
         ..style.width = '100%'
         ..style.height = '100%';
