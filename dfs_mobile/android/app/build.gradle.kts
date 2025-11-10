@@ -1,5 +1,8 @@
 // android/app/build.gradle.kts
 
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -18,13 +21,12 @@ android {
         versionName = "1.0.0"
     }
 
-    // Signierung via key.properties (falls vorhanden)
     signingConfigs {
         create("release") {
-            val keystoreProps = java.util.Properties()
+            val keystoreProps = Properties()
             val kpFile = rootProject.file("key.properties")
             if (kpFile.exists()) {
-                keystoreProps.load(java.io.FileInputStream(kpFile))
+                keystoreProps.load(FileInputStream(kpFile))
                 storeFile = file(keystoreProps["storeFile"] as String)
                 storePassword = keystoreProps["storePassword"] as String
                 keyAlias = keystoreProps["keyAlias"] as String
@@ -50,3 +52,4 @@ android {
 dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.24")
 }
+
