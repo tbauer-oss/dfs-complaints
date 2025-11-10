@@ -20,6 +20,10 @@
   "theme_light": "Hell",
   "theme_dark": "Dunkel",
 
+  "addAnother_title": "Weitere Reklamation?",
+  "addAnother_body": "Möchten Sie einen weiteren Artikel reklamieren?",
+  "addAnother_yes": "Ja, weiterer Artikel",
+  "addAnother_no": "Nein, zur Startseite",
   "hideDetails": "Details ausblenden",
   "showDetails": "Details anzeigen",
   "rep_not_assigned": "DFS-Diamon GmbH",
