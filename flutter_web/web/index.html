@@ -1,51 +1,25 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="UTF-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+<script>
+  (function () {
+    let deferredPrompt = null;
+    window.__pwaCanInstall = false;
 
-    <!-- Routing -->
-    <base href="/" />
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      window.__pwaCanInstall = true;
+      window.dispatchEvent(new Event('pwa-can-install'));
+      console.log('PWA install prompt captured.');
+    });
 
-    <!-- Titel -->
-    <title>DFS Complaints</title>
-
-    <!-- Manifest & Icons (RELATIVE Pfade wie im Flutter-Template!) -->
-    <link rel="manifest" href="manifest.json" />
-    <link rel="icon" type="image/png" href="favicon.png" />
-    <link rel="apple-touch-icon" href="icons/Icon-192.png" />
-
-    <!-- Viewport -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  </head>
-  <body>
-    <!-- WICHTIG: Diese Variable MUSS existieren -->
-    <script>
-      var serviceWorkerVersion = null;
-    </script>
-
-    <!-- Flutter Runtime -->
-    <script src="flutter.js" defer></script>
-
-    <!-- Loader: exakt wie im Template (zeigt ggf. nur die Deprecation-Warnung, läuft aber stabil) -->
-    <script>
-      window.addEventListener('load', function () {
-        if ('serviceWorker' in navigator) {
-          window.flutterConfiguration = {
-            serviceWorker: { serviceWorkerVersion: serviceWorkerVersion },
-          };
-        } else {
-          window.flutterConfiguration = {};
-        }
-
-        window.flutterConfiguration.onEntrypointLoaded = function (engineInitializer) {
-          engineInitializer.initializeEngine().then(function (appRunner) {
-            appRunner.runApp();
-          });
-        };
-
-        _flutter.loader.loadEntrypoint(window.flutterConfiguration);
-      });
-    </script>
-  </body>
-</html>
+    // Von Flutter/Dart aufrufbar:
+    window.showInstallPrompt = async function () {
+      if (!deferredPrompt) return false;
+      const dp = deferredPrompt;
+      deferredPrompt = null;
+      window.__pwaCanInstall = false;
+      const choice = await dp.prompt();
+      console.log('PWA prompt outcome:', choice && choice.outcome);
+      return choice && choice.outcome === 'accepted';
+    };
+  })();
+</script>
