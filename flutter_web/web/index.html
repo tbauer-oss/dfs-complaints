@@ -1,25 +1,63 @@
+<!-- Kompatibler Install-Prompt Hook (ES5, ohne await/arrow/new Event) -->
 <script>
   (function () {
-    let deferredPrompt = null;
+    // keine let/const, kein await, keine Arrow-Funktionen
+    var deferredPrompt = null;
     window.__pwaCanInstall = false;
 
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      deferredPrompt = e;
-      window.__pwaCanInstall = true;
-      window.dispatchEvent(new Event('pwa-can-install'));
-      console.log('PWA install prompt captured.');
-    });
+    // sicher nur registrieren, wenn addEventListener existiert
+    if (window && window.addEventListener) {
+      window.addEventListener('beforeinstallprompt', function (e) {
+        try {
+          if (e && e.preventDefault) e.preventDefault(); // Chrome verlangt preventDefault()
+        } catch (_) {}
 
-    // Von Flutter/Dart aufrufbar:
-    window.showInstallPrompt = async function () {
-      if (!deferredPrompt) return false;
-      const dp = deferredPrompt;
-      deferredPrompt = null;
-      window.__pwaCanInstall = false;
-      const choice = await dp.prompt();
-      console.log('PWA prompt outcome:', choice && choice.outcome);
-      return choice && choice.outcome === 'accepted';
+        deferredPrompt = e;
+        window.__pwaCanInstall = true;
+
+        // robustes Event-Dispatching (ohne new Event)
+        try {
+          var ev;
+          if (typeof CustomEvent === 'function') {
+            ev = new CustomEvent('pwa-can-install');
+          } else {
+            ev = document.createEvent('Event');
+            ev.initEvent('pwa-can-install', true, true);
+          }
+          window.dispatchEvent(ev);
+        } catch (_) {
+          // notfalls ignorieren
+        }
+        if (window.console && console.log) console.log('PWA install prompt captured.');
+      });
+    }
+
+    // Von Dart aus aufrufbar: window.showInstallPrompt()
+    window.showInstallPrompt = function () {
+      return new Promise(function (resolve) {
+        if (!deferredPrompt || !deferredPrompt.prompt) return resolve(false);
+
+        var dp = deferredPrompt;
+        deferredPrompt = null;
+        window.__pwaCanInstall = false;
+
+        try {
+          var p = dp.prompt();
+          // Manche Browser liefern kein Promise zurück
+          if (p && typeof p.then === 'function') {
+            p.then(function (choice) {
+              var ok = choice && choice.outcome === 'accepted';
+              if (window.console && console.log) console.log('PWA prompt outcome:', choice && choice.outcome);
+              resolve(!!ok);
+            }).catch(function () { resolve(false); });
+          } else {
+            // Fallback: wenn kein Promise, einfach true annehmen
+            resolve(true);
+          }
+        } catch (e) {
+          resolve(false);
+        }
+      });
     };
   })();
 </script>
