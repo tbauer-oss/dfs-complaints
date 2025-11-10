@@ -3,11 +3,24 @@
   <head>
     <meta charset="UTF-8">
     <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-    <meta name="description" content="DFS Complaints">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Sichtbarer Titel im Browser-Tab -->
     <title>DFS Complaints</title>
-    <base href="/">
+
+    <!-- PWA: Manifest -->
     <link rel="manifest" href="manifest.json">
+
+    <!-- iOS (Homescreen-Titel & Vollbild) -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="DFS Complaints">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+    <!-- Android/Chrome (optional, schadet nicht) -->
+    <meta name="application-name" content="DFS Complaints">
+
+    <!-- Viewport -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base href="/">
   </head>
   <body>
     <script src="flutter.js" defer></script>
