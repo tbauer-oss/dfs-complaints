@@ -7,6 +7,42 @@ import 'complaint_form_page.dart';
 import 'my_complaints_page.dart';
 import 'account_page.dart';
 import 'support_page.dart';
+import 'dart:html' as html;
+
+class InstallPwaButton extends StatefulWidget {
+  const InstallPwaButton({super.key});
+  @override
+  State<InstallPwaButton> createState() => _InstallPwaButtonState();
+}
+
+class _InstallPwaButtonState extends State<InstallPwaButton> {
+  bool _canInstall = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _canInstall = (html.window as dynamic).__pwaCanInstall == true;
+    html.window.addEventListener('pwa-can-install', (_) {
+      if (mounted) setState(() => _canInstall = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_canInstall) return const SizedBox.shrink();
+    return ElevatedButton.icon(
+      icon: const Icon(Icons.download),
+      label: const Text('App installieren'),
+      onPressed: () async {
+        final accepted = await (html.window as dynamic).showInstallPrompt() as bool? ?? false;
+        if (!accepted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('Installation abgebrochen.')));
+        }
+      },
+    );
+  }
+}
 
 class CustomerHomePage extends StatelessWidget {
   final ApiClient api;
