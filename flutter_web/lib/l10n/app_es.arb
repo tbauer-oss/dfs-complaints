@@ -20,6 +20,10 @@
   "theme_light": "Claro",
   "theme_dark": "Oscuro",
 
+  "addAnother_title": "¿Añadir otra reclamación?",
+  "addAnother_body": "¿Desea informar otro artículo ahora mismo?",
+  "addAnother_yes": "Sí, otro artículo",
+  "addAnother_no": "No, volver al panel",
   "hideDetails": "Ocultar detalles",
   "showDetails": "Mostrar detalles",
   "catalogs_title": "Catálogos",
