@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="de">
   <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=Edge">
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
 
     <title>DFS Complaints</title>
 
@@ -27,92 +27,41 @@
     <!-- Viewport -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- Optional: Renderer (html | canvaskit). Bei Handyproblemen oft 'html' stabiler -->
+    <!-- Optional: falls Handy zickt, Renderer auf 'html' setzen -->
     <!-- <meta name="flutter-web-renderer" content="html" /> -->
   </head>
   <body>
     <!-- Flutter Runtime -->
     <script defer src="flutter.js"></script>
 
-    <!-- SW-Version (Flutter ersetzt ggf.; wir haben Fallback) -->
+    <!-- Diese Variable lässt Flutter beim Build ggf. ersetzen; null ist ok -->
     <script>
-      // Standard-Templates setzen oft null; wir nutzen später einen Fallback.
-      var serviceWorkerVersion = (typeof serviceWorkerVersion !== 'undefined') ? serviceWorkerVersion : null;
+      var serviceWorkerVersion = null;
     </script>
 
-    <!-- Sichtbares Fehler-Logging (hilft bei "weißem Bildschirm") -->
-    <script>
-      window.addEventListener('error', (e) => {
-        console.error('WindowError:', e.message, e.error);
-      });
-      window.addEventListener('unhandledrejection', (e) => {
-        console.error('UnhandledRejection:', e.reason);
-      });
-    </script>
-
-    <!-- Install-Prompt abfangen & aus Flutter auslösbar machen -->
-    <script>
-      (function () {
-        let deferredPrompt = null;
-
-        window.addEventListener('beforeinstallprompt', (e) => {
-          // automatisch zeigen verhindern; wir steuern es selbst
-          e.preventDefault();
-          deferredPrompt = e;
-          window.__pwaCanInstall = true; // Flag, das Flutter abfragen kann
-          window.dispatchEvent(new Event('pwa-can-install'));
-          console.log('PWA install prompt captured.');
-        });
-
-        // Von Flutter per js interop aufrufbar:
-        window.showInstallPrompt = async function () {
-          if (!deferredPrompt) return false;
-          const dp = deferredPrompt;
-          deferredPrompt = null;
-          window.__pwaCanInstall = false;
-          const choice = await dp.prompt();
-          console.log('PWA prompt choice:', choice && choice.outcome);
-          return choice && choice.outcome === 'accepted';
-        };
-      })();
-    </script>
-
-    <!-- Flutter Loader (modern mit Fallback auf alte API) -->
+    <!-- Minimaler, robuster Loader (neuere API mit Fallback) -->
     <script>
       window.addEventListener('load', function () {
-        // Robuste SW-Version: wenn Template nichts setzt, hart erzwingen, damit Clients updaten
-        const swVersion = (typeof serviceWorkerVersion !== 'undefined' && serviceWorkerVersion)
-          ? serviceWorkerVersion
-          : String(Date.now());
-
-        // Verschiedene Loader je nach Flutter-Version
-        const loader =
-          (window.flutterLoader && typeof window.flutterLoader.load === 'function')
-            ? window.flutterLoader
-            : (window._flutter && window._flutter.loader)
-              ? window._flutter.loader
-              : null;
+        var loader =
+          (window._flutter && window._flutter.loader) ||
+          window.flutterLoader ||
+          null;
 
         if (!loader) {
-          console.error('Flutter loader not found – prüfe <script defer src="flutter.js">.');
+          console.error('Flutter loader not found. Prüfe <script defer src="flutter.js">.');
           return;
         }
 
-        // Moderne API bevorzugen; Fallback auf alte loadEntrypoint
-        const loadFn = loader.load || loader.loadEntrypoint;
-
-        // --- DEBUG: Service Worker zum Testen deaktivieren ---
-        // const swConfig = undefined; // SW aus (nur zum Debug)
-        // -----------------------------------------------------
-
-        const swConfig = { serviceWorkerVersion: swVersion };
+        var loadFn = loader.load || loader.loadEntrypoint;
 
         loadFn({
-          serviceWorker: swConfig,
-          onEntrypointLoaded: (engineInitializer) => {
-            engineInitializer.initializeEngine()
-              .then((appRunner) => appRunner.runApp())
-              .catch((e) => console.error('initializeEngine failed:', e));
+          serviceWorker: { serviceWorkerVersion: serviceWorkerVersion },
+          onEntrypointLoaded: function (engineInitializer) {
+            engineInitializer.initializeEngine().then(function (appRunner) {
+              appRunner.runApp();
+            }).catch(function (e) {
+              console.error('initializeEngine failed:', e);
+            });
           }
         });
       });
