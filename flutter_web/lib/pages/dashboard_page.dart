@@ -2,6 +2,7 @@
 import 'dart:html' as html; // für mailto
 import 'dart:ui' as ui show platformViewRegistry; // nur für Web
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
@@ -39,6 +40,25 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _ensureRepOnce());
     _initRep();
+  }
+
+  bool _isStandaloneWebApp() {
+    if (!kIsWeb) return false;
+    try {
+      // Chrome/Edge: display-mode
+      final mm = html.window.matchMedia('(display-mode: standalone)');
+      if (mm != null && mm.matches) return true;
+    } catch (_) {}
+    try {
+      // iOS Safari PWA
+      final nav = (html.window.navigator as dynamic);
+      if (nav != null && nav.standalone == true) return true;
+    } catch (_) {}
+    try {
+      // TWA / Spezialfälle
+      if (html.document.referrer.contains('android-app://')) return true;
+    } catch (_) {}
+    return false;
   }
 
   @override
@@ -344,13 +364,19 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
           final size = MediaQuery.of(ctx).size;
           final isPortrait = MediaQuery.of(ctx).orientation == Orientation.portrait;
           final isPhone = size.width < 600;
+          final isAppView = _isStandaloneWebApp(); // PWA installiert = true
 
           final double maxExtent = isPhone
-              ? (isPortrait ? 160 : 200)
-              : (size.width < 1024 ? 240 : 260);
+              ? (isPortrait ? (isAppView ? 140 : 160) : (isAppView ? 170 : 200))
+              : (size.width < 1024 ? (isAppView ? 220 : 240) : (isAppView ? 240 : 260));
 
-          final double iconSize = isPhone ? 28 : 40;
-          final double fontSize = isPhone ? 13.0 : 14.5;
+          final double iconSize = isPhone
+              ? (isAppView ? 26 : 28)
+              : (isAppView ? 36 : 40);
+
+          final double fontSize = isPhone
+              ? (isAppView ? 12.5 : 13.0)
+              : (isAppView ? 14.0 : 14.5);
 
           return Center(
             child: ConstrainedBox(
@@ -371,7 +397,9 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                         maxCrossAxisExtent: maxExtent,
                         mainAxisSpacing: 16,
                         crossAxisSpacing: 16,
-                        childAspectRatio: isPhone ? 1.06 : 1.1,
+                        childAspectRatio: isAppView
+                            ? (isPhone ? 1.12 : 1.15)   // dezenter in App
+                            : (isPhone ? 1.06 : 1.10),  // wie vorher im Web
                       ),
                       itemCount: tiles.length,
                       itemBuilder: (context, i) {
@@ -400,9 +428,11 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
 
                   // ---------- Dezente Kataloge (unter den Kacheln) ----------
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: _CatalogStrip(),
-                  ),
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                    child: isAppView
+                        ? const _CatalogChips()  // dezent in PWA (Appansicht)
+                        : _CatalogStrip(),       // wie zuvor im Browser/Web
+                   ),
                 ],
               ),
             ),
@@ -620,6 +650,95 @@ class _CatalogStrip extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _CatalogChips extends StatelessWidget {
+  const _CatalogChips();
+
+  @override
+  Widget build(BuildContext context) {
+    final t  = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final isPhone = MediaQuery.of(context).size.width < 700;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // winzige, sehr zurückhaltende Überschrift
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.menu_book_outlined, size: 16, color: cs.onSurface.withOpacity(.65)),
+            const SizedBox(width: 6),
+            Text(
+              t.catalogs_title, // "Kataloge"
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: cs.onSurface.withOpacity(.75),
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        // zwei „Chip“-Links nebeneinander, umbrechend
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          alignment: isPhone ? WrapAlignment.center : WrapAlignment.start,
+          children: [
+            _ChipLink(
+              icon: Icons.science_outlined,
+              label: t.catalog_lab_title, // „Dentallabor Katalog“
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => PdfInAppPage(url: _pdfLabUrl, title: t.catalog_lab_title),
+                  ),
+                );
+              },
+            ),
+            _ChipLink(
+              icon: Icons.medical_information_outlined,
+              label: t.catalog_dent_title, // „Zahnmedizin Katalog“
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => PdfInAppPage(url: _pdfDentUrl, title: t.catalog_dent_title),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _ChipLink extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  const _ChipLink({required this.icon, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 18),
+      label: Text(label, overflow: TextOverflow.ellipsis),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: cs.primary,
+        side: BorderSide(color: cs.outlineVariant),
+        backgroundColor: Colors.transparent,
+        minimumSize: const Size(0, 32),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
     );
   }
