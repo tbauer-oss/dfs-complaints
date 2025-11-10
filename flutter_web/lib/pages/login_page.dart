@@ -3,10 +3,46 @@ import 'package:flutter/material.dart';
 import '../api/client.dart';
 import 'rep_dashboard_page.dart';
 import '../l10n/app_localizations.dart';
+import 'dart:html' as html;
 
 /// Kleiner Helper, damit du überall bequem auf t zugreifen kannst
 extension _L10nX on BuildContext {
   AppLocalizations get t => AppLocalizations.of(this)!;
+}
+
+class InstallPwaButton extends StatefulWidget {
+  const InstallPwaButton({super.key});
+  @override
+  State<InstallPwaButton> createState() => _InstallPwaButtonState();
+}
+
+class _InstallPwaButtonState extends State<InstallPwaButton> {
+  bool _canInstall = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _canInstall = (html.window as dynamic).__pwaCanInstall == true;
+    html.window.addEventListener('pwa-can-install', (_) {
+      if (mounted) setState(() => _canInstall = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_canInstall) return const SizedBox.shrink();
+    return ElevatedButton.icon(
+      icon: const Icon(Icons.download),
+      label: const Text('App installieren'),
+      onPressed: () async {
+        final accepted = await (html.window as dynamic).showInstallPrompt() as bool? ?? false;
+        if (!accepted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('Installation abgebrochen.')));
+        }
+      },
+    );
+  }
 }
 
 class RepLoginPage extends StatefulWidget {
