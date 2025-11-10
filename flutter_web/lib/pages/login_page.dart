@@ -1,12 +1,16 @@
-// lib/pages/rep_login_page.dart
+// lib/pages/login_page.dart
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import 'rep_dashboard_page.dart';
-import 'rep_login_page.dart' show RepLoginPage;
+import '../l10n/app_localizations.dart';
+
+/// Kleiner Helper, damit du überall bequem auf t zugreifen kannst
+extension _L10nX on BuildContext {
+  AppLocalizations get t => AppLocalizations.of(this)!;
+}
 
 class RepLoginPage extends StatefulWidget {
   final ApiClient api;
-  final t = AppLocalizations.of(c)!;
   const RepLoginPage({super.key, required this.api});
 
   @override
@@ -19,10 +23,25 @@ class _RepLoginPageState extends State<RepLoginPage> {
   final _new1  = TextEditingController();
   final _new2  = TextEditingController();
 
+  final _emailFocus = FocusNode();
+  final _pwFocus    = FocusNode();
+
   bool _busy = false;
   String? _err;
 
+  @override
+  void dispose() {
+    _email.dispose();
+    _pw.dispose();
+    _new1.dispose();
+    _new2.dispose();
+    _emailFocus.dispose();
+    _pwFocus.dispose();
+    super.dispose();
+  }
+
   Future<void> _login() async {
+    final t = context.t;
     setState(() { _busy = true; _err = null; });
     try {
       final ok = await widget.api.login(_email.text.trim(), _pw.text);
@@ -30,22 +49,20 @@ class _RepLoginPageState extends State<RepLoginPage> {
         setState(() => _err = t.login_failed);
         return;
       }
-
-      // Hinweis: Falls du "mustChangePw" erzwingen willst,
-      // kannst du das Backend-Flag später in ApiClient.repLogin zurückgeben
-      // und hier abfragen. Aktuell navigieren wir direkt ins Dashboard.
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => RepDashboardPage(api: widget.api)),
       );
     } catch (e) {
-      setState(() => _err = t.network_error_generic(e));
+      // falls t.network_error_generic ein Formatter ist – ansonsten einfach '$e'
+      setState(() => _err = t.network_error_generic('$e'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
   Future<void> _showChangePasswordDialog() async {
+    final t = context.t;
     _new1.clear();
     _new2.clear();
 
@@ -77,7 +94,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
             if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
             if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: t.password_changed),
+              SnackBar(content: Text(t.password_changed)),
             );
           } catch (e) {
             localErr = 'Error: $e';
@@ -87,36 +104,41 @@ class _RepLoginPageState extends State<RepLoginPage> {
         }
 
         return AlertDialog(
-          title: t.new_password_title,
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: _new1,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: t.new_password),
-              ),
-              TextField(
-                controller: _new2,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: t.new_password_repeat),
-              ),
-              if (localErr != null) ...[
-                const SizedBox(height: 8),
-                Text(localErr!, style: const TextStyle(color: Colors.red)),
+          title: Text(t.new_password_title),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: _new1,
+                  obscureText: true,
+                  decoration: InputDecoration(labelText: t.new_password),
+                  textInputAction: TextInputAction.next,
+                  onSubmitted: (_) => (ctx as Element).markNeedsBuild(),
+                ),
+                TextField(
+                  controller: _new2,
+                  obscureText: true,
+                  decoration: InputDecoration(labelText: t.new_password_repeat),
+                  onSubmitted: (_) => save(),
+                ),
+                if (localErr != null) ...[
+                  const SizedBox(height: 8),
+                  Text(localErr!, style: const TextStyle(color: Colors.red)),
+                ],
               ],
-            ],
+            ),
           ),
           actions: [
             TextButton(
               onPressed: saving ? null : () => Navigator.of(ctx).pop(),
-              child: t.cancel,
+              child: Text(t.cancel),
             ),
             ElevatedButton(
               onPressed: saving ? null : save,
               child: saving
                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : t.save,
+                  : Text(t.save),
             ),
           ],
         );
@@ -126,67 +148,93 @@ class _RepLoginPageState extends State<RepLoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.t;
     final canLogin = !_busy && _email.text.trim().isNotEmpty && _pw.text.isNotEmpty;
 
-    return Scaffold(
-      appBar: AppBar(title: t.rep_login_title),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: AutofillGroup(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: _email,
-                    autofillHints: const [AutofillHints.username, AutofillHints.email],
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(labelText: 'E-Mail'),
-                    onChanged: (_) => setState(() {}),
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        // wichtig für mobiles Scrollen mit Keyboard
+        resizeToAvoidBottomInset: true,
+        appBar: AppBar(title: Text(t.rep_login_title)),
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (ctx, constraints) {
+              // Scroll-Wrapper für kleine Displays
+              return Scrollbar(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.only(
+                    left: 16,
+                    right: 16,
+                    top: 16,
+                    // Platz für die Tastatur auf Mobilgeräten
+                    bottom: MediaQuery.of(context).viewInsets.bottom + 24,
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _pw,
-                    obscureText: true,
-                    autofillHints: const [AutofillHints.password],
-                    decoration: const InputDecoration(labelText: 'Password'),
-                    onChanged: (_) => setState(() {}),
-                    onSubmitted: (_) => canLogin ? _login() : null,
-                  ),
-                  const SizedBox(height: 16),
-                  if (_err != null)
-                    Text(_err!, style: const TextStyle(color: Colors.red)),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      icon: _busy
-                          ? const SizedBox(
-                              width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Icon(Icons.login),
-                      label: const Text('Anmelden'),
-                      onPressed: canLogin ? _login : null,
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 420),
+                      child: AutofillGroup(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            TextField(
+                              controller: _email,
+                              focusNode: _emailFocus,
+                              autofillHints: const [AutofillHints.username, AutofillHints.email],
+                              keyboardType: TextInputType.emailAddress,
+                              decoration: const InputDecoration(labelText: 'E-Mail'),
+                              textInputAction: TextInputAction.next,
+                              onChanged: (_) => setState(() {}),
+                              onSubmitted: (_) => _pwFocus.requestFocus(),
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: _pw,
+                              focusNode: _pwFocus,
+                              obscureText: true,
+                              autofillHints: const [AutofillHints.password],
+                              decoration: const InputDecoration(labelText: 'Password'),
+                              textInputAction: TextInputAction.done,
+                              onChanged: (_) => setState(() {}),
+                              onSubmitted: (_) => canLogin ? _login() : null,
+                            ),
+                            const SizedBox(height: 16),
+                            if (_err != null)
+                              Text(_err!, style: const TextStyle(color: Colors.red)),
+                            const SizedBox(height: 8),
+                            ElevatedButton.icon(
+                              icon: _busy
+                                  ? const SizedBox(
+                                      width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                  : const Icon(Icons.login),
+                              label: Text(t.login_action ?? 'Anmelden'),
+                              onPressed: canLogin ? _login : null,
+                            ),
+                            const SizedBox(height: 8),
+                            TextButton.icon(
+                              onPressed: _busy ? null : _showChangePasswordDialog,
+                              icon: const Icon(Icons.lock_reset),
+                              label: Text(t.changePassword),
+                            ),
+                            // Falls du hier absichtlich erneut auf die Login-Seite wolltest, lassen wir das.
+                            // Andernfalls könntest du das entfernen oder auf eine Info-Seite verlinken.
+                            TextButton.icon(
+                              onPressed: _busy
+                                  ? null
+                                  : () => Navigator.of(context).push(
+                                        MaterialPageRoute(builder: (_) => RepLoginPage(api: widget.api)),
+                                      ),
+                              icon: const Icon(Icons.badge_outlined),
+                              label: Text(t.rep_area),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  // Optional: Passwort ändern (setzt vorhandenes Vertreter-Token voraus – also nach Login sinnvoll)
-                  TextButton.icon(
-                    onPressed: _busy ? null : () {}, // dein Handler
-                    icon: const Icon(Icons.lock_reset),
-                    label: t.changePassword,
-                  ),
-                  TextButton.icon(
-                    onPressed: _busy ? null : () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => RepLoginPage(api: widget.api)),
-                    ),
-                    icon: const Icon(Icons.badge_outlined),
-                    label: t.rep_area,
-                  ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           ),
         ),
       ),
