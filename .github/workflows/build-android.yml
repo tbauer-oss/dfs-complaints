@@ -5,16 +5,12 @@ on:
   push:
     branches: [ main ]
 
-env:
-  PROJECT_DIR: flutter_web
-
-defaults:
-  run:
-    working-directory: ${{ env.PROJECT_DIR }}
-
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      PROJECT_DIR: flutter_web   # <-- Pfad zu deiner pubspec.yaml
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,19 +28,22 @@ jobs:
           cache: true
 
       - name: Sanity check (zeigt Dateien an)
+        working-directory: ${{ env.PROJECT_DIR }}
         run: |
           pwd
           ls -la
           test -f pubspec.yaml
 
       - name: Flutter doctor
+        working-directory: ${{ env.PROJECT_DIR }}
         run: flutter doctor -v
 
       - name: Flutter pub get
+        working-directory: ${{ env.PROJECT_DIR }}
         run: flutter pub get
 
-      # Debug-APK (ohne Signierung)
       - name: Build debug APK
+        working-directory: ${{ env.PROJECT_DIR }}
         run: flutter build apk --debug
 
       - name: Upload APK artifact
