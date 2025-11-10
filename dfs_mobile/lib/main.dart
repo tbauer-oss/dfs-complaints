@@ -8,7 +8,9 @@ import 'api/client.dart';
 import 'l10n/app_localizations.dart';
 import 'services/app_prefs.dart';
 import 'services/app_prefs_scope.dart';
-import 'dart:html' as html; // für Web-Tab-Titel
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'web_compat/html_stub.dart'
+  if (dart.library.html) 'web_compat/html_web.dart' as html;
 
 // Seiten
 import 'pages/register_page.dart';
