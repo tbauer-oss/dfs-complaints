@@ -743,17 +743,14 @@ class _PdfInAppPageState extends State<PdfInAppPage> {
   void initState() {
     super.initState();
 
-    // pdf.js-Viewer mit Toolbar & Suche
-    final pdfUrl = Uri.encodeComponent(widget.url);
-    final src = 'https://mozilla.github.io/pdf.js/web/viewer.html'
-        '?file=$pdfUrl#zoom=page-width&pagemode=none';
-
+    final viewer = '/pdfjs/web/viewer.html'
+      '?file=${Uri.encodeComponent(widget.url)}#zoom=page-width&pagemode=none';
     _viewType = 'pdfjs-${DateTime.now().millisecondsSinceEpoch}';
 
     // ignore: undefined_prefixed_name
     ui.platformViewRegistry.registerViewFactory(_viewType, (int viewId) {
       final frame = html.IFrameElement()
-        ..src = src
+        ..src = viewer
         ..style.border = '0'
         ..style.width = '100%'
         ..style.height = '100%';
