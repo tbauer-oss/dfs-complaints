@@ -37,10 +37,15 @@
     <script src="flutter.js" defer></script>
     <script>
       window.addEventListener('load', function () {
-        _flutter.loader.loadEntrypoint({})
-          .then(e => e.initializeEngine())
-          .then(app => app.runApp());
-      });
+        _flutter.loader.load({
+          serviceWorker: { serviceWorkerVersion: serviceWorkerVersion },
+          onEntrypointLoaded: (engineInitializer) => {
+            engineInitializer.initializeEngine().then((appRunner) => {
+              appRunner.runApp();
+            });
+          }
+        });
+      }
     </script>
   </body>
 </html>
