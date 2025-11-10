@@ -44,7 +44,7 @@ ThemeData _lightTheme() {
       elevation: 0,
       centerTitle: false,
     ),
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       color: scheme.surfaceContainerHighest,
       elevation: 2,
       margin: const EdgeInsets.symmetric(vertical: 6),
@@ -59,8 +59,7 @@ ThemeData _lightTheme() {
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(
-        minimumSize: const Size(48, 40)),
+      style: FilledButton.styleFrom(minimumSize: const Size(48, 40)),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
@@ -90,7 +89,7 @@ ThemeData _lightTheme() {
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     ),
-    dialogTheme: DialogTheme(
+    dialogTheme: DialogThemeData(
       backgroundColor: scheme.surfaceContainerHigh,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
     ),
@@ -120,7 +119,7 @@ ThemeData _darkTheme() {
       elevation: 0,
       centerTitle: false,
     ),
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       color: scheme.surfaceContainerHighest,
       elevation: 1,
       margin: const EdgeInsets.symmetric(vertical: 6),
@@ -171,7 +170,7 @@ ThemeData _darkTheme() {
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     ),
-    dialogTheme: DialogTheme(
+    dialogTheme: DialogThemeData(
       backgroundColor: scheme.surfaceContainerHigh,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
     ),
