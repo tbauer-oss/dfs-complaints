@@ -185,7 +185,17 @@ ThemeData _darkTheme() {
 }
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
+  if (html.window.navigator.userAgent.contains('Chrome')) {
+    html.window.addEventListener('beforeinstallprompt', (event) {
+      event.preventDefault(); // verhindert automatisches Anzeigen
+      final deferredPrompt = event as html.BeforeInstallPromptEvent;
+      // Beispiel-Button oder Timer:
+      Future.delayed(const Duration(seconds: 5), () {
+        deferredPrompt.prompt();
+      });
+    });
+  }
+
   runApp(const MyApp());
 }
 
