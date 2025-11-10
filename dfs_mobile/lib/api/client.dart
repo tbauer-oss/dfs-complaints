@@ -223,9 +223,7 @@ class ApiClient {
   }
 
   Uri _u(String path) {
-    final base = _apiBase.isNotEmpty
-    ? _apiBase
-    : (kIsWeb ? html.window.location.origin : '');
+    final base = baseUrl; // nutzt den sauberen Getter inkl. Mobile-Fallback
     return Uri.parse('$base$path');
   }
 
