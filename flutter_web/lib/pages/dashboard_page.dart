@@ -367,15 +367,15 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
           final isAppView = _isStandaloneWebApp(); // PWA installiert = true
 
           final double maxExtent = isPhone
-              ? (isPortrait ? (isAppView ? 140 : 160) : (isAppView ? 170 : 200))
+              ? (isPortrait ? (isAppView ? 150 : 180) : (isAppView ? 170 : 200))
               : (size.width < 1024 ? (isAppView ? 220 : 240) : (isAppView ? 240 : 260));
 
           final double iconSize = isPhone
-              ? (isAppView ? 26 : 28)
+              ? (isAppView ? 26 : 32)
               : (isAppView ? 36 : 40);
 
           final double fontSize = isPhone
-              ? (isAppView ? 12.5 : 13.0)
+              ? (isAppView ? 12.5 : 14.0)
               : (isAppView ? 14.0 : 14.5);
 
           return Center(
