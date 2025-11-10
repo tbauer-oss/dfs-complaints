@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
 
-    <!-- Routing-Basis für alle relativen Pfade -->
+    <!-- Routing-Basis -->
     <base href="/" />
 
     <title>DFS Complaints</title>
@@ -14,18 +14,13 @@
     <link rel="icon" type="image/png" href="favicon.png" />
     <link rel="apple-touch-icon" href="icons/icon_192.png" />
 
-    <!-- Viewport -->
+    <!-- Viewport & Design -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-    <!-- Farben / iOS-Standalone -->
-    <meta name="theme-color" content="#1F4C8F" />
+    <meta name="theme-color" content="#1976d2" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 
-    <!-- Optional: Renderer (nur falls einzelne Geräte Probleme machen) -->
-    <!-- <meta name="flutter-web-renderer" content="html" /> -->
-
-    <!-- Flutter Runtime (wird vom Flutter-Build bereitgestellt) -->
+    <!-- Flutter Runtime -->
     <script src="flutter.js" defer></script>
   </head>
   <body>
@@ -33,26 +28,23 @@
       Bitte JavaScript aktivieren, um die Anwendung zu starten.
     </noscript>
 
-    <!-- Muss existieren; wird vom Flutter-Service-Worker verwendet -->
+    <!-- Flutter erwartet diese Variable -->
     <script>
-      /* eslint-disable no-var */
       var serviceWorkerVersion = null;
     </script>
 
-    <!-- ES5: Install-Prompt Hook (beforeinstallprompt) -->
+    <!-- ES5: Install-Prompt Hook -->
     <script>
       (function () {
-        /* eslint-disable no-var */
         var deferredPrompt = null;
         window.__pwaCanInstall = false;
 
         if (window && window.addEventListener) {
           window.addEventListener('beforeinstallprompt', function (e) {
-            try { if (e && e.preventDefault) e.preventDefault(); } catch (_) {}
+            try { e.preventDefault(); } catch (_) {}
             deferredPrompt = e;
             window.__pwaCanInstall = true;
 
-            // 'pwa-can-install' an App signalisieren
             try {
               var ev;
               if (typeof CustomEvent === 'function') {
@@ -64,15 +56,13 @@
               window.dispatchEvent(ev);
             } catch (_) {}
 
-            try { if (window.console && console.log) console.log('PWA install prompt captured.'); } catch (_) {}
+            try { console.log('PWA install prompt captured.'); } catch (_) {}
           });
         }
 
-        // Von Flutter/Dart aufrufbar: window.showInstallPrompt()
         window.showInstallPrompt = function () {
           return new Promise(function (resolve) {
             if (!deferredPrompt || !deferredPrompt.prompt) return resolve(false);
-
             var dp = deferredPrompt;
             deferredPrompt = null;
             window.__pwaCanInstall = false;
@@ -82,11 +72,11 @@
               if (p && typeof p.then === 'function') {
                 p.then(function (choice) {
                   var ok = choice && choice.outcome === 'accepted';
-                  try { if (window.console && console.log) console.log('PWA prompt outcome:', choice && choice.outcome); } catch (_) {}
+                  console.log('PWA prompt outcome:', choice && choice.outcome);
                   resolve(!!ok);
                 }).catch(function () { resolve(false); });
               } else {
-                resolve(true); // sehr alte Browser: einfach true melden
+                resolve(true);
               }
             } catch (e) {
               resolve(false);
@@ -96,7 +86,7 @@
       })();
     </script>
 
-    <!-- ES5: ?install=1 Handler + iFrame-Breakout + 'pwa-show-cta' -->
+    <!-- ES5: ?install=1 + iFrame-Breakout + 'pwa-show-cta' -->
     <script>
       (function () {
         function wantsInstall() {
@@ -105,13 +95,11 @@
         function ensureTopLevel() {
           try {
             if (window.top !== window.self) {
-              // In iFrames sind Install-Prompts blockiert → Top-Level öffnen
               window.top.location = window.location.href;
             }
           } catch (_) {}
         }
 
-        // Sobald die App installierbar ist, optional CTA anzeigen lassen
         window.addEventListener('pwa-can-install', function () {
           if (wantsInstall()) {
             try {
@@ -127,12 +115,11 @@
           }
         });
 
-        // direkt beim Laden sicherstellen, dass wir Top-Level sind
         ensureTopLevel();
       })();
     </script>
 
-    <!-- Stabiler Flutter-Loader (vermeidet Whitescreens) -->
+    <!-- Flutter-Loader -->
     <script>
       window.addEventListener('load', function () {
         if ('serviceWorker' in navigator) {
@@ -147,11 +134,10 @@
           engineInitializer.initializeEngine().then(function (appRunner) {
             appRunner.runApp();
           }).catch(function (e) {
-            try { console.error('initializeEngine failed:', e); } catch (_) {}
+            console.error('initializeEngine failed:', e);
           });
         };
 
-        // Legacy-Loader der stabil mit flutter.js zusammenspielt
         _flutter.loader.loadEntrypoint(window.flutterConfiguration);
       });
     </script>
