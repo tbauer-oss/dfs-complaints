@@ -108,6 +108,84 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   }
 
   // -----------------------------
+  // Hilfsfunktionen für dein Flow
+  // -----------------------------
+  void _resetForm() {
+    final t = context.t;
+    final optDentist = t.segment_dentist;
+    final optNo = t.no;
+    final optReturnedNo = t.no;
+    final optHandlingRep = t.handling_replacement;
+
+    setState(() {
+      segment = optDentist;           // Standard: Zahnarzt
+      article.clear();
+      batch.clear();
+      qty.clear();
+      expiry.clear();
+      desc.clear();
+      applied = optNo;
+      injury = optNo;
+      injuryDesc.clear();
+      returned = optReturnedNo;
+      handling = optHandlingRep;
+      privacy = false;
+      files = [];
+      err = null;
+      info = null;
+      _dirty = false;
+    });
+  }
+
+  Future<void> _navigateToDashboard() async {
+    if (!mounted) return;
+    try {
+      // Falls du eine benannte Route hast:
+      Navigator.of(context).pushNamedAndRemoveUntil('/dashboard', (r) => false);
+    } catch (_) {
+      // Fallback: so weit wie möglich zurück
+      Navigator.of(context).popUntil((r) => r.isFirst);
+    }
+  }
+
+  Future<bool> _askAddAnother(String ticket) async {
+    final t = context.t;
+    return await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: Text(t.addAnother_title),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(t.addAnother_body),
+            const SizedBox(height: 10),
+            // Ticket als kleine Info
+            Row(
+              children: [
+                const Icon(Icons.confirmation_number_outlined),
+                const SizedBox(width: 8),
+                Flexible(child: Text(t.sent_ticket(ticket))),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(t.addAnother_no),
+          ),
+          FilledButton.tonal(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(t.addAnother_yes),
+          ),
+        ],
+      ),
+    ).then((v) => v ?? false);
+  }
+
+  // -----------------------------
   // UI-Helfer (nur Darstellung)
   // -----------------------------
   InputDecoration _dec(BuildContext ctx, String label, {String? hint}) {
@@ -437,7 +515,14 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                           if (ticket.isEmpty) {
                             setState(() { busy = false; err = t.send_failed; });
                           } else {
-                            setState(() { busy = false; info = t.sent_ticket(ticket); _dirty = false; });
+                            setState(() { busy = false; _dirty = false; info = null; });
+                            final again = await _askAddAnother(ticket);
+                            if (!mounted) return;
+                            if (again) {
+                              _resetForm(); // Formular leeren und auf Start setzen
+                            } else {
+                              await _navigateToDashboard(); // zurück zum Dashboard
+                            }
                           }
                         } catch (e) {
                           setState(() {
