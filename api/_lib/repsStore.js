@@ -43,13 +43,52 @@ async function requireRedis() {
 // Defaults/Normalisierung für gespeicherte Rep-Objekte
 function normalizeRep(rep) {
   if (!rep || typeof rep !== 'object') return null;
+
+  const pick = (...values) => {
+    for (const v of values) {
+      const str = S(v);
+      if (str) return str;
+    }
+    return '';
+  };
+
+  const id = pick(rep.id, rep.repId);
+
+  let firstName = pick(rep.firstName, rep.firstname, rep.first_name);
+  let lastName  = pick(rep.lastName, rep.lastname, rep.last_name, rep.surname);
+  const fullName = pick(rep.name, rep.fullName, rep.displayName, rep.label);
+
+  if (fullName) {
+    const parts = fullName.split(/\s+/).filter(Boolean);
+    if (!firstName && parts.length) {
+      firstName = parts.shift() || '';
+    }
+    if (!lastName && parts.length) {
+      lastName = parts.join(' ');
+    }
+    if (!firstName && !lastName) {
+      firstName = fullName;
+    }
+  }
+
+  const email = pick(
+    rep.email,
+    rep.mail,
+    rep.emailAddress,
+    rep.email_address,
+    rep.user?.email,
+    rep.contact?.email,
+  ).toLowerCase();
+
+  const region = pick(rep.region, rep.area, rep.territory, rep.regionName, rep.regions);
+
   return {
-    id: S(rep.id),
-    firstName: S(rep.firstName),
-    lastName:  S(rep.lastName),
-    email:     S(rep.email).toLowerCase(),
-    region:    S(rep.region),
-    passHash:  rep.passHash || null,
+    id,
+    firstName,
+    lastName,
+    email,
+    region,
+    passHash: rep.passHash || null,
     mustChangePw: !!rep.mustChangePw,
     active: (rep.active === undefined ? true : !!rep.active),
     createdAt: rep.createdAt || null,
