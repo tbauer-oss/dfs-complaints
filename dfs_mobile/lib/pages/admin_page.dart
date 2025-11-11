@@ -1,12 +1,13 @@
 // lib/pages/admin_page.dart
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show kIsWeb;
-import '../web_compat/html_stub.dart'
-  if (dart.library.html) '../web_compat/html_web.dart' as html;
+import 'package:dfs_mobile/web_compat/html_stub.dart'
+  if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import '../api/client.dart';
-import '../widgets/legal_footer.dart';
+import 'package:dfs_mobile/api/client.dart';
+import 'package:dfs_mobile/widgets/legal_footer.dart';
 
 // ===================================================================
 // Admin Page – mit Kachel-Menü (wie Kunden-Dashboard)
@@ -382,28 +383,13 @@ class _AdminPageState extends State<AdminPage> {
           const SizedBox(width: 6),
         ],
       ),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final maxWidth = constraints.maxWidth;
-            final isCompact = maxWidth < 600;
-            final horizontal = isCompact ? 12.0 : 18.0;
-            final vertical = isCompact ? 12.0 : 18.0;
-
-            return Align(
-              alignment: Alignment.topCenter,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1200),
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: horizontal,
-                    vertical: vertical,
-                  ),
-                  child: _buildBody(theme),
-                ),
-              ),
-            );
-          },
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1200),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: _buildBody(theme),
+          ),
         ),
       ),
       bottomNavigationBar: LegalFooter(api: widget.api),
@@ -426,95 +412,73 @@ class _AdminPageState extends State<AdminPage> {
 
   // ------------------ Kachel-Menü (neues Design) ------------------
   Widget _buildMenu() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final isPhone = width < 560;
-        final isTablet = width < 960;
-        final crossAxisCount = isPhone ? 1 : (isTablet ? 2 : 3);
-        final spacing = isPhone ? 16.0 : (isTablet ? 24.0 : 32.0);
-        final aspect = isPhone ? 1.55 : (isTablet ? 1.25 : 1.05);
-        final useCompactTile = width < 720;
+    final w = MediaQuery.of(context).size.width;
+    final isPhone = w < 640;
+    final compact = isPhone;
 
-        final tiles = <Widget>[
-          AdminTilePro(
-            label: 'Offene Reklamationen',
-            subtitle: 'Bearbeiten & Entscheiden',
-            icon: Icons.assignment_late_outlined,
-            colorA: AdminPalette.redA,
-            colorB: AdminPalette.redB,
-            count: _openComplaints.length,
-            compact: useCompactTile,
-            onTap: () => setState(() => _view = _AdminView.open),
-          ),
-          AdminTilePro(
-            label: 'Anträge / Pending',
-            subtitle: 'Registrierungen prüfen',
-            icon: Icons.verified_user_outlined,
-            colorA: AdminPalette.amberA,
-            colorB: AdminPalette.amberB,
-            count: _pending.length,
-            compact: useCompactTile,
-            onTap: () => setState(() => _view = _AdminView.pending),
-          ),
-          AdminTilePro(
-            label: 'Aktive Nutzer',
-            subtitle: 'Firmen & Kontakte',
-            icon: Icons.group_outlined,
-            colorA: AdminPalette.tealA,
-            colorB: AdminPalette.tealB,
-            count: _users.length,
-            compact: useCompactTile,
-            onTap: () => setState(() => _view = _AdminView.users),
-          ),
-          AdminTilePro(
-            label: 'Vertreterverwaltung',
-            subtitle: 'Zuordnen & Regionen',
-            icon: Icons.badge_outlined,
-            colorA: AdminPalette.blueA,
-            colorB: AdminPalette.blueB,
-            compact: useCompactTile,
-            onTap: () {
-              setState(() => _view = _AdminView.reps);
-              if (_reps.isEmpty) _refreshReps();
-            },
-          ),
-          AdminTilePro(
-            label: 'App-Version',
-            subtitle: 'Version, Build, Hinweise',
-            icon: Icons.app_settings_alt_outlined,
-            colorA: AdminPalette.blueA,
-            colorB: AdminPalette.blueB,
-            compact: useCompactTile,
-            onTap: () => _editAppMeta(context),
-          ),
-        ];
-
-        return CustomScrollView(
-          slivers: [
-            SliverPadding(
-              padding: EdgeInsets.fromLTRB(
-                spacing,
-                spacing,
-                spacing,
-                spacing + 12,
-              ),
-              sliver: SliverGrid(
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: crossAxisCount,
-                  mainAxisSpacing: spacing,
-                  crossAxisSpacing: spacing,
-                  childAspectRatio: aspect,
-                ),
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) => tiles[index],
-                  childCount: tiles.length,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+    final tiles = <Widget>[
+      AdminTilePro(
+        label: 'Offene Reklamationen',
+        subtitle: 'Bearbeiten & Entscheiden',
+        icon: Icons.assignment_late_outlined,
+        colorA: AdminPalette.redA,
+        colorB: AdminPalette.redB,
+        count: _openComplaints.length,
+        compact: compact,
+        onTap: () => setState(() => _view = _AdminView.open),
+      ),
+      AdminTilePro(
+        label: 'Anträge / Pending',
+        subtitle: 'Registrierungen prüfen',
+        icon: Icons.verified_user_outlined,
+        colorA: AdminPalette.amberA,
+        colorB: AdminPalette.amberB,
+        count: _pending.length,
+        compact: compact,
+        onTap: () => setState(() => _view = _AdminView.pending),
+      ),
+      AdminTilePro(
+        label: 'Aktive Nutzer',
+        subtitle: 'Firmen & Kontakte',
+        icon: Icons.group_outlined,
+        colorA: AdminPalette.tealA,
+        colorB: AdminPalette.tealB,
+        count: _users.length,
+        compact: compact,
+        onTap: () => setState(() => _view = _AdminView.users),
+      ),
+      AdminTilePro(
+        label: 'Vertreterverwaltung',
+        subtitle: 'Zuordnen & Regionen',
+        icon: Icons.badge_outlined,
+        colorA: AdminPalette.blueA,
+        colorB: AdminPalette.blueB,
+        compact: compact,
+        onTap: () {
+          setState(() => _view = _AdminView.reps);
+          if (_reps.isEmpty) _refreshReps();
+        },
+      ),
+      AdminTilePro(
+        label: 'App-Version',
+        subtitle: 'Version, Build, Hinweise',
+        icon: Icons.app_settings_alt_outlined,
+        colorA: AdminPalette.blueA,
+        colorB: AdminPalette.blueB,
+        compact: compact,
+        onTap: () => _editAppMeta(context),
+      ),
+    ];
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(12, 16, 12, 20),
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: isPhone ? 188 : 236,
+        mainAxisSpacing: isPhone ? 24 : 32,
+        crossAxisSpacing: isPhone ? 20 : 32,
+        childAspectRatio: isPhone ? 0.82 : 0.94,
+      ),
+      itemCount: tiles.length,
+      itemBuilder: (_, i) => tiles[i],
     );
   }
   
@@ -538,130 +502,248 @@ class _AdminPageState extends State<AdminPage> {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              const Icon(Icons.hourglass_top),
-              const SizedBox(width: 8),
-              const Text('Pending (Freigabe ausstehend)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-              const Spacer(),
-              IconButton(
-                tooltip: 'Neu laden',
-                onPressed: _loadPending ? null : () async {
-                  setState(() => _loadPending = true);
-                  try {
-                    final list = await _api.fetchPending();
-                    if (!mounted) return;
-                    setState(() => _pending = list);
-                  } catch (e) {
-                    setState(() => _err = '$e');
-                  } finally {
-                    if (mounted) setState(() => _loadPending = false);
-                  }
-                },
-                icon: const Icon(Icons.refresh),
-              ),
-            ]),
-            const SizedBox(height: 8),
-            if (_loadPending) const LinearProgressIndicator(),
-            const SizedBox(height: 8),
-            Expanded(
-              child: _pending.isEmpty
-                  ? const Center(child: Text('Keine Pending-Anmeldungen.'))
-                  : ListView.separated(
-                      itemCount: _pending.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (ctx, i) {
-                        final p = _pending[i];
-                        return _PendingTile(
-                          data: p,
-                          api: _api,
-                          onApprove: () async {
-                            try {
-                              await _api.approvePending(p.email, lang: p.lang);
-                              if (!mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Freigabe ausgelöst für ${p.email}.')),
-                              );
-                              await _refreshAll();
-                            } catch (e) {
-                              if (!mounted) return;
-                              ScaffoldMessenger.of(context)
-                                  .showSnackBar(SnackBar(content: Text('Fehler: $e')));
-                            }
-                          },
-                          onReject: () async {
-                            final ok = await _confirm('Anmeldung ablehnen',
-                                'Soll ${p.email} wirklich abgelehnt und gelöscht werden?');
-                            if (ok != true) return;
-                            try {
-                              await _api.deleteUser(p.email);
-                              if (mounted) {
-                                ScaffoldMessenger.of(context)
-                                    .showSnackBar(SnackBar(content: Text('Eintrag gelöscht: ${p.email}')));
-                                await _refreshAll();
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isCompact = constraints.maxWidth < 600;
+
+            Widget header = Row(
+              children: [
+                const Icon(Icons.hourglass_top),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Pending (Freigabe ausstehend)',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: 'Neu laden',
+                  onPressed: _loadPending
+                      ? null
+                      : () async {
+                          setState(() => _loadPending = true);
+                          try {
+                            final list = await _api.fetchPending();
+                            if (!mounted) return;
+                            setState(() => _pending = list);
+                          } catch (e) {
+                            setState(() => _err = '$e');
+                          } finally {
+                            if (mounted) setState(() => _loadPending = false);
+                          }
+                        },
+                  icon: const Icon(Icons.refresh),
+                ),
+              ],
+            );
+
+            if (isCompact) {
+              header = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Icon(Icons.hourglass_top),
+                      SizedBox(width: 8),
+                      Text(
+                        'Pending (Freigabe ausstehend)',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: IconButton(
+                      tooltip: 'Neu laden',
+                      onPressed: _loadPending
+                          ? null
+                          : () async {
+                              setState(() => _loadPending = true);
+                              try {
+                                final list = await _api.fetchPending();
+                                if (!mounted) return;
+                                setState(() => _pending = list);
+                              } catch (e) {
+                                setState(() => _err = '$e');
+                              } finally {
+                                if (mounted) setState(() => _loadPending = false);
                               }
-                            } catch (e) {
-                              if (!mounted) return;
-                              ScaffoldMessenger.of(context)
-                                  .showSnackBar(SnackBar(content: Text('Fehler: $e')));
-                            }
-                          },
-                          onLoadComplaints: () => _loadComplaintsDetailed(p.email),
-                          complaints: _complaints[p.email],
-                        );
-                      },
+                            },
+                      icon: const Icon(Icons.refresh),
                     ),
-            ),
-          ],
+                  ),
+                ],
+              );
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                header,
+                const SizedBox(height: 8),
+                if (_loadPending) const LinearProgressIndicator(),
+                if (_loadPending) const SizedBox(height: 8) else const SizedBox(height: 12),
+                Expanded(
+                  child: _pending.isEmpty
+                      ? const Center(child: Text('Keine Pending-Anmeldungen.'))
+                      : ListView.separated(
+                          itemCount: _pending.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 12),
+                          itemBuilder: (ctx, i) {
+                            final p = _pending[i];
+                            return _PendingTile(
+                              data: p,
+                              api: _api,
+                              onApprove: () async {
+                                try {
+                                  await _api.approvePending(p.email, lang: p.lang);
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Freigabe ausgelöst für ${p.email}.')),
+                                  );
+                                  await _refreshAll();
+                                } catch (e) {
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(SnackBar(content: Text('Fehler: $e')));
+                                }
+                              },
+                              onReject: () async {
+                                final ok = await _confirm(
+                                  'Anmeldung ablehnen',
+                                  'Soll ${p.email} wirklich abgelehnt und gelöscht werden?',
+                                );
+                                if (ok != true) return;
+                                try {
+                                  await _api.deleteUser(p.email);
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Eintrag gelöscht: ${p.email}')),
+                                    );
+                                    await _refreshAll();
+                                  }
+                                } catch (e) {
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(SnackBar(content: Text('Fehler: $e')));
+                                }
+                              },
+                              onLoadComplaints: () => _loadComplaintsDetailed(p.email),
+                              complaints: _complaints[p.email],
+                            );
+                          },
+                        ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
 
+
 Widget _buildUsersPanel() {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              const Icon(Icons.people),
-              const SizedBox(width: 8),
-              const Text(
-                'Aktive Nutzer',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-              const Spacer(),
-              IconButton(
-                tooltip: 'Neu laden',
-                onPressed: _loadUsers
-                    ? null
-                    : () async {
-                        setState(() => _loadUsers = true);
-                        try {
-                          final list = await _api.fetchUsers();
-                          if (!mounted) return;
-                          setState(() => _users = list);
-                        } catch (e) {
-                          setState(() => _err = '$e');
-                        } finally {
-                          if (mounted) setState(() => _loadUsers = false);
-                        }
-                      },
-                icon: const Icon(Icons.refresh),
-              ),
-            ]),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isCompact = constraints.maxWidth < 720;
 
+            final spinner = _loadUsers
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : null;
 
-            // >>> NEU: Filterzeile direkt unter der Überschrift <<<
-            const SizedBox(height: 8),
-            Row(
+            final refreshButton = IconButton(
+              tooltip: 'Neu laden',
+              onPressed: _loadUsers
+                  ? null
+                  : () async {
+                      setState(() => _loadUsers = true);
+                      try {
+                        final list = await _api.fetchUsers();
+                        if (!mounted) return;
+                        setState(() => _users = list);
+                      } catch (e) {
+                        setState(() => _err = '$e');
+                      } finally {
+                        if (mounted) setState(() => _loadUsers = false);
+                      }
+                    },
+              icon: const Icon(Icons.refresh),
+            );
+
+            Widget header;
+            if (isCompact) {
+              header = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Icon(Icons.people),
+                      SizedBox(width: 8),
+                      Text(
+                        'Aktive Nutzer',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      if (spinner != null)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: spinner,
+                        ),
+                      refreshButton,
+                    ],
+                  ),
+                ],
+              );
+            } else {
+              header = Row(
+                children: [
+                  const Icon(Icons.people),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Aktive Nutzer',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  const Spacer(),
+                  if (spinner != null)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: spinner,
+                    ),
+                  refreshButton,
+                ],
+              );
+            }
+
+            double fieldWidth(double desired) {
+              if (!isCompact) return desired;
+              final maxWidth = constraints.maxWidth;
+              return math.min(desired, maxWidth);
+            }
+
+            final filterWrap = Wrap(
+              spacing: 12,
+              runSpacing: 12,
               children: [
-                // Suche (Firma/Kontakt/E-Mail/Land)
-                Expanded(
+                SizedBox(
+                  width: fieldWidth(360),
                   child: TextField(
                     decoration: const InputDecoration(
                       hintText: 'Suchen… (Firma, Kontakt, E-Mail, Land)',
@@ -672,10 +754,8 @@ Widget _buildUsersPanel() {
                     onChanged: (v) => setState(() => _userFilterQuery = v),
                   ),
                 ),
-                const SizedBox(width: 8),
-                // Firmen-Dropdown
                 SizedBox(
-                  width: 260,
+                  width: fieldWidth(260),
                   child: DropdownButtonFormField<String>(
                     value: _userFilterCompany,
                     isExpanded: true,
@@ -690,16 +770,15 @@ Widget _buildUsersPanel() {
                         ..._users.map((e) => e.company).where((s) => s.trim().isNotEmpty),
                       }.toList()
                         ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-                      return list.map((c) => DropdownMenuItem<String>(value: c, child: Text(c))).toList();
+                      return list
+                          .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
+                          .toList();
                     })(),
                     onChanged: (v) => setState(() => _userFilterCompany = v ?? 'Alle Firmen'),
                   ),
                 ),
-                const SizedBox(width: 8),
-
-                // Länder-Dropdown
                 SizedBox(
-                  width: 240,
+                  width: fieldWidth(220),
                   child: DropdownButtonFormField<String>(
                     value: _userFilterCountry,
                     isExpanded: true,
@@ -714,16 +793,15 @@ Widget _buildUsersPanel() {
                         ..._users.map((e) => e.country).where((s) => s.trim().isNotEmpty),
                       }.toList()
                         ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-                      return list.map((c) => DropdownMenuItem<String>(value: c, child: Text(c))).toList();
+                      return list
+                          .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
+                          .toList();
                     })(),
                     onChanged: (v) => setState(() => _userFilterCountry = v ?? 'Alle Länder'),
                   ),
                 ),
-                const SizedBox(width: 8),
-                
-                // Vertreter-Dropdown
                 SizedBox(
-                  width: 280,
+                  width: fieldWidth(260),
                   child: DropdownButtonFormField<String?>(
                     value: _userFilterRepId,
                     isExpanded: true,
@@ -732,79 +810,88 @@ Widget _buildUsersPanel() {
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
-                    items: (() {
-                      final list = <String>{
-                        'Alle Länder',
-                        ..._users.map((e) => e.country).where((s) => s.trim().isNotEmpty),
-                      }.toList()
-                        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-                      return list.map((c) => DropdownMenuItem<String>(value: c, child: Text(c))).toList();
-                    })(),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('Alle Vertreter'),
+                      ),
+                      const DropdownMenuItem<String?>(
+                        value: '',
+                        child: Text('Ohne Vertreter'),
+                      ),
+                      ..._reps
+                          .map(
+                            (r) => DropdownMenuItem<String?>(
+                              value: r.id,
+                              child: Text(r.displayName.isEmpty ? r.email : r.displayName),
+                            ),
+                          )
+                          .toList(),
+                    ],
                     onChanged: (v) => setState(() => _userFilterRepId = v),
                   ),
                 ),
               ],
-            ),
-            // <<< Ende Filterzeile >>>
+            );
 
-            const SizedBox(height: 8),
-            if (_loadUsers) const LinearProgressIndicator(),
-            const SizedBox(height: 8),
-
-            // Gefilterte Daten verwenden
-            Expanded(
-              child: () {
-                final data = _filterUsers();
-                return data.isEmpty
-                    ? const Center(child: Text('Keine aktiven Nutzer.'))
-                    : ListView.separated(
-                        itemCount: data.length,
-                        separatorBuilder: (_, __) =>
-                            const Divider(height: 1),
-                        itemBuilder: (ctx, i) {
-                          final u = data[i];
-                          final repName = _repNameForEmail(u.email);
-                          return _UserTile(
-                            data: u,
-                            api: _api,
-                            onDelete: () async {
-                              final ok = await _confirm(
-                                'Nutzer löschen',
-                                'Soll der aktive Nutzer ${u.email} wirklich gelöscht werden?',
-                              );
-                              if (ok != true) return;
-                              try {
-                                await _api.deleteUser(u.email);
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                          'Nutzer gelöscht: ${u.email}'),
-                                    ),
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                header,
+                const SizedBox(height: 12),
+                filterWrap,
+                const SizedBox(height: 12),
+                if (_loadUsers) const LinearProgressIndicator(),
+                if (_loadUsers) const SizedBox(height: 12) else const SizedBox(height: 8),
+                Expanded(
+                  child: () {
+                    final data = _filterUsers();
+                    return data.isEmpty
+                        ? const Center(child: Text('Keine aktiven Nutzer.'))
+                        : ListView.separated(
+                            itemCount: data.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 12),
+                            itemBuilder: (ctx, i) {
+                              final u = data[i];
+                              final repName = _repNameForEmail(u.email);
+                              return _UserTile(
+                                data: u,
+                                api: _api,
+                                onDelete: () async {
+                                  final ok = await _confirm(
+                                    'Nutzer löschen',
+                                    'Soll der aktive Nutzer ${u.email} wirklich gelöscht werden?',
                                   );
-                                  await _refreshAll();
-                                  await _refreshOpen();
-                                }
-                              } catch (e) {
-                                if (!mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Fehler: $e')),
-                                );
-                              }
+                                  if (ok != true) return;
+                                  try {
+                                    await _api.deleteUser(u.email);
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text('Nutzer gelöscht: ${u.email}')),
+                                      );
+                                      await _refreshAll();
+                                      await _refreshOpen();
+                                    }
+                                  } catch (e) {
+                                    if (!mounted) return;
+                                    ScaffoldMessenger.of(context)
+                                        .showSnackBar(SnackBar(content: Text('Fehler: $e')));
+                                  }
+                                },
+                                onLoadComplaints: () => _loadComplaintsDetailed(u.email),
+                                complaints: _complaints[u.email],
+                                onClosedFromEditor: () {
+                                  _refreshOpen();
+                                },
+                                repName: repName,
+                              );
                             },
-                            onLoadComplaints: () =>
-                                _loadComplaintsDetailed(u.email),
-                            complaints: _complaints[u.email],
-                            onClosedFromEditor: () {
-                              _refreshOpen();
-                            },
-                            repName: repName,
                           );
-                        },
-                      );
-              }(),
-            ),
-          ],
+                  }(),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -814,7 +901,9 @@ Widget _buildUsersPanel() {
     // Firmenliste für Filter-Dropdown (lokal)
     final List<String> companies = <String>{
       'Alle Firmen',
-      ..._openComplaints.map((c) => (_companyByEmail(c.email) ?? '')).where((s) => s.trim().isNotEmpty),
+      ..._openComplaints
+          .map((c) => (_companyByEmail(c.email) ?? ''))
+          .where((s) => s.trim().isNotEmpty),
       ..._users.map((e) => e.company).where((s) => s.trim().isNotEmpty),
     }.toList()
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
@@ -829,59 +918,127 @@ Widget _buildUsersPanel() {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(children: [
-              const Icon(Icons.receipt_long),
-              const SizedBox(width: 8),
-              const Text('Offene Reklamationen', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-              const Spacer(),
-              DropdownButton<String>(
-                value: _filterCompany,
-                onChanged: (v) => setState(() => _filterCompany = v ?? 'Alle Firmen'),
-                items: companies.map((s) => DropdownMenuItem<String>(value: s, child: Text(s))).toList(),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isCompact = constraints.maxWidth < 720;
+            final dropdownItems = companies
+                .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
+                .toList();
+
+            final spinner = _loadOpen
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : null;
+
+            final dropdown = DropdownButtonFormField<String>(
+              value: _filterCompany,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Firma',
+                border: OutlineInputBorder(),
+                isDense: true,
               ),
-              const SizedBox(width: 8),
-              if (_loadOpen)
-                const Padding(
-                  padding: EdgeInsets.only(right: 8),
-                  child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+              items: dropdownItems,
+              onChanged: (v) => setState(() => _filterCompany = v ?? 'Alle Firmen'),
+            );
+
+            double fieldWidth(double desired) {
+              if (!isCompact) return desired;
+              return math.min(desired, constraints.maxWidth);
+            }
+
+            final actions = Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                SizedBox(width: fieldWidth(320), child: dropdown),
+                if (spinner != null)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: spinner,
+                  ),
+                IconButton(
+                  tooltip: 'Neu laden',
+                  onPressed: _loadOpen ? null : _refreshOpen,
+                  icon: const Icon(Icons.refresh),
                 ),
-              IconButton(
-                tooltip: 'Neu laden',
-                onPressed: _loadOpen ? null : _refreshOpen,
-                icon: const Icon(Icons.refresh),
-              ),
-            ]),
-            const SizedBox(height: 8),
-            Expanded(
-              child: list.isEmpty
-                  ? const Center(child: Text('Keine offenen Reklamationen.'))
-                  : ListView.separated(
-                      itemCount: list.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
-                      itemBuilder: (ctx, i) {
-                        final c = list[i];
-                        return _ComplaintEditor(
-                          api: _api,
-                          c: c,
-                          companyHint: _companyByEmail(c.email),
-                          hasRep: _customerHasRep(c.email), // ← NEU
-                          onClosed: () {
-                            setState(() {
-                              _openComplaints.removeWhere((x) => x.ticket == c.ticket);
-                            });
+              ],
+            );
+
+            final titleRow = Row(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                Icon(Icons.receipt_long),
+                SizedBox(width: 8),
+                Text(
+                  'Offene Reklamationen',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ],
+            );
+
+            Widget header;
+            if (isCompact) {
+              header = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  titleRow,
+                  const SizedBox(height: 12),
+                  actions,
+                ],
+              );
+            } else {
+              header = Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  titleRow,
+                  const Spacer(),
+                  actions,
+                ],
+              );
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                header,
+                const SizedBox(height: 12),
+                if (_loadOpen) const LinearProgressIndicator(),
+                if (_loadOpen) const SizedBox(height: 12) else const SizedBox(height: 8),
+                Expanded(
+                  child: list.isEmpty
+                      ? const Center(child: Text('Keine offenen Reklamationen.'))
+                      : ListView.separated(
+                          itemCount: list.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 12),
+                          itemBuilder: (ctx, i) {
+                            final c = list[i];
+                            return _ComplaintEditor(
+                              api: _api,
+                              c: c,
+                              companyHint: _companyByEmail(c.email),
+                              hasRep: _customerHasRep(c.email),
+                              onClosed: () {
+                                setState(() {
+                                  _openComplaints.removeWhere((x) => x.ticket == c.ticket);
+                                });
+                              },
+                            );
                           },
-                        );
-                      },
-                    ),
-            ),
-          ],
+                        ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
+
 
   Widget _buildRepsPanel() {
     // kleine Helper zum Mail-Schreiben
@@ -889,8 +1046,10 @@ Widget _buildUsersPanel() {
       if (to.trim().isEmpty) return;
       final url = 'mailto:$to'
           '?subject=${Uri.encodeComponent(subject ?? 'Anfrage / DFS-DIAMON')}'
-          '&body=${Uri.encodeComponent(body ?? 'Guten Tag,\n\nich melde mich als Ihr Ansprechpartner.\n\nBeste Grüße\nDFS-DIAMON GmbH')}';
-      html.window.open(url, '_self');
+          '&body=${Uri.encodeComponent(body ?? 'Guten Tag,\n\n…\n')}';
+      if (kIsWeb) {
+        html.window.open(url, '_self');
+      }
     }
 
     Future<void> _save({String? id}) async {
@@ -900,12 +1059,11 @@ Widget _buildUsersPanel() {
         final rep = await _api.upsertRep(
           id: id,
           firstName: _repFirstCtrl.text.trim(),
-          lastName:  _repLastCtrl.text.trim(),
-          email:     _repMailCtrl.text.trim(),
-          region:    _repRegion,
+          lastName: _repLastCtrl.text.trim(),
+          email: _repMailCtrl.text.trim(),
+          region: _repRegion,
         );
 
-        // Felder leeren + Liste neu laden
         _repFirstCtrl.clear();
         _repLastCtrl.clear();
         _repMailCtrl.clear();
@@ -927,9 +1085,9 @@ Widget _buildUsersPanel() {
 
     Future<void> _edit(Rep r) async {
       _repFirstCtrl.text = r.firstName;
-      _repLastCtrl.text  = r.lastName;
-      _repMailCtrl.text  = r.email;
-      _repRegion         = r.region.isNotEmpty ? r.region : kRepRegions.first;
+      _repLastCtrl.text = r.lastName;
+      _repMailCtrl.text = r.email;
+      _repRegion = r.region.isNotEmpty ? r.region : kRepRegions.first;
 
       await showDialog<void>(
         context: context,
@@ -942,9 +1100,9 @@ Widget _buildUsersPanel() {
               children: [
                 TextField(controller: _repFirstCtrl, decoration: const InputDecoration(labelText: 'Vorname')),
                 const SizedBox(height: 8),
-                TextField(controller: _repLastCtrl,  decoration: const InputDecoration(labelText: 'Nachname')),
+                TextField(controller: _repLastCtrl, decoration: const InputDecoration(labelText: 'Nachname')),
                 const SizedBox(height: 8),
-                TextField(controller: _repMailCtrl,  decoration: const InputDecoration(labelText: 'E-Mail')),
+                TextField(controller: _repMailCtrl, decoration: const InputDecoration(labelText: 'E-Mail')),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   value: _repRegion,
@@ -958,7 +1116,10 @@ Widget _buildUsersPanel() {
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
             FilledButton(
-              onPressed: () async { Navigator.pop(ctx); await _save(id: r.id); },
+              onPressed: () async {
+                Navigator.pop(ctx);
+                await _save(id: r.id);
+              },
               child: const Text('Speichern'),
             ),
           ],
@@ -994,25 +1155,18 @@ Widget _buildUsersPanel() {
     }
 
     Future<void> _openRepCustomersDialog(Rep rep) async {
-      // Globale Belegung: email -> repId
       final Map<String, String> emailAssignedToRepId = {};
       for (final r in _reps) {
         for (final e in r.customers) {
-          emailAssignedToRepId[e] ??= r.id; // first wins
+          emailAssignedToRepId[e] ??= r.id;
         }
       }
 
-      // Menge aller bereits irgendwo zugewiesenen Kunden
       var assignedGlobal = emailAssignedToRepId.keys.toSet();
-
-      // Aktuelle Belegung dieses Reps (veränderlich, wir aktualisieren im Dialog)
       var assignedThis = rep.customers.toSet();
-
-      // Kandidaten = ALLE aktiven User (im Dropdown sichtbar, aber ggf. disabled)
       final allUserEmails = _users.map((u) => u.email.trim()).where((e) => e.isNotEmpty).toSet();
       final all = allUserEmails.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
-      // Vorauswahl = erster freier (global nicht zugewiesener)
       String? selEmail = all.firstWhere(
         (e) => !assignedGlobal.contains(e),
         orElse: () => '',
@@ -1027,8 +1181,6 @@ Widget _buildUsersPanel() {
           builder: (ctx, setLocal) {
             Future<void> doAssign() async {
               if (selEmail == null || selEmail!.trim().isEmpty) return;
-
-              // Schutz: Falls ein anderer Rep in der Zwischenzeit zugewiesen hat
               final otherRepId = emailAssignedToRepId[selEmail!];
               if (otherRepId != null && otherRepId != rep.id) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -1040,8 +1192,6 @@ Widget _buildUsersPanel() {
               setLocal(() => busy = true);
               try {
                 final customers = await _api.assignCustomerToRep(repId: rep.id, email: selEmail!.trim());
-
-                // Parent aktualisieren
                 setState(() {
                   final idx = _reps.indexWhere((x) => x.id == rep.id);
                   if (idx >= 0) {
@@ -1056,19 +1206,13 @@ Widget _buildUsersPanel() {
                   }
                 });
 
-                // Zur Sicherheit die gesamte Repliste neu laden (Race-Conditions vermeiden)
                 await _refreshReps();
-
-                // Globale Maps/Mengen nachladen
                 emailAssignedToRepId
                   ..clear()
                   ..addEntries(_reps.expand((r) => r.customers.map((e) => MapEntry(e, r.id))));
                 assignedGlobal = emailAssignedToRepId.keys.toSet();
-
-                // Lokale Sets aktualisieren
                 assignedThis = customers.toSet();
 
-                // Neue Vorauswahl: nächster freier Kunde
                 selEmail = all.firstWhere(
                   (e) => !assignedGlobal.contains(e),
                   orElse: () => '',
@@ -1088,8 +1232,6 @@ Widget _buildUsersPanel() {
               setLocal(() => busy = true);
               try {
                 final customers = await _api.unassignCustomerFromRep(repId: rep.id, email: email);
-
-                // Parent aktualisieren
                 setState(() {
                   final idx = _reps.indexWhere((x) => x.id == rep.id);
                   if (idx >= 0) {
@@ -1104,19 +1246,13 @@ Widget _buildUsersPanel() {
                   }
                 });
 
-                // Globale Reps neu ziehen
                 await _refreshReps();
-
-                // Globale Maps/Mengen nachladen
                 emailAssignedToRepId
                   ..clear()
                   ..addEntries(_reps.expand((r) => r.customers.map((e) => MapEntry(e, r.id))));
                 assignedGlobal = emailAssignedToRepId.keys.toSet();
-
-                // Lokale Sets aktualisieren
                 assignedThis = customers.toSet();
 
-                // Vorauswahl korrigieren (falls aktuell verbotener Wert selektiert war)
                 if (selEmail != null && assignedGlobal.contains(selEmail)) {
                   selEmail = all.firstWhere(
                     (e) => !assignedGlobal.contains(e),
@@ -1141,7 +1277,6 @@ Widget _buildUsersPanel() {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Bestehende Kundenliste
                     Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
@@ -1157,33 +1292,33 @@ Widget _buildUsersPanel() {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: (rep.customers.isEmpty)
-                        ? const Center(child: Padding(
-                            padding: EdgeInsets.all(12),
-                            child: Text('Keine Kunden zugewiesen.'),
-                          ))
-                        : ListView.separated(
-                            shrinkWrap: true,
-                            itemCount: rep.customers.length,
-                            separatorBuilder: (_, __) => const Divider(height: 1),
-                            itemBuilder: (_, i) {
-                              final email = rep.customers[i];
-                              final company = _companyByEmail(email) ?? '';
-                              return ListTile(
-                                leading: const Icon(Icons.person_outline),
-                                title: Text(company.isNotEmpty ? company : email),
-                                subtitle: company.isNotEmpty ? Text(email) : null,
-                                trailing: IconButton(
-                                  tooltip: 'Zuweisung entfernen',
-                                  icon: const Icon(Icons.remove_circle_outline),
-                                  onPressed: busy ? null : () async => await doUnassign(email),
-                                ),
-                              );
-                            },
-                          ),
+                          ? const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(12),
+                                child: Text('Keine Kunden zugewiesen.'),
+                              ),
+                            )
+                          : ListView.separated(
+                              shrinkWrap: true,
+                              itemCount: rep.customers.length,
+                              separatorBuilder: (_, __) => const Divider(height: 1),
+                              itemBuilder: (_, i) {
+                                final email = rep.customers[i];
+                                final company = _companyByEmail(email) ?? '';
+                                return ListTile(
+                                  leading: const Icon(Icons.person_outline),
+                                  title: Text(company.isNotEmpty ? company : email),
+                                  subtitle: company.isNotEmpty ? Text(email) : null,
+                                  trailing: IconButton(
+                                    tooltip: 'Zuweisung entfernen',
+                                    icon: const Icon(Icons.remove_circle_outline),
+                                    onPressed: busy ? null : () async => await doUnassign(email),
+                                  ),
+                                );
+                              },
+                            ),
                     ),
                     const SizedBox(height: 16),
-
-                    // Neuer Kunde zuweisen
                     Align(
                       alignment: Alignment.centerLeft,
                       child: Text('Kunden zuweisen', style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -1201,14 +1336,13 @@ Widget _buildUsersPanel() {
                             items: all.map((e) {
                               final isAssignedSomewhere = assignedGlobal.contains(e);
                               final label = _companyByEmail(e) ?? e;
-                              // Optional: zeigen, wo belegt (nur für Klarheit im UI)
                               final assignedHint = (isAssignedSomewhere && emailAssignedToRepId[e] != rep.id)
                                   ? ' (bereits zugewiesen)'
                                   : '';
 
                               return DropdownMenuItem<String>(
                                 value: e,
-                                enabled: !isAssignedSomewhere, // global belegt => disabled
+                                enabled: !isAssignedSomewhere,
                                 child: Text(
                                   '$label$assignedHint',
                                   style: isAssignedSomewhere
@@ -1221,11 +1355,10 @@ Widget _buildUsersPanel() {
                                 ? null
                                 : (v) {
                                     if (v == null) return;
-                                    // Safety: global gesperrt bleibt gesperrt
                                     if (assignedGlobal.contains(v)) return;
                                     setLocal(() => selEmail = v);
                                   },
-                          )
+                          ),
                         ),
                         const SizedBox(width: 10),
                         FilledButton.icon(
@@ -1239,10 +1372,11 @@ Widget _buildUsersPanel() {
                 ),
               ),
               actions: [
-                if (busy) const Padding(
-                  padding: EdgeInsets.only(right: 12),
-                  child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-                ),
+                if (busy)
+                  const Padding(
+                    padding: EdgeInsets.only(right: 12),
+                    child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                  ),
                 TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen')),
               ],
             );
@@ -1257,23 +1391,63 @@ Widget _buildUsersPanel() {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Kopfzeile
-            Row(children: [
-              const Icon(Icons.badge_outlined),
-              const SizedBox(width: 8),
-              const Text('Vertreterverwaltung', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-              const Spacer(),
-              if (_loadReps)
-                const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-              IconButton(
-                tooltip: 'Neu laden',
-                onPressed: _loadReps ? null : _refreshReps,
-                icon: const Icon(Icons.refresh),
-              ),
-            ]),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final spinner = _loadReps
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : null;
+                final isCompact = constraints.maxWidth < 720;
+
+                final titleRow = Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.badge_outlined),
+                    SizedBox(width: 8),
+                    Text('Vertreterverwaltung', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  ],
+                );
+
+                final actions = Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    if (spinner != null)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 4),
+                        child: spinner,
+                      ),
+                    IconButton(
+                      tooltip: 'Neu laden',
+                      onPressed: _loadReps ? null : _refreshReps,
+                      icon: const Icon(Icons.refresh),
+                    ),
+                  ],
+                );
+
+                if (isCompact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      titleRow,
+                      const SizedBox(height: 12),
+                      actions,
+                    ],
+                  );
+                }
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    titleRow,
+                    const Spacer(),
+                    actions,
+                  ],
+                );
+              },
+            ),
             const SizedBox(height: 12),
 
-            // Anlegen-Form
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -1285,40 +1459,80 @@ Widget _buildUsersPanel() {
                 children: [
                   const Text('Neuen Vertreter anlegen', style: TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      SizedBox(
-                        width: 240,
-                        child: TextField(controller: _repFirstCtrl, decoration: const InputDecoration(labelText: 'Vorname')),
-                      ),
-                      SizedBox(
-                        width: 260,
-                        child: TextField(controller: _repLastCtrl, decoration: const InputDecoration(labelText: 'Nachname')),
-                      ),
-                      SizedBox(
-                        width: 300,
-                        child: TextField(controller: _repMailCtrl, decoration: const InputDecoration(labelText: 'E-Mail')),
-                      ),
-                      SizedBox(
-                        width: 300,
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final maxWidth = constraints.maxWidth;
+                      final isNarrow = maxWidth < 520;
+
+                      double fieldWidth(double base) {
+                        if (isNarrow) return maxWidth;
+                        if (maxWidth <= 720) return math.min(base, maxWidth);
+                        return base;
+                      }
+
+                      Widget textField({
+                        required TextEditingController controller,
+                        required String label,
+                        required double baseWidth,
+                      }) {
+                        final width = fieldWidth(baseWidth);
+                        return SizedBox(
+                          width: width,
+                          child: TextField(
+                            controller: controller,
+                            decoration: InputDecoration(labelText: label),
+                          ),
+                        );
+                      }
+
+                      final regionField = SizedBox(
+                        width: fieldWidth(260),
                         child: DropdownButtonFormField<String>(
                           value: _repRegion,
                           decoration: const InputDecoration(labelText: 'Länderbereich'),
                           items: kRepRegions.map((s) => DropdownMenuItem<String>(value: s, child: Text(s))).toList(),
                           onChanged: (v) => setState(() => _repRegion = v ?? kRepRegions.first),
                         ),
-                      ),
-                      SizedBox(
-                        width: 160,
+                      );
+
+                      final submit = SizedBox(
+                        width: isNarrow ? double.infinity : fieldWidth(200),
                         child: FilledButton.icon(
                           icon: const Icon(Icons.save_outlined),
                           onPressed: _repBusy ? null : () => _save(),
                           label: const Text('Anlegen'),
                         ),
-                      ),
-                    ],
+                      );
+
+                      if (isNarrow) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            textField(controller: _repFirstCtrl, label: 'Vorname', baseWidth: maxWidth),
+                            const SizedBox(height: 12),
+                            textField(controller: _repLastCtrl, label: 'Nachname', baseWidth: maxWidth),
+                            const SizedBox(height: 12),
+                            textField(controller: _repMailCtrl, label: 'E-Mail', baseWidth: maxWidth),
+                            const SizedBox(height: 12),
+                            regionField,
+                            const SizedBox(height: 12),
+                            submit,
+                          ],
+                        );
+                      }
+
+                      return Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          textField(controller: _repFirstCtrl, label: 'Vorname', baseWidth: 220),
+                          textField(controller: _repLastCtrl, label: 'Nachname', baseWidth: 240),
+                          textField(controller: _repMailCtrl, label: 'E-Mail', baseWidth: 280),
+                          regionField,
+                          submit,
+                        ],
+                      );
+                    },
                   ),
                 ],
               ),
@@ -1326,142 +1540,24 @@ Widget _buildUsersPanel() {
 
             const SizedBox(height: 16),
 
-            // Liste der Vertreter
             Expanded(
               child: _reps.isEmpty
                   ? const Center(child: Text('Keine Vertreter angelegt.'))
                   : ListView.separated(
                       itemCount: _reps.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (ctx, i) {
                         final r = _reps[i];
-                        return LayoutBuilder(
-                          builder: (context, itemConstraints) {
-                            final isCompact = itemConstraints.maxWidth < 640;
-                            if (isCompact) {
-                              final theme = Theme.of(context);
-                              final chips = <Widget>[
-                                Chip(
-                                  avatar: const Icon(Icons.public, size: 16),
-                                  label: Text(r.region, overflow: TextOverflow.ellipsis),
-                                ),
-                                Chip(
-                                  avatar: const Icon(Icons.people_outline, size: 16),
-                                  label: Text('Kunden: ${r.customers.length}'),
-                                ),
-                              ];
-
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        const CircleAvatar(child: Icon(Icons.person_outline)),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(r.displayName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                                              const SizedBox(height: 4),
-                                              Text(r.email),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    if (chips.isNotEmpty) ...[
-                                      const SizedBox(height: 10),
-                                      Wrap(
-                                        spacing: 8,
-                                        runSpacing: 8,
-                                        children: chips,
-                                      ),
-                                    ],
-                                    const SizedBox(height: 12),
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                                      children: [
-                                        OutlinedButton.icon(
-                                          onPressed: () => _composeMail(
-                                            r.email,
-                                            subject: 'DFS-DIAMON – Anfrage / ${r.displayName}',
-                                            body: 'Guten Tag ${r.displayName},\n\n— Nachricht —\n\nBeste Grüße\nDFS-DIAMON GmbH',
-                                          ),
-                                          icon: const Icon(Icons.mail_outline),
-                                          label: const Text('E-Mail senden'),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        OutlinedButton.icon(
-                                          onPressed: () => _edit(r),
-                                          icon: const Icon(Icons.edit_outlined),
-                                          label: const Text('Bearbeiten'),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        OutlinedButton.icon(
-                                          onPressed: () => _openRepCustomersDialog(r),
-                                          icon: const Icon(Icons.group_add_outlined),
-                                          label: const Text('Kunden verwalten'),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        FilledButton.icon(
-                                          onPressed: () => _confirmDelete(r),
-                                          icon: const Icon(Icons.delete_outline),
-                                          label: const Text('Löschen'),
-                                          style: FilledButton.styleFrom(
-                                            backgroundColor: theme.colorScheme.error,
-                                            foregroundColor: theme.colorScheme.onError,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }
-
-                            return ListTile(
-                              leading: const CircleAvatar(child: Icon(Icons.person_outline)),
-                              title: Text(r.displayName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                              subtitle: Text('${r.email} • ${r.region} • Kunden: ${r.customers.length}'),
-                              trailing: ConstrainedBox(
-                                constraints: const BoxConstraints(maxWidth: 320),
-                                child: Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: [
-                                    IconButton(
-                                      tooltip: 'E-Mail schreiben',
-                                      icon: const Icon(Icons.mail_outline),
-                                      onPressed: () => _composeMail(
-                                        r.email,
-                                        subject: 'DFS-DIAMON – Anfrage / ${r.displayName}',
-                                        body: 'Guten Tag ${r.displayName},\n\n— Nachricht —\n\nBeste Grüße\nDFS-DIAMON GmbH',
-                                      ),
-                                    ),
-                                    IconButton(
-                                      tooltip: 'Bearbeiten',
-                                      icon: const Icon(Icons.edit_outlined),
-                                      onPressed: () => _edit(r),
-                                    ),
-                                    IconButton(
-                                      tooltip: 'Löschen',
-                                      icon: const Icon(Icons.delete_outline),
-                                      onPressed: () => _confirmDelete(r),
-                                    ),
-                                    IconButton(
-                                      tooltip: 'Kunden zuweisen/anzeigen',
-                                      icon: const Icon(Icons.group_add_outlined),
-                                      onPressed: () => _openRepCustomersDialog(r),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
+                        return _RepTile(
+                          rep: r,
+                          onMail: () => _composeMail(
+                            r.email,
+                            subject: 'DFS-DIAMON – Anfrage / ${r.displayName}',
+                            body: 'Guten Tag ${r.displayName},\n\n— Nachricht —\n\nBeste Grüße\nDFS-DIAMON GmbH',
+                          ),
+                          onEdit: () => _edit(r),
+                          onDelete: () => _confirmDelete(r),
+                          onManageCustomers: () => _openRepCustomersDialog(r),
                         );
                       },
                     ),
@@ -1471,6 +1567,7 @@ Widget _buildUsersPanel() {
       ),
     );
   }
+
 }
 
 // ===================================================================
@@ -1526,12 +1623,12 @@ class _AdminTile extends StatelessWidget {
         onTap: onTap,
         child: Center(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: 44, color: color),
-                const SizedBox(height: 10),
+                Icon(icon, size: 36, color: color),
+                const SizedBox(height: 8),
                 Text(
                   label,
                   style: const TextStyle(fontWeight: FontWeight.w600),
@@ -1755,137 +1852,140 @@ class _PendingTileState extends State<_PendingTile> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 640;
+        final isCompact = constraints.maxWidth < 640;
 
-        Widget infoChip(IconData icon, String text) {
-          return Chip(
-            avatar: Icon(icon, size: 16),
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            label: Text(text, overflow: TextOverflow.ellipsis),
+        Widget buildIconButton({
+          required String tooltip,
+          required IconData icon,
+          required VoidCallback onPressed,
+        }) {
+          return IconButton(
+            tooltip: tooltip,
+            icon: Icon(icon),
+            onPressed: onPressed,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(width: 40, height: 40),
           );
         }
 
-        void toggleComplaints() {
-          setState(() => _expanded = !_expanded);
-          if (_expanded) widget.onLoadComplaints();
+        Widget buildApproveButton({double? width}) {
+          final button = FilledButton(onPressed: widget.onApprove, child: const Text('Freigeben'));
+          if (width == null) return button;
+          return SizedBox(width: width, child: button);
         }
 
-        if (compact) {
-          final chips = <Widget>[
-            if (d.contact.trim().isNotEmpty) infoChip(Icons.person_outline, d.contact.trim()),
-            if (d.email.trim().isNotEmpty) infoChip(Icons.email_outlined, d.email.trim()),
-            if (d.phone.trim().isNotEmpty) infoChip(Icons.phone_outlined, d.phone.trim()),
-            if (d.lang.trim().isNotEmpty) infoChip(Icons.language, d.lang.toUpperCase()),
-          ];
+        Widget buildRejectButton({double? width}) {
+          final button = OutlinedButton(onPressed: widget.onReject, child: const Text('Ablehnen'));
+          if (width == null) return button;
+          return SizedBox(width: width, child: button);
+        }
 
-          final theme = Theme.of(context);
+        final header = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Text(subtitle.isEmpty ? '—' : subtitle),
+            const SizedBox(height: 4),
+            Text(d.email, style: Theme.of(context).textTheme.bodySmall),
+          ],
+        );
 
-          return Column(
+        Widget actionSection;
+        if (isCompact) {
+          actionSection = Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                child: Column(
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: buildIconButton(
+                      tooltip: 'Adressdaten',
+                      icon: Icons.info_outline,
+                      onPressed: _showAddress,
+                    ),
+                  ),
+                  buildIconButton(
+                    tooltip: 'Reklamationen anzeigen',
+                    icon: _expanded ? Icons.expand_less : Icons.receipt_long,
+                    onPressed: () {
+                      setState(() => _expanded = !_expanded);
+                      if (_expanded) widget.onLoadComplaints();
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              buildApproveButton(width: double.infinity),
+              const SizedBox(height: 8),
+              buildRejectButton(width: double.infinity),
+            ],
+          );
+        } else {
+          actionSection = Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              buildIconButton(
+                tooltip: 'Adressdaten',
+                icon: Icons.info_outline,
+                onPressed: _showAddress,
+              ),
+              buildIconButton(
+                tooltip: 'Reklamationen anzeigen',
+                icon: _expanded ? Icons.expand_less : Icons.receipt_long,
+                onPressed: () {
+                  setState(() => _expanded = !_expanded);
+                  if (_expanded) widget.onLoadComplaints();
+                },
+              ),
+              buildApproveButton(),
+              buildRejectButton(),
+            ],
+          );
+        }
+
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              Theme.of(context).colorScheme.outlineVariant.withOpacity(0.4),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (isCompact) ...[
+                header,
+                const SizedBox(height: 12),
+                actionSection,
+              ] else ...[
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 4),
-                    Text(subtitle.isEmpty ? '—' : subtitle),
-                    if (chips.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: chips,
-                      ),
-                    ],
-                    const SizedBox(height: 14),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        OutlinedButton.icon(
-                          onPressed: _showAddress,
-                          icon: const Icon(Icons.info_outline),
-                          label: const Text('Adressdaten anzeigen'),
-                        ),
-                        const SizedBox(height: 8),
-                        OutlinedButton.icon(
-                          onPressed: toggleComplaints,
-                          icon: Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
-                          label: Text(_expanded
-                              ? 'Reklamationen verbergen'
-                              : 'Reklamationen anzeigen'),
-                        ),
-                        const SizedBox(height: 8),
-                        FilledButton.icon(
-                          onPressed: widget.onApprove,
-                          icon: const Icon(Icons.check_circle_outline),
-                          label: const Text('Freigeben'),
-                        ),
-                        const SizedBox(height: 8),
-                        OutlinedButton.icon(
-                          onPressed: widget.onReject,
-                          icon: const Icon(Icons.block),
-                          label: const Text('Ablehnen'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: theme.colorScheme.error,
-                          ),
-                        ),
-                      ],
-                    ),
+                    Expanded(child: header),
+                    const SizedBox(width: 12),
+                    actionSection,
                   ],
                 ),
-              ),
-              if (_expanded)
+              ],
+              if (_expanded) ...[
+                const SizedBox(height: 12),
                 _ComplaintsDetailList(
                   result: widget.complaints,
                   api: widget.api,
                   onClosed: () {},
                   companyHint: d.company,
+                  padding: EdgeInsets.zero,
                 ),
-              const Divider(height: 1),
+              ],
             ],
-          );
-        }
-
-        return Column(
-          children: [
-            ListTile(
-              title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: Text(subtitle.isEmpty ? '—' : subtitle),
-              trailing: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 360),
-                child: Wrap(
-                  alignment: WrapAlignment.end,
-                  spacing: 8,
-                  runSpacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    IconButton(
-                      tooltip: 'Adressdaten',
-                      onPressed: _showAddress,
-                      icon: const Icon(Icons.info_outline),
-                    ),
-                    IconButton(
-                      tooltip: 'Reklamationen anzeigen',
-                      onPressed: toggleComplaints,
-                      icon: Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
-                    ),
-                    FilledButton(onPressed: widget.onApprove, child: const Text('Freigeben')),
-                    OutlinedButton(onPressed: widget.onReject, child: const Text('Ablehnen')),
-                  ],
-                ),
-              ),
-            ),
-            if (_expanded)
-              _ComplaintsDetailList(
-                result: widget.complaints,
-                api: widget.api,
-                onClosed: () {},
-                companyHint: d.company,
-              ),
-            const Divider(height: 1),
-          ],
+          ),
         );
       },
     );
@@ -1954,166 +2054,243 @@ class _UserTileState extends State<_UserTile> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 640;
+        final isCompact = constraints.maxWidth < 640;
 
-        Widget infoChip(IconData icon, String text) {
-          return Chip(
-            avatar: Icon(icon, size: 16),
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            label: Text(text, overflow: TextOverflow.ellipsis),
+        Widget buildIconButton({
+          required String tooltip,
+          required IconData icon,
+          required VoidCallback onPressed,
+        }) {
+          return IconButton(
+            tooltip: tooltip,
+            icon: Icon(icon),
+            onPressed: onPressed,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(width: 40, height: 40),
           );
         }
 
-        void toggleComplaints() {
-          setState(() => _expanded = !_expanded);
-          if (_expanded) widget.onLoadComplaints();
-        }
+        final repInfo = widget.repName != null && widget.repName!.trim().isNotEmpty
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.badge_outlined, size: 16),
+                  const SizedBox(width: 6),
+                  Text('Vertreter: ${widget.repName}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                ],
+              )
+            : null;
 
-        if (compact) {
-          final chips = <Widget>[
-            if (d.email.trim().isNotEmpty) infoChip(Icons.email_outlined, d.email.trim()),
-            if (d.contact.trim().isNotEmpty) infoChip(Icons.person_outline, d.contact.trim()),
-            if (d.phone.trim().isNotEmpty) infoChip(Icons.phone_outlined, d.phone.trim()),
-            if ((widget.repName ?? '').trim().isNotEmpty)
-              infoChip(Icons.badge_outlined, 'Vertreter: ${widget.repName!.trim()}'),
-            if (d.country.trim().isNotEmpty) infoChip(Icons.public, d.country.trim()),
-          ];
+        final statusLabel = d.selfDeleted
+            ? const Text(
+                'Account durch User gelöscht!',
+                style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
+              )
+            : null;
 
-          final theme = Theme.of(context);
+        final header = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Text(subtitle),
+            const SizedBox(height: 4),
+            Text(d.email, style: Theme.of(context).textTheme.bodySmall),
+            if (repInfo != null) ...[
+              const SizedBox(height: 6),
+              repInfo,
+            ],
+            if (statusLabel != null) ...[
+              const SizedBox(height: 6),
+              statusLabel,
+            ],
+          ],
+        );
 
-          return Column(
+        Widget actionSection;
+        if (isCompact) {
+          actionSection = Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 4),
-                    Text(subtitle),
-                    if (d.selfDeleted) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        'Account durch User gelöscht!',
-                        style: TextStyle(
-                          color: theme.colorScheme.error,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                    if (chips.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: chips,
-                      ),
-                    ],
-                    const SizedBox(height: 14),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        OutlinedButton.icon(
-                          onPressed: _showAddress,
-                          icon: const Icon(Icons.info_outline),
-                          label: const Text('Adressdaten anzeigen'),
-                        ),
-                        const SizedBox(height: 8),
-                        OutlinedButton.icon(
-                          onPressed: toggleComplaints,
-                          icon: Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
-                          label: Text(_expanded
-                              ? 'Reklamationen verbergen'
-                              : 'Reklamationen anzeigen'),
-                        ),
-                        const SizedBox(height: 8),
-                        FilledButton.icon(
-                          onPressed: () => widget.onDelete(),
-                          icon: const Icon(Icons.delete_outline),
-                          label: const Text('Löschen'),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: theme.colorScheme.error,
-                            foregroundColor: theme.colorScheme.onError,
-                          ),
-                        ),
-                      ],
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: buildIconButton(
+                      tooltip: 'Adressdaten',
+                      icon: Icons.info_outline,
+                      onPressed: _showAddress,
                     ),
-                  ],
+                  ),
+                  buildIconButton(
+                    tooltip: 'Reklamationen anzeigen',
+                    icon: _expanded ? Icons.expand_less : Icons.receipt_long,
+                    onPressed: () {
+                      setState(() => _expanded = !_expanded);
+                      if (_expanded) widget.onLoadComplaints();
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () async => widget.onDelete(),
+                  child: const Text('Löschen'),
                 ),
               ),
-              if (_expanded)
+            ],
+          );
+        } else {
+          actionSection = Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              buildIconButton(
+                tooltip: 'Adressdaten',
+                icon: Icons.info_outline,
+                onPressed: _showAddress,
+              ),
+              buildIconButton(
+                tooltip: 'Reklamationen anzeigen',
+                icon: _expanded ? Icons.expand_less : Icons.receipt_long,
+                onPressed: () {
+                  setState(() => _expanded = !_expanded);
+                  if (_expanded) widget.onLoadComplaints();
+                },
+              ),
+              OutlinedButton(onPressed: () async => widget.onDelete(), child: const Text('Löschen')),
+            ],
+          );
+        }
+
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              Theme.of(context).colorScheme.outlineVariant.withOpacity(0.4),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (isCompact) ...[
+                header,
+                const SizedBox(height: 12),
+                actionSection,
+              ] else ...[
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: header),
+                    const SizedBox(width: 12),
+                    actionSection,
+                  ],
+                ),
+              ],
+              if (_expanded) ...[
+                const SizedBox(height: 12),
                 _ComplaintsDetailList(
                   result: widget.complaints,
                   api: widget.api,
                   onClosed: widget.onClosedFromEditor,
                   companyHint: d.company,
+                  padding: EdgeInsets.zero,
                 ),
-              const Divider(height: 1),
+              ],
             ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _RepTile extends StatelessWidget {
+  final Rep rep;
+  final VoidCallback onMail;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  final VoidCallback onManageCustomers;
+
+  const _RepTile({
+    required this.rep,
+    required this.onMail,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onManageCustomers,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 640;
+        final header = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(rep.displayName, style: const TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Text('${rep.email} • ${rep.region} • Kunden: ${rep.customers.length}'),
+          ],
+        );
+
+        IconButton action({
+          required String tooltip,
+          required IconData icon,
+          required VoidCallback onPressed,
+        }) {
+          return IconButton(
+            tooltip: tooltip,
+            icon: Icon(icon),
+            onPressed: onPressed,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(width: 40, height: 40),
           );
         }
 
-        final subtitleWidgets = <Widget>[
-          Text(subtitle),
-          if (widget.repName != null && widget.repName!.trim().isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.badge_outlined, size: 16),
-                const SizedBox(width: 6),
-                Text(
-                  'Vertreter: ${widget.repName}',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ],
-            ),
-          ],
-          if (d.selfDeleted) const SizedBox(height: 4),
-          if (d.selfDeleted)
-            const Text(
-              'Account durch User gelöscht!',
-              style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
-            ),
-        ];
-
-        return Column(
+        final actionBar = Wrap(
+          spacing: 10,
+          runSpacing: 10,
           children: [
-            ListTile(
-              title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: subtitleWidgets,
-              ),
-              trailing: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 320),
-                child: Wrap(
-                  alignment: WrapAlignment.end,
-                  spacing: 8,
-                  runSpacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
+            action(tooltip: 'E-Mail schreiben', icon: Icons.mail_outline, onPressed: onMail),
+            action(tooltip: 'Bearbeiten', icon: Icons.edit_outlined, onPressed: onEdit),
+            action(tooltip: 'Löschen', icon: Icons.delete_outline, onPressed: onDelete),
+            action(tooltip: 'Kunden zuweisen/anzeigen', icon: Icons.group_add_outlined, onPressed: onManageCustomers),
+          ],
+        );
+
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              Theme.of(context).colorScheme.outlineVariant.withOpacity(0.4),
+            ),
+          ),
+          child: isCompact
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    IconButton(tooltip: 'Adressdaten', onPressed: _showAddress, icon: const Icon(Icons.info_outline)),
-                    IconButton(
-                      tooltip: 'Reklamationen anzeigen',
-                      onPressed: toggleComplaints,
-                      icon: Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
-                    ),
-                    OutlinedButton(onPressed: () => widget.onDelete(), child: const Text('Löschen')),
+                    header,
+                    const SizedBox(height: 12),
+                    actionBar,
+                  ],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: header),
+                    const SizedBox(width: 12),
+                    actionBar,
                   ],
                 ),
-              ),
-            ),
-            if (_expanded)
-              _ComplaintsDetailList(
-                result: widget.complaints,
-                api: widget.api,
-                onClosed: widget.onClosedFromEditor,
-                companyHint: d.company,
-              ),
-            const Divider(height: 1),
-          ],
         );
       },
     );
@@ -2125,39 +2302,42 @@ class _ComplaintsDetailList extends StatelessWidget {
   final AdminApi api;
   final VoidCallback onClosed;
   final String? companyHint;
+  final EdgeInsetsGeometry? padding;
 
   const _ComplaintsDetailList({
     required this.result,
     required this.api,
     required this.onClosed,
     this.companyHint,
+    this.padding,
   });
 
   @override
   Widget build(BuildContext context) {
     final r = result;
+    final contentPadding = padding ?? const EdgeInsets.fromLTRB(16, 0, 16, 12);
     if (r == null) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Text('Noch nicht geladen.'),
+      return Padding(
+        padding: contentPadding,
+        child: const Text('Noch nicht geladen.'),
       );
     }
     if (r.loading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: LinearProgressIndicator(),
+      return Padding(
+        padding: contentPadding,
+        child: const LinearProgressIndicator(),
       );
     }
     if (r.error != null) {
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Text('Fehler beim Laden: ${r.error}', style: TextStyle(color: Colors.red)),
+        padding: contentPadding,
+        child: Text('Fehler beim Laden: ${r.error}', style: const TextStyle(color: Colors.red)),
       );
     }
     if (r.items.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Text('Keine Reklamationen gefunden.'),
+      return Padding(
+        padding: contentPadding,
+        child: const Text('Keine Reklamationen gefunden.'),
       );
     }
 
@@ -2165,7 +2345,7 @@ class _ComplaintsDetailList extends StatelessWidget {
     final parent = context.findAncestorStateOfType<_AdminPageState>();
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: contentPadding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2603,28 +2783,19 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     return s.isEmpty ? null : s;
   }
 
-  Widget _detKv(String label, String? value, {int maxLines = 2, bool compact = false}) {
+  Widget _detKv(String label, String? value, {int maxLines = 2}) {
     final v = (value ?? '').trim();
     if (v.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: compact
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
-                const SizedBox(height: 4),
-                Text(v, maxLines: maxLines, overflow: TextOverflow.ellipsis),
-              ],
-            )
-          : Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(width: 160, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
-                const SizedBox(width: 8),
-                Expanded(child: Text(v, maxLines: maxLines, overflow: TextOverflow.ellipsis)),
-              ],
-            ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 160, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
+          const SizedBox(width: 8),
+          Expanded(child: Text(v, maxLines: maxLines, overflow: TextOverflow.ellipsis)),
+        ],
+      ),
     );
   }
 
@@ -2989,10 +3160,11 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       return '${two(d.day)}.${two(d.month)}.${d.year}';
     }
 
+
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 720;
-        final detailCompact = constraints.maxWidth < 580;
+        final isCompact = constraints.maxWidth < 720;
+        final isNarrow = constraints.maxWidth < 560;
 
         final headerLeft = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -3039,6 +3211,13 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
               children: [
                 Row(
                   mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.event, size: 16),
+                    SizedBox(width: 6),
+                  ],
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(Icons.event, size: 16),
                     const SizedBox(width: 6),
@@ -3056,61 +3235,49 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
           ],
         );
 
-        final headerRight = Builder(
+        final contactInfo = Builder(
           builder: (ctx) {
             final isDark = Theme.of(ctx).brightness == Brightness.dark;
             final label = (widget.companyHint != null && widget.companyHint!.trim().isNotEmpty)
                 ? 'Firma: ${widget.companyHint}'
                 : 'E-Mail: ${c.email}';
-            final baseStyle = TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: isDark ? Theme.of(ctx).colorScheme.onSurface : Colors.black,
-            );
-
-            if (compact) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            final width = isCompact ? constraints.maxWidth : math.min(360.0, constraints.maxWidth);
+            return SizedBox(
+              width: width,
+              child: Row(
+                mainAxisSize: MainAxisSize.max,
                 children: [
-                  Text(label, style: baseStyle),
-                  const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    onPressed: _busy ? null : _composeMailToCustomer,
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Theme.of(ctx).colorScheme.onSurface : Colors.black,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: isNarrow ? 2 : 1,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    tooltip: 'E-Mail an Kunden verfassen',
                     icon: const Icon(Icons.email_outlined),
-                    label: const Text('E-Mail an Kunden'),
+                    onPressed: _busy ? null : _composeMailToCustomer,
                   ),
                 ],
-              );
-            }
-
-            return Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(
-                  child: Text(
-                    label,
-                    style: baseStyle,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  tooltip: 'E-Mail an Kunden verfassen',
-                  icon: const Icon(Icons.email_outlined),
-                  onPressed: _busy ? null : _composeMailToCustomer,
-                ),
-              ],
+              ),
             );
           },
         );
 
-        final header = compact
+        final topSection = isCompact
             ? Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   headerLeft,
                   const SizedBox(height: 12),
-                  headerRight,
+                  contactInfo,
                 ],
               )
             : Row(
@@ -3118,92 +3285,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                 children: [
                   Expanded(child: headerLeft),
                   const SizedBox(width: 12),
-                  headerRight,
-                ],
-              );
-
-        final statusControls = compact
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  DropdownButtonFormField<int>(
-                    value: _status,
-                    decoration: const InputDecoration(
-                      labelText: 'Status',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: kStatusItems
-                        .map((e) => DropdownMenuItem<int>(
-                              value: e['value'] as int,
-                              child: Text(e['label'] as String),
-                            ))
-                        .toList(),
-                    onChanged: (v) => setState(() => _status = v),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    value: _decision ?? '',
-                    decoration: const InputDecoration(
-                      labelText: 'Entscheidung',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: kDecisionItems
-                        .map((e) => DropdownMenuItem<String>(
-                              value: e['value']!,
-                              child: Text(e['label']!),
-                            ))
-                        .toList(),
-                    onChanged: (v) =>
-                        setState(() => _decision = (v == null || v.isEmpty) ? null : v),
-                  ),
-                  const SizedBox(height: 12),
-                  FilledButton(
-                    onPressed: _busy ? null : _saveStatusDecision,
-                    child: const Text('Speichern'),
-                  ),
-                ],
-              )
-            : Row(
-                children: [
-                  Expanded(
-                    child: DropdownButtonFormField<int>(
-                      value: _status,
-                      decoration: const InputDecoration(
-                        labelText: 'Status',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: kStatusItems
-                          .map((e) => DropdownMenuItem<int>(
-                                value: e['value'] as int,
-                                child: Text(e['label'] as String),
-                              ))
-                          .toList(),
-                      onChanged: (v) => setState(() => _status = v),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      value: _decision ?? '',
-                      decoration: const InputDecoration(
-                        labelText: 'Entscheidung',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: kDecisionItems
-                          .map((e) => DropdownMenuItem<String>(
-                                value: e['value']!,
-                                child: Text(e['label']!),
-                              ))
-                          .toList(),
-                      onChanged: (v) =>
-                          setState(() => _decision = (v == null || v.isEmpty) ? null : v),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  FilledButton(
-                    onPressed: _busy ? null : _saveStatusDecision,
-                    child: const Text('Speichern'),
-                  ),
+                  Align(alignment: Alignment.topRight, child: contactInfo),
                 ],
               );
 
@@ -3214,16 +3296,13 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // =====================
-                // Kopfzeile (übersichtlich)
-                // =====================
-                header,
+                topSection,
 
-                const SizedBox(height: 10),
+            const SizedBox(height: 10),
 
-                // ===================== Entscheidung + Wunsch (gemeinsame Meta-Zeile) =====================
-                Builder(
-                  builder: (_) {
+            // ===================== Entscheidung + Wunsch (gemeinsame Meta-Zeile) =====================
+            Builder(
+              builder: (_) {
                 final decText = _labelForDecision(c.decision);
                 final decCol  = _decisionColor(c.decision);
                 final wish    = c.handlingLabel; // kommt aus payload['handling'] / 'Wunsch'
@@ -3268,13 +3347,13 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                   ],
                 );
 
-                if (compact) {
+                if (isCompact) {
                   return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       left,
                       const SizedBox(height: 8),
-                      OutlinedButton.icon(
+                      TextButton.icon(
                         onPressed: () => setState(() => _expanded = !_expanded),
                         icon: Icon(_expanded ? Icons.expand_less : Icons.edit),
                         label: Text(_expanded ? 'Bearbeiten schließen' : 'Bearbeiten'),
@@ -3285,9 +3364,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
 
                 return Row(
                   children: [
-                    // links: Entscheidung + Wunsch im Wrap (bricht sauber auf kleinen Screens)
                     Expanded(child: left),
-                    // rechts: Bearbeiten-Button wie gehabt
                     TextButton.icon(
                       onPressed: () => setState(() => _expanded = !_expanded),
                       icon: Icon(_expanded ? Icons.expand_less : Icons.edit),
@@ -3298,77 +3375,152 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
               },
             ),
 
-                // KEIN prominenter Wunsch-Banner mehr!
+            // KEIN prominenter Wunsch-Banner mehr!
 
-                if (_expanded) ...[
-                  const SizedBox(height: 10),
+            if (_expanded) ...[
+              const SizedBox(height: 10),
 
-                  // ---- Toggle + Details-Container (NEU, optional ein/ausklappbar) ----
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: compact
-                        ? OutlinedButton.icon(
-                            onPressed: () => setState(() => _expanded = !_expanded),
-                            icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
-                            label: const Text('Details anzeigen'),
-                          )
-                        : TextButton.icon(
-                            onPressed: () => setState(() => _expanded = !_expanded),
-                            icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
-                            label: const Text('Details anzeigen'),
-                          ),
+              // ---- Toggle + Details-Container (NEU, optional ein/ausklappbar) ----
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  TextButton.icon(
+                    onPressed: () => setState(() => _expanded = !_expanded),
+                    icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+                    label: const Text('Details anzeigen'), // ändert sich unten dynamisch
                   ),
-                  AnimatedCrossFade(
-                    crossFadeState: _expanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
-                    duration: const Duration(milliseconds: 160),
-                    firstChild: Container(
-                      width: double.infinity,
-                      margin: const EdgeInsets.only(top: 4),
-                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.30),
+                ],
+              ),
+              AnimatedCrossFade(
+                crossFadeState: _expanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+                duration: const Duration(milliseconds: 160),
+                firstChild: Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(top: 4),
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.30),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
                       Text(
                         'Details der Reklamation',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 8),
-                      _detKv('Segment',       segment, compact: detailCompact),
-                      _detKv('Produkttyp',    productType, compact: detailCompact),
-                      _detKv('Artikelnummer', articleNo, compact: detailCompact),
-                      _detKv('Produkte zurückgeschickt?', returned, compact: detailCompact),
-                      _detKv('Am Patienten angewendet?', applied, compact: detailCompact),
-                      _detKv('Verletzung?', injury, compact: detailCompact),
-                      _detKv('Verletzungsbeschreibung', injuryDesc, maxLines: 6, compact: detailCompact),
+                      _detKv('Segment',       segment),
+                      _detKv('Produkttyp',    productType),
+                      _detKv('Artikelnummer', articleNo),
+                      _detKv('Produkte zurückgeschickt?', returned),
+                      _detKv('Am Patienten angewendet?', applied),
+                      _detKv('Verletzung?', injury),
+                      _detKv('Verletzungsbeschreibung', injuryDesc, maxLines: 6),
 
-                      if (detailCompact) ...[
-                        _detKv('Charge / LOT', batch, compact: detailCompact),
-                        _detKv('Seriennummer', serial, compact: detailCompact),
-                      ] else
-                        Row(
-                          children: [
-                            Expanded(child: _detKv('Charge / LOT', batch)),
-                            const SizedBox(width: 12),
-                            Expanded(child: _detKv('Seriennummer', serial)),
-                          ],
-                        ),
-                      _detKv('Menge', qty, compact: detailCompact),
-                      _detKv('Fehler / Beschreibung', desc, maxLines: 6, compact: detailCompact),
-                      _detKv('Grund / Ursache',       reason, maxLines: 4, compact: detailCompact),
-                      _detKv('Wunsch des Kunden',     customerWish, maxLines: 3, compact: detailCompact),
+                      Row(
+                        children: [
+                          Expanded(child: _detKv('Charge / LOT', batch)),
+                          const SizedBox(width: 12),
+                          Expanded(child: _detKv('Seriennummer', serial)),
+                        ],
+                      ),
+                      _detKv('Menge', qty),
+                      _detKv('Fehler / Beschreibung', desc, maxLines: 6),
+                      _detKv('Grund / Ursache',       reason, maxLines: 4),
+                      _detKv('Wunsch des Kunden',     customerWish, maxLines: 3),
                     ],
                   ),
                 ),
-                    secondChild: const SizedBox.shrink(),
-                  ),
+                secondChild: const SizedBox.shrink(),
+              ),
 
-              // ====== Editor-Bereich (unverändert inhaltlich) ======
-                  statusControls,
+              // ====== Editor-Bereich (unverändert inhaltlich) ======                        
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (isNarrow) ...[
+                    DropdownButtonFormField<int>(
+                      value: _status,
+                      decoration: const InputDecoration(
+                        labelText: 'Status',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: kStatusItems
+                          .map((e) => DropdownMenuItem<int>(
+                                value: e['value'] as int,
+                                child: Text(e['label'] as String),
+                              ))
+                          .toList(),
+                      onChanged: (v) => setState(() => _status = v),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: _decision ?? '',
+                      decoration: const InputDecoration(
+                        labelText: 'Entscheidung',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: kDecisionItems
+                          .map((e) => DropdownMenuItem<String>(
+                                value: e['value']!,
+                                child: Text(e['label']!),
+                              ))
+                          .toList(),
+                      onChanged: (v) => setState(() => _decision = (v == null || v.isEmpty) ? null : v),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: _busy ? null : _saveStatusDecision,
+                        child: const Text('Speichern'),
+                      ),
+                    ),
+                  ] else
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<int>(
+                            value: _status,
+                            decoration: const InputDecoration(
+                              labelText: 'Status',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: kStatusItems
+                                .map((e) => DropdownMenuItem<int>(
+                                      value: e['value'] as int,
+                                      child: Text(e['label'] as String),
+                                    ))
+                                .toList(),
+                            onChanged: (v) => setState(() => _status = v),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: _decision ?? '',
+                            decoration: const InputDecoration(
+                              labelText: 'Entscheidung',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: kDecisionItems
+                                .map((e) => DropdownMenuItem<String>(
+                                      value: e['value']!,
+                                      child: Text(e['label']!),
+                                    ))
+                                .toList(),
+                            onChanged: (v) =>
+                                setState(() => _decision = (v == null || v.isEmpty) ? null : v),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        FilledButton(
+                          onPressed: _busy ? null : _saveStatusDecision,
+                          child: const Text('Speichern'),
+                        ),
+                      ],
+                    ),
 
                   const SizedBox(height: 12),
 
@@ -3431,16 +3583,18 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                     ),
                   ),
                 ],
-              ],
-            ),
-          ),
-        );
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
       },
     );
   }
 }
 // ===================================================================
-// Admin API (Browser, dart:html)
+// Admin API – http-basiert (kein dart:html HttpRequest mehr)
 // ===================================================================
 class AdminApi {
   String _secret = '';
@@ -3789,10 +3943,6 @@ class _AdminTileProState extends State<AdminTilePro> {
     final elevation = _hovering ? 12.0 : 3.0;
 
     final iconSize = widget.compact ? 44.0 : 54.0;
-    final horizontalPadding = widget.compact ? 16.0 : 18.0;
-    final verticalPadding = widget.compact ? 16.0 : 20.0;
-    final titleSpacing = widget.compact ? 10.0 : 14.0;
-    final subtitleSpacing = widget.compact ? 6.0 : 8.0;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -3820,7 +3970,7 @@ class _AdminTileProState extends State<AdminTilePro> {
                   color: isDark ? cs.outlineVariant.withOpacity(0.35) : cs.outlineVariant.withOpacity(0.25),
                 ),
               ),
-              padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: verticalPadding),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -3858,7 +4008,7 @@ class _AdminTileProState extends State<AdminTilePro> {
                         ),
                     ],
                   ),
-                  SizedBox(height: titleSpacing),
+                  const SizedBox(height: 14),
                   Text(
                     widget.label,
                     textAlign: TextAlign.center,
@@ -3869,7 +4019,7 @@ class _AdminTileProState extends State<AdminTilePro> {
                     ),
                   ),
                   if ((widget.subtitle ?? '').isNotEmpty) ...[
-                    SizedBox(height: subtitleSpacing),
+                    const SizedBox(height: 8),
                     Text(
                       widget.subtitle!,
                       textAlign: TextAlign.center,
