@@ -1,33 +1,72 @@
-// Minimaler Stub, damit der Code kompiliert – wird auf Nicht-Web benutzt.
+// lib/web_compat/html_stub.dart
+//
+// Minimaler, crash-sicherer Stub für Nicht-Web-Plattformen.
+// Wird über den bedingten Import verwendet, wenn 'dart.library.html' NICHT verfügbar ist.
 
 library html_stub;
 
-class _FakeWindow {
-  final Map<String, String> localStorage = {};
-  final _Navigator navigator = _Navigator();
-  final _Location location = _Location();
-  void addEventListener(String _type, Function(dynamic) _cb) {}
-  void open(String _url, String _target) {}
+// --- Window, Navigator, Location ---
+
+class Navigator {
+  String userAgent = '';
 }
-class _Navigator { String userAgent = ''; }
-class _Location { String origin = ''; }
 
-class HttpRequest {}
-class ProgressEvent {}
+class Location {
+  String origin = '';
+  String href = '';
+}
 
-final _FakeWindow window = _FakeWindow();
-final dynamic document = null;
+class Window {
+  final Map<String, String> localStorage = <String, String>{};
+  final Navigator navigator = Navigator();
+  final Location location = Location();
 
-class _Window {
+  void addEventListener(String type, void Function(dynamic)? cb) {}
+  void removeEventListener(String type, void Function(dynamic)? cb) {}
+  void dispatchEvent(dynamic e) {}
+
   void open(String url, String target) {
-    // no-op on mobile
+    // no-op auf Mobile/Desktop
   }
 }
 
-final window = _Window();
+// Ein einziges globales window-Objekt:
+final Window window = Window();
 
-class _Style { String border = ''; String width = ''; String height = ''; }
+// Optionales Document-Placeholder (wird meist nicht gebraucht)
+class Document {
+  void addEventListener(String type, void Function(dynamic)? cb) {}
+}
+final Document? document = null;
+
+// --- DOM-ähnliche Elemente, die du verwendest ---
+
+class Style {
+  String border = '';
+  String width = '';
+  String height = '';
+}
+
 class IFrameElement {
   String? src;
-  final _Style style = _Style();
+  final Style style = Style();
+}
+
+// --- HttpRequest- und ProgressEvent-Stubs (falls noch referenziert) ---
+
+class ProgressEvent {
+  const ProgressEvent();
+}
+
+class HttpRequest {
+  int? status;
+  String responseText = '';
+
+  // API grob nachgebildet – tut auf Mobile nichts.
+  Future<void> open(String method, String url, {bool async = true}) async {}
+  Future<void> send([dynamic body]) async {}
+
+  // Event-Handler (werden ignoriert)
+  set onload(void Function(ProgressEvent e)? handler) {}
+  set onerror(void Function(ProgressEvent e)? handler) {}
 }
