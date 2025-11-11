@@ -1,10 +1,11 @@
 // lib/pages/admin_page.dart
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:dfs_mobile/web_compat/html_stub.dart'
   if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;           // ← NEU
+import 'package:http/http.dart' as http;
 import 'package:dfs_mobile/api/client.dart';
 import 'package:dfs_mobile/widgets/legal_footer.dart';
 
@@ -792,55 +793,119 @@ Widget _buildUsersPanel() {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(children: [
-              const Icon(Icons.receipt_long),
-              const SizedBox(width: 8),
-              const Text('Offene Reklamationen', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-              const Spacer(),
-              DropdownButton<String>(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isCompact = constraints.maxWidth < 640;
+            final dropdownItems = companies
+                .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
+                .toList();
+
+            Widget buildDropdown({required bool expanded}) {
+              if (expanded) {
+                return DropdownButtonFormField<String>(
+                  value: _filterCompany,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Firma',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: dropdownItems,
+                  onChanged: (v) => setState(() => _filterCompany = v ?? 'Alle Firmen'),
+                );
+              }
+              return DropdownButton<String>(
                 value: _filterCompany,
                 onChanged: (v) => setState(() => _filterCompany = v ?? 'Alle Firmen'),
-                items: companies.map((s) => DropdownMenuItem<String>(value: s, child: Text(s))).toList(),
-              ),
-              const SizedBox(width: 8),
-              if (_loadOpen)
-                const Padding(
-                  padding: EdgeInsets.only(right: 8),
-                  child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-                ),
-              IconButton(
-                tooltip: 'Neu laden',
-                onPressed: _loadOpen ? null : _refreshOpen,
-                icon: const Icon(Icons.refresh),
-              ),
-            ]),
-            const SizedBox(height: 8),
-            Expanded(
-              child: list.isEmpty
-                  ? const Center(child: Text('Keine offenen Reklamationen.'))
-                  : ListView.separated(
-                      itemCount: list.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
-                      itemBuilder: (ctx, i) {
-                        final c = list[i];
-                        return _ComplaintEditor(
-                          api: _api,
-                          c: c,
-                          companyHint: _companyByEmail(c.email),
-                          hasRep: _customerHasRep(c.email), // ← NEU
-                          onClosed: () {
-                            setState(() {
-                              _openComplaints.removeWhere((x) => x.ticket == c.ticket);
-                            });
-                          },
-                        );
-                      },
+                items: dropdownItems,
+              );
+            }
+
+            Widget header;
+            if (isCompact) {
+              header = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Icon(Icons.receipt_long),
+                      SizedBox(width: 8),
+                      Text('Offene Reklamationen', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(child: buildDropdown(expanded: true)),
+                      const SizedBox(width: 8),
+                      if (_loadOpen)
+                        const Padding(
+                          padding: EdgeInsets.only(right: 8),
+                          child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                        ),
+                      IconButton(
+                        tooltip: 'Neu laden',
+                        onPressed: _loadOpen ? null : _refreshOpen,
+                        icon: const Icon(Icons.refresh),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            } else {
+              header = Row(
+                children: [
+                  const Icon(Icons.receipt_long),
+                  const SizedBox(width: 8),
+                  const Text('Offene Reklamationen', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  const Spacer(),
+                  SizedBox(width: 260, child: buildDropdown(expanded: false)),
+                  const SizedBox(width: 8),
+                  if (_loadOpen)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 8),
+                      child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
                     ),
-            ),
-          ],
+                  IconButton(
+                    tooltip: 'Neu laden',
+                    onPressed: _loadOpen ? null : _refreshOpen,
+                    icon: const Icon(Icons.refresh),
+                  ),
+                ],
+              );
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                header,
+                const SizedBox(height: 8),
+                Expanded(
+                  child: list.isEmpty
+                      ? const Center(child: Text('Keine offenen Reklamationen.'))
+                      : ListView.separated(
+                          itemCount: list.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 8),
+                          itemBuilder: (ctx, i) {
+                            final c = list[i];
+                            return _ComplaintEditor(
+                              api: _api,
+                              c: c,
+                              companyHint: _companyByEmail(c.email),
+                              hasRep: _customerHasRep(c.email),
+                              onClosed: () {
+                                setState(() {
+                                  _openComplaints.removeWhere((x) => x.ticket == c.ticket);
+                                });
+                              },
+                            );
+                          },
+                        ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -1222,20 +1287,59 @@ Widget _buildUsersPanel() {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Kopfzeile
-            Row(children: [
-              const Icon(Icons.badge_outlined),
-              const SizedBox(width: 8),
-              const Text('Vertreterverwaltung', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-              const Spacer(),
-              if (_loadReps)
-                const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-              IconButton(
-                tooltip: 'Neu laden',
-                onPressed: _loadReps ? null : _refreshReps,
-                icon: const Icon(Icons.refresh),
-              ),
-            ]),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final spinner = _loadReps
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : null;
+                final isCompact = constraints.maxWidth < 640;
+                if (isCompact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(Icons.badge_outlined),
+                          SizedBox(width: 8),
+                          Text('Vertreterverwaltung', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          if (spinner != null) ...[
+                            spinner,
+                            const SizedBox(width: 8),
+                          ],
+                          IconButton(
+                            tooltip: 'Neu laden',
+                            onPressed: _loadReps ? null : _refreshReps,
+                            icon: const Icon(Icons.refresh),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                }
+
+                return Row(
+                  children: [
+                    const Icon(Icons.badge_outlined),
+                    const SizedBox(width: 8),
+                    const Text('Vertreterverwaltung', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                    const Spacer(),
+                    if (spinner != null)
+                      Padding(padding: const EdgeInsets.only(right: 8), child: spinner),
+                    IconButton(
+                      tooltip: 'Neu laden',
+                      onPressed: _loadReps ? null : _refreshReps,
+                      icon: const Icon(Icons.refresh),
+                    ),
+                  ],
+                );
+              },
+            ),
             const SizedBox(height: 12),
 
             // Anlegen-Form
@@ -1250,40 +1354,53 @@ Widget _buildUsersPanel() {
                 children: [
                   const Text('Neuen Vertreter anlegen', style: TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      SizedBox(
-                        width: 240,
-                        child: TextField(controller: _repFirstCtrl, decoration: const InputDecoration(labelText: 'Vorname')),
-                      ),
-                      SizedBox(
-                        width: 260,
-                        child: TextField(controller: _repLastCtrl, decoration: const InputDecoration(labelText: 'Nachname')),
-                      ),
-                      SizedBox(
-                        width: 300,
-                        child: TextField(controller: _repMailCtrl, decoration: const InputDecoration(labelText: 'E-Mail')),
-                      ),
-                      SizedBox(
-                        width: 300,
-                        child: DropdownButtonFormField<String>(
-                          value: _repRegion,
-                          decoration: const InputDecoration(labelText: 'Länderbereich'),
-                          items: kRepRegions.map((s) => DropdownMenuItem<String>(value: s, child: Text(s))).toList(),
-                          onChanged: (v) => setState(() => _repRegion = v ?? kRepRegions.first),
-                        ),
-                      ),
-                      SizedBox(
-                        width: 160,
-                        child: FilledButton.icon(
-                          icon: const Icon(Icons.save_outlined),
-                          onPressed: _repBusy ? null : () => _save(),
-                          label: const Text('Anlegen'),
-                        ),
-                      ),
-                    ],
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      double fieldWidth(double base) {
+                        final maxWidth = constraints.maxWidth;
+                        if (maxWidth <= 360) return maxWidth;
+                        if (maxWidth <= 720) return math.min(base, maxWidth);
+                        return base;
+                      }
+
+                      Widget textField({
+                        required TextEditingController controller,
+                        required String label,
+                        required double baseWidth,
+                      }) {
+                        return SizedBox(
+                          width: fieldWidth(baseWidth),
+                          child: TextField(controller: controller, decoration: InputDecoration(labelText: label)),
+                        );
+                      }
+
+                      return Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          textField(controller: _repFirstCtrl, label: 'Vorname', baseWidth: 220),
+                          textField(controller: _repLastCtrl, label: 'Nachname', baseWidth: 240),
+                          textField(controller: _repMailCtrl, label: 'E-Mail', baseWidth: 280),
+                          SizedBox(
+                            width: fieldWidth(260),
+                            child: DropdownButtonFormField<String>(
+                              value: _repRegion,
+                              decoration: const InputDecoration(labelText: 'Länderbereich'),
+                              items: kRepRegions.map((s) => DropdownMenuItem<String>(value: s, child: Text(s))).toList(),
+                              onChanged: (v) => setState(() => _repRegion = v ?? kRepRegions.first),
+                            ),
+                          ),
+                          SizedBox(
+                            width: fieldWidth(200),
+                            child: FilledButton.icon(
+                              icon: const Icon(Icons.save_outlined),
+                              onPressed: _repBusy ? null : () => _save(),
+                              label: const Text('Anlegen'),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ],
               ),
@@ -1297,42 +1414,19 @@ Widget _buildUsersPanel() {
                   ? const Center(child: Text('Keine Vertreter angelegt.'))
                   : ListView.separated(
                       itemCount: _reps.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (ctx, i) {
                         final r = _reps[i];
-                        return ListTile(
-                          leading: const CircleAvatar(child: Icon(Icons.person_outline)),
-                          title: Text(r.displayName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                          subtitle: Text('${r.email} • ${r.region} • Kunden: ${r.customers.length}'),
-                          trailing: Wrap(
-                            spacing: 8,
-                            children: [
-                              IconButton(
-                                tooltip: 'E-Mail schreiben',
-                                icon: const Icon(Icons.mail_outline),
-                                onPressed: () => _composeMail(
-                                  r.email,
-                                  subject: 'DFS-DIAMON – Anfrage / ${r.displayName}',
-                                  body: 'Guten Tag ${r.displayName},\n\n— Nachricht —\n\nBeste Grüße\nDFS-DIAMON GmbH',
-                                ),
-                              ),
-                              IconButton(
-                                tooltip: 'Bearbeiten',
-                                icon: const Icon(Icons.edit_outlined),
-                                onPressed: () => _edit(r),
-                              ),
-                              IconButton(
-                                tooltip: 'Löschen',
-                                icon: const Icon(Icons.delete_outline),
-                                onPressed: () => _confirmDelete(r),
-                              ),
-                              IconButton(
-                                tooltip: 'Kunden zuweisen/anzeigen',
-                                icon: const Icon(Icons.group_add_outlined),
-                                onPressed: () => _openRepCustomersDialog(r),
-                              ),
-                            ],
+                        return _RepTile(
+                          rep: r,
+                          onMail: () => _composeMail(
+                            r.email,
+                            subject: 'DFS-DIAMON – Anfrage / ${r.displayName}',
+                            body: 'Guten Tag ${r.displayName},\n\n— Nachricht —\n\nBeste Grüße\nDFS-DIAMON GmbH',
                           ),
+                          onEdit: () => _edit(r),
+                          onDelete: () => _confirmDelete(r),
+                          onManageCustomers: () => _openRepCustomersDialog(r),
                         );
                       },
                     ),
@@ -1397,12 +1491,12 @@ class _AdminTile extends StatelessWidget {
         onTap: onTap,
         child: Center(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: 44, color: color),
-                const SizedBox(height: 10),
+                Icon(icon, size: 36, color: color),
+                const SizedBox(height: 8),
                 Text(
                   label,
                   style: const TextStyle(fontWeight: FontWeight.w600),
@@ -1624,38 +1718,144 @@ class _PendingTileState extends State<_PendingTile> {
     final title = d.company.isNotEmpty ? d.company : d.email;
     final subtitle = (d.country.isNotEmpty) ? d.country : '${d.zip} ${d.city}'.trim();
 
-    return Column(
-      children: [
-        ListTile(
-          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-          subtitle: Text(subtitle.isEmpty ? '—' : subtitle),
-          trailing: Wrap(
-            spacing: 8,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 640;
+
+        Widget buildIconButton({
+          required String tooltip,
+          required IconData icon,
+          required VoidCallback onPressed,
+        }) {
+          return IconButton(
+            tooltip: tooltip,
+            icon: Icon(icon),
+            onPressed: onPressed,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+          );
+        }
+
+        Widget buildApproveButton({double? width}) {
+          final button = FilledButton(onPressed: widget.onApprove, child: const Text('Freigeben'));
+          if (width == null) return button;
+          return SizedBox(width: width, child: button);
+        }
+
+        Widget buildRejectButton({double? width}) {
+          final button = OutlinedButton(onPressed: widget.onReject, child: const Text('Ablehnen'));
+          if (width == null) return button;
+          return SizedBox(width: width, child: button);
+        }
+
+        final header = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Text(subtitle.isEmpty ? '—' : subtitle),
+            const SizedBox(height: 4),
+            Text(d.email, style: Theme.of(context).textTheme.bodySmall),
+          ],
+        );
+
+        Widget actionSection;
+        if (isCompact) {
+          actionSection = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: buildIconButton(
+                      tooltip: 'Adressdaten',
+                      icon: Icons.info_outline,
+                      onPressed: _showAddress,
+                    ),
+                  ),
+                  buildIconButton(
+                    tooltip: 'Reklamationen anzeigen',
+                    icon: _expanded ? Icons.expand_less : Icons.receipt_long,
+                    onPressed: () {
+                      setState(() => _expanded = !_expanded);
+                      if (_expanded) widget.onLoadComplaints();
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              buildApproveButton(width: double.infinity),
+              const SizedBox(height: 8),
+              buildRejectButton(width: double.infinity),
+            ],
+          );
+        } else {
+          actionSection = Wrap(
+            spacing: 10,
+            runSpacing: 10,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              IconButton(tooltip: 'Adressdaten', onPressed: _showAddress, icon: const Icon(Icons.info_outline)),
-              IconButton(
+              buildIconButton(
+                tooltip: 'Adressdaten',
+                icon: Icons.info_outline,
+                onPressed: _showAddress,
+              ),
+              buildIconButton(
                 tooltip: 'Reklamationen anzeigen',
+                icon: _expanded ? Icons.expand_less : Icons.receipt_long,
                 onPressed: () {
                   setState(() => _expanded = !_expanded);
                   if (_expanded) widget.onLoadComplaints();
                 },
-                icon: Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
               ),
-              FilledButton(onPressed: widget.onApprove, child: const Text('Freigeben')),
-              OutlinedButton(onPressed: widget.onReject, child: const Text('Ablehnen')),
+              buildApproveButton(),
+              buildRejectButton(),
+            ],
+          );
+        }
+
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              Theme.of(context).colorScheme.outlineVariant.withOpacity(0.4),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (isCompact) ...[
+                header,
+                const SizedBox(height: 12),
+                actionSection,
+              ] else ...[
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: header),
+                    const SizedBox(width: 12),
+                    actionSection,
+                  ],
+                ),
+              ],
+              if (_expanded) ...[
+                const SizedBox(height: 12),
+                _ComplaintsDetailList(
+                  result: widget.complaints,
+                  api: widget.api,
+                  onClosed: () {},
+                  companyHint: d.company,
+                  padding: EdgeInsets.zero,
+                ),
+              ],
             ],
           ),
-        ),
-        if (_expanded)
-          _ComplaintsDetailList(
-            result: widget.complaints,
-            api: widget.api,
-            onClosed: () {},
-            companyHint: d.company,
-          ),
-        const Divider(height: 1),
-      ],
+        );
+      },
     );
   }
 }
@@ -1720,62 +1920,247 @@ class _UserTileState extends State<_UserTile> {
     final title = d.company.isNotEmpty ? d.company : d.email;
     final subtitle = d.country.isNotEmpty ? d.country : d.email;
 
-    return Column(
-      children: [
-        ListTile(
-          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(subtitle),
-              if (widget.repName != null && widget.repName!.trim().isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.badge_outlined, size: 16),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Vertreter: ${widget.repName}',
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  ],
-                ),
-              ],
-              if (d.selfDeleted) const SizedBox(height: 4),
-              if (d.selfDeleted)
-                const Text(
-                  'Account durch User gelöscht!',
-                  style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
-                ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 640;
+
+        Widget buildIconButton({
+          required String tooltip,
+          required IconData icon,
+          required VoidCallback onPressed,
+        }) {
+          return IconButton(
+            tooltip: tooltip,
+            icon: Icon(icon),
+            onPressed: onPressed,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+          );
+        }
+
+        final repInfo = widget.repName != null && widget.repName!.trim().isNotEmpty
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.badge_outlined, size: 16),
+                  const SizedBox(width: 6),
+                  Text('Vertreter: ${widget.repName}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                ],
+              )
+            : null;
+
+        final statusLabel = d.selfDeleted
+            ? const Text(
+                'Account durch User gelöscht!',
+                style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
+              )
+            : null;
+
+        final header = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Text(subtitle),
+            const SizedBox(height: 4),
+            Text(d.email, style: Theme.of(context).textTheme.bodySmall),
+            if (repInfo != null) ...[
+              const SizedBox(height: 6),
+              repInfo,
             ],
-          ),
-          trailing: Wrap(
-            spacing: 8,
+            if (statusLabel != null) ...[
+              const SizedBox(height: 6),
+              statusLabel,
+            ],
+          ],
+        );
+
+        Widget actionSection;
+        if (isCompact) {
+          actionSection = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: buildIconButton(
+                      tooltip: 'Adressdaten',
+                      icon: Icons.info_outline,
+                      onPressed: _showAddress,
+                    ),
+                  ),
+                  buildIconButton(
+                    tooltip: 'Reklamationen anzeigen',
+                    icon: _expanded ? Icons.expand_less : Icons.receipt_long,
+                    onPressed: () {
+                      setState(() => _expanded = !_expanded);
+                      if (_expanded) widget.onLoadComplaints();
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () async => widget.onDelete(),
+                  child: const Text('Löschen'),
+                ),
+              ),
+            ],
+          );
+        } else {
+          actionSection = Wrap(
+            spacing: 10,
+            runSpacing: 10,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              IconButton(tooltip: 'Adressdaten', onPressed: _showAddress, icon: const Icon(Icons.info_outline)),
-              IconButton(
+              buildIconButton(
+                tooltip: 'Adressdaten',
+                icon: Icons.info_outline,
+                onPressed: _showAddress,
+              ),
+              buildIconButton(
                 tooltip: 'Reklamationen anzeigen',
+                icon: _expanded ? Icons.expand_less : Icons.receipt_long,
                 onPressed: () {
                   setState(() => _expanded = !_expanded);
                   if (_expanded) widget.onLoadComplaints();
                 },
-                icon: Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
               ),
               OutlinedButton(onPressed: () async => widget.onDelete(), child: const Text('Löschen')),
             ],
+          );
+        }
+
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              Theme.of(context).colorScheme.outlineVariant.withOpacity(0.4),
+            ),
           ),
-        ),
-        if (_expanded)
-          _ComplaintsDetailList(
-            result: widget.complaints,
-            api: widget.api,
-            onClosed: widget.onClosedFromEditor,
-            companyHint: d.company,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (isCompact) ...[
+                header,
+                const SizedBox(height: 12),
+                actionSection,
+              ] else ...[
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: header),
+                    const SizedBox(width: 12),
+                    actionSection,
+                  ],
+                ),
+              ],
+              if (_expanded) ...[
+                const SizedBox(height: 12),
+                _ComplaintsDetailList(
+                  result: widget.complaints,
+                  api: widget.api,
+                  onClosed: widget.onClosedFromEditor,
+                  companyHint: d.company,
+                  padding: EdgeInsets.zero,
+                ),
+              ],
+            ],
           ),
-        const Divider(height: 1),
-      ],
+        );
+      },
+    );
+  }
+}
+
+class _RepTile extends StatelessWidget {
+  final Rep rep;
+  final VoidCallback onMail;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  final VoidCallback onManageCustomers;
+
+  const _RepTile({
+    required this.rep,
+    required this.onMail,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onManageCustomers,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 640;
+        final header = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(rep.displayName, style: const TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Text('${rep.email} • ${rep.region} • Kunden: ${rep.customers.length}'),
+          ],
+        );
+
+        IconButton action({
+          required String tooltip,
+          required IconData icon,
+          required VoidCallback onPressed,
+        }) {
+          return IconButton(
+            tooltip: tooltip,
+            icon: Icon(icon),
+            onPressed: onPressed,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+          );
+        }
+
+        final actionBar = Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            action(tooltip: 'E-Mail schreiben', icon: Icons.mail_outline, onPressed: onMail),
+            action(tooltip: 'Bearbeiten', icon: Icons.edit_outlined, onPressed: onEdit),
+            action(tooltip: 'Löschen', icon: Icons.delete_outline, onPressed: onDelete),
+            action(tooltip: 'Kunden zuweisen/anzeigen', icon: Icons.group_add_outlined, onPressed: onManageCustomers),
+          ],
+        );
+
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              Theme.of(context).colorScheme.outlineVariant.withOpacity(0.4),
+            ),
+          ),
+          child: isCompact
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    header,
+                    const SizedBox(height: 12),
+                    actionBar,
+                  ],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: header),
+                    const SizedBox(width: 12),
+                    actionBar,
+                  ],
+                ),
+        );
+      },
     );
   }
 }
@@ -1785,39 +2170,42 @@ class _ComplaintsDetailList extends StatelessWidget {
   final AdminApi api;
   final VoidCallback onClosed;
   final String? companyHint;
+  final EdgeInsetsGeometry? padding;
 
   const _ComplaintsDetailList({
     required this.result,
     required this.api,
     required this.onClosed,
     this.companyHint,
+    this.padding,
   });
 
   @override
   Widget build(BuildContext context) {
     final r = result;
+    final contentPadding = padding ?? const EdgeInsets.fromLTRB(16, 0, 16, 12);
     if (r == null) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Text('Noch nicht geladen.'),
+      return Padding(
+        padding: contentPadding,
+        child: const Text('Noch nicht geladen.'),
       );
     }
     if (r.loading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: LinearProgressIndicator(),
+      return Padding(
+        padding: contentPadding,
+        child: const LinearProgressIndicator(),
       );
     }
     if (r.error != null) {
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Text('Fehler beim Laden: ${r.error}', style: TextStyle(color: Colors.red)),
+        padding: contentPadding,
+        child: Text('Fehler beim Laden: ${r.error}', style: const TextStyle(color: Colors.red)),
       );
     }
     if (r.items.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Text('Keine Reklamationen gefunden.'),
+      return Padding(
+        padding: contentPadding,
+        child: const Text('Keine Reklamationen gefunden.'),
       );
     }
 
@@ -1825,7 +2213,7 @@ class _ComplaintsDetailList extends StatelessWidget {
     final parent = context.findAncestorStateOfType<_AdminPageState>();
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: contentPadding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
