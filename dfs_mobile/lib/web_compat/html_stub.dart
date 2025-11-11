@@ -33,11 +33,16 @@ class Window {
 // Ein einziges globales window-Objekt:
 final Window window = Window();
 
-// Optionales Document-Placeholder (wird meist nicht gebraucht)
+// --- Document-Stub (mit title) ---
 class Document {
+  String title = ''; // <- wichtig für html.document.title
   void addEventListener(String type, void Function(dynamic)? cb) {}
+  void removeEventListener(String type, void Function(dynamic)? cb) {}
+  void dispatchEvent(dynamic e) {}
 }
-final Document? document = null;
+
+// Globales, nicht-nullbares document:
+final Document document = Document();
 
 // --- DOM-ähnliche Elemente, die du verwendest ---
 
