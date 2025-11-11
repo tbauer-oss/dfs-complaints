@@ -12,25 +12,31 @@ import 'my_complaints_page.dart';
 import 'account_page.dart';
 import 'support_page.dart';
 
-// const _pdfLabUrl  = 'pdfs/DFS-Labor-DE-US-2025-26_1.pdf';
-// const _pdfDentUrl = 'pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf';
+const _labCatalogLinks = [
+  _CatalogLink(
+    label: 'DE / EN / IT',
+    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Labor-DE-US-2025-26_1.pdf',
+    locales: {'de', 'en', 'it'},
+  ),
+  _CatalogLink(
+    label: 'ES / FR',
+    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-LaborES-FR%202025-26_0.pdf',
+    locales: {'es', 'fr'},
+  ),
+];
 
-// Sprachabhängige Pfadwahl (relativ, ohne führenden Slash!)
-String _pdfLabFor(BuildContext context) {
-  final lc = Localizations.localeOf(context).languageCode.toLowerCase();
-  final esFr = lc == 'es' || lc == 'fr';
-  return esFr
-      ? 'pdfs/DFS-Labor-ES-FR-2025-26_1.pdf'
-      : 'pdfs/DFS-Labor-DE-US-2025-26_1.pdf'; // default: DE/EN/IT
-}
-
-String _pdfDentFor(BuildContext context) {
-  final lc = Localizations.localeOf(context).languageCode.toLowerCase();
-  final esFr = lc == 'es' || lc == 'fr';
-  return esFr
-      ? 'pdfs/DFS-Praxis-ES-FR-2025-2026_1.pdf'
-      : 'pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf'; // default: DE/EN/IT
-}
+const _dentCatalogLinks = [
+  _CatalogLink(
+    label: 'DE / EN / IT',
+    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf',
+    locales: {'de', 'en', 'it'},
+  ),
+  _CatalogLink(
+    label: 'ES / FR',
+    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Praxis-ES-FR-2025-2026_1.pdf',
+    locales: {'es', 'fr'},
+  ),
+];
 
 class DashboardPage extends StatefulWidget {
   final ApiClient api;
@@ -448,7 +454,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
                     child: isAppView
                         ? const _CatalogChips()  // dezent in PWA (Appansicht)
-                        : _CatalogStrip(),       // wie zuvor im Browser/Web
+                        : const _CatalogStrip(), // wie zuvor im Browser/Web
                    ),
                 ],
               ),
@@ -602,14 +608,14 @@ class _RepBanner extends StatelessWidget {
 }
 
 class _CatalogStrip extends StatelessWidget {
+  const _CatalogStrip();
+
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final isPhone = MediaQuery.of(context).size.width < 700;
-    final labUrl  = _pdfLabFor(context);
-    final dentUrl = _pdfDentFor(context);
 
     return Container(
       decoration: BoxDecoration(
@@ -646,25 +652,13 @@ class _CatalogStrip extends StatelessWidget {
                 title: t.catalog_lab_title,
                 subtitle: t.catalog_lab_desc,
                 icon: Icons.biotech_outlined,
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => PdfInAppPage(url: labUrl,  title: t.catalog_lab_title),
-                    ),
-                  );
-                },
+                links: _labCatalogLinks,
               ),
               _CatalogTile(
                 title: t.catalog_dent_title,
                 subtitle: t.catalog_dent_desc,
                 icon: Icons.medical_services_outlined,
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => PdfInAppPage(url: dentUrl, title: t.catalog_dent_title),
-                    ),
-                  );
-                },
+                links: _dentCatalogLinks,
               ),
             ],
           ),
@@ -682,8 +676,47 @@ class _CatalogChips extends StatelessWidget {
     final t  = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     final isPhone = MediaQuery.of(context).size.width < 700;
-    final labUrl  = _pdfLabFor(context);
-    final dentUrl = _pdfDentFor(context);
+    final localeCode = Localizations.localeOf(context).languageCode.toLowerCase();
+
+    List<Widget> buildButtons({
+      required String title,
+      required IconData icon,
+      required List<_CatalogLink> links,
+    }) {
+      final defaultLink = links.firstWhere(
+        (link) => link.matches(localeCode),
+        orElse: () => links.first,
+      );
+
+      return links.map((link) {
+        final isDefault = identical(link, defaultLink);
+        return _ChipLink(
+          icon: icon,
+          label: '${title} (${link.label})',
+          selected: isDefault,
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => PdfInAppPage(url: link.url, title: title),
+              ),
+            );
+          },
+        );
+      }).toList();
+    }
+
+    final buttons = [
+      ...buildButtons(
+        title: t.catalog_lab_title,
+        icon: Icons.science_outlined,
+        links: _labCatalogLinks,
+      ),
+      ...buildButtons(
+        title: t.catalog_dent_title,
+        icon: Icons.medical_information_outlined,
+        links: _dentCatalogLinks,
+      ),
+    ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -709,30 +742,7 @@ class _CatalogChips extends StatelessWidget {
           spacing: 8,
           runSpacing: 8,
           alignment: isPhone ? WrapAlignment.center : WrapAlignment.start,
-          children: [
-            _ChipLink(
-              icon: Icons.science_outlined,
-              label: t.catalog_lab_title, // „Dentallabor Katalog“
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => PdfInAppPage(url: labUrl,  title: t.catalog_lab_title),
-                  ),
-                );
-              },
-            ),
-            _ChipLink(
-              icon: Icons.medical_information_outlined,
-              label: t.catalog_dent_title, // „Zahnmedizin Katalog“
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => PdfInAppPage(url: dentUrl, title: t.catalog_dent_title),
-                  ),
-                );
-              },
-            ),
-          ],
+          children: buttons,
         ),
       ],
     );
@@ -743,11 +753,32 @@ class _ChipLink extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  const _ChipLink({required this.icon, required this.label, required this.onTap});
+  final bool selected;
+  const _ChipLink({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.selected = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final padding = const EdgeInsets.symmetric(horizontal: 10, vertical: 6);
+
+    if (selected) {
+      return FilledButton.tonalIcon(
+        onPressed: onTap,
+        icon: Icon(icon, size: 18),
+        label: Text(label, overflow: TextOverflow.ellipsis),
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(0, 36),
+          padding: padding,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        ),
+      );
+    }
+
     return OutlinedButton.icon(
       onPressed: onTap,
       icon: Icon(icon, size: 18),
@@ -757,7 +788,7 @@ class _ChipLink extends StatelessWidget {
         side: BorderSide(color: cs.outlineVariant),
         backgroundColor: Colors.transparent,
         minimumSize: const Size(0, 32),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: padding,
         visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
@@ -769,13 +800,13 @@ class _CatalogTile extends StatefulWidget {
   final String title;
   final String subtitle;
   final IconData icon;
-  final VoidCallback onTap;
+  final List<_CatalogLink> links;
 
   const _CatalogTile({
     required this.title,
     required this.subtitle,
     required this.icon,
-    required this.onTap,
+    required this.links,
   });
 
   @override
@@ -785,11 +816,24 @@ class _CatalogTile extends StatefulWidget {
 class _CatalogTileState extends State<_CatalogTile> {
   bool _hover = false;
 
+  void _openLink(BuildContext context, _CatalogLink link) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PdfInAppPage(url: link.url, title: widget.title),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final isNarrow = MediaQuery.of(context).size.width < 700;
+    final localeCode = Localizations.localeOf(context).languageCode.toLowerCase();
+    final defaultLink = widget.links.firstWhere(
+      (link) => link.matches(localeCode),
+      orElse: () => widget.links.first,
+    );
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
@@ -810,7 +854,7 @@ class _CatalogTileState extends State<_CatalogTile> {
         ),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: widget.onTap,
+          onTap: () => _openLink(context, defaultLink),
           child: Row(
             children: [
               Container(
@@ -850,20 +894,53 @@ class _CatalogTileState extends State<_CatalogTile> {
                 ),
               ),
               const SizedBox(width: 10),
-              TextButton.icon(
-                onPressed: widget.onTap,
-                style: TextButton.styleFrom(
-                  foregroundColor: cs.primary,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                ),
-                icon: const Icon(Icons.open_in_new, size: 18),
-                label: Text(
-                  AppLocalizations.of(context)!.catalog_open,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: cs.primary,
-                    fontWeight: FontWeight.w600,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextButton.icon(
+                    onPressed: () => _openLink(context, defaultLink),
+                    style: TextButton.styleFrom(
+                      foregroundColor: cs.primary,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    ),
+                    icon: const Icon(Icons.open_in_new, size: 18),
+                    label: Text(
+                      '${AppLocalizations.of(context)!.catalog_open} (${defaultLink.label})',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: cs.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
-                ),
+                  if (widget.links.length > 1)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4),
+                      child: PopupMenuButton<_CatalogLink>(
+                        tooltip: AppLocalizations.of(context)!.catalog_select_language,
+                        padding: EdgeInsets.zero,
+                        icon: Icon(Icons.language, color: cs.primary),
+                        onSelected: (link) => _openLink(context, link),
+                        itemBuilder: (context) {
+                          return widget.links.map((link) {
+                            final isSelected = identical(link, defaultLink);
+                            return PopupMenuItem<_CatalogLink>(
+                              value: link,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (isSelected) ...[
+                                    const Icon(Icons.check, size: 18),
+                                    const SizedBox(width: 6),
+                                  ],
+                                  Text(link.label),
+                                ],
+                              ),
+                            );
+                          }).toList();
+                        },
+                      ),
+                    ),
+                ],
               ),
             ],
           ),
@@ -871,6 +948,20 @@ class _CatalogTileState extends State<_CatalogTile> {
       ),
     );
   }
+}
+
+class _CatalogLink {
+  final String label;
+  final String url;
+  final Set<String> locales;
+
+  const _CatalogLink({
+    required this.label,
+    required this.url,
+    required this.locales,
+  });
+
+  bool matches(String localeCode) => locales.contains(localeCode);
 }
 
 class _Entry {
