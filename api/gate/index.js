@@ -1,9 +1,9 @@
-// /api/gate.js
+// /api/gate/index.js
 export const config = { runtime: 'nodejs' };
 
 import {
   handlePreflight, ok, bad, methodNotAllowed, readJson
-} from './_lib/http.js';
+} from '../_lib/http.js';
 
 export default async function handler(req, res) {
   // CORS-Header setzen + OPTIONS sofort beantworten

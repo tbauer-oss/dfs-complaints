@@ -113,7 +113,20 @@
   "gate_password": "Contraseña",
   "continueLabel": "Continuar",
   "invalid": "No válido",
-  "gateUnlockHint": "Introduzca la contraseña de desbloqueo para acceder al área de registro.",
+  "gateUnlockHint": "Introduzca su dirección de correo electrónico y la contraseña de desbloqueo para acceder al área de registro.",
+  "gateEmailRequired": "Introduzca su dirección de correo electrónico.",
+  "gateInvalidEmail": "Introduzca una dirección de correo electrónico válida.",
+  "gatePasswordRequired": "Introduzca la contraseña de desbloqueo.",
+  "gateRequestPassword": "Solicitar contraseña",
+  "gateRequestInfo": "¡Gracias! Hemos enviado su solicitud y le remitiremos la contraseña temporal en breve.",
+  "gateRequestError": "No se pudo enviar la solicitud: {error}",
+  "@gateRequestError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
 
   "auth_login": "Iniciar sesión",
   "auth_register": "Registrarse",

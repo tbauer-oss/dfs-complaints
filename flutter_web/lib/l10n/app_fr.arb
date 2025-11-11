@@ -113,7 +113,20 @@
   "gate_password": "Mot de passe",
   "continueLabel": "Continuer",
   "invalid": "Invalide",
-  "gateUnlockHint": "Veuillez saisir le mot de passe d’autorisation pour ouvrir la zone d’inscription.",
+  "gateUnlockHint": "Veuillez saisir votre adresse e-mail et le mot de passe d’autorisation pour ouvrir la zone d’inscription.",
+  "gateEmailRequired": "Veuillez saisir votre adresse e-mail.",
+  "gateInvalidEmail": "Veuillez saisir une adresse e-mail valide.",
+  "gatePasswordRequired": "Veuillez saisir le mot de passe d’autorisation.",
+  "gateRequestPassword": "Demander le mot de passe",
+  "gateRequestInfo": "Merci ! Nous avons transmis votre demande et vous enverrons prochainement le mot de passe temporaire.",
+  "gateRequestError": "Votre demande n’a pas pu être envoyée : {error}",
+  "@gateRequestError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
 
   "auth_login": "Connexion",
   "auth_register": "Inscription",

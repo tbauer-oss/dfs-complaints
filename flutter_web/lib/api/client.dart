@@ -485,8 +485,11 @@ class ApiClient {
   }
 
   // ---------- Gate ----------
-  Future<bool> gateUnlock(String password) async {
-    final r = await _post('/api/gate', {'password': password});
+  Future<bool> gateUnlock(String password, {String? email}) async {
+    final body = <String, String>{'password': password};
+    final em = email?.trim();
+    if (em != null && em.isNotEmpty) body['email'] = em;
+    final r = await _post('/api/gate', body);
     if (!_ok2xx(r.statusCode)) return false;
     try {
       final j = jsonDecode(r.body);
@@ -504,6 +507,16 @@ class ApiClient {
     } catch (_) {
       return false;
     }
+  }
+
+  Future<String?> gateRequestPassword(String email) async {
+    final r = await _post('/api/gate/request', {'email': email.trim()});
+    if (_ok2xx(r.statusCode)) return null;
+    try {
+      final body = r.body;
+      if (body.isNotEmpty) return body;
+    } catch (_) {}
+    return 'gate request failed: ${r.statusCode}';
   }
 
   // ---------- Auth (Kunden) ----------

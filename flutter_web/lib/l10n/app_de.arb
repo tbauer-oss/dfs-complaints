@@ -117,7 +117,20 @@
   "gate_password": "Passwort",
   "continueLabel": "Weiter",
   "invalid": "Ungültig",
-  "gateUnlockHint": "Bitte geben Sie das Freigabe-Passwort ein, um den Registrierungsbereich zu öffnen.",
+  "gateUnlockHint": "Bitte geben Sie Ihre E-Mail-Adresse und das Freigabe-Passwort ein, um den Registrierungsbereich zu öffnen.",
+  "gateEmailRequired": "Bitte geben Sie Ihre E-Mail-Adresse ein.",
+  "gateInvalidEmail": "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
+  "gatePasswordRequired": "Bitte geben Sie das Freigabe-Passwort ein.",
+  "gateRequestPassword": "Passwort anfordern",
+  "gateRequestInfo": "Vielen Dank! Wir haben Ihre Anfrage weitergeleitet und melden uns zeitnah.",
+  "gateRequestError": "Anfrage konnte nicht gesendet werden: {error}",
+  "@gateRequestError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
 
   "auth_login": "Login",
   "auth_register": "Registrieren",
