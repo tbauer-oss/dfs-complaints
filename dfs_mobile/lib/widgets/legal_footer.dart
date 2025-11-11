@@ -72,7 +72,14 @@ class LegalFooter extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(
         children: [
-          SizedBox(width: 110, child: Text('$k:', style: const TextStyle(fontWeight: FontWeight.w600))),
+          Flexible(
+            flex: 0,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 110),
+              child: Text('$k:', style: const TextStyle(fontWeight: FontWeight.w600)),
+            ),
+          ),
+          const SizedBox(width: 8),
           Expanded(child: Text(v)),
         ],
       ),

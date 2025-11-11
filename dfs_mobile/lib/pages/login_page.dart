@@ -42,7 +42,12 @@ class _InstallPwaButtonState extends State<InstallPwaButton> {
     if (!kIsWeb || !_canInstall) return const SizedBox.shrink();
     return ElevatedButton.icon(
       icon: const Icon(Icons.download),
-      label: const Text('App installieren'),
+      label: const Flexible(
+        child: Text(
+          'App installieren',
+          textAlign: TextAlign.center,
+        ),
+      ),
       onPressed: () async {
         if (!kIsWeb) return;
 
@@ -254,14 +259,24 @@ class _RepLoginPageState extends State<RepLoginPage> {
                                   ? const SizedBox(
                                       width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                                   : const Icon(Icons.login),
-                              label: Text(t.login_action ?? 'Anmelden'),
+                              label: Flexible(
+                                child: Text(
+                                  t.login_action ?? 'Anmelden',
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
                               onPressed: canLogin ? _login : null,
                             ),
                             const SizedBox(height: 8),
                             TextButton.icon(
                               onPressed: _busy ? null : _showChangePasswordDialog,
                               icon: const Icon(Icons.lock_reset),
-                              label: Text(t.changePassword),
+                              label: Flexible(
+                                child: Text(
+                                  t.changePassword,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
                             ),
                             // Falls du hier absichtlich erneut auf die Login-Seite wolltest, lassen wir das.
                             // Andernfalls könntest du das entfernen oder auf eine Info-Seite verlinken.
@@ -272,7 +287,12 @@ class _RepLoginPageState extends State<RepLoginPage> {
                                         MaterialPageRoute(builder: (_) => RepLoginPage(api: widget.api)),
                                       ),
                               icon: const Icon(Icons.badge_outlined),
-                              label: Text(t.rep_area),
+                              label: Flexible(
+                                child: Text(
+                                  t.rep_area,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
                             ),
                           ],
                         ),

@@ -1977,7 +1977,13 @@ class _ComplaintTileState extends State<_ComplaintTile> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(width: 160, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
+            Flexible(
+              flex: 0,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 160),
+                child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+              ),
+            ),
             const SizedBox(width: 8),
             Expanded(child: Text(v, maxLines: maxLines, overflow: TextOverflow.ellipsis)),
           ],
