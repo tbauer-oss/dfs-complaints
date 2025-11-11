@@ -90,7 +90,12 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     final subject = Uri.encodeComponent(t.mail_subject_rep);
     final body    = Uri.encodeComponent(t.mail_body_rep(name));
     final mailto  = 'mailto:${r.email}?subject=$subject&body=$body';
+    if (kIsWeb) {
     html.window.open(mailto, '_self');
+    } else {
+      // Vorläufig: nichts tun oder Snackbar anzeigen
+      // Besser: url_launcher benutzen (siehe unten)
+    }
   }
 
   // --- KOMPAKTE Variante (eingeklappbar) ---
@@ -540,7 +545,12 @@ class _RepBanner extends StatelessWidget {
                   final subject = Uri.encodeComponent(t.mail_subject_rep);
                   final body    = Uri.encodeComponent(t.mail_body_rep(name));
                   final mailto  = 'mailto:$email?subject=$subject&body=$body';
-                  html.window.open(mailto, '_self');
+                  if (kIsWeb) {
+                    html.window.open(mailto, '_self');
+                   } else {
+                    // Vorläufig: nichts tun oder Snackbar anzeigen
+                    // Besser: url_launcher benutzen (siehe unten)
+                  }
                 },
                 icon: const Icon(Icons.email_outlined),
                 label: Text(t.rep_email_button),
