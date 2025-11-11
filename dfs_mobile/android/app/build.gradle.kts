@@ -9,6 +9,10 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+kotlin {
+    jvmToolchain(17)
+}
+
 android {
     namespace = "de.dfs_diamon.dfs_complaints"
     compileSdk = 36
@@ -47,10 +51,21 @@ android {
             // optional debug-spezifisches
         }
     }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+        // Optional (statt obigen zwei Zeilen):
+        // isCoreLibraryDesugaringEnabled = true
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
 }
 
 dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.24")
 }
+
 
 
