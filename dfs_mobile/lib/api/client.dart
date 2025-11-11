@@ -2,9 +2,10 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
-// EIN einziger bedingter Import:
+// EIN einziger bedingter Import – nur für window.localStorage (Stub auf Mobile)
 import 'package:dfs_mobile/web_compat/html_stub.dart'
   if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
+
 import 'package:http/http.dart' as http;
 import '../models/complaint.dart';
 
@@ -74,7 +75,7 @@ class ApiClient {
       ls.remove('dfs_rep_token');
     }
 
-    // Vertreter-E-Mail (nur als Hilfe für Secret-Login, kein Sicherheitskritikum)
+    // Vertreter-E-Mail (nur als Hilfe für Secret-Login)
     if (_repEmail != null && _repEmail!.isNotEmpty) {
       ls['dfs_rep_email'] = _repEmail!;
     } else {
@@ -118,7 +119,11 @@ class ApiClient {
     if (extra != null) h.addAll(extra);
     return h;
   }
-  
+
+  Map<String, String> _headersJson() => {
+        'Content-Type': 'application/json; charset=utf-8',
+      };
+
   Map<String, dynamic>? _appMeta;
   DateTime? _appMetaLoadedAt;
 
@@ -234,7 +239,7 @@ class ApiClient {
 
   Future<Map<String, dynamic>?> getAppMeta({bool refresh = false}) async {
     final cacheValid = _appMeta != null && _appMetaLoadedAt != null &&
-                     DateTime.now().difference(_appMetaLoadedAt!).inMinutes < 5;
+        DateTime.now().difference(_appMetaLoadedAt!).inMinutes < 5;
     if (!refresh && cacheValid) return _appMeta;
 
     final base = _apiBase.isEmpty ? '' : _apiBase;
@@ -272,91 +277,13 @@ class ApiClient {
     return 'https://dfs-complaints-backend.vercel.app';
   }
 
-  Map<String, String> _headersJson() => {
-    'Content-Type': 'application/json; charset=utf-8',
-  };
-
-  // _request: nutzt auf Web html.HttpRequest, sonst package:http
-  Future<dynamic> _request(
-    String url, {
-    required String method,
-    Map<String, String>? headers,
-    Object? body,
-  }) async {
-    final hdrs = <String, String>{};
-    if (headers != null) hdrs.addAll(headers);
-
-    String? payload;
-    if (body != null) {
-      if (body is String) {
-        payload = body;
-      } else {
-        hdrs.putIfAbsent('Content-Type', () => 'application/json; charset=utf-8');
-        payload = jsonEncode(body);
-      }
-    }
-
-    if (kIsWeb) {
-      // ---- WEB-PFAD ----
-      final res = await html.HttpRequest.request(
-        url,
-        method: method,
-        requestHeaders: hdrs,
-        sendData: payload,
-        withCredentials: false,
-      );
-      return res; // html.HttpRequest auf Web (dynamic getypt)
-    } else {
-      // ---- MOBILE/DESKTOP-PFAD (package:http) ----
-      final uri = Uri.parse(url);
-      http.Response r;
-
-      switch (method.toUpperCase()) {
-        case 'GET':
-          r = await http.get(uri, headers: hdrs);
-          break;
-        case 'POST':
-          r = await http.post(uri, headers: hdrs, body: payload);
-          break;
-        case 'PUT':
-          r = await http.put(uri, headers: hdrs, body: payload);
-          break;
-        case 'DELETE':
-          r = await http.delete(uri, headers: hdrs);
-          break;
-        default:
-          throw UnsupportedError('Unsupported method: $method');
-      }
-
-      // Optional: bei Bedarf Fehler werfen
-      if (r.statusCode >= 400) {
-        throw Exception('HTTP $method $url failed: ${r.statusCode} ${r.body}');
-      }
-      return r; // http.Response auf Mobile/Desktop (dynamic getypt)
-    }
-  }
-  // ---- Generic POST JSON ----
+  // ---- Generic POST JSON (nur noch über package:http) ----
   Future<Map<String, dynamic>> postJson(String path, Map<String, dynamic> body) async {
-    final url = _u(path).toString();
-    final res = await _request(
-      url,
-      method: 'POST',
-      headers: _headersJson(),
-      body: body,
-    );
+    final url = _u(path);
+    final r = await http.post(url, headers: _headersJson(), body: jsonEncode(body));
 
-    int status;
-    String text;
-
-    if (kIsWeb) {
-      // html.HttpRequest
-      status = (res.status ?? 0) as int;
-      text   = (res.responseText ?? '').toString();
-    } else {
-      final r = res as http.Response;
-      status = r.statusCode;
-      text   = r.body;
-    }
+    final status = r.statusCode;
+    final text   = r.body;
 
     if (status != 200 && status != 201) {
       throw 'HTTP $status — $text';
@@ -408,7 +335,7 @@ class ApiClient {
 
   // Alternative: Entscheidung leeren (falls /api/rep/decision/reset nicht greift)
   Future<void> repDecisionClear(String ticket) async {
-  // sorgt für Bearer + X-Gate: rep und 401->Refresh via _repFetch
+    // sorgt für Bearer + X-Gate: rep und 401->Refresh via _repFetch
     final r = await _repFetch(
       '/api/rep/decision',
       method: 'POST',
@@ -519,10 +446,10 @@ class ApiClient {
     return const [];
   }
 
-  // ---------- Low-level HTTP ----------
+  // ---------- Low-level HTTP (nur package:http) ----------
   Future<http.Response> _get(String path, {bool auth = false, Map<String,String>? extra}) {
     return http.get(_u(path), headers: _headers(auth: auth, extra: extra));
-  }
+    }
 
   Future<http.Response> _post(String path, Map body,
       {bool auth = false, Map<String, String>? extraHeaders}) {
