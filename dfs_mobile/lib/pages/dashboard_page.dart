@@ -365,8 +365,10 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
       child: LayoutBuilder(
         builder: (ctx, constraints) {
           final size = MediaQuery.of(ctx).size;
-          final isPortrait = MediaQuery.of(ctx).orientation == Orientation.portrait;
+          final orientation = MediaQuery.of(ctx).orientation;
+          final isPortrait = orientation == Orientation.portrait;
           final isPhone = size.width < 600;
+          final bool compressedHeight = constraints.maxHeight < (isPhone ? 620 : 540);
 
           final double maxExtent = isPhone
               ? (isPortrait ? 160 : 200)
@@ -374,57 +376,69 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
 
           final double iconSize = isPhone ? 28 : 40;
           final double fontSize = isPhone ? 13.0 : 14.5;
+          final double aspectRatio;
+          if (compressedHeight) {
+            aspectRatio = isPhone ? 1.18 : 1.15;
+          } else {
+            aspectRatio = isPhone ? 1.06 : 1.1;
+          }
 
           return Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 1080),
-              child: Column(
-                children: [
-                  // ---------- Vertreter-Header (responsiv) ----------
-                  Padding(
+              child: CustomScrollView(
+                slivers: [
+                  SliverPadding(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-                    child: _buildRepHeaderResponsive(context),
+                    sliver: SliverToBoxAdapter(
+                      child: _buildRepHeaderResponsive(context),
+                    ),
                   ),
-
-                  // ---------- Kacheln ----------
-                  Expanded(
-                    child: GridView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    sliver: SliverGrid(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, i) {
+                          final e = tiles[i];
+                          final hovered = _hoverIndex == i;
+                          return MouseRegion(
+                            onEnter: (_) => setState(() => _hoverIndex = i),
+                            onExit: (_) => setState(() => _hoverIndex = -1),
+                            child: AnimatedScale(
+                              duration: const Duration(milliseconds: 140),
+                              scale: hovered ? 1.02 : 1.0,
+                              child: _FancyTile(
+                                label: e.label,
+                                icon: e.icon,
+                                colorA: e.colorA,
+                                colorB: e.colorB,
+                                iconSize: iconSize,
+                                fontSize: fontSize,
+                                onTap: e.onTap,
+                              ),
+                            ),
+                          );
+                        },
+                        childCount: tiles.length,
+                      ),
                       gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                         maxCrossAxisExtent: maxExtent,
                         mainAxisSpacing: 16,
                         crossAxisSpacing: 16,
-                        childAspectRatio: isPhone ? 1.06 : 1.1,
+                        childAspectRatio: aspectRatio,
                       ),
-                      itemCount: tiles.length,
-                      itemBuilder: (context, i) {
-                        final e = tiles[i];
-                        final hovered = _hoverIndex == i;
-                        return MouseRegion(
-                          onEnter: (_) => setState(() => _hoverIndex = i),
-                          onExit: (_) => setState(() => _hoverIndex = -1),
-                          child: AnimatedScale(
-                            duration: const Duration(milliseconds: 140),
-                            scale: hovered ? 1.02 : 1.0,
-                            child: _FancyTile(
-                              label: e.label,
-                              icon: e.icon,
-                              colorA: e.colorA,
-                              colorB: e.colorB,
-                              iconSize: iconSize,
-                              fontSize: fontSize,
-                              onTap: e.onTap,
-                            ),
-                          ),
-                        );
-                      },
                     ),
                   ),
-
-                  // ---------- Dezente Kataloge (unter den Kacheln) ----------
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: _CatalogButtons(),
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      0,
+                      16,
+                      16 + MediaQuery.of(ctx).padding.bottom,
+                    ),
+                    sliver: SliverToBoxAdapter(
+                      child: _CatalogButtons(),
+                    ),
                   ),
                 ],
               ),
