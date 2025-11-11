@@ -3,9 +3,7 @@ import 'package:flutter/material.dart';
 import '../api/client.dart';
 import 'rep_dashboard_page.dart';
 import '../l10n/app_localizations.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:dfs_mobile/web_compat/html_stub.dart'
-  if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
+import 'dart:html' as html;
 
 /// Kleiner Helper, damit du überall bequem auf t zugreifen kannst
 extension _L10nX on BuildContext {
@@ -24,14 +22,7 @@ class _InstallPwaButtonState extends State<InstallPwaButton> {
   @override
   void initState() {
     super.initState();
-    if (!kIsWeb) return;
-
-    try {
-      _canInstall = (html.window as dynamic).__pwaCanInstall == true;
-    } catch (_) {
-      _canInstall = false;
-    }
-
+    _canInstall = (html.window as dynamic).__pwaCanInstall == true;
     html.window.addEventListener('pwa-can-install', (_) {
       if (mounted) setState(() => _canInstall = true);
     });
@@ -39,7 +30,7 @@ class _InstallPwaButtonState extends State<InstallPwaButton> {
 
   @override
   Widget build(BuildContext context) {
-    if (!kIsWeb || !_canInstall) return const SizedBox.shrink();
+    if (!_canInstall) return const SizedBox.shrink();
     return ElevatedButton.icon(
       icon: const Icon(Icons.download),
       label: const Flexible(
@@ -49,8 +40,6 @@ class _InstallPwaButtonState extends State<InstallPwaButton> {
         ),
       ),
       onPressed: () async {
-        if (!kIsWeb) return;
-
         final accepted = await (html.window as dynamic).showInstallPrompt() as bool? ?? false;
         if (!accepted) {
           ScaffoldMessenger.of(context)
@@ -259,14 +248,24 @@ class _RepLoginPageState extends State<RepLoginPage> {
                                   ? const SizedBox(
                                       width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                                   : const Icon(Icons.login),
-                              label: Text(t.login_action ?? 'Anmelden'),
+                              label: Flexible(
+                                child: Text(
+                                  t.login_action ?? 'Anmelden',
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
                               onPressed: canLogin ? _login : null,
                             ),
                             const SizedBox(height: 8),
                             TextButton.icon(
                               onPressed: _busy ? null : _showChangePasswordDialog,
                               icon: const Icon(Icons.lock_reset),
-                              label: Text(t.changePassword),
+                              label: Flexible(
+                                child: Text(
+                                  t.changePassword,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
                             ),
                             // Falls du hier absichtlich erneut auf die Login-Seite wolltest, lassen wir das.
                             // Andernfalls könntest du das entfernen oder auf eine Info-Seite verlinken.
@@ -277,7 +276,12 @@ class _RepLoginPageState extends State<RepLoginPage> {
                                         MaterialPageRoute(builder: (_) => RepLoginPage(api: widget.api)),
                                       ),
                               icon: const Icon(Icons.badge_outlined),
-                              label: Text(t.rep_area),
+                              label: Flexible(
+                                child: Text(
+                                  t.rep_area,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
                             ),
                           ],
                         ),
