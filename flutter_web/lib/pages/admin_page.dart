@@ -379,13 +379,28 @@ class _AdminPageState extends State<AdminPage> {
           const SizedBox(width: 6),
         ],
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1200),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: _buildBody(theme),
-          ),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final maxWidth = constraints.maxWidth;
+            final isCompact = maxWidth < 600;
+            final horizontal = isCompact ? 12.0 : 18.0;
+            final vertical = isCompact ? 12.0 : 18.0;
+
+            return Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1200),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: horizontal,
+                    vertical: vertical,
+                  ),
+                  child: _buildBody(theme),
+                ),
+              ),
+            );
+          },
         ),
       ),
       bottomNavigationBar: LegalFooter(api: widget.api),
@@ -408,73 +423,95 @@ class _AdminPageState extends State<AdminPage> {
 
   // ------------------ Kachel-Menü (neues Design) ------------------
   Widget _buildMenu() {
-    final w = MediaQuery.of(context).size.width;
-    final isPhone = w < 640;
-    final compact = isPhone;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final isPhone = width < 560;
+        final isTablet = width < 960;
+        final crossAxisCount = isPhone ? 1 : (isTablet ? 2 : 3);
+        final spacing = isPhone ? 16.0 : (isTablet ? 24.0 : 32.0);
+        final aspect = isPhone ? 1.15 : (isTablet ? 1.1 : 1.0);
+        final useCompactTile = width < 720;
 
-    final tiles = <Widget>[
-      AdminTilePro(
-        label: 'Offene Reklamationen',
-        subtitle: 'Bearbeiten & Entscheiden',
-        icon: Icons.assignment_late_outlined,
-        colorA: AdminPalette.redA,
-        colorB: AdminPalette.redB,
-        count: _openComplaints.length,
-        compact: compact,
-        onTap: () => setState(() => _view = _AdminView.open),
-      ),
-      AdminTilePro(
-        label: 'Anträge / Pending',
-        subtitle: 'Registrierungen prüfen',
-        icon: Icons.verified_user_outlined,
-        colorA: AdminPalette.amberA,
-        colorB: AdminPalette.amberB,
-        count: _pending.length,
-        compact: compact,
-        onTap: () => setState(() => _view = _AdminView.pending),
-      ),
-      AdminTilePro(
-        label: 'Aktive Nutzer',
-        subtitle: 'Firmen & Kontakte',
-        icon: Icons.group_outlined,
-        colorA: AdminPalette.tealA,
-        colorB: AdminPalette.tealB,
-        count: _users.length,
-        compact: compact,
-        onTap: () => setState(() => _view = _AdminView.users),
-      ),
-      AdminTilePro(
-        label: 'Vertreterverwaltung',
-        subtitle: 'Zuordnen & Regionen',
-        icon: Icons.badge_outlined,
-        colorA: AdminPalette.blueA,
-        colorB: AdminPalette.blueB,
-        compact: compact,
-        onTap: () {
-          setState(() => _view = _AdminView.reps);
-          if (_reps.isEmpty) _refreshReps();
-        },
-      ),
-      AdminTilePro(
-        label: 'App-Version',
-        subtitle: 'Version, Build, Hinweise',
-        icon: Icons.app_settings_alt_outlined,
-        colorA: AdminPalette.blueA,
-        colorB: AdminPalette.blueB,
-        compact: compact,
-        onTap: () => _editAppMeta(context),
-      ),
-    ];
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: isPhone ? 220 : 260,
-        mainAxisSpacing: 60,
-        crossAxisSpacing: 60,
-        childAspectRatio: isPhone ? 0.92 : 1.0,
-      ),
-      itemCount: tiles.length,
-      itemBuilder: (_, i) => tiles[i],
+        final tiles = <Widget>[
+          AdminTilePro(
+            label: 'Offene Reklamationen',
+            subtitle: 'Bearbeiten & Entscheiden',
+            icon: Icons.assignment_late_outlined,
+            colorA: AdminPalette.redA,
+            colorB: AdminPalette.redB,
+            count: _openComplaints.length,
+            compact: useCompactTile,
+            onTap: () => setState(() => _view = _AdminView.open),
+          ),
+          AdminTilePro(
+            label: 'Anträge / Pending',
+            subtitle: 'Registrierungen prüfen',
+            icon: Icons.verified_user_outlined,
+            colorA: AdminPalette.amberA,
+            colorB: AdminPalette.amberB,
+            count: _pending.length,
+            compact: useCompactTile,
+            onTap: () => setState(() => _view = _AdminView.pending),
+          ),
+          AdminTilePro(
+            label: 'Aktive Nutzer',
+            subtitle: 'Firmen & Kontakte',
+            icon: Icons.group_outlined,
+            colorA: AdminPalette.tealA,
+            colorB: AdminPalette.tealB,
+            count: _users.length,
+            compact: useCompactTile,
+            onTap: () => setState(() => _view = _AdminView.users),
+          ),
+          AdminTilePro(
+            label: 'Vertreterverwaltung',
+            subtitle: 'Zuordnen & Regionen',
+            icon: Icons.badge_outlined,
+            colorA: AdminPalette.blueA,
+            colorB: AdminPalette.blueB,
+            compact: useCompactTile,
+            onTap: () {
+              setState(() => _view = _AdminView.reps);
+              if (_reps.isEmpty) _refreshReps();
+            },
+          ),
+          AdminTilePro(
+            label: 'App-Version',
+            subtitle: 'Version, Build, Hinweise',
+            icon: Icons.app_settings_alt_outlined,
+            colorA: AdminPalette.blueA,
+            colorB: AdminPalette.blueB,
+            compact: useCompactTile,
+            onTap: () => _editAppMeta(context),
+          ),
+        ];
+
+        return CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(
+                spacing,
+                spacing,
+                spacing,
+                spacing + 12,
+              ),
+              sliver: SliverGrid(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  mainAxisSpacing: spacing,
+                  crossAxisSpacing: spacing,
+                  childAspectRatio: aspect,
+                ),
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) => tiles[index],
+                  childCount: tiles.length,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
   
@@ -3327,6 +3364,10 @@ class _AdminTileProState extends State<AdminTilePro> {
     final elevation = _hovering ? 12.0 : 3.0;
 
     final iconSize = widget.compact ? 44.0 : 54.0;
+    final horizontalPadding = widget.compact ? 16.0 : 18.0;
+    final verticalPadding = widget.compact ? 16.0 : 20.0;
+    final titleSpacing = widget.compact ? 10.0 : 14.0;
+    final subtitleSpacing = widget.compact ? 6.0 : 8.0;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -3354,7 +3395,7 @@ class _AdminTileProState extends State<AdminTilePro> {
                   color: isDark ? cs.outlineVariant.withOpacity(0.35) : cs.outlineVariant.withOpacity(0.25),
                 ),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
+              padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: verticalPadding),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -3392,7 +3433,7 @@ class _AdminTileProState extends State<AdminTilePro> {
                         ),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                  SizedBox(height: titleSpacing),
                   Text(
                     widget.label,
                     textAlign: TextAlign.center,
@@ -3403,7 +3444,7 @@ class _AdminTileProState extends State<AdminTilePro> {
                     ),
                   ),
                   if ((widget.subtitle ?? '').isNotEmpty) ...[
-                    const SizedBox(height: 8),
+                    SizedBox(height: subtitleSpacing),
                     Text(
                       widget.subtitle!,
                       textAlign: TextAlign.center,
