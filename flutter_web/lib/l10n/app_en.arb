@@ -117,7 +117,20 @@
   "gate_password": "Password",
   "continueLabel": "Continue",
   "invalid": "Invalid",
-  "gateUnlockHint": "Please enter the release password to open the registration area.",
+  "gateUnlockHint": "Please enter your email address and the release password to open the registration area.",
+  "gateEmailRequired": "Please enter your email address.",
+  "gateInvalidEmail": "Please enter a valid email address.",
+  "gatePasswordRequired": "Please enter the release password.",
+  "gateRequestPassword": "Request password",
+  "gateRequestInfo": "Thank you! We have forwarded your request and will send the temporary password shortly.",
+  "gateRequestError": "We could not send your request: {error}",
+  "@gateRequestError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
 
   "auth_login": "Login",
   "auth_register": "Register",
