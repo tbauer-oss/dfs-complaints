@@ -42,7 +42,12 @@ class _InstallPwaButtonState extends State<InstallPwaButton> {
     if (!kIsWeb || !_canInstall) return const SizedBox.shrink();
     return ElevatedButton.icon(
       icon: const Icon(Icons.download),
-      label: const Text('App installieren'),
+      label: const Flexible(
+        child: Text(
+          'App installieren',
+          textAlign: TextAlign.center,
+        ),
+      ),
       onPressed: () async {
         if (!kIsWeb) return;
 
