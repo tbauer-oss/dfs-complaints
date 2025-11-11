@@ -433,7 +433,7 @@ class _AdminPageState extends State<AdminPage> {
         final isTablet = width < 960;
         final crossAxisCount = isPhone ? 1 : (isTablet ? 2 : 3);
         final spacing = isPhone ? 16.0 : (isTablet ? 24.0 : 32.0);
-        final aspect = isPhone ? 1.15 : (isTablet ? 1.1 : 1.0);
+        final aspect = isPhone ? 1.55 : (isTablet ? 1.25 : 1.05);
         final useCompactTile = width < 720;
 
         final tiles = <Widget>[
@@ -1335,39 +1335,133 @@ Widget _buildUsersPanel() {
                       separatorBuilder: (_, __) => const Divider(height: 1),
                       itemBuilder: (ctx, i) {
                         final r = _reps[i];
-                        return ListTile(
-                          leading: const CircleAvatar(child: Icon(Icons.person_outline)),
-                          title: Text(r.displayName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                          subtitle: Text('${r.email} • ${r.region} • Kunden: ${r.customers.length}'),
-                          trailing: Wrap(
-                            spacing: 8,
-                            children: [
-                              IconButton(
-                                tooltip: 'E-Mail schreiben',
-                                icon: const Icon(Icons.mail_outline),
-                                onPressed: () => _composeMail(
-                                  r.email,
-                                  subject: 'DFS-DIAMON – Anfrage / ${r.displayName}',
-                                  body: 'Guten Tag ${r.displayName},\n\n— Nachricht —\n\nBeste Grüße\nDFS-DIAMON GmbH',
+                        return LayoutBuilder(
+                          builder: (context, itemConstraints) {
+                            final isCompact = itemConstraints.maxWidth < 640;
+                            if (isCompact) {
+                              final theme = Theme.of(context);
+                              final chips = <Widget>[
+                                Chip(
+                                  avatar: const Icon(Icons.public, size: 16),
+                                  label: Text(r.region, overflow: TextOverflow.ellipsis),
+                                ),
+                                Chip(
+                                  avatar: const Icon(Icons.people_outline, size: 16),
+                                  label: Text('Kunden: ${r.customers.length}'),
+                                ),
+                              ];
+
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const CircleAvatar(child: Icon(Icons.person_outline)),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(r.displayName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                                              const SizedBox(height: 4),
+                                              Text(r.email),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    if (chips.isNotEmpty) ...[
+                                      const SizedBox(height: 10),
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 8,
+                                        children: chips,
+                                      ),
+                                    ],
+                                    const SizedBox(height: 12),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                                      children: [
+                                        OutlinedButton.icon(
+                                          onPressed: () => _composeMail(
+                                            r.email,
+                                            subject: 'DFS-DIAMON – Anfrage / ${r.displayName}',
+                                            body: 'Guten Tag ${r.displayName},\n\n— Nachricht —\n\nBeste Grüße\nDFS-DIAMON GmbH',
+                                          ),
+                                          icon: const Icon(Icons.mail_outline),
+                                          label: const Text('E-Mail senden'),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        OutlinedButton.icon(
+                                          onPressed: () => _edit(r),
+                                          icon: const Icon(Icons.edit_outlined),
+                                          label: const Text('Bearbeiten'),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        OutlinedButton.icon(
+                                          onPressed: () => _openRepCustomersDialog(r),
+                                          icon: const Icon(Icons.group_add_outlined),
+                                          label: const Text('Kunden verwalten'),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        FilledButton.icon(
+                                          onPressed: () => _confirmDelete(r),
+                                          icon: const Icon(Icons.delete_outline),
+                                          label: const Text('Löschen'),
+                                          style: FilledButton.styleFrom(
+                                            backgroundColor: theme.colorScheme.error,
+                                            foregroundColor: theme.colorScheme.onError,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }
+
+                            return ListTile(
+                              leading: const CircleAvatar(child: Icon(Icons.person_outline)),
+                              title: Text(r.displayName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                              subtitle: Text('${r.email} • ${r.region} • Kunden: ${r.customers.length}'),
+                              trailing: ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 320),
+                                child: Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    IconButton(
+                                      tooltip: 'E-Mail schreiben',
+                                      icon: const Icon(Icons.mail_outline),
+                                      onPressed: () => _composeMail(
+                                        r.email,
+                                        subject: 'DFS-DIAMON – Anfrage / ${r.displayName}',
+                                        body: 'Guten Tag ${r.displayName},\n\n— Nachricht —\n\nBeste Grüße\nDFS-DIAMON GmbH',
+                                      ),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Bearbeiten',
+                                      icon: const Icon(Icons.edit_outlined),
+                                      onPressed: () => _edit(r),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Löschen',
+                                      icon: const Icon(Icons.delete_outline),
+                                      onPressed: () => _confirmDelete(r),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Kunden zuweisen/anzeigen',
+                                      icon: const Icon(Icons.group_add_outlined),
+                                      onPressed: () => _openRepCustomersDialog(r),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              IconButton(
-                                tooltip: 'Bearbeiten',
-                                icon: const Icon(Icons.edit_outlined),
-                                onPressed: () => _edit(r),
-                              ),
-                              IconButton(
-                                tooltip: 'Löschen',
-                                icon: const Icon(Icons.delete_outline),
-                                onPressed: () => _confirmDelete(r),
-                              ),
-                              IconButton(
-                                tooltip: 'Kunden zuweisen/anzeigen',
-                                icon: const Icon(Icons.group_add_outlined),
-                                onPressed: () => _openRepCustomersDialog(r),
-                              ),
-                            ],
-                          ),
+                            );
+                          },
                         );
                       },
                     ),
@@ -1659,38 +1753,141 @@ class _PendingTileState extends State<_PendingTile> {
     final title = d.company.isNotEmpty ? d.company : d.email;
     final subtitle = (d.country.isNotEmpty) ? d.country : '${d.zip} ${d.city}'.trim();
 
-    return Column(
-      children: [
-        ListTile(
-          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-          subtitle: Text(subtitle.isEmpty ? '—' : subtitle),
-          trailing: Wrap(
-            spacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 640;
+
+        Widget infoChip(IconData icon, String text) {
+          return Chip(
+            avatar: Icon(icon, size: 16),
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            label: Text(text, overflow: TextOverflow.ellipsis),
+          );
+        }
+
+        void toggleComplaints() {
+          setState(() => _expanded = !_expanded);
+          if (_expanded) widget.onLoadComplaints();
+        }
+
+        if (compact) {
+          final chips = <Widget>[
+            if (d.contact.trim().isNotEmpty) infoChip(Icons.person_outline, d.contact.trim()),
+            if (d.email.trim().isNotEmpty) infoChip(Icons.email_outlined, d.email.trim()),
+            if (d.phone.trim().isNotEmpty) infoChip(Icons.phone_outlined, d.phone.trim()),
+            if (d.lang.trim().isNotEmpty) infoChip(Icons.language, d.lang.toUpperCase()),
+          ];
+
+          final theme = Theme.of(context);
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              IconButton(tooltip: 'Adressdaten', onPressed: _showAddress, icon: const Icon(Icons.info_outline)),
-              IconButton(
-                tooltip: 'Reklamationen anzeigen',
-                onPressed: () {
-                  setState(() => _expanded = !_expanded);
-                  if (_expanded) widget.onLoadComplaints();
-                },
-                icon: Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 4),
+                    Text(subtitle.isEmpty ? '—' : subtitle),
+                    if (chips.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: chips,
+                      ),
+                    ],
+                    const SizedBox(height: 14),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: _showAddress,
+                          icon: const Icon(Icons.info_outline),
+                          label: const Text('Adressdaten anzeigen'),
+                        ),
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed: toggleComplaints,
+                          icon: Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
+                          label: Text(_expanded
+                              ? 'Reklamationen verbergen'
+                              : 'Reklamationen anzeigen'),
+                        ),
+                        const SizedBox(height: 8),
+                        FilledButton.icon(
+                          onPressed: widget.onApprove,
+                          icon: const Icon(Icons.check_circle_outline),
+                          label: const Text('Freigeben'),
+                        ),
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed: widget.onReject,
+                          icon: const Icon(Icons.block),
+                          label: const Text('Ablehnen'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: theme.colorScheme.error,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-              FilledButton(onPressed: widget.onApprove, child: const Text('Freigeben')),
-              OutlinedButton(onPressed: widget.onReject, child: const Text('Ablehnen')),
+              if (_expanded)
+                _ComplaintsDetailList(
+                  result: widget.complaints,
+                  api: widget.api,
+                  onClosed: () {},
+                  companyHint: d.company,
+                ),
+              const Divider(height: 1),
             ],
-          ),
-        ),
-        if (_expanded)
-          _ComplaintsDetailList(
-            result: widget.complaints,
-            api: widget.api,
-            onClosed: () {},
-            companyHint: d.company,
-          ),
-        const Divider(height: 1),
-      ],
+          );
+        }
+
+        return Column(
+          children: [
+            ListTile(
+              title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text(subtitle.isEmpty ? '—' : subtitle),
+              trailing: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 360),
+                child: Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    IconButton(
+                      tooltip: 'Adressdaten',
+                      onPressed: _showAddress,
+                      icon: const Icon(Icons.info_outline),
+                    ),
+                    IconButton(
+                      tooltip: 'Reklamationen anzeigen',
+                      onPressed: toggleComplaints,
+                      icon: Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
+                    ),
+                    FilledButton(onPressed: widget.onApprove, child: const Text('Freigeben')),
+                    OutlinedButton(onPressed: widget.onReject, child: const Text('Ablehnen')),
+                  ],
+                ),
+              ),
+            ),
+            if (_expanded)
+              _ComplaintsDetailList(
+                result: widget.complaints,
+                api: widget.api,
+                onClosed: () {},
+                companyHint: d.company,
+              ),
+            const Divider(height: 1),
+          ],
+        );
+      },
     );
   }
 }
@@ -1755,62 +1952,170 @@ class _UserTileState extends State<_UserTile> {
     final title = d.company.isNotEmpty ? d.company : d.email;
     final subtitle = d.country.isNotEmpty ? d.country : d.email;
 
-    return Column(
-      children: [
-        ListTile(
-          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 640;
+
+        Widget infoChip(IconData icon, String text) {
+          return Chip(
+            avatar: Icon(icon, size: 16),
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            label: Text(text, overflow: TextOverflow.ellipsis),
+          );
+        }
+
+        void toggleComplaints() {
+          setState(() => _expanded = !_expanded);
+          if (_expanded) widget.onLoadComplaints();
+        }
+
+        if (compact) {
+          final chips = <Widget>[
+            if (d.email.trim().isNotEmpty) infoChip(Icons.email_outlined, d.email.trim()),
+            if (d.contact.trim().isNotEmpty) infoChip(Icons.person_outline, d.contact.trim()),
+            if (d.phone.trim().isNotEmpty) infoChip(Icons.phone_outlined, d.phone.trim()),
+            if ((widget.repName ?? '').trim().isNotEmpty)
+              infoChip(Icons.badge_outlined, 'Vertreter: ${widget.repName!.trim()}'),
+            if (d.country.trim().isNotEmpty) infoChip(Icons.public, d.country.trim()),
+          ];
+
+          final theme = Theme.of(context);
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(subtitle),
-              if (widget.repName != null && widget.repName!.trim().isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.badge_outlined, size: 16),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Vertreter: ${widget.repName}',
-                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 4),
+                    Text(subtitle),
+                    if (d.selfDeleted) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'Account durch User gelöscht!',
+                        style: TextStyle(
+                          color: theme.colorScheme.error,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                    if (chips.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: chips,
+                      ),
+                    ],
+                    const SizedBox(height: 14),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: _showAddress,
+                          icon: const Icon(Icons.info_outline),
+                          label: const Text('Adressdaten anzeigen'),
+                        ),
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed: toggleComplaints,
+                          icon: Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
+                          label: Text(_expanded
+                              ? 'Reklamationen verbergen'
+                              : 'Reklamationen anzeigen'),
+                        ),
+                        const SizedBox(height: 8),
+                        FilledButton.icon(
+                          onPressed: () => widget.onDelete(),
+                          icon: const Icon(Icons.delete_outline),
+                          label: const Text('Löschen'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: theme.colorScheme.error,
+                            foregroundColor: theme.colorScheme.onError,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-              if (d.selfDeleted) const SizedBox(height: 4),
-              if (d.selfDeleted)
-                const Text(
-                  'Account durch User gelöscht!',
-                  style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
-                ),
-            ],
-          ),
-          trailing: Wrap(
-            spacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              IconButton(tooltip: 'Adressdaten', onPressed: _showAddress, icon: const Icon(Icons.info_outline)),
-              IconButton(
-                tooltip: 'Reklamationen anzeigen',
-                onPressed: () {
-                  setState(() => _expanded = !_expanded);
-                  if (_expanded) widget.onLoadComplaints();
-                },
-                icon: Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
               ),
-              OutlinedButton(onPressed: () async => widget.onDelete(), child: const Text('Löschen')),
+              if (_expanded)
+                _ComplaintsDetailList(
+                  result: widget.complaints,
+                  api: widget.api,
+                  onClosed: widget.onClosedFromEditor,
+                  companyHint: d.company,
+                ),
+              const Divider(height: 1),
             ],
-          ),
-        ),
-        if (_expanded)
-          _ComplaintsDetailList(
-            result: widget.complaints,
-            api: widget.api,
-            onClosed: widget.onClosedFromEditor,
-            companyHint: d.company,
-          ),
-        const Divider(height: 1),
-      ],
+          );
+        }
+
+        final subtitleWidgets = <Widget>[
+          Text(subtitle),
+          if (widget.repName != null && widget.repName!.trim().isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.badge_outlined, size: 16),
+                const SizedBox(width: 6),
+                Text(
+                  'Vertreter: ${widget.repName}',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ],
+          if (d.selfDeleted) const SizedBox(height: 4),
+          if (d.selfDeleted)
+            const Text(
+              'Account durch User gelöscht!',
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
+            ),
+        ];
+
+        return Column(
+          children: [
+            ListTile(
+              title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: subtitleWidgets,
+              ),
+              trailing: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 320),
+                child: Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    IconButton(tooltip: 'Adressdaten', onPressed: _showAddress, icon: const Icon(Icons.info_outline)),
+                    IconButton(
+                      tooltip: 'Reklamationen anzeigen',
+                      onPressed: toggleComplaints,
+                      icon: Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
+                    ),
+                    OutlinedButton(onPressed: () => widget.onDelete(), child: const Text('Löschen')),
+                  ],
+                ),
+              ),
+            ),
+            if (_expanded)
+              _ComplaintsDetailList(
+                result: widget.complaints,
+                api: widget.api,
+                onClosed: widget.onClosedFromEditor,
+                companyHint: d.company,
+              ),
+            const Divider(height: 1),
+          ],
+        );
+      },
     );
   }
 }
@@ -2298,19 +2603,28 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     return s.isEmpty ? null : s;
   }
 
-  Widget _detKv(String label, String? value, {int maxLines = 2}) {
+  Widget _detKv(String label, String? value, {int maxLines = 2, bool compact = false}) {
     final v = (value ?? '').trim();
     if (v.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(width: 160, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
-          const SizedBox(width: 8),
-          Expanded(child: Text(v, maxLines: maxLines, overflow: TextOverflow.ellipsis)),
-        ],
-      ),
+      child: compact
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 4),
+                Text(v, maxLines: maxLines, overflow: TextOverflow.ellipsis),
+              ],
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(width: 160, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
+                const SizedBox(width: 8),
+                Expanded(child: Text(v, maxLines: maxLines, overflow: TextOverflow.ellipsis)),
+              ],
+            ),
     );
   }
 
@@ -2675,134 +2989,241 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       return '${two(d.day)}.${two(d.month)}.${d.year}';
     }
 
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 720;
+        final detailCompact = constraints.maxWidth < 580;
+
+        final headerLeft = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // =====================
-            // Kopfzeile (übersichtlich)
-            // =====================
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Linke Seite: Ticket + Interne Nr. + Datum + Status-Chip
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // 1) Ticket + (optional) Interne Nr. als Tag direkt daneben
-                      Row(
-                        children: [
-                          Text(
-                            'Ticket: ${c.ticket}',
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                          ),
-                          const SizedBox(width: 10),
-                          if ((c.internalNo ?? '').trim().isNotEmpty)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.surfaceVariant,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: Theme.of(context).colorScheme.outlineVariant,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.tag, size: 14),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'Intern: ${c.internalNo}',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      // 3) Datum + Status + (optional) Vertreter-Ampel
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 6,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: const [
-                              Icon(Icons.event, size: 16),
-                              SizedBox(width: 6),
-                            ],
-                          ),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.event, size: 16),
-                              const SizedBox(width: 6),
-                              Text('Eingang: ${_fmtDate(c.createdAt)}'),
-                            ],
-                          ),
-                          _statusChip(c.status),
-
-                          // Ampel nur zeigen, wenn Kunde einem Vertreter zugeordnet ist
-                          if (widget.hasRep)
-                            _RepTrafficLight(
-                              opinion: ((c.repOpinion ?? '').trim().isEmpty) ? 'pending' : c.repOpinion,
-                              compact: true,
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
+                Text(
+                  'Ticket: ${c.ticket}',
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
                 ),
-
-                const SizedBox(width: 8),
-
-                // Rechte Seite: Firma/E-Mail – lesbar (Light: schwarz, Dark: onSurface) + Mail-Icon
-                Builder(
-                  builder: (ctx) {
-                    final isDark = Theme.of(ctx).brightness == Brightness.dark;
-                    final label = (widget.companyHint != null && widget.companyHint!.trim().isNotEmpty)
-                        ? 'Firma: ${widget.companyHint}'
-                        : 'E-Mail: ${c.email}';
-                    return Row(
+                const SizedBox(width: 10),
+                if ((c.internalNo ?? '').trim().isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceVariant,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
+                    ),
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        const Icon(Icons.tag, size: 14),
+                        const SizedBox(width: 6),
                         Text(
-                          label,
+                          'Intern: ${c.internalNo}',
                           style: TextStyle(
-                            fontSize: 15,
                             fontWeight: FontWeight.w600,
-                            color: isDark ? Theme.of(ctx).colorScheme.onSurface : Colors.black,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          tooltip: 'E-Mail an Kunden verfassen',
-                          icon: const Icon(Icons.email_outlined),
-                          onPressed: _busy ? null : _composeMailToCustomer,
                         ),
                       ],
-                    );
-                  },
-                ),
+                    ),
+                  ),
               ],
             ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 10,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.event, size: 16),
+                    const SizedBox(width: 6),
+                    Text('Eingang: ${_fmtDate(c.createdAt)}'),
+                  ],
+                ),
+                _statusChip(c.status),
+                if (widget.hasRep)
+                  _RepTrafficLight(
+                    opinion: ((c.repOpinion ?? '').trim().isEmpty) ? 'pending' : c.repOpinion,
+                    compact: true,
+                  ),
+              ],
+            ),
+          ],
+        );
 
-            const SizedBox(height: 10),
+        final headerRight = Builder(
+          builder: (ctx) {
+            final isDark = Theme.of(ctx).brightness == Brightness.dark;
+            final label = (widget.companyHint != null && widget.companyHint!.trim().isNotEmpty)
+                ? 'Firma: ${widget.companyHint}'
+                : 'E-Mail: ${c.email}';
+            final baseStyle = TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Theme.of(ctx).colorScheme.onSurface : Colors.black,
+            );
 
-            // ===================== Entscheidung + Wunsch (gemeinsame Meta-Zeile) =====================
-            Builder(
-              builder: (_) {
+            if (compact) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: baseStyle),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: _busy ? null : _composeMailToCustomer,
+                    icon: const Icon(Icons.email_outlined),
+                    label: const Text('E-Mail an Kunden'),
+                  ),
+                ],
+              );
+            }
+
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    label,
+                    style: baseStyle,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: 'E-Mail an Kunden verfassen',
+                  icon: const Icon(Icons.email_outlined),
+                  onPressed: _busy ? null : _composeMailToCustomer,
+                ),
+              ],
+            );
+          },
+        );
+
+        final header = compact
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  headerLeft,
+                  const SizedBox(height: 12),
+                  headerRight,
+                ],
+              )
+            : Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: headerLeft),
+                  const SizedBox(width: 12),
+                  headerRight,
+                ],
+              );
+
+        final statusControls = compact
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  DropdownButtonFormField<int>(
+                    value: _status,
+                    decoration: const InputDecoration(
+                      labelText: 'Status',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: kStatusItems
+                        .map((e) => DropdownMenuItem<int>(
+                              value: e['value'] as int,
+                              child: Text(e['label'] as String),
+                            ))
+                        .toList(),
+                    onChanged: (v) => setState(() => _status = v),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: _decision ?? '',
+                    decoration: const InputDecoration(
+                      labelText: 'Entscheidung',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: kDecisionItems
+                        .map((e) => DropdownMenuItem<String>(
+                              value: e['value']!,
+                              child: Text(e['label']!),
+                            ))
+                        .toList(),
+                    onChanged: (v) =>
+                        setState(() => _decision = (v == null || v.isEmpty) ? null : v),
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton(
+                    onPressed: _busy ? null : _saveStatusDecision,
+                    child: const Text('Speichern'),
+                  ),
+                ],
+              )
+            : Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<int>(
+                      value: _status,
+                      decoration: const InputDecoration(
+                        labelText: 'Status',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: kStatusItems
+                          .map((e) => DropdownMenuItem<int>(
+                                value: e['value'] as int,
+                                child: Text(e['label'] as String),
+                              ))
+                          .toList(),
+                      onChanged: (v) => setState(() => _status = v),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: _decision ?? '',
+                      decoration: const InputDecoration(
+                        labelText: 'Entscheidung',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: kDecisionItems
+                          .map((e) => DropdownMenuItem<String>(
+                                value: e['value']!,
+                                child: Text(e['label']!),
+                              ))
+                          .toList(),
+                      onChanged: (v) =>
+                          setState(() => _decision = (v == null || v.isEmpty) ? null : v),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  FilledButton(
+                    onPressed: _busy ? null : _saveStatusDecision,
+                    child: const Text('Speichern'),
+                  ),
+                ],
+              );
+
+        return Card(
+          margin: const EdgeInsets.symmetric(vertical: 6),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // =====================
+                // Kopfzeile (übersichtlich)
+                // =====================
+                header,
+
+                const SizedBox(height: 10),
+
+                // ===================== Entscheidung + Wunsch (gemeinsame Meta-Zeile) =====================
+                Builder(
+                  builder: (_) {
                 final decText = _labelForDecision(c.decision);
                 final decCol  = _decisionColor(c.decision);
                 final wish    = c.handlingLabel; // kommt aus payload['handling'] / 'Wunsch'
@@ -2847,6 +3268,21 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                   ],
                 );
 
+                if (compact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      left,
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: () => setState(() => _expanded = !_expanded),
+                        icon: Icon(_expanded ? Icons.expand_less : Icons.edit),
+                        label: Text(_expanded ? 'Bearbeiten schließen' : 'Bearbeiten'),
+                      ),
+                    ],
+                  );
+                }
+
                 return Row(
                   children: [
                     // links: Entscheidung + Wunsch im Wrap (bricht sauber auf kleinen Screens)
@@ -2862,113 +3298,77 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
               },
             ),
 
-            // KEIN prominenter Wunsch-Banner mehr!
+                // KEIN prominenter Wunsch-Banner mehr!
 
-            if (_expanded) ...[
-              const SizedBox(height: 10),
+                if (_expanded) ...[
+                  const SizedBox(height: 10),
 
-              // ---- Toggle + Details-Container (NEU, optional ein/ausklappbar) ----
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  TextButton.icon(
-                    onPressed: () => setState(() => _expanded = !_expanded),
-                    icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
-                    label: const Text('Details anzeigen'), // ändert sich unten dynamisch
+                  // ---- Toggle + Details-Container (NEU, optional ein/ausklappbar) ----
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: compact
+                        ? OutlinedButton.icon(
+                            onPressed: () => setState(() => _expanded = !_expanded),
+                            icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+                            label: const Text('Details anzeigen'),
+                          )
+                        : TextButton.icon(
+                            onPressed: () => setState(() => _expanded = !_expanded),
+                            icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+                            label: const Text('Details anzeigen'),
+                          ),
                   ),
-                ],
-              ),
-              AnimatedCrossFade(
-                crossFadeState: _expanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
-                duration: const Duration(milliseconds: 160),
-                firstChild: Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.only(top: 4),
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.30),
+                  AnimatedCrossFade(
+                    crossFadeState: _expanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+                    duration: const Duration(milliseconds: 160),
+                    firstChild: Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(top: 4),
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.30),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
                       Text(
                         'Details der Reklamation',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 8),
-                      _detKv('Segment',       segment),
-                      _detKv('Produkttyp',    productType),
-                      _detKv('Artikelnummer', articleNo),
-                      _detKv('Produkte zurückgeschickt?', returned),
-                      _detKv('Am Patienten angewendet?', applied),
-                      _detKv('Verletzung?', injury),
-                      _detKv('Verletzungsbeschreibung', injuryDesc, maxLines: 6),
+                      _detKv('Segment',       segment, compact: detailCompact),
+                      _detKv('Produkttyp',    productType, compact: detailCompact),
+                      _detKv('Artikelnummer', articleNo, compact: detailCompact),
+                      _detKv('Produkte zurückgeschickt?', returned, compact: detailCompact),
+                      _detKv('Am Patienten angewendet?', applied, compact: detailCompact),
+                      _detKv('Verletzung?', injury, compact: detailCompact),
+                      _detKv('Verletzungsbeschreibung', injuryDesc, maxLines: 6, compact: detailCompact),
 
-                      Row(
-                        children: [
-                          Expanded(child: _detKv('Charge / LOT', batch)),
-                          const SizedBox(width: 12),
-                          Expanded(child: _detKv('Seriennummer', serial)),
-                        ],
-                      ),
-                      _detKv('Menge', qty),
-                      _detKv('Fehler / Beschreibung', desc, maxLines: 6),
-                      _detKv('Grund / Ursache',       reason, maxLines: 4),
-                      _detKv('Wunsch des Kunden',     customerWish, maxLines: 3),
+                      if (detailCompact) ...[
+                        _detKv('Charge / LOT', batch, compact: detailCompact),
+                        _detKv('Seriennummer', serial, compact: detailCompact),
+                      ] else
+                        Row(
+                          children: [
+                            Expanded(child: _detKv('Charge / LOT', batch)),
+                            const SizedBox(width: 12),
+                            Expanded(child: _detKv('Seriennummer', serial)),
+                          ],
+                        ),
+                      _detKv('Menge', qty, compact: detailCompact),
+                      _detKv('Fehler / Beschreibung', desc, maxLines: 6, compact: detailCompact),
+                      _detKv('Grund / Ursache',       reason, maxLines: 4, compact: detailCompact),
+                      _detKv('Wunsch des Kunden',     customerWish, maxLines: 3, compact: detailCompact),
                     ],
                   ),
                 ),
-                secondChild: const SizedBox.shrink(),
-              ),
-
-              // ====== Editor-Bereich (unverändert inhaltlich) ======                        
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: DropdownButtonFormField<int>(
-                          value: _status,
-                          decoration: const InputDecoration(
-                            labelText: 'Status',
-                            border: OutlineInputBorder(),
-                          ),
-                          items: kStatusItems
-                              .map((e) => DropdownMenuItem<int>(
-                                    value: e['value'] as int,
-                                    child: Text(e['label'] as String),
-                                  ))
-                              .toList(),
-                          onChanged: (v) => setState(() => _status = v),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          value: _decision ?? '',
-                          decoration: const InputDecoration(
-                            labelText: 'Entscheidung',
-                            border: OutlineInputBorder(),
-                          ),
-                          items: kDecisionItems
-                              .map((e) => DropdownMenuItem<String>(
-                                    value: e['value']!,
-                                    child: Text(e['label']!),
-                                  ))
-                              .toList(),
-                          onChanged: (v) =>
-                              setState(() => _decision = (v == null || v.isEmpty) ? null : v),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      FilledButton(
-                        onPressed: _busy ? null : _saveStatusDecision,
-                        child: const Text('Speichern'),
-                      ),
-                    ],
+                    secondChild: const SizedBox.shrink(),
                   ),
+
+              // ====== Editor-Bereich (unverändert inhaltlich) ======
+                  statusControls,
 
                   const SizedBox(height: 12),
 
@@ -3031,11 +3431,11 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                     ),
                   ),
                 ],
-              ),
-            ],
-          ],
-        ),
-      ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
