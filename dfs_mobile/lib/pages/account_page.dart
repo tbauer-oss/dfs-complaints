@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/dialog_content_scroll.dart';
 import '../widgets/legal_footer.dart';
 
 extension _L10nX on BuildContext {
@@ -104,7 +105,7 @@ class _AccountPageState extends State<AccountPage> {
                     context: context,
                     builder: (_) => AlertDialog(
                       title: Text(t.accountDeleteTitle),
-                      content: Text(t.accountDeleteConfirm),
+                      content: DialogContentScroll(child: Text(t.accountDeleteConfirm)),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(context, false),
@@ -127,9 +128,11 @@ class _AccountPageState extends State<AccountPage> {
                       return AlertDialog(
                         // FIX: Key existierte nicht -> kompatibler Key + Fallback
                         title: Text(t.confirmPassword ?? 'Passwort bestätigen'),
-                        content: TextField(
-                          controller: ctrl, obscureText: true,
-                          decoration: InputDecoration(labelText: t.gate_password),
+                        content: DialogContentScroll(
+                          child: TextField(
+                            controller: ctrl, obscureText: true,
+                            decoration: InputDecoration(labelText: t.gate_password),
+                          ),
                         ),
                         actions: [
                           TextButton(
