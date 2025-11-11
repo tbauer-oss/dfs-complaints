@@ -36,7 +36,10 @@
   "catalog_dent_title": "Zahnmedizin Katalog",
   "catalog_dent_desc": "Instrumente & Infos für die Praxis",
 
-  "decision_withdrawn": "Entscheidung zurückgenommen",  
+  "dashboard_heading": "Ihr DFS-Dashboard",
+  "dashboard_subheading": "Bearbeiten Sie Meldungen, greifen Sie auf Kataloge zu und bleiben Sie mit Ihrer Vertretung in Kontakt.",
+
+  "decision_withdrawn": "Entscheidung zurückgenommen",
   "decision_withdraw": "Entscheidung zurücknehmen",
   "decision_withdraw_confirm": "Möchtest du deine Entscheidung wirklich zurücknehmen?",
   "no_decision_yet": "Noch keine Entscheidung",

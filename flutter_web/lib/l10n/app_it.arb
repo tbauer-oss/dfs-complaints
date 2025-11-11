@@ -32,6 +32,8 @@
   "catalog_lab_desc": "Prodotti e informazioni per il laboratorio",
   "catalog_dent_title": "Catalogo odontoiatrico",
   "catalog_dent_desc": "Strumenti e informazioni per lo studio dentistico",
+  "dashboard_heading": "Il tuo cruscotto DFS",
+  "dashboard_subheading": "Gestisci le segnalazioni, accedi ai cataloghi e rimani in contatto con il tuo referente.",
   "decision_withdrawn": "Decisione revocata",
   "decision_withdraw": "Ritira decisione",
   "decision_withdraw_confirm": "Vuoi davvero ritirare la tua decisione?",

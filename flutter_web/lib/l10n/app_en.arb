@@ -33,7 +33,12 @@
   "catalog_dent_title": "Dentistry Catalog",
   "catalog_dent_desc": "Instruments & information for the dental practice",
 
-  "decision_withdrawn": "Decision withdrawn",  
+  "dashboard_heading": "Your DFS dashboard",
+  "@dashboard_heading": { "description": "Headline shown on the customer dashboard hero section" },
+  "dashboard_subheading": "Manage complaints, access catalogs and stay connected with your representative.",
+  "@dashboard_subheading": { "description": "Subheading shown on the customer dashboard hero section" },
+
+  "decision_withdrawn": "Decision withdrawn",
   "decision_withdraw": "Withdraw decision",
   "decision_withdraw_confirm": "Do you really want to withdraw your decision?",
   "no_decision_yet": "No decision yet",
