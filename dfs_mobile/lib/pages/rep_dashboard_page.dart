@@ -1,4 +1,5 @@
 // lib/pages/rep_dashboard_page.dart
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import 'rep_profile_page.dart';
@@ -1004,10 +1005,14 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     return _Card(
       title: t.myCustomers,
       actions: [
-        ElevatedButton.icon(
+        FilledButton.tonalIcon(
           onPressed: _assignCustomerDialog,
           icon: const Icon(Icons.person_add_alt_1),
           label: Text(t.addCustomer),
+          style: FilledButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            shape: const StadiumBorder(),
+          ),
         ),
       ],
       child: _customers.isEmpty
@@ -1015,79 +1020,30 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
           : ListView.separated(
               shrinkWrap: true,
               physics: const BouncingScrollPhysics(),
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
               itemBuilder: (_, i) {
                 final c = _customers[i];
                 final email = (c['email'] ?? '').toString();
                 final isNew = !_seenCustomers.contains(email.toLowerCase());
 
-                final tile = InkWell(
-                  onTap: () {
-                    // Beim ersten Öffnen → NEW weg
-                    _markCustomerSeen(email);
-                    _showCustomerDetails(c);
-                  },
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    leading: const Icon(Icons.apartment_outlined),
-                    title: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            (() {
-                              final comp = (c['company'] ?? '').toString();
-                              final nm   = (c['name'] ?? '').toString();
-                              final em   = email;
-                              if (comp.isNotEmpty) return comp;
-                              if (nm.isNotEmpty)   return nm;
-                              return em;
-                            })(),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (isNew) const SizedBox(width: 8),
-                        if (isNew)
-                          const _PulseNewBadge(), // ← ersetzt den statischen NEW-Container (pulsierend)
-                      ],
-                    ),
-                    subtitle: Text(
-                      (() {
-                        final nm = (c['name'] ?? '').toString();
-                        final em = email;
-                        if (nm.isNotEmpty && em.isNotEmpty) return '$nm • $em';
-                        return nm.isNotEmpty ? nm : em;
-                      })(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    trailing: Wrap(
-                      spacing: 8,
-                      children: [
-                        IconButton(
-                          tooltip: 'Details',
-                          icon: const Icon(Icons.info_outline),
-                          onPressed: () {
-                            _markCustomerSeen(email);
-                            _showCustomerDetails(c);
-                          },
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.link_off),
-                          tooltip: t.deleteAdd,
-                          onPressed: () => _unassignCustomer(email),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-
-                // Sanftes Aufleuchten (Fade-in) pro Karte, leicht gestaffelt
                 return _FadeInOnce(
                   delayMs: 35 * i,
-                  child: tile,
+                  child: _CustomerTile(
+                    data: c,
+                    isNew: isNew,
+                    t: t,
+                    onOpen: () {
+                      _markCustomerSeen(email);
+                      _showCustomerDetails(c);
+                    },
+                    onInfo: () {
+                      _markCustomerSeen(email);
+                      _showCustomerDetails(c);
+                    },
+                    onRemove: () => _unassignCustomer(email),
+                  ),
                 );
               },
-              separatorBuilder: (_, __) => const Divider(height: 1),
               itemCount: _customers.length,
             ),
     );
@@ -1579,6 +1535,222 @@ class _MenuCard extends StatelessWidget {
   }
 }
 
+class _CustomerTile extends StatelessWidget {
+  final Map<String, Object?> data;
+  final bool isNew;
+  final AppLocalizations t;
+  final VoidCallback onOpen;
+  final VoidCallback onInfo;
+  final VoidCallback onRemove;
+
+  const _CustomerTile({
+    required this.data,
+    required this.isNew,
+    required this.t,
+    required this.onOpen,
+    required this.onInfo,
+    required this.onRemove,
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    String pick(String key) => (data[key] ?? '').toString();
+
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    final email = pick('email');
+    final contact = pick('name');
+    final company = pick('company');
+    final phone = pick('phone');
+    final address = pick('address');
+    final zip = pick('zip');
+    final city = pick('city');
+    final country = pick('country');
+
+    final contactLabel = contact.isNotEmpty
+        ? contact
+        : (company.isNotEmpty ? company : email);
+
+    final locationParts = <String>[
+      [zip, city].where((e) => e.trim().isNotEmpty).join(' ').trim(),
+      country.trim(),
+    ].where((e) => e.isNotEmpty).toList();
+    final location = locationParts.join(' · ');
+
+    final accent = isNew ? cs.primary : cs.secondary;
+    final initialsSource = contactLabel.trim().isNotEmpty ? contactLabel.trim() : email.trim();
+    final initials = initialsSource.isNotEmpty ? initialsSource[0].toUpperCase() : 'C';
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onOpen,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            color: Color.alphaBlend(cs.surfaceVariant.withOpacity(isNew ? 0.32 : 0.18), cs.surface),
+            border: Border.all(color: cs.outlineVariant.withOpacity(isNew ? 0.9 : 0.55)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: accent.withOpacity(0.18),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      initials,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: accent,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                contactLabel,
+                                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (isNew) const SizedBox(width: 8),
+                            if (isNew) const _PulseNewBadge(),
+                          ],
+                        ),
+                        if (company.isNotEmpty && company != contactLabel) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            company,
+                            style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                        const SizedBox(height: 4),
+                        Text(
+                          email,
+                          style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    children: [
+                      IconButton(
+                        tooltip: t.showDetails ?? 'Details anzeigen',
+                        icon: const Icon(Icons.info_outline),
+                        onPressed: onInfo,
+                        style: IconButton.styleFrom(
+                          backgroundColor: cs.surfaceVariant.withOpacity(0.45),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      IconButton(
+                        tooltip: t.deleteAdd,
+                        icon: const Icon(Icons.link_off),
+                        onPressed: onRemove,
+                        style: IconButton.styleFrom(
+                          foregroundColor: cs.error,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              if (address.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(
+                  address,
+                  style: theme.textTheme.bodyMedium?.copyWith(height: 1.3),
+                ),
+              ],
+              if (phone.isNotEmpty || location.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 8,
+                  children: [
+                    if (phone.isNotEmpty)
+                      _CustomerInfoChip(
+                        icon: Icons.phone_outlined,
+                        label: phone,
+                      ),
+                    if (location.isNotEmpty)
+                      _CustomerInfoChip(
+                        icon: Icons.location_on_outlined,
+                        label: location,
+                      ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CustomerInfoChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _CustomerInfoChip({required this.icon, required this.label, super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: cs.surfaceVariant.withOpacity(0.4),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: cs.onSurfaceVariant),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ComplaintTile extends StatefulWidget {
   final Map<String, dynamic> data;
   final bool isClosed;
@@ -1643,33 +1815,94 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     return null;
   }
 
-  Widget _summaryLine(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required String value,
-    Color? iconColor,
-  }) {
+
+  Color _decisionTint(ColorScheme cs, String normalized) {
+    final value = normalized.trim().toLowerCase();
+    if (value == 'accepted') return Colors.green.shade600;
+    if (value == 'rejected') return Colors.red.shade600;
+    if (value == 'pending') return Colors.amber.shade700;
+    return cs.primary;
+  }
+
+  Widget _infoPill(BuildContext context, {required IconData icon, required String text}) {
     final theme = Theme.of(context);
-    final baseStyle = theme.textTheme.bodyMedium ?? const TextStyle(fontSize: 14.5);
-    final color = baseStyle.color ?? theme.colorScheme.onSurface;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+    final cs = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: cs.surfaceVariant.withOpacity(0.42),
+        borderRadius: BorderRadius.circular(20),
+      ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: cs.onSurfaceVariant),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: cs.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _decisionBadge(BuildContext context, {required IconData icon, required String text, required Color color}) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withOpacity(0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailField(BuildContext context, {required String label, required String value}) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cs.surfaceVariant.withOpacity(0.32),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.6)),
+      ),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: iconColor ?? theme.colorScheme.primary),
-          const SizedBox(width: 8),
-          Expanded(
-            child: RichText(
-              text: TextSpan(
-                style: baseStyle.copyWith(height: 1.25, color: color),
-                children: [
-                  TextSpan(text: '$label: ', style: const TextStyle(fontWeight: FontWeight.w600)),
-                  TextSpan(text: value),
-                ],
-              ),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: cs.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.2,
             ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: theme.textTheme.bodyMedium?.copyWith(height: 1.35),
           ),
         ],
       ),
@@ -1679,13 +1912,13 @@ class _ComplaintTileState extends State<_ComplaintTile> {
   Widget _decisionButtons(AppLocalizations t, String ticket) {
     if (widget.onDecision == null) return const SizedBox.shrink();
 
-    ButtonStyle _style(Color color, Color onColor) {
+    ButtonStyle _style(Color color) {
       return FilledButton.styleFrom(
         backgroundColor: color,
-        foregroundColor: onColor,
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        textStyle: const TextStyle(fontWeight: FontWeight.w600),
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+        shape: const StadiumBorder(),
+        textStyle: const TextStyle(fontWeight: FontWeight.w700),
       );
     }
 
@@ -1695,38 +1928,18 @@ class _ComplaintTileState extends State<_ComplaintTile> {
       alignment: WrapAlignment.end,
       children: [
         FilledButton.icon(
-          style: _style(Colors.green.shade600, Colors.white),
+          style: _style(Colors.green.shade600),
           onPressed: () => widget.onDecision!(ticket, true),
-          icon: const Icon(Icons.check_rounded),
+          icon: const Icon(Icons.check_circle_rounded),
           label: Text(t.decision_accepted),
         ),
         FilledButton.icon(
-          style: _style(Colors.red.shade600, Colors.white),
+          style: _style(Colors.red.shade600),
           onPressed: () => widget.onDecision!(ticket, false),
-          icon: const Icon(Icons.close_rounded),
+          icon: const Icon(Icons.cancel_rounded),
           label: Text(t.decision_rejected),
         ),
       ],
-    );
-  }
-
-  Widget _metaBadge({required IconData icon, required String label, required String value}) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: cs.surfaceVariant.withOpacity(.55),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: cs.onSurface.withOpacity(.7)),
-          const SizedBox(width: 6),
-          Text('$label: $value', style: TextStyle(fontSize: 12.5, color: cs.onSurface.withOpacity(.85))),
-        ],
-      ),
     );
   }
 
@@ -1737,7 +1950,7 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     final ticket   = (widget.data['ticket'] ?? '').toString();
     final status   = (widget.data['status'] ?? '').toString();
     final decision = (widget.data['decision'] ?? '').toString();
-    final repDecision = (widget.data['repDecision'] ?? '').toString(); // 'accepted' | 'rejected' | ''
+    final repDecision = (widget.data['repDecision'] ?? '').toString();
 
     final created   = widget.createdOverride ?? (widget.data['createdAt'] ?? widget.data['created'] ?? '').toString();
     final customer  = widget.customerOverride ?? (widget.data['customerEmail'] ?? widget.data['email'] ?? '').toString();
@@ -1748,211 +1961,283 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     final segment      = _pickOrNull(p, ['segment','customer_segment','segment_code']);
     final productType  = _pickOrNull(p, ['product_type','productType','type']);
     final articleNo    = _pickOrNull(p, ['article','article_no','articleNumber','artnr']);
-    final batch        = _pickOrNull(p, ['batch','batch_no','lot','lot_no']);
+    final batch        = _pickOrNull(p, ['batch','batch_no','lot','lot_no','charge','lotnumber','lot_number']);
     final serial       = _pickOrNull(p, ['serial','serial_no','sn']);
     final qty          = _pickOrNull(p, ['qty','quantity','amount','menge']);
     final reason       = _pickOrNull(p, ['reason','failure_reason','cause']);
 
-    // desc priorisieren
     final desc         = _pickOrNull(p, ['desc','description','comment','details','failure_desc']);
     final customerWish = _pickOrNull(p, ['handling','customer_wish','customerWish','wish','treatment_wish']);
 
-    // NEU (aus complaint_form_page.dart)
-    final returned     = _pickOrNull(p, ['returned']);   // 'Ja' | 'Nein'
-    final applied      = _pickOrNull(p, ['applied']);    // 'Ja' | 'Nein' | ''
-    final injury       = _pickOrNull(p, ['injury']);     // 'Ja' | 'Nein' | ''
-    final injuryDesc   = _pickOrNull(p, ['injuryDesc']); // Freitext
+    final returned     = _pickOrNull(p, ['returned']);
+    final applied      = _pickOrNull(p, ['applied']);
+    final injury       = _pickOrNull(p, ['injury']);
+    final injuryDesc   = _pickOrNull(p, ['injuryDesc']);
 
     final productArea  = _resolveProductArea(t, segment, productType);
     final articleLabel = articleNo == null || articleNo.isEmpty
         ? null
         : productArea == null
             ? articleNo
-            : '$articleNo (${productArea})';
+            : '$articleNo · $productArea';
 
     final createdLabel = created.trim().isEmpty ? null : created.trim();
     final decisionLabel = decision.trim().isEmpty ? null : _localizeDecisionText(t, decision);
     final repDecisionLabel = repDecision.trim().isEmpty ? null : _localizeDecisionText(t, repDecision);
+    final repDecisionNormalized = repDecision.trim().toLowerCase();
 
-    return LayoutBuilder(
-      builder: (ctx, cons) {
-        final isNarrow = cons.maxWidth < 420;
-        final theme = Theme.of(ctx);
-        final cs = theme.colorScheme;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
 
-        return Card(
-          margin: const EdgeInsets.symmetric(vertical: 6),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            child: Column(
+    Color background = Color.alphaBlend(cs.surfaceVariant.withOpacity(0.18), cs.surface);
+    Color borderColor = cs.outlineVariant.withOpacity(0.6);
+
+    if (repDecisionNormalized == 'accepted') {
+      background = Color.alphaBlend(Colors.green.shade50.withOpacity(0.7), cs.surface);
+      borderColor = Colors.green.shade200;
+    } else if (repDecisionNormalized == 'rejected') {
+      background = Color.alphaBlend(Colors.red.shade50.withOpacity(0.7), cs.surface);
+      borderColor = Colors.red.shade200;
+    } else if (repDecisionNormalized == 'pending') {
+      background = Color.alphaBlend(Colors.amber.shade50.withOpacity(0.6), cs.surface);
+      borderColor = Colors.amber.shade200;
+    }
+
+    if (widget.isClosed) {
+      background = Color.alphaBlend(cs.surfaceContainerHighest.withOpacity(0.4), background);
+      borderColor = Color.alphaBlend(cs.outline.withOpacity(0.25), borderColor);
+    }
+
+    final decisionBadges = <Widget>[];
+    if (decisionLabel != null) {
+      decisionBadges.add(_decisionBadge(context, icon: Icons.gavel_outlined, text: decisionLabel, color: cs.primary));
+    }
+    if (repDecisionLabel != null) {
+      final icon = repDecisionNormalized == 'rejected'
+          ? Icons.thumb_down_alt_outlined
+          : Icons.thumb_up_alt_outlined;
+      decisionBadges.add(
+        _decisionBadge(
+          context,
+          icon: icon,
+          text: repDecisionLabel,
+          color: _decisionTint(cs, repDecisionNormalized),
+        ),
+      );
+    }
+
+    final infoBadges = <Widget>[];
+    if (createdLabel != null) {
+      infoBadges.add(_infoPill(context, icon: Icons.schedule, text: createdLabel));
+    }
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(widget.isClosed ? 0.02 : 0.05),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: cs.primary.withOpacity(.12),
-                        borderRadius: BorderRadius.circular(12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        ticket.isEmpty ? '(ohne Ticket)' : ticket,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.15,
+                        ),
                       ),
-                      child: Icon(Icons.description_outlined, color: cs.primary),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            ticket.isEmpty ? '(ohne Ticket)' : ticket,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                      if (customer.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          t.customer_label,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.2,
                           ),
-                          if (createdLabel != null) ...[
-                            const SizedBox(height: 2),
-                            Text(
-                              '${t.created_at ?? 'Angelegt'}: $createdLabel',
-                              style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurface.withOpacity(.7)),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        _StatusChip(status: status, decision: decision, closed: widget.isClosed),
-                        if ((repDecision).trim().isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          _RepTrafficLight(opinion: repDecision, compact: true),
-                        ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          customer,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            height: 1.25,
+                          ),
+                        ),
                       ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                if (customer.isNotEmpty)
-                  _summaryLine(
-                    context,
-                    icon: Icons.person_outline,
-                    label: t.customer_label,
-                    value: customer,
-                    iconColor: cs.primary,
-                  ),
-                if (articleLabel != null)
-                  _summaryLine(
-                    context,
-                    icon: Icons.widgets_outlined,
-                    label: t.articleNo,
-                    value: articleLabel,
-                    iconColor: cs.secondary,
-                  ),
-                if (segment != null && segment.trim().isNotEmpty)
-                  _summaryLine(
-                    context,
-                    icon: Icons.category_outlined,
-                    label: t.segment,
-                    value: segment!,
-                  ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: [
-                    if (decisionLabel != null)
-                      _metaBadge(
-                        icon: Icons.gavel_outlined,
-                        label: t.decision ?? 'Entscheidung',
-                        value: decisionLabel,
-                      ),
-                    if (repDecisionLabel != null)
-                      _metaBadge(
-                        icon: Icons.thumb_up_alt_outlined,
-                        label: t.my_decision ?? 'Meine Bewertung',
-                        value: repDecisionLabel,
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: () => setState(() => _expanded = !_expanded),
-                    icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
-                    label: Text(
-                      _expanded
-                          ? (context.t.hideDetails ?? 'Details verbergen')
-                          : (context.t.showDetails ?? 'Details anzeigen'),
-                    ),
-                  ),
-                ),
-                AnimatedCrossFade(
-                  crossFadeState: _expanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
-                  duration: const Duration(milliseconds: 160),
-                  firstChild: _buildDetails(
-                    context,
-                    segment: segment,
-                    productType: productType,
-                    productArea: productArea,
-                    articleNo: articleNo,
-                    batch: batch,
-                    serial: serial,
-                    qty: qty,
-                    reason: reason,
-                    desc: desc,
-                    customerWish: customerWish,
-                    returned: returned,
-                    applied: applied,
-                    injury: injury,
-                    injuryDesc: injuryDesc,
-                  ),
-                  secondChild: const SizedBox.shrink(),
-                ),
-
-                if (widget.onDecision != null && !widget.isClosed && repDecision.isEmpty) ...[
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: isNarrow ? Alignment.centerLeft : Alignment.centerRight,
-                    child: _decisionButtons(t, ticket),
-                  ),
-                ],
-                if (!widget.isClosed && repDecision.isNotEmpty && widget.onWithdraw != null) ...[
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: isNarrow ? Alignment.centerLeft : Alignment.centerRight,
-                    child: OutlinedButton.icon(
-                      icon: const Icon(Icons.undo),
-                      label: Text(context.t.decision_withdraw ?? 'Entscheidung zurücknehmen'),
-                      onPressed: () async {
-                        final ok = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: Text(context.t.decision_withdraw ?? 'Entscheidung zurücknehmen'),
-                            content: Text(context.t.decision_withdraw_confirm ?? 'Möchtest du deine Entscheidung wirklich zurücknehmen?'),
-                            actions: [
-                              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(context.t.cancel)),
-                              ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(context.t.ok ?? 'OK')),
-                            ],
+                      if (articleLabel != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          t.articleNo,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.2,
                           ),
-                        ) ?? false;
-
-                        if (ok) widget.onWithdraw!(ticket);
-                      },
-                    ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          articleLabel,
+                          style: theme.textTheme.bodyMedium?.copyWith(height: 1.3),
+                        ),
+                      ],
+                    ],
                   ),
-                ],
+                ),
+                const SizedBox(width: 16),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    _StatusChip(status: status, decision: decision, closed: widget.isClosed),
+                    if (repDecision.trim().isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _RepTrafficLight(opinion: repDecision, compact: true),
+                    ],
+                  ],
+                ),
               ],
             ),
-          ),
-        );
-      },
+            if (decisionBadges.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 10,
+                runSpacing: 8,
+                children: decisionBadges,
+              ),
+            ],
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: infoBadges.isEmpty
+                      ? const SizedBox.shrink()
+                      : Align(
+                          alignment: Alignment.centerLeft,
+                          child: Wrap(
+                            spacing: 10,
+                            runSpacing: 6,
+                            children: infoBadges,
+                          ),
+                        ),
+                ),
+                TextButton.icon(
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    shape: const StadiumBorder(),
+                    foregroundColor: cs.primary,
+                    textStyle: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  onPressed: () => setState(() => _expanded = !_expanded),
+                  icon: AnimatedRotation(
+                    turns: _expanded ? 0.5 : 0.0,
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutCubic,
+                    child: const Icon(Icons.keyboard_arrow_down_rounded),
+                  ),
+                  label: Text(
+                    _expanded
+                        ? (t.hideDetails ?? 'Details verbergen')
+                        : (t.showDetails ?? 'Details anzeigen'),
+                  ),
+                ),
+              ],
+            ),
+            ClipRect(
+              child: AnimatedSize(
+                duration: const Duration(milliseconds: 240),
+                curve: Curves.easeOutCubic,
+                child: !_expanded
+                    ? const SizedBox.shrink()
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SizedBox(height: 16),
+                          _buildDetails(
+                            context,
+                            segment: segment,
+                            productType: productType,
+                            productArea: productArea,
+                            articleNo: articleNo,
+                            batch: batch,
+                            serial: serial,
+                            qty: qty,
+                            reason: reason,
+                            desc: desc,
+                            customerWish: customerWish,
+                            returned: returned,
+                            applied: applied,
+                            injury: injury,
+                            injuryDesc: injuryDesc,
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+            if (widget.onDecision != null && !widget.isClosed && repDecision.isEmpty) ...[
+              const SizedBox(height: 18),
+              Align(
+                alignment: Alignment.centerRight,
+                child: _decisionButtons(t, ticket),
+              ),
+            ],
+            if (!widget.isClosed && repDecision.isNotEmpty && widget.onWithdraw != null) ...[
+              const SizedBox(height: 14),
+              Align(
+                alignment: Alignment.centerRight,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: const StadiumBorder(),
+                    textStyle: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  icon: const Icon(Icons.undo),
+                  label: Text(t.decision_withdraw ?? 'Entscheidung zurücknehmen'),
+                  onPressed: () async {
+                    final ok = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: Text(t.decision_withdraw ?? 'Entscheidung zurücknehmen'),
+                            content: Text(t.decision_withdraw_confirm ?? 'Möchtest du deine Entscheidung wirklich zurücknehmen?'),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(t.cancel ?? 'Abbrechen')),
+                              ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(t.ok ?? 'OK')),
+                            ],
+                          ),
+                        ) ??
+                        false;
+
+                    if (ok) widget.onWithdraw!(ticket);
+                  },
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
-    Widget _buildDetails(
+
+  Widget _buildDetails(
     BuildContext context, {
     String? segment,
     String? productType,
@@ -1969,68 +2254,90 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     String? injury,
     String? injuryDesc,
   }) {
-    Widget kv(String label, String? value, {int maxLines = 2}) {
+    final t = context.t;
+    final fields = <_DetailFieldData>[];
+
+    void add(String label, String? value, {bool wide = false}) {
       final v = (value ?? '').trim();
-      if (v.isEmpty) return const SizedBox.shrink();
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(width: 160, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
-            const SizedBox(width: 8),
-            Expanded(child: Text(v, maxLines: maxLines, overflow: TextOverflow.ellipsis)),
-          ],
-        ),
-      );
+      if (v.isEmpty) return;
+      fields.add(_DetailFieldData(label: label, value: v, wide: wide));
+    }
+
+    add(t.segment, segment);
+    add(t.product_type, productType);
+    add(t.product_area_label ?? 'Produktbereich', productArea);
+    add(t.articleNo, articleNo);
+    add('${t.batch ?? 'Charge'} / LOT', batch);
+    add(t.serial_number ?? 'Seriennummer', serial);
+    add(t.quantity ?? 'Menge', qty);
+    add(t.problem_desc ?? 'Fehler / Beschreibung', desc, wide: true);
+    add(t.reason_label ?? 'Grund / Ursache', reason, wide: true);
+    add(t.handling ?? 'Wunsch des Kunden', customerWish, wide: true);
+    add(t.returned_question ?? 'Produkte zurückgeschickt?', returned);
+    add(t.applied_to_patient ?? 'Am Patienten angewendet?', applied);
+    add(t.injury_question ?? 'Verletzung?', injury);
+    add(t.injury_desc ?? 'Verletzungsbeschreibung', injuryDesc, wide: true);
+
+    if (fields.isEmpty) {
+      return const SizedBox.shrink();
     }
 
     final theme = Theme.of(context);
-    final t = context.t;
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(top: 4),
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.30),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(t.details ?? 'Details', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
+    final cs = theme.colorScheme;
 
-          kv(t.segment, segment),
-          kv(t.product_type, productType),
-          kv(t.product_area_label ?? 'Produktbereich', productArea),
-          kv(t.articleNo, articleNo),
+    return LayoutBuilder(
+      builder: (ctx, constraints) {
+        final maxWidth = constraints.maxWidth;
+        final multiColumn = maxWidth >= 560;
+        final columnWidth = multiColumn ? (maxWidth - 12) / 2 : maxWidth;
 
-          Row(
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: cs.surfaceContainerHighest.withOpacity(0.32),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: kv('${t.batch ?? 'Charge'} / LOT', batch)),
-              const SizedBox(width: 12),
-              Expanded(child: kv(t.serial_number ?? 'Seriennummer', serial)),
+              Text(
+                t.details ?? 'Details',
+                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  for (final field in fields)
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: field.wide || !multiColumn ? maxWidth : columnWidth,
+                        minWidth: field.wide || !multiColumn ? maxWidth : math.min(columnWidth, maxWidth),
+                      ),
+                      child: _detailField(
+                        context,
+                        label: field.label,
+                        value: field.value,
+                      ),
+                    ),
+                ],
+              ),
             ],
           ),
-
-          // Menge: eigene, gut sichtbare Zeile
-          kv(t.quantity ?? 'Menge', qty),
-
-          kv(t.problem_desc ?? 'Fehler / Beschreibung', desc, maxLines: 6),
-          kv(t.reason_label ?? 'Grund / Ursache',       reason, maxLines: 4),
-          kv(t.handling ?? 'Wunsch des Kunden',     customerWish, maxLines: 3),
-
-          // Zusätzliche Formularfelder
-          kv(t.returned_question ?? 'Produkte zurückgeschickt?', returned),
-          kv(t.applied_to_patient ?? 'Am Patienten angewendet?',   applied),
-          kv(t.injury_question ?? 'Verletzung?',                injury),
-          kv(t.injury_desc ?? 'Verletzungsbeschreibung',    injuryDesc, maxLines: 6),
-        ],
-      ),
+        );
+      },
     );
   }
 
+}
+
+class _DetailFieldData {
+  final String label;
+  final String value;
+  final bool wide;
+
+  const _DetailFieldData({required this.label, required this.value, this.wide = false});
 }
 
 // ======================================
