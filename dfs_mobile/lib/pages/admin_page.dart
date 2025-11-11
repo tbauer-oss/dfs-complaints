@@ -1954,7 +1954,8 @@ class _PendingTileState extends State<_PendingTile> {
             color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.2),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              Theme.of(context).colorScheme.outlineVariant.withOpacity(0.4),
+              color:
+                  Theme.of(context).colorScheme.outlineVariant.withOpacity(0.4),
             ),
           ),
           child: Column(
@@ -2173,7 +2174,8 @@ class _UserTileState extends State<_UserTile> {
             color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.2),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              Theme.of(context).colorScheme.outlineVariant.withOpacity(0.4),
+              color:
+                  Theme.of(context).colorScheme.outlineVariant.withOpacity(0.4),
             ),
           ),
           child: Column(
@@ -2271,7 +2273,8 @@ class _RepTile extends StatelessWidget {
             color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.2),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              Theme.of(context).colorScheme.outlineVariant.withOpacity(0.4),
+              color:
+                  Theme.of(context).colorScheme.outlineVariant.withOpacity(0.4),
             ),
           ),
           child: isCompact
