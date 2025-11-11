@@ -33,7 +33,11 @@
   "catalog_open_error": "Could not open the catalog.",
   "catalog_viewer_unavailable": "The integrated PDF viewer is only available in the web version.",
 
-  "decision_withdrawn": "Decision withdrawn",  
+  "dashboard_heading": "Your DFS dashboard",
+  "@dashboard_heading": { "description": "Headline shown on the customer dashboard hero section" },
+  "dashboard_subheading": "Manage complaints, access catalogs and stay connected with your representative.",
+  "@dashboard_subheading": { "description": "Subheading shown on the customer dashboard hero section" },
+  "decision_withdrawn": "Decision withdrawn",
   "decision_withdraw": "Withdraw decision",
   "decision_withdraw_confirm": "Do you really want to withdraw your decision?",
   "no_decision_yet": "No decision yet",
