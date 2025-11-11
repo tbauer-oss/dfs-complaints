@@ -2,7 +2,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:dfs_mobile/web_compat/html_stub.dart'
   if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
-import 'dart:ui' as ui show platformViewRegistry; // nur für Web
 import 'package:flutter/material.dart';
 
 import '../api/client.dart';
@@ -12,6 +11,8 @@ import 'complaint_form_page.dart';
 import 'my_complaints_page.dart';
 import 'account_page.dart';
 import 'support_page.dart';
+import '../widgets/pdf_view_stub.dart'
+  if (dart.library.html) '../widgets/pdf_view_web.dart';
 
 const _pdfLabUrl  = 'pdfs/DFS-Labor-DE-US-2025-26_1.pdf';
 const _pdfDentUrl = 'pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf';
@@ -723,57 +724,6 @@ class _FancyTile extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-// ---------------- In-App PDF Viewer (pdf.js) ----------------
-class PdfInAppPage extends StatefulWidget {
-  final String url;
-  final String title;
-  const PdfInAppPage({super.key, required this.url, required this.title});
-
-  @override
-  State<PdfInAppPage> createState() => _PdfInAppPageState();
-}
-
-class _PdfInAppPageState extends State<PdfInAppPage> {
-  late final String _viewType;
-
-  @override
-  void initState() {
-    super.initState();
-
-    // 1) PDF-URL relativ zum aktuellen Base-Pfad auflösen
-    final pdfUrl = Uri.base.resolve(widget.url).toString();
-
-    // 2) Lokalen pdf.js-Viewer RELATIV aufrufen (kein führender Slash!)
-    final viewerPath = 'pdfjs/web/viewer.html'
-        '?file=${Uri.encodeComponent(pdfUrl)}#zoom=page-width&pagemode=none';
-
-    // 3) Auch den Viewer relativ auflösen (deckt Unterpfade ab)
-    final viewerUrl = Uri.base.resolve(viewerPath).toString();
-
-    _viewType = 'pdfjs-${DateTime.now().millisecondsSinceEpoch}';
-
-    // ignore: undefined_prefixed_name
-    ui.platformViewRegistry.registerViewFactory(_viewType, (int viewId) {
-      final frame = html.IFrameElement()
-        ..src = viewerUrl
-        ..style.border = '0'
-        ..style.width = '100%'
-        ..style.height = '100%';
-      return frame;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.title, overflow: TextOverflow.ellipsis)),
-      body: SizedBox.expand(
-        child: HtmlElementView(viewType: _viewType),
       ),
     );
   }
