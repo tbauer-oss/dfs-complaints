@@ -720,12 +720,7 @@ class ApiClient {
     final j = jsonDecode(r.body);
     if (j is! Map) return null;
 
-    return MyRep(
-      firstName: (j['firstName'] ?? '').toString(),
-      lastName:  (j['lastName']  ?? '').toString(),
-      email:     (j['email']     ?? '').toString(),
-      region:    (j['region']    ?? '').toString(),
-    );
+    return MyRep.fromJson(j.cast<String, dynamic>());
   }
 
   // ---------- Vertreter-API (Rep-Login & -Aktionen) ----------
@@ -900,12 +895,71 @@ class MyRep {
     return [fn, ln].where((s) => s.isNotEmpty).join(' ');
   }
 
-  factory MyRep.fromJson(Map<String, dynamic> j) => MyRep(
-        firstName: (j['firstName'] ?? '').toString(),
-        lastName : (j['lastName']  ?? '').toString(),
-        email    : (j['email']     ?? '').toString(),
-        region   : (j['region']    ?? '').toString(),
-      );
+  factory MyRep.fromJson(Map<String, dynamic> j) {
+    String pick(List<dynamic> values) {
+      for (final v in values) {
+        final s = (v ?? '').toString().trim();
+        if (s.isNotEmpty) return s;
+      }
+      return '';
+    }
+
+    String first = pick([
+      j['firstName'],
+      j['firstname'],
+      j['first_name'],
+    ]);
+
+    String last = pick([
+      j['lastName'],
+      j['lastname'],
+      j['last_name'],
+      j['surname'],
+    ]);
+
+    final fullName = pick([
+      j['name'],
+      j['fullName'],
+      j['displayName'],
+      j['label'],
+    ]);
+
+    if (fullName.isNotEmpty) {
+      final parts = fullName.split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
+      if (first.isEmpty && parts.isNotEmpty) {
+        first = parts.first;
+      }
+      if (last.isEmpty && parts.length > 1) {
+        last = parts.sublist(1).join(' ');
+      }
+      if (first.isEmpty && last.isEmpty) {
+        first = fullName;
+      }
+    }
+
+    final email = pick([
+      j['email'],
+      j['mail'],
+      j['emailAddress'],
+      j['email_address'],
+      j['userEmail'],
+    ]).toLowerCase();
+
+    final region = pick([
+      j['region'],
+      j['area'],
+      j['territory'],
+      j['regionName'],
+      j['regions'],
+    ]);
+
+    return MyRep(
+      firstName: first,
+      lastName: last,
+      email: email,
+      region: region,
+    );
+  }
 }
 
 class RepMe {
