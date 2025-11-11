@@ -12,24 +12,38 @@ import 'my_complaints_page.dart';
 import 'account_page.dart';
 import 'support_page.dart';
 
-// const _pdfLabUrl  = 'pdfs/DFS-Labor-DE-US-2025-26_1.pdf';
-// const _pdfDentUrl = 'pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf';
+const _labCatalogLinks = [
+  _CatalogLink(
+    label: 'DE / EN / IT',
+    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Labor-DE-US-2025-26_1.pdf',
+    locales: {'de', 'en', 'it'},
+  ),
+  _CatalogLink(
+    label: 'ES / FR',
+    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-LaborES-FR%202025-26_0.pdf',
+    locales: {'es', 'fr'},
+  ),
+];
 
-// Sprachabhängige Pfadwahl (relativ, ohne führenden Slash!)
-String _pdfLabFor(BuildContext context) {
-  final lc = Localizations.localeOf(context).languageCode.toLowerCase();
-  final esFr = lc == 'es' || lc == 'fr';
-  return esFr
-      ? 'pdfs/DFS-Labor-ES-FR-2025-26_1.pdf'
-      : 'pdfs/DFS-Labor-DE-US-2025-26_1.pdf'; // default: DE/EN/IT
-}
+const _dentCatalogLinks = [
+  _CatalogLink(
+    label: 'DE / EN / IT',
+    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf',
+    locales: {'de', 'en', 'it'},
+  ),
+  _CatalogLink(
+    label: 'ES / FR',
+    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Praxis-ES-FR-2025-2026_1.pdf',
+    locales: {'es', 'fr'},
+  ),
+];
 
-String _pdfDentFor(BuildContext context) {
-  final lc = Localizations.localeOf(context).languageCode.toLowerCase();
-  final esFr = lc == 'es' || lc == 'fr';
-  return esFr
-      ? 'pdfs/DFS-Praxis-ES-FR-2025-2026_1.pdf'
-      : 'pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf'; // default: DE/EN/IT
+_CatalogLink _catalogLinkForLocale(List<_CatalogLink> links, String localeCode) {
+  final normalized = localeCode.toLowerCase();
+  return links.firstWhere(
+    (link) => link.matches(normalized),
+    orElse: () => links.first,
+  );
 }
 
 class DashboardPage extends StatefulWidget {
@@ -448,7 +462,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
                     child: isAppView
                         ? const _CatalogChips()  // dezent in PWA (Appansicht)
-                        : _CatalogStrip(),       // wie zuvor im Browser/Web
+                        : const _CatalogStrip(), // wie zuvor im Browser/Web
                    ),
                 ],
               ),
@@ -602,71 +616,127 @@ class _RepBanner extends StatelessWidget {
 }
 
 class _CatalogStrip extends StatelessWidget {
+  const _CatalogStrip();
+
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final isPhone = MediaQuery.of(context).size.width < 700;
-    final labUrl  = _pdfLabFor(context);
-    final dentUrl = _pdfDentFor(context);
+
+    Widget buildEntry({
+      required String title,
+      required String description,
+      required IconData icon,
+      required List<_CatalogLink> links,
+    }) {
+      final localeCode = Localizations.localeOf(context).languageCode.toLowerCase();
+      final link = _catalogLinkForLocale(links, localeCode);
+
+      return Container(
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+        decoration: BoxDecoration(
+          color: cs.surfaceVariant.withOpacity(0.16),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: cs.outlineVariant.withOpacity(0.45)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(icon, size: 22, color: cs.onSurface.withOpacity(0.68)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: .2,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        description,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: cs.onSurface.withOpacity(.75),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        link.label,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: cs.onSurface.withOpacity(.6),
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            TextButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => PdfInAppPage(url: link.url, title: title),
+                  ),
+                );
+              },
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                textStyle: theme.textTheme.labelMedium,
+                visualDensity: VisualDensity.compact,
+              ),
+              icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+              label: Text(t.catalog_open),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Container(
       decoration: BoxDecoration(
-        color: cs.surfaceVariant.withOpacity(0.35),
+        color: cs.surface.withOpacity(0.02),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: cs.outlineVariant.withOpacity(0.6)),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.35)),
       ),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.menu_book_outlined, size: 18, color: cs.onSurface.withOpacity(0.7)),
+              Icon(Icons.menu_book_outlined, size: 18, color: cs.onSurface.withOpacity(0.65)),
               const SizedBox(width: 8),
               Text(
                 t.catalogs_title,
                 style: theme.textTheme.labelLarge?.copyWith(
-                  color: cs.onSurface.withOpacity(0.8),
-                  letterSpacing: .2,
+                  color: cs.onSurface.withOpacity(0.75),
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              const Spacer(),
             ],
           ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            alignment: isPhone ? WrapAlignment.center : WrapAlignment.start,
-            children: [
-              _CatalogTile(
-                title: t.catalog_lab_title,
-                subtitle: t.catalog_lab_desc,
-                icon: Icons.biotech_outlined,
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => PdfInAppPage(url: labUrl,  title: t.catalog_lab_title),
-                    ),
-                  );
-                },
-              ),
-              _CatalogTile(
-                title: t.catalog_dent_title,
-                subtitle: t.catalog_dent_desc,
-                icon: Icons.medical_services_outlined,
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => PdfInAppPage(url: dentUrl, title: t.catalog_dent_title),
-                    ),
-                  );
-                },
-              ),
-            ],
+          const SizedBox(height: 8),
+          buildEntry(
+            title: t.catalog_lab_title,
+            description: t.catalog_lab_desc,
+            icon: Icons.biotech_outlined,
+            links: _labCatalogLinks,
+          ),
+          buildEntry(
+            title: t.catalog_dent_title,
+            description: t.catalog_dent_desc,
+            icon: Icons.medical_services_outlined,
+            links: _dentCatalogLinks,
           ),
         ],
       ),
@@ -679,24 +749,98 @@ class _CatalogChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t  = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
-    final isPhone = MediaQuery.of(context).size.width < 700;
-    final labUrl  = _pdfLabFor(context);
-    final dentUrl = _pdfDentFor(context);
+    final t = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    Widget buildEntry({
+      required String title,
+      required String description,
+      required IconData icon,
+      required List<_CatalogLink> links,
+    }) {
+      final localeCode = Localizations.localeOf(context).languageCode.toLowerCase();
+      final link = _catalogLinkForLocale(links, localeCode);
+
+      return Container(
+        margin: const EdgeInsets.symmetric(vertical: 5),
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+        decoration: BoxDecoration(
+          color: cs.surfaceVariant.withOpacity(0.16),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: cs.outlineVariant.withOpacity(0.4)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(icon, size: 20, color: cs.onSurface.withOpacity(0.68)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        description,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: cs.onSurface.withOpacity(.75),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        link.label,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: cs.onSurface.withOpacity(.6),
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => PdfInAppPage(url: link.url, title: title),
+                  ),
+                );
+              },
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                textStyle: theme.textTheme.labelMedium,
+                visualDensity: VisualDensity.compact,
+              ),
+              icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+              label: Text(t.catalog_open),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // winzige, sehr zurückhaltende Überschrift
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.menu_book_outlined, size: 16, color: cs.onSurface.withOpacity(.65)),
             const SizedBox(width: 6),
             Text(
-              t.catalogs_title, // "Kataloge"
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              t.catalogs_title,
+              style: theme.textTheme.labelMedium?.copyWith(
                     color: cs.onSurface.withOpacity(.75),
                     fontWeight: FontWeight.w600,
                   ),
@@ -704,173 +848,34 @@ class _CatalogChips extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 6),
-        // zwei „Chip“-Links nebeneinander, umbrechend
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          alignment: isPhone ? WrapAlignment.center : WrapAlignment.start,
-          children: [
-            _ChipLink(
-              icon: Icons.science_outlined,
-              label: t.catalog_lab_title, // „Dentallabor Katalog“
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => PdfInAppPage(url: labUrl,  title: t.catalog_lab_title),
-                  ),
-                );
-              },
-            ),
-            _ChipLink(
-              icon: Icons.medical_information_outlined,
-              label: t.catalog_dent_title, // „Zahnmedizin Katalog“
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => PdfInAppPage(url: dentUrl, title: t.catalog_dent_title),
-                  ),
-                );
-              },
-            ),
-          ],
+        buildEntry(
+          title: t.catalog_lab_title,
+          description: t.catalog_lab_desc,
+          icon: Icons.science_outlined,
+          links: _labCatalogLinks,
+        ),
+        buildEntry(
+          title: t.catalog_dent_title,
+          description: t.catalog_dent_desc,
+          icon: Icons.medical_information_outlined,
+          links: _dentCatalogLinks,
         ),
       ],
     );
   }
 }
-
-class _ChipLink extends StatelessWidget {
-  final IconData icon;
+class _CatalogLink {
   final String label;
-  final VoidCallback onTap;
-  const _ChipLink({required this.icon, required this.label, required this.onTap});
+  final String url;
+  final Set<String> locales;
 
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return OutlinedButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon, size: 18),
-      label: Text(label, overflow: TextOverflow.ellipsis),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: cs.primary,
-        side: BorderSide(color: cs.outlineVariant),
-        backgroundColor: Colors.transparent,
-        minimumSize: const Size(0, 32),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      ),
-    );
-  }
-}
-
-class _CatalogTile extends StatefulWidget {
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _CatalogTile({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.onTap,
+  const _CatalogLink({
+    required this.label,
+    required this.url,
+    required this.locales,
   });
 
-  @override
-  State<_CatalogTile> createState() => _CatalogTileState();
-}
-
-class _CatalogTileState extends State<_CatalogTile> {
-  bool _hover = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final isNarrow = MediaQuery.of(context).size.width < 700;
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit:  (_) => setState(() => _hover = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 140),
-        curve: Curves.easeOut,
-        width: isNarrow ? 360 : 400,
-        constraints: const BoxConstraints(minHeight: 84),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: cs.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _hover ? cs.primary.withOpacity(.45) : cs.outlineVariant),
-          boxShadow: _hover
-              ? [BoxShadow(color: Colors.black.withOpacity(.06), blurRadius: 10, offset: const Offset(0, 4))]
-              : const [],
-        ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: widget.onTap,
-          child: Row(
-            children: [
-              Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(
-                  color: cs.primary.withOpacity(0.10),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: cs.primary.withOpacity(0.25)),
-                ),
-                child: Icon(widget.icon, size: 24, color: cs.primary.withOpacity(0.90)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: .2,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      widget.subtitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: cs.onSurface.withOpacity(.7),
-                        height: 1.15,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              TextButton.icon(
-                onPressed: widget.onTap,
-                style: TextButton.styleFrom(
-                  foregroundColor: cs.primary,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                ),
-                icon: const Icon(Icons.open_in_new, size: 18),
-                label: Text(
-                  AppLocalizations.of(context)!.catalog_open,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: cs.primary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  bool matches(String localeCode) => locales.contains(localeCode);
 }
 
 class _Entry {

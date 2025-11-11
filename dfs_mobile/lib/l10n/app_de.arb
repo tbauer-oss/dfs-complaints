@@ -31,6 +31,10 @@
   "catalog_lab_desc": "Produkte & Hinweise für das Labor",
   "catalog_dent_title": "Zahnmedizin Katalog",
   "catalog_dent_desc": "Instrumente & Infos für die Praxis",
+  "catalog_select_language": "Sprache auswählen",
+  "catalog_open_external": "Katalog öffnen",
+  "catalog_open_error": "Katalog konnte nicht geöffnet werden.",
+  "catalog_viewer_unavailable": "Der integrierte PDF-Viewer ist nur in der Web-Version verfügbar.",
 
   "decision_withdrawn": "Entscheidung zurückgenommen",  
   "decision_withdraw": "Entscheidung zurücknehmen",

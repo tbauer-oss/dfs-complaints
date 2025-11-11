@@ -15,8 +15,39 @@ import 'support_page.dart';
 import '../widgets/pdf_view_stub.dart'
   if (dart.library.html) '../widgets/pdf_view_web.dart';
 
-const _pdfLabUrl  = 'pdfs/DFS-Labor-DE-US-2025-26_1.pdf';
-const _pdfDentUrl = 'pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf';
+const _labCatalogLinks = [
+  _CatalogLink(
+    label: 'DE / EN / IT',
+    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Labor-DE-US-2025-26_1.pdf',
+    locales: {'de', 'en', 'it'},
+  ),
+  _CatalogLink(
+    label: 'ES / FR',
+    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-LaborES-FR%202025-26_0.pdf',
+    locales: {'es', 'fr'},
+  ),
+];
+
+const _dentCatalogLinks = [
+  _CatalogLink(
+    label: 'DE / EN / IT',
+    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf',
+    locales: {'de', 'en', 'it'},
+  ),
+  _CatalogLink(
+    label: 'ES / FR',
+    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Praxis-ES-FR-2025-2026_1.pdf',
+    locales: {'es', 'fr'},
+  ),
+];
+
+_CatalogLink _catalogLinkForLocale(List<_CatalogLink> links, String localeCode) {
+  final normalized = localeCode.toLowerCase();
+  return links.firstWhere(
+    (link) => link.matches(normalized),
+    orElse: () => links.first,
+  );
+}
 
 class DashboardPage extends StatefulWidget {
   final ApiClient api;
@@ -437,7 +468,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                       16 + MediaQuery.of(ctx).padding.bottom,
                     ),
                     sliver: SliverToBoxAdapter(
-                      child: _CatalogButtons(),
+                      child: const _CatalogButtons(),
                     ),
                   ),
                 ],
@@ -596,68 +627,136 @@ class _RepBanner extends StatelessWidget {
   }
 }
 
-// Dezente Katalog-Leiste: nur zwei OutlinedButtons, mobil sehr kompakt
+// Dezente Katalog-Leiste: kompakte Darstellung mit nur einer passenden Sprache
 class _CatalogButtons extends StatelessWidget {
+  const _CatalogButtons();
+
   @override
   Widget build(BuildContext context) {
-    final t  = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
+    final t = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final isPhone = MediaQuery.of(context).size.width < 600;
+    final localeCode = Localizations.localeOf(context).languageCode.toLowerCase();
 
-    Widget btn(String label, String url, IconData icon) {
-      return OutlinedButton.icon(
-        style: OutlinedButton.styleFrom(
-          padding: EdgeInsets.symmetric(horizontal: isPhone ? 10 : 14, vertical: isPhone ? 10 : 12),
-          side: BorderSide(color: cs.outlineVariant),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-        onPressed: () {
-          final title = label; // Buttontext als Titel
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => PdfInAppPage(url: url, title: title),
-            ),
-          );
-        },
-        icon: Icon(icon, size: isPhone ? 18 : 20),
-        label: Text(label, style: TextStyle(fontSize: isPhone ? 13 : 14)),
+    Widget buildCard({
+      required String title,
+      required String description,
+      required IconData icon,
+      required List<_CatalogLink> links,
+    }) {
+      final link = _catalogLinkForLocale(links, localeCode);
+      final padding = EdgeInsets.fromLTRB(
+        isPhone ? 12 : 16,
+        isPhone ? 10 : 14,
+        isPhone ? 12 : 16,
+        isPhone ? 12 : 16,
       );
-    }
 
-    final content = Wrap(
-      alignment: WrapAlignment.center,
-      spacing: 10,
-      runSpacing: 8,
-      children: [
-        btn(t.catalog_lab_title,  _pdfLabUrl,  Icons.biotech_outlined),
-        btn(t.catalog_dent_title, _pdfDentUrl, Icons.medical_services_outlined),
-      ],
-    );
-
-    // Auf Desktop in schmaler Card, auf Handy einfach ohne Card (noch dezenter)
-    if (isPhone) return content;
-
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      return Container(
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        padding: padding,
+        decoration: BoxDecoration(
+          color: cs.surfaceVariant.withOpacity(0.18),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: cs.outlineVariant.withOpacity(0.45)),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(children: const [
-              Icon(Icons.menu_book_outlined, size: 18),
-              SizedBox(width: 8),
-              // bewusst ohne großen Titeltext – dezent
-              // (wenn du einen Titel willst, ersetze die SizedBox durch Text)
-            ]),
-            const SizedBox(height: 6),
-            content,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(icon, size: isPhone ? 20 : 22, color: cs.onSurface.withOpacity(0.7)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: .2,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        description,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: cs.onSurface.withOpacity(.75),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        link.label,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: cs.onSurface.withOpacity(.6),
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            TextButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => PdfInAppPage(url: link.url, title: title),
+                  ),
+                );
+              },
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isPhone ? 12 : 14,
+                  vertical: 8,
+                ),
+                textStyle: theme.textTheme.labelMedium,
+                visualDensity: VisualDensity.compact,
+              ),
+              icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+              label: Text(t.catalog_open),
+            ),
           ],
         ),
-      ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        buildCard(
+          title: t.catalog_lab_title,
+          description: t.catalog_lab_desc,
+          icon: Icons.biotech_outlined,
+          links: _labCatalogLinks,
+        ),
+        buildCard(
+          title: t.catalog_dent_title,
+          description: t.catalog_dent_desc,
+          icon: Icons.medical_services_outlined,
+          links: _dentCatalogLinks,
+        ),
+      ],
     );
   }
+}
+
+class _CatalogLink {
+  final String label;
+  final String url;
+  final Set<String> locales;
+
+  const _CatalogLink({
+    required this.label,
+    required this.url,
+    required this.locales,
+  });
+
+  bool matches(String localeCode) => locales.contains(localeCode);
 }
 
 class _Entry {
