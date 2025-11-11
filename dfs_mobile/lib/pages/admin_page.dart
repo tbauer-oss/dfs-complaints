@@ -33,7 +33,6 @@ class _AdminPageState extends State<AdminPage> {
   bool _loadReps = false;
   String? _fatalErr;
   String? _err;
-  String _userFilterQuery = '';
   String? _userFilterRepId;
   String _userFilterCompany = 'Alle Firmen';
   String _userFilterCountry = 'Alle Länder';
@@ -113,18 +112,10 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   List<ActiveUser> _filterUsers() {
-    final q = _userFilterQuery.trim().toLowerCase();
     final repId = _userFilterRepId;
 
     // Basisliste
     Iterable<ActiveUser> list = _users;
-
-    // Textsuche: Firma, Kontakt, E-Mail, Land
-    if (q.isNotEmpty) {
-      bool m(String s) => s.toLowerCase().contains(q);
-      list = list.where((u) =>
-        m(u.company) || m(u.contact) || m(u.email) || m(u.country));
-    }
 
     // Vertreter-Filter
     if (repId != null) {
@@ -506,10 +497,10 @@ class _AdminPageState extends State<AdminPage> {
               childCount: tiles.length,
             ),
             gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: isPhone ? 186 : 228,
-              mainAxisSpacing: isPhone ? 18 : 28,
-              crossAxisSpacing: isPhone ? 18 : 28,
-              childAspectRatio: isPhone ? 0.78 : 0.9,
+              maxCrossAxisExtent: isPhone ? 192 : 236,
+              mainAxisSpacing: isPhone ? 14 : 26,
+              crossAxisSpacing: isPhone ? 14 : 26,
+              childAspectRatio: isPhone ? 0.82 : 0.92,
             ),
           ),
         ),
@@ -767,36 +758,6 @@ Widget _buildUsersPanel() {
               );
             }
 
-            final maxWidth = constraints.maxWidth;
-            final searchWidth = isCompact ? maxWidth : math.min(360.0, maxWidth);
-
-            InputDecoration pillDecoration({String? hint, IconData? icon}) {
-              final scheme = Theme.of(context).colorScheme;
-              final radius = BorderRadius.circular(28);
-              return InputDecoration(
-                hintText: hint,
-                prefixIcon: icon != null ? Icon(icon) : null,
-                isDense: true,
-                filled: true,
-                fillColor: scheme.surfaceContainerHighest.withOpacity(
-                  Theme.of(context).brightness == Brightness.dark ? 0.24 : 0.6,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: radius,
-                  borderSide: BorderSide(color: scheme.outlineVariant.withOpacity(0.35)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: radius,
-                  borderSide: BorderSide(color: scheme.outlineVariant.withOpacity(0.28)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: radius,
-                  borderSide: BorderSide(color: scheme.primary.withOpacity(0.65)),
-                ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
-              );
-            }
-
             final companies = <String>{
               'Alle Firmen',
               ..._users.map((e) => e.company).where((s) => s.trim().isNotEmpty),
@@ -827,26 +788,18 @@ Widget _buildUsersPanel() {
               return dn.isEmpty ? rep.email : dn;
             }
 
-            final filterWrap = Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: searchWidth),
-                  child: TextField(
-                    decoration: pillDecoration(
-                      hint: 'Suchen… (Firma, Kontakt, E-Mail, Land)',
-                      icon: Icons.search,
-                    ),
-                    onChanged: (v) => setState(() => _userFilterQuery = v),
-                  ),
-                ),
+            final filterWrap = Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
                 _FilterChipButton<String>(
                   icon: Icons.business,
                   label: 'Firma',
                   valueLabel:
                       _userFilterCompany == 'Alle Firmen' ? 'Alle' : _userFilterCompany,
-                  maxWidth: isCompact ? maxWidth : 220,
+                  maxWidth: isCompact ? constraints.maxWidth : 220,
                   initialValue: _userFilterCompany,
                   onSelected: (value) =>
                       setState(() => _userFilterCompany = value),
@@ -864,7 +817,7 @@ Widget _buildUsersPanel() {
                   label: 'Land',
                   valueLabel:
                       _userFilterCountry == 'Alle Länder' ? 'Alle' : _userFilterCountry,
-                  maxWidth: isCompact ? maxWidth : 200,
+                  maxWidth: isCompact ? constraints.maxWidth : 200,
                   initialValue: _userFilterCountry,
                   onSelected: (value) =>
                       setState(() => _userFilterCountry = value),
@@ -881,7 +834,7 @@ Widget _buildUsersPanel() {
                   icon: Icons.badge_outlined,
                   label: 'Vertreter',
                   valueLabel: repName(_userFilterRepId),
-                  maxWidth: isCompact ? maxWidth : 240,
+                  maxWidth: isCompact ? constraints.maxWidth : 240,
                   initialValue: _userFilterRepId,
                   onSelected: (value) => setState(() => _userFilterRepId = value),
                   items: [
@@ -895,16 +848,17 @@ Widget _buildUsersPanel() {
                     ),
                   ],
                 ),
-              ],
+                ],
+              ),
             );
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 header,
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 filterWrap,
-                const SizedBox(height: 12),
+                const SizedBox(height: 6),
                 if (_loadUsers) const LinearProgressIndicator(),
                 if (_loadUsers) const SizedBox(height: 12) else const SizedBox(height: 8),
                 Expanded(
@@ -997,20 +951,23 @@ Widget _buildUsersPanel() {
                   )
                 : null;
 
-            final filterWrap = Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                _FilterChipButton<String>(
-                  icon: Icons.business,
-                  label: 'Firma',
-                  valueLabel: _filterCompany == 'Alle Firmen' ? 'Alle' : _filterCompany,
-                  initialValue: _filterCompany,
-                  maxWidth: isCompact ? constraints.maxWidth : 240,
-                  onSelected: (value) => setState(() => _filterCompany = value),
-                  items: companyMenu,
-                ),
-              ],
+            final filterWrap = Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _FilterChipButton<String>(
+                    icon: Icons.business,
+                    label: 'Firma',
+                    valueLabel: _filterCompany == 'Alle Firmen' ? 'Alle' : _filterCompany,
+                    initialValue: _filterCompany,
+                    maxWidth: isCompact ? constraints.maxWidth : 220,
+                    onSelected: (value) => setState(() => _filterCompany = value),
+                    items: companyMenu,
+                  ),
+                ],
+              ),
             );
 
             final headerActions = Row(
@@ -1066,9 +1023,9 @@ Widget _buildUsersPanel() {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 header,
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 filterWrap,
-                const SizedBox(height: 10),
+                const SizedBox(height: 6),
                 if (_loadOpen) const LinearProgressIndicator(),
                 if (_loadOpen) const SizedBox(height: 12) else const SizedBox(height: 8),
                 Expanded(
@@ -1707,14 +1664,19 @@ class _FilterChipButton<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     final bg = Color.alphaBlend(
-      scheme.primary.withOpacity(isDark ? 0.08 : 0.12),
-      scheme.surfaceVariant.withOpacity(isDark ? 0.35 : 0.6),
+      scheme.surfaceTint.withOpacity(isDark ? 0.16 : 0.22),
+      scheme.surfaceContainerHigh.withOpacity(isDark ? 0.25 : 0.5),
     );
-    final borderColor = scheme.outlineVariant.withOpacity(isDark ? 0.45 : 0.35);
-    final textStyle = Theme.of(context).textTheme.labelLarge;
+    final borderColor = scheme.outlineVariant.withOpacity(isDark ? 0.5 : 0.35);
+    final baseStyle = theme.textTheme.labelLarge ?? const TextStyle(fontSize: 14);
+    final textStyle = baseStyle.copyWith(
+      fontWeight: FontWeight.w600,
+      letterSpacing: 0.15,
+    );
 
     return ConstrainedBox(
       constraints: BoxConstraints(maxWidth: maxWidth ?? double.infinity),
@@ -1726,7 +1688,7 @@ class _FilterChipButton<T> extends StatelessWidget {
         tooltip: '$label wählen',
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             color: bg,
             borderRadius: BorderRadius.circular(28),
@@ -1735,17 +1697,17 @@ class _FilterChipButton<T> extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 18, color: scheme.primary),
+              Icon(icon, size: 17, color: scheme.primary),
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
                   '$label: $valueLabel',
-                  style: textStyle?.copyWith(fontWeight: FontWeight.w600),
+                  style: textStyle,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
               const SizedBox(width: 6),
-              Icon(Icons.keyboard_arrow_down, size: 18, color: scheme.onSurfaceVariant),
+              Icon(Icons.keyboard_arrow_down, size: 17, color: scheme.onSurfaceVariant),
             ],
           ),
         ),
@@ -4088,98 +4050,139 @@ class _AdminTileProState extends State<AdminTilePro> {
     final scale = _hovering ? 1.015 : 1.0;
     final elevation = _hovering ? 12.0 : 3.0;
 
-    final iconSize = widget.compact ? 44.0 : 54.0;
-
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        transform: Matrix4.identity()..translate(0.0, liftY)..scale(scale),
-        child: Material(
-          elevation: elevation,
-          borderRadius: br,
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: widget.onTap,
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: br,
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [bgA, bgB],
-                ),
-                border: Border.all(
-                  color: isDark ? cs.outlineVariant.withOpacity(0.35) : cs.outlineVariant.withOpacity(0.25),
-                ),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Stack(
-                    clipBehavior: Clip.none,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final height = constraints.maxHeight.isFinite ? constraints.maxHeight : 0;
+          final width = constraints.maxWidth.isFinite ? constraints.maxWidth : 0;
+          final dense = height > 0 && height < 190;
+          final ultraCompact = height > 0 && height < 160 || width > 0 && width < 150;
+
+          double adaptiveIcon() {
+            if (ultraCompact) {
+              final basis = height > 0 ? height * 0.32 : 40;
+              return basis.clamp(34, 46).toDouble();
+            }
+            if (dense) {
+              return widget.compact ? 44.0 : 50.0;
+            }
+            return widget.compact ? 48.0 : 56.0;
+          }
+
+          final iconSize = adaptiveIcon();
+          final verticalPadding = ultraCompact ? 14.0 : (dense ? 16.0 : 20.0);
+          final horizontalPadding = ultraCompact ? 14.0 : 18.0;
+          final gap = ultraCompact ? 8.0 : (dense ? 11.0 : 14.0);
+          final subtitleGap = ultraCompact ? 6.0 : 8.0;
+
+          final textTheme = Theme.of(context).textTheme;
+          final titleStyle = (textTheme.titleMedium ?? const TextStyle(fontSize: 16)).copyWith(
+            fontSize: ultraCompact ? 15.6 : (dense ? 16.4 : 17.0),
+            fontWeight: FontWeight.w700,
+            color: titleColor,
+            height: 1.25,
+            letterSpacing: 0.2,
+          );
+          final subtitleStyle = (textTheme.bodySmall ?? const TextStyle(fontSize: 13)).copyWith(
+            color: subtitleColor,
+            height: 1.28,
+            fontSize: ultraCompact ? 12.2 : 13.0,
+          );
+
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            transform: Matrix4.identity()..translate(0.0, liftY)..scale(scale),
+            child: Material(
+              elevation: elevation,
+              borderRadius: br,
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: widget.onTap,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: br,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [bgA, bgB],
+                    ),
+                    border: Border.all(
+                      color: isDark
+                          ? cs.outlineVariant.withOpacity(0.35)
+                          : cs.outlineVariant.withOpacity(0.25),
+                    ),
+                  ),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: horizontalPadding,
+                    vertical: verticalPadding,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(widget.icon, size: iconSize, color: iconColor),
-                      if (widget.count != null)
-                        Positioned(
-                          right: -6,
-                          top: -6,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: badgeBg,
-                              borderRadius: BorderRadius.circular(999),
-                              boxShadow: [
-                                if (isDark)
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.25),
-                                    blurRadius: 6,
-                                    offset: const Offset(0, 2),
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Icon(widget.icon, size: iconSize, color: iconColor),
+                          if (widget.count != null)
+                            Positioned(
+                              right: -6,
+                              top: -6,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: badgeBg,
+                                  borderRadius: BorderRadius.circular(999),
+                                  boxShadow: [
+                                    if (isDark)
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.25),
+                                        blurRadius: 6,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                  ],
+                                ),
+                                child: Text(
+                                  '${widget.count}',
+                                  style: TextStyle(
+                                    color: badgeFg,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12.5,
                                   ),
-                              ],
-                            ),
-                            child: Text(
-                              '${widget.count}',
-                              style: TextStyle(
-                                color: badgeFg,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12.5,
+                                ),
                               ),
                             ),
-                          ),
+                        ],
+                      ),
+                      SizedBox(height: gap),
+                      Text(
+                        widget.label,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: titleStyle,
+                      ),
+                      if ((widget.subtitle ?? '').isNotEmpty) ...[
+                        SizedBox(height: subtitleGap),
+                        Text(
+                          widget.subtitle!,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: subtitleStyle,
                         ),
+                      ],
                     ],
                   ),
-                  const SizedBox(height: 14),
-                  Text(
-                    widget.label,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: titleColor,
-                      fontSize: 15.5,
-                    ),
-                  ),
-                  if ((widget.subtitle ?? '').isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      widget.subtitle!,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: subtitleColor,
-                        fontSize: 13.0,
-                      ),
-                    ),
-                  ],
-                ],
+                ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
