@@ -1856,35 +1856,41 @@ class _ComplaintTileState extends State<_ComplaintTile> {
   }) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    return ConstrainedBox(
-      constraints: BoxConstraints(maxWidth: maxWidth ?? double.infinity),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: cs.surfaceVariant.withOpacity(0.24),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: cs.outlineVariant.withOpacity(0.55)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Icon(icon, size: 18, color: cs.onSurfaceVariant),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                text,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  height: 1.3,
-                ),
+    final chip = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: cs.surfaceVariant.withOpacity(0.24),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.55)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(icon, size: 18, color: cs.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                height: 1.3,
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
+    );
+
+    if (maxWidth != null && maxWidth.isFinite) {
+      return SizedBox(width: maxWidth, child: chip);
+    }
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 200),
+      child: chip,
     );
   }
 
