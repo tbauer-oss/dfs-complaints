@@ -1712,6 +1712,7 @@ class _CustomerTile extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 }
@@ -2201,47 +2202,49 @@ class _ComplaintTileState extends State<_ComplaintTile> {
                           ),
                   ),
                 ),
-            if (widget.onDecision != null && !widget.isClosed && repDecision.isEmpty) ...[
-              const SizedBox(height: 18),
-              Align(
-                alignment: Alignment.centerRight,
-                child: _decisionButtons(t, ticket),
-              ),
-            ],
-            if (!widget.isClosed && repDecision.isNotEmpty && widget.onWithdraw != null) ...[
-              const SizedBox(height: 14),
-              Align(
-                alignment: Alignment.centerRight,
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    shape: const StadiumBorder(),
-                    textStyle: const TextStyle(fontWeight: FontWeight.w600),
+                if (widget.onDecision != null && !widget.isClosed && repDecision.isEmpty) ...[
+                  const SizedBox(height: 18),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: _decisionButtons(t, ticket),
                   ),
-                  icon: const Icon(Icons.undo),
-                  label: Text(t.decision_withdraw ?? 'Entscheidung zurücknehmen'),
-                  onPressed: () async {
-                    final ok = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: Text(t.decision_withdraw ?? 'Entscheidung zurücknehmen'),
-                            content: Text(t.decision_withdraw_confirm ?? 'Möchtest du deine Entscheidung wirklich zurücknehmen?'),
-                            actions: [
-                              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(t.cancel ?? 'Abbrechen')),
-                              ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(t.ok ?? 'OK')),
-                            ],
-                          ),
-                        ) ??
-                        false;
+                ],
+                if (!widget.isClosed && repDecision.isNotEmpty && widget.onWithdraw != null) ...[
+                  const SizedBox(height: 14),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        shape: const StadiumBorder(),
+                        textStyle: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      icon: const Icon(Icons.undo),
+                      label: Text(t.decision_withdraw ?? 'Entscheidung zurücknehmen'),
+                      onPressed: () async {
+                        final ok = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: Text(t.decision_withdraw ?? 'Entscheidung zurücknehmen'),
+                                content: Text(t.decision_withdraw_confirm ?? 'Möchtest du deine Entscheidung wirklich zurücknehmen?'),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(t.cancel ?? 'Abbrechen')),
+                                  ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(t.ok ?? 'OK')),
+                                ],
+                              ),
+                            ) ??
+                            false;
 
-                    if (ok) widget.onWithdraw!(ticket);
-                  },
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
+                        if (ok) widget.onWithdraw!(ticket);
+                      },
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
