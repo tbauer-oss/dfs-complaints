@@ -546,22 +546,12 @@ class _AdminPageState extends State<AdminPage> {
               const SizedBox(width: 8),
               const Text('Pending (Freigabe ausstehend)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
               const Spacer(),
-              IconButton(
-                tooltip: 'Neu laden',
-                onPressed: _loadPending ? null : () async {
-                  setState(() => _loadPending = true);
-                  try {
-                    final list = await _api.fetchPending();
-                    if (!mounted) return;
-                    setState(() => _pending = list);
-                  } catch (e) {
-                    setState(() => _err = '$e');
-                  } finally {
-                    if (mounted) setState(() => _loadPending = false);
-                  }
-                },
-                icon: const Icon(Icons.refresh),
-              ),
+              if (_loadPending)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
             ]),
             const SizedBox(height: 8),
             if (_loadPending) const LinearProgressIndicator(),
@@ -635,24 +625,12 @@ Widget _buildUsersPanel() {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
               const Spacer(),
-              IconButton(
-                tooltip: 'Neu laden',
-                onPressed: _loadUsers
-                    ? null
-                    : () async {
-                        setState(() => _loadUsers = true);
-                        try {
-                          final list = await _api.fetchUsers();
-                          if (!mounted) return;
-                          setState(() => _users = list);
-                        } catch (e) {
-                          setState(() => _err = '$e');
-                        } finally {
-                          if (mounted) setState(() => _loadUsers = false);
-                        }
-                      },
-                icon: const Icon(Icons.refresh),
-              ),
+              if (_loadUsers)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
             ]),
 
 
@@ -848,11 +826,6 @@ Widget _buildUsersPanel() {
                   padding: EdgeInsets.only(right: 8),
                   child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
                 ),
-              IconButton(
-                tooltip: 'Neu laden',
-                onPressed: _loadOpen ? null : _refreshOpen,
-                icon: const Icon(Icons.refresh),
-              ),
             ]),
             const SizedBox(height: 8),
             Expanded(
@@ -1265,11 +1238,6 @@ Widget _buildUsersPanel() {
               const Spacer(),
               if (_loadReps)
                 const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-              IconButton(
-                tooltip: 'Neu laden',
-                onPressed: _loadReps ? null : _refreshReps,
-                icon: const Icon(Icons.refresh),
-              ),
             ]),
             const SizedBox(height: 12),
 

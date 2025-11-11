@@ -532,6 +532,14 @@ class _AdminPageState extends State<AdminPage> {
           builder: (context, constraints) {
             final isCompact = constraints.maxWidth < 600;
 
+            final spinner = _loadPending
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : null;
+
             Widget header = Row(
               children: [
                 const Icon(Icons.hourglass_top),
@@ -543,25 +551,10 @@ class _AdminPageState extends State<AdminPage> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const SizedBox(width: 8),
-                IconButton(
-                  tooltip: 'Neu laden',
-                  onPressed: _loadPending
-                      ? null
-                      : () async {
-                          setState(() => _loadPending = true);
-                          try {
-                            final list = await _api.fetchPending();
-                            if (!mounted) return;
-                            setState(() => _pending = list);
-                          } catch (e) {
-                            setState(() => _err = '$e');
-                          } finally {
-                            if (mounted) setState(() => _loadPending = false);
-                          }
-                        },
-                  icon: const Icon(Icons.refresh),
-                ),
+                if (spinner != null) ...[
+                  const SizedBox(width: 8),
+                  spinner,
+                ],
               ],
             );
 
@@ -580,28 +573,13 @@ class _AdminPageState extends State<AdminPage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: IconButton(
-                      tooltip: 'Neu laden',
-                      onPressed: _loadPending
-                          ? null
-                          : () async {
-                              setState(() => _loadPending = true);
-                              try {
-                                final list = await _api.fetchPending();
-                                if (!mounted) return;
-                                setState(() => _pending = list);
-                              } catch (e) {
-                                setState(() => _err = '$e');
-                              } finally {
-                                if (mounted) setState(() => _loadPending = false);
-                              }
-                            },
-                      icon: const Icon(Icons.refresh),
+                  if (spinner != null) ...[
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: spinner,
                     ),
-                  ),
+                  ],
                 ],
               );
             }
@@ -689,25 +667,6 @@ Widget _buildUsersPanel() {
                   )
                 : null;
 
-            final refreshButton = IconButton(
-              tooltip: 'Neu laden',
-              onPressed: _loadUsers
-                  ? null
-                  : () async {
-                      setState(() => _loadUsers = true);
-                      try {
-                        final list = await _api.fetchUsers();
-                        if (!mounted) return;
-                        setState(() => _users = list);
-                      } catch (e) {
-                        setState(() => _err = '$e');
-                      } finally {
-                        if (mounted) setState(() => _loadUsers = false);
-                      }
-                    },
-              icon: const Icon(Icons.refresh),
-            );
-
             Widget header;
             if (isCompact) {
               header = Column(
@@ -733,7 +692,6 @@ Widget _buildUsersPanel() {
                           padding: const EdgeInsets.only(right: 8),
                           child: spinner,
                         ),
-                      refreshButton,
                     ],
                   ),
                 ],
@@ -753,7 +711,6 @@ Widget _buildUsersPanel() {
                       padding: const EdgeInsets.only(right: 8),
                       child: spinner,
                     ),
-                  refreshButton,
                 ],
               );
             }
@@ -970,22 +927,6 @@ Widget _buildUsersPanel() {
               ),
             );
 
-            final headerActions = Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (spinner != null)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: spinner,
-                  ),
-                IconButton(
-                  tooltip: 'Neu laden',
-                  onPressed: _loadOpen ? null : _refreshOpen,
-                  icon: const Icon(Icons.refresh),
-                ),
-              ],
-            );
-
             final titleRow = Row(
               mainAxisSize: MainAxisSize.min,
               children: const [
@@ -1004,8 +945,16 @@ Widget _buildUsersPanel() {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   titleRow,
-                  const SizedBox(height: 8),
-                  Align(alignment: Alignment.centerRight, child: headerActions),
+                  if (spinner != null) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 4),
+                        child: spinner,
+                      ),
+                    ),
+                  ],
                 ],
               );
             } else {
@@ -1014,7 +963,11 @@ Widget _buildUsersPanel() {
                 children: [
                   titleRow,
                   const Spacer(),
-                  headerActions,
+                  if (spinner != null)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: spinner,
+                    ),
                 ],
               );
             }
@@ -1555,11 +1508,6 @@ Widget _buildUsersPanel() {
                         padding: const EdgeInsets.only(right: 4),
                         child: spinner,
                       ),
-                    IconButton(
-                      tooltip: 'Neu laden',
-                      onPressed: _loadReps ? null : _refreshReps,
-                      icon: const Icon(Icons.refresh),
-                    ),
                   ],
                 );
 
