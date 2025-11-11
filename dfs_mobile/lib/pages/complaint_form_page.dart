@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/dialog_content_scroll.dart';
 
 // KEIN dart:html mehr nötig
 
@@ -50,7 +51,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
       context: context,
       builder: (_) => AlertDialog(
         title: Text(t.unsavedChangesTitle),
-        content: Text(t.unsavedChangesText),
+        content: DialogContentScroll(child: Text(t.unsavedChangesText)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: Text(t.cancel)),
           FilledButton.tonal(onPressed: () => Navigator.pop(context, true), child: Text(t.leave)),

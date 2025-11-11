@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api/client.dart';
 import 'rep_dashboard_page.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/dialog_content_scroll.dart';
 import '../widgets/legal_footer.dart';
 
 // L10n-Helper
@@ -89,31 +90,33 @@ class _RepLoginPageState extends State<RepLoginPage> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) => AlertDialog(
           title: Text(t.register_temp_password_title), // NEU
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: mailCtrl,
-                keyboardType: TextInputType.emailAddress,
-                decoration: InputDecoration(
-                  labelText: t.rep_email_label, // NEU
-                  border: const OutlineInputBorder(),
+          content: DialogContentScroll(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: mailCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    labelText: t.rep_email_label, // NEU
+                    border: const OutlineInputBorder(),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: secCtrl,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: t.temp_password_label, // NEU
-                  border: const OutlineInputBorder(),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: secCtrl,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    labelText: t.temp_password_label, // NEU
+                    border: const OutlineInputBorder(),
+                  ),
                 ),
-              ),
-              if (locErr != null) ...[
-                const SizedBox(height: 8),
-                Text(locErr!, style: const TextStyle(color: Colors.red)),
+                if (locErr != null) ...[
+                  const SizedBox(height: 8),
+                  Text(locErr!, style: const TextStyle(color: Colors.red)),
+                ],
               ],
-            ],
+            ),
           ),
           actions: [
             TextButton(
@@ -184,36 +187,38 @@ class _RepLoginPageState extends State<RepLoginPage> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) => AlertDialog(
           title: Text(t.new_password_title), // NEU
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: aCtrl,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: t.new_password_min8, // NEU
-                  border: const OutlineInputBorder(),
+          content: DialogContentScroll(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: aCtrl,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    labelText: t.new_password_min8, // NEU
+                    border: const OutlineInputBorder(),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: bCtrl,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: t.new_password_repeat_label, // NEU
-                  border: const OutlineInputBorder(),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: bCtrl,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    labelText: t.new_password_repeat_label, // NEU
+                    border: const OutlineInputBorder(),
+                  ),
+                  onSubmitted: (_) async {
+                    if (!saving) {
+                      await _submitChangePw(ctx, setS, aCtrl, bCtrl, (s) => locErr = s, () => saving = true);
+                    }
+                  },
                 ),
-                onSubmitted: (_) async {
-                  if (!saving) {
-                    await _submitChangePw(ctx, setS, aCtrl, bCtrl, (s) => locErr = s, () => saving = true);
-                  }
-                },
-              ),
-              if (locErr != null) ...[
-                const SizedBox(height: 8),
-                Text(locErr!, style: const TextStyle(color: Colors.red)),
+                if (locErr != null) ...[
+                  const SizedBox(height: 8),
+                  Text(locErr!, style: const TextStyle(color: Colors.red)),
+                ],
               ],
-            ],
+            ),
           ),
           actions: [
             TextButton(
