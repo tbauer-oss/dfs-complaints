@@ -28,6 +28,10 @@
   "catalog_lab_desc": "Products & information for the laboratory",
   "catalog_dent_title": "Dentistry Catalog",
   "catalog_dent_desc": "Instruments & information for the dental practice",
+  "catalog_select_language": "Select language",
+  "catalog_open_external": "Open catalog",
+  "catalog_open_error": "Could not open the catalog.",
+  "catalog_viewer_unavailable": "The integrated PDF viewer is only available in the web version.",
 
   "decision_withdrawn": "Decision withdrawn",  
   "decision_withdraw": "Withdraw decision",
