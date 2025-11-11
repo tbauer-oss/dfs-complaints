@@ -25,9 +25,12 @@ class RegisterPage extends StatefulWidget {
 
 class _RegisterPageState extends State<RegisterPage> {
   // Gate (AUTH_PASSWORD) – vor Betreten der Registrierung
+  final _gateEmail = TextEditingController();
   final _gatePw = TextEditingController();
   bool _gateBusy = false;
+  bool _gateRequestBusy = false;
   String? _gateErr;
+  String? _gateInfo;
 
   // Formular
   final _email = TextEditingController();
@@ -74,6 +77,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   void dispose() {
+    _gateEmail.dispose();
     _gatePw.dispose();
     _email.dispose();
     _pw.dispose();
@@ -113,23 +117,87 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
+  bool _isValidEmail(String email) {
+    final regex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
+    return regex.hasMatch(email);
+  }
+
   Future<void> _unlockGate() async {
     final t = context.t;
+    final email = _gateEmail.text.trim();
+    final password = _gatePw.text.trim();
+
+    setState(() {
+      _gateErr = null;
+      _gateInfo = null;
+    });
+
+    if (email.isEmpty) {
+      setState(() => _gateErr = t.gateEmailRequired);
+      return;
+    }
+    if (!_isValidEmail(email)) {
+      setState(() => _gateErr = t.gateInvalidEmail);
+      return;
+    }
+    if (password.isEmpty) {
+      setState(() => _gateErr = t.gatePasswordRequired);
+      return;
+    }
+
     setState(() {
       _gateBusy = true;
-      _gateErr = null;
     });
     try {
-      final ok = await widget.api.gateUnlock(_gatePw.text);
+      final ok = await widget.api.gateUnlock(password, email: email);
       if (!mounted) return;
       if (!ok) {
         setState(() => _gateErr = t.wrongPassword);
+        return;
+      }
+      if (_email.text.trim().isEmpty) {
+        _email.text = email;
       }
     } catch (e) {
       if (!mounted) return;
       setState(() => _gateErr = '${t.network_cors_error}: $e');
     } finally {
       if (mounted) setState(() => _gateBusy = false);
+    }
+  }
+
+  Future<void> _requestGatePassword() async {
+    final t = context.t;
+    final email = _gateEmail.text.trim();
+
+    setState(() {
+      _gateErr = null;
+      _gateInfo = null;
+    });
+
+    if (email.isEmpty) {
+      setState(() => _gateErr = t.gateEmailRequired);
+      return;
+    }
+    if (!_isValidEmail(email)) {
+      setState(() => _gateErr = t.gateInvalidEmail);
+      return;
+    }
+
+    setState(() => _gateRequestBusy = true);
+    try {
+      final err = await widget.api.gateRequestPassword(email);
+      if (!mounted) return;
+      if (err == null) {
+        setState(() => _gateInfo = t.gateRequestInfo);
+      } else {
+        setState(() => _gateErr = t.gateRequestError(err));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _gateErr = t.gateRequestError('$e'));
+    } finally {
+      if (mounted) setState(() => _gateRequestBusy = false);
     }
   }
 
@@ -258,17 +326,33 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                   const SizedBox(height: 12),
                   TextField(
+                    controller: _gateEmail,
+                    keyboardType: TextInputType.emailAddress,
+                    autofillHints: const [AutofillHints.email],
+                    decoration: InputDecoration(
+                      labelText: t.email,
+                      border: const OutlineInputBorder(),
+                    ),
+                    onSubmitted: (_) {
+                      if (!_gateBusy && !_gateRequestBusy) _unlockGate();
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
                     controller: _gatePw,
                     obscureText: true,
                     decoration: InputDecoration(
                       labelText: t.gate_password,
                       border: const OutlineInputBorder(),
                     ),
-                    onSubmitted: (_) => _gateBusy ? null : _unlockGate(),
+                    onSubmitted: (_) {
+                      if (!_gateBusy && !_gateRequestBusy) _unlockGate();
+                    },
                   ),
                   const SizedBox(height: 12),
                   FilledButton(
-                    onPressed: _gateBusy ? null : _unlockGate,
+                    onPressed:
+                        (_gateBusy || _gateRequestBusy) ? null : _unlockGate,
                     child: _gateBusy
                         ? const SizedBox(
                             width: 18,
@@ -277,9 +361,29 @@ class _RegisterPageState extends State<RegisterPage> {
                           )
                         : Text(t.unlock),
                   ),
+                  const SizedBox(height: 8),
+                  OutlinedButton(
+                    onPressed: (_gateBusy || _gateRequestBusy)
+                        ? null
+                        : _requestGatePassword,
+                    child: _gateRequestBusy
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(t.gateRequestPassword),
+                  ),
                   if (_gateErr != null) ...[
                     const SizedBox(height: 8),
                     Text(_gateErr!, style: const TextStyle(color: Colors.red)),
+                  ],
+                  if (_gateInfo != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      _gateInfo!,
+                      style: const TextStyle(color: Colors.green),
+                    ),
                   ],
                   const SizedBox(height: 8),
                   TextButton(
