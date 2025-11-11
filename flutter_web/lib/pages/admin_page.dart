@@ -1,7 +1,10 @@
 // lib/pages/admin_page.dart
 import 'dart:convert';
-import 'dart:html' as html;
+import 'package:flutter/foundation.dart' show kIsWeb;
+import '../web_compat/html_stub.dart'
+  if (dart.library.html) '../web_compat/html_web.dart' as html;
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import '../api/client.dart';
 import '../widgets/legal_footer.dart';
 
@@ -3044,9 +3047,15 @@ class AdminApi {
   void setSecret(String s) => _secret = s;
 
   String get baseUrl {
-    final b = const String.fromEnvironment('API_BASE', defaultValue: '');
+    const b = String.fromEnvironment('API_BASE', defaultValue: '');
     if (b.isNotEmpty) return b;
-    return html.window.location.origin;
+    if (kIsWeb) {
+      try {
+        return html.window.location.origin;
+      } catch (_) {}
+    }
+    // Mobile/Desktop-Fallback
+    return 'https://dfs-complaints-backend.vercel.app';
   }
 
   Map<String, String> _headersJson() => {
@@ -3056,57 +3065,72 @@ class AdminApi {
 
   Uri _u(String path, [Map<String, String>? q]) {
     final uri = Uri.parse('$baseUrl$path');
-    if (q == null || q.isEmpty) return uri;
-    return uri.replace(queryParameters: q);
+    return (q == null || q.isEmpty) ? uri : uri.replace(queryParameters: q);
   }
 
-  Future<html.HttpRequest> _request(
+  Future<_Resp> _request(
     String method,
     String path, {
     Map<String, String>? q,
     Object? body,
   }) async {
-    try {
-      final res = await html.HttpRequest.request(
-        _u(path, q).toString(),
-        method: method,
-        requestHeaders: _headersJson(),
-        sendData: body is String ? body : (body == null ? null : jsonEncode(body)),
-        withCredentials: true,
-      );
-      return res;
-    } catch (e) {
-      if (e is html.ProgressEvent) {
-        final t = e.target;
-        if (t is html.HttpRequest) {
-          final st = t.status;
-          final txt = t.responseText ?? '';
-          final stx = t.statusText ?? '';
-          throw 'HTTP $st $stx — ${txt.isEmpty ? "Request fehlgeschlagen" : txt}';
-        }
-      }
-      throw e.toString();
+    final uri = _u(path, q);
+    final hdrs = _headersJson();
+
+    String? payload;
+    if (body != null) {
+      payload = body is String ? body : jsonEncode(body);
     }
+
+    http.Response r;
+    switch (method.toUpperCase()) {
+      case 'GET':
+        r = await http.get(uri, headers: hdrs);
+        break;
+      case 'POST':
+        r = await http.post(uri, headers: hdrs, body: payload);
+        break;
+      case 'PUT':
+        r = await http.put(uri, headers: hdrs, body: payload);
+        break;
+      case 'PATCH':
+        r = await http.patch(uri, headers: hdrs, body: payload);
+        break;
+      case 'DELETE':
+        // Einige Endpunkte akzeptieren Body bei DELETE → unterstützt
+        r = await http.delete(uri, headers: hdrs, body: payload);
+        break;
+      default:
+        throw UnsupportedError('Unsupported method: $method');
+    }
+
+    return _Resp(
+      r.statusCode,
+      r.body,
+      r.reasonPhrase ?? '',
+      r.headers,
+    );
   }
 
-  // Pending
+  // ---------------- Pending ----------------
   Future<List<PendingUser>> fetchPending() async {
     final res = await _request('GET', '/api/admin/pending');
-    if (res.status != 200) throw 'pending GET: HTTP ${res.status} ${res.responseText}';
-    final txt = res.responseText ?? '';
-    if (txt.trim().isEmpty) return <PendingUser>[];
+    if (res.status != 200) throw 'pending GET: HTTP ${res.status} ${res.body}';
+    final txt = res.body.trim();
+    if (txt.isEmpty) return const <PendingUser>[];
     final List data = jsonDecode(txt);
-    return data.map((e) => PendingUser.fromJson(e as Map<String, dynamic>)).toList();
+    return data.map((e) => PendingUser.fromJson((e as Map).cast<String, dynamic>())).toList();
   }
 
   Future<void> approvePending(String email, {String? lang}) async {
     final body = {'email': email, 'action': 'approve', if (lang != null) 'lang': lang};
     final res = await _request('POST', '/api/admin/pending', body: body);
     if (res.status != 200 && res.status != 204) {
-      throw 'pending POST approve: HTTP ${res.status} ${res.responseText}';
+      throw 'pending POST approve: HTTP ${res.status} ${res.body}';
     }
   }
 
+  // ---------------- Users ----------------
   Future<void> deleteUser(String email) async {
     // Versuch 1: DELETE mit Query
     try {
@@ -3121,64 +3145,60 @@ class AdminApi {
     // Versuch 3: POST action=delete
     final r3 = await _request('POST', '/api/admin/users', body: {'action': 'delete', 'email': email});
     if (r3.status != 200 && r3.status != 204) {
-      throw 'users DELETE/POST(delete) failed: HTTP ${r3.status} ${r3.responseText}';
+      throw 'users DELETE/POST(delete) failed: HTTP ${r3.status} ${r3.body}';
     }
   }
 
-  // Users
   Future<List<ActiveUser>> fetchUsers() async {
     final res = await _request('GET', '/api/admin/users');
-    if (res.status != 200) throw 'users GET: HTTP ${res.status} ${res.responseText}';
-    final txt = res.responseText ?? '';
-    if (txt.trim().isEmpty) return <ActiveUser>[];
+    if (res.status != 200) throw 'users GET: HTTP ${res.status} ${res.body}';
+    final txt = res.body.trim();
+    if (txt.isEmpty) return const <ActiveUser>[];
     final List data = jsonDecode(txt);
-    return data.map((e) => ActiveUser.fromJson(e as Map<String, dynamic>)).toList();
+    return data.map((e) => ActiveUser.fromJson((e as Map).cast<String, dynamic>())).toList();
   }
 
-  // Complaints (by email / open)
+  // ---------------- Complaints ----------------
   Future<List<AdminComplaint>> fetchComplaintsByEmailDetailed(String email) async {
     final res = await _request('GET', '/api/admin/complaints', q: {'email': email, 'details': '1'});
-    if (res.status != 200) throw 'complaints email GET: HTTP ${res.status} ${res.responseText}';
-    final List data = jsonDecode(res.responseText ?? '[]');
-    return data.map((e) => AdminComplaint.fromJson(e as Map<String, dynamic>)).toList();
+    if (res.status != 200) throw 'complaints email GET: HTTP ${res.status} ${res.body}';
+    final List data = jsonDecode(res.body.isEmpty ? '[]' : res.body);
+    return data.map((e) => AdminComplaint.fromJson((e as Map).cast<String, dynamic>())).toList();
   }
 
   Future<List<AdminComplaint>> fetchOpenComplaints() async {
     final res = await _request('GET', '/api/admin/complaints', q: {'open': '1'});
-    if (res.status != 200) throw 'open complaints GET: HTTP ${res.status} ${res.responseText}';
-    final List data = jsonDecode(res.responseText ?? '[]');
-    return data.map((e) => AdminComplaint.fromJson(e as Map<String, dynamic>)).toList();
+    if (res.status != 200) throw 'open complaints GET: HTTP ${res.status} ${res.body}';
+    final List data = jsonDecode(res.body.isEmpty ? '[]' : res.body);
+    return data.map((e) => AdminComplaint.fromJson((e as Map).cast<String, dynamic>())).toList();
   }
 
   Future<Map<String, dynamic>> fetchComplaintRawByTicket(String ticket) async {
     final res = await _request('GET', '/api/admin/complaints', q: {'ticket': ticket});
     if (res.status != 200) {
-      throw 'complaint GET by ticket: HTTP ${res.status} ${res.responseText}';
+      throw 'complaint GET by ticket: HTTP ${res.status} ${res.body}';
     }
-    final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
-    return j;
+    return (res.body.isEmpty ? <String, dynamic>{} : jsonDecode(res.body)) as Map<String, dynamic>;
   }
 
-  // Update / Delete
   Future<AdminComplaint> adminComplaintUpdate({
     required String ticket,
     int? status,
     String? decision,
     String? reportLink,
-    String? internalNo, // ← NEU
+    String? internalNo,
   }) async {
     final body = <String, dynamic>{'ticket': ticket};
     if (status != null) body['status'] = status;
     body['decision'] = decision ?? '';
     if (reportLink != null) body['reportLink'] = reportLink;
-    if (internalNo != null) body['internalNo'] = internalNo; // ← NEU
+    if (internalNo != null) body['internalNo'] = internalNo;
 
     final res = await _request('POST', '/api/admin/complaints', body: body);
     if (res.status != 200) {
-      throw 'HTTP ${res.status} ${res.statusText} — ${res.responseText ?? ''}';
+      throw 'HTTP ${res.status} ${res.statusText} — ${res.body}';
     }
-    final Map<String, dynamic> j =
-        (res.responseText ?? '').trim().isEmpty ? <String, dynamic>{} : jsonDecode(res.responseText!);
+    final Map<String, dynamic> j = (res.body.trim().isEmpty) ? <String, dynamic>{} : jsonDecode(res.body);
     return AdminComplaint.fromJson(j);
   }
 
@@ -3187,16 +3207,16 @@ class AdminApi {
     try {
       final r1 = await _request('DELETE', '/api/admin/complaints', q: {'ticket': ticket});
       if (r1.status == 200 || r1.status == 204) return;
-    } catch (_) {/* Fallback */}
+    } catch (_) {}
     // 2) DELETE Body
     final r2 = await _request('DELETE', '/api/admin/complaints', body: {'ticket': ticket});
     if (r2.status != 200 && r2.status != 204) {
-      throw 'HTTP ${r2.status} ${r2.statusText} — ${r2.responseText ?? ''}';
+      throw 'HTTP ${r2.status} ${r2.statusText} — ${r2.body}';
     }
   }
 
-  // ---------- Representatives (Vertreter) ----------
- Future<Rep> upsertRep({
+  // ---------------- Representatives (Vertreter) ----------------
+  Future<Rep> upsertRep({
     String? id,
     required String firstName,
     required String lastName,
@@ -3204,7 +3224,7 @@ class AdminApi {
     required String region,
   }) async {
     final body = {
-      'action': 'upsert',                 // <-- NEU
+      'action': 'upsert',
       if (id != null && id.isNotEmpty) 'id': id,
       'firstName': firstName,
       'lastName': lastName,
@@ -3213,24 +3233,20 @@ class AdminApi {
     };
     final res = await _request('POST', '/api/admin/reps', body: body);
     if (res.status != 200 && res.status != 201) {
-      throw 'reps POST: HTTP ${res.status} ${res.responseText}';
+      throw 'reps POST: HTTP ${res.status} ${res.body}';
     }
-    final Map<String, dynamic> j =
-        (res.responseText ?? '').trim().isEmpty ? <String, dynamic>{} : jsonDecode(res.responseText!);
+    final Map<String, dynamic> j = (res.body.trim().isEmpty) ? <String, dynamic>{} : jsonDecode(res.body);
     return Rep.fromJson(j);
   }
 
   Future<void> deleteRep(String id) async {
-    // Query-Variante (falls dein Backend das unterstützt)
     try {
       final r1 = await _request('DELETE', '/api/admin/reps', q: {'id': id});
       if (r1.status == 200 || r1.status == 204) return;
     } catch (_) {}
-
-    // Body-Variante mit action: 'delete'
     final r2 = await _request('DELETE', '/api/admin/reps', body: {'action': 'delete', 'id': id});
     if (r2.status != 200 && r2.status != 204) {
-      throw 'reps DELETE: HTTP ${r2.status} ${r2.responseText}';
+      throw 'reps DELETE: HTTP ${r2.status} ${r2.body}';
     }
   }
 
@@ -3238,25 +3254,25 @@ class AdminApi {
     final q = includeCustomers ? {'includeCustomers': '1'} : null;
     final res = await _request('GET', '/api/admin/reps', q: q);
     if (res.status != 200) {
-      throw 'reps GET: HTTP ${res.status} ${res.responseText}';
+      throw 'reps GET: HTTP ${res.status} ${res.body}';
     }
-    final List data = jsonDecode(res.responseText ?? '[]');
+    final List data = jsonDecode(res.body.isEmpty ? '[]' : res.body);
     return data.map((e) => Rep.fromJson((e as Map).cast<String, dynamic>())).toList();
   }
+
   Future<List<String>> assignCustomerToRep({required String repId, required String email}) async {
-  final res = await _request('POST', '/api/admin/reps', body: {
-    'action': 'assign',
-    'repId': repId,
-    'email': email,
-  });
-  if (res.status != 200) {
-    throw 'reps assign: HTTP ${res.status} ${res.responseText}';
+    final res = await _request('POST', '/api/admin/reps', body: {
+      'action': 'assign',
+      'repId': repId,
+      'email': email,
+    });
+    if (res.status != 200) {
+      throw 'reps assign: HTTP ${res.status} ${res.body}';
+    }
+    final Map<String, dynamic> j = (res.body.trim().isEmpty) ? <String, dynamic>{} : jsonDecode(res.body);
+    final list = (j['customers'] is List) ? (j['customers'] as List) : const [];
+    return List<String>.from(list.map((e) => e.toString()));
   }
-  final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
-  return (j['customers'] is List)
-      ? List<String>.from((j['customers'] as List).map((e) => e.toString()))
-      : const <String>[];
-}
 
   Future<List<String>> unassignCustomerFromRep({required String repId, required String email}) async {
     final res = await _request('POST', '/api/admin/reps', body: {
@@ -3265,14 +3281,23 @@ class AdminApi {
       'email': email,
     });
     if (res.status != 200) {
-      throw 'reps unassign: HTTP ${res.status} ${res.responseText}';
+      throw 'reps unassign: HTTP ${res.status} ${res.body}';
     }
-    final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
-    return (j['customers'] is List)
-        ? List<String>.from((j['customers'] as List).map((e) => e.toString()))
-        : const <String>[];
+    final Map<String, dynamic> j = (res.body.trim().isEmpty) ? <String, dynamic>{} : jsonDecode(res.body);
+    final list = (j['customers'] is List) ? (j['customers'] as List) : const [];
+    return List<String>.from(list.map((e) => e.toString()));
   }
 }
+
+  // Kleiner interner Response-Wrapper (angleicht an das frühere HttpRequest-Handling)
+class _Resp {
+    final int status;
+    final String body;
+    final String statusText;
+    final Map<String, String> headers;
+    _Resp(this.status, this.body, this.statusText, this.headers);
+  }
+
 
 // Farb-Mixer: mischt "top" mit Deckkraft t über "base"
 Color _blend(Color base, Color top, double t) {
