@@ -32,6 +32,8 @@
   "catalog_open_external": "Apri catalogo",
   "catalog_open_error": "Impossibile aprire il catalogo.",
   "catalog_viewer_unavailable": "Il visualizzatore PDF integrato è disponibile solo nella versione web.",
+  "dashboard_heading": "Il tuo cruscotto DFS",
+  "dashboard_subheading": "Gestisci le segnalazioni, accedi ai cataloghi e rimani in contatto con il tuo referente.",
   "decision_withdrawn": "Decisione revocata",
   "decision_withdraw": "Ritira decisione",
   "decision_withdraw_confirm": "Vuoi davvero ritirare la tua decisione?",
