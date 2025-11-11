@@ -15,8 +15,31 @@ import 'support_page.dart';
 import '../widgets/pdf_view_stub.dart'
   if (dart.library.html) '../widgets/pdf_view_web.dart';
 
-const _pdfLabUrl  = 'pdfs/DFS-Labor-DE-US-2025-26_1.pdf';
-const _pdfDentUrl = 'pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf';
+const _labCatalogLinks = [
+  _CatalogLink(
+    label: 'DE / EN / IT',
+    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Labor-DE-US-2025-26_1.pdf',
+    locales: {'de', 'en', 'it'},
+  ),
+  _CatalogLink(
+    label: 'ES / FR',
+    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-LaborES-FR%202025-26_0.pdf',
+    locales: {'es', 'fr'},
+  ),
+];
+
+const _dentCatalogLinks = [
+  _CatalogLink(
+    label: 'DE / EN / IT',
+    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf',
+    locales: {'de', 'en', 'it'},
+  ),
+  _CatalogLink(
+    label: 'ES / FR',
+    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Praxis-ES-FR-2025-2026_1.pdf',
+    locales: {'es', 'fr'},
+  ),
+];
 
 class DashboardPage extends StatefulWidget {
   final ApiClient api;
@@ -437,7 +460,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                       16 + MediaQuery.of(ctx).padding.bottom,
                     ),
                     sliver: SliverToBoxAdapter(
-                      child: _CatalogButtons(),
+                      child: const _CatalogButtons(),
                     ),
                   ),
                 ],
@@ -598,66 +621,170 @@ class _RepBanner extends StatelessWidget {
 
 // Dezente Katalog-Leiste: nur zwei OutlinedButtons, mobil sehr kompakt
 class _CatalogButtons extends StatelessWidget {
+  const _CatalogButtons();
+
   @override
   Widget build(BuildContext context) {
-    final t  = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
+    final t = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final isPhone = MediaQuery.of(context).size.width < 600;
+    final localeCode = Localizations.localeOf(context).languageCode.toLowerCase();
 
-    Widget btn(String label, String url, IconData icon) {
-      return OutlinedButton.icon(
-        style: OutlinedButton.styleFrom(
-          padding: EdgeInsets.symmetric(horizontal: isPhone ? 10 : 14, vertical: isPhone ? 10 : 12),
-          side: BorderSide(color: cs.outlineVariant),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-        onPressed: () {
-          final title = label; // Buttontext als Titel
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => PdfInAppPage(url: url, title: title),
+    Widget buildCard({
+      required String title,
+      required String description,
+      required IconData icon,
+      required List<_CatalogLink> links,
+    }) {
+      final defaultLink = links.firstWhere(
+        (link) => link.matches(localeCode),
+        orElse: () => links.first,
+      );
+
+      final buttonPadding = EdgeInsets.symmetric(
+        horizontal: isPhone ? 10 : 14,
+        vertical: isPhone ? 8 : 10,
+      );
+      final textStyle = theme.textTheme.labelLarge?.copyWith(
+        fontSize: isPhone ? 13 : 14,
+        fontWeight: FontWeight.w600,
+      );
+
+      List<Widget> buildButtons() {
+        return links.map((link) {
+          final isDefault = identical(link, defaultLink);
+          final labelText = '${t.catalog_open} (${link.label})';
+          final onPressed = () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => PdfInAppPage(url: link.url, title: title),
+              ),
+            );
+          };
+
+          if (isDefault) {
+            return FilledButton.icon(
+              onPressed: onPressed,
+              style: FilledButton.styleFrom(
+                padding: buttonPadding,
+                textStyle: textStyle,
+              ),
+              icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+              label: Text(labelText, textAlign: TextAlign.center),
+            );
+          }
+
+          return OutlinedButton.icon(
+            onPressed: onPressed,
+            style: OutlinedButton.styleFrom(
+              padding: buttonPadding,
+              textStyle: textStyle,
+              side: BorderSide(color: cs.outlineVariant),
             ),
+            icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+            label: Text(labelText, textAlign: TextAlign.center),
           );
-        },
-        icon: Icon(icon, size: isPhone ? 18 : 20),
-        label: Text(label, style: TextStyle(fontSize: isPhone ? 13 : 14)),
+        }).toList();
+      }
+
+      final content = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, size: isPhone ? 22 : 24, color: cs.primary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: .2,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      description,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: cs.onSurface.withOpacity(.7),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            alignment: isPhone ? WrapAlignment.center : WrapAlignment.start,
+            spacing: 8,
+            runSpacing: 8,
+            children: buildButtons(),
+          ),
+        ],
+      );
+
+      if (isPhone) {
+        return Container(
+          margin: const EdgeInsets.symmetric(vertical: 6),
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+          decoration: BoxDecoration(
+            color: cs.surfaceVariant.withOpacity(.35),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: cs.outlineVariant.withOpacity(.6)),
+          ),
+          child: content,
+        );
+      }
+
+      return Card(
+        elevation: 1,
+        margin: const EdgeInsets.symmetric(vertical: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+          child: content,
+        ),
       );
     }
 
-    final content = Wrap(
-      alignment: WrapAlignment.center,
-      spacing: 10,
-      runSpacing: 8,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        btn(t.catalog_lab_title,  _pdfLabUrl,  Icons.biotech_outlined),
-        btn(t.catalog_dent_title, _pdfDentUrl, Icons.medical_services_outlined),
+        buildCard(
+          title: t.catalog_lab_title,
+          description: t.catalog_lab_desc,
+          icon: Icons.biotech_outlined,
+          links: _labCatalogLinks,
+        ),
+        buildCard(
+          title: t.catalog_dent_title,
+          description: t.catalog_dent_desc,
+          icon: Icons.medical_services_outlined,
+          links: _dentCatalogLinks,
+        ),
       ],
     );
-
-    // Auf Desktop in schmaler Card, auf Handy einfach ohne Card (noch dezenter)
-    if (isPhone) return content;
-
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: const [
-              Icon(Icons.menu_book_outlined, size: 18),
-              SizedBox(width: 8),
-              // bewusst ohne großen Titeltext – dezent
-              // (wenn du einen Titel willst, ersetze die SizedBox durch Text)
-            ]),
-            const SizedBox(height: 6),
-            content,
-          ],
-        ),
-      ),
-    );
   }
+}
+
+class _CatalogLink {
+  final String label;
+  final String url;
+  final Set<String> locales;
+
+  const _CatalogLink({
+    required this.label,
+    required this.url,
+    required this.locales,
+  });
+
+  bool matches(String localeCode) => locales.contains(localeCode);
 }
 
 class _Entry {
