@@ -5,8 +5,8 @@ import 'package:dfs_mobile/web_compat/html_stub.dart'
   if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;           // ← NEU
-import './api/client.dart';
-import './widgets/legal_footer.dart';
+import 'package:dfs_mobile/api/client.dart';
+import 'package:dfs_mobile/widgets/legal_footer.dart';
 
 // ===================================================================
 // Admin Page – mit Kachel-Menü (wie Kunden-Dashboard)
@@ -3033,15 +3033,6 @@ class AdminApi {
     return (q == null || q.isEmpty) ? uri : uri.replace(queryParameters: q);
   }
 
-  // Kleiner interner Response-Wrapper (angleicht an das frühere HttpRequest-Handling)
-  class _Resp {
-    final int status;
-    final String body;
-    final String statusText;
-    final Map<String, String> headers;
-    _Resp(this.status, this.body, this.statusText, this.headers);
-  }
-
   Future<_Resp> _request(
     String method,
     String path, {
@@ -3262,6 +3253,15 @@ class AdminApi {
     return List<String>.from(list.map((e) => e.toString()));
   }
 }
+
+  // Kleiner interner Response-Wrapper (angleicht an das frühere HttpRequest-Handling)
+class _Resp {
+    final int status;
+    final String body;
+    final String statusText;
+    final Map<String, String> headers;
+    _Resp(this.status, this.body, this.statusText, this.headers);
+  }
 
 // ===================================================================
 // Admin UI – Farbpalette & Kachel (Pro)
