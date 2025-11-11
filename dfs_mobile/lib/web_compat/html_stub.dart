@@ -14,7 +14,6 @@ class _Location { String origin = ''; }
 
 class HttpRequest {}
 class ProgressEvent {}
-class IFrameElement {}
 
 final _FakeWindow window = _FakeWindow();
 final dynamic document = null;
