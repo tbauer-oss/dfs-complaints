@@ -1,44 +1,42 @@
 // lib/widgets/pdf_view_stub.dart
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher_string.dart';
 
-class PdfInAppPage extends StatefulWidget {
+/// Stub für Nicht-Web: zeigt einen Hinweis.
+/// Optional: Du kannst hier url_launcher verwenden, um die PDF extern zu öffnen.
+class PdfInAppPage extends StatelessWidget {
   final String url;
   final String title;
   const PdfInAppPage({super.key, required this.url, required this.title});
 
   @override
-  State<PdfInAppPage> createState() => _PdfInAppPageState();
-}
-
-class _PdfInAppPageState extends State<PdfInAppPage> {
-  @override
-  void initState() {
-    super.initState();
-    _openExternal();
-  }
-
-  Future<void> _openExternal() async {
-    final ok = await launchUrlString(
-      widget.url,
-      mode: LaunchMode.externalApplication,
-    );
-    if (!mounted) return;
-    if (!ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('PDF konnte nicht geöffnet werden.')),
-      );
-    }
-    // Zurück zur Dashboard-Seite
-    if (mounted) Navigator.of(context).maybePop();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    // Minimaler Fallback-Bildschirm während des Öffnens
     return Scaffold(
-      appBar: AppBar(title: Text(widget.title, overflow: TextOverflow.ellipsis)),
-      body: const Center(child: CircularProgressIndicator()),
+      appBar: AppBar(title: Text(title, overflow: TextOverflow.ellipsis)),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.picture_as_pdf_outlined, size: 48),
+              const SizedBox(height: 12),
+              const Text(
+                'Der integrierte PDF-Viewer ist nur in der Web-Version verfügbar.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Pfad: ',
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
+              Text(url, textAlign: TextAlign.center),
+              const SizedBox(height: 12),
+              // Wenn du url_launcher nutzt, kannst du hier einen Button zum Öffnen setzen.
+              // Sonst einfach nur Info anzeigen.
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
