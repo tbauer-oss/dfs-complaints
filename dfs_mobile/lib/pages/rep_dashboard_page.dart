@@ -1589,18 +1589,11 @@ class _CustomerTile extends StatelessWidget {
         onTap: onOpen,
         borderRadius: BorderRadius.circular(18),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            color: Color.alphaBlend(cs.surfaceVariant.withOpacity(isNew ? 0.32 : 0.18), cs.surface),
-            border: Border.all(color: cs.outlineVariant.withOpacity(isNew ? 0.9 : 0.55)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.04),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
+            borderRadius: BorderRadius.circular(16),
+            color: Color.alphaBlend(cs.surfaceVariant.withOpacity(isNew ? 0.18 : 0.12), cs.surface),
+            border: Border.all(color: cs.outlineVariant.withOpacity(isNew ? 0.65 : 0.45)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1609,11 +1602,11 @@ class _CustomerTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    width: 48,
-                    height: 48,
+                    width: 44,
+                    height: 44,
                     decoration: BoxDecoration(
-                      color: accent.withOpacity(0.18),
-                      borderRadius: BorderRadius.circular(16),
+                      color: accent.withOpacity(0.14),
+                      borderRadius: BorderRadius.circular(14),
                     ),
                     alignment: Alignment.center,
                     child: Text(
@@ -1667,8 +1660,11 @@ class _CustomerTile extends StatelessWidget {
                         icon: const Icon(Icons.info_outline),
                         onPressed: onInfo,
                         style: IconButton.styleFrom(
-                          backgroundColor: cs.surfaceVariant.withOpacity(0.45),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          backgroundColor: cs.surfaceVariant.withOpacity(0.25),
+                          foregroundColor: cs.onSurface,
+                          padding: const EdgeInsets.all(10),
+                          minimumSize: const Size(40, 40),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -1678,7 +1674,9 @@ class _CustomerTile extends StatelessWidget {
                         onPressed: onRemove,
                         style: IconButton.styleFrom(
                           foregroundColor: cs.error,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          padding: const EdgeInsets.all(10),
+                          minimumSize: const Size(40, 40),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       ),
                     ],
@@ -1692,27 +1690,26 @@ class _CustomerTile extends StatelessWidget {
                   style: theme.textTheme.bodyMedium?.copyWith(height: 1.3),
                 ),
               ],
-              if (phone.isNotEmpty || location.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 8,
-                  children: [
-                    if (phone.isNotEmpty)
-                      _CustomerInfoChip(
-                        icon: Icons.phone_outlined,
-                        label: phone,
-                      ),
-                    if (location.isNotEmpty)
-                      _CustomerInfoChip(
-                        icon: Icons.location_on_outlined,
-                        label: location,
-                      ),
-                  ],
-                ),
-              ],
+            if (phone.isNotEmpty || location.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 10,
+                runSpacing: 8,
+                children: [
+                  if (phone.isNotEmpty)
+                    _CustomerInfoChip(
+                      icon: Icons.phone_outlined,
+                      label: phone,
+                    ),
+                  if (location.isNotEmpty)
+                    _CustomerInfoChip(
+                      icon: Icons.location_on_outlined,
+                      label: location,
+                    ),
+                ],
+              ),
             ],
-          ),
+          ],
         ),
       ),
     );
@@ -1733,8 +1730,8 @@ class _CustomerInfoChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: cs.surfaceVariant.withOpacity(0.4),
-        borderRadius: BorderRadius.circular(18),
+        color: cs.surfaceVariant.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1851,6 +1848,46 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     );
   }
 
+  Widget _metaChip(
+    BuildContext context, {
+    required IconData icon,
+    required String text,
+    double? maxWidth,
+  }) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth ?? double.infinity),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: cs.surfaceVariant.withOpacity(0.24),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: cs.outlineVariant.withOpacity(0.55)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Icon(icon, size: 18, color: cs.onSurfaceVariant),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                text,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  height: 1.3,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _decisionBadge(BuildContext context, {required IconData icon, required String text, required Color color}) {
     final theme = Theme.of(context);
     return Container(
@@ -1912,33 +1949,28 @@ class _ComplaintTileState extends State<_ComplaintTile> {
   Widget _decisionButtons(AppLocalizations t, String ticket) {
     if (widget.onDecision == null) return const SizedBox.shrink();
 
-    ButtonStyle _style(Color color) {
-      return FilledButton.styleFrom(
-        backgroundColor: color,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-        shape: const StadiumBorder(),
-        textStyle: const TextStyle(fontWeight: FontWeight.w700),
+    Widget buildButton({required IconData icon, required Color color, required bool approve}) {
+      return IconButton(
+        onPressed: () => widget.onDecision!(ticket, approve),
+        icon: Icon(icon, size: 22),
+        tooltip: approve ? t.decision_accepted : t.decision_rejected,
+        style: IconButton.styleFrom(
+          backgroundColor: color.withOpacity(0.12),
+          foregroundColor: color,
+          minimumSize: const Size(48, 48),
+          padding: const EdgeInsets.all(12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
       );
     }
 
     return Wrap(
-      spacing: 12,
-      runSpacing: 8,
+      spacing: 14,
+      runSpacing: 10,
       alignment: WrapAlignment.end,
       children: [
-        FilledButton.icon(
-          style: _style(Colors.green.shade600),
-          onPressed: () => widget.onDecision!(ticket, true),
-          icon: const Icon(Icons.check_circle_rounded),
-          label: Text(t.decision_accepted),
-        ),
-        FilledButton.icon(
-          style: _style(Colors.red.shade600),
-          onPressed: () => widget.onDecision!(ticket, false),
-          icon: const Icon(Icons.cancel_rounded),
-          label: Text(t.decision_rejected),
-        ),
+        buildButton(icon: Icons.check_rounded, color: Colors.green.shade600, approve: true),
+        buildButton(icon: Icons.close_rounded, color: Colors.red.shade600, approve: false),
       ],
     );
   }
@@ -1989,18 +2021,18 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
-    Color background = Color.alphaBlend(cs.surfaceVariant.withOpacity(0.18), cs.surface);
-    Color borderColor = cs.outlineVariant.withOpacity(0.6);
+    Color background = Color.alphaBlend(cs.surfaceVariant.withOpacity(0.14), cs.surface);
+    Color borderColor = cs.outlineVariant.withOpacity(0.45);
 
     if (repDecisionNormalized == 'accepted') {
-      background = Color.alphaBlend(Colors.green.shade50.withOpacity(0.7), cs.surface);
-      borderColor = Colors.green.shade200;
+      background = Color.alphaBlend(Colors.green.shade500.withOpacity(0.08), cs.surface);
+      borderColor = Colors.green.shade400.withOpacity(0.4);
     } else if (repDecisionNormalized == 'rejected') {
-      background = Color.alphaBlend(Colors.red.shade50.withOpacity(0.7), cs.surface);
-      borderColor = Colors.red.shade200;
+      background = Color.alphaBlend(Colors.red.shade500.withOpacity(0.08), cs.surface);
+      borderColor = Colors.red.shade400.withOpacity(0.4);
     } else if (repDecisionNormalized == 'pending') {
-      background = Color.alphaBlend(Colors.amber.shade50.withOpacity(0.6), cs.surface);
-      borderColor = Colors.amber.shade200;
+      background = Color.alphaBlend(Colors.amber.shade700.withOpacity(0.08), cs.surface);
+      borderColor = Colors.amber.shade600.withOpacity(0.38);
     }
 
     if (widget.isClosed) {
@@ -2026,173 +2058,149 @@ class _ComplaintTileState extends State<_ComplaintTile> {
       );
     }
 
-    final infoBadges = <Widget>[];
-    if (createdLabel != null) {
-      infoBadges.add(_infoPill(context, icon: Icons.schedule, text: createdLabel));
-    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final chips = <Widget>[];
+        final availableWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : MediaQuery.of(context).size.width;
+        final double chipWidth = availableWidth >= 520
+            ? (availableWidth - 10) / 2
+            : availableWidth;
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 260),
-      curve: Curves.easeOutCubic,
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: borderColor),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(widget.isClosed ? 0.02 : 0.05),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        ticket.isEmpty ? '(ohne Ticket)' : ticket,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.15,
-                        ),
-                      ),
-                      if (customer.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        Text(
-                          t.customer_label,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: cs.onSurfaceVariant,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          customer,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            height: 1.25,
-                          ),
-                        ),
-                      ],
-                      if (articleLabel != null) ...[
-                        const SizedBox(height: 12),
-                        Text(
-                          t.articleNo,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: cs.onSurfaceVariant,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          articleLabel,
-                          style: theme.textTheme.bodyMedium?.copyWith(height: 1.3),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    _StatusChip(status: status, decision: decision, closed: widget.isClosed),
-                    if (repDecision.trim().isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      _RepTrafficLight(opinion: repDecision, compact: true),
-                    ],
-                  ],
-                ),
-              ],
-            ),
-            if (decisionBadges.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 10,
-                runSpacing: 8,
-                children: decisionBadges,
+        if (customer.isNotEmpty) {
+          chips.add(_metaChip(context, icon: Icons.person_outline_rounded, text: customer, maxWidth: chipWidth));
+        }
+        if (articleLabel != null) {
+          chips.add(_metaChip(context, icon: Icons.qr_code_2_outlined, text: articleLabel, maxWidth: chipWidth));
+        }
+        if (createdLabel != null) {
+          chips.add(_metaChip(context, icon: Icons.schedule_rounded, text: createdLabel, maxWidth: chipWidth));
+        }
+
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+          margin: const EdgeInsets.symmetric(vertical: 6),
+          decoration: BoxDecoration(
+            color: background,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: borderColor),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(widget.isClosed ? 0.015 : 0.035),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
               ),
             ],
-            const SizedBox(height: 16),
-            Row(
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: infoBadges.isEmpty
-                      ? const SizedBox.shrink()
-                      : Align(
-                          alignment: Alignment.centerLeft,
-                          child: Wrap(
-                            spacing: 10,
-                            runSpacing: 6,
-                            children: infoBadges,
-                          ),
-                        ),
-                ),
-                TextButton.icon(
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    shape: const StadiumBorder(),
-                    foregroundColor: cs.primary,
-                    textStyle: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  onPressed: () => setState(() => _expanded = !_expanded),
-                  icon: AnimatedRotation(
-                    turns: _expanded ? 0.5 : 0.0,
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeOutCubic,
-                    child: const Icon(Icons.keyboard_arrow_down_rounded),
-                  ),
-                  label: Text(
-                    _expanded
-                        ? (t.hideDetails ?? 'Details verbergen')
-                        : (t.showDetails ?? 'Details anzeigen'),
-                  ),
-                ),
-              ],
-            ),
-            ClipRect(
-              child: AnimatedSize(
-                duration: const Duration(milliseconds: 240),
-                curve: Curves.easeOutCubic,
-                child: !_expanded
-                    ? const SizedBox.shrink()
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const SizedBox(height: 16),
-                          _buildDetails(
-                            context,
-                            segment: segment,
-                            productType: productType,
-                            productArea: productArea,
-                            articleNo: articleNo,
-                            batch: batch,
-                            serial: serial,
-                            qty: qty,
-                            reason: reason,
-                            desc: desc,
-                            customerWish: customerWish,
-                            returned: returned,
-                            applied: applied,
-                            injury: injury,
-                            injuryDesc: injuryDesc,
+                          Text(
+                            ticket.isEmpty ? '(ohne Ticket)' : ticket,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.15,
+                            ),
                           ),
+                          if (chips.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 8,
+                              children: chips,
+                            ),
+                          ],
                         ],
                       ),
-              ),
-            ),
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        _StatusChip(status: status, decision: decision, closed: widget.isClosed),
+                        if (repDecision.trim().isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          _RepTrafficLight(opinion: repDecision, compact: true),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+                if (decisionBadges.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    children: decisionBadges,
+                  ),
+                ],
+                const SizedBox(height: 14),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      shape: const StadiumBorder(),
+                      foregroundColor: cs.primary,
+                      textStyle: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    onPressed: () => setState(() => _expanded = !_expanded),
+                    icon: AnimatedRotation(
+                      turns: _expanded ? 0.5 : 0.0,
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      child: const Icon(Icons.keyboard_arrow_down_rounded),
+                    ),
+                    label: Text(
+                      _expanded
+                          ? (t.hideDetails ?? 'Details verbergen')
+                          : (t.showDetails ?? 'Details anzeigen'),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ClipRect(
+                  child: AnimatedSize(
+                    duration: const Duration(milliseconds: 240),
+                    curve: Curves.easeOutCubic,
+                    child: !_expanded
+                        ? const SizedBox.shrink()
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const SizedBox(height: 16),
+                              _buildDetails(
+                                context,
+                                segment: segment,
+                                productType: productType,
+                                productArea: productArea,
+                                articleNo: articleNo,
+                                batch: batch,
+                                serial: serial,
+                                qty: qty,
+                                reason: reason,
+                                desc: desc,
+                                customerWish: customerWish,
+                                returned: returned,
+                                applied: applied,
+                                injury: injury,
+                                injuryDesc: injuryDesc,
+                              ),
+                            ],
+                          ),
+                  ),
+                ),
             if (widget.onDecision != null && !widget.isClosed && repDecision.isEmpty) ...[
               const SizedBox(height: 18),
               Align(
