@@ -3263,6 +3263,18 @@ class _Resp {
     _Resp(this.status, this.body, this.statusText, this.headers);
   }
 
+
+// Farb-Mixer: mischt "top" mit Deckkraft t über "base"
+Color _blend(Color base, Color top, double t) {
+  return Color.alphaBlend(top.withOpacity(t.clamp(0, 1)), base);
+}
+
+// Kontrastfarbe für Text auf einem Farbfeld ermitteln
+Color _bestOnColor(Color c) {
+  final b = ThemeData.estimateBrightnessForColor(c);
+  return (b == Brightness.dark) ? Colors.white : Colors.black;
+}
+
 // ===================================================================
 // interne Hilfs-Resultklasse
 // ===================================================================
