@@ -2829,15 +2829,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
 
               // ---- Toggle + Details-Container (NEU, optional ein/ausklappbar) ----
               const SizedBox(height: 8),
-              Row(
-                children: [
-                  TextButton.icon(
-                    onPressed: () => setState(() => _expanded = !_expanded),
-                    icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
-                    label: const Text('Details anzeigen'), // ändert sich unten dynamisch
-                  ),
-                ],
-              ),
               AnimatedCrossFade(
                 crossFadeState: _expanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
                 duration: const Duration(milliseconds: 160),
