@@ -193,7 +193,9 @@ void main() {
         // ggf. deine Logik hier, ohne Typ-Cast
       });
 
-      try { html.document.title = 'DFS Complaints'; } catch (_) {}
+      if (kIsWeb) {
+        try { html.document.title = 'DFS Complaints'; } catch (_) {}
+      }
     }
   }
 
@@ -300,7 +302,9 @@ class _MyAppState extends State<MyApp> {
     }
 
     // Web-Tab-Titel setzen (failsafe)
-    try { html.document.title = 'DFS Complaints'; } catch (_) {}
+    if (kIsWeb) {
+      try { html.document.title = 'DFS Complaints'; } catch (_) {}
+    }
 
     // prefs global verfügbar machen
     return AppPrefsScope(
