@@ -1706,13 +1706,13 @@ class _CustomerTile extends StatelessWidget {
                       icon: Icons.location_on_outlined,
                       label: location,
                     ),
-                ],
-              ),
+                  ],
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
-    ),
     );
   }
 }
@@ -2069,15 +2069,15 @@ class _ComplaintTileState extends State<_ComplaintTile> {
             ? (availableWidth - 10) / 2
             : availableWidth;
 
-        if (customer.isNotEmpty) {
-          chips.add(_metaChip(context, icon: Icons.person_outline_rounded, text: customer, maxWidth: chipWidth));
-        }
-        if (articleLabel != null) {
-          chips.add(_metaChip(context, icon: Icons.qr_code_2_outlined, text: articleLabel, maxWidth: chipWidth));
-        }
-        if (createdLabel != null) {
-          chips.add(_metaChip(context, icon: Icons.schedule_rounded, text: createdLabel, maxWidth: chipWidth));
-        }
+          if (customer.isNotEmpty) {
+            chips.add(_metaChip(context, icon: Icons.person_outline_rounded, text: customer, maxWidth: chipWidth));
+          }
+          if (articleLabel != null) {
+            chips.add(_metaChip(context, icon: Icons.qr_code_2_outlined, text: articleLabel, maxWidth: chipWidth));
+          }
+          if (createdLabel != null) {
+            chips.add(_metaChip(context, icon: Icons.schedule_rounded, text: createdLabel, maxWidth: chipWidth));
+          }
 
         return AnimatedContainer(
           duration: const Duration(milliseconds: 260),
@@ -2244,7 +2244,8 @@ class _ComplaintTileState extends State<_ComplaintTile> {
         ),
       ),
     );
-  }
+  },
+);
 
   Widget _buildDetails(
     BuildContext context, {
@@ -2338,7 +2339,6 @@ class _ComplaintTileState extends State<_ComplaintTile> {
       },
     );
   }
-
 }
 
 class _DetailFieldData {
