@@ -693,26 +693,15 @@ class ApiClient {
 
   // ---------- Vertreter (Kundenbereich) ----------
   Future<MyRep?> getMyRep() async {
-    final base = _apiBase.isNotEmpty
-        ? _apiBase
-        : (() {
-            if (!kIsWeb) return '';
-            try {
-              return (html.window.localStorage['API_BASE'] ?? '').toString();
-            } catch (_) {
-              return '';
-            }
-          })();
+    final uri = _u('/api/rep/of-customer');
 
-    // NEU: Kunden-Endpoint
-    final url = '$base/api/rep/of-customer';
-
-    final headers = <String, String>{ 'Content-Type': 'application/json' };
-    if (token != null && token!.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $token'; // Kunden-JWT!
+    final headers = <String, String>{'Content-Type': 'application/json'};
+    final tok = token ?? '';
+    if (tok.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $tok'; // Kunden-JWT!
     }
 
-    final r = await http.get(Uri.parse(url), headers: headers);
+    final r = await http.get(uri, headers: headers);
     if (r.statusCode == 204) return null;
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
