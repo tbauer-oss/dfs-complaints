@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:dfs_mobile/web_compat/html_stub.dart'
   if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
@@ -78,7 +79,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
   }
 
   // --- HILFSFUNKTION: mailto an Vertreter öffnen (mit Betreff + Body aus i18n) ---
-  void _mailToRep(BuildContext context) {
+  void _mailToRep(BuildContext context) async {
     final t = AppLocalizations.of(context)!;
     final r = _myRep;
     if (r == null || (r.email).trim().isEmpty) return;
@@ -90,11 +91,26 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     final subject = Uri.encodeComponent(t.mail_subject_rep);
     final body    = Uri.encodeComponent(t.mail_body_rep(name));
     final mailto  = 'mailto:${r.email}?subject=$subject&body=$body';
+
     if (kIsWeb) {
-    html.window.open(mailto, '_self');
+      html.window.open(mailto, '_self');
     } else {
-      // Vorläufig: nichts tun oder Snackbar anzeigen
-      // Besser: url_launcher benutzen (siehe unten)
+      // Optional schöner: url_launcher verwenden (siehe unten).
+      // Vorläufiger Fallback (kein Crash):
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.rep_email_tooltip)),
+      );
+    }
+  }
+
+  Future<void> _openMail(String email, String subject, String body) async {
+    final uri = Uri(
+      scheme: 'mailto',
+      path: email,
+      queryParameters: {'subject': subject, 'body': body},
+    );
+    if (!await launchUrl(uri, mode: LaunchMode.platformDefault)) {
+      // Fallback
     }
   }
 
@@ -160,7 +176,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
               IconButton(
                 tooltip: t.rep_email_tooltip,
                 icon: const Icon(Icons.mail_outline),
-                onPressed: () => _mailToRep(context),
+                onPressed: () => _openMail(context),
               ),
             IconButton(
               tooltip: t.refresh,
