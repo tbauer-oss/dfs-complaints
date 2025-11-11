@@ -1,12 +1,9 @@
 // lib/pages/admin_page.dart
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:dfs_mobile/web_compat/html_stub.dart'
-  if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
+import 'dart:html' as html;
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;           // ← NEU
-import 'package:dfs_mobile/api/client.dart';
-import 'package:dfs_mobile/widgets/legal_footer.dart';
+import '../api/client.dart';
+import '../widgets/legal_footer.dart';
 
 // ===================================================================
 // Admin Page – mit Kachel-Menü (wie Kunden-Dashboard)
@@ -382,13 +379,28 @@ class _AdminPageState extends State<AdminPage> {
           const SizedBox(width: 6),
         ],
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1200),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: _buildBody(theme),
-          ),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final maxWidth = constraints.maxWidth;
+            final isCompact = maxWidth < 600;
+            final horizontal = isCompact ? 12.0 : 18.0;
+            final vertical = isCompact ? 12.0 : 18.0;
+
+            return Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1200),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: horizontal,
+                    vertical: vertical,
+                  ),
+                  child: _buildBody(theme),
+                ),
+              ),
+            );
+          },
         ),
       ),
       bottomNavigationBar: LegalFooter(api: widget.api),
@@ -411,73 +423,95 @@ class _AdminPageState extends State<AdminPage> {
 
   // ------------------ Kachel-Menü (neues Design) ------------------
   Widget _buildMenu() {
-    final w = MediaQuery.of(context).size.width;
-    final isPhone = w < 640;
-    final compact = isPhone;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final isPhone = width < 560;
+        final isTablet = width < 960;
+        final crossAxisCount = isPhone ? 1 : (isTablet ? 2 : 3);
+        final spacing = isPhone ? 16.0 : (isTablet ? 24.0 : 32.0);
+        final aspect = isPhone ? 1.15 : (isTablet ? 1.1 : 1.0);
+        final useCompactTile = width < 720;
 
-    final tiles = <Widget>[
-      AdminTilePro(
-        label: 'Offene Reklamationen',
-        subtitle: 'Bearbeiten & Entscheiden',
-        icon: Icons.assignment_late_outlined,
-        colorA: AdminPalette.redA,
-        colorB: AdminPalette.redB,
-        count: _openComplaints.length,
-        compact: compact,
-        onTap: () => setState(() => _view = _AdminView.open),
-      ),
-      AdminTilePro(
-        label: 'Anträge / Pending',
-        subtitle: 'Registrierungen prüfen',
-        icon: Icons.verified_user_outlined,
-        colorA: AdminPalette.amberA,
-        colorB: AdminPalette.amberB,
-        count: _pending.length,
-        compact: compact,
-        onTap: () => setState(() => _view = _AdminView.pending),
-      ),
-      AdminTilePro(
-        label: 'Aktive Nutzer',
-        subtitle: 'Firmen & Kontakte',
-        icon: Icons.group_outlined,
-        colorA: AdminPalette.tealA,
-        colorB: AdminPalette.tealB,
-        count: _users.length,
-        compact: compact,
-        onTap: () => setState(() => _view = _AdminView.users),
-      ),
-      AdminTilePro(
-        label: 'Vertreterverwaltung',
-        subtitle: 'Zuordnen & Regionen',
-        icon: Icons.badge_outlined,
-        colorA: AdminPalette.blueA,
-        colorB: AdminPalette.blueB,
-        compact: compact,
-        onTap: () {
-          setState(() => _view = _AdminView.reps);
-          if (_reps.isEmpty) _refreshReps();
-        },
-      ),
-      AdminTilePro(
-        label: 'App-Version',
-        subtitle: 'Version, Build, Hinweise',
-        icon: Icons.app_settings_alt_outlined,
-        colorA: AdminPalette.blueA,
-        colorB: AdminPalette.blueB,
-        compact: compact,
-        onTap: () => _editAppMeta(context),
-      ),
-    ];
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: isPhone ? 220 : 260,
-        mainAxisSpacing: 60,
-        crossAxisSpacing: 60,
-        childAspectRatio: isPhone ? 0.92 : 1.0,
-      ),
-      itemCount: tiles.length,
-      itemBuilder: (_, i) => tiles[i],
+        final tiles = <Widget>[
+          AdminTilePro(
+            label: 'Offene Reklamationen',
+            subtitle: 'Bearbeiten & Entscheiden',
+            icon: Icons.assignment_late_outlined,
+            colorA: AdminPalette.redA,
+            colorB: AdminPalette.redB,
+            count: _openComplaints.length,
+            compact: useCompactTile,
+            onTap: () => setState(() => _view = _AdminView.open),
+          ),
+          AdminTilePro(
+            label: 'Anträge / Pending',
+            subtitle: 'Registrierungen prüfen',
+            icon: Icons.verified_user_outlined,
+            colorA: AdminPalette.amberA,
+            colorB: AdminPalette.amberB,
+            count: _pending.length,
+            compact: useCompactTile,
+            onTap: () => setState(() => _view = _AdminView.pending),
+          ),
+          AdminTilePro(
+            label: 'Aktive Nutzer',
+            subtitle: 'Firmen & Kontakte',
+            icon: Icons.group_outlined,
+            colorA: AdminPalette.tealA,
+            colorB: AdminPalette.tealB,
+            count: _users.length,
+            compact: useCompactTile,
+            onTap: () => setState(() => _view = _AdminView.users),
+          ),
+          AdminTilePro(
+            label: 'Vertreterverwaltung',
+            subtitle: 'Zuordnen & Regionen',
+            icon: Icons.badge_outlined,
+            colorA: AdminPalette.blueA,
+            colorB: AdminPalette.blueB,
+            compact: useCompactTile,
+            onTap: () {
+              setState(() => _view = _AdminView.reps);
+              if (_reps.isEmpty) _refreshReps();
+            },
+          ),
+          AdminTilePro(
+            label: 'App-Version',
+            subtitle: 'Version, Build, Hinweise',
+            icon: Icons.app_settings_alt_outlined,
+            colorA: AdminPalette.blueA,
+            colorB: AdminPalette.blueB,
+            compact: useCompactTile,
+            onTap: () => _editAppMeta(context),
+          ),
+        ];
+
+        return CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(
+                spacing,
+                spacing,
+                spacing,
+                spacing + 12,
+              ),
+              sliver: SliverGrid(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  mainAxisSpacing: spacing,
+                  crossAxisSpacing: spacing,
+                  childAspectRatio: aspect,
+                ),
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) => tiles[index],
+                  childCount: tiles.length,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
   
@@ -852,10 +886,8 @@ Widget _buildUsersPanel() {
       if (to.trim().isEmpty) return;
       final url = 'mailto:$to'
           '?subject=${Uri.encodeComponent(subject ?? 'Anfrage / DFS-DIAMON')}'
-          '&body=${Uri.encodeComponent(body ?? 'Guten Tag,\n\n…\n')}';
-      if (kIsWeb) {
-        html.window.open(url, '_self');
-      }
+          '&body=${Uri.encodeComponent(body ?? 'Guten Tag,\n\nich melde mich als Ihr Ansprechpartner.\n\nBeste Grüße\nDFS-DIAMON GmbH')}';
+      html.window.open(url, '_self');
     }
 
     Future<void> _save({String? id}) async {
@@ -3005,22 +3037,16 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   }
 }
 // ===================================================================
-// Admin API – http-basiert (kein dart:html HttpRequest mehr)
+// Admin API (Browser, dart:html)
 // ===================================================================
 class AdminApi {
   String _secret = '';
   void setSecret(String s) => _secret = s;
 
   String get baseUrl {
-    const b = String.fromEnvironment('API_BASE', defaultValue: '');
+    final b = const String.fromEnvironment('API_BASE', defaultValue: '');
     if (b.isNotEmpty) return b;
-    if (kIsWeb) {
-      try {
-        return html.window.location.origin;
-      } catch (_) {}
-    }
-    // Mobile/Desktop-Fallback
-    return 'https://dfs-complaints-backend.vercel.app';
+    return html.window.location.origin;
   }
 
   Map<String, String> _headersJson() => {
@@ -3030,72 +3056,57 @@ class AdminApi {
 
   Uri _u(String path, [Map<String, String>? q]) {
     final uri = Uri.parse('$baseUrl$path');
-    return (q == null || q.isEmpty) ? uri : uri.replace(queryParameters: q);
+    if (q == null || q.isEmpty) return uri;
+    return uri.replace(queryParameters: q);
   }
 
-  Future<_Resp> _request(
+  Future<html.HttpRequest> _request(
     String method,
     String path, {
     Map<String, String>? q,
     Object? body,
   }) async {
-    final uri = _u(path, q);
-    final hdrs = _headersJson();
-
-    String? payload;
-    if (body != null) {
-      payload = body is String ? body : jsonEncode(body);
+    try {
+      final res = await html.HttpRequest.request(
+        _u(path, q).toString(),
+        method: method,
+        requestHeaders: _headersJson(),
+        sendData: body is String ? body : (body == null ? null : jsonEncode(body)),
+        withCredentials: true,
+      );
+      return res;
+    } catch (e) {
+      if (e is html.ProgressEvent) {
+        final t = e.target;
+        if (t is html.HttpRequest) {
+          final st = t.status;
+          final txt = t.responseText ?? '';
+          final stx = t.statusText ?? '';
+          throw 'HTTP $st $stx — ${txt.isEmpty ? "Request fehlgeschlagen" : txt}';
+        }
+      }
+      throw e.toString();
     }
-
-    http.Response r;
-    switch (method.toUpperCase()) {
-      case 'GET':
-        r = await http.get(uri, headers: hdrs);
-        break;
-      case 'POST':
-        r = await http.post(uri, headers: hdrs, body: payload);
-        break;
-      case 'PUT':
-        r = await http.put(uri, headers: hdrs, body: payload);
-        break;
-      case 'PATCH':
-        r = await http.patch(uri, headers: hdrs, body: payload);
-        break;
-      case 'DELETE':
-        // Einige Endpunkte akzeptieren Body bei DELETE → unterstützt
-        r = await http.delete(uri, headers: hdrs, body: payload);
-        break;
-      default:
-        throw UnsupportedError('Unsupported method: $method');
-    }
-
-    return _Resp(
-      r.statusCode,
-      r.body,
-      r.reasonPhrase ?? '',
-      r.headers,
-    );
   }
 
-  // ---------------- Pending ----------------
+  // Pending
   Future<List<PendingUser>> fetchPending() async {
     final res = await _request('GET', '/api/admin/pending');
-    if (res.status != 200) throw 'pending GET: HTTP ${res.status} ${res.body}';
-    final txt = res.body.trim();
-    if (txt.isEmpty) return const <PendingUser>[];
+    if (res.status != 200) throw 'pending GET: HTTP ${res.status} ${res.responseText}';
+    final txt = res.responseText ?? '';
+    if (txt.trim().isEmpty) return <PendingUser>[];
     final List data = jsonDecode(txt);
-    return data.map((e) => PendingUser.fromJson((e as Map).cast<String, dynamic>())).toList();
+    return data.map((e) => PendingUser.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<void> approvePending(String email, {String? lang}) async {
     final body = {'email': email, 'action': 'approve', if (lang != null) 'lang': lang};
     final res = await _request('POST', '/api/admin/pending', body: body);
     if (res.status != 200 && res.status != 204) {
-      throw 'pending POST approve: HTTP ${res.status} ${res.body}';
+      throw 'pending POST approve: HTTP ${res.status} ${res.responseText}';
     }
   }
 
-  // ---------------- Users ----------------
   Future<void> deleteUser(String email) async {
     // Versuch 1: DELETE mit Query
     try {
@@ -3110,60 +3121,64 @@ class AdminApi {
     // Versuch 3: POST action=delete
     final r3 = await _request('POST', '/api/admin/users', body: {'action': 'delete', 'email': email});
     if (r3.status != 200 && r3.status != 204) {
-      throw 'users DELETE/POST(delete) failed: HTTP ${r3.status} ${r3.body}';
+      throw 'users DELETE/POST(delete) failed: HTTP ${r3.status} ${r3.responseText}';
     }
   }
 
+  // Users
   Future<List<ActiveUser>> fetchUsers() async {
     final res = await _request('GET', '/api/admin/users');
-    if (res.status != 200) throw 'users GET: HTTP ${res.status} ${res.body}';
-    final txt = res.body.trim();
-    if (txt.isEmpty) return const <ActiveUser>[];
+    if (res.status != 200) throw 'users GET: HTTP ${res.status} ${res.responseText}';
+    final txt = res.responseText ?? '';
+    if (txt.trim().isEmpty) return <ActiveUser>[];
     final List data = jsonDecode(txt);
-    return data.map((e) => ActiveUser.fromJson((e as Map).cast<String, dynamic>())).toList();
+    return data.map((e) => ActiveUser.fromJson(e as Map<String, dynamic>)).toList();
   }
 
-  // ---------------- Complaints ----------------
+  // Complaints (by email / open)
   Future<List<AdminComplaint>> fetchComplaintsByEmailDetailed(String email) async {
     final res = await _request('GET', '/api/admin/complaints', q: {'email': email, 'details': '1'});
-    if (res.status != 200) throw 'complaints email GET: HTTP ${res.status} ${res.body}';
-    final List data = jsonDecode(res.body.isEmpty ? '[]' : res.body);
-    return data.map((e) => AdminComplaint.fromJson((e as Map).cast<String, dynamic>())).toList();
+    if (res.status != 200) throw 'complaints email GET: HTTP ${res.status} ${res.responseText}';
+    final List data = jsonDecode(res.responseText ?? '[]');
+    return data.map((e) => AdminComplaint.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<List<AdminComplaint>> fetchOpenComplaints() async {
     final res = await _request('GET', '/api/admin/complaints', q: {'open': '1'});
-    if (res.status != 200) throw 'open complaints GET: HTTP ${res.status} ${res.body}';
-    final List data = jsonDecode(res.body.isEmpty ? '[]' : res.body);
-    return data.map((e) => AdminComplaint.fromJson((e as Map).cast<String, dynamic>())).toList();
+    if (res.status != 200) throw 'open complaints GET: HTTP ${res.status} ${res.responseText}';
+    final List data = jsonDecode(res.responseText ?? '[]');
+    return data.map((e) => AdminComplaint.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<Map<String, dynamic>> fetchComplaintRawByTicket(String ticket) async {
     final res = await _request('GET', '/api/admin/complaints', q: {'ticket': ticket});
     if (res.status != 200) {
-      throw 'complaint GET by ticket: HTTP ${res.status} ${res.body}';
+      throw 'complaint GET by ticket: HTTP ${res.status} ${res.responseText}';
     }
-    return (res.body.isEmpty ? <String, dynamic>{} : jsonDecode(res.body)) as Map<String, dynamic>;
+    final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
+    return j;
   }
 
+  // Update / Delete
   Future<AdminComplaint> adminComplaintUpdate({
     required String ticket,
     int? status,
     String? decision,
     String? reportLink,
-    String? internalNo,
+    String? internalNo, // ← NEU
   }) async {
     final body = <String, dynamic>{'ticket': ticket};
     if (status != null) body['status'] = status;
     body['decision'] = decision ?? '';
     if (reportLink != null) body['reportLink'] = reportLink;
-    if (internalNo != null) body['internalNo'] = internalNo;
+    if (internalNo != null) body['internalNo'] = internalNo; // ← NEU
 
     final res = await _request('POST', '/api/admin/complaints', body: body);
     if (res.status != 200) {
-      throw 'HTTP ${res.status} ${res.statusText} — ${res.body}';
+      throw 'HTTP ${res.status} ${res.statusText} — ${res.responseText ?? ''}';
     }
-    final Map<String, dynamic> j = (res.body.trim().isEmpty) ? <String, dynamic>{} : jsonDecode(res.body);
+    final Map<String, dynamic> j =
+        (res.responseText ?? '').trim().isEmpty ? <String, dynamic>{} : jsonDecode(res.responseText!);
     return AdminComplaint.fromJson(j);
   }
 
@@ -3172,16 +3187,16 @@ class AdminApi {
     try {
       final r1 = await _request('DELETE', '/api/admin/complaints', q: {'ticket': ticket});
       if (r1.status == 200 || r1.status == 204) return;
-    } catch (_) {}
+    } catch (_) {/* Fallback */}
     // 2) DELETE Body
     final r2 = await _request('DELETE', '/api/admin/complaints', body: {'ticket': ticket});
     if (r2.status != 200 && r2.status != 204) {
-      throw 'HTTP ${r2.status} ${r2.statusText} — ${r2.body}';
+      throw 'HTTP ${r2.status} ${r2.statusText} — ${r2.responseText ?? ''}';
     }
   }
 
-  // ---------------- Representatives (Vertreter) ----------------
-  Future<Rep> upsertRep({
+  // ---------- Representatives (Vertreter) ----------
+ Future<Rep> upsertRep({
     String? id,
     required String firstName,
     required String lastName,
@@ -3189,7 +3204,7 @@ class AdminApi {
     required String region,
   }) async {
     final body = {
-      'action': 'upsert',
+      'action': 'upsert',                 // <-- NEU
       if (id != null && id.isNotEmpty) 'id': id,
       'firstName': firstName,
       'lastName': lastName,
@@ -3198,20 +3213,24 @@ class AdminApi {
     };
     final res = await _request('POST', '/api/admin/reps', body: body);
     if (res.status != 200 && res.status != 201) {
-      throw 'reps POST: HTTP ${res.status} ${res.body}';
+      throw 'reps POST: HTTP ${res.status} ${res.responseText}';
     }
-    final Map<String, dynamic> j = (res.body.trim().isEmpty) ? <String, dynamic>{} : jsonDecode(res.body);
+    final Map<String, dynamic> j =
+        (res.responseText ?? '').trim().isEmpty ? <String, dynamic>{} : jsonDecode(res.responseText!);
     return Rep.fromJson(j);
   }
 
   Future<void> deleteRep(String id) async {
+    // Query-Variante (falls dein Backend das unterstützt)
     try {
       final r1 = await _request('DELETE', '/api/admin/reps', q: {'id': id});
       if (r1.status == 200 || r1.status == 204) return;
     } catch (_) {}
+
+    // Body-Variante mit action: 'delete'
     final r2 = await _request('DELETE', '/api/admin/reps', body: {'action': 'delete', 'id': id});
     if (r2.status != 200 && r2.status != 204) {
-      throw 'reps DELETE: HTTP ${r2.status} ${r2.body}';
+      throw 'reps DELETE: HTTP ${r2.status} ${r2.responseText}';
     }
   }
 
@@ -3219,25 +3238,25 @@ class AdminApi {
     final q = includeCustomers ? {'includeCustomers': '1'} : null;
     final res = await _request('GET', '/api/admin/reps', q: q);
     if (res.status != 200) {
-      throw 'reps GET: HTTP ${res.status} ${res.body}';
+      throw 'reps GET: HTTP ${res.status} ${res.responseText}';
     }
-    final List data = jsonDecode(res.body.isEmpty ? '[]' : res.body);
+    final List data = jsonDecode(res.responseText ?? '[]');
     return data.map((e) => Rep.fromJson((e as Map).cast<String, dynamic>())).toList();
   }
-
   Future<List<String>> assignCustomerToRep({required String repId, required String email}) async {
-    final res = await _request('POST', '/api/admin/reps', body: {
-      'action': 'assign',
-      'repId': repId,
-      'email': email,
-    });
-    if (res.status != 200) {
-      throw 'reps assign: HTTP ${res.status} ${res.body}';
-    }
-    final Map<String, dynamic> j = (res.body.trim().isEmpty) ? <String, dynamic>{} : jsonDecode(res.body);
-    final list = (j['customers'] is List) ? (j['customers'] as List) : const [];
-    return List<String>.from(list.map((e) => e.toString()));
+  final res = await _request('POST', '/api/admin/reps', body: {
+    'action': 'assign',
+    'repId': repId,
+    'email': email,
+  });
+  if (res.status != 200) {
+    throw 'reps assign: HTTP ${res.status} ${res.responseText}';
   }
+  final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
+  return (j['customers'] is List)
+      ? List<String>.from((j['customers'] as List).map((e) => e.toString()))
+      : const <String>[];
+}
 
   Future<List<String>> unassignCustomerFromRep({required String repId, required String email}) async {
     final res = await _request('POST', '/api/admin/reps', body: {
@@ -3246,23 +3265,14 @@ class AdminApi {
       'email': email,
     });
     if (res.status != 200) {
-      throw 'reps unassign: HTTP ${res.status} ${res.body}';
+      throw 'reps unassign: HTTP ${res.status} ${res.responseText}';
     }
-    final Map<String, dynamic> j = (res.body.trim().isEmpty) ? <String, dynamic>{} : jsonDecode(res.body);
-    final list = (j['customers'] is List) ? (j['customers'] as List) : const [];
-    return List<String>.from(list.map((e) => e.toString()));
+    final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
+    return (j['customers'] is List)
+        ? List<String>.from((j['customers'] as List).map((e) => e.toString()))
+        : const <String>[];
   }
 }
-
-  // Kleiner interner Response-Wrapper (angleicht an das frühere HttpRequest-Handling)
-class _Resp {
-    final int status;
-    final String body;
-    final String statusText;
-    final Map<String, String> headers;
-    _Resp(this.status, this.body, this.statusText, this.headers);
-  }
-
 
 // Farb-Mixer: mischt "top" mit Deckkraft t über "base"
 Color _blend(Color base, Color top, double t) {
@@ -3354,6 +3364,10 @@ class _AdminTileProState extends State<AdminTilePro> {
     final elevation = _hovering ? 12.0 : 3.0;
 
     final iconSize = widget.compact ? 44.0 : 54.0;
+    final horizontalPadding = widget.compact ? 16.0 : 18.0;
+    final verticalPadding = widget.compact ? 16.0 : 20.0;
+    final titleSpacing = widget.compact ? 10.0 : 14.0;
+    final subtitleSpacing = widget.compact ? 6.0 : 8.0;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -3381,7 +3395,7 @@ class _AdminTileProState extends State<AdminTilePro> {
                   color: isDark ? cs.outlineVariant.withOpacity(0.35) : cs.outlineVariant.withOpacity(0.25),
                 ),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
+              padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: verticalPadding),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -3419,7 +3433,7 @@ class _AdminTileProState extends State<AdminTilePro> {
                         ),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                  SizedBox(height: titleSpacing),
                   Text(
                     widget.label,
                     textAlign: TextAlign.center,
@@ -3430,7 +3444,7 @@ class _AdminTileProState extends State<AdminTilePro> {
                     ),
                   ),
                   if ((widget.subtitle ?? '').isNotEmpty) ...[
-                    const SizedBox(height: 8),
+                    SizedBox(height: subtitleSpacing),
                     Text(
                       widget.subtitle!,
                       textAlign: TextAlign.center,
