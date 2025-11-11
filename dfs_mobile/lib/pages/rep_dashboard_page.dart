@@ -1201,25 +1201,106 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
       );
     }
 
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final profileHint = t.profile_edit_hint ?? labelProfile;
+    final passwordHint = t.password_change_hint ?? labelPassword;
+
+    Widget action({
+      required IconData icon,
+      required String label,
+      required String description,
+      required Color color,
+      required VoidCallback onTap,
+    }) {
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: onTap,
+          child: Ink(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [color.withOpacity(0.18), cs.surfaceVariant.withOpacity(.45)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: color.withOpacity(.35), width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withOpacity(0.18),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(.22),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: color, size: 22),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      if (description.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          description,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: cs.onSurface.withOpacity(.7),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(.7)),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Card(
       elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Column(
-        children: [
-          ListTile(
-            leading: const Icon(Icons.manage_accounts_outlined),
-            title: Text(labelProfile),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _openProfile,
-          ),
-          const Divider(height: 1),
-          ListTile(
-            leading: const Icon(Icons.lock_reset_outlined),
-            title: Text(labelPassword),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _openPasswordChange,
-          ),
-        ],
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 18, 16, 22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            action(
+              icon: Icons.manage_accounts_outlined,
+              label: labelProfile,
+              description: profileHint,
+              color: cs.primary,
+              onTap: _openProfile,
+            ),
+            const SizedBox(height: 16),
+            action(
+              icon: Icons.lock_reset_outlined,
+              label: labelPassword,
+              description: passwordHint,
+              color: cs.tertiary,
+              onTap: _openPasswordChange,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1238,30 +1319,79 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     final customerNo = s(c['customerNo']);
     final vatId      = s(c['vatId']);
 
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final contactTitle = name.isNotEmpty
+        ? name
+        : (email.isNotEmpty ? email : (company.isNotEmpty ? company : context.t.customer_label));
+    final location = [zip, city].where((e) => e.trim().isNotEmpty).join(' ');
+
+    Widget detailRow({required IconData icon, required Widget child}) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 18, color: cs.primary),
+            const SizedBox(width: 10),
+            Expanded(child: child),
+          ],
+        ),
+      );
+    }
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(company.isNotEmpty ? company : (name.isNotEmpty ? name : email)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (name.isNotEmpty)    Text(name),
-            if (email.isNotEmpty)   SelectableText(email),
-            const SizedBox(height: 8),
-            if (address.isNotEmpty) Text(address),
-            if (zip.isNotEmpty || city.isNotEmpty) Text('${zip.isNotEmpty ? '$zip ' : ''}$city'.trim()),
-            if (country.isNotEmpty) Text(country),
-            if (phone.isNotEmpty)   ...[
-              const SizedBox(height: 8),
-              Text('Tel.: $phone'),
+        title: Text(contactTitle),
+        content: SingleChildScrollView(
+          child: ListBody(
+            children: [
+              if (company.isNotEmpty)
+                detailRow(
+                  icon: Icons.apartment_outlined,
+                  child: Text(company, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                ),
+              if (email.isNotEmpty)
+                detailRow(
+                  icon: Icons.alternate_email,
+                  child: SelectableText(email),
+                ),
+              if (phone.isNotEmpty)
+                detailRow(
+                  icon: Icons.phone_outlined,
+                  child: Text('${context.t.phone ?? 'Telefon'}: $phone'),
+                ),
+              if (address.isNotEmpty)
+                detailRow(
+                  icon: Icons.location_on_outlined,
+                  child: Text(address),
+                ),
+              if (location.isNotEmpty)
+                detailRow(
+                  icon: Icons.map_outlined,
+                  child: Text(location),
+                ),
+              if (country.isNotEmpty)
+                detailRow(
+                  icon: Icons.public,
+                  child: Text(country),
+                ),
+              if (customerNo.isNotEmpty)
+                detailRow(
+                  icon: Icons.badge_outlined,
+                  child: Text('${context.t.customer_number_label ?? 'Kundennr.'}: $customerNo'),
+                ),
+              if (vatId.isNotEmpty)
+                detailRow(
+                  icon: Icons.receipt_long_outlined,
+                  child: Text('${context.t.vat_id_label ?? 'USt-Id.'}: $vatId'),
+                ),
             ],
-            if (customerNo.isNotEmpty) Text('Kundennr.: $customerNo'),
-            if (vatId.isNotEmpty)      Text('USt-Id.: $vatId'),
-          ],
+          ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Schließen')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text(context.t.close ?? 'Schließen')),
         ],
       ),
     );
@@ -1474,8 +1604,6 @@ class _ComplaintTile extends StatefulWidget {
 }
 
 class _ComplaintTileState extends State<_ComplaintTile> {
-  bool _hoverAccept = false;
-  bool _hoverReject = false;
   bool _expanded = false; // Toggle für Details
 
   String _pick(Map<String, dynamic>? p, List<String> keys) {
@@ -1488,9 +1616,118 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     }
     return '';
   }
+
   String? _pickOrNull(Map<String, dynamic>? p, List<String> keys) {
     final s = _pick(p, keys);
     return s.isEmpty ? null : s;
+  }
+
+  String _localizeDecisionText(AppLocalizations t, String raw) {
+    final value = raw.trim().toLowerCase();
+    if (value == 'accepted') return t.decision_accepted;
+    if (value == 'rejected') return t.decision_rejected;
+    if (value == 'pending') return t.decision_pending ?? raw;
+    return raw;
+  }
+
+  String? _resolveProductArea(AppLocalizations t, String? segment, String? productType) {
+    final values = <String?>[segment, productType];
+    for (final raw in values) {
+      final v = (raw ?? '').trim().toLowerCase();
+      if (v.isEmpty) continue;
+      if (v.contains('zahnarzt') || v.contains('zahnmedizin')) return t.product_area_medical;
+      if (v.contains('dentist') || v == t.segment_dentist.toLowerCase()) return t.product_area_medical;
+      if (v.contains('dentallabor') || v.contains('zahntechnik')) return t.product_area_lab;
+      if (v.contains('lab') || v == t.segment_lab.toLowerCase()) return t.product_area_lab;
+    }
+    return null;
+  }
+
+  Widget _summaryLine(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required String value,
+    Color? iconColor,
+  }) {
+    final theme = Theme.of(context);
+    final baseStyle = theme.textTheme.bodyMedium ?? const TextStyle(fontSize: 14.5);
+    final color = baseStyle.color ?? theme.colorScheme.onSurface;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: iconColor ?? theme.colorScheme.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: baseStyle.copyWith(height: 1.25, color: color),
+                children: [
+                  TextSpan(text: '$label: ', style: const TextStyle(fontWeight: FontWeight.w600)),
+                  TextSpan(text: value),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _decisionButtons(AppLocalizations t, String ticket) {
+    if (widget.onDecision == null) return const SizedBox.shrink();
+
+    ButtonStyle _style(Color color, Color onColor) {
+      return FilledButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: onColor,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        textStyle: const TextStyle(fontWeight: FontWeight.w600),
+      );
+    }
+
+    return Wrap(
+      spacing: 12,
+      runSpacing: 8,
+      alignment: WrapAlignment.end,
+      children: [
+        FilledButton.icon(
+          style: _style(Colors.green.shade600, Colors.white),
+          onPressed: () => widget.onDecision!(ticket, true),
+          icon: const Icon(Icons.check_rounded),
+          label: Text(t.decision_accepted),
+        ),
+        FilledButton.icon(
+          style: _style(Colors.red.shade600, Colors.white),
+          onPressed: () => widget.onDecision!(ticket, false),
+          icon: const Icon(Icons.close_rounded),
+          label: Text(t.decision_rejected),
+        ),
+      ],
+    );
+  }
+
+  Widget _metaBadge({required IconData icon, required String label, required String value}) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: cs.surfaceVariant.withOpacity(.55),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: cs.onSurface.withOpacity(.7)),
+          const SizedBox(width: 6),
+          Text('$label: $value', style: TextStyle(fontSize: 12.5, color: cs.onSurface.withOpacity(.85))),
+        ],
+      ),
+    );
   }
 
   @override
@@ -1504,7 +1741,7 @@ class _ComplaintTileState extends State<_ComplaintTile> {
 
     final created   = widget.createdOverride ?? (widget.data['createdAt'] ?? widget.data['created'] ?? '').toString();
     final customer  = widget.customerOverride ?? (widget.data['customerEmail'] ?? widget.data['email'] ?? '').toString();
-    
+
     final Map<String, dynamic>? p =
         (widget.data['payload'] is Map) ? (widget.data['payload'] as Map).cast<String, dynamic>() : null;
 
@@ -1526,154 +1763,132 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     final injury       = _pickOrNull(p, ['injury']);     // 'Ja' | 'Nein' | ''
     final injuryDesc   = _pickOrNull(p, ['injuryDesc']); // Freitext
 
-    // kleine Punkt-Buttons (Gradient + Hover)
-    Widget _dotButton({
-      required bool positive,
-      required String tooltip,
-      required VoidCallback onTap,
-      required bool hover,
-      required ValueChanged<bool> setHover,
-    }) {
-      final gradient = positive
-          ? const LinearGradient(colors: [Color(0xFF2ECC71), Color(0xFF27AE60)])
-          : const LinearGradient(colors: [Color(0xFFE74C3C), Color(0xFFC0392B)]);
-      final icon = positive ? Icons.check_rounded : Icons.close_rounded;
+    final productArea  = _resolveProductArea(t, segment, productType);
+    final articleLabel = articleNo == null || articleNo.isEmpty
+        ? null
+        : productArea == null
+            ? articleNo
+            : '$articleNo (${productArea})';
 
-      return MouseRegion(
-        onEnter: (_) => setHover(true),
-        onExit: (_) => setHover(false),
-        child: AnimatedScale(
-          scale: hover ? 1.08 : 1.0,
-          duration: const Duration(milliseconds: 120),
-          child: Tooltip(
-            message: tooltip,
-            child: InkWell(
-              onTap: onTap,
-              customBorder: const CircleBorder(),
-              child: Ink(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: gradient,
-                  boxShadow: [
-                    BoxShadow(
-                      color: (positive ? Colors.green : Colors.red).withOpacity(.35),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Icon(icon, size: 18, color: Colors.white),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    Widget _buttons() {
-      if (widget.onDecision == null) return const SizedBox.shrink();
-      if (widget.useColoredButtons) {
-        return Wrap(
-          spacing: 10,
-          children: [
-            _dotButton(
-              positive: true,
-              tooltip: '${t.decision}: ${t.decision_accepted}',
-              onTap: () => widget.onDecision!(ticket, true),
-              hover: _hoverAccept,
-              setHover: (v) => setState(() => _hoverAccept = v),
-            ),
-            _dotButton(
-              positive: false,
-              tooltip: '${t.decision}: ${t.decision_rejected}',
-              onTap: () => widget.onDecision!(ticket, false),
-              hover: _hoverReject,
-              setHover: (v) => setState(() => _hoverReject = v),
-            ),
-          ],
-        );
-      }
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            tooltip: '${t.decision}: ${t.decision_accepted}',
-            icon: const Icon(Icons.check_circle_outline),
-            onPressed: () => widget.onDecision!(ticket, true),
-          ),
-          IconButton(
-            tooltip: '${t.decision}: ${t.decision_rejected}',
-            icon: const Icon(Icons.cancel_outlined),
-            onPressed: () => widget.onDecision!(ticket, false),
-          ),
-        ],
-      );
-    }
-
-
+    final createdLabel = created.trim().isEmpty ? null : created.trim();
+    final decisionLabel = decision.trim().isEmpty ? null : _localizeDecisionText(t, decision);
+    final repDecisionLabel = repDecision.trim().isEmpty ? null : _localizeDecisionText(t, repDecision);
 
     return LayoutBuilder(
       builder: (ctx, cons) {
         final isNarrow = cons.maxWidth < 420;
+        final theme = Theme.of(ctx);
+        final cs = theme.colorScheme;
 
         return Card(
           margin: const EdgeInsets.symmetric(vertical: 6),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.description_outlined, size: 20),
-                    const SizedBox(width: 8),
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: cs.primary.withOpacity(.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(Icons.description_outlined, color: cs.primary),
+                    ),
+                    const SizedBox(width: 12),
                     Expanded(
-                      child: Text(
-                        ticket.isEmpty ? '(ohne Ticket)' : ticket,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            ticket.isEmpty ? '(ohne Ticket)' : ticket,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          if (createdLabel != null) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              '${t.created_at ?? 'Angelegt'}: $createdLabel',
+                              style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurface.withOpacity(.7)),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    _StatusChip(status: status, decision: decision, closed: widget.isClosed),
-                    const SizedBox(width: 6),
-                    if ((repDecision).trim().isNotEmpty)
-                      _RepTrafficLight(opinion: repDecision, compact: true),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        _StatusChip(status: status, decision: decision, closed: widget.isClosed),
+                        if ((repDecision).trim().isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          _RepTrafficLight(opinion: repDecision, compact: true),
+                        ],
+                      ],
+                    ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
+                if (customer.isNotEmpty)
+                  _summaryLine(
+                    context,
+                    icon: Icons.person_outline,
+                    label: t.customer_label,
+                    value: customer,
+                    iconColor: cs.primary,
+                  ),
+                if (articleLabel != null)
+                  _summaryLine(
+                    context,
+                    icon: Icons.widgets_outlined,
+                    label: t.articleNo,
+                    value: articleLabel,
+                    iconColor: cs.secondary,
+                  ),
+                if (segment != null && segment.trim().isNotEmpty)
+                  _summaryLine(
+                    context,
+                    icon: Icons.category_outlined,
+                    label: t.segment,
+                    value: segment!,
+                  ),
+                const SizedBox(height: 6),
                 Wrap(
                   spacing: 8,
                   runSpacing: 6,
                   children: [
-                    if (customer.isNotEmpty) _InfoCapsule('${t.customer_label}: $customer'),
-                    if (widget.data['payload']?['article']?.toString().isNotEmpty ?? false)
-                      _InfoCapsule('${t.articleNo}: ${widget.data['payload']['article']}'),
-                    if (widget.data['payload']?['segment']?.toString().isNotEmpty ?? false)
-                      _InfoCapsule('${t.segment}: ${widget.data['payload']['segment']}'),
-                    if (created.isNotEmpty)
-                      _InfoCapsule('${t.created_at ?? 'Angelegt'}: $created'),
-                    if (decision.isNotEmpty)
-                      _InfoCapsule('${t.decision ?? 'Admin-Entscheidung'}: $decision'),
-                    if (repDecision.isNotEmpty)
-                      _InfoCapsule('${t.my_decision ?? 'Meine Bewertung'}: $repDecision'),
+                    if (decisionLabel != null)
+                      _metaBadge(
+                        icon: Icons.gavel_outlined,
+                        label: t.decision ?? 'Entscheidung',
+                        value: decisionLabel,
+                      ),
+                    if (repDecisionLabel != null)
+                      _metaBadge(
+                        icon: Icons.thumb_up_alt_outlined,
+                        label: t.my_decision ?? 'Meine Bewertung',
+                        value: repDecisionLabel,
+                      ),
                   ],
-                ),              
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    TextButton.icon(
-                      onPressed: () => setState(() => _expanded = !_expanded),
-                      icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
-                      label: Text(_expanded
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () => setState(() => _expanded = !_expanded),
+                    icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+                    label: Text(
+                      _expanded
                           ? (context.t.hideDetails ?? 'Details verbergen')
-                          : (context.t.showDetails ?? 'Details anzeigen')),
+                          : (context.t.showDetails ?? 'Details anzeigen'),
                     ),
-                  ],
+                  ),
                 ),
                 AnimatedCrossFade(
                   crossFadeState: _expanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
@@ -1682,6 +1897,7 @@ class _ComplaintTileState extends State<_ComplaintTile> {
                     context,
                     segment: segment,
                     productType: productType,
+                    productArea: productArea,
                     articleNo: articleNo,
                     batch: batch,
                     serial: serial,
@@ -1696,16 +1912,16 @@ class _ComplaintTileState extends State<_ComplaintTile> {
                   ),
                   secondChild: const SizedBox.shrink(),
                 ),
-                
+
                 if (widget.onDecision != null && !widget.isClosed && repDecision.isEmpty) ...[
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
                   Align(
                     alignment: isNarrow ? Alignment.centerLeft : Alignment.centerRight,
-                    child: _buttons(),
+                    child: _decisionButtons(t, ticket),
                   ),
                 ],
                 if (!widget.isClosed && repDecision.isNotEmpty && widget.onWithdraw != null) ...[
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
                   Align(
                     alignment: isNarrow ? Alignment.centerLeft : Alignment.centerRight,
                     child: OutlinedButton.icon(
@@ -1740,6 +1956,7 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     BuildContext context, {
     String? segment,
     String? productType,
+    String? productArea,
     String? articleNo,
     String? batch,
     String? serial,
@@ -1769,6 +1986,7 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     }
 
     final theme = Theme.of(context);
+    final t = context.t;
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(top: 4),
@@ -1780,63 +1998,39 @@ class _ComplaintTileState extends State<_ComplaintTile> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Details', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+          Text(t.details ?? 'Details', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
 
-          kv('Segment', segment),
-          kv('Produkttyp', productType),
-          kv('Artikelnummer', articleNo),
+          kv(t.segment, segment),
+          kv(t.product_type, productType),
+          kv(t.product_area_label ?? 'Produktbereich', productArea),
+          kv(t.articleNo, articleNo),
 
           Row(
             children: [
-              Expanded(child: kv('Charge / LOT', batch)),
+              Expanded(child: kv('${t.batch ?? 'Charge'} / LOT', batch)),
               const SizedBox(width: 12),
-              Expanded(child: kv('Seriennummer', serial)),
+              Expanded(child: kv(t.serial_number ?? 'Seriennummer', serial)),
             ],
           ),
 
           // Menge: eigene, gut sichtbare Zeile
-          kv('Menge', qty),
+          kv(t.quantity ?? 'Menge', qty),
 
-          kv('Fehler / Beschreibung', desc, maxLines: 6),
-          kv('Grund / Ursache',       reason, maxLines: 4),
-          kv('Wunsch des Kunden',     customerWish, maxLines: 3),
+          kv(t.problem_desc ?? 'Fehler / Beschreibung', desc, maxLines: 6),
+          kv(t.reason_label ?? 'Grund / Ursache',       reason, maxLines: 4),
+          kv(t.handling ?? 'Wunsch des Kunden',     customerWish, maxLines: 3),
 
           // Zusätzliche Formularfelder
-          kv('Produkte zurückgeschickt?', returned),
-          kv('Am Patienten angewendet?',   applied),
-          kv('Verletzung?',                injury),
-          kv('Verletzungsbeschreibung',    injuryDesc, maxLines: 6),
+          kv(t.returned_question ?? 'Produkte zurückgeschickt?', returned),
+          kv(t.applied_to_patient ?? 'Am Patienten angewendet?',   applied),
+          kv(t.injury_question ?? 'Verletzung?',                injury),
+          kv(t.injury_desc ?? 'Verletzungsbeschreibung',    injuryDesc, maxLines: 6),
         ],
       ),
     );
   }
 
-}
-
-// ---------- kleine UI-Helfer ----------
-
-class _InfoCapsule extends StatelessWidget {
-  final String text;
-  const _InfoCapsule(this.text, {super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      decoration: BoxDecoration(
-        color: cs.surfaceVariant.withOpacity(.6),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(
-        text,
-        overflow: TextOverflow.ellipsis,
-        maxLines: 1,
-        style: TextStyle(fontSize: 13.5, color: cs.onSurface.withOpacity(.9)),
-      ),
-    );
-  }
 }
 
 // ======================================
@@ -1922,27 +2116,83 @@ class _StatusChip extends StatelessWidget {
   final bool closed;
   const _StatusChip({required this.status, required this.decision, required this.closed, super.key});
 
+  int? _statusNumber() {
+    final trimmed = status.trim();
+    if (trimmed.isEmpty) return null;
+    return int.tryParse(trimmed);
+  }
+
+  String _statusLabel(AppLocalizations t, int? value) {
+    final decisionLower = decision.trim().toLowerCase();
+    switch (value) {
+      case 1:
+        return t.status_sent;
+      case 2:
+        return t.status_in_progress;
+      case 3:
+        return t.status_question;
+      case 4:
+        if (decisionLower == 'rejected') return t.status_rejected;
+        if (decisionLower == 'accepted') return t.status_accepted;
+        return t.status_decision;
+      case 5:
+        return t.status_rework;
+      case 6:
+        return t.status_closed;
+      default:
+        final raw = status.trim();
+        return raw.isEmpty ? t.status_unknown : raw;
+    }
+  }
+
+  Color _statusColor(BuildContext context, int? value) {
+    final decisionLower = decision.trim().toLowerCase();
+    if (closed) return Colors.grey;
+    switch (value) {
+      case 1:
+        return Colors.blue;
+      case 2:
+        return Colors.amber.shade800;
+      case 3:
+        return Colors.orange;
+      case 4:
+        if (decisionLower == 'rejected') return Colors.red;
+        if (decisionLower == 'accepted') return Colors.green;
+        return Colors.grey;
+      case 5:
+        return Colors.amber;
+      case 6:
+        return Colors.green;
+      default:
+        return Theme.of(context).colorScheme.primary;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    Color c;
-    if (closed) {
-      c = Colors.grey;
-    } else if (decision == 'rejected') {
-      c = Colors.red;
-    } else if (decision == 'accepted') {
-      c = Colors.green;
-    } else {
-      c = Theme.of(context).colorScheme.primary;
-    }
+    final t = context.t;
+    final number = _statusNumber();
+    final label = _statusLabel(t, number);
+    final color = _statusColor(context, number);
+    final chipColor = color.withOpacity(.14);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: c.withOpacity(.12),
-        border: Border.all(color: c),
-        borderRadius: BorderRadius.circular(10),
+        color: chipColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(.7)),
       ),
-      child: Text('${context.t.status ?? 'Status'}: $status',
-        style: TextStyle(color: c, fontSize: 13, fontWeight: FontWeight.w600),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.flag_rounded, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(
+            '${t.status ?? 'Status'}: $label',
+            style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w600),
+          ),
+        ],
       ),
     );
   }
