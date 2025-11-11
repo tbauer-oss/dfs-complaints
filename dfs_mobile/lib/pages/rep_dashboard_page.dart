@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:dfs_mobile/web_compat/html_stub.dart'
   if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
 import '../l10n/app_localizations.dart';
+import '../widgets/dialog_content_scroll.dart';
 import '../widgets/lang_action.dart';
 import '../widgets/theme_action.dart' as w;
 import '../services/app_prefs_scope.dart';
@@ -287,7 +288,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
         context: context,
         builder: (ctx) => AlertDialog(
           title: Text(t.addCustomer),
-          content: Text(t.noAddCustomer),
+          content: DialogContentScroll(child: Text(t.noAddCustomer)),
           actions: [
             TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text(t.close)),
           ],
@@ -1111,34 +1112,36 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
 
           return AlertDialog(
             title: Text(labelPassword),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: oldCtrl,
-                  obscureText: true,
-                  decoration: InputDecoration(labelText: t.oldPassword),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: new1Ctrl,
-                  obscureText: true,
-                  decoration: InputDecoration(labelText: t.newPassword),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: new2Ctrl,
-                  obscureText: true,
-                  decoration: InputDecoration(labelText: t.newPasswordRepeat),
-                ),
-                if (err != null) ...[
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(err!, style: const TextStyle(color: Colors.red)),
+            content: DialogContentScroll(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: oldCtrl,
+                    obscureText: true,
+                    decoration: InputDecoration(labelText: t.oldPassword),
                   ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: new1Ctrl,
+                    obscureText: true,
+                    decoration: InputDecoration(labelText: t.newPassword),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: new2Ctrl,
+                    obscureText: true,
+                    decoration: InputDecoration(labelText: t.newPasswordRepeat),
+                  ),
+                  if (err != null) ...[
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(err!, style: const TextStyle(color: Colors.red)),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
             actions: [
               TextButton(
@@ -2231,7 +2234,7 @@ class _ComplaintTileState extends State<_ComplaintTile> {
                               context: context,
                               builder: (ctx) => AlertDialog(
                                 title: Text(t.decision_withdraw ?? 'Entscheidung zurücknehmen'),
-                                content: Text(t.decision_withdraw_confirm ?? 'Möchtest du deine Entscheidung wirklich zurücknehmen?'),
+                                content: DialogContentScroll(child: Text(t.decision_withdraw_confirm ?? 'Möchtest du deine Entscheidung wirklich zurücknehmen?')),
                                 actions: [
                                   TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(t.cancel ?? 'Abbrechen')),
                                   ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(t.ok ?? 'OK')),
