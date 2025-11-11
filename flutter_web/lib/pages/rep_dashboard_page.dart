@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api/client.dart';
 import 'rep_profile_page.dart';
 import 'dart:html' as html;
+import 'dart:math' as math;
 import '../l10n/app_localizations.dart';
 import '../widgets/lang_action.dart';
 import '../widgets/theme_action.dart' as w;
@@ -1821,18 +1822,35 @@ class _InfoCapsule extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      decoration: BoxDecoration(
-        color: cs.surfaceVariant.withOpacity(.6),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(
-        text,
-        overflow: TextOverflow.ellipsis,
-        maxLines: 1,
-        style: TextStyle(fontSize: 13.5, color: cs.onSurface.withOpacity(.9)),
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mediaWidth = MediaQuery.of(context).size.width;
+        final availableWidth = constraints.maxWidth.isFinite && constraints.maxWidth > 0
+            ? constraints.maxWidth
+            : (mediaWidth.isFinite && mediaWidth > 0 ? mediaWidth : 360.0);
+        final maxChipWidth = math.min(availableWidth, 420.0);
+        final minChipWidth = math.min(200.0, maxChipWidth);
+
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            minWidth: minChipWidth,
+            maxWidth: maxChipWidth,
+          ),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: cs.surfaceVariant.withOpacity(.6),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              text,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 13.5, color: cs.onSurface.withOpacity(.9)),
+            ),
+          ),
+        );
+      },
     );
   }
 }
