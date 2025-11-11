@@ -2764,7 +2764,14 @@ class _ComplaintDetailsDialog extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(width: 160, child: Text(l, style: const TextStyle(fontWeight: FontWeight.w600))),
+              Flexible(
+                flex: 0,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 160),
+                  child: Text(l, style: const TextStyle(fontWeight: FontWeight.w600)),
+                ),
+              ),
+              const SizedBox(width: 8),
               Expanded(child: Text(v.isEmpty ? '—' : v)),
             ],
           ),
@@ -2863,7 +2870,13 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 160, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
+          Flexible(
+            flex: 0,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 160),
+              child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+            ),
+          ),
           const SizedBox(width: 8),
           Expanded(child: Text(v, maxLines: maxLines, overflow: TextOverflow.ellipsis)),
         ],
