@@ -6,6 +6,7 @@ import 'package:dfs_mobile/web_compat/html_stub.dart'
 
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/dialog_content_scroll.dart';
 
 class GatePage extends StatefulWidget {
   final ApiClient api;
@@ -30,12 +31,14 @@ class _GatePageState extends State<GatePage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Admin-Secret'),
-        content: TextField(
-          controller: secretCtrl,
-          obscureText: true,
-          decoration: const InputDecoration(
-            labelText: 'X-Admin-Secret',
-            border: OutlineInputBorder(),
+        content: DialogContentScroll(
+          child: TextField(
+            controller: secretCtrl,
+            obscureText: true,
+            decoration: const InputDecoration(
+              labelText: 'X-Admin-Secret',
+              border: OutlineInputBorder(),
+            ),
           ),
         ),
         actions: [
