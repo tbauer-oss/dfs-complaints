@@ -23,7 +23,7 @@ const _labCatalogLinks = [
   ),
   _CatalogLink(
     label: 'ES / FR',
-    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-LaborES-FR%202025-26_0.pdf',
+    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-LaborES-FR-2025-26_0.pdf',
     locales: {'es', 'fr'},
   ),
 ];
