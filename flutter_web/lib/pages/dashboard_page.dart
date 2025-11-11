@@ -129,100 +129,85 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
 
   // --- KOMPAKTE Variante (eingeklappbar) ---
   Widget _buildRepCardCompact(BuildContext context) {
-    final theme = Theme.of(context);
-    final t = AppLocalizations.of(context)!;
-    final r = _myRep;
+    final theme  = Theme.of(context);
+    final t      = AppLocalizations.of(context)!;
+    final r      = _myRep;
+    final name   = (r == null) ? '' : [r.firstName.trim(), r.lastName.trim()].where((s) => s.isNotEmpty).join(' ');
+    final email  = (r?.email ?? '').trim();
+    final region = (r?.region ?? '').trim();
 
+    // Kein Vertreter hinterlegt → dezenter Hinweis + Refresh
     if (r == null) {
-      return _buildRepFallbackCard(context);
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.grey.withOpacity(.35)),
+          color: Colors.grey.withOpacity(.07),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.person_search_outlined, size: 20),
+            const SizedBox(width: 10),
+            Expanded(child: Text(t.rep_not_assigned)),
+            IconButton(
+              tooltip: t.refresh,
+              onPressed: _initRep,
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
+        ),
+      );
     }
 
-    final name = [r.firstName.trim(), r.lastName.trim()]
-        .where((s) => s.isNotEmpty)
-        .join(' ');
-    final email = r.email.trim();
-    final region = r.region.trim();
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        color: Colors.white.withOpacity(.92),
-        border: Border.all(color: Colors.white.withOpacity(.55)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(.08),
-            blurRadius: 26,
-            offset: const Offset(0, 16),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return Card(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: ExpansionTile(
+        initiallyExpanded: false,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+        childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        leading: const CircleAvatar(child: Icon(Icons.handshake_outlined)),
+        title: Text(
+          t.rep_banner_title(name.isNotEmpty ? name : email),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+        ),
+        subtitle: Text(
+          [if (email.isNotEmpty) email, if (region.isNotEmpty) region].join(' • '),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.bodySmall,
+        ),
+        trailing: Wrap(
+          spacing: 4,
+          children: [
+            if (email.isNotEmpty)
+              IconButton(
+                tooltip: t.rep_email_tooltip,
+                icon: const Icon(Icons.mail_outline),
+                onPressed: () => _mailToRep(context),
+              ),
+            IconButton(
+              tooltip: t.refresh,
+              icon: const Icon(Icons.refresh),
+              onPressed: _initRep,
+            ),
+          ],
+        ),
+        // Optional: Details im aufgeklappten Bereich
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF4F8CF5), Color(0xFF7BA7FF)],
-                  ),
-                ),
-                child: const Icon(Icons.handshake_outlined, color: Colors.white),
+          if (region.isNotEmpty)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(region, style: theme.textTheme.bodySmall),
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      t.rep_banner_title(name.isNotEmpty ? name : email),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: .2,
-                      ),
-                    ),
-                    if (email.isNotEmpty || region.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        [if (email.isNotEmpty) email, if (region.isNotEmpty) region].join(' • '),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withOpacity(.7),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              if (email.isNotEmpty)
-                OutlinedButton.icon(
-                  onPressed: () => _mailToRep(context),
-                  icon: const Icon(Icons.mail_outline, size: 18),
-                  label: Text(t.rep_email_button),
-                ),
-              OutlinedButton.icon(
-                onPressed: _initRep,
-                icon: const Icon(Icons.refresh, size: 18),
-                label: Text(t.refresh),
-              ),
-            ],
-          ),
+            ),
         ],
       ),
     );
@@ -230,97 +215,103 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
 
   // --- GROSSE Variante (wie früher, optisch präsenter) ---
   Widget _buildRepCardLarge(BuildContext context) {
-    final t = AppLocalizations.of(context)!;
-    final r = _myRep;
+    final t      = AppLocalizations.of(context)!;
+    final r      = _myRep;
 
     if (r == null) {
-      return _buildRepFallbackCard(context);
+      // wie oben: Null-Hinweis
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.grey.withOpacity(.35)),
+          color: Colors.grey.withOpacity(.07),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.person_search_outlined, size: 20),
+            const SizedBox(width: 10),
+            Expanded(child: Text(t.rep_not_assigned)),
+            IconButton(
+              tooltip: t.refresh,
+              onPressed: _initRep,
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
+        ),
+      );
     }
 
-    final first = r.firstName.trim();
-    final last = r.lastName.trim();
-    final email = r.email.trim();
+    final first  = r.firstName.trim();
+    final last   = r.lastName.trim();
+    final email  = r.email.trim();
     final region = r.region.trim();
-    final name = [first, last].where((s) => s.isNotEmpty).join(' ');
-    final bannerTitle = name.isNotEmpty
-        ? t.rep_banner_title(name)
-        : t.rep_banner_title(email.isNotEmpty ? email : '—');
+    final name   = [first, last].where((s) => s.isNotEmpty).join(' ');
+    final bannerTitle = name.isNotEmpty ? t.rep_banner_title(name)
+                                       : t.rep_banner_title(email.isNotEmpty ? email : '—');
 
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12),
-      padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(32),
-        color: Colors.white.withOpacity(.94),
-        border: Border.all(color: Colors.white.withOpacity(.55)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(.09),
-            blurRadius: 32,
-            offset: const Offset(0, 20),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [Color(0xFF4F8CF5), Color(0xFF7BA7FF)],
-              ),
-            ),
-            child: const Icon(Icons.handshake_outlined, color: Colors.white, size: 30),
-          ),
-          const SizedBox(width: 24),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  bannerTitle,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: .2,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                if (email.isNotEmpty || region.isNotEmpty)
-                  Text(
-                    [if (email.isNotEmpty) email, if (region.isNotEmpty) region].join(' • '),
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color: cs.onSurface.withOpacity(.7),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            alignment: WrapAlignment.end,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              if (email.isNotEmpty)
-                FilledButton.icon(
-                  onPressed: () => _mailToRep(context),
-                  icon: const Icon(Icons.mail_outline),
-                  label: Text(t.rep_email_button),
-                ),
-              OutlinedButton.icon(
-                onPressed: _initRep,
-                icon: const Icon(Icons.refresh, size: 18),
-                label: Text(t.refresh),
-              ),
+    return Card(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      elevation: 1.5,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              const Color(0xFF1976D2).withOpacity(0.14),
+              const Color(0xFF42A5F5).withOpacity(0.10),
             ],
           ),
-        ],
+          border: Border.all(color: const Color(0xFF1976D2).withOpacity(0.5), width: 1),
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38, height: 38,
+              decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF1976D2)),
+              child: const Icon(Icons.handshake_outlined, color: Colors.white, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(bannerTitle, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                  const SizedBox(height: 2),
+                  if (email.isNotEmpty || region.isNotEmpty)
+                    Text(
+                      [if (email.isNotEmpty) email, if (region.isNotEmpty) region].join(' • '),
+                      style: TextStyle(color: Colors.grey[800], fontSize: 13),
+                    ),
+                ],
+              ),
+            ),
+            if (email.isNotEmpty)
+              Tooltip(
+                message: t.rep_email_tooltip,
+                child: TextButton.icon(
+                  onPressed: () => _mailToRep(context),
+                  icon: const Icon(Icons.email_outlined),
+                  label: Text(t.rep_email_button),
+                ),
+              ),
+            IconButton(
+              tooltip: t.refresh,
+              onPressed: _initRep,
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -333,142 +324,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                   : _buildRepCardCompact(context);
   }
 
-  Widget _buildRepFallbackCard(BuildContext context) {
-    final theme = Theme.of(context);
-    final t = AppLocalizations.of(context)!;
-    final cs = theme.colorScheme;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        color: Colors.white.withOpacity(.9),
-        border: Border.all(color: Colors.white.withOpacity(.5)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(.06),
-            blurRadius: 24,
-            offset: const Offset(0, 18),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: cs.primary.withOpacity(.12),
-            ),
-            child: Icon(Icons.person_search_outlined, color: cs.primary),
-          ),
-          const SizedBox(width: 18),
-          Expanded(
-            child: Text(
-              t.rep_not_assigned,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: cs.onSurface.withOpacity(.85),
-              ),
-            ),
-          ),
-          OutlinedButton.icon(
-            onPressed: _initRep,
-            icon: const Icon(Icons.refresh, size: 18),
-            label: Text(t.refresh),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeroSection(BuildContext context, bool isWide) {
-    final theme = Theme.of(context);
-    final t = AppLocalizations.of(context)!;
-
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.symmetric(
-        horizontal: isWide ? 36 : 26,
-        vertical: isWide ? 32 : 26,
-      ),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(isWide ? 36 : 28),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF123B8D),
-            Color(0xFF1A73E8),
-            Color(0xFF1EC8FF),
-          ],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF102754).withOpacity(.42),
-            blurRadius: 34,
-            offset: const Offset(0, 24),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            t.dashboard_heading,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-              letterSpacing: .4,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            t.dashboard_subheading,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: Colors.white.withOpacity(.88),
-              height: 1.35,
-            ),
-          ),
-          const SizedBox(height: 20),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              _HeroPill(icon: Icons.fact_check_outlined, label: t.reportComplaint),
-              _HeroPill(icon: Icons.folder_special_outlined, label: t.myComplaints),
-              _HeroPill(icon: Icons.support_agent, label: t.supportTitle),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCatalogSection(bool isAppView) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(isAppView ? 20 : 24),
-      clipBehavior: Clip.hardEdge,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(isAppView ? .9 : .88),
-          border: Border.all(color: Colors.white.withOpacity(.45)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(.06),
-              blurRadius: 26,
-              offset: const Offset(0, 18),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-        child: isAppView ? const _CatalogChips() : _CatalogStrip(),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
@@ -477,8 +332,8 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
       _Entry(
         label: t.reportComplaint,
         icon: Icons.add_circle,
-        colorA: const Color(0xFF1D4ED8),
-        colorB: const Color(0xFF60A5FA),
+        colorA: const Color(0xFF1976D2),
+        colorB: const Color(0xFF42A5F5),
         onTap: () {
           Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => ComplaintFormPage(api: widget.api),
@@ -488,8 +343,8 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
       _Entry(
         label: t.myComplaints,
         icon: Icons.list_alt,
-        colorA: const Color(0xFF047857),
-        colorB: const Color(0xFF34D399),
+        colorA: const Color(0xFF2E7D32),
+        colorB: const Color(0xFF66BB6A),
         onTap: () {
           Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => MyComplaintsPage(api: widget.api),
@@ -499,8 +354,8 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
       _Entry(
         label: t.myAccount,
         icon: Icons.person,
-        colorA: const Color(0xFF7C3AED),
-        colorB: const Color(0xFFA855F7),
+        colorA: const Color(0xFF6A1B9A),
+        colorB: const Color(0xFFAB47BC),
         onTap: () {
           Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => AccountPage(api: widget.api),
@@ -510,8 +365,8 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
       _Entry(
         label: t.supportTitle,
         icon: Icons.support_agent,
-        colorA: const Color(0xFFB91C1C),
-        colorB: const Color(0xFFF87171),
+        colorA: const Color(0xFFAD1457),
+        colorB: const Color(0xFFEC407A),
         onTap: () {
           Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => SupportPage(api: widget.api),
@@ -521,123 +376,85 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     ];
 
     return SafeArea(
-      child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFFF3F6FB),
-              Color(0xFFE9EEFA),
-              Color(0xFFE6F1FF),
-            ],
-          ),
-        ),
-        child: LayoutBuilder(
-          builder: (ctx, constraints) {
-            final size = MediaQuery.of(ctx).size;
-            final isPortrait = MediaQuery.of(ctx).orientation == Orientation.portrait;
-            final isPhone = size.width < 600;
-            final isAppView = _isStandaloneWebApp();
-            final isWide = size.width >= 900;
+      child: LayoutBuilder(
+        builder: (ctx, constraints) {
+          final size = MediaQuery.of(ctx).size;
+          final isPortrait = MediaQuery.of(ctx).orientation == Orientation.portrait;
+          final isPhone = size.width < 600;
+          final isAppView = _isStandaloneWebApp(); // PWA installiert = true
 
-            final double maxExtent = isPhone
-                ? (isPortrait ? (isAppView ? 160 : 188) : (isAppView ? 178 : 208))
-                : (size.width < 1024 ? (isAppView ? 230 : 250) : (isAppView ? 250 : 270));
+          final double maxExtent = isPhone
+              ? (isPortrait ? (isAppView ? 150 : 180) : (isAppView ? 170 : 200))
+              : (size.width < 1024 ? (isAppView ? 220 : 240) : (isAppView ? 240 : 260));
 
-            final double iconSize = isPhone
-                ? (isAppView ? 28 : 32)
-                : (isAppView ? 36 : 40);
+          final double iconSize = isPhone
+              ? (isAppView ? 26 : 32)
+              : (isAppView ? 36 : 40);
 
-            final double fontSize = isPhone
-                ? (isAppView ? 13 : 14)
-                : (isAppView ? 14 : 15);
+          final double fontSize = isPhone
+              ? (isAppView ? 12.5 : 14.0)
+              : (isAppView ? 14.0 : 14.5);
 
-            return Align(
-              alignment: Alignment.topCenter,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1080),
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    isPhone ? 18 : 28,
-                    isPhone ? 18 : 32,
-                    isPhone ? 18 : 28,
-                    isPhone ? 20 : 32,
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1080),
+              child: Column(
+                children: [
+                  // ---------- Vertreter-Header (responsiv) ----------
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+                    child: _buildRepHeaderResponsive(context),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildHeroSection(context, isWide),
-                      const SizedBox(height: 20),
-                      _buildRepHeaderResponsive(context),
-                      const SizedBox(height: 22),
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(isPhone ? 22 : 28),
-                          clipBehavior: Clip.hardEdge,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(isAppView ? .92 : .9),
-                              border: Border.all(color: Colors.white.withOpacity(.55)),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(.08),
-                                  blurRadius: 30,
-                                  offset: const Offset(0, 22),
-                                ),
-                              ],
-                            ),
-                            child: GridView.builder(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: isPhone ? 18 : 32,
-                                vertical: isPhone ? 24 : 36,
-                              ),
-                              physics: const BouncingScrollPhysics(),
-                              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                                maxCrossAxisExtent: maxExtent,
-                                mainAxisSpacing: 22,
-                                crossAxisSpacing: 22,
-                                childAspectRatio: isAppView
-                                    ? (isPhone ? 1.08 : 1.15)
-                                    : (isPhone ? 1.04 : 1.1),
-                              ),
-                              itemCount: tiles.length,
-                              itemBuilder: (context, i) {
-                                final e = tiles[i];
-                                final hovered = _hoverIndex == i;
-                                return MouseRegion(
-                                  onEnter: (_) => setState(() => _hoverIndex = i),
-                                  onExit: (_) => setState(() => _hoverIndex = -1),
-                                  child: AnimatedScale(
-                                    duration: const Duration(milliseconds: 160),
-                                    curve: Curves.easeOut,
-                                    scale: hovered ? 1.02 : 1.0,
-                                    child: _FancyTile(
-                                      label: e.label,
-                                      icon: e.icon,
-                                      colorA: e.colorA,
-                                      colorB: e.colorB,
-                                      iconSize: iconSize,
-                                      fontSize: fontSize,
-                                      onTap: e.onTap,
-                                      hovered: hovered,
-                                    ),
-                                  ),
-                                );
-                              },
+
+                  // ---------- Kacheln ----------
+                  Expanded(
+                    child: GridView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                        maxCrossAxisExtent: maxExtent,
+                        mainAxisSpacing: 16,
+                        crossAxisSpacing: 16,
+                        childAspectRatio: isAppView
+                            ? (isPhone ? 1.12 : 1.15)   // dezenter in App
+                            : (isPhone ? 1.06 : 1.10),  // wie vorher im Web
+                      ),
+                      itemCount: tiles.length,
+                      itemBuilder: (context, i) {
+                        final e = tiles[i];
+                        final hovered = _hoverIndex == i;
+                        return MouseRegion(
+                          onEnter: (_) => setState(() => _hoverIndex = i),
+                          onExit: (_) => setState(() => _hoverIndex = -1),
+                          child: AnimatedScale(
+                            duration: const Duration(milliseconds: 140),
+                            scale: hovered ? 1.02 : 1.0,
+                            child: _FancyTile(
+                              label: e.label,
+                              icon: e.icon,
+                              colorA: e.colorA,
+                              colorB: e.colorB,
+                              iconSize: iconSize,
+                              fontSize: fontSize,
+                              onTap: e.onTap,
                             ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      _buildCatalogSection(isAppView),
-                    ],
+                        );
+                      },
+                    ),
                   ),
-                ),
+
+                  // ---------- Dezente Kataloge (unter den Kacheln) ----------
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                    child: isAppView
+                        ? const _CatalogChips()  // dezent in PWA (Appansicht)
+                        : _CatalogStrip(),       // wie zuvor im Browser/Web
+                   ),
+                ],
               ),
-            );
-          },
-        ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -1056,41 +873,6 @@ class _CatalogTileState extends State<_CatalogTile> {
   }
 }
 
-class _HeroPill extends StatelessWidget {
-  final IconData icon;
-  final String label;
-
-  const _HeroPill({required this.icon, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.16),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: Colors.white.withOpacity(.24)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 18, color: Colors.white),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _Entry {
   final String label;
   final IconData icon;
@@ -1114,7 +896,6 @@ class _FancyTile extends StatelessWidget {
   final VoidCallback onTap;
   final double iconSize;
   final double fontSize;
-  final bool hovered;
 
   const _FancyTile({
     required this.label,
@@ -1124,88 +905,75 @@ class _FancyTile extends StatelessWidget {
     required this.onTap,
     required this.iconSize,
     required this.fontSize,
-    required this.hovered,
     super.key,
   });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-
     return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(24),
+      elevation: 8,
+      shadowColor: Colors.black.withOpacity(0.12),
+      borderRadius: BorderRadius.circular(18),
       child: InkWell(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(18),
         onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: Ink(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(18),
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                Colors.white.withOpacity(.96),
-                Colors.white.withOpacity(.92),
+              colors: [colorA.withOpacity(0.92), colorB.withOpacity(0.92)],
+            ),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            child: Stack(
+              children: [
+                Positioned(
+                  top: 0, right: 0, left: 0, height: 46,
+                  child: IgnorePointer(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                          colors: [Colors.white.withOpacity(0.18), Colors.white.withOpacity(0.00)],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: iconSize + 20, height: iconSize + 20,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.16),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white.withOpacity(0.28), width: 1),
+                        ),
+                        child: Icon(icon, size: iconSize, color: Colors.white),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        label,
+                        textAlign: TextAlign.center,
+                        maxLines: 2, overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: fontSize,
+                          height: 1.15, letterSpacing: 0.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
-            border: Border.all(color: Colors.white.withOpacity(.65)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(hovered ? .16 : .08),
-                blurRadius: hovered ? 28 : 20,
-                offset: Offset(0, hovered ? 20 : 14),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: iconSize + 18,
-                height: iconSize + 18,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    colors: [colorA, colorB],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: colorB.withOpacity(.35),
-                      blurRadius: 24,
-                      offset: const Offset(0, 14),
-                    ),
-                  ],
-                ),
-                child: Icon(icon, size: iconSize, color: Colors.white),
-              ),
-              const SizedBox(height: 18),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: cs.onSurface.withOpacity(.82),
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: .2,
-                  fontSize: fontSize,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                width: 40,
-                height: 3,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [colorA, colorB]),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ],
           ),
         ),
       ),
