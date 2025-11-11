@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:dfs_mobile/web_compat/html_stub.dart'
   if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:dfs_mobile/api/client.dart';
 import 'package:dfs_mobile/widgets/legal_footer.dart';
@@ -412,8 +413,8 @@ class _AdminPageState extends State<AdminPage> {
 
   // ------------------ Kachel-Menü (neues Design) ------------------
   Widget _buildMenu() {
-    final w = MediaQuery.of(context).size.width;
-    final isPhone = w < 640;
+    final size = MediaQuery.of(context).size;
+    final isPhone = size.width < 640;
     final compact = isPhone;
 
     final tiles = <Widget>[
@@ -469,16 +470,50 @@ class _AdminPageState extends State<AdminPage> {
         onTap: () => _editAppMeta(context),
       ),
     ];
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(12, 16, 12, 20),
-      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: isPhone ? 188 : 236,
-        mainAxisSpacing: isPhone ? 24 : 32,
-        crossAxisSpacing: isPhone ? 20 : 32,
-        childAspectRatio: isPhone ? 0.82 : 0.94,
-      ),
-      itemCount: tiles.length,
-      itemBuilder: (_, i) => tiles[i],
+
+    final headlineStyle = Theme.of(context)
+        .textTheme
+        .headlineSmall
+        ?.copyWith(fontWeight: FontWeight.w700);
+    final subtitleStyle = Theme.of(context)
+        .textTheme
+        .bodyMedium
+        ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
+
+    return CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(20, isPhone ? 12 : 24, 20, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Admin-Dashboard', style: headlineStyle),
+                const SizedBox(height: 6),
+                Text(
+                  'Verwalten Sie Reklamationen, Nutzer und Vertreter an einem Ort.',
+                  style: subtitleStyle,
+                ),
+              ],
+            ),
+          ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          sliver: SliverGrid(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) => tiles[index],
+              childCount: tiles.length,
+            ),
+            gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: isPhone ? 186 : 228,
+              mainAxisSpacing: isPhone ? 18 : 28,
+              crossAxisSpacing: isPhone ? 18 : 28,
+              childAspectRatio: isPhone ? 0.78 : 0.9,
+            ),
+          ),
+        ),
+      ],
     );
   }
   
@@ -732,104 +767,133 @@ Widget _buildUsersPanel() {
               );
             }
 
-            double fieldWidth(double desired) {
-              if (!isCompact) return desired;
-              final maxWidth = constraints.maxWidth;
-              return math.min(desired, maxWidth);
+            final maxWidth = constraints.maxWidth;
+            final searchWidth = isCompact ? maxWidth : math.min(360.0, maxWidth);
+
+            InputDecoration pillDecoration({String? hint, IconData? icon}) {
+              final scheme = Theme.of(context).colorScheme;
+              final radius = BorderRadius.circular(28);
+              return InputDecoration(
+                hintText: hint,
+                prefixIcon: icon != null ? Icon(icon) : null,
+                isDense: true,
+                filled: true,
+                fillColor: scheme.surfaceContainerHighest.withOpacity(
+                  Theme.of(context).brightness == Brightness.dark ? 0.24 : 0.6,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: radius,
+                  borderSide: BorderSide(color: scheme.outlineVariant.withOpacity(0.35)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: radius,
+                  borderSide: BorderSide(color: scheme.outlineVariant.withOpacity(0.28)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: radius,
+                  borderSide: BorderSide(color: scheme.primary.withOpacity(0.65)),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+              );
+            }
+
+            final companies = <String>{
+              'Alle Firmen',
+              ..._users.map((e) => e.company).where((s) => s.trim().isNotEmpty),
+            }.toList()
+              ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+            final countries = <String>{
+              'Alle Länder',
+              ..._users.map((e) => e.country).where((s) => s.trim().isNotEmpty),
+            }.toList()
+              ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+            String repName(String? id) {
+              if (id == null) return 'Alle';
+              if (id.isEmpty) return 'Ohne';
+              final rep = _reps.firstWhere(
+                (r) => r.id == id,
+                orElse: () => Rep(
+                  id: '',
+                  firstName: '',
+                  lastName: '',
+                  email: '',
+                  region: '',
+                  customers: const [],
+                ),
+              );
+              if (rep.id.isEmpty) return 'Alle';
+              final dn = rep.displayName.trim();
+              return dn.isEmpty ? rep.email : dn;
             }
 
             final filterWrap = Wrap(
-              spacing: 12,
-              runSpacing: 12,
+              spacing: 10,
+              runSpacing: 10,
               children: [
-                SizedBox(
-                  width: fieldWidth(360),
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: searchWidth),
                   child: TextField(
-                    decoration: const InputDecoration(
-                      hintText: 'Suchen… (Firma, Kontakt, E-Mail, Land)',
-                      prefixIcon: Icon(Icons.search),
-                      border: OutlineInputBorder(),
-                      isDense: true,
+                    decoration: pillDecoration(
+                      hint: 'Suchen… (Firma, Kontakt, E-Mail, Land)',
+                      icon: Icons.search,
                     ),
                     onChanged: (v) => setState(() => _userFilterQuery = v),
                   ),
                 ),
-                SizedBox(
-                  width: fieldWidth(260),
-                  child: DropdownButtonFormField<String>(
-                    value: _userFilterCompany,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Firma',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    items: (() {
-                      final list = <String>{
-                        'Alle Firmen',
-                        ..._users.map((e) => e.company).where((s) => s.trim().isNotEmpty),
-                      }.toList()
-                        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-                      return list
-                          .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
-                          .toList();
-                    })(),
-                    onChanged: (v) => setState(() => _userFilterCompany = v ?? 'Alle Firmen'),
-                  ),
-                ),
-                SizedBox(
-                  width: fieldWidth(220),
-                  child: DropdownButtonFormField<String>(
-                    value: _userFilterCountry,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Land',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    items: (() {
-                      final list = <String>{
-                        'Alle Länder',
-                        ..._users.map((e) => e.country).where((s) => s.trim().isNotEmpty),
-                      }.toList()
-                        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-                      return list
-                          .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
-                          .toList();
-                    })(),
-                    onChanged: (v) => setState(() => _userFilterCountry = v ?? 'Alle Länder'),
-                  ),
-                ),
-                SizedBox(
-                  width: fieldWidth(260),
-                  child: DropdownButtonFormField<String?>(
-                    value: _userFilterRepId,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Vertreter',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    items: [
-                      const DropdownMenuItem<String?>(
-                        value: null,
-                        child: Text('Alle Vertreter'),
+                _FilterChipButton<String>(
+                  icon: Icons.business,
+                  label: 'Firma',
+                  valueLabel:
+                      _userFilterCompany == 'Alle Firmen' ? 'Alle' : _userFilterCompany,
+                  maxWidth: isCompact ? maxWidth : 220,
+                  initialValue: _userFilterCompany,
+                  onSelected: (value) =>
+                      setState(() => _userFilterCompany = value),
+                  items: [
+                    ...companies.map(
+                      (c) => PopupMenuItem<String>(
+                        value: c,
+                        child: Text(c),
                       ),
-                      const DropdownMenuItem<String?>(
-                        value: '',
-                        child: Text('Ohne Vertreter'),
+                    ),
+                  ],
+                ),
+                _FilterChipButton<String>(
+                  icon: Icons.public,
+                  label: 'Land',
+                  valueLabel:
+                      _userFilterCountry == 'Alle Länder' ? 'Alle' : _userFilterCountry,
+                  maxWidth: isCompact ? maxWidth : 200,
+                  initialValue: _userFilterCountry,
+                  onSelected: (value) =>
+                      setState(() => _userFilterCountry = value),
+                  items: [
+                    ...countries.map(
+                      (c) => PopupMenuItem<String>(
+                        value: c,
+                        child: Text(c),
                       ),
-                      ..._reps
-                          .map(
-                            (r) => DropdownMenuItem<String?>(
-                              value: r.id,
-                              child: Text(r.displayName.isEmpty ? r.email : r.displayName),
-                            ),
-                          )
-                          .toList(),
-                    ],
-                    onChanged: (v) => setState(() => _userFilterRepId = v),
-                  ),
+                    ),
+                  ],
+                ),
+                _FilterChipButton<String?>(
+                  icon: Icons.badge_outlined,
+                  label: 'Vertreter',
+                  valueLabel: repName(_userFilterRepId),
+                  maxWidth: isCompact ? maxWidth : 240,
+                  initialValue: _userFilterRepId,
+                  onSelected: (value) => setState(() => _userFilterRepId = value),
+                  items: [
+                    const PopupMenuItem<String?>(value: null, child: Text('Alle Vertreter')),
+                    const PopupMenuItem<String?>(value: '', child: Text('Ohne Vertreter')),
+                    ..._reps.map(
+                      (r) => PopupMenuItem<String?>(
+                        value: r.id,
+                        child: Text(r.displayName.isEmpty ? r.email : r.displayName),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             );
@@ -921,8 +985,8 @@ Widget _buildUsersPanel() {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final isCompact = constraints.maxWidth < 720;
-            final dropdownItems = companies
-                .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
+            final companyMenu = companies
+                .map((s) => PopupMenuItem<String>(value: s, child: Text(s)))
                 .toList();
 
             final spinner = _loadOpen
@@ -933,29 +997,25 @@ Widget _buildUsersPanel() {
                   )
                 : null;
 
-            final dropdown = DropdownButtonFormField<String>(
-              value: _filterCompany,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Firma',
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
-              items: dropdownItems,
-              onChanged: (v) => setState(() => _filterCompany = v ?? 'Alle Firmen'),
+            final filterWrap = Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _FilterChipButton<String>(
+                  icon: Icons.business,
+                  label: 'Firma',
+                  valueLabel: _filterCompany == 'Alle Firmen' ? 'Alle' : _filterCompany,
+                  initialValue: _filterCompany,
+                  maxWidth: isCompact ? constraints.maxWidth : 240,
+                  onSelected: (value) => setState(() => _filterCompany = value),
+                  items: companyMenu,
+                ),
+              ],
             );
 
-            double fieldWidth(double desired) {
-              if (!isCompact) return desired;
-              return math.min(desired, constraints.maxWidth);
-            }
-
-            final actions = Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              crossAxisAlignment: WrapCrossAlignment.center,
+            final headerActions = Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                SizedBox(width: fieldWidth(320), child: dropdown),
                 if (spinner != null)
                   Padding(
                     padding: const EdgeInsets.only(right: 4),
@@ -987,17 +1047,17 @@ Widget _buildUsersPanel() {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   titleRow,
-                  const SizedBox(height: 12),
-                  actions,
+                  const SizedBox(height: 8),
+                  Align(alignment: Alignment.centerRight, child: headerActions),
                 ],
               );
             } else {
               header = Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   titleRow,
                   const Spacer(),
-                  actions,
+                  headerActions,
                 ],
               );
             }
@@ -1006,7 +1066,9 @@ Widget _buildUsersPanel() {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 header,
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
+                filterWrap,
+                const SizedBox(height: 10),
                 if (_loadOpen) const LinearProgressIndicator(),
                 if (_loadOpen) const SizedBox(height: 12) else const SizedBox(height: 8),
                 Expanded(
@@ -1052,8 +1114,8 @@ Widget _buildUsersPanel() {
       }
     }
 
-    Future<void> _save({String? id}) async {
-      if (_repBusy) return;
+    Future<bool> _save({String? id}) async {
+      if (_repBusy) return false;
       setState(() => _repBusy = true);
       try {
         final rep = await _api.upsertRep(
@@ -1070,14 +1132,16 @@ Widget _buildUsersPanel() {
         _repRegion = kRepRegions.first;
 
         await _refreshReps();
-        if (!mounted) return;
+        if (!mounted) return true;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Gespeichert: ${rep.displayName}')),
         );
+        return true;
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
         }
+        return false;
       } finally {
         if (mounted) setState(() => _repBusy = false);
       }
@@ -1152,6 +1216,118 @@ Widget _buildUsersPanel() {
           }
         }
       }
+    }
+
+
+    Future<void> _openCreateRepSheet() async {
+      _repFirstCtrl.clear();
+      _repLastCtrl.clear();
+      _repMailCtrl.clear();
+      setState(() => _repRegion = kRepRegions.first);
+
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        builder: (ctx) {
+          final bottom = MediaQuery.of(ctx).viewInsets.bottom;
+          final theme = Theme.of(ctx);
+          return Padding(
+            padding: EdgeInsets.only(bottom: bottom),
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Neuen Vertreter hinzufügen',
+                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Schließen',
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _repFirstCtrl,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(
+                        labelText: 'Vorname',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _repLastCtrl,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(
+                        labelText: 'Nachname',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _repMailCtrl,
+                      keyboardType: TextInputType.emailAddress,
+                      autofillHints: const [AutofillHints.email],
+                      decoration: const InputDecoration(
+                        labelText: 'E-Mail',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: _repRegion,
+                      decoration: const InputDecoration(
+                        labelText: 'Länderbereich',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: kRepRegions
+                          .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
+                          .toList(),
+                      onChanged: (v) => setState(() => _repRegion = v ?? kRepRegions.first),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        icon: const Icon(Icons.person_add_alt_1),
+                        onPressed: _repBusy
+                            ? null
+                            : () async {
+                                final ok = await _save();
+                                if (!mounted) return;
+                                if (ok) Navigator.pop(ctx);
+                              },
+                        label: const Text('Vertreter speichern'),
+                      ),
+                    ),
+                    if (_repBusy) ...[
+                      const SizedBox(height: 16),
+                      const Center(
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
     }
 
     Future<void> _openRepCustomersDialog(Rep rep) async {
@@ -1409,9 +1585,14 @@ Widget _buildUsersPanel() {
 
                 final actions = Wrap(
                   spacing: 12,
-                  runSpacing: 12,
+                  runSpacing: 8,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
+                    FilledButton.tonalIcon(
+                      onPressed: _repBusy ? null : _openCreateRepSheet,
+                      icon: const Icon(Icons.person_add_alt_1),
+                      label: const Text('Neuen Vertreter hinzufügen'),
+                    ),
                     if (spinner != null)
                       Padding(
                         padding: const EdgeInsets.only(right: 4),
@@ -1447,98 +1628,8 @@ Widget _buildUsersPanel() {
               },
             ),
             const SizedBox(height: 12),
-
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade300),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text('Neuen Vertreter anlegen', style: TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 10),
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final maxWidth = constraints.maxWidth;
-                      final isNarrow = maxWidth < 520;
-
-                      double fieldWidth(double base) {
-                        if (isNarrow) return maxWidth;
-                        if (maxWidth <= 720) return math.min(base, maxWidth);
-                        return base;
-                      }
-
-                      Widget textField({
-                        required TextEditingController controller,
-                        required String label,
-                        required double baseWidth,
-                      }) {
-                        final width = fieldWidth(baseWidth);
-                        return SizedBox(
-                          width: width,
-                          child: TextField(
-                            controller: controller,
-                            decoration: InputDecoration(labelText: label),
-                          ),
-                        );
-                      }
-
-                      final regionField = SizedBox(
-                        width: fieldWidth(260),
-                        child: DropdownButtonFormField<String>(
-                          value: _repRegion,
-                          decoration: const InputDecoration(labelText: 'Länderbereich'),
-                          items: kRepRegions.map((s) => DropdownMenuItem<String>(value: s, child: Text(s))).toList(),
-                          onChanged: (v) => setState(() => _repRegion = v ?? kRepRegions.first),
-                        ),
-                      );
-
-                      final submit = SizedBox(
-                        width: isNarrow ? double.infinity : fieldWidth(200),
-                        child: FilledButton.icon(
-                          icon: const Icon(Icons.save_outlined),
-                          onPressed: _repBusy ? null : () => _save(),
-                          label: const Text('Anlegen'),
-                        ),
-                      );
-
-                      if (isNarrow) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            textField(controller: _repFirstCtrl, label: 'Vorname', baseWidth: maxWidth),
-                            const SizedBox(height: 12),
-                            textField(controller: _repLastCtrl, label: 'Nachname', baseWidth: maxWidth),
-                            const SizedBox(height: 12),
-                            textField(controller: _repMailCtrl, label: 'E-Mail', baseWidth: maxWidth),
-                            const SizedBox(height: 12),
-                            regionField,
-                            const SizedBox(height: 12),
-                            submit,
-                          ],
-                        );
-                      }
-
-                      return Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
-                        children: [
-                          textField(controller: _repFirstCtrl, label: 'Vorname', baseWidth: 220),
-                          textField(controller: _repLastCtrl, label: 'Nachname', baseWidth: 240),
-                          textField(controller: _repMailCtrl, label: 'E-Mail', baseWidth: 280),
-                          regionField,
-                          submit,
-                        ],
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 16),
+            const Divider(height: 1),
+            const SizedBox(height: 12),
 
             Expanded(
               child: _reps.isEmpty
@@ -1590,6 +1681,74 @@ class _Field extends StatelessWidget {
           Text('$label:', style: muted),
           Text(value.isEmpty ? '—' : value),
         ],
+      ),
+    );
+  }
+}
+
+class _FilterChipButton<T> extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String valueLabel;
+  final T initialValue;
+  final List<PopupMenuEntry<T>> items;
+  final ValueChanged<T> onSelected;
+  final double? maxWidth;
+
+  const _FilterChipButton({
+    required this.icon,
+    required this.label,
+    required this.valueLabel,
+    required this.initialValue,
+    required this.items,
+    required this.onSelected,
+    this.maxWidth,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = Color.alphaBlend(
+      scheme.primary.withOpacity(isDark ? 0.08 : 0.12),
+      scheme.surfaceVariant.withOpacity(isDark ? 0.35 : 0.6),
+    );
+    final borderColor = scheme.outlineVariant.withOpacity(isDark ? 0.45 : 0.35);
+    final textStyle = Theme.of(context).textTheme.labelLarge;
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth ?? double.infinity),
+      child: PopupMenuButton<T>(
+        initialValue: initialValue,
+        onSelected: onSelected,
+        itemBuilder: (_) => items,
+        offset: const Offset(0, 40),
+        tooltip: '$label wählen',
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: borderColor),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: scheme.primary),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  '$label: $valueLabel',
+                  style: textStyle?.copyWith(fontWeight: FontWeight.w600),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Icon(Icons.keyboard_arrow_down, size: 18, color: scheme.onSurfaceVariant),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -3383,59 +3542,43 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
             if (_expanded) ...[
               const SizedBox(height: 10),
 
-              // ---- Toggle + Details-Container (NEU, optional ein/ausklappbar) ----
               const SizedBox(height: 8),
-              Row(
-                children: [
-                  TextButton.icon(
-                    onPressed: () => setState(() => _expanded = !_expanded),
-                    icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
-                    label: const Text('Details anzeigen'), // ändert sich unten dynamisch
-                  ),
-                ],
-              ),
-              AnimatedCrossFade(
-                crossFadeState: _expanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
-                duration: const Duration(milliseconds: 160),
-                firstChild: Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.only(top: 4),
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.30),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Details der Reklamation',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 8),
-                      _detKv('Segment',       segment),
-                      _detKv('Produkttyp',    productType),
-                      _detKv('Artikelnummer', articleNo),
-                      _detKv('Produkte zurückgeschickt?', returned),
-                      _detKv('Am Patienten angewendet?', applied),
-                      _detKv('Verletzung?', injury),
-                      _detKv('Verletzungsbeschreibung', injuryDesc, maxLines: 6),
-
-                      Row(
-                        children: [
-                          Expanded(child: _detKv('Charge / LOT', batch)),
-                          const SizedBox(width: 12),
-                          Expanded(child: _detKv('Seriennummer', serial)),
-                        ],
-                      ),
-                      _detKv('Menge', qty),
-                      _detKv('Fehler / Beschreibung', desc, maxLines: 6),
-                      _detKv('Grund / Ursache',       reason, maxLines: 4),
-                      _detKv('Wunsch des Kunden',     customerWish, maxLines: 3),
-                    ],
-                  ),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.30),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                secondChild: const SizedBox.shrink(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Details der Reklamation',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 8),
+                    _detKv('Segment',       segment),
+                    _detKv('Produkttyp',    productType),
+                    _detKv('Artikelnummer', articleNo),
+                    _detKv('Produkte zurückgeschickt?', returned),
+                    _detKv('Am Patienten angewendet?', applied),
+                    _detKv('Verletzung?', injury),
+                    _detKv('Verletzungsbeschreibung', injuryDesc, maxLines: 6),
+
+                    Row(
+                      children: [
+                        Expanded(child: _detKv('Charge / LOT', batch)),
+                        const SizedBox(width: 12),
+                        Expanded(child: _detKv('Seriennummer', serial)),
+                      ],
+                    ),
+                    _detKv('Menge', qty),
+                    _detKv('Fehler / Beschreibung', desc, maxLines: 6),
+                    _detKv('Grund / Ursache',       reason, maxLines: 4),
+                    _detKv('Wunsch des Kunden',     customerWish, maxLines: 3),
+                  ],
+                ),
               ),
 
               // ====== Editor-Bereich (unverändert inhaltlich) ======                        
