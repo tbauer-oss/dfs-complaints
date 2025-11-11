@@ -84,8 +84,8 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     final r = _myRep;
     if (r == null || (r.email).trim().isEmpty) return;
 
-    final first = (r.firstName).trim();
-    final last  = (r.lastName).trim();
+    final first = r.firstName.trim();
+    final last  = r.lastName.trim();
     final name  = [first, last].where((s) => s.isNotEmpty).join(' ');
 
     final subject = Uri.encodeComponent(t.mail_subject_rep);
@@ -95,8 +95,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     if (kIsWeb) {
       html.window.open(mailto, '_self');
     } else {
-      // Optional schöner: url_launcher verwenden (siehe unten).
-      // Vorläufiger Fallback (kein Crash):
+      // Optional schöner: url_launcher (siehe unten). Vorläufig: Snackbar statt Crash.
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(t.rep_email_tooltip)),
       );
@@ -176,7 +175,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
               IconButton(
                 tooltip: t.rep_email_tooltip,
                 icon: const Icon(Icons.mail_outline),
-                onPressed: () => _openMail(context),
+                onPressed: () => _mailToRep(context),
               ),
             IconButton(
               tooltip: t.refresh,
