@@ -1,5 +1,3 @@
-HANDY dashboard
-
 // lib/pages/dashboard_page.dart
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:dfs_mobile/web_compat/html_stub.dart'
