@@ -113,7 +113,20 @@
   "gate_password": "Password",
   "continueLabel": "Continua",
   "invalid": "Non valido",
-  "gateUnlockHint": "Inserisci la password di sblocco per aprire l'area di registrazione.",
+  "gateUnlockHint": "Inserisci il tuo indirizzo e-mail e la password di sblocco per aprire l'area di registrazione.",
+  "gateEmailRequired": "Inserisci il tuo indirizzo e-mail.",
+  "gateInvalidEmail": "Inserisci un indirizzo e-mail valido.",
+  "gatePasswordRequired": "Inserisci la password di sblocco.",
+  "gateRequestPassword": "Richiedi password",
+  "gateRequestInfo": "Grazie! Abbiamo inoltrato la tua richiesta e invieremo a breve la password temporanea.",
+  "gateRequestError": "Non è stato possibile inviare la richiesta: {error}",
+  "@gateRequestError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
 
   "auth_login": "Accesso",
   "auth_register": "Registrati",
