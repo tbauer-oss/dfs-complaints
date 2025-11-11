@@ -41,6 +41,14 @@ const _dentCatalogLinks = [
   ),
 ];
 
+_CatalogLink _catalogLinkForLocale(List<_CatalogLink> links, String localeCode) {
+  final normalized = localeCode.toLowerCase();
+  return links.firstWhere(
+    (link) => link.matches(normalized),
+    orElse: () => links.first,
+  );
+}
+
 class DashboardPage extends StatefulWidget {
   final ApiClient api;
   final VoidCallback onLoggedOut;
@@ -619,7 +627,7 @@ class _RepBanner extends StatelessWidget {
   }
 }
 
-// Dezente Katalog-Leiste: nur zwei OutlinedButtons, mobil sehr kompakt
+// Dezente Katalog-Leiste: kompakte Darstellung mit nur einer passenden Sprache
 class _CatalogButtons extends StatelessWidget {
   const _CatalogButtons();
 
@@ -637,118 +645,82 @@ class _CatalogButtons extends StatelessWidget {
       required IconData icon,
       required List<_CatalogLink> links,
     }) {
-      final defaultLink = links.firstWhere(
-        (link) => link.matches(localeCode),
-        orElse: () => links.first,
+      final link = _catalogLinkForLocale(links, localeCode);
+      final padding = EdgeInsets.fromLTRB(
+        isPhone ? 12 : 16,
+        isPhone ? 10 : 14,
+        isPhone ? 12 : 16,
+        isPhone ? 12 : 16,
       );
 
-      final buttonPadding = EdgeInsets.symmetric(
-        horizontal: isPhone ? 10 : 14,
-        vertical: isPhone ? 8 : 10,
-      );
-      final textStyle = theme.textTheme.labelLarge?.copyWith(
-        fontSize: isPhone ? 13 : 14,
-        fontWeight: FontWeight.w600,
-      );
-
-      List<Widget> buildButtons() {
-        return links.map((link) {
-          final isDefault = identical(link, defaultLink);
-          final labelText = '${t.catalog_open} (${link.label})';
-          final onPressed = () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => PdfInAppPage(url: link.url, title: title),
-              ),
-            );
-          };
-
-          if (isDefault) {
-            return FilledButton.icon(
-              onPressed: onPressed,
-              style: FilledButton.styleFrom(
-                padding: buttonPadding,
-                textStyle: textStyle,
+      return Container(
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        padding: padding,
+        decoration: BoxDecoration(
+          color: cs.surfaceVariant.withOpacity(0.18),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: cs.outlineVariant.withOpacity(0.45)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(icon, size: isPhone ? 20 : 22, color: cs.onSurface.withOpacity(0.7)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: .2,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        description,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: cs.onSurface.withOpacity(.75),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        link.label,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: cs.onSurface.withOpacity(.6),
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            TextButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => PdfInAppPage(url: link.url, title: title),
+                  ),
+                );
+              },
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isPhone ? 12 : 14,
+                  vertical: 8,
+                ),
+                textStyle: theme.textTheme.labelMedium,
+                visualDensity: VisualDensity.compact,
               ),
               icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
-              label: Text(labelText, textAlign: TextAlign.center),
-            );
-          }
-
-          return OutlinedButton.icon(
-            onPressed: onPressed,
-            style: OutlinedButton.styleFrom(
-              padding: buttonPadding,
-              textStyle: textStyle,
-              side: BorderSide(color: cs.outlineVariant),
+              label: Text(t.catalog_open),
             ),
-            icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
-            label: Text(labelText, textAlign: TextAlign.center),
-          );
-        }).toList();
-      }
-
-      final content = Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, size: isPhone ? 22 : 24, color: cs.primary),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: .2,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      description,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: cs.onSurface.withOpacity(.7),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            alignment: isPhone ? WrapAlignment.center : WrapAlignment.start,
-            spacing: 8,
-            runSpacing: 8,
-            children: buildButtons(),
-          ),
-        ],
-      );
-
-      if (isPhone) {
-        return Container(
-          margin: const EdgeInsets.symmetric(vertical: 6),
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-          decoration: BoxDecoration(
-            color: cs.surfaceVariant.withOpacity(.35),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: cs.outlineVariant.withOpacity(.6)),
-          ),
-          child: content,
-        );
-      }
-
-      return Card(
-        elevation: 1,
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-          child: content,
+          ],
         ),
       );
     }
