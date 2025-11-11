@@ -1472,10 +1472,11 @@ Widget _buildUsersPanel() {
                 TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen')),
               ],
             );
-          },
-        ),
-      );
-    }
+          );  
+        },
+      ),
+    );
+  }
 
     return Card(
       child: Padding(
