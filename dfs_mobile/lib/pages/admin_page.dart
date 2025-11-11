@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:dfs_mobile/api/client.dart';
+import 'package:dfs_mobile/widgets/dialog_content_scroll.dart';
 import 'package:dfs_mobile/widgets/legal_footer.dart';
 
 // ===================================================================
@@ -256,17 +257,19 @@ class _AdminPageState extends State<AdminPage> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('App-Version bearbeiten'),
-        content: SizedBox(
-          width: 420,
-         child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: vCtrl, decoration: const InputDecoration(labelText: 'Version', border: OutlineInputBorder())),
-              const SizedBox(height: 8),
-              TextField(controller: bCtrl, decoration: const InputDecoration(labelText: 'Build', border: OutlineInputBorder())),
-              const SizedBox(height: 8),
-              TextField(controller: nCtrl, minLines: 2, maxLines: 5, decoration: const InputDecoration(labelText: 'Hinweise', border: OutlineInputBorder())),
-            ],
+        content: DialogContentScroll(
+          child: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(controller: vCtrl, decoration: const InputDecoration(labelText: 'Version', border: OutlineInputBorder())),
+                const SizedBox(height: 8),
+                TextField(controller: bCtrl, decoration: const InputDecoration(labelText: 'Build', border: OutlineInputBorder())),
+                const SizedBox(height: 8),
+                TextField(controller: nCtrl, minLines: 2, maxLines: 5, decoration: const InputDecoration(labelText: 'Hinweise', border: OutlineInputBorder())),
+              ],
+            ),
           ),
         ),
         actions: [
@@ -299,7 +302,7 @@ class _AdminPageState extends State<AdminPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(title),
-        content: Text(msg),
+        content: DialogContentScroll(child: Text(msg)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
           FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('OK')),
@@ -1067,24 +1070,26 @@ Widget _buildUsersPanel() {
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('Vertreter bearbeiten'),
-          content: SizedBox(
-            width: 520,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(controller: _repFirstCtrl, decoration: const InputDecoration(labelText: 'Vorname')),
-                const SizedBox(height: 8),
-                TextField(controller: _repLastCtrl, decoration: const InputDecoration(labelText: 'Nachname')),
-                const SizedBox(height: 8),
-                TextField(controller: _repMailCtrl, decoration: const InputDecoration(labelText: 'E-Mail')),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  value: _repRegion,
-                  decoration: const InputDecoration(labelText: 'Länderbereich'),
-                  items: kRepRegions.map((s) => DropdownMenuItem<String>(value: s, child: Text(s))).toList(),
-                  onChanged: (v) => _repRegion = v ?? kRepRegions.first,
-                ),
-              ],
+          content: DialogContentScroll(
+            child: SizedBox(
+              width: 520,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(controller: _repFirstCtrl, decoration: const InputDecoration(labelText: 'Vorname')),
+                  const SizedBox(height: 8),
+                  TextField(controller: _repLastCtrl, decoration: const InputDecoration(labelText: 'Nachname')),
+                  const SizedBox(height: 8),
+                  TextField(controller: _repMailCtrl, decoration: const InputDecoration(labelText: 'E-Mail')),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: _repRegion,
+                    decoration: const InputDecoration(labelText: 'Länderbereich'),
+                    items: kRepRegions.map((s) => DropdownMenuItem<String>(value: s, child: Text(s))).toList(),
+                    onChanged: (v) => _repRegion = v ?? kRepRegions.first,
+                  ),
+                ],
+              ),
             ),
           ),
           actions: [
@@ -1106,7 +1111,7 @@ Widget _buildUsersPanel() {
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('Vertreter löschen'),
-          content: Text('Soll ${r.displayName} wirklich gelöscht werden?'),
+          content: DialogContentScroll(child: Text('Soll ${r.displayName} wirklich gelöscht werden?')),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
             FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen')),
@@ -1358,26 +1363,27 @@ Widget _buildUsersPanel() {
 
             return AlertDialog(
               title: Text('Kunden für ${rep.displayName}'),
-              content: SizedBox(
-                width: 620,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Zugewiesene Kunden (${rep.customers.length}) – jeder Kunde kann nur genau einem Vertreter zugeordnet sein.',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
+              content: DialogContentScroll(
+                child: SizedBox(
+                  width: 620,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Zugewiesene Kunden (${rep.customers.length}) – jeder Kunde kann nur genau einem Vertreter zugeordnet sein.',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      constraints: const BoxConstraints(maxHeight: 280),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: (rep.customers.isEmpty)
+                      const SizedBox(height: 8),
+                      Container(
+                        constraints: const BoxConstraints(maxHeight: 280),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: (rep.customers.isEmpty)
                           ? const Center(
                               child: Padding(
                                 padding: EdgeInsets.all(12),
@@ -1403,16 +1409,16 @@ Widget _buildUsersPanel() {
                                 );
                               },
                             ),
-                    ),
-                    const SizedBox(height: 16),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text('Kunden zuweisen', style: const TextStyle(fontWeight: FontWeight.w600)),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
+                      ),
+                      const SizedBox(height: 16),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text('Kunden zuweisen', style: const TextStyle(fontWeight: FontWeight.w600)),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
                           child: DropdownButtonFormField<String>(
                             value: selEmail,
                             decoration: const InputDecoration(
@@ -1702,11 +1708,11 @@ class _AdminTile extends StatelessWidget {
                   label,
                   style: const TextStyle(fontWeight: FontWeight.w600),
                   textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
                 ),
-              ],
-            ),
-          ),
-        ),
+              ),
       ),
     );
 
@@ -1891,22 +1897,24 @@ class _PendingTileState extends State<_PendingTile> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Adressdaten (Pending)'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _Field(label: 'Firma', value: d.company),
-            _Field(label: 'Kontakt', value: d.contact),
-            const SizedBox(height: 6),
-            _Field(label: 'Straße', value: d.street),
-            _Field(label: 'PLZ/Ort', value: '${d.zip} ${d.city}'.trim()),
-            _Field(label: 'Land', value: d.country),
-            const SizedBox(height: 6),
-            _Field(label: 'Telefon', value: d.phone),
-            _Field(label: 'E-Mail', value: d.email),
-            _Field(label: 'Sprache', value: d.lang.toUpperCase()),
-            _Field(label: 'Erstellt', value: d.createdAt ?? '—'),
-          ],
+        content: DialogContentScroll(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _Field(label: 'Firma', value: d.company),
+              _Field(label: 'Kontakt', value: d.contact),
+              const SizedBox(height: 6),
+              _Field(label: 'Straße', value: d.street),
+              _Field(label: 'PLZ/Ort', value: '${d.zip} ${d.city}'.trim()),
+              _Field(label: 'Land', value: d.country),
+              const SizedBox(height: 6),
+              _Field(label: 'Telefon', value: d.phone),
+              _Field(label: 'E-Mail', value: d.email),
+              _Field(label: 'Sprache', value: d.lang.toUpperCase()),
+              _Field(label: 'Erstellt', value: d.createdAt ?? '—'),
+            ],
+          ),
         ),
         actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
       ),
@@ -2094,22 +2102,24 @@ class _UserTileState extends State<_UserTile> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Adressdaten'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _Field(label: 'Firma', value: d.company),
-            _Field(label: 'Kontakt', value: d.contact),
-            const SizedBox(height: 6),
-            _Field(label: 'Straße', value: d.street),
-            _Field(label: 'PLZ/Ort', value: '${d.zip} ${d.city}'.trim()),
-            _Field(label: 'Land', value: d.country),
-            const SizedBox(height: 6),
-            _Field(label: 'Telefon', value: d.phone),
-            _Field(label: 'E-Mail', value: d.email),
-            _Field(label: 'Sprache', value: d.lang.toUpperCase()),
-            _Field(label: 'Aktiv seit', value: d.createdAt ?? '—'),
-          ],
+        content: DialogContentScroll(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _Field(label: 'Firma', value: d.company),
+              _Field(label: 'Kontakt', value: d.contact),
+              const SizedBox(height: 6),
+              _Field(label: 'Straße', value: d.street),
+              _Field(label: 'PLZ/Ort', value: '${d.zip} ${d.city}'.trim()),
+              _Field(label: 'Land', value: d.country),
+              const SizedBox(height: 6),
+              _Field(label: 'Telefon', value: d.phone),
+              _Field(label: 'E-Mail', value: d.email),
+              _Field(label: 'Sprache', value: d.lang.toUpperCase()),
+              _Field(label: 'Aktiv seit', value: d.createdAt ?? '—'),
+            ],
+          ),
         ),
         actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
       ),
@@ -3062,7 +3072,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Reklamation löschen'),
-        content: Text('Soll Ticket ${widget.c.ticket} wirklich gelöscht werden?'),
+        content: DialogContentScroll(child: Text('Soll Ticket ${widget.c.ticket} wirklich gelöscht werden?')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
           FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen')),
