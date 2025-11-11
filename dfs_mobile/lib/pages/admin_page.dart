@@ -3264,6 +3264,19 @@ class _Resp {
   }
 
 // ===================================================================
+// interne Hilfs-Resultklasse
+// ===================================================================
+class _ComplaintsResult {
+  final bool loading;
+  final String? error;
+  final List<AdminComplaint> items;
+  _ComplaintsResult._(this.loading, this.error, this.items);
+  factory _ComplaintsResult.loading() => _ComplaintsResult._(true, null, const []);
+  factory _ComplaintsResult.err(String e) => _ComplaintsResult._(false, e, const []);
+  factory _ComplaintsResult.ok(List<AdminComplaint> list) => _ComplaintsResult._(false, null, list);
+}
+
+// ===================================================================
 // Admin UI – Farbpalette & Kachel (Pro)
 // ===================================================================
 class AdminPalette {
