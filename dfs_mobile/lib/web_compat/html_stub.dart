@@ -15,7 +15,6 @@ class Window {
 }
 final Window window = Window();
 
-// <- WICHTIG: nicht-nullbares Document mit title
 class Document {
   String title = '';
   void addEventListener(String type, void Function(dynamic)? cb) {}
