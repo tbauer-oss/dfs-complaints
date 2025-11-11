@@ -18,14 +18,16 @@ class ProgressEvent {}
 final _FakeWindow window = _FakeWindow();
 final dynamic document = null;
 
-class _Style { String border = ''; String width = ''; String height = ''; }
-class IFrameElement {
-  String? src;
-  final _Style style = _Style();
-}
 class _Window {
   void open(String url, String target) {
     // no-op on mobile
   }
 }
+
 final window = _Window();
+
+class _Style { String border = ''; String width = ''; String height = ''; }
+class IFrameElement {
+  String? src;
+  final _Style style = _Style();
+}
