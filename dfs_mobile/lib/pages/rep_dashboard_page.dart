@@ -1712,6 +1712,7 @@ class _CustomerTile extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 }
