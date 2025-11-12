@@ -13,6 +13,7 @@ import '../widgets/lang_action.dart';
 import '../widgets/theme_action.dart' as w;
 import '../services/app_prefs_scope.dart';
 import '../widgets/legal_footer.dart';
+import '../services/push_notifications.dart';
 
 // ---- L10n-Helper (top-level) ----
 extension _L10nX on BuildContext {
@@ -771,6 +772,11 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   }
 
   Future<void> _logout() async {
+    try {
+      await PushNotifications.instance.deactivate(widget.api);
+    } catch (e) {
+      debugPrint('[push] rep deactivate failed: $e');
+    }
     await widget.api.repLogout();
     try { html.window.localStorage.remove('dfs_mode'); } catch (_) {}
     if (!mounted) return;
