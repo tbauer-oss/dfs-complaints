@@ -48,14 +48,18 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserver {
   MyRep? _myRep;
+  String? _customerName;
   bool _repLoading = false;
-  bool _repRequested = false; // verhindert mehrfaches Nachladen
+  bool _repRequested = false;
   int _hoverIndex = -1;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _ensureRepOnce());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ensureRepOnce();
+      _initCustomerName();
+    });
     _initRep();
   }
 
@@ -104,6 +108,51 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     }
   }
 
+  Future<void> _initCustomerName() async {
+    // Wir versuchen mehrere Quellen, ohne harte Abhängigkeit von bestimmten ApiClient-Methoden.
+    Map<String, dynamic>? profile;
+
+    try {
+      final dyn = widget.api as dynamic; // dynamisch, damit kein Compile-Error, falls Methode fehlt
+
+      // 1) Häufige Varianten
+      try { if (dyn.getMyAccount != null) profile = await dyn.getMyAccount(); } catch (_) {}
+      try { if (profile == null && dyn.getMe != null) profile = await dyn.getMe(); } catch (_) {}
+
+      // 2) Direkt-Caches, falls vorhanden
+      if (profile == null) {
+        try { final p = dyn.currentUser; if (p is Map) profile = Map<String, dynamic>.from(p); } catch (_) {}
+      }
+
+      // 3) JWT-Claims, falls verfügbar
+      if (profile == null) {
+        try { final c = dyn.jwtClaims; if (c is Map) profile = Map<String, dynamic>.from(c); } catch (_) {}
+      }
+    } catch (_) {
+      // still
+    }
+
+    final name = _pickCompany(profile);
+    if (mounted) setState(() => _customerName = name);
+  }
+
+  String? _pickCompany(Map<String, dynamic>? m) {
+    if (m == null) return null;
+    // typ. Schlüssel, die in deinen Projekten vorkommen könnten
+    const keys = [
+      'company', 'companyName', 'firm', 'firma', 'organization', 'organisation',
+      'org', 'customerCompany', 'customer_name', 'customer', 'accountCompany'
+    ];
+    for (final k in keys) {
+      final v = m[k];
+      if (v is String) {
+        final s = v.trim();
+        if (s.isNotEmpty) return s;
+      }
+    }
+    return null;
+  }
+
   void _ensureRepOnce() {
     if (_myRep == null && !_repRequested) {
       _repRequested = true;
@@ -135,31 +184,62 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     final name   = (r == null) ? '' : [r.firstName.trim(), r.lastName.trim()].where((s) => s.isNotEmpty).join(' ');
     final email  = (r?.email ?? '').trim();
     final region = (r?.region ?? '').trim();
+    final cs = theme.colorScheme;
+    final company = (_customerName ?? '').trim();
 
     // Kein Vertreter hinterlegt → dezenter Hinweis + Refresh
     if (r == null) {
       return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.grey.withOpacity(.35)),
-          color: Colors.grey.withOpacity(.07),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.person_search_outlined, size: 20),
-            const SizedBox(width: 10),
-            Expanded(child: Text(t.rep_not_assigned)),
-            IconButton(
-              tooltip: t.refresh,
-              onPressed: _initRep,
-              icon: const Icon(Icons.refresh),
-            ),
-          ],
-        ),
-      );
-    }
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.grey.withOpacity(.35)),
+            color: Colors.grey.withOpacity(.07),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.business_outlined, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Zeige den Kundennamen (statt "DFS-Diamon GmbH")
+                    Text(
+                      company.isNotEmpty ? company : t.yourCompany,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        height: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    // dezenter Hinweis, dass kein Vertreter zugewiesen ist
+                    Text(
+                      AppLocalizations.of(context)!.rep_not_assigned,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: cs.onSurface.withOpacity(.70),
+                        height: 1.15,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: AppLocalizations.of(context)!.refresh,
+                onPressed: () {
+                  _initRep();
+                  _initCustomerName(); // falls sich was ändert
+                },
+                icon: const Icon(Icons.refresh),
+              ),
+            ],
+          ),
+        );
+      }
 
     return Card(
       margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
@@ -217,31 +297,59 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
   Widget _buildRepCardLarge(BuildContext context) {
     final t      = AppLocalizations.of(context)!;
     final r      = _myRep;
+    final cs = Theme.of(context).colorScheme;
+    final company = (_customerName ?? '').trim();
 
     if (r == null) {
       // wie oben: Null-Hinweis
       return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.grey.withOpacity(.35)),
-          color: Colors.grey.withOpacity(.07),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.person_search_outlined, size: 20),
-            const SizedBox(width: 10),
-            Expanded(child: Text(t.rep_not_assigned)),
-            IconButton(
-              tooltip: t.refresh,
-              onPressed: _initRep,
-              icon: const Icon(Icons.refresh),
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [const Color(0xFF1976D2).withOpacity(0.14), const Color(0xFF42A5F5).withOpacity(0.10)],
             ),
-          ],
-        ),
-      );
-    }
+            border: Border.all(color: const Color(0xFF1976D2).withOpacity(0.5), width: 1),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 10, offset: const Offset(0, 4))],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 38, height: 38,
+                decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF1976D2)),
+                child: const Icon(Icons.business_outlined, color: Colors.white, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      company.isNotEmpty ? company : t.yourCompany,
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                      maxLines: 2, overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      t.rep_not_assigned,
+                      style: TextStyle(color: cs.onSurface.withOpacity(.75), fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: t.refresh,
+                onPressed: () {
+                  _initRep();
+                  _initCustomerName();
+                },
+                icon: const Icon(Icons.refresh),
+              ),
+            ],
+          ),
+        );
+      }
 
     final first  = r.firstName.trim();
     final last   = r.lastName.trim();
