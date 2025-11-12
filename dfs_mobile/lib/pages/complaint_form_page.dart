@@ -298,23 +298,24 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> with TickerProvid
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(t.reportComplaint,
-                      style: TextStyle(
-                        color: cs.onPrimary,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 18,
-                      )),
+                  Text(
+                    t.reportComplaint,
+                    style: TextStyle(
+                      color: cs.onPrimary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18,
+                    ),
+                  ),
                   const SizedBox(height: 4),
                   Text(
                     t.complaint_sub,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 10, // << kleiner
-                      height: 1.05, // etwas engerer Zeilenabstand (optional)
+                      fontSize: 10,           // kleiner
+                      height: 1.05,           // engerer Zeilenabstand (optional)
                       color: cs.onPrimary.withOpacity(.9),
                     ),
-                   )
                   ),
                 ],
               ),
