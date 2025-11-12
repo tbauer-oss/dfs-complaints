@@ -57,12 +57,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   bool _showRejectedAll = false;
 
   // "NEU"-Badges: lokal gemerkte "schon gesehen" Kunden (E-Mails als Key)
-  static const _seenKey = 'rep_seen_customers_v1';
-  late final Set<String> _seenCustomers;
-
-  // "NEU"-Badges
-  late Set<String> _seenCustomers;
-  String get _seenKeyBase => 'rep_seen_customers_v2'; // neue Version, entkoppelt von v1 (Web)
+  Set<String> _seenCustomers = <String>{};
+  static const _legacySeenKey = 'rep_seen_customers_v1';  String get _seenKeyBase => 'rep_seen_customers_v2'; // neue Version, entkoppelt von v1 (Web)
   String get _repAwareSeenKey {
     final meMail = (_me?['email'] ?? '').toString().toLowerCase();
     return meMail.isNotEmpty ? '$_seenKeyBase:$meMail' : _seenKeyBase;
@@ -74,7 +70,6 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   @override
   void initState() {
     super.initState();
-    _seenCustomers = <String>{};
     _loadAll(); // lädt _me
     // Nach dem ersten Load (wenn _me da ist) die Seen-Liste nachziehen
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -82,31 +77,6 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     });
   }
   
-  Set<String> _loadSeen() {
-    try {
-      final raw = html.window.localStorage[_seenKey];
-      if (raw == null || raw.isEmpty) return <String>{};
-      final parts = raw.split(';').map((e) => e.trim().toLowerCase()).where((e) => e.isNotEmpty).toSet();
-      return parts;
-    } catch (_) {
-      return <String>{};
-    }
-  }
-
-  void _persistSeen() {
-    try {
-      html.window.localStorage[_seenKey] = _seenCustomers.join(';');
-    } catch (_) {}
-  }
-
-  void _markCustomerSeen(String email) {
-    final em = email.toLowerCase();
-    if (_seenCustomers.add(em)) {
-      _persistSeen();
-      if (mounted) setState(() {});
-    }
-  }
-
   // Einheitliche 401/Unauthorized-Behandlung
   Future<bool> _handleUnauthorized(Object e) async {
     final msg = e.toString();
@@ -128,7 +98,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       final key = _repAwareSeenKey;
 
       if (kIsWeb) {
-        final raw = html.window.localStorage[key];
+        final raw = html.window.localStorage[key] ?? html.window.localStorage[_legacySeenKey];
         if (raw == null || raw.isEmpty) return;
         final parts = raw.split(';').map((e) => e.trim().toLowerCase()).where((e) => e.isNotEmpty).toSet();
         setState(() => _seenCustomers = parts);
@@ -149,11 +119,17 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
       if (kIsWeb) {
         html.window.localStorage[key] = _seenCustomers.join(';');
+        if (key != _legacySeenKey) {
+          html.window.localStorage.remove(_legacySeenKey);
+        }
         return;
       }
 
       final sp = await SharedPreferences.getInstance();
       await sp.setStringList(key, _seenCustomers.toList());
+      if (key != _legacySeenKey) {
+        await sp.remove(_legacySeenKey);
+      }
     } catch (_) {}
   }
 
@@ -1899,11 +1875,7 @@ class _CustomerTile extends StatelessWidget {
           children: [
             FilledButton.tonalIcon(
               icon: const Icon(Icons.info_outline),
-              onPressed: () {
-                onInfo();
-                // Einmal tippen → NEW dauerhaft weg
-                _markCustomerSeen(email);
-              },
+              onPressed: onInfo,
               label: Text(t.showDetails ?? 'Details'),
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -1927,10 +1899,7 @@ class _CustomerTile extends StatelessWidget {
             IconButton(
               tooltip: t.showDetails ?? 'Details anzeigen',
               icon: const Icon(Icons.chevron_right),
-              onPressed: () {
-                onOpen();
-                _markCustomerSeen(email);
-              },
+              onPressed: onOpen,
             ),
           ],
         );
@@ -1939,10 +1908,7 @@ class _CustomerTile extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () {
-          onOpen();
-          _markCustomerSeen(email); // auch beim Tap auf die Karte
-        },
+        onTap: onOpen,
         borderRadius: BorderRadius.circular(18),
         child: Container(
           padding: const EdgeInsets.all(14),
@@ -1983,10 +1949,7 @@ class _CustomerTile extends StatelessWidget {
                       children: [
                         FilledButton.tonalIcon(
                           icon: const Icon(Icons.info_outline),
-                          onPressed: () {
-                            onInfo();
-                            _markCustomerSeen(email);
-                          },
+                          onPressed: onInfo,
                           label: Text(t.showDetails ?? 'Details'),
                         ),
                         const SizedBox(height: 8),
