@@ -1570,22 +1570,54 @@ class _Card extends StatelessWidget {
     final isPhone = width < 600;
     final fsTitle = isPhone ? 17.0 : 19.0;
 
+    final titleWidget = Text(
+      title,
+      style: TextStyle(fontWeight: FontWeight.w700, fontSize: fsTitle),
+    );
+    final actionsList = actions ?? const <Widget>[];
+
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              Text(title, style: TextStyle(fontWeight: FontWeight.w700, fontSize: fsTitle)),
-              const Spacer(),
-              if (actions != null) ...actions!,
-            ]),
-            const SizedBox(height: 10),
-            child,
-          ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isCompactHeader = constraints.maxWidth < 420;
+            final actionsWrap = actionsList.isEmpty
+                ? const SizedBox.shrink()
+                : Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: actionsList,
+                  );
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (isCompactHeader)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      titleWidget,
+                      if (actionsList.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        actionsWrap,
+                      ],
+                    ],
+                  )
+                else
+                  Row(
+                    children: [
+                      Expanded(child: titleWidget),
+                      if (actionsList.isNotEmpty) actionsWrap,
+                    ],
+                  ),
+                const SizedBox(height: 10),
+                child,
+              ],
+            );
+          },
         ),
       ),
     );
