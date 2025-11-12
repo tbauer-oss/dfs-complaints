@@ -306,7 +306,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> with TickerProvid
                       )),
                   const SizedBox(height: 4),
                   Text(
-                    t.privacy_agree, // kurzer seriöser Sub-Text (bestehender String)
+                    t.complaint_sub, // kurzer seriöser Sub-Text (bestehender String)
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(color: cs.onPrimary.withOpacity(.9)),
