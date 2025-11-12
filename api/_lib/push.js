@@ -34,6 +34,7 @@ export async function sendPushNotification({ tokens = [], title = '', body = '',
       notification: {
         title: String(title || ''),
         body: String(body || ''),
+        android_channel_id: 'complaint-status',
       },
       data: {
         ...data,
