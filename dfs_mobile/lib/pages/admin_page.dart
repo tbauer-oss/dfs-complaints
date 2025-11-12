@@ -1133,7 +1133,6 @@ Widget _buildUsersPanel() {
       }
     }
 
-
     Future<void> _openCreateRepSheet() async {
       _repFirstCtrl.clear();
       _repLastCtrl.clear();
@@ -1461,6 +1460,7 @@ Widget _buildUsersPanel() {
                       ],
                     ),
                   ],
+                 ),
                 ),
               ),
               actions: [
@@ -1472,11 +1472,10 @@ Widget _buildUsersPanel() {
                 TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen')),
               ],
             );
-          );  
-        },
-      ),
-    );
-  }
+          },
+        ),
+      );
+    }
 
     return Card(
       child: Padding(
