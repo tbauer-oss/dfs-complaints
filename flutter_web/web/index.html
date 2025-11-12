@@ -30,7 +30,7 @@
 
     <!-- Flutter erwartet diese Variable -->
     <script>
-      const serviceWorkerVersion = "{{flutter_service_worker_version}}";
+      var serviceWorkerVersion = null;
     </script>
 
     <!-- ES5: Install-Prompt Hook -->
@@ -122,23 +122,23 @@
     <!-- Flutter-Loader -->
     <script>
       window.addEventListener('load', function () {
-        // Basiskonfiguration für Flutter Web
-        const cfg = {
-          serviceWorker: { serviceWorkerVersion: serviceWorkerVersion },
-          onEntrypointLoaded: function (engineInitializer) {
-            engineInitializer.initializeEngine()
-              .then(function (appRunner) { appRunner.runApp(); })
-              .catch(function (e) { console.error('initializeEngine failed:', e); });
-          }
-        };
-
-        // Ohne SW-Unterstützung: ServiceWorker-Block weglassen
-        if (!('serviceWorker' in navigator)) {
-          delete cfg.serviceWorker;
+        if ('serviceWorker' in navigator) {
+          window.flutterConfiguration = {
+            serviceWorker: { serviceWorkerVersion: serviceWorkerVersion }
+          };
+        } else {
+          window.flutterConfiguration = {};
         }
 
-        // Neuer Aufruf: FlutterLoader.load (statt loadEntrypoint)
-        FlutterLoader.load(cfg);
+        window.flutterConfiguration.onEntrypointLoaded = function (engineInitializer) {
+          engineInitializer.initializeEngine().then(function (appRunner) {
+            appRunner.runApp();
+          }).catch(function (e) {
+            console.error('initializeEngine failed:', e);
+          });
+        };
+
+        _flutter.loader.loadEntrypoint(window.flutterConfiguration);
       });
     </script>
   </body>
