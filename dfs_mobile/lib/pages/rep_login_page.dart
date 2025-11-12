@@ -5,6 +5,7 @@ import 'rep_dashboard_page.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/dialog_content_scroll.dart';
 import '../widgets/legal_footer.dart';
+import '../services/push_notifications.dart';
 
 // L10n-Helper
 extension _L10nX on BuildContext {
@@ -30,7 +31,15 @@ class _RepLoginPageState extends State<RepLoginPage> {
   void _setBusy(bool b) => setState(() => _busy = b);
 
   // --- Navigation ins Dashboard (ohne dfs_mode) ---
-  void _goRepDashboard() {
+  Future<void> _goRepDashboard() async {
+    if (!mounted) return;
+    final locale = Localizations.localeOf(context);
+    try {
+      await PushNotifications.instance
+          .setup(widget.api, languageCode: locale.languageCode);
+    } catch (e) {
+      debugPrint('[push] rep setup failed: $e');
+    }
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => RepDashboardPage(api: widget.api)),
@@ -67,7 +76,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
         await _openChangePwDialog();
         return;
       }
-      _goRepDashboard();
+      await _goRepDashboard();
     } catch (e) {
       _setErr(t.login_failed_with_error('$e')); // NEU (parametrisierter Key)
     } finally {
@@ -245,7 +254,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
     bCtrl.dispose();
 
     if (ok == true) {
-      _goRepDashboard();
+      await _goRepDashboard();
     }
   }
 
