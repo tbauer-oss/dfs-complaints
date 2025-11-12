@@ -12,7 +12,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_svg: ^2.0.10+1
   http: ^1.2.2
-  intl: ^0.19.0
+  intl: ^0.20.2
   url_launcher: ^6.3.0
   flutter_localizations:
     sdk: flutter
@@ -20,8 +20,8 @@ dependencies:
   file_picker: ^10.3.3
   country_flags: ^2.2.0
   shared_preferences: ^2.3.2
-  firebase_core: ^2.27.0
-  firebase_messaging: ^14.9.4
+  firebase_core: ^3.8.0
+  firebase_messaging: ^15.1.5
   flutter_local_notifications: ^17.2.1
   
 flutter_launcher_icons:
@@ -57,6 +57,7 @@ flutter:
 
 flutter_intl:
   enabled: true
+
 
 
 
