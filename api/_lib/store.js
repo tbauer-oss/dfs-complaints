@@ -36,7 +36,22 @@ const mem = {
   pending: new Map(),
   complaints: new Map(),
   counters: { ticket: 1 },
+  catalogConfig: {},
 };
+
+const CATALOG_KEYS = ['lab_default', 'lab_esfr', 'dent_default', 'dent_esfr'];
+
+function _normalizeCatalogConfig(input) {
+  const src = input && typeof input === 'object' ? input : {};
+  const out = {};
+  for (const key of CATALOG_KEYS) {
+    const raw = src[key];
+    if (raw == null) continue;
+    const val = typeof raw === 'string' ? raw.trim() : String(raw ?? '').trim();
+    if (val) out[key] = val;
+  }
+  return out;
+}
 
 // ===== Helper (Redis IO) =====
 async function rget(k) { try { const r = getRedis(); return r ? await r.get(k) : null; } catch (e) { console.error('KV GET', k, e); return null; } }
@@ -65,6 +80,45 @@ async function rkeys(pattern) {
     return out;
   }
   return [];
+}
+
+/* ============== Catalog Configuration ============== */
+const CATALOG_KEY = `${P}catalogs:config`;
+
+export async function catalogConfigGet() {
+  const r = getRedis();
+  if (r) {
+    const raw = await rget(CATALOG_KEY);
+    if (raw && typeof raw === 'string') {
+      try { return _normalizeCatalogConfig(JSON.parse(raw)); }
+      catch { return _normalizeCatalogConfig({}); }
+    }
+    return _normalizeCatalogConfig(raw);
+  }
+  return _normalizeCatalogConfig(mem.catalogConfig);
+}
+
+export async function catalogConfigSet(updates = {}) {
+  const next = { ...(await catalogConfigGet()) };
+
+  for (const key of CATALOG_KEYS) {
+    if (!Object.prototype.hasOwnProperty.call(updates, key)) continue;
+    const raw = updates[key];
+    const val = raw == null ? '' : (typeof raw === 'string' ? raw : String(raw));
+    const trimmed = val.trim();
+    if (trimmed) next[key] = trimmed;
+    else delete next[key];
+  }
+
+  const r = getRedis();
+  if (r) {
+    if (Object.keys(next).length === 0) await rdel(CATALOG_KEY); else await rset(CATALOG_KEY, next);
+  }
+
+  // Für In-Memory-Fallback immer aktualisieren (auch bei Redis, falls offline)
+  mem.catalogConfig = { ...next };
+
+  return next;
 }
 
 /* ============== Diagnose /api/diag/kv ============== */
