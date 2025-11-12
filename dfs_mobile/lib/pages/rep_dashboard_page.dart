@@ -2314,8 +2314,6 @@ class _ComplaintTileState extends State<_ComplaintTile> {
               icon: Icons.schedule_rounded, text: createdLabel));
         }
 
-        final isPhone = MediaQuery.of(context).size.width < 600;
-
         return AnimatedContainer(
           duration: const Duration(milliseconds: 260),
           curve: Curves.easeOutCubic,
