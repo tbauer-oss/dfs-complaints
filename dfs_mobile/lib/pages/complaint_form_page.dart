@@ -42,7 +42,9 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   bool _dirty = false;
   final List<TextEditingController> _ctrls = [];
 
-  void _markDirty() { if (!_dirty) setState(() => _dirty = true); }
+  void _markDirty() {
+    if (!_dirty) setState(() => _dirty = true);
+  }
 
   Future<bool> _confirmLeaveIfDirty() async {
     if (!_dirty) return true;
@@ -50,6 +52,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     final res = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
         title: Text(t.unsavedChangesTitle),
         content: DialogContentScroll(child: Text(t.unsavedChangesText)),
         actions: [
@@ -61,19 +64,26 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     return res == true;
   }
 
-  Future<void> _handleBack() async { if (await _confirmLeaveIfDirty()) Navigator.of(context).pop(); }
+  Future<void> _handleBack() async {
+    if (await _confirmLeaveIfDirty()) Navigator.of(context).pop();
+  }
+
   Future<void> _handleCancel() async => _handleBack();
 
   @override
   void initState() {
     super.initState();
     _ctrls.addAll([article, batch, qty, expiry, desc, injuryDesc]);
-    for (final c in _ctrls) { c.addListener(_markDirty); }
+    for (final c in _ctrls) {
+      c.addListener(_markDirty);
+    }
   }
 
   @override
   void dispose() {
-    for (final c in _ctrls) { c.removeListener(_markDirty); }
+    for (final c in _ctrls) {
+      c.removeListener(_markDirty);
+    }
     super.dispose();
   }
 
@@ -83,17 +93,25 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     if (res == null) return;
 
     final sum = res.files.fold<int>(0, (s, f) => s + (f.bytes?.length ?? 0));
-    if (sum > 8 * 1024 * 1024) { setState(() => err = t.images_too_large); return; }
+    if (sum > 8 * 1024 * 1024) {
+      setState(() => err = t.images_too_large);
+      return;
+    }
 
     String _guessMime(String name) {
       final ext = name.split('.').last.toLowerCase();
       switch (ext) {
         case 'jpg':
-        case 'jpeg': return 'image/jpeg';
-        case 'png': return 'image/png';
-        case 'gif': return 'image/gif';
-        case 'webp': return 'image/webp';
-        default: return 'application/octet-stream';
+        case 'jpeg':
+          return 'image/jpeg';
+        case 'png':
+          return 'image/png';
+        case 'gif':
+          return 'image/gif';
+        case 'webp':
+          return 'image/webp';
+        default:
+          return 'application/octet-stream';
       }
     }
 
@@ -106,6 +124,94 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
       }).toList();
       _dirty = true;
     });
+  }
+
+  // -----------------------------
+  // Hilfsfunktionen für den Flow
+  // -----------------------------
+  void _resetForm() {
+    final t = context.t;
+    final optDentist = t.segment_dentist;
+    final optNo = t.no;
+    final optReturnedNo = t.no;
+    final optHandlingRep = t.handling_replacement;
+
+    setState(() {
+      segment = optDentist; // Standard
+      article.clear();
+      batch.clear();
+      qty.clear();
+      expiry.clear();
+      desc.clear();
+      applied = optNo;
+      injury = optNo;
+      injuryDesc.clear();
+      returned = optReturnedNo;
+      handling = optHandlingRep;
+      privacy = false;
+      files = [];
+      err = null;
+      info = null;
+      _dirty = false;
+    });
+  }
+
+  Future<void> _navigateToDashboard() async {
+    if (!mounted) return;
+    try {
+      Navigator.of(context).pushNamedAndRemoveUntil('/dashboard', (r) => false);
+    } catch (_) {
+      Navigator.of(context).popUntil((r) => r.isFirst);
+    }
+  }
+
+  Future<bool> _askAddAnother(String ticket) async {
+    final t = context.t;
+    final theme = Theme.of(context);
+    return await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        title: Text(t.addAnother_title),
+        content: DialogContentScroll(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(t.addAnother_body),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.confirmation_number_outlined, size: 20),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      t.sent_ticket(ticket),
+                      style: theme.textTheme.bodyMedium,
+                      softWrap: true,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(t.addAnother_no),
+          ),
+          FilledButton.tonal(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(t.addAnother_yes),
+          ),
+        ],
+      ),
+    ).then((v) => v ?? false);
   }
 
   // -----------------------------
@@ -139,7 +245,13 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
             Row(children: [
               Icon(icon, size: 20),
               const SizedBox(width: 8),
-              Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ]),
             const SizedBox(height: 12),
             ...children,
@@ -155,7 +267,11 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     return Container(
       margin: const EdgeInsets.only(top: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12), border: Border.all(color: color.withOpacity(.25))),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(.25)),
+      ),
       child: Row(
         children: [
           Icon(isError ? Icons.error_outline : Icons.check_circle_outline, color: color),
@@ -206,6 +322,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                         child: Text(
                           t.reportComplaint,
                           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
@@ -224,7 +341,10 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                       DropdownMenuItem(value: optDentist, child: Text(optDentist)),
                       DropdownMenuItem(value: optLab, child: Text(optLab)),
                     ],
-                    onChanged: (v) => setState(() { segment = v ?? optDentist; _dirty = true; } ),
+                    onChanged: (v) => setState(() {
+                      segment = v ?? optDentist;
+                      _dirty = true;
+                    }),
                     decoration: _dec(context, t.segment),
                   ),
                 ],
@@ -268,7 +388,10 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                         DropdownMenuItem(value: optYes, child: Text(optYes)),
                         DropdownMenuItem(value: optNo, child: Text(optNo)),
                       ],
-                      onChanged: (v) => setState(() { applied = v ?? optNo; _dirty = true; } ),
+                      onChanged: (v) => setState(() {
+                        applied = v ?? optNo;
+                        _dirty = true;
+                      }),
                       decoration: _dec(context, t.applied_to_patient),
                     ),
                     const SizedBox(height: 10),
@@ -278,7 +401,10 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                         DropdownMenuItem(value: optYes, child: Text(optYes)),
                         DropdownMenuItem(value: optNo, child: Text(optNo)),
                       ],
-                      onChanged: (v) => setState(() { injury = v ?? optNo; _dirty = true; } ),
+                      onChanged: (v) => setState(() {
+                        injury = v ?? optNo;
+                        _dirty = true;
+                      }),
                       decoration: _dec(context, t.injury_question),
                     ),
                     if (needInjuryDesc) ...[
@@ -306,12 +432,16 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                       children: [
                         for (final f in files)
                           Chip(
-                            label: Text(
-                              f.name,
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1,
+                            label: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 220),
+                              child: Text(
+                                f.name,
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
                             ),
                             avatar: const Icon(Icons.insert_drive_file_outlined),
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
                       ],
                     ),
@@ -330,7 +460,10 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                       DropdownMenuItem(value: optReturnedYes, child: Text(optReturnedYes)),
                       DropdownMenuItem(value: optReturnedNo, child: Text(optReturnedNo)),
                     ],
-                    onChanged: (v) => setState(() { returned = v ?? optReturnedNo; _dirty = true; } ),
+                    onChanged: (v) => setState(() {
+                      returned = v ?? optReturnedNo;
+                      _dirty = true;
+                    }),
                     decoration: _dec(context, t.returned_question),
                   ),
                   const SizedBox(height: 10),
@@ -341,7 +474,10 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                       DropdownMenuItem(value: optHandlingCredit, child: Text(optHandlingCredit)),
                       DropdownMenuItem(value: optHandlingRework, child: Text(optHandlingRework)),
                     ],
-                    onChanged: (v) => setState(() { handling = v ?? optHandlingRep; _dirty = true; } ),
+                    onChanged: (v) => setState(() {
+                      handling = v ?? optHandlingRep;
+                      _dirty = true;
+                    }),
                     decoration: _dec(context, t.handling),
                   ),
                 ],
@@ -357,7 +493,10 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                     children: [
                       Checkbox(
                         value: privacy,
-                        onChanged: (v) => setState(() { privacy = v ?? false; _dirty = true; }),
+                        onChanged: (v) => setState(() {
+                          privacy = v ?? false;
+                          _dirty = true;
+                        }),
                       ),
                       const SizedBox(width: 6),
                       Expanded(
@@ -369,16 +508,19 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                             InkWell(
                               onTap: () => Navigator.of(context).pushNamed('/legal/privacy'),
                               child: Row(
-                                mainAxisSize: MainAxisSize.min,
                                 children: [
                                   const Icon(Icons.privacy_tip_outlined, size: 18),
                                   const SizedBox(width: 6),
-                                  Text(
-                                    t.privacy_view,
-                                    style: TextStyle(
-                                      color: Theme.of(context).colorScheme.primary,
-                                      decoration: TextDecoration.underline,
-                                      fontWeight: FontWeight.w600,
+                                  Flexible(
+                                    child: Text(
+                                      t.privacy_view,
+                                      style: TextStyle(
+                                        color: Theme.of(context).colorScheme.primary,
+                                        decoration: TextDecoration.underline,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      softWrap: true,
+                                      overflow: TextOverflow.visible,
                                     ),
                                   ),
                                 ],
@@ -400,53 +542,91 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                 alignment: Alignment.centerRight,
                 child: Wrap(
                   spacing: 12,
+                  runSpacing: 8,
                   children: [
                     OutlinedButton(onPressed: _handleCancel, child: Text(t.cancel)),
                     ElevatedButton.icon(
-                      onPressed: busy ? null : () async {
-                        setState(() { busy = true; err = null; info = null; });
+                      onPressed: busy
+                          ? null
+                          : () async {
+                              setState(() {
+                                busy = true;
+                                err = null;
+                                info = null;
+                              });
 
-                        // Validierung
-                        if (!privacy) { setState(() { err = t.privacy_required; busy = false; }); return; }
-                        if (article.text.trim().isEmpty || desc.text.trim().isEmpty) {
-                          setState(() { err = t.required_fields; busy = false; }); return;
-                        }
-                        if (isDentist && batch.text.trim().isEmpty) {
-                          setState(() { err = t.batch; busy = false; }); return;
-                        }
+                              // Validierung
+                              if (!privacy) {
+                                setState(() {
+                                  err = t.privacy_required;
+                                  busy = false;
+                                });
+                                return;
+                              }
+                              if (article.text.trim().isEmpty || desc.text.trim().isEmpty) {
+                                setState(() {
+                                  err = t.required_fields;
+                                  busy = false;
+                                });
+                                return;
+                              }
+                              final isDentistLocal = segment == optDentist;
+                              if (isDentistLocal && batch.text.trim().isEmpty) {
+                                setState(() {
+                                  err = t.batch;
+                                  busy = false;
+                                });
+                                return;
+                              }
 
-                        // Payload
-                        final payload = <String, dynamic>{
-                          'segment': segment == optDentist ? 'Zahnarzt' : 'Zahntechnik',
-                          'article': article.text.trim(),
-                          'batch': batch.text.trim(),
-                          'qty': qty.text.trim(),
-                          'expiry': expiry.text.trim(),
-                          'desc': desc.text.trim(),
-                          'applied': isDentist ? (applied == optYes ? 'Ja' : 'Nein') : '',
-                          'injury': isDentist ? (injury == optYes ? 'Ja' : 'Nein') : '',
-                          'injuryDesc': isDentist ? injuryDesc.text.trim() : '',
-                          'returned': (returned == optReturnedYes ? 'Ja' : 'Nein'),
-                          'handling': handling == optHandlingRep ? 'Ersatz' : (handling == optHandlingCredit ? 'Gutschrift' : 'Nacharbeit'),
-                          'privacy': 'true',
-                        };
+                              // Payload
+                              final payload = <String, dynamic>{
+                                'segment': isDentistLocal ? 'Zahnarzt' : 'Zahntechnik',
+                                'article': article.text.trim(),
+                                'batch': batch.text.trim(),
+                                'qty': qty.text.trim(),
+                                'expiry': expiry.text.trim(),
+                                'desc': desc.text.trim(),
+                                'applied': isDentistLocal ? (applied == optYes ? 'Ja' : 'Nein') : '',
+                                'injury': isDentistLocal ? (injury == optYes ? 'Ja' : 'Nein') : '',
+                                'injuryDesc': isDentistLocal ? injuryDesc.text.trim() : '',
+                                'returned': (returned == optReturnedYes ? 'Ja' : 'Nein'),
+                                'handling': handling == optHandlingRep
+                                    ? 'Ersatz'
+                                    : (handling == optHandlingCredit ? 'Gutschrift' : 'Nacharbeit'),
+                                'privacy': 'true',
+                              };
 
-                        try {
-                          final res = await widget.api.complaintCreate(payload, files);
-                          final ticket = (res?['ticket'] ?? '').toString();
+                              try {
+                                final res = await widget.api.complaintCreate(payload, files);
+                                final ticket = (res?['ticket'] ?? '').toString();
 
-                          if (ticket.isEmpty) {
-                            setState(() { busy = false; err = t.send_failed; });
-                          } else {
-                            setState(() { busy = false; info = t.sent_ticket(ticket); _dirty = false; });
-                          }
-                        } catch (e) {
-                          setState(() {
-                            busy = false;
-                            err = t.network_cors_error(e.toString());
-                          });
-                        }
-                      },
+                                if (ticket.isEmpty) {
+                                  setState(() {
+                                    busy = false;
+                                    err = t.send_failed;
+                                  });
+                                } else {
+                                  setState(() {
+                                    busy = false;
+                                    _dirty = false;
+                                    info = null; // wir zeigen stattdessen den Dialog
+                                  });
+                                  final again = await _askAddAnother(ticket);
+                                  if (!mounted) return;
+                                  if (again) {
+                                    _resetForm();
+                                  } else {
+                                    await _navigateToDashboard();
+                                  }
+                                }
+                              } catch (e) {
+                                setState(() {
+                                  busy = false;
+                                  err = t.network_cors_error(e.toString());
+                                });
+                              }
+                            },
                       icon: busy
                           ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                           : const Icon(Icons.send_outlined),
@@ -468,7 +648,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
           automaticallyImplyLeading: false,
           title: Text(t.reportComplaint),
           leading: IconButton(icon: const Icon(Icons.arrow_back), tooltip: t.back, onPressed: _handleBack),
-          actions: [ TextButton(onPressed: _handleCancel, child: Text(t.cancel)) ],
+          actions: [TextButton(onPressed: _handleCancel, child: Text(t.cancel))],
         ),
         body: body,
       ),
