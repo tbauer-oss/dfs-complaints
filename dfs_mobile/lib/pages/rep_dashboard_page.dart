@@ -59,6 +59,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   static const _seenKey = 'rep_seen_customers_v1';
   late final Set<String> _seenCustomers;
 
+  // Brandfarbe (DFS Blau)
+  static const _brand = Color(0xFF0865A2);
+
   @override
   void initState() {
     super.initState();
@@ -194,59 +197,53 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   }
 
   // ======= FEHLENDE METHODE (jetzt robust mit Token-GET) =======
-Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
-  // Session prüfen (entfernt ungültiges repToken & verhindert leere Antworten)
-  await widget.api.ensureRepSession();
+  Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
+    await widget.api.ensureRepSession();
 
-  // 1) Liste über deinen ApiClient holen (kümmert sich um BaseURL, X-Gate, Bearer, Retry)
-  List<Map<String, dynamic>> raw;
-  try {
-    raw = await widget.api.repAssignableCustomers(all: true);
-  } catch (_) {
-    // stabil bleiben
-    return <Map<String, Object?>>[];
-  }
+    List<Map<String, dynamic>> raw;
+    try {
+      raw = await widget.api.repAssignableCustomers(all: true);
+    } catch (_) {
+      return <Map<String, Object?>>[];
+    }
 
-  // 2) Normalisieren -> { email, label, assigned, assignedToLabel }
-  String s(Object? v) => (v ?? '').toString();
+    String s(Object? v) => (v ?? '').toString();
+    final out = <Map<String, Object?>>[];
+    for (final it in raw) {
+      final email = s(it['email']).toLowerCase();
+      if (email.isEmpty) continue;
 
-  final out = <Map<String, Object?>>[];
-  for (final it in raw) {
-    final email = s(it['email']).toLowerCase();
-    if (email.isEmpty) continue;
+      final company = s(it['company']);
+      final name    = s(it['name']);
+      final label   = company.isNotEmpty
+          ? company
+          : (name.isNotEmpty ? '$name • $email' : email);
 
-    final company = s(it['company']);
-    final name    = s(it['name']);
-    final label   = company.isNotEmpty
-        ? company
-        : (name.isNotEmpty ? '$name • $email' : email);
+      final assigned = (it['assigned'] == true) ||
+          (s(it['assigned']).toLowerCase() == 'true');
 
-    final assigned = (it['assigned'] == true) ||
-                     (s(it['assigned']).toLowerCase() == 'true');
+      final assignedToLabel =
+          s(it['assignedToName']).isNotEmpty ? s(it['assignedToName'])
+              : s(it['assignedToEmail']).isNotEmpty ? s(it['assignedToEmail'])
+              : s(it['assignedTo']);
 
-    final assignedToLabel =
-        s(it['assignedToName']).isNotEmpty ? s(it['assignedToName'])
-      : s(it['assignedToEmail']).isNotEmpty ? s(it['assignedToEmail'])
-      : s(it['assignedTo']);
+      out.add({
+        'email': email,
+        'label': label,
+        'assigned': assigned,
+        'assignedToLabel': assignedToLabel,
+      });
+    }
 
-    out.add({
-      'email': email,
-      'label': label,
-      'assigned': assigned,
-      'assignedToLabel': assignedToLabel,
+    out.sort((a, b) {
+      final aa = (a['assigned'] == true);
+      final bb = (b['assigned'] == true);
+      if (aa != bb) return aa ? 1 : -1;
+      return (a['label'] as String).toLowerCase().compareTo((b['label'] as String).toLowerCase());
     });
+
+    return out;
   }
-
-  // 3) Freie zuerst, danach alphabetisch
-  out.sort((a, b) {
-    final aa = (a['assigned'] == true);
-    final bb = (b['assigned'] == true);
-    if (aa != bb) return aa ? 1 : -1;
-    return (a['label'] as String).toLowerCase().compareTo((b['label'] as String).toLowerCase());
-  });
-
-  return out;
-}
   // ======= /FEHLENDE METHODE =======
 
   // Mail/Benachrichtigung an complaint@dfs-diamon.de bei Selbst-Zuweisung
@@ -260,17 +257,10 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
         'company'     : company ?? '',
       };
 
-      // 1) Spezifische Methode, falls vorhanden
       try { await dyn.repAssignmentNotify(payload); return; } catch (_) {}
-
-      // 2) Admin-Notify
       try { await dyn.postJson('/api/admin/notify-rep-assignment', payload); return; } catch (_) {}
-
-      // 3) Alternative Route
       try { await dyn.postJson('/api/rep/assignment/notify', payload); return; } catch (_) {}
-    } catch (_) {
-      // still ok – UI muss weiterlaufen
-    }
+    } catch (_) {}
   }
 
   // ==========================
@@ -282,7 +272,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
 
     if (!mounted) return;
 
-    // Nichts da → hübscher leer-State
     if (options.isEmpty) {
       await showDialog(
         context: context,
@@ -309,7 +298,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
         borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
       builder: (ctx) {
-        // lokale Filterfunktion
         List<Map<String, Object?>> filtered() {
           if (query.trim().isEmpty) return options;
           final q = query.toLowerCase();
@@ -321,7 +309,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
           }).toList();
         }
 
-        // Sektionen bilden
         List<Map<String, Object?>> free(List<Map<String, Object?>> src) =>
             src.where((o) => o['assigned'] != true).toList();
         List<Map<String, Object?>> taken(List<Map<String, Object?>> src) =>
@@ -333,13 +320,8 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
           (ctx as Element).markNeedsBuild();
 
           try {
-            // Session sicherstellen (falls Token abgelaufen)
             await widget.api.ensureRepSession();
-
-            // Dein offizieller Client-Call -> erwartet 204
             await widget.api.repAssignCustomer(email);
-
-            // optional: Notify schicken (deine Hilfsfunktion)
             await _notifySelfAssignment(customerEmail: email, company: label);
 
             if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
@@ -403,7 +385,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
               ),
               const SizedBox(height: 10),
 
-              // Sektion: freie Kunden
               if (listFree.isNotEmpty) ...[
                 Row(
                   children: [
@@ -438,7 +419,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                 ),
               ],
 
-              // Sektion: bereits zugewiesen
               if (listTaken.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 Row(
@@ -541,9 +521,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     }
   }
 
-  // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-  // NUR HIER GEÄNDERT (Fix 1): ensureRepSession Ergebnis auswerten
-  // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
   Future<void> _withdrawRepDecision(String ticket) async {
     try {
       await widget.api.ensureRepSession();
@@ -561,8 +538,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
       );
     }
   }
-
-  // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
   Future<void> _logout() async {
     await widget.api.repLogout();
@@ -688,6 +663,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
         appBar: AppBar(
           automaticallyImplyLeading: false,
           title: Text(title),
+          centerTitle: false,
           leading: canGoBack
               ? IconButton(
                   icon: const Icon(Icons.arrow_back),
@@ -701,15 +677,10 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
               icon: const Icon(Icons.refresh),
             ),
             const SizedBox(width: 4),
-
-            // Sprache – exakt wie in main.dart
             LangAction(onLocaleChanged: (l) => prefs.setLang(l.languageCode)),
             const SizedBox(width: 4),
-
-            // Theme – globales Widget wie in main.dart (kein Reload)
             w.ThemeAction(),
             const SizedBox(width: 8),
-
             TextButton.icon(
               onPressed: _logout,
               icon: const Icon(Icons.logout),
@@ -719,7 +690,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
           ],
         ),
         body: Padding(padding: const EdgeInsets.all(16), child: body),
-        bottomNavigationBar: LegalFooter(api: widget.api), 
+        bottomNavigationBar: LegalFooter(api: widget.api),
       ),
     );
   }
@@ -737,7 +708,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     );
   }
 
-  // ---- Menü (kompakt skaliert) ----
+  // ---- Menü (mit Hero-Header + KPI-Chips + Kacheln) ----
   Widget _buildMenu(int allCount, int openCount, int rejectedCount, int finishedCount) {
     return LayoutBuilder(builder: (ctx, c) {
       final width = c.maxWidth;
@@ -746,57 +717,74 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
       final scale = width >= 1400 ? 0.84 : width >= 1100 ? 0.88 : width >= 900 ? 0.90 : width >= 600 ? 0.95 : 1.00;
       final compact = width < 600;
 
-      return GridView.count(
-        crossAxisCount: gridCount,
-        crossAxisSpacing: compact ? 12 : 14,
-        mainAxisSpacing: compact ? 12 : 14,
-        padding: EdgeInsets.only(bottom: compact ? 4 : 8),
-        childAspectRatio: aspect,
-        children: [
-          _MenuCard(
-            color: Colors.red,
-            icon: Icons.report_gmailerrorred_outlined,
-            title: 'Offene Reklamationen',
-            subtitle: 'Bearbeiten & Entscheiden',
-            count: openCount,
-            compact: compact,
-            scale: scale,
-            onTap: () => setState(() {
-              _filter = _RepFilter.open;
-              _view = _RepView.open;
-            }),
-          ),
-          _MenuCard(
-            color: Colors.indigo,
-            icon: Icons.all_inbox_outlined,
-            title: 'Alle Reklamationen',
-            subtitle: 'Filtern & Suchen',
-            count: allCount,
-            compact: compact,
-            scale: scale,
-            onTap: () => setState(() => _view = _RepView.all),
-          ),
-          _MenuCard(
-            color: Colors.teal,
-            icon: Icons.apartment_outlined,
-            title: 'Kundendatenbank',
-            subtitle: 'Firmen & Kontakte',
-            count: _customers.length,
-            compact: compact,
-            scale: scale,
-            onTap: () => setState(() => _view = _RepView.customers),
-          ),
-          _MenuCard(
-            color: Colors.blueGrey,
-            icon: Icons.person_outline,
-            title: 'Mein Account',
-            subtitle: 'Profil & Passwort',
-            count: null,
-            compact: compact,
-            scale: scale,
-            onTap: () => setState(() => _view = _RepView.account),
-          ),
-        ],
+      return SingleChildScrollView(
+        child: Column(
+          children: [
+            _WelcomeHeader(
+              me: _me,
+              open: openCount,
+              all: allCount,
+              rejected: rejectedCount,
+              finished: finishedCount,
+              brand: _brand,
+            ),
+            const SizedBox(height: 14),
+            GridView.count(
+              crossAxisCount: gridCount,
+              crossAxisSpacing: compact ? 12 : 14,
+              mainAxisSpacing: compact ? 12 : 14,
+              padding: EdgeInsets.only(bottom: compact ? 4 : 8),
+              childAspectRatio: aspect,
+              physics: const NeverScrollableScrollPhysics(),
+              shrinkWrap: true,
+              children: [
+                _MenuCard(
+                  color: Colors.red,
+                  icon: Icons.report_gmailerrorred_outlined,
+                  title: 'Offene Reklamationen',
+                  subtitle: 'Bearbeiten & Entscheiden',
+                  count: openCount,
+                  compact: compact,
+                  scale: scale,
+                  onTap: () => setState(() {
+                    _filter = _RepFilter.open;
+                    _view = _RepView.open;
+                  }),
+                ),
+                _MenuCard(
+                  color: Colors.indigo,
+                  icon: Icons.all_inbox_outlined,
+                  title: 'Alle Reklamationen',
+                  subtitle: 'Filtern & Suchen',
+                  count: allCount,
+                  compact: compact,
+                  scale: scale,
+                  onTap: () => setState(() => _view = _RepView.all),
+                ),
+                _MenuCard(
+                  color: Colors.teal,
+                  icon: Icons.apartment_outlined,
+                  title: 'Kundendatenbank',
+                  subtitle: 'Firmen & Kontakte',
+                  count: _customers.length,
+                  compact: compact,
+                  scale: scale,
+                  onTap: () => setState(() => _view = _RepView.customers),
+                ),
+                _MenuCard(
+                  color: Colors.blueGrey,
+                  icon: Icons.person_outline,
+                  title: 'Mein Account',
+                  subtitle: 'Profil & Passwort',
+                  count: null,
+                  compact: compact,
+                  scale: scale,
+                  onTap: () => setState(() => _view = _RepView.account),
+                ),
+              ],
+            ),
+          ],
+        ),
       );
     });
   }
@@ -805,18 +793,15 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
   Widget _buildOpenComplaints() {
     final t = context.t;
 
-    // Firmenliste wie bei „Alle Reklamationen“
     final companies = _emailToCompany.values
         .where((s) => s.trim().isNotEmpty)
         .toSet()
         .toList()
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
-    // Basissatz „offen“
     List<Map<String, dynamic>> items =
         _complaints.where((c) => !_isClosed(c)).toList(growable: false);
 
-    // Firmenfilter anwenden, falls gesetzt
     if ((_selectedCompany ?? '').isNotEmpty) {
       items = items.where((c) {
         final em = (c['customerEmail'] ?? c['email'] ?? '').toString().toLowerCase();
@@ -828,7 +813,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Filterleiste
         Card(
           elevation: 3,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -860,11 +844,10 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
         ),
         const SizedBox(height: 12),
 
-        // Liste der offenen Reklamationen
         _Card(
           title: t.complaintsMyCustomer,
           child: items.isEmpty
-              ? Text(t.noComplaintsFound)
+              ? _EmptyState(icon: Icons.inbox_outlined, title: t.noComplaintsFound)
               : ListView.separated(
                   shrinkWrap: true,
                   physics: const BouncingScrollPhysics(),
@@ -894,7 +877,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
   Widget _buildAllComplaints() {
     final t = context.t;
 
-    // Firmenliste aus Mapping ableiten
     final companies = _emailToCompany.values
         .where((s) => s.trim().isNotEmpty)
         .toSet()
@@ -920,7 +902,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Filterleiste
         Card(
           elevation: 3,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -968,11 +949,10 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
           ),
         ),
         const SizedBox(height: 12),
-        // Liste
         _Card(
           title: 'Alle Reklamationen',
           child: list.isEmpty
-              ? Text(t.noComplaintsFound)
+              ? _EmptyState(icon: Icons.inbox_outlined, title: t.noComplaintsFound)
               : ListView.separated(
                   shrinkWrap: true,
                   physics: const BouncingScrollPhysics(),
@@ -1017,7 +997,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
         ),
       ],
       child: _customers.isEmpty
-          ? Text(t.noAddCustomer)
+          ? _EmptyState(icon: Icons.apartment_outlined, title: t.noAddCustomer)
           : ListView.separated(
               shrinkWrap: true,
               physics: const BouncingScrollPhysics(),
@@ -1050,7 +1030,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     );
   }
 
-  // ---- Seite: Account – ohne Doppeltitel/Untertitel + getrennte PW-Änderung ----
+  // ---- Seite: Account ----
   Widget _buildAccountCard() {
     final t = context.t;
     final labelProfile   = t.profile_edit ?? 'Profil bearbeiten';
@@ -1098,7 +1078,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
             busy = true;
             (ctx as Element).markNeedsBuild();
             try {
-              // Server erwartet nur neues Passwort? (gemäß bisherigem Client)
               await widget.api.repChangePassword(n1);
               if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
               if (!mounted) return;
@@ -1367,7 +1346,6 @@ class _Card extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Responsive Titelgröße nur hier (mit context) berechnen:
     final width   = MediaQuery.of(context).size.width;
     final isPhone = width < 600;
     final fsTitle = isPhone ? 17.0 : 19.0;
@@ -1426,15 +1404,15 @@ class _MenuCard extends StatelessWidget {
     final isPhone = MediaQuery.of(context).size.width < 600;
 
     final pad      = (compact ? 12.0 : 18.0) * scale;
-    final iconSize = (compact ? 24.0 : 30.0) * scale;     // +2 px
-    final circle   = (compact ? 44.0 : 52.0) * scale;     // +4 px
+    final iconSize = (compact ? 24.0 : 30.0) * scale;
+    final circle   = (compact ? 44.0 : 52.0) * scale;
 
-    final titleSizeBase = (compact ? 15.5 : 18.0);        // +1.5–2 px
-    final subSizeBase   = (compact ? 13.0 : 14.0);        // +1 px
+    final titleSizeBase = (compact ? 15.5 : 18.0);
+    final subSizeBase   = (compact ? 13.0 : 14.0);
     final titleSize     = (titleSizeBase * scale * (isPhone ? 1.00 : 1.05)) * ts;
     final subSize       = (subSizeBase   * scale * (isPhone ? 1.00 : 1.05)) * ts;
 
-    final chevron = (compact ? 22.0 : 24.0) * scale;      // +2 px
+    final chevron = (compact ? 22.0 : 24.0) * scale;
     final radius  = (compact ? 16.0 : 20.0) * scale;
 
     return InkWell(
@@ -1693,22 +1671,22 @@ class _CustomerTile extends StatelessWidget {
                   style: theme.textTheme.bodyMedium?.copyWith(height: 1.3),
                 ),
               ],
-            if (phone.isNotEmpty || location.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 10,
-                runSpacing: 8,
-                children: [
-                  if (phone.isNotEmpty)
-                    _CustomerInfoChip(
-                      icon: Icons.phone_outlined,
-                      label: phone,
-                    ),
-                  if (location.isNotEmpty)
-                    _CustomerInfoChip(
-                      icon: Icons.location_on_outlined,
-                      label: location,
-                    ),
+              if (phone.isNotEmpty || location.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 8,
+                  children: [
+                    if (phone.isNotEmpty)
+                      _CustomerInfoChip(
+                        icon: Icons.phone_outlined,
+                        label: phone,
+                      ),
+                    if (location.isNotEmpty)
+                      _CustomerInfoChip(
+                        icon: Icons.location_on_outlined,
+                        label: location,
+                      ),
                   ],
                 ),
               ],
@@ -2362,15 +2340,14 @@ class _DetailFieldData {
 //  Ampel-Widget (wie Admin, 3 Lichter)
 // ======================================
 class _RepTrafficLight extends StatelessWidget {
-  /// opinion: 'accepted' | 'rejected' | 'pending' | ''/null -> keine Anzeige
   final String? opinion;
-  final bool compact; // für enge Layouts (z. B. Zeile neben Status)
+  final bool compact;
   const _RepTrafficLight({required this.opinion, this.compact = false, super.key});
 
   @override
   Widget build(BuildContext context) {
     final v = (opinion ?? '').trim().toLowerCase();
-    if (v.isEmpty) return const SizedBox.shrink(); // keine Ampel ohne Meinung
+    if (v.isEmpty) return const SizedBox.shrink();
 
     const colRed   = Colors.red;
     const colAmber = Colors.amber;
@@ -2378,9 +2355,8 @@ class _RepTrafficLight extends StatelessWidget {
 
     final onRed   = v == 'rejected';
     final onGreen = v == 'accepted';
-    final onAmber = !(onRed || onGreen); // „pending“ / unklar → gelb
+    final onAmber = !(onRed || onGreen);
 
-    // falls irgendein exotischer Wert, Ampel weglassen
     if (!(onRed || onAmber || onGreen)) return const SizedBox.shrink();
 
     final size   = compact ? 10.0 : 12.0;
@@ -2529,24 +2505,19 @@ class _RepDecisionChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Ampel: ''  -> gelb (noch keine Entscheidung)
-    //         'accepted' -> grün
-    //         'rejected' -> rot
     late final Color color;
     late final String label;
 
     if (repDecision == 'accepted') {
       color = Colors.green;
-      label = (context.t.decision_accepted) /* z.B. "angenommen" */ ;
+      label = (context.t.decision_accepted);
     } else if (repDecision == 'rejected') {
       color = Colors.red;
-      label = (context.t.decision_rejected) /* z.B. "abgelehnt" */ ;
+      label = (context.t.decision_rejected);
     } else {
       color = Colors.amber;
       label = (context.t.no_decision_yet ?? 'Noch keine Entscheidung');
     }
-
-    final cs = Theme.of(context).colorScheme;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -2558,7 +2529,6 @@ class _RepDecisionChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // kleiner Punkt (Ampel)
           Container(
             width: 8,
             height: 8,
@@ -2671,6 +2641,209 @@ class _PulseNewBadgeState extends State<_PulseNewBadge> with SingleTickerProvide
             letterSpacing: .4,
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// ==============================
+///  Neue Header- & KPI-Widgets
+/// ==============================
+class _WelcomeHeader extends StatelessWidget {
+  final Map<String, dynamic>? me;
+  final int open;
+  final int all;
+  final int rejected;
+  final int finished;
+  final Color brand;
+
+  const _WelcomeHeader({
+    required this.me,
+    required this.open,
+    required this.all,
+    required this.rejected,
+    required this.finished,
+    required this.brand,
+  });
+
+  String _initials(Map<String, dynamic>? me) {
+    final f = (me?['firstName'] ?? '').toString().trim();
+    final l = (me?['lastName'] ?? '').toString().trim();
+    if (f.isEmpty && l.isEmpty) {
+      final e = (me?['email'] ?? '').toString();
+      return e.isNotEmpty ? e[0].toUpperCase() : 'R';
+    }
+    return ((f.isNotEmpty ? f[0] : '') + (l.isNotEmpty ? l[0] : '')).toUpperCase();
+    }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.t;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    final name = [
+      (me?['firstName'] ?? '').toString().trim(),
+      (me?['lastName'] ?? '').toString().trim()
+    ].where((e) => e.isNotEmpty).join(' ');
+    final email = (me?['email'] ?? '').toString();
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [brand.withOpacity(.14), cs.surface],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: cs.outlineVariant),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(.04), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: brand.withOpacity(.18),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: brand.withOpacity(.35)),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  _initials(me),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: brand,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: .2,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name.isNotEmpty ? name : t.rep_dashboard,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: .2,
+                      ),
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                    ),
+                    if (email.isNotEmpty)
+                      Text(
+                        email,
+                        style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (ctx, c) {
+              final isNarrow = c.maxWidth < 520;
+              return Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  _KpiChip(icon: Icons.report_gmailerrorred_outlined, label: 'Offen', value: open, color: Colors.red),
+                  _KpiChip(icon: Icons.all_inbox_outlined, label: 'Alle', value: all, color: brand),
+                  _KpiChip(icon: Icons.thumb_down_alt_outlined, label: 'Abgelehnt', value: rejected, color: Colors.orange),
+                  _KpiChip(icon: Icons.verified_outlined, label: 'Abgeschlossen', value: finished, color: Colors.green),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _KpiChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final int value;
+  final Color color;
+
+  const _KpiChip({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Color.alphaBlend(color.withOpacity(.08), cs.surface),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withOpacity(.35)),
+        boxShadow: [BoxShadow(color: color.withOpacity(.08), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(width: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(99),
+            ),
+            child: Text(
+              '$value',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  const _EmptyState({required this.icon, required this.title, super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: [
+          Icon(icon, color: cs.onSurfaceVariant),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(color: cs.onSurfaceVariant),
+            ),
+          ),
+        ],
       ),
     );
   }
