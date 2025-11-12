@@ -306,10 +306,15 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> with TickerProvid
                       )),
                   const SizedBox(height: 4),
                   Text(
-                    t.complaint_sub, // kurzer seriöser Sub-Text (bestehender String)
+                    t.complaint_sub,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: cs.onPrimary.withOpacity(.9)),
+                    style: TextStyle(
+                      fontSize: 10, // << kleiner
+                      height: 1.05, // etwas engerer Zeilenabstand (optional)
+                      color: cs.onPrimary.withOpacity(.9),
+                    ),
+                   )
                   ),
                 ],
               ),
