@@ -12,6 +12,11 @@ import 'my_complaints_page.dart';
 import 'account_page.dart';
 import 'support_page.dart';
 
+String? _REMOTE_LAB_DEFAULT;
+String? _REMOTE_LAB_ESFR;
+String? _REMOTE_DENT_DEFAULT;
+String? _REMOTE_DENT_ESFR;
+
 // const _pdfLabUrl  = 'pdfs/DFS-Labor-DE-US-2025-26_1.pdf';
 // const _pdfDentUrl = 'pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf';
 
@@ -19,17 +24,32 @@ import 'support_page.dart';
 String _pdfLabFor(BuildContext context) {
   final lc = Localizations.localeOf(context).languageCode.toLowerCase();
   final esFr = lc == 'es' || lc == 'fr';
-  return esFr
-      ? 'pdfs/DFS-Labor-ES-FR-2025-26_1.pdf'
-      : 'pdfs/DFS-Labor-DE-US-2025-26_1.pdf'; // default: DE/EN/IT
+
+  if (esFr) {
+    // Remote bevorzugen, sonst Fallback
+    return (_REMOTE_LAB_ESFR?.trim().isNotEmpty == true)
+        ? _REMOTE_LAB_ESFR!
+        : 'pdfs/DFS-Labor-ES-FR-2025-26_1.pdf';
+  } else {
+    return (_REMOTE_LAB_DEFAULT?.trim().isNotEmpty == true)
+        ? _REMOTE_LAB_DEFAULT!
+        : 'pdfs/DFS-Labor-DE-US-2025-26_1.pdf';
+  }
 }
 
 String _pdfDentFor(BuildContext context) {
   final lc = Localizations.localeOf(context).languageCode.toLowerCase();
   final esFr = lc == 'es' || lc == 'fr';
-  return esFr
-      ? 'pdfs/DFS-Praxis-ES-FR-2025-2026_1.pdf'
-      : 'pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf'; // default: DE/EN/IT
+
+  if (esFr) {
+    return (_REMOTE_DENT_ESFR?.trim().isNotEmpty == true)
+        ? _REMOTE_DENT_ESFR!
+        : 'pdfs/DFS-Praxis-ES-FR-2025-2026_1.pdf';
+  } else {
+    return (_REMOTE_DENT_DEFAULT?.trim().isNotEmpty == true)
+        ? _REMOTE_DENT_DEFAULT!
+        : 'pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf';
+  }
 }
 
 class DashboardPage extends StatefulWidget {
@@ -61,6 +81,24 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
       _initCustomerName();
     });
     _initRep();
+    _loadCatalogConfigOnce(); // <--- NEU
+  }
+
+  Future<void> _loadCatalogConfigOnce() async {
+    try {
+      final m = await widget.api.fetchCatalogConfig();
+      if (m.isNotEmpty) {
+        // Remote-Overrides setzen
+        _REMOTE_LAB_DEFAULT  = m['lab_default'] ?? _REMOTE_LAB_DEFAULT;
+        _REMOTE_LAB_ESFR     = m['lab_esfr'] ?? _REMOTE_LAB_ESFR;
+        _REMOTE_DENT_DEFAULT = m['dent_default'] ?? _REMOTE_DENT_DEFAULT;
+        _REMOTE_DENT_ESFR    = m['dent_esfr'] ?? _REMOTE_DENT_ESFR;
+
+        if (mounted) setState(() {}); // neu rendern, damit die Links sofort greifen
+      }
+    } catch (_) {
+      // still: Fallback bleibt aktiv
+    }
   }
 
   bool _isStandaloneWebApp() {
