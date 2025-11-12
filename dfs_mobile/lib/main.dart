@@ -277,12 +277,18 @@ class _MyAppState extends State<MyApp> {
     await api.restoreSession();
     await api.ensureRepSession(); // invalides repToken nach Deploys o.ä. wegräumen
     final wasLoggedIn = _customerLoggedIn;
+    final hasRep = _repLoggedIn;
+    final hasAdmin = (api.adminSecret ?? '').isNotEmpty;
     setState(() {
       _loggedIn = wasLoggedIn; // Kunden-Flow bleibt unabhängig vom Vertreter-Flow
       _bootDone = true;
     });
-    if (wasLoggedIn) {
-      await push.setup(api, languageCode: _prefs.locale?.languageCode);
+    if (wasLoggedIn || hasRep || hasAdmin) {
+      try {
+        await push.setup(api, languageCode: _prefs.locale?.languageCode);
+      } catch (e) {
+        debugPrint('[push] setup on boot failed: $e');
+      }
     }
   }
 
@@ -327,6 +333,11 @@ class _MyAppState extends State<MyApp> {
     }
 
     api.setAdminSecret(secret);
+    try {
+      await push.setup(api, languageCode: _prefs.locale?.languageCode);
+    } catch (e) {
+      debugPrint('[push] setup for admin failed: $e');
+    }
     if (!mounted) return;
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => AdminPage(api: api)));
   }
