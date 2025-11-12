@@ -246,10 +246,6 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                           Text(t.rep_banner_title(repName.isEmpty ? '—' : repName),
                               style: const TextStyle(fontWeight: FontWeight.w600)),
                           const SizedBox(height: 2),
-                          Text([
-                            if (repEmail.isNotEmpty) repEmail,
-                            if (repRegion.isNotEmpty) repRegion,
-                          ].join(' • ')),
                         ],
                       ),
                     ),
