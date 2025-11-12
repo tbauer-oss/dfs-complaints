@@ -25,6 +25,11 @@
   "addAnother_no": "Nein, weiter",
   "addAnother_yes": "Ja, weiteres hinzufügen",
 
+  "addAnother_title": "Weiteres Element hinzufügen?",
+  "addAnother_body": "Möchtest du vor dem Absenden noch einen weiteren Artikel/Charge zur Reklamation hinzufügen?",
+  "addAnother_no": "Nein, weiter",
+  "addAnother_yes": "Ja, weiteres hinzufügen",
+
   "hideDetails": "Details ausblenden",
   "showDetails": "Details anzeigen",
   "rep_not_assigned": "DFS-Diamon GmbH",
