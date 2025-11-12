@@ -502,6 +502,7 @@ class _AdminPageState extends State<AdminPage> {
       _AdminView.users   => 'Aktive Nutzer',
       _AdminView.open    => 'Offene Reklamationen',
       _AdminView.reps    => 'Vertreterverwaltung',
+      _AdminView.catalogs => 'Kataloge',
     };
 
     return Scaffold(
@@ -2448,17 +2449,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   void dispose() {
     _reportCtrl.dispose();
     _internalCtrl.dispose();
-
-    // Vertreter
-    _repFirstCtrl.dispose();
-    _repLastCtrl.dispose();
-    _repMailCtrl.dispose();
-
-    // Kataloge
-    _labDefaultCtrl.dispose();
-    _labEsfrCtrl.dispose();
-    _dentDefaultCtrl.dispose();
-    _dentEsfrCtrl.dispose();
     
     super.dispose();
   }
