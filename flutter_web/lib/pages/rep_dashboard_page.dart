@@ -34,6 +34,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   /// Kundenliste (aus Backend normalisiert) – zugewiesene Kunden dieses Vertreters
   List<Map<String, Object?>> _customers = <Map<String, Object?>>[];
 
+  final TextEditingController _customerSearchCtrl = TextEditingController();
+  String _customerSearch = '';
+  
   /// Reklamationen (aus Backend)
   List<Map<String, dynamic>> _complaints = [];
 
@@ -88,6 +91,12 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       _persistSeen();
       if (mounted) setState(() {});
     }
+  }
+
+  @override
+  void dispose() {
+    _customerSearchCtrl.dispose();
+    super.dispose();
   }
 
   // Einheitliche 401/Unauthorized-Behandlung
@@ -1002,6 +1011,94 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
   // ---- Seite: Kundendatenbank ----
   Widget _buildCustomersCard() {
     final t = context.t;
+    final query = _customerSearch.trim().toLowerCase();
+
+    bool matches(Map<String, Object?> c) {
+      if (query.isEmpty) return true;
+      bool containsValue(String key) =>
+          ((c[key] ?? '').toString().toLowerCase()).contains(query);
+      return containsValue('company') ||
+          containsValue('name') ||
+          containsValue('email') ||
+          containsValue('customerNo');
+    }
+
+    final filtered = _customers.where(matches).toList(growable: false);
+
+    Widget buildList() {
+      if (_customers.isEmpty) {
+        return Text(t.noAddCustomer);
+      }
+      if (filtered.isEmpty) {
+        return Text(t.noDataFound ?? 'Keine Daten gefunden.');
+      }
+      return ListView.separated(
+        shrinkWrap: true,
+        physics: const BouncingScrollPhysics(),
+        itemBuilder: (_, i) {
+          final c = filtered[i];
+          final email = (c['email'] ?? '').toString();
+          final isNew = !_seenCustomers.contains(email.toLowerCase());
+
+          final tile = InkWell(
+            onTap: () {
+              _markCustomerSeen(email);
+              _showCustomerDetails(c);
+            },
+            child: ListTile(
+              dense: true,
+              visualDensity: const VisualDensity(vertical: -2),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              leading: const Icon(Icons.apartment_outlined),
+              title: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      (() {
+                        final comp = (c['company'] ?? '').toString();
+                        final nm = (c['name'] ?? '').toString();
+                        final em = email;
+                        if (comp.isNotEmpty) return comp;
+                        if (nm.isNotEmpty) return nm;
+                        return em;
+                      })(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (isNew) const SizedBox(width: 8),
+                  if (isNew) const _PulseNewBadge(),
+                ],
+              ),
+              subtitle: Text(
+                (() {
+                  final nm = (c['name'] ?? '').toString();
+                  final em = email;
+                  if (nm.isNotEmpty && em.isNotEmpty) return '$nm • $em';
+                  return nm.isNotEmpty ? nm : em;
+                })(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.1),
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.link_off),
+                tooltip: t.deleteAdd,
+                onPressed: () => _unassignCustomer(email),
+              ),
+            ),
+          );
+
+          return _FadeInOnce(
+            delayMs: 35 * i,
+            child: tile,
+          );
+        },
+        separatorBuilder: (_, __) => const Divider(height: 1),
+        itemCount: filtered.length,
+      );
+    }
+
     return _Card(
       title: t.myCustomers,
       actions: [
@@ -1011,89 +1108,26 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
           label: Text(t.addCustomer),
         ),
       ],
-      child: _customers.isEmpty
-          ? Text(t.noAddCustomer)
-          : ListView.separated(
-              shrinkWrap: true,
-              physics: const BouncingScrollPhysics(),
-              itemBuilder: (_, i) {
-                final c = _customers[i];
-                final email = (c['email'] ?? '').toString();
-                final isNew = !_seenCustomers.contains(email.toLowerCase());
-
-                final tile = InkWell(
-                  onTap: () {
-                    // Beim ersten Öffnen → NEW weg
-                    _markCustomerSeen(email);
-                    _showCustomerDetails(c);
-                  },
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    leading: const Icon(Icons.apartment_outlined),
-                    title: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            (() {
-                              final comp = (c['company'] ?? '').toString();
-                              final nm   = (c['name'] ?? '').toString();
-                              final em   = email;
-                              if (comp.isNotEmpty) return comp;
-                              if (nm.isNotEmpty)   return nm;
-                              return em;
-                            })(),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (isNew) const SizedBox(width: 8),
-                        if (isNew)
-                          const _PulseNewBadge(), // ← ersetzt den statischen NEW-Container (pulsierend)
-                      ],
-                    ),
-                    subtitle: Text(
-                      (() {
-                        final nm = (c['name'] ?? '').toString();
-                        final em = email;
-                        if (nm.isNotEmpty && em.isNotEmpty) return '$nm • $em';
-                        return nm.isNotEmpty ? nm : em;
-                      })(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    trailing: Wrap(
-                      spacing: 8,
-                      children: [
-                        IconButton(
-                          tooltip: 'Details',
-                          icon: const Icon(Icons.info_outline),
-                          onPressed: () {
-                            _markCustomerSeen(email);
-                            _showCustomerDetails(c);
-                          },
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.link_off),
-                          tooltip: t.deleteAdd,
-                          onPressed: () => _unassignCustomer(email),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-
-                // Sanftes Aufleuchten (Fade-in) pro Karte, leicht gestaffelt
-                return _FadeInOnce(
-                  delayMs: 35 * i,
-                  child: tile,
-                );
-              },
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemCount: _customers.length,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _customerSearchCtrl,
+            onChanged: (value) => setState(() => _customerSearch = value),
+            decoration: InputDecoration(
+              hintText: t.search,
+              prefixIcon: const Icon(Icons.search),
+              border: const OutlineInputBorder(),
+              isDense: true,
             ),
+          ),
+          const SizedBox(height: 12),
+          buildList(),
+        ],
+      ),
     );
   }
-
+  
   // ---- Seite: Account – ohne Doppeltitel/Untertitel + getrennte PW-Änderung ----
   Widget _buildAccountCard() {
     final t = context.t;
