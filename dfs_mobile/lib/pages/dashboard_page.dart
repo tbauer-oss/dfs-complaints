@@ -628,6 +628,7 @@ class _RepBanner extends StatelessWidget {
 }
 
 // Dezente Katalog-Leiste: kompakte Darstellung mit nur einer passenden Sprache
+// Dezente Katalog-Leiste: kompaktere Abstände & geringere Zeilenhöhe
 class _CatalogButtons extends StatelessWidget {
   const _CatalogButtons();
 
@@ -646,20 +647,38 @@ class _CatalogButtons extends StatelessWidget {
       required List<_CatalogLink> links,
     }) {
       final link = _catalogLinkForLocale(links, localeCode);
+
+      // etwas straffer gepolstert
       final padding = EdgeInsets.fromLTRB(
-        isPhone ? 12 : 16,
-        isPhone ? 10 : 14,
-        isPhone ? 12 : 16,
-        isPhone ? 12 : 16,
+        isPhone ? 12 : 14,
+        isPhone ? 8 : 10,
+        isPhone ? 12 : 14,
+        isPhone ? 10 : 12,
+      );
+
+      // engere Zeilenhöhen
+      final titleStyle = theme.textTheme.titleSmall?.copyWith(
+        fontWeight: FontWeight.w600,
+        letterSpacing: .2,
+        height: 1.05, // straffer
+      );
+      final descStyle = theme.textTheme.bodySmall?.copyWith(
+        color: cs.onSurface.withOpacity(.75),
+        height: 1.15, // weniger Zeilenabstand
+      );
+      final langStyle = theme.textTheme.bodySmall?.copyWith(
+        color: cs.onSurface.withOpacity(.6),
+        fontStyle: FontStyle.italic,
+        height: 1.10, // dezent
       );
 
       return Container(
-        margin: const EdgeInsets.symmetric(vertical: 6),
+        margin: const EdgeInsets.symmetric(vertical: 4), // war 6
         padding: padding,
         decoration: BoxDecoration(
-          color: cs.surfaceVariant.withOpacity(0.18),
+          color: cs.surfaceVariant.withOpacity(0.16),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: cs.outlineVariant.withOpacity(0.45)),
+          border: Border.all(color: cs.outlineVariant.withOpacity(0.40)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -667,40 +686,23 @@ class _CatalogButtons extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(icon, size: isPhone ? 20 : 22, color: cs.onSurface.withOpacity(0.7)),
-                const SizedBox(width: 12),
+                Icon(icon, size: isPhone ? 18 : 20, color: cs.onSurface.withOpacity(0.70)),
+                const SizedBox(width: 10), // war 12
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        title,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: .2,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        description,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: cs.onSurface.withOpacity(.75),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        link.label,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: cs.onSurface.withOpacity(.6),
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
+                      Text(title, style: titleStyle),
+                      const SizedBox(height: 2), // war 4
+                      Text(description, style: descStyle),
+                      const SizedBox(height: 2), // war 6
+                      Text(link.label, style: langStyle),
                     ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 6), // war 10
             TextButton.icon(
               onPressed: () {
                 Navigator.of(context).push(
@@ -711,11 +713,11 @@ class _CatalogButtons extends StatelessWidget {
               },
               style: TextButton.styleFrom(
                 padding: EdgeInsets.symmetric(
-                  horizontal: isPhone ? 12 : 14,
-                  vertical: 8,
+                  horizontal: isPhone ? 10 : 12, // etwas kompakter
+                  vertical: 6, // war 8
                 ),
                 textStyle: theme.textTheme.labelMedium,
-                visualDensity: VisualDensity.compact,
+                visualDensity: const VisualDensity(horizontal: -1, vertical: -2),
               ),
               icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
               label: Text(t.catalog_open),
