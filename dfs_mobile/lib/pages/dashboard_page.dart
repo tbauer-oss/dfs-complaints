@@ -144,14 +144,11 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     }
   }
 
-  // --- KOMPAKTE Variante (eingeklappbar) ---
+  // --- KOMPAKTE Variante (handy-optimiert, Name immer sichtbar) ---
   Widget _buildRepCardCompact(BuildContext context) {
-    final theme  = Theme.of(context);
-    final t      = AppLocalizations.of(context)!;
-    final r      = _myRep;
-    final name   = (r == null) ? '' : [r.firstName.trim(), r.lastName.trim()].where((s) => s.isNotEmpty).join(' ');
-    final email  = (r?.email ?? '').trim();
-    final region = (r?.region ?? '').trim();
+    final theme = Theme.of(context);
+    final t     = AppLocalizations.of(context)!;
+    final r     = _myRep;
 
     // Kein Vertreter hinterlegt → dezenter Hinweis + Refresh
     if (r == null) {
@@ -167,7 +164,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
           children: [
             const Icon(Icons.person_search_outlined, size: 20),
             const SizedBox(width: 10),
-            Expanded(child: Text(t.rep_not_assigned)),
+            Expanded(child: Text(t.rep_not_assigned, style: theme.textTheme.bodyMedium)),
             IconButton(
               tooltip: t.refresh,
               onPressed: _initRep,
@@ -178,54 +175,95 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
       );
     }
 
+    final first  = r.firstName.trim();
+    final last   = r.lastName.trim();
+    final email  = r.email.trim();
+    final region = r.region.trim();
+    final name   = [first, last].where((s) => s.isNotEmpty).join(' ');
+    final title  = name.isNotEmpty ? t.rep_banner_title(name)
+                                   : t.rep_banner_title(email.isNotEmpty ? email : '—');
+
+    // Handy-optimiertes Layout: 1) Avatar + Textblock, 2) Aktionszeile darunter
     return Card(
       margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: ExpansionTile(
-        initiallyExpanded: false,
-        tilePadding: const EdgeInsets.symmetric(horizontal: 12),
-        childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-        leading: const CircleAvatar(child: Icon(Icons.handshake_outlined)),
-        title: Text(
-          t.rep_banner_title(name.isNotEmpty ? name : email),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-        ),
-        subtitle: Text(
-          [if (email.isNotEmpty) email, if (region.isNotEmpty) region].join(' • '),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.bodySmall,
-        ),
-        trailing: Wrap(
-          spacing: 4,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (email.isNotEmpty)
-              IconButton(
-                tooltip: t.rep_email_tooltip,
-                icon: const Icon(Icons.mail_outline),
-                onPressed: () => _mailToRep(context),
-              ),
-            IconButton(
-              tooltip: t.refresh,
-              icon: const Icon(Icons.refresh),
-              onPressed: _initRep,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // kompakter Avatar
+                const CircleAvatar(
+                  radius: 18,
+                  child: Icon(Icons.handshake_outlined, size: 18),
+                ),
+                const SizedBox(width: 10),
+                // Textblock darf platz fressen: 2 Zeilen Titel, 1 Zeile Sub
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Titel mit 2 Zeilen und Ellipsis
+                      Text(
+                        title,
+                        maxLines: 2,
+                        softWrap: true,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          height: 1.1, // engere Zeilenhöhe
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      if (email.isNotEmpty || region.isNotEmpty)
+                        Text(
+                          [if (email.isNotEmpty) email, if (region.isNotEmpty) region].join(' • '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurface.withOpacity(.75),
+                            height: 1.15,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            // Aktionen unter dem Textblock → spart Breite, nichts schneidet ab
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                if (email.isNotEmpty)
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      visualDensity: const VisualDensity(horizontal: -2, vertical: -3),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    ),
+                    onPressed: () => _mailToRep(context),
+                    icon: const Icon(Icons.mail_outline, size: 18),
+                    label: Text(
+                      t.rep_email_button,
+                      style: theme.textTheme.labelMedium,
+                    ),
+                  ),
+                const SizedBox(width: 6),
+                IconButton(
+                  tooltip: t.refresh,
+                  visualDensity: const VisualDensity(horizontal: -2, vertical: -3),
+                  padding: const EdgeInsets.all(6),
+                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                  onPressed: _initRep,
+                  icon: const Icon(Icons.refresh, size: 20),
+                ),
+              ],
             ),
           ],
         ),
-        // Optional: Details im aufgeklappten Bereich
-        children: [
-          if (region.isNotEmpty)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text(region, style: theme.textTheme.bodySmall),
-              ),
-            ),
-        ],
       ),
     );
   }
