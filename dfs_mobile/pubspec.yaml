@@ -21,7 +21,7 @@ dependencies:
   country_flags: ^2.2.0
   shared_preferences: ^2.3.2
 
-flutter_icons:
+flutter_launcher_icons:
   android: true
   ios: true
   image_path: "assets/icons/dfs_logo.png"
@@ -53,5 +53,6 @@ flutter:
 
 flutter_intl:
   enabled: true
+
 
 
