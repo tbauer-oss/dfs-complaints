@@ -244,8 +244,199 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
     return out;
   }
-  // ======= /FEHLENDE METHODE =======
 
+  Widget _buildOverviewHeader({
+    required int openCount,
+    required int allCount,
+    required int rejectedCount,
+    required int finishedCount,
+  }) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    // kompaktere Abstände/Typo
+    const avatarSize = 36.0;
+    const pad = EdgeInsets.fromLTRB(14, 12, 14, 12);
+
+    String _initials() {
+      final fn = (_me?['firstName'] ?? '').toString().trim();
+      final ln = (_me?['lastName']  ?? '').toString().trim();
+      final em = (_me?['email']     ?? '').toString().trim();
+      if (fn.isNotEmpty && ln.isNotEmpty) return '${fn[0]}${ln[0]}'.toUpperCase();
+      if (fn.isNotEmpty) return fn[0].toUpperCase();
+      if (em.isNotEmpty) return em[0].toUpperCase();
+      return 'U';
+    }
+
+    String _fullName() {
+      final fn = (_me?['firstName'] ?? '').toString().trim();
+      final ln = (_me?['lastName']  ?? '').toString().trim();
+      final em = (_me?['email']     ?? '').toString().trim();
+      final n = [fn, ln].where((e) => e.isNotEmpty).join(' ');
+      return n.isNotEmpty ? n : em;
+    }
+
+    return Card(
+      elevation: 2, // dezenter
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Ink(
+        decoration: BoxDecoration(
+          // leichte, zurückhaltende Fläche (hell/dunkel tauglich)
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              cs.surfaceVariant.withOpacity(.18),
+              cs.surface.withOpacity(.60),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: cs.outlineVariant.withOpacity(.5)),
+        ),
+        child: Padding(
+          padding: pad,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Kopfzeile: Avatar + Name + Mail
+              Row(
+                children: [
+                  Container(
+                    width: avatarSize,
+                    height: avatarSize,
+                    decoration: BoxDecoration(
+                      color: cs.primary.withOpacity(.16),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: cs.primary.withOpacity(.35)),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      _initials(),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: cs.primary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _fullName(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800, // kleiner als vorher
+                          ),
+                        ),
+                        if ((_me?['email'] ?? '').toString().isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            (_me?['email'] ?? '').toString(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              // kleine, dezente Counter-Chips (2 pro Zeile, dann 1/1)
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  _overviewStat(
+                    icon: Icons.report_problem_rounded,
+                    label: 'Offen',
+                    value: openCount,
+                    color: Colors.red.shade600,
+                  ),
+                  _overviewStat(
+                    icon: Icons.all_inbox_rounded,
+                    label: 'Alle',
+                    value: allCount,
+                    color: cs.primary,
+                  ),
+                  _overviewStat(
+                    icon: Icons.thumb_down_alt_rounded,
+                    label: 'Abgelehnt',
+                    value: rejectedCount,
+                    color: Colors.orange.shade700,
+                  ),
+                  _overviewStat(
+                    icon: Icons.check_circle_rounded,
+                    label: 'Abgeschlossen',
+                    value: finishedCount,
+                    color: Colors.green.shade600,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _overviewStat({
+    required IconData icon,
+    required String label,
+    required int value,
+    required Color color,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), // kleiner
+      decoration: BoxDecoration(
+        color: color.withOpacity(.10),
+        borderRadius: BorderRadius.circular(12), // kleiner
+        border: Border.all(color: color.withOpacity(.45), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
+              fontSize: 13, // kleiner
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              '$value',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 12, // kleiner
+                height: 1,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
   // Mail/Benachrichtigung an complaint@dfs-diamon.de bei Selbst-Zuweisung
   Future<void> _notifySelfAssignment({required String customerEmail, required String? company}) async {
     try {
@@ -720,13 +911,11 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       return SingleChildScrollView(
         child: Column(
           children: [
-            _WelcomeHeader(
-              me: _me,
-              open: openCount,
-              all: allCount,
-              rejected: rejectedCount,
-              finished: finishedCount,
-              brand: _brand,
+            _buildOverviewHeader(
+              openCount: openCount,
+              allCount: allCount,
+              rejectedCount: rejectedCount,
+              finishedCount: finishedCount,
             ),
             const SizedBox(height: 14),
             GridView.count(
