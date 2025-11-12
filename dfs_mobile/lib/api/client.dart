@@ -39,6 +39,7 @@ class ApiClient {
   String? gate;         // optionales Gate-Token
   String? adminSecret;  // für X-Admin-Secret
   String? repToken;     // JWT für Vertreter-Login
+  String? pushDeviceToken; // letzter registrierter Push-Token
 
   // Merker für Vertreter-Login-Flow
   String? _repEmail;    // zuletzt geprüfte/benutzte Vertreter-E-Mail
@@ -75,6 +76,12 @@ class ApiClient {
       ls.remove('dfs_rep_token');
     }
 
+    if (pushDeviceToken != null && pushDeviceToken!.isNotEmpty) {
+      ls['dfs_push_token'] = pushDeviceToken!;
+    } else {
+      ls.remove('dfs_push_token');
+    }
+
     // Vertreter-E-Mail (nur als Hilfe für Secret-Login)
     if (_repEmail != null && _repEmail!.isNotEmpty) {
       ls['dfs_rep_email'] = _repEmail!;
@@ -90,12 +97,18 @@ class ApiClient {
     gate        = ls['dfs_gate'];
     repToken    = ls['dfs_rep_token'];
     _repEmail   = ls['dfs_rep_email'];
+    pushDeviceToken = ls['dfs_push_token'];
   }
 
   Future<void> logout() async {
+    final tok = pushDeviceToken;
+    if (tok != null && tok.isNotEmpty) {
+      await unregisterPushToken(tok, silent: true);
+    }
     token = null;
     adminSecret = null;
     gate = null;
+    pushDeviceToken = null;
     _saveSession();
   }
 
@@ -482,6 +495,66 @@ class ApiClient {
       headers: _headers(auth: auth),
       body: body == null ? null : jsonEncode(body),
     );
+  }
+
+  Future<void> registerPushToken(String token, {String? platform, String? locale, String? lang}) async {
+    final trimmed = token.trim();
+    if (trimmed.isEmpty) return;
+    if (this.token == null || this.token!.isEmpty) {
+      pushDeviceToken = trimmed;
+      _saveSession();
+      return;
+    }
+
+    final body = <String, String>{'token': trimmed};
+    if (platform != null && platform.trim().isNotEmpty) body['platform'] = platform.trim();
+    if (locale != null && locale.trim().isNotEmpty) body['locale'] = locale.trim();
+    if (lang != null && lang.trim().isNotEmpty) body['lang'] = lang.trim();
+
+    final res = await _post('/api/push/register', body, auth: true);
+    if (!_ok2xx(res.statusCode)) {
+      final msg = _extractMessage(res.body);
+      throw ApiError(res.statusCode, msg);
+    }
+    pushDeviceToken = trimmed;
+    _saveSession();
+  }
+
+  Future<void> unregisterPushToken(String token, {bool silent = false}) async {
+    final trimmed = token.trim();
+    if (trimmed.isEmpty) {
+      if (pushDeviceToken != null) {
+        pushDeviceToken = null;
+        _saveSession();
+      }
+      return;
+    }
+
+    final hasAuth = this.token != null && this.token!.isNotEmpty;
+    if (hasAuth) {
+      try {
+        final res = await _delete(
+          '/api/push/register?token=${Uri.encodeComponent(trimmed)}',
+          auth: true,
+        );
+        if (!_ok2xx(res.statusCode) && res.statusCode != 204 && res.statusCode != 404) {
+          if (!silent) {
+            final msg = _extractMessage(res.body);
+            throw ApiError(res.statusCode, msg);
+          }
+        }
+      } catch (e) {
+        if (!silent) {
+          if (e is ApiError) rethrow;
+          throw ApiError(0, e.toString());
+        }
+      }
+    }
+
+    if (pushDeviceToken == trimmed) {
+      pushDeviceToken = null;
+      _saveSession();
+    }
   }
 
   // ---------- Gate ----------
