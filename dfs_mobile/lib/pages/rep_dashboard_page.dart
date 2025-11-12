@@ -2276,7 +2276,7 @@ class _ComplaintTileState extends State<_ComplaintTile> {
             : MediaQuery.of(context).size.width;
         final double halfWidth = (availableWidth - 12) / 2;
 
-        // Desktop/Tablet-Chips (2 Spalten)
+        // === Desktop/Tablet-Chips (2 Spalten) ===
         final desktopChips = <Widget>[];
         if (customer.isNotEmpty) {
           desktopChips.add(_metaChip(
@@ -2294,24 +2294,25 @@ class _ComplaintTileState extends State<_ComplaintTile> {
             maxWidth: halfWidth,
           ));
         }
+        // NEU: Charge / LOT statt Datum/Uhrzeit
+        if ((batch ?? '').trim().isNotEmpty) {
+          desktopChips.add(_metaChip(
+            context,
+            icon: Icons.inventory_2_outlined,
+            text: batch!.trim(),
+            maxWidth: halfWidth,
+          ));
+        }
         if (internalNo != null && internalNo!.trim().isNotEmpty) {
           desktopChips.add(_metaChip(
             context,
             icon: Icons.confirmation_number_outlined,
-            text: internalNo!,
-            maxWidth: halfWidth,
-          ));
-        }
-        if (createdLabel != null) {
-          desktopChips.add(_metaChip(
-            context,
-            icon: Icons.schedule_rounded,
-            text: createdLabel!,
+            text: internalNo!.trim(),
             maxWidth: halfWidth,
           ));
         }
 
-        // Phone: volle Breite, untereinander
+        // === Phone: volle Breite, untereinander ===
         final phoneRows = <Widget>[
           if (customer.isNotEmpty)
             _metaRowFullWidth(context,
@@ -2319,12 +2320,13 @@ class _ComplaintTileState extends State<_ComplaintTile> {
           if (articleLabel != null)
             _metaRowFullWidth(context,
                 icon: Icons.qr_code_2_outlined, text: articleLabel!),
+          // NEU: Charge / LOT statt Datum/Uhrzeit
+          if ((batch ?? '').trim().isNotEmpty)
+            _metaRowFullWidth(context,
+                icon: Icons.inventory_2_outlined, text: batch!.trim()),
           if (internalNo != null && internalNo!.trim().isNotEmpty)
             _metaRowFullWidth(context,
-                icon: Icons.confirmation_number_outlined, text: internalNo!),
-          if (createdLabel != null)
-            _metaRowFullWidth(context,
-                icon: Icons.schedule_rounded, text: createdLabel!),
+                icon: Icons.confirmation_number_outlined, text: internalNo!.trim()),
         ];
 
         // Header (Phone: Ticket allein + Status darunter; Desktop: links Ticket+Status+Chips, rechts Ampel)
