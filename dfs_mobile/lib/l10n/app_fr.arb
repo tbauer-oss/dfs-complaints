@@ -88,6 +88,7 @@
   "@chooseCustomer": { "description": "Libellé/placeholder pour la liste déroulante du client" },
   "allCompanies": "Toutes les entreprises",
   "@allCompanies": { "description": "Option de filtre pour afficher toutes les entreprises" },
+  "yourCompany": "Votre entreprise",
 
   "logout": "Déconnexion",
   "loggedOut": "Déconnecté.",
