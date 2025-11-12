@@ -88,6 +88,7 @@
   "@chooseCustomer": { "description": "Etichetta/placeholder per il menu a tendina del cliente" },
   "allCompanies": "Tutte le aziende",
   "@allCompanies": { "description": "Opzione di filtro per mostrare tutte le aziende" },
+  "yourCompany": "La vostra azienda",
 
   "logout": "Disconnetti",
   "loggedOut": "Disconnesso.",
