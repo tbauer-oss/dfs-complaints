@@ -52,11 +52,10 @@ android {
             // optional debug-spezifisches
         }
     }
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-        // Optional (statt obigen zwei Zeilen):
-        // isCoreLibraryDesugaringEnabled = true
+    compileOptions {␊
+        sourceCompatibility = JavaVersion.VERSION_17␊
+        targetCompatibility = JavaVersion.VERSION_17␊
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -68,6 +67,5 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.24")
     implementation(platform("com.google.firebase:firebase-bom:33.2.0"))
     implementation("com.google.firebase:firebase-messaging")
-}
-
-
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+}␊
