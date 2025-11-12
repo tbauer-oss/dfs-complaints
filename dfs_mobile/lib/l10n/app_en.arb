@@ -91,6 +91,7 @@
   "@chooseCustomer": { "description": "Label/placeholder for the customer dropdown" },
   "allCompanies": "All companies",
   "@allCompanies": { "description": "Filter option to show all companies" },
+  "yourCompany": "Your company",
 
   "logout": "Logout",
   "loggedOut": "Logged out.",
