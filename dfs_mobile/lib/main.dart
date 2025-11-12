@@ -56,7 +56,8 @@ ThemeData _lightTheme() {
         fontSize: 20,
       ),
     ),
-    cardTheme: CardTheme(
+    // <-- geändert: CardThemeData
+    cardTheme: CardThemeData(
       color: scheme.surface.withOpacity(0.75),
       surfaceTintColor: Colors.transparent,
       elevation: 6,
@@ -110,17 +111,19 @@ ThemeData _lightTheme() {
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
-    dialogTheme: DialogTheme(
+    // <-- geändert: DialogThemeData
+    dialogTheme: DialogThemeData(
       backgroundColor: scheme.surfaceContainerHigh.withOpacity(.9),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ),
     dividerTheme: DividerThemeData(color: scheme.outlineVariant),
     listTileTheme: ListTileThemeData(iconColor: scheme.onSurfaceVariant),
-    checkboxTheme: CheckboxThemeData(fillColor: WidgetStatePropertyAll(scheme.primary)),
-    radioTheme: RadioThemeData(fillColor: WidgetStatePropertyAll(scheme.primary)),
+    // <-- geändert: MaterialStatePropertyAll
+    checkboxTheme: CheckboxThemeData(fillColor: MaterialStatePropertyAll(scheme.primary)),
+    radioTheme: RadioThemeData(fillColor: MaterialStatePropertyAll(scheme.primary)),
     switchTheme: SwitchThemeData(
-      thumbColor: WidgetStatePropertyAll(scheme.primary),
-      trackColor: WidgetStatePropertyAll(scheme.primary.withOpacity(.35)),
+      thumbColor: MaterialStatePropertyAll(scheme.primary),
+      trackColor: MaterialStatePropertyAll(scheme.primary.withOpacity(.35)),
     ),
   );
 }
@@ -148,7 +151,8 @@ ThemeData _darkTheme() {
         fontSize: 20,
       ),
     ),
-    cardTheme: CardTheme(
+    // <-- geändert: CardThemeData
+    cardTheme: CardThemeData(
       color: scheme.surfaceContainerHigh.withOpacity(.7),
       surfaceTintColor: Colors.transparent,
       elevation: 4,
@@ -205,17 +209,19 @@ ThemeData _darkTheme() {
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
-    dialogTheme: DialogTheme(
+    // <-- geändert: DialogThemeData
+    dialogTheme: DialogThemeData(
       backgroundColor: scheme.surfaceContainerHigh.withOpacity(.9),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ),
     dividerTheme: DividerThemeData(color: scheme.outlineVariant),
     listTileTheme: ListTileThemeData(iconColor: scheme.onSurfaceVariant),
-    checkboxTheme: CheckboxThemeData(fillColor: WidgetStatePropertyAll(scheme.primary)),
-    radioTheme: RadioThemeData(fillColor: WidgetStatePropertyAll(scheme.primary)),
+    // <-- geändert: MaterialStatePropertyAll
+    checkboxTheme: CheckboxThemeData(fillColor: MaterialStatePropertyAll(scheme.primary)),
+    radioTheme: RadioThemeData(fillColor: MaterialStatePropertyAll(scheme.primary)),
     switchTheme: SwitchThemeData(
-      thumbColor: WidgetStatePropertyAll(scheme.primary),
-      trackColor: WidgetStatePropertyAll(scheme.primary.withOpacity(.35)),
+      thumbColor: MaterialStatePropertyAll(scheme.primary),
+      trackColor: MaterialStatePropertyAll(scheme.primary.withOpacity(.35)),
     ),
   );
 }
