@@ -38,6 +38,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
   /// Kundenliste (aus Backend normalisiert) – zugewiesene Kunden dieses Vertreters
   List<Map<String, Object?>> _customers = <Map<String, Object?>>[];
+  
+  final TextEditingController _customerSearchCtrl = TextEditingController();
+  String _customerQuery = '';
 
   /// Reklamationen (aus Backend)
   List<Map<String, dynamic>> _complaints = [];
@@ -75,6 +78,12 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadSeenAsync();
     });
+  }
+  
+  @override
+  void dispose() {
+    _customerSearchCtrl.dispose();
+    super.dispose();
   }
   
   // Einheitliche 401/Unauthorized-Behandlung
@@ -1203,6 +1212,54 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   // ---- Seite: Kundendatenbank ----
   Widget _buildCustomersCard() {
     final t = context.t;
+    final query = _customerQuery.trim().toLowerCase();
+
+    bool matches(Map<String, Object?> c) {
+      if (query.isEmpty) return true;
+      bool containsValue(String key) =>
+          ((c[key] ?? '').toString().toLowerCase()).contains(query);
+      return containsValue('company') ||
+          containsValue('name') ||
+          containsValue('email') ||
+          containsValue('customerNo');
+    }
+
+    final filtered = _customers.where(matches).toList(growable: false);
+
+    Widget buildList() {
+      if (_customers.isEmpty) {
+        return _EmptyState(icon: Icons.apartment_outlined, title: t.noAddCustomer);
+      }
+      if (filtered.isEmpty) {
+        return _EmptyState(icon: Icons.search_off, title: t.noDataFound ?? 'Keine Daten gefunden.');
+      }
+      return ListView.separated(
+        shrinkWrap: true,
+        physics: const BouncingScrollPhysics(),
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (_, i) {
+          final c = filtered[i];
+          final email = (c['email'] ?? '').toString();
+          final isNew = !_seenCustomers.contains(email.toLowerCase());
+
+          return _FadeInOnce(
+            delayMs: 35 * i,
+            child: _CustomerTile(
+              data: c,
+              isNew: isNew,
+              t: t,
+              onOpen: () {
+                _markCustomerSeen(email);
+                _showCustomerDetails(c);
+              },
+              onRemove: () => _unassignCustomer(email),
+            ),
+          );
+        },
+        itemCount: filtered.length,
+      );
+    }
+
     return _Card(
       title: t.myCustomers,
       actions: [
@@ -1216,37 +1273,23 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
           ),
         ),
       ],
-      child: _customers.isEmpty
-          ? _EmptyState(icon: Icons.apartment_outlined, title: t.noAddCustomer)
-          : ListView.separated(
-              shrinkWrap: true,
-              physics: const BouncingScrollPhysics(),
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (_, i) {
-                final c = _customers[i];
-                final email = (c['email'] ?? '').toString();
-                final isNew = !_seenCustomers.contains(email.toLowerCase());
-
-                return _FadeInOnce(
-                  delayMs: 35 * i,
-                  child: _CustomerTile(
-                    data: c,
-                    isNew: isNew,
-                    t: t,
-                    onOpen: () {
-                      _markCustomerSeen(email);
-                      _showCustomerDetails(c);
-                    },
-                    onInfo: () {
-                      _markCustomerSeen(email);
-                      _showCustomerDetails(c);
-                    },
-                    onRemove: () => _unassignCustomer(email),
-                  ),
-                );
-              },
-              itemCount: _customers.length,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _customerSearchCtrl,
+            onChanged: (value) => setState(() => _customerQuery = value),
+            decoration: InputDecoration(
+              prefixIcon: const Icon(Icons.search),
+              hintText: t.search,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+              isDense: true,
             ),
+          ),
+          const SizedBox(height: 14),
+          buildList(),
+        ],
+      ),
     );
   }
 
@@ -1773,7 +1816,6 @@ class _CustomerTile extends StatelessWidget {
   final bool isNew;
   final AppLocalizations t;
   final VoidCallback onOpen;
-  final VoidCallback onInfo;
   final VoidCallback onRemove;
 
   const _CustomerTile({
@@ -1781,7 +1823,6 @@ class _CustomerTile extends StatelessWidget {
     required this.isNew,
     required this.t,
     required this.onOpen,
-    required this.onInfo,
     required this.onRemove,
     super.key,
   });
@@ -1820,9 +1861,9 @@ class _CustomerTile extends StatelessWidget {
     final nameStyle = (isPhone ? theme.textTheme.titleSmall : theme.textTheme.titleMedium)
         ?.copyWith(fontWeight: FontWeight.w800);
     final companyStyle = (isPhone ? theme.textTheme.bodySmall : theme.textTheme.bodyMedium)
-        ?.copyWith(color: cs.onSurfaceVariant);
-    final emailStyle = theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant);
-
+        ?.copyWith(color: cs.onSurfaceVariant, height: 1.05);
+    final emailStyle = theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant, height: 1.05);
+    
     Widget header() => Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1855,7 +1896,7 @@ class _CustomerTile extends StatelessWidget {
                     style: nameStyle,
                   ),
                   if (company.isNotEmpty && company != contactLabel) ...[
-                    SizedBox(height: isPhone ? 2 : 4),
+                    SizedBox(height: isPhone ? 1.5 : 3),
                     Text(
                       company,
                       maxLines: 1,
@@ -1863,7 +1904,7 @@ class _CustomerTile extends StatelessWidget {
                       style: companyStyle,
                     ),
                   ],
-                  SizedBox(height: isPhone ? 2 : 4),
+                  SizedBox(height: isPhone ? 1.5 : 3),
                   // Email in kleiner, ruhiger Farbe, 1 Zeile
                   Text(
                     email,
@@ -1916,17 +1957,6 @@ class _CustomerTile extends StatelessWidget {
     Widget mobileActions() => Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            FilledButton.tonalIcon(
-              icon: const Icon(Icons.info_outline),
-              onPressed: onInfo,
-              label: Text(t.showDetails ?? 'Details'),
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                minimumSize: const Size.fromHeight(42),
-                shape: const StadiumBorder(),
-              ),
-            ),
-            const SizedBox(height: 8),
             OutlinedButton.icon(
               icon: const Icon(Icons.link_off),
               onPressed: onRemove,
@@ -1939,6 +1969,7 @@ class _CustomerTile extends StatelessWidget {
                 side: BorderSide(color: cs.error),
               ),
             ),
+            const SizedBox(height: 4),
             Align(
               alignment: Alignment.centerRight,
               child: IconButton(
@@ -1953,12 +1984,6 @@ class _CustomerTile extends StatelessWidget {
     Widget desktopActions() => Column(
           mainAxisAlignment: MainAxisAlignment.start,
           children: [
-            FilledButton.tonalIcon(
-              icon: const Icon(Icons.info_outline),
-              onPressed: onInfo,
-              label: Text(t.showDetails ?? 'Details'),
-            ),
-            const SizedBox(height: 8),
             OutlinedButton.icon(
               icon: const Icon(Icons.link_off),
               onPressed: onRemove,
