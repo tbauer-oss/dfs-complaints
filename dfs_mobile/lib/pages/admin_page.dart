@@ -353,20 +353,28 @@ class _AdminPageState extends State<AdminPage> {
       _AdminView.reps    => 'Vertreterverwaltung',
     };
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        leading: _view == _AdminView.menu
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => Navigator.of(context).pop(),
-              )
-            : IconButton(
-                icon: const Icon(Icons.home_outlined),
-                tooltip: 'Zurück zum Admin-Menü',
-                onPressed: () => setState(() => _view = _AdminView.menu),
-              ),
-        actions: [
+    return WillPopScope(
+      onWillPop: () async {
+        if (_view != _AdminView.menu) {
+          setState(() => _view = _AdminView.menu);
+          return false;
+        }
+        return true;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(title),
+          leading: _view == _AdminView.menu
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => Navigator.of(context).pop(),
+                )
+              : IconButton(
+                  icon: const Icon(Icons.home_outlined),
+                  tooltip: 'Zurück zum Admin-Menü',
+                  onPressed: () => setState(() => _view = _AdminView.menu),
+                ),
+          actions: [
           IconButton(
             tooltip: 'Alles neu laden',
             onPressed: () async {
@@ -386,8 +394,9 @@ class _AdminPageState extends State<AdminPage> {
             child: _buildBody(theme),
           ),
         ),
+        ),
+        bottomNavigationBar: LegalFooter(api: widget.api),
       ),
-      bottomNavigationBar: LegalFooter(api: widget.api),
     );
   }
 
