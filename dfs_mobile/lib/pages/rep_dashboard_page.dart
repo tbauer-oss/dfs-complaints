@@ -2279,40 +2279,119 @@ class _ComplaintTileState extends State<_ComplaintTile> {
         // Desktop/Tablet-Chips (2 Spalten)
         final desktopChips = <Widget>[];
         if (customer.isNotEmpty) {
-          desktopChips.add(_metaChip(context,
-              icon: Icons.person_outline_rounded, text: customer, maxWidth: halfWidth));
+          desktopChips.add(_metaChip(
+            context,
+            icon: Icons.person_outline_rounded,
+            text: customer,
+            maxWidth: halfWidth,
+          ));
         }
         if (articleLabel != null) {
-          desktopChips.add(_metaChip(context,
-              icon: Icons.qr_code_2_outlined, text: articleLabel, maxWidth: halfWidth));
+          desktopChips.add(_metaChip(
+            context,
+            icon: Icons.qr_code_2_outlined,
+            text: articleLabel!,
+            maxWidth: halfWidth,
+          ));
         }
-        if (internalNo != null && internalNo.trim().isNotEmpty) {
-          desktopChips.add(_metaChip(context,
-              icon: Icons.confirmation_number_outlined, text: internalNo!, maxWidth: halfWidth));
+        if (internalNo != null && internalNo!.trim().isNotEmpty) {
+          desktopChips.add(_metaChip(
+            context,
+            icon: Icons.confirmation_number_outlined,
+            text: internalNo!,
+            maxWidth: halfWidth,
+          ));
         }
         if (createdLabel != null) {
-          desktopChips.add(_metaChip(context,
-              icon: Icons.schedule_rounded, text: createdLabel, maxWidth: halfWidth));
+          desktopChips.add(_metaChip(
+            context,
+            icon: Icons.schedule_rounded,
+            text: createdLabel!,
+            maxWidth: halfWidth,
+          ));
         }
 
-        // Phone: volle Zeilenbreite, untereinander
-        final phoneRows = <Widget>[];
-        if (customer.isNotEmpty) {
-          phoneRows.add(_metaRowFullWidth(context,
-              icon: Icons.person_outline_rounded, text: customer));
-        }
-        if (articleLabel != null) {
-          phoneRows.add(_metaRowFullWidth(context,
-              icon: Icons.qr_code_2_outlined, text: articleLabel));
-        }
-        if (internalNo != null && internalNo.trim().isNotEmpty) {
-          phoneRows.add(_metaRowFullWidth(context,
-              icon: Icons.confirmation_number_outlined, text: internalNo!));
-        }
-        if (createdLabel != null) {
-          phoneRows.add(_metaRowFullWidth(context,
-              icon: Icons.schedule_rounded, text: createdLabel));
-        }
+        // Phone: volle Breite, untereinander
+        final phoneRows = <Widget>[
+          if (customer.isNotEmpty)
+            _metaRowFullWidth(context,
+                icon: Icons.person_outline_rounded, text: customer),
+          if (articleLabel != null)
+            _metaRowFullWidth(context,
+                icon: Icons.qr_code_2_outlined, text: articleLabel!),
+          if (internalNo != null && internalNo!.trim().isNotEmpty)
+            _metaRowFullWidth(context,
+                icon: Icons.confirmation_number_outlined, text: internalNo!),
+          if (createdLabel != null)
+            _metaRowFullWidth(context,
+                icon: Icons.schedule_rounded, text: createdLabel!),
+        ];
+
+        // Header (Phone: Ticket allein + Status darunter; Desktop: links Ticket+Status+Chips, rechts Ampel)
+        final showAmpel = repDecision.trim().isNotEmpty;
+        final Widget topHeader = isPhone
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Ticketzeile allein
+                  Text(
+                    ticket.isEmpty ? '(ohne Ticket)' : ticket,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.15,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  // kleiner Status darunter
+                  _StatusChip(
+                    status: status,
+                    decision: decision,
+                    closed: widget.isClosed,
+                    compact: true,
+                  ),
+                  if (showAmpel) ...[
+                    const SizedBox(height: 8),
+                    _RepTrafficLight(opinion: repDecision, compact: true),
+                  ],
+                ],
+              )
+            : Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // linke Spalte
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          ticket.isEmpty ? '(ohne Ticket)' : ticket,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.15,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        _StatusChip(
+                          status: status,
+                          decision: decision,
+                          closed: widget.isClosed,
+                          compact: true,
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 10,
+                          children: desktopChips,
+                        ),
+                      ],
+                    ),
+                  ),
+                  // rechte Spalte: nur Ampel wenn vorhanden
+                  if (showAmpel) const SizedBox(width: 12),
+                  if (showAmpel)
+                    _RepTrafficLight(opinion: repDecision, compact: true),
+                ],
+              );
 
         return AnimatedContainer(
           duration: const Duration(milliseconds: 260),
@@ -2334,117 +2413,21 @@ class _ComplaintTileState extends State<_ComplaintTile> {
             padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [                
-                isPhone
-                    // ======= PHONE: EINSPALTIG, VOLLE ZEILENBREITE =======
-                    ? Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Kopf: Ticket links, Status rechts
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  ticket.isEmpty ? '(ohne Ticket)' : ticket,
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 0.15,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  _StatusChip(status: status, decision: decision, closed: widget.isClosed),
-                                  if (repDecision.trim().isNotEmpty) ...[
-                                    const SizedBox(height: 12),
-                                    _RepTrafficLight(opinion: repDecision, compact: true),
-                                  ],
-                                ],
-                              ),
-                            ],
-                          ),
+              children: [
+                // 1) Header (Phone/Desktop)
+                topHeader,
 
-                          const SizedBox(height: 12),
+                const SizedBox(height: 12),
 
-                          if (customer.isNotEmpty) ...[
-                            _metaRowFullWidth(context, icon: Icons.person_outline_rounded, text: customer),
-                            const SizedBox(height: 8),
-                          ],
-                          if (articleLabel != null) ...[
-                            _metaRowFullWidth(context, icon: Icons.qr_code_2_outlined, text: articleLabel!),
-                            const SizedBox(height: 8),
-                          ],
-                          if (internalNo != null && internalNo!.trim().isNotEmpty) ...[
-                            _metaRowFullWidth(context, icon: Icons.confirmation_number_outlined, text: internalNo!),
-                            const SizedBox(height: 8),
-                          ],
-                          if (createdLabel != null) ...[
-                            _metaRowFullWidth(context, icon: Icons.schedule_rounded, text: createdLabel!),
-                          ],
-                        ],
-                      )
-                    // ======= TABLET/DESKTOP: ZWEISPALTIG WIE BISHER =======
-                    : Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  ticket.isEmpty ? '(ohne Ticket)' : ticket,
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 0.15,
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                LayoutBuilder(
-                                  builder: (ctx, cons) {
-                                    final maxW = cons.maxWidth.isFinite ? cons.maxWidth : MediaQuery.of(ctx).size.width;
-                                    final half = (maxW - 12) / 2;
-                                    final chips = <Widget>[];
+                // 2) Nur Phone: zusätzliche Zeilen in Vollbreite
+                if (isPhone) ...[
+                  for (int i = 0; i < phoneRows.length; i++) ...[
+                    phoneRows[i],
+                    if (i != phoneRows.length - 1) const SizedBox(height: 8),
+                  ],
+                ],
 
-                                    if (customer.isNotEmpty) {
-                                      chips.add(_metaChip(ctx, icon: Icons.person_outline_rounded, text: customer, maxWidth: half));
-                                    }
-                                    if (articleLabel != null) {
-                                      chips.add(_metaChip(ctx, icon: Icons.qr_code_2_outlined, text: articleLabel!, maxWidth: half));
-                                    }
-                                    if (internalNo != null && internalNo!.trim().isNotEmpty) {
-                                      chips.add(_metaChip(ctx, icon: Icons.confirmation_number_outlined, text: internalNo!, maxWidth: half));
-                                    }
-                                    if (createdLabel != null) {
-                                      chips.add(_metaChip(ctx, icon: Icons.schedule_rounded, text: createdLabel!, maxWidth: half));
-                                    }
-
-                                    return Wrap(
-                                      spacing: 12,
-                                      runSpacing: 10,
-                                      children: chips,
-                                    );
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              _StatusChip(status: status, decision: decision, closed: widget.isClosed),
-                              if (repDecision.trim().isNotEmpty) ...[
-                                const SizedBox(height: 12),
-                                _RepTrafficLight(opinion: repDecision, compact: true),
-                              ],
-                            ],
-                          ),
-                        ],
-                      ),
-                
+                // 3) Entscheidungs-Badges (falls vorhanden)
                 if (decisionBadges.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   Wrap(
@@ -2453,12 +2436,16 @@ class _ComplaintTileState extends State<_ComplaintTile> {
                     children: decisionBadges,
                   ),
                 ],
+
                 const SizedBox(height: 14),
+
+                // 4) Details-Button
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton.icon(
                     style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       shape: const StadiumBorder(),
                       foregroundColor: cs.primary,
                       textStyle: const TextStyle(fontWeight: FontWeight.w600),
@@ -2477,7 +2464,10 @@ class _ComplaintTileState extends State<_ComplaintTile> {
                     ),
                   ),
                 ),
+
                 const SizedBox(height: 16),
+
+                // 5) Detailsbereich (animiert)
                 ClipRect(
                   child: AnimatedSize(
                     duration: const Duration(milliseconds: 240),
@@ -2509,34 +2499,50 @@ class _ComplaintTileState extends State<_ComplaintTile> {
                           ),
                   ),
                 ),
-                if (widget.onDecision != null && !widget.isClosed && repDecision.isEmpty) ...[
+
+                // 6) Aktionen (Entscheiden / Zurücknehmen)
+                if (widget.onDecision != null &&
+                    !widget.isClosed &&
+                    repDecision.isEmpty) ...[
                   const SizedBox(height: 18),
                   Align(
                     alignment: Alignment.centerRight,
                     child: _decisionButtons(t, ticket),
                   ),
                 ],
-                if (!widget.isClosed && repDecision.isNotEmpty && widget.onWithdraw != null) ...[
+                if (!widget.isClosed &&
+                    repDecision.isNotEmpty &&
+                    widget.onWithdraw != null) ...[
                   const SizedBox(height: 14),
                   Align(
                     alignment: Alignment.centerRight,
                     child: OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                         shape: const StadiumBorder(),
                         textStyle: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                       icon: const Icon(Icons.undo),
-                      label: Text(t.decision_withdraw ?? 'Entscheidung zurücknehmen'),
+                      label:
+                          Text(t.decision_withdraw ?? 'Entscheidung zurücknehmen'),
                       onPressed: () async {
                         final ok = await showDialog<bool>(
                               context: context,
                               builder: (ctx) => AlertDialog(
-                                title: Text(t.decision_withdraw ?? 'Entscheidung zurücknehmen'),
-                                content: DialogContentScroll(child: Text(t.decision_withdraw_confirm ?? 'Möchtest du deine Entscheidung wirklich zurücknehmen?')),
+                                title: Text(
+                                    t.decision_withdraw ?? 'Entscheidung zurücknehmen'),
+                                content: DialogContentScroll(
+                                  child: Text(t.decision_withdraw_confirm ??
+                                      'Möchtest du deine Entscheidung wirklich zurücknehmen?'),
+                                ),
                                 actions: [
-                                  TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(t.cancel ?? 'Abbrechen')),
-                                  ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(t.ok ?? 'OK')),
+                                  TextButton(
+                                      onPressed: () => Navigator.of(ctx).pop(false),
+                                      child: Text(t.cancel ?? 'Abbrechen')),
+                                  ElevatedButton(
+                                      onPressed: () => Navigator.of(ctx).pop(true),
+                                      child: Text(t.ok ?? 'OK')),
                                 ],
                               ),
                             ) ??
@@ -2736,7 +2742,14 @@ class _StatusChip extends StatelessWidget {
   final String status;
   final String decision;
   final bool closed;
-  const _StatusChip({required this.status, required this.decision, required this.closed, super.key});
+  final bool compact; // NEU: kleiner Style
+  const _StatusChip({
+    required this.status,
+    required this.decision,
+    required this.closed,
+    this.compact = false, // default: wie bisher
+    super.key,
+  });
 
   int? _statusNumber() {
     final trimmed = status.trim();
@@ -2747,20 +2760,15 @@ class _StatusChip extends StatelessWidget {
   String _statusLabel(AppLocalizations t, int? value) {
     final decisionLower = decision.trim().toLowerCase();
     switch (value) {
-      case 1:
-        return t.status_sent;
-      case 2:
-        return t.status_in_progress;
-      case 3:
-        return t.status_question;
+      case 1: return t.status_sent;
+      case 2: return t.status_in_progress;
+      case 3: return t.status_question;
       case 4:
         if (decisionLower == 'rejected') return t.status_rejected;
         if (decisionLower == 'accepted') return t.status_accepted;
         return t.status_decision;
-      case 5:
-        return t.status_rework;
-      case 6:
-        return t.status_closed;
+      case 5: return t.status_rework;
+      case 6: return t.status_closed;
       default:
         final raw = status.trim();
         return raw.isEmpty ? t.status_unknown : raw;
@@ -2771,22 +2779,16 @@ class _StatusChip extends StatelessWidget {
     final decisionLower = decision.trim().toLowerCase();
     if (closed) return Colors.grey;
     switch (value) {
-      case 1:
-        return Colors.blue;
-      case 2:
-        return Colors.amber.shade800;
-      case 3:
-        return Colors.orange;
+      case 1: return Colors.blue;
+      case 2: return Colors.amber.shade800;
+      case 3: return Colors.orange;
       case 4:
         if (decisionLower == 'rejected') return Colors.red;
         if (decisionLower == 'accepted') return Colors.green;
         return Colors.grey;
-      case 5:
-        return Colors.amber;
-      case 6:
-        return Colors.green;
-      default:
-        return Theme.of(context).colorScheme.primary;
+      case 5: return Colors.amber;
+      case 6: return Colors.green;
+      default: return Theme.of(context).colorScheme.primary;
     }
   }
 
@@ -2796,23 +2798,30 @@ class _StatusChip extends StatelessWidget {
     final number = _statusNumber();
     final label = _statusLabel(t, number);
     final color = _statusColor(context, number);
-    final chipColor = color.withOpacity(.14);
+
+    final padV = compact ? 4.0  : 6.0;
+    final padH = compact ? 8.0  : 10.0;
+    final icon = compact ? 14.0 : 16.0;
+    final fs   = compact ? 12.0 : 13.0;
+    final rad  = compact ? 16.0 : 20.0;
+    final borderOpacity = compact ? .55 : .70;
+    final chipColor = color.withOpacity(compact ? .10 : .14);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
       decoration: BoxDecoration(
         color: chipColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(.7)),
+        borderRadius: BorderRadius.circular(rad),
+        border: Border.all(color: color.withOpacity(borderOpacity)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.flag_rounded, size: 16, color: color),
+          Icon(Icons.flag_rounded, size: icon, color: color),
           const SizedBox(width: 6),
           Text(
-            '${t.status ?? 'Status'}: $label',
-            style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w600),
+            '${t.status ?? "Status"}: $label',
+            style: TextStyle(color: color, fontSize: fs, fontWeight: FontWeight.w600),
           ),
         ],
       ),
