@@ -39,6 +39,7 @@ flutter_launcher_icons:
     generate: false
 
 dev_dependencies:
+  flutter_launcher_icons: ^0.14.1
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
@@ -53,6 +54,7 @@ flutter:
 
 flutter_intl:
   enabled: true
+
 
 
 
