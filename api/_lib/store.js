@@ -39,6 +39,40 @@ const mem = {
   catalogConfig: {},
 };
 
+const SUPPORTED_LANGS = new Set(['de', 'en', 'fr', 'it', 'es']);
+
+function normLang(x) {
+  const lc = String(x || '').trim().toLowerCase();
+  if (SUPPORTED_LANGS.has(lc)) return lc;
+  const two = lc.split(/[-_]/)[0];
+  return SUPPORTED_LANGS.has(two) ? two : 'de';
+}
+
+function normalizePushTokens(list) {
+  const out = [];
+  const seen = new Set();
+  const arr = Array.isArray(list) ? list : [];
+  for (const entry of arr) {
+    const token = (entry?.token || '').toString().trim();
+    if (!token || seen.has(token)) continue;
+    seen.add(token);
+    const created = Number(entry?.createdAt || Date.now());
+    const updated = Number(entry?.updatedAt || created);
+    const platform = (entry?.platform || '').toString().trim();
+    const locale = (entry?.locale || '').toString().trim();
+    const lang = normLang(entry?.lang || '');
+    out.push({
+      token,
+      platform: platform || undefined,
+      lang,
+      locale: locale || undefined,
+      createdAt: Number.isFinite(created) ? created : Date.now(),
+      updatedAt: Number.isFinite(updated) ? updated : Date.now(),
+    });
+  }
+  return out;
+}
+
 const CATALOG_KEYS = ['lab_default', 'lab_esfr', 'dent_default', 'dent_esfr'];
 
 function _normalizeCatalogConfig(input) {
@@ -164,8 +198,13 @@ export async function userByEmail(email) {
   if (!email) return null;
   const key = `${P}user:${String(email).toLowerCase()}`;
   const r = getRedis();
-  if (r) return await rget(key);
-  return mem.users.get(String(email).toLowerCase()) ?? null;
+  const raw = r ? await rget(key) : mem.users.get(String(email).toLowerCase()) ?? null;
+  if (raw && typeof raw === 'object') {
+    const normalized = normalizePushTokens(raw.pushTokens);
+    if (normalized.length > 0) raw.pushTokens = normalized; else delete raw.pushTokens;
+    raw.lang = normLang(raw.lang || '');
+  }
+  return raw;
 }
 
 export async function userSave(u) {
@@ -173,7 +212,14 @@ export async function userSave(u) {
   if (!email) return false;
   const key = `${P}user:${email}`;
   const r = getRedis();
-  if (r) await rset(key, u); else mem.users.set(email, u);
+  const toSave = { ...u, email };
+  if (Array.isArray(toSave.pushTokens)) {
+    const normalized = normalizePushTokens(toSave.pushTokens);
+    if (normalized.length > 0) toSave.pushTokens = normalized;
+    else delete toSave.pushTokens;
+  }
+  if (!toSave.lang) toSave.lang = normLang(toSave.lang || '');
+  if (r) await rset(key, toSave); else mem.users.set(email, toSave);
   return true;
 }
 
@@ -190,9 +236,78 @@ export async function usersList() {
   if (r) {
     const keys = await rkeys(`${P}user:*`);
     const vals = await Promise.all(keys.map(k => rget(k)));
-    return vals.filter(Boolean);
+    return vals
+      .filter(Boolean)
+      .map(u => {
+        if (u && typeof u === 'object') {
+          const normalized = normalizePushTokens(u.pushTokens);
+          if (normalized.length > 0) u.pushTokens = normalized; else delete u.pushTokens;
+          u.lang = normLang(u.lang || '');
+        }
+        return u;
+      });
   }
   return Array.from(mem.users.values());
+}
+
+export async function pushTokensForEmail(email) {
+  const user = await userByEmail(email);
+  if (!user) return [];
+  const normalized = normalizePushTokens(user.pushTokens);
+  if (user.pushTokens && normalized.length !== user.pushTokens.length) {
+    try { await userSave({ ...user, pushTokens: normalized }); }
+    catch (e) { console.error('pushTokensForEmail/save', e); }
+  }
+  return normalized;
+}
+
+export async function pushTokenRegister(email, token, meta = {}) {
+  const mail = String(email || '').trim().toLowerCase();
+  const tok = (token || '').toString().trim();
+  if (!mail || !tok) return null;
+  const user = (await userByEmail(mail)) || { email: mail, createdAt: Date.now() };
+  const tokens = normalizePushTokens(user.pushTokens);
+  const now = Date.now();
+  const platform = (meta?.platform || '').toString().trim();
+  const locale = (meta?.locale || '').toString().trim();
+  const lang = normLang(meta?.lang || user.lang || '');
+
+  const existingIdx = tokens.findIndex(t => t.token === tok);
+  if (existingIdx >= 0) {
+    tokens[existingIdx] = {
+      ...tokens[existingIdx],
+      platform: platform || tokens[existingIdx].platform,
+      lang,
+      locale: locale || tokens[existingIdx].locale,
+      updatedAt: now,
+    };
+  } else {
+    tokens.push({
+      token: tok,
+      platform: platform || undefined,
+      lang,
+      locale: locale || undefined,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
+  user.pushTokens = tokens;
+  user.lang = lang || user.lang;
+  await userSave(user);
+  return tokens[existingIdx >= 0 ? existingIdx : tokens.length - 1];
+}
+
+export async function pushTokenRemove(email, token) {
+  const mail = String(email || '').trim().toLowerCase();
+  const tok = (token || '').toString().trim();
+  if (!mail || !tok) return false;
+  const user = await userByEmail(mail);
+  if (!user) return false;
+  const tokens = normalizePushTokens(user.pushTokens).filter(t => t.token !== tok);
+  if (tokens.length > 0) user.pushTokens = tokens; else delete user.pushTokens;
+  await userSave(user);
+  return true;
 }
 
 /* ============== Pending Registrations ============== */
