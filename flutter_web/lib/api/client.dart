@@ -319,6 +319,55 @@ class ApiClient {
     return txt.trim().isEmpty ? <String, dynamic>{} : jsonDecode(txt);
   }
 
+  // --- NEU: generische JSON-Wrapper passend zu postJson(...) ---
+  Future<T> getJson<T>(String path) async {
+    // Falls du bereits eine private Helper-Methode wie _json(method, path, body)
+    // verwendest, kannst du hier darauf delegieren:
+    try {
+      // bevorzugt: gleiche Pipeline wie bei postJson (Auth-Header, Gate, Retry etc.)
+      final dyn = this as dynamic;
+      if (dyn._json != null) {
+        return await dyn._json('GET', path, null) as T;
+      }
+    } catch (_) {}
+    // Fallback: vorhandene low-level GET-Funktion nutzen (falls vorhanden)
+    try {
+      final dyn = this as dynamic;
+      if (dyn.get != null) {
+      final res = await dyn.get(path);
+        return res as T;
+      }
+    } catch (_) {}
+    throw StateError('getJson($path) ist nicht implementiert.');
+  }
+
+  Future<T> putJson<T>(String path, Object? body) async {
+    // bevorzugt: gleiche Pipeline wie bei postJson
+    try {
+      final dyn = this as dynamic;
+      if (dyn._json != null) {
+        return await dyn._json('PUT', path, body) as T;
+      }
+    } catch (_) {}
+    // Fallback: vorhandene low-level PUT-Funktion nutzen (falls vorhanden)
+    try {
+      final dyn = this as dynamic;
+      if (dyn.put != null) {
+        final res = await dyn.put(path, body: body);
+        return res as T;
+      }
+    } catch (_) {}
+    // Letzter Fallback: wenn postJson existiert UND Server PUT=POST akzeptiert (nicht schön, aber stabil)
+    try {
+      final dyn = this as dynamic;
+      if (dyn.postJson != null) {
+        final res = await dyn.postJson(path, body);
+        return res as T;
+      }
+    } catch (_) {}
+    throw StateError('putJson($path, ...) ist nicht implementiert.');
+  }
+
   // ---- Thin wrappers for legacy call sites (compat) ----
   Future<dynamic> get(String path) async {
     // delegiert auf bestehende JSON-Variante
