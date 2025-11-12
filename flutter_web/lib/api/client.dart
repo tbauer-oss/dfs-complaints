@@ -164,6 +164,28 @@ class ApiClient {
     return false;
   }
 
+  Future<Map<String, String>> fetchCatalogConfig() async {
+    final res = await get('/api/catalogs/config'); // Pfad anpassen falls nötig
+    final m = <String, String>{};
+    if (res is Map) {
+      for (final k in ['lab_default','lab_esfr','dent_default','dent_esfr']) {
+        final v = res[k];
+        if (v is String && v.trim().isNotEmpty) m[k] = v.trim();
+      }
+    }
+    return m;
+  }
+
+  Future<void> updateCatalogConfig(Map<String, String> cfg) async {
+    // nur erlaubte Keys schicken
+    final body = <String, String>{};
+    for (final k in ['lab_default','lab_esfr','dent_default','dent_esfr']) {
+      final v = cfg[k];
+      if (v != null) body[k] = v;
+    }
+    await put('/api/catalogs/config', body: body);
+  }
+
   // Zentrales Fetch für Rep-Endpunkte mit 1x 401-Retry nach Refresh
   Future<http.Response> _repFetch(
     String path, {
