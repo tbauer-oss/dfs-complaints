@@ -5,7 +5,7 @@ import { setCors, ok, bad, noContent, methodNotAllowed } from './_lib/http.js';
 import { getAuthUser } from './_lib/auth.js';
 import { sendMail } from './_lib/mailer.js';
 
-const CATS = new Set(['general','complaint','technical','account','privacy','feedback','other']);
+const CATS = new Set(['general','complaint','technical','account','privacy','feedback','improve','other']);
 
 export default async function handler(req, res) {
   setCors(req, res);
