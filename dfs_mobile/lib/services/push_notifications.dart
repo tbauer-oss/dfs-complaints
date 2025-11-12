@@ -130,15 +130,36 @@ class PushNotifications {
     try {
       final androidPlugin = _localNotifications
           .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-      await androidPlugin?.requestPermission();
+      if (androidPlugin != null) {
+        final dynamic androidDynamic = androidPlugin;
+        try {
+          await androidDynamic.requestNotificationsPermission();
+        } on NoSuchMethodError {
+          try {
+            await androidDynamic.requestPermission();
+          } on NoSuchMethodError catch (_) {
+            debugPrint('[push] Android permission API unavailable');
+          }
+        }
+      }
     } catch (e) {
       debugPrint('[push] Android permission request failed: $e');
     }
 
     try {
       final iosPlugin = _localNotifications
-          .resolvePlatformSpecificImplementation<DarwinFlutterLocalNotificationsPlugin>();
-      await iosPlugin?.requestPermissions(alert: true, badge: true, sound: true);
+          .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+      if (iosPlugin != null) {
+        await iosPlugin.requestPermissions(alert: true, badge: true, sound: true);
+        return;
+      }
+
+      if (defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.macOS) {
+        final dynamic darwinPlugin = _localNotifications
+            .resolvePlatformSpecificImplementation<Object>();
+        await darwinPlugin?.requestPermissions(alert: true, badge: true, sound: true);
+      }
     } catch (e) {
       debugPrint('[push] iOS permission request failed: $e');
     }
