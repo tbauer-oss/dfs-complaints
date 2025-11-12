@@ -69,13 +69,7 @@ class PushNotifications {
 
     await _requestLocalPermissions();
 
-    final settings = await messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-      announcement: true,
-      provisional: false,
-    );
+    final settings = await messaging.requestPermission(alert: true, badge: true, sound: true, announcement: true, provisional: false);
     if (settings.authorizationStatus == AuthorizationStatus.denied) {
       debugPrint('[push] Permission denied');
       return;
@@ -107,11 +101,8 @@ class PushNotifications {
       debugPrint('[push] unregister failed: $e');
     }
 
-    try {
-      await messaging.deleteToken();
-    } catch (e) {
-      debugPrint('[push] deleteToken failed: $e');
-    }
+    try { await messaging.deleteToken(); }
+    catch (e) { debugPrint('[push] deleteToken failed: $e'); }
 
     _lastToken = null;
     _lastLang = null;
@@ -136,18 +127,16 @@ class PushNotifications {
   }
 
   Future<void> _requestLocalPermissions() async {
-    // ANDROID: ab v13 ggf. Benachrichtigungsrecht anfragen
     try {
-      final androidImpl = _localNotifications
+      final androidPlugin = _localNotifications
           .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-      if (androidImpl != null) {
-        // Die API-Namen variieren je nach Version – defensiv per dynamic versuchen
-        final dynamic dyn = androidImpl;
+      if (androidPlugin != null) {
+        final dynamic androidDynamic = androidPlugin;
         try {
-          await dyn.requestNotificationsPermission();
+          await androidDynamic.requestNotificationsPermission();
         } on NoSuchMethodError {
           try {
-            await dyn.requestPermission();
+            await androidDynamic.requestPermission();
           } on NoSuchMethodError catch (_) {
             debugPrint('[push] Android permission API unavailable');
           }
@@ -157,13 +146,17 @@ class PushNotifications {
       debugPrint('[push] Android permission request failed: $e');
     }
 
-    // iOS/macOS: immer Darwin-Impl benutzen (neue API)
     try {
-      final darwinImpl = _localNotifications
-          .resolvePlatformSpecificImplementation<DarwinFlutterLocalNotificationsPlugin>();
-      if (darwinImpl != null) {
-        await darwinImpl.requestPermissions(alert: true, badge: true, sound: true);
+      final iosPlugin = _localNotifications
+          .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+      if (iosPlugin != null) {
+        await iosPlugin.requestPermissions(alert: true, badge: true, sound: true);
+        return;
       }
+
+      final darwinPlugin = _localNotifications
+          .resolvePlatformSpecificImplementation<DarwinFlutterLocalNotificationsPlugin>();
+      await darwinPlugin?.requestPermissions(alert: true, badge: true, sound: true);
     } catch (e) {
       debugPrint('[push] iOS permission request failed: $e');
     }
@@ -208,7 +201,6 @@ class PushNotifications {
   void _showNotification(RemoteMessage message) {
     final notification = message.notification;
     if (notification == null) return;
-
     final androidDetails = AndroidNotificationDetails(
       'complaint-status',
       'Complaint status updates',
@@ -218,12 +210,7 @@ class PushNotifications {
       ticker: 'complaint-status',
     );
     const iosDetails = DarwinNotificationDetails();
-
-    final details = NotificationDetails(
-      android: androidDetails,
-      iOS: iosDetails,
-    );
-
+    final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
     _localNotifications.show(
       notification.hashCode,
       notification.title,
