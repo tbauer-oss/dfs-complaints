@@ -1130,12 +1130,12 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
             final n1 = new1Ctrl.text;
             final n2 = new2Ctrl.text;
             if (oldPw.isEmpty || n1.isEmpty || n2.isEmpty) {
-              err = (t.error ?? 'Fehler') + ': Bitte alle Felder ausfüllen';
+              err = '${t.error ?? 'Fehler'}: Bitte alle Felder ausfüllen';
               (ctx as Element).markNeedsBuild();
               return;
             }
             if (n1 != n2) {
-              err = (t.error ?? 'Fehler') + ': Passwörter stimmen nicht überein';
+              err = '${t.error ?? 'Fehler'}: Passwörter stimmen nicht überein';
               (ctx as Element).markNeedsBuild();
               return;
             }
