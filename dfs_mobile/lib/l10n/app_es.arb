@@ -87,6 +87,7 @@
   "@chooseCustomer": { "description": "Etiqueta/placeholder para el desplegable de cliente" },
   "allCompanies": "Todas las empresas",
   "@allCompanies": { "description": "Opción de filtro para mostrar todas las empresas" },
+  "yourCompany": "Su empresa",
 
   "logout": "Cerrar sesión",
   "loggedOut": "Sesión cerrada.",
