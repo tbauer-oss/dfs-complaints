@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui show ImageFilter;
 
 import 'package:flutter/material.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -11,6 +12,7 @@ import 'api/client.dart';
 import 'l10n/app_localizations.dart';
 import 'services/app_prefs.dart';
 import 'services/app_prefs_scope.dart';
+import 'services/push_notifications.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:dfs_mobile/web_compat/html_stub.dart'
   if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
@@ -227,6 +229,10 @@ ThemeData _darkTheme() {
 }
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  if (!kIsWeb) {
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  }
   if (html.window.navigator.userAgent.contains('Chrome')) {
     if (kIsWeb) {
       html.window.addEventListener('beforeinstallprompt', (event) {
@@ -249,6 +255,7 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   // ---- Core ----
   final api = ApiClient();
+  final push = PushNotifications.instance;
   final GlobalKey<NavigatorState> _navKey = GlobalKey<NavigatorState>();
   final _prefs = AppPrefs(); // zentrale Quelle für Theme & Locale
 
@@ -269,10 +276,14 @@ class _MyAppState extends State<MyApp> {
   Future<void> _boot() async {
     await api.restoreSession();
     await api.ensureRepSession(); // invalides repToken nach Deploys o.ä. wegräumen
+    final wasLoggedIn = _customerLoggedIn;
     setState(() {
-      _loggedIn = _customerLoggedIn; // Kunden-Flow bleibt unabhängig vom Vertreter-Flow
+      _loggedIn = wasLoggedIn; // Kunden-Flow bleibt unabhängig vom Vertreter-Flow
       _bootDone = true;
     });
+    if (wasLoggedIn) {
+      await push.setup(api, languageCode: _prefs.locale?.languageCode);
+    }
   }
 
   Future<void> _openAdmin(BuildContext context) async {
@@ -328,7 +339,13 @@ class _MyAppState extends State<MyApp> {
     Navigator.of(ctx).pushNamed('/repLogin');
   }
 
-  void _onLoggedIn() => setState(() => _loggedIn = true);   // Kundenlogin
+  void _onLoggedIn() {
+    setState(() => _loggedIn = true);   // Kundenlogin
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      push.setup(api, languageCode: _prefs.locale?.languageCode);
+    });
+  }
   void _onLoggedOut() => setState(() => _loggedIn = false); // Kundenlogout
 
   @override
@@ -414,6 +431,7 @@ class _MyAppState extends State<MyApp> {
                                     icon: const Icon(Icons.logout),
                                     label: Text(t.logout),
                                     onPressed: () async {
+                                      await push.deactivate(api);
                                       await api.logout(); // Kunden-Logout
                                       if (ctx.mounted) {
                                         ScaffoldMessenger.of(ctx).showSnackBar(
