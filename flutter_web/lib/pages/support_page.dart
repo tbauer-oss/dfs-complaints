@@ -51,6 +51,26 @@ class _SupportPageState extends State<SupportPage> {
     }
   }
 
+  // Mappt UI-Codes auf vom Backend akzeptierte Kategorien
+  String _mapCategoryForApi(String code) {
+    switch (code) {
+      case 'improve':   // Vorschlag zur Verbesserung
+        return 'feature';     // <- häufig akzeptiert
+      case 'feedback':        // allgemeines Feedback
+        return 'other';       // fallback
+      case 'general':
+        return 'other';       // neutral zusammenfassen
+      // folgende i. d. R. bereits kompatibel:
+      case 'complaint':
+      case 'technical':
+      case 'account':
+      case 'privacy':
+        return code;
+      default:
+        return 'other';       // robuste Absicherung
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
@@ -154,7 +174,7 @@ class _SupportPageState extends State<SupportPage> {
                             setState(() => _busy = true);
                             try {
                               await widget.api.sendSupport(
-                                category: _cat,
+                                category: _mapCategoryForApi(_cat),  // << geändert
                                 message: _msg.text.trim(),
                                 consent: true,
                               );
