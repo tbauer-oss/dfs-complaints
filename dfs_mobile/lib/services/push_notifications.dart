@@ -67,7 +67,9 @@ class PushNotifications {
     final messaging = FirebaseMessaging.instance;
     await messaging.setForegroundNotificationPresentationOptions(alert: true, badge: true, sound: true);
 
-    final settings = await messaging.requestPermission(alert: true, badge: true, sound: true, provisional: true);
+    await _requestLocalPermissions();
+
+    final settings = await messaging.requestPermission(alert: true, badge: true, sound: true, announcement: true, provisional: false);
     if (settings.authorizationStatus == AuthorizationStatus.denied) {
       debugPrint('[push] Permission denied');
       return;
@@ -121,6 +123,24 @@ class PushNotifications {
       FirebaseMessaging.onMessage.listen(_showNotification);
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
       _initialized = true;
+    }
+  }
+
+  Future<void> _requestLocalPermissions() async {
+    try {
+      final androidPlugin = _localNotifications
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      await androidPlugin?.requestPermission();
+    } catch (e) {
+      debugPrint('[push] Android permission request failed: $e');
+    }
+
+    try {
+      final iosPlugin = _localNotifications
+          .resolvePlatformSpecificImplementation<DarwinFlutterLocalNotificationsPlugin>();
+      await iosPlugin?.requestPermissions(alert: true, badge: true, sound: true);
+    } catch (e) {
+      debugPrint('[push] iOS permission request failed: $e');
     }
   }
 
