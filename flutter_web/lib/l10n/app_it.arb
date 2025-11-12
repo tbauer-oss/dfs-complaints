@@ -20,6 +20,11 @@
   "theme_light": "Chiaro",
   "theme_dark": "Scuro",
 
+  "addAnother_title": "Aggiungere un altro elemento?",
+  "addAnother_body": "Vuoi aggiungere un altro prodotto/lotto a questo reclamo prima dell’invio?",
+  "addAnother_no": "No, continua",
+  "addAnother_yes": "Sì, aggiungi",
+
   "hideDetails": "Nascondi dettagli",
   "showDetails": "Mostra dettagli",
   "catalogs_title": "Cataloghi",
