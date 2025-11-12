@@ -20,6 +20,11 @@
   "theme_light": "Clair",
   "theme_dark": "Sombre",
 
+  "addAnother_title": "Ajouter un autre élément ?",
+  "addAnother_body": "Souhaitez-vous ajouter un autre produit/lot à cette réclamation avant l’envoi ?",
+  "addAnother_no": "Non, continuer",
+  "addAnother_yes": "Oui, ajouter".
+
   "hideDetails": "Masquer les détails",
   "showDetails": "Afficher les détails",
   "catalogs_title": "Catalogues",
