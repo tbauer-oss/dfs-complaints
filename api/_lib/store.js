@@ -218,15 +218,13 @@ export async function userSave(u) {
   const r = getRedis();
   const toSave = { ...u, email };
   if (Array.isArray(toSave.pushTokens)) {
-  const toSave = { ...u, email };
-  if (Array.isArray(toSave.pushTokens)) {
     const normalized = normalizePushTokens(toSave.pushTokens);
     if (normalized.length > 0) toSave.pushTokens = normalized;
     else delete toSave.pushTokens;
   }
   if (!toSave.lang) toSave.lang = normLang(toSave.lang || '');
   if (r) await rset(key, toSave); else mem.users.set(email, toSave);
-     return true;
+  return true;
 }
 
 export async function userDelete(email) {
