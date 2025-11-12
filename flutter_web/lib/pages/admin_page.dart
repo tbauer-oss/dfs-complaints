@@ -502,7 +502,7 @@ class _AdminPageState extends State<AdminPage> {
       _AdminView.users   => 'Aktive Nutzer',
       _AdminView.open    => 'Offene Reklamationen',
       _AdminView.reps    => 'Vertreterverwaltung',
-      _AdminView.catalogs => 'Kataloge',
+      _AdminView.catalogs => 'Katalog-Konfiguration',
     };
 
     return Scaffold(
