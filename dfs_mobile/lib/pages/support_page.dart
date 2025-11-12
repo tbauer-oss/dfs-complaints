@@ -57,7 +57,6 @@ class _SupportPageState extends State<SupportPage> {
   String _mapCategoryForApi(String code) {
     switch (code) {
       case 'improve':   // Vorschlag zur Verbesserung
-        return 'feature';     // <- häufig akzeptiert
       case 'feedback':        // allgemeines Feedback
         return 'other';       // fallback
       case 'general':
