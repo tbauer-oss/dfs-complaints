@@ -319,6 +319,17 @@ class ApiClient {
     return txt.trim().isEmpty ? <String, dynamic>{} : jsonDecode(txt);
   }
 
+  // ---- Thin wrappers for legacy call sites (compat) ----
+  Future<dynamic> get(String path) async {
+    // delegiert auf bestehende JSON-Variante
+    return await getJson(path);
+  }
+
+  Future<void> put(String path, {Object? body}) async {
+    // delegiert auf bestehende JSON-Variante
+    await putJson(path, body);
+  }
+
   // ---- Reps: Entscheidung zu Complaint (mit Bearer-Token) ----
   Future<void> repDecision({
     required String ticket,
