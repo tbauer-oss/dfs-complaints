@@ -675,9 +675,10 @@ class _LoginLanding extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
-    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
+      // WICHTIG: damit bei Tastatur nichts überläuft
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         title: Text(t.appTitle),
         actions: [
@@ -689,103 +690,116 @@ class _LoginLanding extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           const _AuroraBackground(),
-          Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 980),
-              child: Padding(
-                padding: const EdgeInsets.all(22),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Header „Hero“
-                    _HeaderHero(),
-                    const SizedBox(height: 18),
+          // Scrollbare Fläche (verhindert Overflow, auch mit Tastatur)
+          Positioned.fill(
+            child: SafeArea(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+                  return SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(22, 22, 22, 22 + bottomInset),
+                    physics: const BouncingScrollPhysics(),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 980),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // (Überschrift/Claim entfernt!)
+                            // Abstand oben für Luft
+                            const SizedBox(height: 4),
 
-                    // Login-Karte (bestehende Logik beibehalten)
-                    _LoginScreen(
-                      api: api,
-                      onLoggedIn: onLoggedIn,
-                      onOpenRegister: onOpenRegister,
-                      onOpenAdmin: onOpenAdmin,
-                      onOpenRep: onOpenRep,
-                    ),
-
-                    const SizedBox(height: 16),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        t.more_areas,
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              color: scheme.primary,
-                              fontWeight: FontWeight.w700,
+                            // Login-Karte (Logik unverändert)
+                            _LoginScreen(
+                              api: api,
+                              onLoggedIn: onLoggedIn,
+                              onOpenRegister: onOpenRegister,
+                              onOpenAdmin: onOpenAdmin,
+                              onOpenRep: onOpenRep,
                             ),
+
+                            const SizedBox(height: 16),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                t.more_areas,
+                                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+
+                            // Buttons bleiben wie gehabt – jetzt aber sicher in der ScrollView
+                            LayoutBuilder(
+                              builder: (context, c) {
+                                final isNarrow = c.maxWidth < 560;
+                                if (isNarrow) {
+                                  return Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: [
+                                      FilledButton.tonalIcon(
+                                        icon: const Icon(Icons.handshake),
+                                        label: Text(t.rep_area ?? t.rep_area),
+                                        onPressed: onOpenRep,
+                                        style: FilledButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                          shape: const StadiumBorder(),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      OutlinedButton.icon(
+                                        icon: const Icon(Icons.admin_panel_settings),
+                                        label: Text(t.admin_area),
+                                        onPressed: onOpenAdmin,
+                                        style: OutlinedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                          shape: const StadiumBorder(),
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                } else {
+                                  return Row(
+                                    children: [
+                                      Expanded(
+                                        child: FilledButton.tonalIcon(
+                                          icon: const Icon(Icons.handshake),
+                                          label: Text(t.rep_area ?? 'Vertreterbereich'),
+                                          onPressed: onOpenRep,
+                                          style: FilledButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(vertical: 14),
+                                            shape: const StadiumBorder(),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: OutlinedButton.icon(
+                                          icon: const Icon(Icons.admin_panel_settings),
+                                          label: Text(t.admin_area),
+                                          onPressed: onOpenAdmin,
+                                          style: OutlinedButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(vertical: 14),
+                                            shape: const StadiumBorder(),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                }
+                              },
+                            ),
+
+                            // etwas Extra-Platz unten
+                            const SizedBox(height: 8),
+                          ],
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 10),
-
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        final isNarrow = constraints.maxWidth < 560;
-                        if (isNarrow) {
-                          // mobil: Buttons untereinander
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              FilledButton.tonalIcon(
-                                icon: const Icon(Icons.handshake),
-                                label: Text(t.rep_area ?? t.rep_area),
-                                onPressed: onOpenRep,
-                                style: FilledButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                  shape: const StadiumBorder(),
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              OutlinedButton.icon(
-                                icon: const Icon(Icons.admin_panel_settings),
-                                label: Text(t.admin_area),
-                                onPressed: onOpenAdmin,
-                                style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                  shape: const StadiumBorder(),
-                                ),
-                              ),
-                            ],
-                          );
-                        } else {
-                          // Desktop: Buttons nebeneinander
-                          return Row(
-                            children: [
-                              Expanded(
-                                child: FilledButton.tonalIcon(
-                                  icon: const Icon(Icons.handshake),
-                                  label: Text(t.rep_area ?? 'Vertreterbereich'),
-                                  onPressed: onOpenRep,
-                                  style: FilledButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
-                                    shape: const StadiumBorder(),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  icon: const Icon(Icons.admin_panel_settings),
-                                  label: Text(t.admin_area),
-                                  onPressed: onOpenAdmin,
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
-                                    shape: const StadiumBorder(),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          );
-                        }
-                      },
-                    ),
-                  ],
-                ),
+                  );
+                },
               ),
             ),
           ),
