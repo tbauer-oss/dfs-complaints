@@ -1793,6 +1793,9 @@ class _CustomerTile extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final isPhone = MediaQuery.of(context).size.width < 600;
+    final double avatarSize = isPhone ? 40 : 44;
+    final double avatarRadius = isPhone ? 12 : 14;
+    final EdgeInsets contentPadding = isPhone ? const EdgeInsets.all(12) : const EdgeInsets.all(14);
 
     final email   = pick('email');
     final contact = pick('name');
@@ -1814,26 +1817,32 @@ class _CustomerTile extends StatelessWidget {
     final initials = initialsSource.isNotEmpty ? initialsSource[0].toUpperCase() : 'C';
 
     // Gemeinsame Kopfzeile (links Avatar + Titel, rechts optional NEW)
+    final nameStyle = (isPhone ? theme.textTheme.titleSmall : theme.textTheme.titleMedium)
+        ?.copyWith(fontWeight: FontWeight.w800);
+    final companyStyle = (isPhone ? theme.textTheme.bodySmall : theme.textTheme.bodyMedium)
+        ?.copyWith(color: cs.onSurfaceVariant);
+    final emailStyle = theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant);
+
     Widget header() => Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 44,
-              height: 44,
+              width: avatarSize,
+              height: avatarSize,
               decoration: BoxDecoration(
                 color: accent.withOpacity(0.14),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(avatarRadius),
               ),
               alignment: Alignment.center,
               child: Text(
                 initials,
-                style: theme.textTheme.titleMedium?.copyWith(
+                style: (isPhone ? theme.textTheme.titleSmall : theme.textTheme.titleMedium)?.copyWith(
                   color: accent,
                   fontWeight: FontWeight.w700,
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: isPhone ? 10 : 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1843,24 +1852,24 @@ class _CustomerTile extends StatelessWidget {
                     contactLabel,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                    style: nameStyle,
                   ),
                   if (company.isNotEmpty && company != contactLabel) ...[
-                    const SizedBox(height: 4),
+                    SizedBox(height: isPhone ? 2 : 4),
                     Text(
                       company,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                      style: companyStyle,
                     ),
                   ],
-                  const SizedBox(height: 4),
+                  SizedBox(height: isPhone ? 2 : 4),
                   // Email in kleiner, ruhiger Farbe, 1 Zeile
                   Text(
                     email,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                    style: emailStyle,
                   ),
                 ],
               ),
@@ -1889,49 +1898,75 @@ class _CustomerTile extends StatelessWidget {
         );
 
     // Sekundärinfos als Chips (Telefon/Ort), umbrechend
+    final List<Widget> chipWidgets = [
+      if (phone.isNotEmpty)
+        _CustomerInfoChip(icon: Icons.phone_outlined, label: phone),
+      if (address.isNotEmpty)
+        _CustomerInfoChip(icon: Icons.location_on_outlined, label: address),
+      if (location.isNotEmpty)
+        _CustomerInfoChip(icon: Icons.map_outlined, label: location),
+    ];
+
     Widget infoChips() => Wrap(
           spacing: 10,
           runSpacing: 8,
-          children: [
-            if (phone.isNotEmpty)
-              _CustomerInfoChip(icon: Icons.phone_outlined, label: phone),
-            if (address.isNotEmpty)
-              _CustomerInfoChip(icon: Icons.location_on_outlined, label: address),
-            if (location.isNotEmpty)
-              _CustomerInfoChip(icon: Icons.map_outlined, label: location),
-          ],
-        );
+          children: chipWidgets,
+    );
 
-    // Aktionen unten (mobil freundlich)
-    Widget actionsRow() => Row(
+    Widget mobileActions() => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             FilledButton.tonalIcon(
               icon: const Icon(Icons.info_outline),
               onPressed: onInfo,
               label: Text(t.showDetails ?? 'Details'),
               style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                minimumSize: const Size.fromHeight(42),
                 shape: const StadiumBorder(),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(height: 8),
             OutlinedButton.icon(
               icon: const Icon(Icons.link_off),
               onPressed: onRemove,
               label: Text(t.deleteAdd),
               style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                minimumSize: const Size.fromHeight(42),
                 shape: const StadiumBorder(),
                 foregroundColor: cs.error,
                 side: BorderSide(color: cs.error),
               ),
             ),
-            const Spacer(),
-            // Gesamte Kachel tappbar behalten (öffnet Details)
-            IconButton(
-              tooltip: t.showDetails ?? 'Details anzeigen',
-              icon: const Icon(Icons.chevron_right),
-              onPressed: onOpen,
+            Align(
+              alignment: Alignment.centerRight,
+              child: IconButton(
+                tooltip: t.showDetails ?? 'Details anzeigen',
+                icon: const Icon(Icons.chevron_right),
+                onPressed: onOpen,
+              ),
+            ),
+          ],
+        );
+
+    Widget desktopActions() => Column(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            FilledButton.tonalIcon(
+              icon: const Icon(Icons.info_outline),
+              onPressed: onInfo,
+              label: Text(t.showDetails ?? 'Details'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.link_off),
+              onPressed: onRemove,
+              label: Text(t.deleteAdd),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: cs.error,
+                side: BorderSide(color: cs.error),
+              ),
             ),
           ],
         );
@@ -1943,7 +1978,7 @@ class _CustomerTile extends StatelessWidget {
         onTap: onOpen,
         borderRadius: BorderRadius.circular(18),
         child: Container(
-          padding: const EdgeInsets.all(14),
+          padding: contentPadding,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             color: Color.alphaBlend(cs.surfaceVariant.withOpacity(isNew ? 0.18 : 0.12), cs.surface),
@@ -1954,10 +1989,12 @@ class _CustomerTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     header(),
-                    const SizedBox(height: 12),
-                    infoChips(),
-                    const SizedBox(height: 12),
-                    actionsRow(),
+                    if (chipWidgets.isNotEmpty) ...[
+                      SizedBox(height: isPhone ? 10 : 12),
+                      infoChips(),
+                    ],
+                    SizedBox(height: chipWidgets.isNotEmpty ? 12 : 8),
+                    mobileActions(),
                   ],
                 )
               : Row(
@@ -1976,23 +2013,7 @@ class _CustomerTile extends StatelessWidget {
                     ),
                     const SizedBox(width: 12),
                     // Rechts: Aktionen
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      children: [
-                        FilledButton.tonalIcon(
-                          icon: const Icon(Icons.info_outline),
-                          onPressed: onInfo,
-                          label: Text(t.showDetails ?? 'Details'),
-                        ),
-                        const SizedBox(height: 8),
-                        OutlinedButton.icon(
-                          icon: const Icon(Icons.link_off),
-                          onPressed: onRemove,
-                          label: Text(t.deleteAdd),
-                          style: OutlinedButton.styleFrom(foregroundColor: cs.error, side: BorderSide(color: cs.error)),
-                        ),
-                      ],
-                    ),
+                    desktopActions(),
                   ],
                 ),
         ),
