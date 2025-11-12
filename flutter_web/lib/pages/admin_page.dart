@@ -16,7 +16,7 @@ class AdminPage extends StatefulWidget {
   State<AdminPage> createState() => _AdminPageState();
 }
 
-enum _AdminView { menu, pending, users, open, reps }
+enum _AdminView { menu, pending, users, open, reps, catalogs }
 
 class _AdminPageState extends State<AdminPage> {
   late final AdminApi _api;
@@ -56,6 +56,15 @@ class _AdminPageState extends State<AdminPage> {
   // Ansicht (Menü / Bereich)
   _AdminView _view = _AdminView.menu;
 
+  // ---- Katalog-Konfig (4 Felder) ----
+  final _labDefaultCtrl  = TextEditingController();
+  final _labEsfrCtrl     = TextEditingController();
+  final _dentDefaultCtrl = TextEditingController();
+  final _dentEsfrCtrl    = TextEditingController();
+
+  bool _catCfgBusy = false;
+  String? _catCfgErr;
+
   @override
   void initState() {
     super.initState();
@@ -79,6 +88,7 @@ class _AdminPageState extends State<AdminPage> {
     _refreshAll();
     _refreshOpen();
     _refreshReps();
+    _loadCatalogConfigAdmin();
   }
 
   bool _customerHasRep(String email) {
@@ -247,6 +257,19 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+    Future<void> _loadCatalogConfigAdmin() async {
+    try {
+      final m = await _api.fetchCatalogConfig();
+      _labDefaultCtrl.text  = m['lab_default']  ?? 'pdfs/DFS-Labor-DE-US-2025-26_1.pdf';
+      _labEsfrCtrl.text     = m['lab_esfr']     ?? 'pdfs/DFS-Labor-ES-FR-2025-26_1.pdf';
+      _dentDefaultCtrl.text = m['dent_default'] ?? 'pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf';
+      _dentEsfrCtrl.text    = m['dent_esfr']    ?? 'pdfs/DFS-Praxis-ES-FR-2025-2026_1.pdf';
+      if (mounted) setState(() {});
+    } catch (e) {
+      setState(() => _catCfgErr = e.toString());
+    }
+  }
+  
   Future<void> _editAppMeta(BuildContext context) async {
     final api = widget.api;
     Map<String, dynamic>? meta;
@@ -308,6 +331,133 @@ class _AdminPageState extends State<AdminPage> {
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
           FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('OK')),
         ],
+      ),
+    );
+  }
+
+    Widget _buildCatalogsPanel() {
+    final theme = Theme.of(context);
+    final formKey = GlobalKey<FormState>();
+
+    String? _validate(String v) {
+      final s = v.trim();
+      if (s.isEmpty) return 'Bitte URL angeben';
+      final isHttp = s.startsWith('http://') || s.startsWith('https://');
+      final isRel  = !s.contains('://') && !s.startsWith('/');
+      if (!isHttp && !isRel) return 'Erlaubt: http(s) oder relativer Pfad (z. B. pdfs/...)';
+      return null;
+    }
+
+    InputDecoration _dec(String label) => InputDecoration(
+      labelText: label,
+      border: const OutlineInputBorder(),
+      isDense: true,
+    );
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Form(
+          key: formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                const Icon(Icons.menu_book_outlined),
+                const SizedBox(width: 8),
+                const Text('Kataloge verwalten', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                const Spacer(),
+                IconButton(
+                  tooltip: 'Neu laden',
+                  onPressed: _loadCatalogConfigAdmin,
+                  icon: const Icon(Icons.refresh),
+                ),
+                const SizedBox(width: 8),
+                FilledButton.icon(
+                  onPressed: _catCfgBusy ? null : () async {
+                    if (!(formKey.currentState?.validate() ?? false)) return;
+                    setState(() { _catCfgBusy = true; _catCfgErr = null; });
+                    try {
+                      await _api.updateCatalogConfig({
+                        'lab_default' : _labDefaultCtrl.text.trim(),
+                        'lab_esfr'    : _labEsfrCtrl.text.trim(),
+                        'dent_default': _dentDefaultCtrl.text.trim(),
+                        'dent_esfr'   : _dentEsfrCtrl.text.trim(),
+                      });
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Katalog-Konfiguration gespeichert.'))
+                        );
+                      }
+                    } catch (e) {
+                      setState(() => _catCfgErr = e.toString());
+                    } finally {
+                      if (mounted) setState(() => _catCfgBusy = false);
+                    }
+                  },
+                  icon: _catCfgBusy
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.save_outlined),
+                  label: const Text('Speichern'),
+                ),
+              ]),
+
+              if (_catCfgErr != null) ...[
+                const SizedBox(height: 8),
+                Text(_catCfgErr!, style: const TextStyle(color: Colors.red)),
+              ],
+
+              const SizedBox(height: 12),
+              Text('Dentallabor (Lab) – URLs', style: theme.textTheme.titleSmall),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _labDefaultCtrl,
+                      decoration: _dec('DE/EN/IT (default)'),
+                      validator: (v) => _validate(v ?? ''),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _labEsfrCtrl,
+                      decoration: _dec('ES/FR'),
+                      validator: (v) => _validate(v ?? ''),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+              Text('Zahnmedizin (Dent) – URLs', style: theme.textTheme.titleSmall),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _dentDefaultCtrl,
+                      decoration: _dec('DE/EN/IT (default)'),
+                      validator: (v) => _validate(v ?? ''),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _dentEsfrCtrl,
+                      decoration: _dec('ES/FR'),
+                      validator: (v) => _validate(v ?? ''),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 8),
+              const Text('Hinweis: Relative Pfade (z. B. „pdfs/...“) zeigen auf gebundelte Dateien, http(s)-Links auf externe PDFs.'),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -456,6 +606,15 @@ class _AdminPageState extends State<AdminPage> {
         },
       ),
       AdminTilePro(
+        label: 'Kataloge',
+        subtitle: 'Links & Sprachen',
+        icon: Icons.menu_book_outlined,
+        colorA: AdminPalette.blueA,
+        colorB: AdminPalette.blueB,
+        compact: compact,
+        onTap: () => setState(() => _view = _AdminView.catalogs),
+      ),     
+      AdminTilePro(
         label: 'App-Version',
         subtitle: 'Version, Build, Hinweise',
         icon: Icons.app_settings_alt_outlined,
@@ -491,6 +650,8 @@ class _AdminPageState extends State<AdminPage> {
         return const SizedBox.shrink();
       case _AdminView.reps:
         return _buildRepsPanel();
+      case _AdminView.catalogs: 
+        return _buildCatalogsPanel();
     }
   }
 
@@ -2287,6 +2448,18 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   void dispose() {
     _reportCtrl.dispose();
     _internalCtrl.dispose();
+
+    // Vertreter
+    _repFirstCtrl.dispose();
+    _repLastCtrl.dispose();
+    _repMailCtrl.dispose();
+
+    // Kataloge
+    _labDefaultCtrl.dispose();
+    _labEsfrCtrl.dispose();
+    _dentDefaultCtrl.dispose();
+    _dentEsfrCtrl.dispose();
+    
     super.dispose();
   }
 
@@ -3197,6 +3370,7 @@ class AdminApi {
     final List data = jsonDecode(res.responseText ?? '[]');
     return data.map((e) => Rep.fromJson((e as Map).cast<String, dynamic>())).toList();
   }
+  
   Future<List<String>> assignCustomerToRep({required String repId, required String email}) async {
   final res = await _request('POST', '/api/admin/reps', body: {
     'action': 'assign',
@@ -3226,6 +3400,37 @@ class AdminApi {
         ? List<String>.from((j['customers'] as List).map((e) => e.toString()))
         : const <String>[];
   }
+
+    // ---------- Catalogs (Katalog-Konfiguration) ----------
+  Future<Map<String, String>> fetchCatalogConfig() async {
+    final res = await _request('GET', '/api/catalogs/config');
+    if (res.status != 200) {
+      throw 'catalog config GET: HTTP ${res.status} ${res.responseText}';
+    }
+    final txt = res.responseText ?? '{}';
+    final Map j = (txt.trim().isEmpty) ? <String, dynamic>{} : jsonDecode(txt);
+    final out = <String, String>{};
+    for (final k in ['lab_default','lab_esfr','dent_default','dent_esfr']) {
+      final v = j[k];
+      if (v is String && v.trim().isNotEmpty) out[k] = v.trim();
+    }
+    return out;
+  }
+
+  Future<void> updateCatalogConfig(Map<String, String> cfg) async {
+    final body = <String, String>{};
+    for (final k in ['lab_default','lab_esfr','dent_default','dent_esfr']) {
+      final v = cfg[k];
+      if (v != null) body[k] = v;
+    }
+    final res = await _request('PUT', '/api/catalogs/config', body: body);
+    if (res.status != 200 && res.status != 204) {
+      throw 'catalog config PUT: HTTP ${res.status} ${res.responseText}';
+    }
+  }
+
+
+  
 }
 
 // Farb-Mixer: mischt "top" mit Deckkraft t über "base"
