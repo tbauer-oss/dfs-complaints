@@ -149,14 +149,11 @@ class PushNotifications {
     try {
       final iosPlugin = _localNotifications
           .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
-      if (iosPlugin != null) {
-        await iosPlugin.requestPermissions(alert: true, badge: true, sound: true);
-        return;
-      }
+      await iosPlugin?.requestPermissions(alert: true, badge: true, sound: true);
 
-      final darwinPlugin = _localNotifications
-          .resolvePlatformSpecificImplementation<DarwinFlutterLocalNotificationsPlugin>();
-      await darwinPlugin?.requestPermissions(alert: true, badge: true, sound: true);
+      final macPlugin = _localNotifications
+          .resolvePlatformSpecificImplementation<MacOSFlutterLocalNotificationsPlugin>();
+      await macPlugin?.requestPermissions(alert: true, badge: true, sound: true);
     } catch (e) {
       debugPrint('[push] iOS permission request failed: $e');
     }
