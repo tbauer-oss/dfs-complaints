@@ -1837,6 +1837,7 @@ class _ComplaintTileState extends State<_ComplaintTile> {
   }) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+
     final chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
@@ -1850,14 +1851,15 @@ class _ComplaintTileState extends State<_ComplaintTile> {
         children: [
           Icon(icon, size: 18, color: cs.onSurfaceVariant),
           const SizedBox(width: 8),
-          Flexible(
+          Expanded(
             child: Text(
               text,
-              maxLines: 2,
+              maxLines: 3,                 // <- mehr Zeilen erlaubt
               overflow: TextOverflow.ellipsis,
+              softWrap: true,
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w600,
-                height: 1.3,
+                height: 1.25,
               ),
             ),
           ),
@@ -1865,14 +1867,11 @@ class _ComplaintTileState extends State<_ComplaintTile> {
       ),
     );
 
+    // maxWidth (falls gesetzt) respektieren – keine künstliche Mindestbreite
     if (maxWidth != null && maxWidth.isFinite) {
       return SizedBox(width: maxWidth, child: chip);
     }
-
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 200),
-      child: chip,
-    );
+    return chip; // volle Breite zulassen
   }
 
   Widget _decisionBadge(BuildContext context, {required IconData icon, required String text, required Color color}) {
@@ -1984,6 +1983,7 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     final serial       = _pickOrNull(p, ['serial','serial_no','sn']);
     final qty          = _pickOrNull(p, ['qty','quantity','amount','menge']);
     final reason       = _pickOrNull(p, ['reason','failure_reason','cause']);
+    final internalNo   = _pickOrNull(p, ['internalComplaintNo','internalComplaint','internalNo','internal','complaintNo','complaint_no','reklamationsnummer','rekl_nr','reklamationsnr']);
 
     final desc         = _pickOrNull(p, ['desc','description','comment','details','failure_desc']);
     final customerWish = _pickOrNull(p, ['handling','customer_wish','customerWish','wish','treatment_wish']);
@@ -2046,26 +2046,60 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     }
 
     return LayoutBuilder(
-      builder: (context, constraints) {
-        final chips = <Widget>[];
-        final availableWidth = constraints.maxWidth.isFinite
-            ? constraints.maxWidth
-            : MediaQuery.of(context).size.width;
-        final double chipWidth = availableWidth >= 520
-            ? (availableWidth - 10) / 2
-            : availableWidth;
+  builder: (context, constraints) {
+    final availableWidth = constraints.maxWidth.isFinite
+        ? constraints.maxWidth
+        : MediaQuery.of(context).size.width;
 
-        if (customer.isNotEmpty) {
-          chips.add(_metaChip(context, icon: Icons.person_outline_rounded, text: customer, maxWidth: chipWidth));
-        }
-        if (articleLabel != null) {
-          chips.add(_metaChip(context, icon: Icons.qr_code_2_outlined, text: articleLabel, maxWidth: chipWidth));
-        }
-        if (createdLabel != null) {
-          chips.add(_metaChip(context, icon: Icons.schedule_rounded, text: createdLabel, maxWidth: chipWidth));
-        }
+    final isPhone = MediaQuery.of(context).size.width < 600;
 
-        return AnimatedContainer(
+    // Chip-Breite: auf Phone immer volle Breite, sonst 2-Spalten-Layout
+    double full = availableWidth;
+    double half = (availableWidth - 12) / 2; // 12px Wrap-Abstand
+
+    final chips = <Widget>[];
+
+    // Kunde – immer volle Breite (liest sich besser)
+    if (customer.isNotEmpty) {
+      chips.add(_metaChip(
+        context,
+        icon: Icons.person_outline_rounded,
+        text: customer,
+        maxWidth: full,
+      ));
+    }
+
+    // Artikel / Produktbereich (breit bei Phone, sonst halbe Breite)
+    if (articleLabel != null) {
+      chips.add(_metaChip(
+        context,
+        icon: Icons.qr_code_2_outlined,
+        text: articleLabel,
+        maxWidth: isPhone ? full : half,
+      ));
+    }
+
+    // Interne Reklamationsnummer – NEU
+    if (internalNo != null && internalNo.trim().isNotEmpty) {
+      chips.add(_metaChip(
+        context,
+        icon: Icons.confirmation_number_outlined,
+        text: internalNo!,
+        maxWidth: isPhone ? full : half,
+      ));
+    }
+
+    // Erstellungsdatum
+    if (createdLabel != null) {
+      chips.add(_metaChip(
+        context,
+        icon: Icons.schedule_rounded,
+        text: createdLabel,
+        maxWidth: isPhone ? full : half,
+      ));
+    }
+
+    return AnimatedContainer(
           duration: const Duration(milliseconds: 260),
           curve: Curves.easeOutCubic,
           margin: const EdgeInsets.symmetric(vertical: 6),
@@ -2103,8 +2137,8 @@ class _ComplaintTileState extends State<_ComplaintTile> {
                           if (chips.isNotEmpty) ...[
                             const SizedBox(height: 12),
                             Wrap(
-                              spacing: 10,
-                              runSpacing: 8,
+                              spacing: 12,
+                              runSpacing: 10,
                               children: chips,
                             ),
                           ],
