@@ -168,7 +168,7 @@ class ApiClient {
     final res = await get('/api/catalogs/config'); // Pfad anpassen falls nötig
     final m = <String, String>{};
     if (res is Map) {
-      for (final k in ['lab_default','lab_esfr','dent_default','dent_esfr']) {
+      for (final k in ['lab_default', 'lab_esfr', 'dent_default', 'dent_esfr']) {
         final v = res[k];
         if (v is String && v.trim().isNotEmpty) m[k] = v.trim();
       }
@@ -179,7 +179,7 @@ class ApiClient {
   Future<void> updateCatalogConfig(Map<String, String> cfg) async {
     // nur erlaubte Keys schicken
     final body = <String, String>{};
-    for (final k in ['lab_default','lab_esfr','dent_default','dent_esfr']) {
+    for (final k in ['lab_default', 'lab_esfr', 'dent_default', 'dent_esfr']) {
       final v = cfg[k];
       if (v != null) body[k] = v;
     }
@@ -368,17 +368,6 @@ class ApiClient {
     throw StateError('putJson($path, ...) ist nicht implementiert.');
   }
 
-  // ---- Thin wrappers for legacy call sites (compat) ----
-  Future<dynamic> get(String path) async {
-    // delegiert auf bestehende JSON-Variante
-    return await getJson(path);
-  }
-
-  Future<void> put(String path, {Object? body}) async {
-    // delegiert auf bestehende JSON-Variante
-    await putJson(path, body);
-  }
-
   // ---- Reps: Entscheidung zu Complaint (mit Bearer-Token) ----
   Future<void> repDecision({
     required String ticket,
@@ -527,6 +516,35 @@ class ApiClient {
           .toList(growable: false);
     }
     return const [];
+  }
+
+  Future<dynamic> get(String path, {bool auth = false, Map<String, String>? extra}) async {
+    final r = await _get(path, auth: auth, extra: extra);
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final body = r.body.trim();
+    if (body.isEmpty) return null;
+    return jsonDecode(body);
+  }
+
+  Future<dynamic> put(
+    String path, {
+    Map<String, dynamic>? body,
+    bool auth = false,
+    Map<String, String>? extra,
+  }) async {
+    final r = await http.put(
+      _u(path),
+      headers: _headers(auth: auth, extra: extra),
+      body: jsonEncode(body ?? const <String, dynamic>{}),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final text = r.body.trim();
+    if (text.isEmpty) return null;
+    return jsonDecode(text);
   }
 
   // ---------- Low-level HTTP ----------
