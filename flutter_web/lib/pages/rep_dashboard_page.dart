@@ -53,12 +53,15 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
   // "NEU"-Badges: lokal gemerkte "schon gesehen" Kunden (E-Mails als Key)
   static const _seenKey = 'rep_seen_customers_v1';
-  late final Set<String> _seenCustomers;
-
+  final Set<String> _seenCustomers = <String>{};
+  
   @override
   void initState() {
     super.initState();
-    _seenCustomers = _loadSeen();
+    final loaded = _loadSeen();
+    _seenCustomers
+      ..clear()
+      ..addAll(loaded);
     _loadAll();
   }
 
@@ -1127,12 +1130,12 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
             final n1 = new1Ctrl.text;
             final n2 = new2Ctrl.text;
             if (oldPw.isEmpty || n1.isEmpty || n2.isEmpty) {
-              err = t.errorGeneric('Bitte alle Felder ausfüllen');
+              err = (t.error ?? 'Fehler') + ': Bitte alle Felder ausfüllen';
               (ctx as Element).markNeedsBuild();
               return;
             }
             if (n1 != n2) {
-              err = t.errorGeneric('Passwörter stimmen nicht überein');
+              err = (t.error ?? 'Fehler') + ': Passwörter stimmen nicht überein';
               (ctx as Element).markNeedsBuild();
               return;
             }
@@ -1504,7 +1507,9 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     final customer  = widget.customerOverride ?? (widget.data['customerEmail'] ?? widget.data['email'] ?? '').toString();
     
     final Map<String, dynamic>? p =
-        (widget.data['payload'] is Map) ? (widget.data['payload'] as Map).cast<String, dynamic>() : null;
+        (widget.data['payload'] is Map)
+            ? (widget.data['payload'] as Map<dynamic, dynamic>).cast<String, dynamic>()
+            : null;
 
     final segment      = _pickOrNull(p, ['segment','customer_segment','segment_code']);
     final productType  = _pickOrNull(p, ['product_type','productType','type']);
@@ -1772,7 +1777,7 @@ class _ComplaintTileState extends State<_ComplaintTile> {
       margin: const EdgeInsets.only(top: 4),
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.30),
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.30),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
