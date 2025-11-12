@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import 'rep_profile_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:dfs_mobile/web_compat/html_stub.dart'
   if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
@@ -59,16 +60,28 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   static const _seenKey = 'rep_seen_customers_v1';
   late final Set<String> _seenCustomers;
 
+  // "NEU"-Badges
+  late Set<String> _seenCustomers;
+  String get _seenKeyBase => 'rep_seen_customers_v2'; // neue Version, entkoppelt von v1 (Web)
+  String get _repAwareSeenKey {
+    final meMail = (_me?['email'] ?? '').toString().toLowerCase();
+    return meMail.isNotEmpty ? '$_seenKeyBase:$meMail' : _seenKeyBase;
+  }
+
   // Brandfarbe (DFS Blau)
   static const _brand = Color(0xFF0865A2);
 
   @override
   void initState() {
     super.initState();
-    _seenCustomers = _loadSeen();
-    _loadAll();
+    _seenCustomers = <String>{};
+    _loadAll(); // lädt _me
+    // Nach dem ersten Load (wenn _me da ist) die Seen-Liste nachziehen
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadSeenAsync();
+    });
   }
-
+  
   Set<String> _loadSeen() {
     try {
       final raw = html.window.localStorage[_seenKey];
@@ -108,6 +121,48 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       return true;
     }
     return false;
+  }
+
+  Future<void> _loadSeenAsync() async {
+    try {
+      final key = _repAwareSeenKey;
+
+      if (kIsWeb) {
+        final raw = html.window.localStorage[key];
+        if (raw == null || raw.isEmpty) return;
+        final parts = raw.split(';').map((e) => e.trim().toLowerCase()).where((e) => e.isNotEmpty).toSet();
+        setState(() => _seenCustomers = parts);
+        return;
+      }
+
+      final sp = await SharedPreferences.getInstance();
+      final list = sp.getStringList(key) ?? const <String>[];
+      setState(() => _seenCustomers = list.map((e) => e.trim().toLowerCase()).where((e) => e.isNotEmpty).toSet());
+    } catch (_) {
+      // soft-fail
+    }
+  }
+
+  Future<void> _persistSeenAsync() async {
+    try {
+      final key = _repAwareSeenKey;
+
+      if (kIsWeb) {
+        html.window.localStorage[key] = _seenCustomers.join(';');
+        return;
+      }
+
+      final sp = await SharedPreferences.getInstance();
+      await sp.setStringList(key, _seenCustomers.toList());
+    } catch (_) {}
+  }
+
+  void _markCustomerSeen(String email) {
+    final em = (email).toLowerCase().trim();
+    if (_seenCustomers.add(em)) {
+      _persistSeenAsync(); // async persist
+      if (mounted) setState(() {}); // UI aktualisieren
+    }
   }
 
   // ---- Admin-gleiche „freie Kunden“-Quelle holen (identisch & live) ----
@@ -1729,34 +1784,165 @@ class _CustomerTile extends StatelessWidget {
 
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final isPhone = MediaQuery.of(context).size.width < 600;
 
-    final email = pick('email');
+    final email   = pick('email');
     final contact = pick('name');
     final company = pick('company');
-    final phone = pick('phone');
+    final phone   = pick('phone');
     final address = pick('address');
-    final zip = pick('zip');
-    final city = pick('city');
+    final zip     = pick('zip');
+    final city    = pick('city');
     final country = pick('country');
 
-    final contactLabel = contact.isNotEmpty
-        ? contact
-        : (company.isNotEmpty ? company : email);
-
-    final locationParts = <String>[
+    final contactLabel = (contact.isNotEmpty ? contact : (company.isNotEmpty ? company : email)).trim();
+    final location = [
       [zip, city].where((e) => e.trim().isNotEmpty).join(' ').trim(),
       country.trim(),
-    ].where((e) => e.isNotEmpty).toList();
-    final location = locationParts.join(' · ');
+    ].where((e) => e.isNotEmpty).join(' · ');
 
     final accent = isNew ? cs.primary : cs.secondary;
-    final initialsSource = contactLabel.trim().isNotEmpty ? contactLabel.trim() : email.trim();
+    final initialsSource = contactLabel.isNotEmpty ? contactLabel : email;
     final initials = initialsSource.isNotEmpty ? initialsSource[0].toUpperCase() : 'C';
 
+    // Gemeinsame Kopfzeile (links Avatar + Titel, rechts optional NEW)
+    Widget header() => Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: accent.withOpacity(0.14),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                initials,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: accent,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Name/Überschrift groß, max. 2 Zeilen
+                  Text(
+                    contactLabel,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                  if (company.isNotEmpty && company != contactLabel) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      company,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                    ),
+                  ],
+                  const SizedBox(height: 4),
+                  // Email in kleiner, ruhiger Farbe, 1 Zeile
+                  Text(
+                    email,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
+            if (isNew)
+              const SizedBox(width: 8),
+            if (isNew)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(.15),
+                  border: Border.all(color: Colors.orange),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: const Text(
+                  'NEW',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11,
+                    color: Colors.orange,
+                    letterSpacing: .4,
+                  ),
+                ),
+              ),
+          ],
+        );
+
+    // Sekundärinfos als Chips (Telefon/Ort), umbrechend
+    Widget infoChips() => Wrap(
+          spacing: 10,
+          runSpacing: 8,
+          children: [
+            if (phone.isNotEmpty)
+              _CustomerInfoChip(icon: Icons.phone_outlined, label: phone),
+            if (address.isNotEmpty)
+              _CustomerInfoChip(icon: Icons.location_on_outlined, label: address),
+            if (location.isNotEmpty)
+              _CustomerInfoChip(icon: Icons.map_outlined, label: location),
+          ],
+        );
+
+    // Aktionen unten (mobil freundlich)
+    Widget actionsRow() => Row(
+          children: [
+            FilledButton.tonalIcon(
+              icon: const Icon(Icons.info_outline),
+              onPressed: () {
+                onInfo();
+                // Einmal tippen → NEW dauerhaft weg
+                _markCustomerSeen(email);
+              },
+              label: Text(t.showDetails ?? 'Details'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                shape: const StadiumBorder(),
+              ),
+            ),
+            const SizedBox(width: 10),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.link_off),
+              onPressed: onRemove,
+              label: Text(t.deleteAdd),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                shape: const StadiumBorder(),
+                foregroundColor: cs.error,
+                side: BorderSide(color: cs.error),
+              ),
+            ),
+            const Spacer(),
+            // Gesamte Kachel tappbar behalten (öffnet Details)
+            IconButton(
+              tooltip: t.showDetails ?? 'Details anzeigen',
+              icon: const Icon(Icons.chevron_right),
+              onPressed: () {
+                onOpen();
+                _markCustomerSeen(email);
+              },
+            ),
+          ],
+        );
+
+    // Container-Optik
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onOpen,
+        onTap: () {
+          onOpen();
+          _markCustomerSeen(email); // auch beim Tap auf die Karte
+        },
         borderRadius: BorderRadius.circular(18),
         child: Container(
           padding: const EdgeInsets.all(14),
@@ -1765,122 +1951,55 @@ class _CustomerTile extends StatelessWidget {
             color: Color.alphaBlend(cs.surfaceVariant.withOpacity(isNew ? 0.18 : 0.12), cs.surface),
             border: Border.all(color: cs.outlineVariant.withOpacity(isNew ? 0.65 : 0.45)),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: accent.withOpacity(0.14),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      initials,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: accent,
-                        fontWeight: FontWeight.w700,
+          child: isPhone
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    header(),
+                    const SizedBox(height: 12),
+                    infoChips(),
+                    const SizedBox(height: 12),
+                    actionsRow(),
+                  ],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Links: Header + Chips
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          header(),
+                          const SizedBox(height: 12),
+                          infoChips(),
+                        ],
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    const SizedBox(width: 12),
+                    // Rechts: Aktionen
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                contactLabel,
-                                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            if (isNew) const SizedBox(width: 8),
-                            if (isNew) const _PulseNewBadge(),
-                          ],
+                        FilledButton.tonalIcon(
+                          icon: const Icon(Icons.info_outline),
+                          onPressed: () {
+                            onInfo();
+                            _markCustomerSeen(email);
+                          },
+                          label: Text(t.showDetails ?? 'Details'),
                         ),
-                        if (company.isNotEmpty && company != contactLabel) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            company,
-                            style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                        const SizedBox(height: 4),
-                        Text(
-                          email,
-                          style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-                          overflow: TextOverflow.ellipsis,
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          icon: const Icon(Icons.link_off),
+                          onPressed: onRemove,
+                          label: Text(t.deleteAdd),
+                          style: OutlinedButton.styleFrom(foregroundColor: cs.error, side: BorderSide(color: cs.error)),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Column(
-                    children: [
-                      IconButton(
-                        tooltip: t.showDetails ?? 'Details anzeigen',
-                        icon: const Icon(Icons.info_outline),
-                        onPressed: onInfo,
-                        style: IconButton.styleFrom(
-                          backgroundColor: cs.surfaceVariant.withOpacity(0.25),
-                          foregroundColor: cs.onSurface,
-                          padding: const EdgeInsets.all(10),
-                          minimumSize: const Size(40, 40),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      IconButton(
-                        tooltip: t.deleteAdd,
-                        icon: const Icon(Icons.link_off),
-                        onPressed: onRemove,
-                        style: IconButton.styleFrom(
-                          foregroundColor: cs.error,
-                          padding: const EdgeInsets.all(10),
-                          minimumSize: const Size(40, 40),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              if (address.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Text(
-                  address,
-                  style: theme.textTheme.bodyMedium?.copyWith(height: 1.3),
-                ),
-              ],
-              if (phone.isNotEmpty || location.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 8,
-                  children: [
-                    if (phone.isNotEmpty)
-                      _CustomerInfoChip(
-                        icon: Icons.phone_outlined,
-                        label: phone,
-                      ),
-                    if (location.isNotEmpty)
-                      _CustomerInfoChip(
-                        icon: Icons.location_on_outlined,
-                        label: location,
-                      ),
                   ],
                 ),
-              ],
-            ],
-          ),
         ),
       ),
     );
