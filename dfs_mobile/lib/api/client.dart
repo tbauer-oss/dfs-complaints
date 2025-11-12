@@ -163,25 +163,6 @@ class ApiClient {
     return h;
   }
 
-  Map<String, String> _pushHeaders() {
-    final h = <String, String>{
-      'Content-Type': 'application/json; charset=utf-8',
-    };
-    if (gate != null && gate!.isNotEmpty) {
-      h['X-Gate'] = gate!;
-    }
-    if (token != null && token!.isNotEmpty) {
-      h['Authorization'] = 'Bearer $token';
-    } else if (repToken != null && repToken!.isNotEmpty) {
-      h['Authorization'] = 'Bearer $repToken';
-      h.putIfAbsent('X-Gate', () => 'rep');
-    }
-    if (adminSecret != null && adminSecret!.isNotEmpty) {
-      h['X-Admin-Secret'] = adminSecret!;
-    }
-    return h;
-  }
-
   // Versucht, das Rep-Token leise zu erneuern (POST /api/rep/refresh)
   Future<bool> _repTryRefresh() async {
     try {
