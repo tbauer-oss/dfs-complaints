@@ -86,6 +86,7 @@
   "@chooseCustomer": { "description": "Label/Platzhalter für Dropdown bzw. Auswahlfeld zum Kunden" },
   "allCompanies": "Alle Firmen",
   "@allCompanies": { "description": "Filteroption, um alle Unternehmen anzuzeigen" },
+  "yourCompany": "Ihr Unternehmen",
 
   "logout": "Abmelden",
   "loggedOut": "Abgemeldet.",
