@@ -2314,6 +2314,8 @@ class _ComplaintTileState extends State<_ComplaintTile> {
               icon: Icons.schedule_rounded, text: createdLabel));
         }
 
+        final isPhone = MediaQuery.of(context).size.width < 600;
+
         return AnimatedContainer(
           duration: const Duration(milliseconds: 260),
           curve: Curves.easeOutCubic,
@@ -2334,23 +2336,101 @@ class _ComplaintTileState extends State<_ComplaintTile> {
             padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (isPhone)
-                  // <<< PHONE: EINSPALTIG >>>
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Kopfzeile: Ticket links, Status rechts
-                      Row(
+              children: [                
+                isPhone
+                    // ======= PHONE: EINSPALTIG, VOLLE ZEILENBREITE =======
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Kopf: Ticket links, Status rechts
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  ticket.isEmpty ? '(ohne Ticket)' : ticket,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.15,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  _StatusChip(status: status, decision: decision, closed: widget.isClosed),
+                                  if (repDecision.trim().isNotEmpty) ...[
+                                    const SizedBox(height: 12),
+                                    _RepTrafficLight(opinion: repDecision, compact: true),
+                                  ],
+                                ],
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 12),
+
+                          if (customer.isNotEmpty) ...[
+                            _metaRowFullWidth(context, icon: Icons.person_outline_rounded, text: customer),
+                            const SizedBox(height: 8),
+                          ],
+                          if (articleLabel != null) ...[
+                            _metaRowFullWidth(context, icon: Icons.qr_code_2_outlined, text: articleLabel!),
+                            const SizedBox(height: 8),
+                          ],
+                          if (internalNo != null && internalNo!.trim().isNotEmpty) ...[
+                            _metaRowFullWidth(context, icon: Icons.confirmation_number_outlined, text: internalNo!),
+                            const SizedBox(height: 8),
+                          ],
+                          if (createdLabel != null) ...[
+                            _metaRowFullWidth(context, icon: Icons.schedule_rounded, text: createdLabel!),
+                          ],
+                        ],
+                      )
+                    // ======= TABLET/DESKTOP: ZWEISPALTIG WIE BISHER =======
+                    : Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
-                            child: Text(
-                              ticket.isEmpty ? '(ohne Ticket)' : ticket,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.15,
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  ticket.isEmpty ? '(ohne Ticket)' : ticket,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.15,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                LayoutBuilder(
+                                  builder: (ctx, cons) {
+                                    final maxW = cons.maxWidth.isFinite ? cons.maxWidth : MediaQuery.of(ctx).size.width;
+                                    final half = (maxW - 12) / 2;
+                                    final chips = <Widget>[];
+
+                                    if (customer.isNotEmpty) {
+                                      chips.add(_metaChip(ctx, icon: Icons.person_outline_rounded, text: customer, maxWidth: half));
+                                    }
+                                    if (articleLabel != null) {
+                                      chips.add(_metaChip(ctx, icon: Icons.qr_code_2_outlined, text: articleLabel!, maxWidth: half));
+                                    }
+                                    if (internalNo != null && internalNo!.trim().isNotEmpty) {
+                                      chips.add(_metaChip(ctx, icon: Icons.confirmation_number_outlined, text: internalNo!, maxWidth: half));
+                                    }
+                                    if (createdLabel != null) {
+                                      chips.add(_metaChip(ctx, icon: Icons.schedule_rounded, text: createdLabel!, maxWidth: half));
+                                    }
+
+                                    return Wrap(
+                                      spacing: 12,
+                                      runSpacing: 10,
+                                      children: chips,
+                                    );
+                                  },
+                                ),
+                              ],
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -2366,79 +2446,6 @@ class _ComplaintTileState extends State<_ComplaintTile> {
                           ),
                         ],
                       ),
-
-                      const SizedBox(height: 12),
-
-                      // VOLLE ZEILENBREITE (KEINE WRAP-CHIPS)
-                      if (customer.isNotEmpty) ...[
-                        _metaRowFullWidth(context, icon: Icons.person_outline_rounded, text: customer),
-                        const SizedBox(height: 8),
-                      ],
-                      if (articleLabel != null) ...[
-                        _metaRowFullWidth(context, icon: Icons.qr_code_2_outlined, text: articleLabel!),
-                        const SizedBox(height: 8),
-                      ],
-                      if (internalNo != null && internalNo!.trim().isNotEmpty) ...[
-                        _metaRowFullWidth(context, icon: Icons.confirmation_number_outlined, text: internalNo!),
-                        const SizedBox(height: 8),
-                      ],
-                      if (createdLabel != null) ...[
-                        _metaRowFullWidth(context, icon: Icons.schedule_rounded, text: createdLabel!),
-                      ],
-                    ],
-                  )
-                else
-                  // <<< TABLET/DESKTOP: ZWEISPALTIG WIE BISHER >>>
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              ticket.isEmpty ? '(ohne Ticket)' : ticket,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.15,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            // deine bisherigen Chips (2 Spalten):
-                            Builder(builder: (ctx) {
-                              final maxW = MediaQuery.of(ctx).size.width;
-                              final half = (maxW - 12) / 2;
-                              final chips = <Widget>[];
-                              if (customer.isNotEmpty) {
-                                chips.add(_metaChip(ctx, icon: Icons.person_outline_rounded, text: customer, maxWidth: half));
-                              }
-                              if (articleLabel != null) {
-                                chips.add(_metaChip(ctx, icon: Icons.qr_code_2_outlined, text: articleLabel!, maxWidth: half));
-                              }
-                              if (internalNo != null && internalNo!.trim().isNotEmpty) {
-                                chips.add(_metaChip(ctx, icon: Icons.confirmation_number_outlined, text: internalNo!, maxWidth: half));
-                              }
-                              if (createdLabel != null) {
-                                chips.add(_metaChip(ctx, icon: Icons.schedule_rounded, text: createdLabel!, maxWidth: half));
-                              }
-                              return Wrap(spacing: 12, runSpacing: 10, children: chips);
-                            }),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          _StatusChip(status: status, decision: decision, closed: widget.isClosed),
-                          if (repDecision.trim().isNotEmpty) ...[
-                            const SizedBox(height: 12),
-                            _RepTrafficLight(opinion: repDecision, compact: true),
-                          ],
-                        ],
-                      ),
-                    ],
-                  );
                 
                 if (decisionBadges.isNotEmpty) ...[
                   const SizedBox(height: 16),
