@@ -13,7 +13,21 @@ import {
 import {
   pushTokenRegister,
   pushTokenRemove,
+  repPushTokenRegister,
+  repPushTokenRemove,
+  adminPushTokenRegister,
+  adminPushTokenRemove,
 } from '../_lib/store.js';
+import { getRepFromAuthHeader } from '../_lib/repAuth.js';
+
+const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
+
+function isAdmin(req) {
+  if (!ADMIN_SECRET) return false;
+  const header = req.headers?.['x-admin-secret'] ?? req.headers?.['X-Admin-Secret'];
+  if (!header) return false;
+  return header === ADMIN_SECRET;
+}
 
 const JWT_SECRET = process.env.JWT_SECRET || process.env.JWT || '';
 
@@ -35,7 +49,9 @@ export default async function handler(req, res) {
   if (!JWT_SECRET) return bad(res, 'server misconfig', 500);
 
   const email = authEmail(req);
-  if (!email) return bad(res, 'unauthorized', 401);
+  const rep = email ? null : getRepFromAuthHeader(req);
+  const admin = (!email && !rep) ? isAdmin(req) : false;
+  if (!email && !rep && !admin) return bad(res, 'unauthorized', 401);
 
   if (req.method === 'POST') {
     const body = readJson(req) || {};
@@ -45,7 +61,13 @@ export default async function handler(req, res) {
     const locale = (body?.locale || '').toString().trim();
     const lang = (body?.lang || '').toString().trim();
 
-    await pushTokenRegister(email, token, { platform, locale, lang });
+    if (email) {
+      await pushTokenRegister(email, token, { platform, locale, lang });
+    } else if (rep) {
+      await repPushTokenRegister(rep.repId, token, { platform, locale, lang });
+    } else if (admin) {
+      await adminPushTokenRegister(token, { platform, locale, lang });
+    }
     return ok(res, { ok: true });
   }
 
@@ -64,7 +86,9 @@ export default async function handler(req, res) {
     }
     if (!token) return bad(res, 'missing token', 400);
 
-    await pushTokenRemove(email, token);
+    if (email) await pushTokenRemove(email, token);
+    else if (rep) await repPushTokenRemove(rep.repId, token);
+    else if (admin) await adminPushTokenRemove(token);
     return noContent(res);
   }
 
