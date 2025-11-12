@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:html' as html;
 import 'package:http/http.dart' as http;
 import '../models/complaint.dart';
+import '../models/catalog_link.dart';
 
 class ApiError implements Exception {
   final int status;
@@ -93,7 +94,7 @@ class ApiClient {
     gate = null;
     _saveSession();
   }
-
+  
   void setAdminSecret(String? s) {
     adminSecret = (s ?? '').trim().isEmpty ? null : s!.trim();
     _saveSession();
@@ -876,6 +877,21 @@ class ApiClient {
   Future<void> repLogout() async {
     repToken = null;
     _saveSession();
+  }
+  
+  // === Kataloge: GET ===
+  Future<List<CatalogLink>> fetchCatalogLinks() async {
+    final res = await get('/api/catalogs'); // passe Pfad ggf. an
+    // Erwartet: { "items": [ {label, url, locales:[...]} ] }
+    final items = (res['items'] as List?) ?? const [];
+    return items.map((e) => CatalogLink.fromJson((e as Map).cast<String, dynamic>())).toList();
+  }
+
+  // === Kataloge: PUT (ersetzt Liste vollständig) ===
+  Future<void> updateCatalogLinks(List<CatalogLink> links) async {
+    await put('/api/catalogs', body: {
+      'items': links.map((e) => e.toJson()).toList(),
+    });
   }
 
   // Ende ApiClient
