@@ -163,6 +163,25 @@ class ApiClient {
     return h;
   }
 
+  Map<String, String> _pushHeaders() {
+    final h = <String, String>{
+      'Content-Type': 'application/json; charset=utf-8',
+    };
+    if (gate != null && gate!.isNotEmpty) {
+      h['X-Gate'] = gate!;
+    }
+    if (token != null && token!.isNotEmpty) {
+      h['Authorization'] = 'Bearer $token';
+    } else if (repToken != null && repToken!.isNotEmpty) {
+      h['Authorization'] = 'Bearer $repToken';
+      h.putIfAbsent('X-Gate', () => 'rep');
+    }
+    if (adminSecret != null && adminSecret!.isNotEmpty) {
+      h['X-Admin-Secret'] = adminSecret!;
+    }
+    return h;
+  }
+
   // Versucht, das Rep-Token leise zu erneuern (POST /api/rep/refresh)
   Future<bool> _repTryRefresh() async {
     try {
@@ -497,64 +516,23 @@ class ApiClient {
     );
   }
 
-  Future<void> registerPushToken(String token, {String? platform, String? locale, String? lang}) async {
-    final trimmed = token.trim();
-    if (trimmed.isEmpty) return;
-    if (this.token == null || this.token!.isEmpty) {
-      pushDeviceToken = trimmed;
-      _saveSession();
-      return;
+  Map<String, String> _pushHeaders() {
+    final h = <String, String>{
+      'Content-Type': 'application/json; charset=utf-8',
+    };
+    if (gate != null && gate!.isNotEmpty) {
+      h['X-Gate'] = gate!;
     }
-
-    final body = <String, String>{'token': trimmed};
-    if (platform != null && platform.trim().isNotEmpty) body['platform'] = platform.trim();
-    if (locale != null && locale.trim().isNotEmpty) body['locale'] = locale.trim();
-    if (lang != null && lang.trim().isNotEmpty) body['lang'] = lang.trim();
-
-    final res = await _post('/api/push/register', body, auth: true);
-    if (!_ok2xx(res.statusCode)) {
-      final msg = _extractMessage(res.body);
-      throw ApiError(res.statusCode, msg);
+    if (token != null && token!.isNotEmpty) {
+      h['Authorization'] = 'Bearer $token';
+    } else if (repToken != null && repToken!.isNotEmpty) {
+      h['Authorization'] = 'Bearer $repToken';
+      h.putIfAbsent('X-Gate', () => 'rep');
     }
-    pushDeviceToken = trimmed;
-    _saveSession();
-  }
-
-  Future<void> unregisterPushToken(String token, {bool silent = false}) async {
-    final trimmed = token.trim();
-    if (trimmed.isEmpty) {
-      if (pushDeviceToken != null) {
-        pushDeviceToken = null;
-        _saveSession();
-      }
-      return;
+    if (adminSecret != null && adminSecret!.isNotEmpty) {
+      h['X-Admin-Secret'] = adminSecret!;
     }
-
-    final hasAuth = this.token != null && this.token!.isNotEmpty;
-    if (hasAuth) {
-      try {
-        final res = await _delete(
-          '/api/push/register?token=${Uri.encodeComponent(trimmed)}',
-          auth: true,
-        );
-        if (!_ok2xx(res.statusCode) && res.statusCode != 204 && res.statusCode != 404) {
-          if (!silent) {
-            final msg = _extractMessage(res.body);
-            throw ApiError(res.statusCode, msg);
-          }
-        }
-      } catch (e) {
-        if (!silent) {
-          if (e is ApiError) rethrow;
-          throw ApiError(0, e.toString());
-        }
-      }
-    }
-
-    if (pushDeviceToken == trimmed) {
-      pushDeviceToken = null;
-      _saveSession();
-    }
+    return h;
   }
 
   // ---------- Gate ----------
