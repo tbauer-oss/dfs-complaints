@@ -281,7 +281,7 @@
   "add_images": "Ajouter une ou plusieurs images",
   "images_selected": "{count} fichier(s) sélectionné(s)",
   "@images_selected": { "placeholders": { "count": { "type": "int" } } },
-  "images_too_large": "Max. 8 Mo au total",
+  "images_too_large": "Taille totale maximale des fichiers: 10 Mo",
   "returned_question": "Produits déjà retournés ?*",
   "handling": "Traitement souhaité*",
   "handling_replacement": "Remplacement",
