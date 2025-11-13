@@ -277,7 +277,7 @@
   "add_images": "Add image(s)",
   "images_selected": "{count} file(s) selected",
   "@images_selected": { "placeholders": { "count": { "type": "int" } } },
-  "images_too_large": "Max. 8MB total",
+  "images_too_large": "Max. total upload size: 10 MB",
   "returned_question": "Products already returned?*",
   "handling": "Requested handling*",
   "handling_replacement": "Replacement",
