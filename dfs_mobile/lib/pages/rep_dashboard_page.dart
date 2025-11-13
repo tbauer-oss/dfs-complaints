@@ -397,25 +397,25 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                 children: [
                   _overviewStat(
                     icon: Icons.report_problem_rounded,
-                    label: 'Offen',
+                    label: t.rep_overview_open,
                     value: openCount,
                     color: Colors.red.shade600,
                   ),
                   _overviewStat(
                     icon: Icons.all_inbox_rounded,
-                    label: 'Alle',
+                    label: t.rep_overview_all,
                     value: allCount,
                     color: cs.primary,
                   ),
                   _overviewStat(
                     icon: Icons.thumb_down_alt_rounded,
-                    label: 'Abgelehnt',
+                    label: t.rep_overview_rejected,
                     value: rejectedCount,
                     color: Colors.orange.shade700,
                   ),
                   _overviewStat(
                     icon: Icons.check_circle_rounded,
-                    label: 'Abgeschlossen',
+                    label: t.rep_overview_finished,
                     value: finishedCount,
                     color: Colors.green.shade600,
                   ),
@@ -868,7 +868,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     final title = switch (_view) {
       _RepView.menu      => t.rep_dashboard,
       _RepView.open      => t.complaintsMyCustomer,
-      _RepView.all       => 'Alle Reklamationen',
+      _RepView.all       => t.rep_menu_all_title,
       _RepView.customers => t.myCustomers,
       _RepView.account   => t.profilePW,
     };
@@ -976,8 +976,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                 _MenuCard(
                   color: Colors.red,
                   icon: Icons.report_gmailerrorred_outlined,
-                  title: 'Offene Reklamationen',
-                  subtitle: 'Bearbeiten & Entscheiden',
+                  title: t.rep_menu_open_title,
+                  subtitle: t.rep_menu_open_subtitle,
                   count: openCount,
                   compact: compact,
                   scale: scale,
@@ -989,8 +989,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                 _MenuCard(
                   color: Colors.indigo,
                   icon: Icons.all_inbox_outlined,
-                  title: 'Alle Reklamationen',
-                  subtitle: 'Filtern & Suchen',
+                  title: t.rep_menu_all_title,
+                  subtitle: t.rep_menu_all_subtitle,
                   count: allCount,
                   compact: compact,
                   scale: scale,
@@ -999,8 +999,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                 _MenuCard(
                   color: Colors.teal,
                   icon: Icons.apartment_outlined,
-                  title: 'Kundendatenbank',
-                  subtitle: 'Firmen & Kontakte',
+                  title: t.rep_menu_customers_title,
+                  subtitle: t.rep_menu_customers_subtitle,
                   count: _customers.length,
                   compact: compact,
                   scale: scale,
@@ -1009,8 +1009,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                 _MenuCard(
                   color: Colors.blueGrey,
                   icon: Icons.person_outline,
-                  title: 'Mein Account',
-                  subtitle: 'Profil & Passwort',
+                  title: t.rep_menu_account_title,
+                  subtitle: t.rep_menu_account_subtitle,
                   count: null,
                   compact: compact,
                   scale: scale,
@@ -1061,7 +1061,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                 items: <DropdownMenuItem<String>>[
                   DropdownMenuItem<String>(
                     value: '',
-                    child: Text(t.allCompanies ?? 'Alle Firmen'),
+                    child: Text(t.allCompanies ?? t.allCompanies),
                   ),
                   ...companies.map((co) => DropdownMenuItem<String>(
                         value: co,
@@ -1070,7 +1070,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                 ],
                 onChanged: (v) => setState(() => _selectedCompany = (v ?? '')),
                 decoration: const InputDecoration(
-                  labelText: 'Firmenname filtern',
+                  labelText: t.rep_filter_company_label,
                   prefixIcon: Icon(Icons.apartment_outlined),
                 ),
               ),
@@ -1155,7 +1155,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                     items: <DropdownMenuItem<String>>[
                       DropdownMenuItem<String>(
                         value: '',
-                        child: Text(t.allCompanies ?? 'Alle Firmen'),
+                        child: Text(t.allCompanies ?? t.allCompanies),
                       ),
                       ...companies.map((co) => DropdownMenuItem<String>(
                             value: co,
@@ -1164,18 +1164,18 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                     ],
                     onChanged: (v) => setState(() => _selectedCompany = (v ?? '')),
                     decoration: const InputDecoration(
-                      labelText: 'Firmenname filtern',
+                      labelText: t.rep_filter_company_label,
                       prefixIcon: Icon(Icons.apartment_outlined),
                     ),
                   ),
                 ),
                 FilterChip(
-                  label: const Text('Abgeschlossen anzeigen'),
+                  label: const Text(t.rep_filter_show_closed),
                   selected: _showClosedAll,
                   onSelected: (v) => setState(() => _showClosedAll = v),
                 ),
                 FilterChip(
-                  label: const Text('Nur abgelehnte'),
+                  label: const Text(t.rep_filter_only_rejected),
                   selected: _showRejectedAll,
                   onSelected: (v) => setState(() => _showRejectedAll = v),
                 ),
@@ -1185,7 +1185,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         ),
         const SizedBox(height: 12),
         _Card(
-          title: 'Alle Reklamationen',
+          title: t.rep_menu_all_title,
           child: list.isEmpty
               ? _EmptyState(icon: Icons.inbox_outlined, title: t.noComplaintsFound)
               : ListView.separated(
@@ -1302,8 +1302,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   // ---- Seite: Account ----
   Widget _buildAccountCard() {
     final t = context.t;
-    final labelProfile   = t.profile_edit ?? 'Profil bearbeiten';
-    final labelPassword  = t.password_change ?? 'Passwort ändern';
+    final labelProfile   = t.profile_edit ?? t.profile_edit;
+    final labelPassword  = t.password_change ?? t.password_change;
 
     Future<void> _openProfile() async {
       await Navigator.of(context).push(
@@ -1979,7 +1979,7 @@ class _CustomerTile extends StatelessWidget {
             Align(
               alignment: Alignment.centerRight,
               child: IconButton(
-                tooltip: t.showDetails ?? 'Details anzeigen',
+                tooltip: t.showDetails ?? t.showDetails,
                 icon: const Icon(Icons.chevron_right),
                 onPressed: onOpen,
               ),
@@ -3254,10 +3254,10 @@ class _WelcomeHeader extends StatelessWidget {
                 spacing: 10,
                 runSpacing: 10,
                 children: [
-                  _KpiChip(icon: Icons.report_gmailerrorred_outlined, label: 'Offen', value: open, color: Colors.red),
-                  _KpiChip(icon: Icons.all_inbox_outlined, label: 'Alle', value: all, color: brand),
-                  _KpiChip(icon: Icons.thumb_down_alt_outlined, label: 'Abgelehnt', value: rejected, color: Colors.orange),
-                  _KpiChip(icon: Icons.verified_outlined, label: 'Abgeschlossen', value: finished, color: Colors.green),
+                  _KpiChip(icon: Icons.report_gmailerrorred_outlined, label: t.rep_overview_open, value: open, color: Colors.red),
+                  _KpiChip(icon: Icons.all_inbox_outlined, label: t.rep_overview_all, value: all, color: brand),
+                  _KpiChip(icon: Icons.thumb_down_alt_outlined, label: t.rep_overview_rejected, value: rejected, color: Colors.orange),
+                  _KpiChip(icon: Icons.verified_outlined, label: t.rep_overview_finished, value: finished, color: Colors.green),
                 ],
               );
             },
