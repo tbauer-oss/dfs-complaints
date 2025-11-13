@@ -20,6 +20,30 @@
   "theme_light": "Light",
   "theme_dark": "Dark",
 
+  "rep_contact_title": "Contact representative",
+  "rep_contact_intro": "You are writing to {firstName} {lastName}. Please fill out the fields below.",
+  "@rep_contact_intro": {
+    "placeholders": {
+      "firstName": { "type": "String" },
+      "lastName": { "type": "String" }
+    }
+  },
+  "rep_contact_company_label": "Company",
+  "rep_contact_company_email_label": "Company email",
+  "rep_contact_subject_label": "Subject",
+  "rep_contact_message_label": "Message",
+
+  "rep_contact_validation": "Please fill in subject and message.",
+  "rep_contact_no_rep_email": "No email address is available for this representative.",
+  "rep_contact_sent": "Message sent successfully.",
+  "rep_contact_error": "Error while sending the message.",
+
+  "rep_contact_discard_title": "Discard changes?",
+  "rep_contact_discard_text": "You have already entered text. Do you really want to leave the page?",
+
+  "firstName": "First name",
+  "lastName": "Last name",
+
   "complaint_sub": "Thank you for helping us continuously improve our quality.",
   "hideDetails": "Hide details",
   "showDetails": "Show details",
