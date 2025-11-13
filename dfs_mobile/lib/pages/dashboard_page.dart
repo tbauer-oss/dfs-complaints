@@ -260,8 +260,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     final email  = r.email.trim();
     final region = r.region.trim();
     final name   = [first, last].where((s) => s.isNotEmpty).join(' ');
-    final title  = name.isNotEmpty ? t.rep_banner_title(name)
-                                   : t.rep_banner_title(email.isNotEmpty ? email : '—');
+    final title  = name.isNotEmpty ? t.rep_banner_title(name);
 
     // Handy-optimiertes Layout: 1) Avatar + Textblock, 2) Aktionszeile darunter
     return Card(
@@ -411,8 +410,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     final email  = r.email.trim();
     final region = r.region.trim();
     final name   = [first, last].where((s) => s.isNotEmpty).join(' ');
-    final bannerTitle = name.isNotEmpty ? t.rep_banner_title(name)
-                                       : t.rep_banner_title(email.isNotEmpty ? email : '—');
+    final bannerTitle = name.isNotEmpty ? t.rep_banner_title(name);
 
     return Card(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -698,8 +696,7 @@ class _RepBanner extends StatelessWidget {
     final region = (rep!.region).trim();
 
     final name = [first, last].where((s) => s.isNotEmpty).join(' ');
-    final bannerTitle = (name.isNotEmpty) ? t.rep_banner_title(name)
-                                          : t.rep_banner_title(email.isNotEmpty ? email : '—');
+    final bannerTitle = (name.isNotEmpty) ? t.rep_banner_title(name);
 
     return Container(
       width: double.infinity,
