@@ -20,6 +20,30 @@
   "theme_light": "Claro",
   "theme_dark": "Oscuro",
 
+  "rep_contact_title": "Contactar al representante",
+  "rep_contact_intro": "Está escribiendo a {firstName} {lastName}. Por favor complete los campos siguientes.",
+  "@rep_contact_intro": {
+    "placeholders": {
+      "firstName": { "type": "String" },
+      "lastName": { "type": "String" }
+    }
+  },
+  "rep_contact_company_label": "Empresa",
+  "rep_contact_company_email_label": "Correo de la empresa",
+  "rep_contact_subject_label": "Asunto",
+  "rep_contact_message_label": "Mensaje",
+
+  "rep_contact_validation": "Por favor, rellene el asunto y el mensaje.",
+  "rep_contact_no_rep_email": "No hay ninguna dirección de correo disponible para este representante.",
+  "rep_contact_sent": "Mensaje enviado correctamente.",
+  "rep_contact_error": "Error al enviar el mensaje.",
+
+  "rep_contact_discard_title": "¿Descartar los cambios?",
+  "rep_contact_discard_text": "Ya ha introducido texto. ¿Realmente desea salir de la página?",
+
+  "firstName": "Nombre",
+  "lastName": "Apellido",
+
   "complaint_sub": "Gracias por ayudarnos a mejorar continuamente nuestra calidad.",
   "hideDetails": "Ocultar detalles",
   "showDetails": "Mostrar detalles",
