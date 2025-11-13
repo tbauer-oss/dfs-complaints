@@ -126,13 +126,6 @@
   "gateRequestPassword": "Request password",
   "gateRequestInfo": "Thank you! We have forwarded your request and will send the temporary password shortly.",
   "gateRequestError": "We could not send your request: {error}",
-  "@gateRequestError": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
 
   "auth_login": "Login",
   "auth_register": "Register",
@@ -265,7 +258,7 @@
   "segment_dentist": "Dentistry",
   "segment_lab": "Dental Lab",
   "product_area_label": "Product category",
-  "product_area_medical": "Medical product",
+  "product_area_medical": "Medical device",
   "product_area_lab": "Lab product",
   "article": "Article number*",
   "articleNo": "Article",
