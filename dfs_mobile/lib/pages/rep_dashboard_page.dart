@@ -1028,31 +1028,34 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         ),
       ];
 
-      return SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildOverviewHeader(
+      return CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: _buildOverviewHeader(
               openCount: openCount,
               allCount: allCount,
               rejectedCount: rejectedCount,
               finishedCount: finishedCount,
             ),
-            const SizedBox(height: 18),
-            GridView.builder(
-              physics: const NeverScrollableScrollPhysics(),
-              shrinkWrap: true,
-              padding: gridPadding,
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 18)),
+          SliverPadding(
+            padding: gridPadding,
+            sliver: SliverGrid(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) => tiles[index],
+                childCount: tiles.length,
+              ),
               gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                 maxCrossAxisExtent: maxExtent,
                 mainAxisSpacing: mainSpacing,
                 crossAxisSpacing: crossSpacing,
                 childAspectRatio: aspect,
               ),
-              itemCount: tiles.length,
-              itemBuilder: (_, i) => tiles[i],
             ),
-          ],
-        ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 8)),
+        ],
       );
     });
   }
