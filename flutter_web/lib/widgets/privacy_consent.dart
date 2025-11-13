@@ -1,5 +1,6 @@
 // lib/widgets/privacy_consent.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:html' as html;
 import '../constants.dart';
 
