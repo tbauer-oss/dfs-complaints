@@ -89,6 +89,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   
   // Einheitliche 401/Unauthorized-Behandlung
   Future<bool> _handleUnauthorized(Object e) async {
+    final t = context.t;
     final msg = e.toString();
     if (msg.contains('401')) {
       await widget.api.repLogout();
@@ -314,6 +315,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       final ln = (_me?['lastName']  ?? '').toString().trim();
       final em = (_me?['email']     ?? '').toString().trim();
       final n = [fn, ln].where((e) => e.isNotEmpty).join(' ');
+      final t = context.t;
       return n.isNotEmpty ? n : em;
     }
 
@@ -723,6 +725,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       await _loadAll();
     } catch (e) {
       final handled = await _handleUnauthorized(e);
+      final t = context.t;
       if (!mounted) return;
       if (!handled) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -733,6 +736,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   }
 
   Future<void> _decideComplaint(String ticket, bool approve) async {
+    final t = context.t;
     try {
       await widget.api.repDecision(ticket: ticket, approve: approve);
       if (!mounted) return;
@@ -754,6 +758,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   }
 
   Future<void> _withdrawRepDecision(String ticket) async {
+    final t = context.t;
     try {
       await widget.api.ensureRepSession();
       await widget.api.repDecisionReset(ticket: ticket);
@@ -953,6 +958,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       final aspect = width >= 1400 ? 1.70 : width >= 1100 ? 1.60 : width >= 900 ? 1.55 : width >= 600 ? 1.45 : width >= 480 ? 1.50 : 1.75;
       final scale = width >= 1400 ? 0.84 : width >= 1100 ? 0.88 : width >= 900 ? 0.90 : width >= 600 ? 0.95 : 1.00;
       final compact = width < 600;
+      final t = context.t;
 
       return SingleChildScrollView(
         child: Column(
@@ -1532,6 +1538,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         ? name
         : (email.isNotEmpty ? email : (company.isNotEmpty ? company : context.t.customer_label));
     final location = [zip, city].where((e) => e.trim().isNotEmpty).join(' ');
+    final t = context.t;
 
     Widget detailRow({required IconData icon, required Widget child}) {
       return Padding(
@@ -1862,6 +1869,7 @@ class _CustomerTile extends StatelessWidget {
     final accent = isNew ? cs.primary : cs.secondary;
     final initialsSource = contactLabel.isNotEmpty ? contactLabel : email;
     final initials = initialsSource.isNotEmpty ? initialsSource[0].toUpperCase() : 'C';
+    final t = context.t;
 
     // Gemeinsame Kopfzeile (links Avatar + Titel, rechts optional NEW)
     final nameStyle = (isPhone ? theme.textTheme.titleSmall : theme.textTheme.titleMedium)
@@ -2093,6 +2101,7 @@ class _ComplaintTile extends StatefulWidget {
   final bool useColoredButtons;
   final String? customerOverride; // Anzeige „Kunde“ (Firma bevorzugt)
   final String? createdOverride;  // Anzeige „Angelegt“ formatiert
+  final t = context.t;
 
   const _ComplaintTile({
     required this.data,
@@ -2837,6 +2846,7 @@ class _DetailFieldData {
 class _RepTrafficLight extends StatelessWidget {
   final String? opinion;
   final bool compact;
+  final t = context.t;
   const _RepTrafficLight({required this.opinion, this.compact = false, super.key});
 
   @override
@@ -2911,6 +2921,7 @@ class _StatusChip extends StatelessWidget {
   final String decision;
   final bool closed;
   final bool compact; // NEU: kleiner Style
+  final t = context.t;
   const _StatusChip({
     required this.status,
     required this.decision,
@@ -2999,6 +3010,7 @@ class _StatusChip extends StatelessWidget {
 
 class _RepDecisionChip extends StatelessWidget {
   final String repDecision; // '', 'accepted', 'rejected'
+  final t = context.t;
   const _RepDecisionChip({required this.repDecision, super.key});
 
   @override
