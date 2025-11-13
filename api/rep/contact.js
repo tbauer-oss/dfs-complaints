@@ -1,76 +1,69 @@
-// api/rep/contact.ts
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { send } from '../_lib/mail';  // <--- nutzt deinen bestehenden Mail-Layer
+// api/rep/contact.js
+import { send } from '../_lib/mail.js'; // oder '../_lib/mail' je nach Projekt
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+// Hilfsfunktion: immer sauberer String
+function asString(v) {
+  return (typeof v === 'string' ? v : '').trim();
+}
+
+export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const {
-      // wir nehmen alles an, was dein Frontend schickt
-      repEmail,
-      repFirstName,
-      repLastName,
-      company,
-      companyEmail,
-      contactFirstName,
-      contactLastName,
-      subject,
-      message,
-    } = (req.body ?? {}) as Record<string, any>;
+    const body = req.body || {};
 
-    // 🔴 Minimal: subject + message müssen da sein
-    if (!subject || !message) {
-      return res.status(400).json({
-        error: 'MISSING_REQUIRED_FIELDS',
-        detail: {
-          subjectEmpty: !subject,
-          messageEmpty: !message,
-        },
-      });
+    const repEmail        = asString(body.repEmail);        // kommt mit, wird fürs TESTEN aber ignoriert
+    const repFirstName    = asString(body.repFirstName);
+    const repLastName     = asString(body.repLastName);
+    const company         = asString(body.company);
+    const companyEmail    = asString(body.companyEmail);
+    const contactFirst    = asString(body.contactFirstName);
+    const contactLast     = asString(body.contactLastName);
+    const subjectRaw      = asString(body.subject);
+    const messageRaw      = asString(body.message);
+
+    if (!subjectRaw || !messageRaw) {
+      return res.status(400).json({ error: 'Missing subject or message' });
     }
 
-    // 🟡 ZIELADRESSE: **immer** complaint@dfs-diamon.de (für Tests)
-    // später kannst du das beliebig ändern/parametrisieren
-    const to = (process.env.REP_CONTACT_OVERRIDE_TO || 'complaint@dfs-diamon.de').trim();
-
-    const contactName = [contactFirstName, contactLastName]
-      .filter((s) => typeof s === 'string' && s.trim().length > 0)
+    const contactName = [contactFirst, contactLast]
+      .filter((s) => s.length > 0)
       .join(' ')
       .trim();
 
-    const lines: string[] = [];
+    const lines = [];
 
+    lines.push('Kontakt über das DFS Kundenportal – Vertreterkontakt');
+    lines.push('');
     if (company)      lines.push(`Firma: ${company}`);
     if (companyEmail) lines.push(`Firmen-E-Mail: ${companyEmail}`);
     if (contactName)  lines.push(`Kontaktperson: ${contactName}`);
-    if (repFirstName || repLastName) {
-      lines.push(
-        `Vertreter: ${(repFirstName ?? '')} ${(repLastName ?? '')}`.trim()
-      );
-    }
+    if (repEmail)     lines.push(`Zugeteilter Vertreter (App): ${repEmail}`);
     lines.push('');
-    lines.push(message);
+    lines.push('--- Nachricht des Kunden ---');
+    lines.push('');
+    lines.push(messageRaw);
 
-    const text = lines.join('\n');
+    const fullText = lines.join('\n');
 
-    // 📨 Versand über deinen bestehenden Mail-Layer (CI, HTML, Logo, SMTP etc.)
-    const info = await send(to, {
-      subject,
-      text,
-      lang: 'de', // oder später dynamisch
+    // 🔴 TEST: IMMER an complaint@dfs-diamon.de
+    const toAddress = 'complaint@dfs-diamon.de';
+
+    await send(toAddress, {
+      subject: `[Rep-Kontakt] ${subjectRaw}`,
+      text: fullText,
+      lang: 'de',
     });
 
-    console.log('rep/contact sent', { to, messageId: info?.messageId });
-
     return res.status(200).json({ ok: true });
-  } catch (err: any) {
+  } catch (err) {
     console.error('rep/contact error', err);
+    const msg = err && err.message ? err.message : String(err);
     return res.status(500).json({
-      error: 'INTERNAL_MAIL_ERROR',
-      detail: err?.message ?? String(err),
+      error: 'rep_contact_failed',
+      message: msg,
     });
   }
 }
