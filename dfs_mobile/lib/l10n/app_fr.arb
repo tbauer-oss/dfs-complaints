@@ -20,6 +20,7 @@
   "theme_light": "Clair",
   "theme_dark": "Sombre",
 
+  "rep_contact_form_fr": "Envoyer un message",
   "rep_overview_open": "Ouvertes",
   "rep_overview_all": "Toutes",
   "rep_overview_rejected": "Rejetées",
