@@ -272,7 +272,8 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     final email  = r.email.trim();
     final region = r.region.trim();
     final name   = [first, last].where((s) => s.isNotEmpty).join(' ');
-    final title  = name.isNotEmpty ? t.rep_banner_title(name);
+    final title  = name.isNotEmpty ? t.rep_banner_title(name)
+                                   : t.rep_banner_title(email.isNotEmpty ? email : '—');
 
     // Handy-optimiertes Layout: 1) Avatar + Textblock, 2) Aktionszeile darunter
     return Card(
@@ -422,7 +423,8 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     final email  = r.email.trim();
     final region = r.region.trim();
     final name   = [first, last].where((s) => s.isNotEmpty).join(' ');
-    final bannerTitle = name.isNotEmpty ? t.rep_banner_title(name);
+    final bannerTitle = name.isNotEmpty ? t.rep_banner_title(name)
+                                        : t.rep_banner_title(email.isNotEmpty ? email : '—');
 
     return Card(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -708,7 +710,8 @@ class _RepBanner extends StatelessWidget {
     final region = (rep!.region).trim();
 
     final name = [first, last].where((s) => s.isNotEmpty).join(' ');
-    final bannerTitle = (name.isNotEmpty) ? t.rep_banner_title(name);
+    final bannerTitle = (name.isNotEmpty) ? t.rep_banner_title(name)
+                                          : t.rep_banner_title(email.isNotEmpty ? email : '—');
 
     return Container(
       width: double.infinity,
@@ -1132,33 +1135,20 @@ class _RepContactPageState extends State<RepContactPage> {
       final company      = (widget.customerCompany ?? '').trim();
       final companyEmail = (widget.customerEmail ?? '').trim();
 
-      final bodyLines = <String>[
-        if (company.isNotEmpty)      'Firma: $company',
-        if (companyEmail.isNotEmpty) 'Firmen-E-Mail: $companyEmail',
-        if (_firstName.text.trim().isNotEmpty || _lastName.text.trim().isNotEmpty)
-          'Kontaktperson: ${_firstName.text.trim()} ${_lastName.text.trim()}',
-        '',
-        msg,
-      ];
-      final body = bodyLines.join('\n');
+      final payload = <String, dynamic>{
+        'repEmail'      : repEmail,
+        'repFirstName'  : widget.rep.firstName,
+        'repLastName'   : widget.rep.lastName,
+        'company'       : company,
+        'companyEmail'  : companyEmail,
+        'contactFirstName': _firstName.text.trim(),
+        'contactLastName' : _lastName.text.trim(),
+        'subject'       : subject,
+        'message'       : msg,
+      };
 
-      // Aktuell: Versand per mailto – d.h. es öffnet sich das E-Mail-Programm.
-      // Wenn du lieber direkt über dein Backend senden willst,
-      // kannst du hier stattdessen eine API-Funktion aufrufen.
-      final mailto = Uri(
-        scheme: 'mailto',
-        path: repEmail,
-        queryParameters: {
-          'subject': subject,
-          'body': body,
-        },
-      );
-
-      if (kIsWeb) {
-        html.window.open(mailto.toString(), '_self');
-      } else {
-        await launchUrl(mailto, mode: LaunchMode.platformDefault);
-      }
+      // 🔴 Hier wird jetzt das Backend aufgerufen – kein mailto mehr!
+      await widget.api.postJson('/api/rep/contact', payload);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
