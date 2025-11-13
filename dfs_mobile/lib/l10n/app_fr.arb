@@ -276,7 +276,7 @@
   "rep_banner_title": "Votre représentant : {name}",
   "@rep_banner_title": { "placeholders": { "name": { "type": "String" } } },
   "rep_email_button": "E-mail",
-  "rep_email_tooltip": "Envoyer un e-mail au représentant",
+  "rep_email_tooltip": "Message au représentant",
   "mail_subject_rep": "Demande concernant une réclamation",
   "mail_body_rep": "Bonjour {name},\n\nje vous contacte via le portail DFS Customer Complaint.\n\nCordialement",
   "@mail_body_rep": { "placeholders": { "name": { "type": "String" } } },
