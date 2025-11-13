@@ -280,7 +280,7 @@
   "add_images": "Añadir imagen(es)",
   "images_selected": "{count} archivo(s) seleccionado(s)",
   "@images_selected": { "placeholders": { "count": { "type": "int" } } },
-  "images_too_large": "Máx. 8 MB en total",
+  "images_too_large": "Tamaño total máximo de subida: 10 MB",
   "returned_question": "¿Productos ya devueltos?*",
   "handling": "Tratamiento solicitado*",
   "handling_replacement": "Reemplazo",
