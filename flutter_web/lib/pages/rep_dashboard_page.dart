@@ -1,13 +1,18 @@
 // lib/pages/rep_dashboard_page.dart
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import 'rep_profile_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:html' as html;
 import '../l10n/app_localizations.dart';
+import '../widgets/dialog_content_scroll.dart';
 import '../widgets/lang_action.dart';
 import '../widgets/theme_action.dart' as w;
 import '../services/app_prefs_scope.dart';
 import '../widgets/legal_footer.dart';
+import '../services/push_notifications.dart';
 
 // ---- L10n-Helper (top-level) ----
 extension _L10nX on BuildContext {
@@ -33,10 +38,10 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
   /// Kundenliste (aus Backend normalisiert) – zugewiesene Kunden dieses Vertreters
   List<Map<String, Object?>> _customers = <Map<String, Object?>>[];
-
-  final TextEditingController _customerSearchCtrl = TextEditingController();
-  String _customerSearch = '';
   
+  final TextEditingController _customerSearchCtrl = TextEditingController();
+  String _customerQuery = '';
+
   /// Reklamationen (aus Backend)
   List<Map<String, dynamic>> _complaints = [];
 
@@ -55,52 +60,35 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   bool _showRejectedAll = false;
 
   // "NEU"-Badges: lokal gemerkte "schon gesehen" Kunden (E-Mails als Key)
-  static const _seenKey = 'rep_seen_customers_v1';
-  final Set<String> _seenCustomers = <String>{};
-  
+  Set<String> _seenCustomers = <String>{};
+  static const _legacySeenKey = 'rep_seen_customers_v1';  String get _seenKeyBase => 'rep_seen_customers_v2'; // neue Version, entkoppelt von v1 (Web)
+  String get _repAwareSeenKey {
+    final meMail = (_me?['email'] ?? '').toString().toLowerCase();
+    return meMail.isNotEmpty ? '$_seenKeyBase:$meMail' : _seenKeyBase;
+  }
+
+  // Brandfarbe (DFS Blau)
+  static const _brand = Color(0xFF0865A2);
+
   @override
   void initState() {
     super.initState();
-    final loaded = _loadSeen();
-    _seenCustomers
-      ..clear()
-      ..addAll(loaded);
-    _loadAll();
+    _loadAll(); // lädt _me
+    // Nach dem ersten Load (wenn _me da ist) die Seen-Liste nachziehen
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadSeenAsync();
+    });
   }
-
-  Set<String> _loadSeen() {
-    try {
-      final raw = html.window.localStorage[_seenKey];
-      if (raw == null || raw.isEmpty) return <String>{};
-      final parts = raw.split(';').map((e) => e.trim().toLowerCase()).where((e) => e.isNotEmpty).toSet();
-      return parts;
-    } catch (_) {
-      return <String>{};
-    }
-  }
-
-  void _persistSeen() {
-    try {
-      html.window.localStorage[_seenKey] = _seenCustomers.join(';');
-    } catch (_) {}
-  }
-
-  void _markCustomerSeen(String email) {
-    final em = email.toLowerCase();
-    if (_seenCustomers.add(em)) {
-      _persistSeen();
-      if (mounted) setState(() {});
-    }
-  }
-
+  
   @override
   void dispose() {
     _customerSearchCtrl.dispose();
     super.dispose();
   }
-
+  
   // Einheitliche 401/Unauthorized-Behandlung
   Future<bool> _handleUnauthorized(Object e) async {
+    final t = context.t;
     final msg = e.toString();
     if (msg.contains('401')) {
       await widget.api.repLogout();
@@ -113,6 +101,54 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       return true;
     }
     return false;
+  }
+
+  Future<void> _loadSeenAsync() async {
+    try {
+      final key = _repAwareSeenKey;
+
+      if (kIsWeb) {
+        final raw = html.window.localStorage[key] ?? html.window.localStorage[_legacySeenKey];
+        if (raw == null || raw.isEmpty) return;
+        final parts = raw.split(';').map((e) => e.trim().toLowerCase()).where((e) => e.isNotEmpty).toSet();
+        setState(() => _seenCustomers = parts);
+        return;
+      }
+
+      final sp = await SharedPreferences.getInstance();
+      final list = sp.getStringList(key) ?? const <String>[];
+      setState(() => _seenCustomers = list.map((e) => e.trim().toLowerCase()).where((e) => e.isNotEmpty).toSet());
+    } catch (_) {
+      // soft-fail
+    }
+  }
+
+  Future<void> _persistSeenAsync() async {
+    try {
+      final key = _repAwareSeenKey;
+
+      if (kIsWeb) {
+        html.window.localStorage[key] = _seenCustomers.join(';');
+        if (key != _legacySeenKey) {
+          html.window.localStorage.remove(_legacySeenKey);
+        }
+        return;
+      }
+
+      final sp = await SharedPreferences.getInstance();
+      await sp.setStringList(key, _seenCustomers.toList());
+      if (key != _legacySeenKey) {
+        await sp.remove(_legacySeenKey);
+      }
+    } catch (_) {}
+  }
+
+  void _markCustomerSeen(String email) {
+    final em = (email).toLowerCase().trim();
+    if (_seenCustomers.add(em)) {
+      _persistSeenAsync(); // async persist
+      if (mounted) setState(() {}); // UI aktualisieren
+    }
   }
 
   // ---- Admin-gleiche „freie Kunden“-Quelle holen (identisch & live) ----
@@ -202,61 +238,247 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   }
 
   // ======= FEHLENDE METHODE (jetzt robust mit Token-GET) =======
-Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
-  // Session prüfen (entfernt ungültiges repToken & verhindert leere Antworten)
-  await widget.api.ensureRepSession();
+  Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
+    await widget.api.ensureRepSession();
 
-  // 1) Liste über deinen ApiClient holen (kümmert sich um BaseURL, X-Gate, Bearer, Retry)
-  List<Map<String, dynamic>> raw;
-  try {
-    raw = await widget.api.repAssignableCustomers(all: true);
-  } catch (_) {
-    // stabil bleiben
-    return <Map<String, Object?>>[];
-  }
+    List<Map<String, dynamic>> raw;
+    try {
+      raw = await widget.api.repAssignableCustomers(all: true);
+    } catch (_) {
+      return <Map<String, Object?>>[];
+    }
 
-  // 2) Normalisieren -> { email, label, assigned, assignedToLabel }
-  String s(Object? v) => (v ?? '').toString();
+    String s(Object? v) => (v ?? '').toString();
+    final out = <Map<String, Object?>>[];
+    for (final it in raw) {
+      final email = s(it['email']).toLowerCase();
+      if (email.isEmpty) continue;
 
-  final out = <Map<String, Object?>>[];
-  for (final it in raw) {
-    final email = s(it['email']).toLowerCase();
-    if (email.isEmpty) continue;
+      final company = s(it['company']);
+      final name    = s(it['name']);
+      final label   = company.isNotEmpty
+          ? company
+          : (name.isNotEmpty ? '$name • $email' : email);
 
-    final company = s(it['company']);
-    final name    = s(it['name']);
-    final label   = company.isNotEmpty
-        ? company
-        : (name.isNotEmpty ? '$name • $email' : email);
+      final assigned = (it['assigned'] == true) ||
+          (s(it['assigned']).toLowerCase() == 'true');
 
-    final assigned = (it['assigned'] == true) ||
-                     (s(it['assigned']).toLowerCase() == 'true');
+      final assignedToLabel =
+          s(it['assignedToName']).isNotEmpty ? s(it['assignedToName'])
+              : s(it['assignedToEmail']).isNotEmpty ? s(it['assignedToEmail'])
+              : s(it['assignedTo']);
 
-    final assignedToLabel =
-        s(it['assignedToName']).isNotEmpty ? s(it['assignedToName'])
-      : s(it['assignedToEmail']).isNotEmpty ? s(it['assignedToEmail'])
-      : s(it['assignedTo']);
+      out.add({
+        'email': email,
+        'label': label,
+        'assigned': assigned,
+        'assignedToLabel': assignedToLabel,
+      });
+    }
 
-    out.add({
-      'email': email,
-      'label': label,
-      'assigned': assigned,
-      'assignedToLabel': assignedToLabel,
+    out.sort((a, b) {
+      final aa = (a['assigned'] == true);
+      final bb = (b['assigned'] == true);
+      if (aa != bb) return aa ? 1 : -1;
+      return (a['label'] as String).toLowerCase().compareTo((b['label'] as String).toLowerCase());
     });
+
+    return out;
   }
 
-  // 3) Freie zuerst, danach alphabetisch
-  out.sort((a, b) {
-    final aa = (a['assigned'] == true);
-    final bb = (b['assigned'] == true);
-    if (aa != bb) return aa ? 1 : -1;
-    return (a['label'] as String).toLowerCase().compareTo((b['label'] as String).toLowerCase());
-  });
+  Widget _buildOverviewHeader({
+    required int openCount,
+    required int allCount,
+    required int rejectedCount,
+    required int finishedCount,
+  }) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
 
-  return out;
-}
-  // ======= /FEHLENDE METHODE =======
+    // kompaktere Abstände/Typo
+    const avatarSize = 36.0;
+    const pad = EdgeInsets.fromLTRB(14, 12, 14, 12);
 
+    String _initials() {
+      final fn = (_me?['firstName'] ?? '').toString().trim();
+      final ln = (_me?['lastName']  ?? '').toString().trim();
+      final em = (_me?['email']     ?? '').toString().trim();
+      if (fn.isNotEmpty && ln.isNotEmpty) return '${fn[0]}${ln[0]}'.toUpperCase();
+      if (fn.isNotEmpty) return fn[0].toUpperCase();
+      if (em.isNotEmpty) return em[0].toUpperCase();
+      return 'U';
+    }
+
+    String _fullName() {
+      final fn = (_me?['firstName'] ?? '').toString().trim();
+      final ln = (_me?['lastName']  ?? '').toString().trim();
+      final em = (_me?['email']     ?? '').toString().trim();
+      final n = [fn, ln].where((e) => e.isNotEmpty).join(' ');
+      final t = context.t;
+      return n.isNotEmpty ? n : em;
+    }
+
+    return Card(
+      elevation: 2, // dezenter
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Ink(
+        decoration: BoxDecoration(
+          // leichte, zurückhaltende Fläche (hell/dunkel tauglich)
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              cs.surfaceVariant.withOpacity(.18),
+              cs.surface.withOpacity(.60),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: cs.outlineVariant.withOpacity(.5)),
+        ),
+        child: Padding(
+          padding: pad,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Kopfzeile: Avatar + Name + Mail
+              Row(
+                children: [
+                  Container(
+                    width: avatarSize,
+                    height: avatarSize,
+                    decoration: BoxDecoration(
+                      color: cs.primary.withOpacity(.16),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: cs.primary.withOpacity(.35)),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      _initials(),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: cs.primary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _fullName(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800, // kleiner als vorher
+                          ),
+                        ),
+                        if ((_me?['email'] ?? '').toString().isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            (_me?['email'] ?? '').toString(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              // kleine, dezente Counter-Chips (2 pro Zeile, dann 1/1)
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  _overviewStat(
+                    icon: Icons.report_problem_rounded,
+                    label: t.rep_overview_open,
+                    value: openCount,
+                    color: Colors.red.shade600,
+                  ),
+                  _overviewStat(
+                    icon: Icons.all_inbox_rounded,
+                    label: t.rep_overview_all,
+                    value: allCount,
+                    color: cs.primary,
+                  ),
+                  _overviewStat(
+                    icon: Icons.thumb_down_alt_rounded,
+                    label: t.rep_overview_rejected,
+                    value: rejectedCount,
+                    color: Colors.orange.shade700,
+                  ),
+                  _overviewStat(
+                    icon: Icons.check_circle_rounded,
+                    label: t.rep_overview_finished,
+                    value: finishedCount,
+                    color: Colors.green.shade600,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _overviewStat({
+    required IconData icon,
+    required String label,
+    required int value,
+    required Color color,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), // kleiner
+      decoration: BoxDecoration(
+        color: color.withOpacity(.10),
+        borderRadius: BorderRadius.circular(12), // kleiner
+        border: Border.all(color: color.withOpacity(.45), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
+              fontSize: 13, // kleiner
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              '$value',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 12, // kleiner
+                height: 1,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
   // Mail/Benachrichtigung an complaint@dfs-diamon.de bei Selbst-Zuweisung
   Future<void> _notifySelfAssignment({required String customerEmail, required String? company}) async {
     try {
@@ -268,17 +490,10 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
         'company'     : company ?? '',
       };
 
-      // 1) Spezifische Methode, falls vorhanden
       try { await dyn.repAssignmentNotify(payload); return; } catch (_) {}
-
-      // 2) Admin-Notify
       try { await dyn.postJson('/api/admin/notify-rep-assignment', payload); return; } catch (_) {}
-
-      // 3) Alternative Route
       try { await dyn.postJson('/api/rep/assignment/notify', payload); return; } catch (_) {}
-    } catch (_) {
-      // still ok – UI muss weiterlaufen
-    }
+    } catch (_) {}
   }
 
   // ==========================
@@ -290,13 +505,12 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
 
     if (!mounted) return;
 
-    // Nichts da → hübscher leer-State
     if (options.isEmpty) {
       await showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
           title: Text(t.addCustomer),
-          content: Text(t.noAddCustomer),
+          content: DialogContentScroll(child: Text(t.noAddCustomer)),
           actions: [
             TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text(t.close)),
           ],
@@ -317,7 +531,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
         borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
       builder: (ctx) {
-        // lokale Filterfunktion
         List<Map<String, Object?>> filtered() {
           if (query.trim().isEmpty) return options;
           final q = query.toLowerCase();
@@ -329,7 +542,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
           }).toList();
         }
 
-        // Sektionen bilden
         List<Map<String, Object?>> free(List<Map<String, Object?>> src) =>
             src.where((o) => o['assigned'] != true).toList();
         List<Map<String, Object?>> taken(List<Map<String, Object?>> src) =>
@@ -341,13 +553,8 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
           (ctx as Element).markNeedsBuild();
 
           try {
-            // Session sicherstellen (falls Token abgelaufen)
             await widget.api.ensureRepSession();
-
-            // Dein offizieller Client-Call -> erwartet 204
             await widget.api.repAssignCustomer(email);
-
-            // optional: Notify schicken (deine Hilfsfunktion)
             await _notifySelfAssignment(customerEmail: email, company: label);
 
             if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
@@ -411,7 +618,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
               ),
               const SizedBox(height: 10),
 
-              // Sektion: freie Kunden
               if (listFree.isNotEmpty) ...[
                 Row(
                   children: [
@@ -446,7 +652,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                 ),
               ],
 
-              // Sektion: bereits zugewiesen
               if (listTaken.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 Row(
@@ -519,6 +724,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
       await _loadAll();
     } catch (e) {
       final handled = await _handleUnauthorized(e);
+      final t = context.t;
       if (!mounted) return;
       if (!handled) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -529,6 +735,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
   }
 
   Future<void> _decideComplaint(String ticket, bool approve) async {
+    final t = context.t;
     try {
       await widget.api.repDecision(ticket: ticket, approve: approve);
       if (!mounted) return;
@@ -549,10 +756,8 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     }
   }
 
-  // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-  // NUR HIER GEÄNDERT (Fix 1): ensureRepSession Ergebnis auswerten
-  // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
   Future<void> _withdrawRepDecision(String ticket) async {
+    final t = context.t;
     try {
       await widget.api.ensureRepSession();
       await widget.api.repDecisionReset(ticket: ticket);
@@ -570,9 +775,12 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     }
   }
 
-  // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
   Future<void> _logout() async {
+    try {
+      await PushNotifications.instance.deactivate(widget.api);
+    } catch (e) {
+      debugPrint('[push] rep deactivate failed: $e');
+    }
     await widget.api.repLogout();
     try { html.window.localStorage.remove('dfs_mode'); } catch (_) {}
     if (!mounted) return;
@@ -664,7 +872,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     final title = switch (_view) {
       _RepView.menu      => t.rep_dashboard,
       _RepView.open      => t.complaintsMyCustomer,
-      _RepView.all       => 'Alle Reklamationen',
+      _RepView.all       => t.rep_menu_all_title,
       _RepView.customers => t.myCustomers,
       _RepView.account   => t.profilePW,
     };
@@ -696,6 +904,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
         appBar: AppBar(
           automaticallyImplyLeading: false,
           title: Text(title),
+          centerTitle: false,
           leading: canGoBack
               ? IconButton(
                   icon: const Icon(Icons.arrow_back),
@@ -709,15 +918,10 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
               icon: const Icon(Icons.refresh),
             ),
             const SizedBox(width: 4),
-
-            // Sprache – exakt wie in main.dart
             LangAction(onLocaleChanged: (l) => prefs.setLang(l.languageCode)),
             const SizedBox(width: 4),
-
-            // Theme – globales Widget wie in main.dart (kein Reload)
             w.ThemeAction(),
             const SizedBox(width: 8),
-
             TextButton.icon(
               onPressed: _logout,
               icon: const Icon(Icons.logout),
@@ -727,7 +931,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
           ],
         ),
         body: Padding(padding: const EdgeInsets.all(16), child: body),
-        bottomNavigationBar: LegalFooter(api: widget.api), 
+        bottomNavigationBar: LegalFooter(api: widget.api),
       ),
     );
   }
@@ -745,7 +949,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     );
   }
 
-  // ---- Menü (kompakt skaliert) ----
+  // ---- Menü (mit Hero-Header + KPI-Chips + Kacheln) ----
   Widget _buildMenu(int allCount, int openCount, int rejectedCount, int finishedCount) {
     return LayoutBuilder(builder: (ctx, c) {
       final width = c.maxWidth;
@@ -753,58 +957,74 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
       final aspect = width >= 1400 ? 1.70 : width >= 1100 ? 1.60 : width >= 900 ? 1.55 : width >= 600 ? 1.45 : width >= 480 ? 1.50 : 1.75;
       final scale = width >= 1400 ? 0.84 : width >= 1100 ? 0.88 : width >= 900 ? 0.90 : width >= 600 ? 0.95 : 1.00;
       final compact = width < 600;
+      final t = context.t;
 
-      return GridView.count(
-        crossAxisCount: gridCount,
-        crossAxisSpacing: compact ? 12 : 14,
-        mainAxisSpacing: compact ? 12 : 14,
-        padding: EdgeInsets.only(bottom: compact ? 4 : 8),
-        childAspectRatio: aspect,
-        children: [
-          _MenuCard(
-            color: Colors.red,
-            icon: Icons.report_gmailerrorred_outlined,
-            title: 'Offene Reklamationen',
-            subtitle: 'Bearbeiten & Entscheiden',
-            count: openCount,
-            compact: compact,
-            scale: scale,
-            onTap: () => setState(() {
-              _filter = _RepFilter.open;
-              _view = _RepView.open;
-            }),
-          ),
-          _MenuCard(
-            color: Colors.indigo,
-            icon: Icons.all_inbox_outlined,
-            title: 'Alle Reklamationen',
-            subtitle: 'Filtern & Suchen',
-            count: allCount,
-            compact: compact,
-            scale: scale,
-            onTap: () => setState(() => _view = _RepView.all),
-          ),
-          _MenuCard(
-            color: Colors.teal,
-            icon: Icons.apartment_outlined,
-            title: 'Kundendatenbank',
-            subtitle: 'Firmen & Kontakte',
-            count: _customers.length,
-            compact: compact,
-            scale: scale,
-            onTap: () => setState(() => _view = _RepView.customers),
-          ),
-          _MenuCard(
-            color: Colors.blueGrey,
-            icon: Icons.person_outline,
-            title: 'Mein Account',
-            subtitle: 'Profil & Passwort',
-            count: null,
-            compact: compact,
-            scale: scale,
-            onTap: () => setState(() => _view = _RepView.account),
-          ),
-        ],
+      return SingleChildScrollView(
+        child: Column(
+          children: [
+            _buildOverviewHeader(
+              openCount: openCount,
+              allCount: allCount,
+              rejectedCount: rejectedCount,
+              finishedCount: finishedCount,
+            ),
+            const SizedBox(height: 14),
+            GridView.count(
+              crossAxisCount: gridCount,
+              crossAxisSpacing: compact ? 12 : 14,
+              mainAxisSpacing: compact ? 12 : 14,
+              padding: EdgeInsets.only(bottom: compact ? 4 : 8),
+              childAspectRatio: aspect,
+              physics: const NeverScrollableScrollPhysics(),
+              shrinkWrap: true,
+              children: [
+                _MenuCard(
+                  color: Colors.red,
+                  icon: Icons.report_gmailerrorred_outlined,
+                  title: t.rep_menu_open_title,
+                  subtitle: t.rep_menu_open_subtitle,
+                  count: openCount,
+                  compact: compact,
+                  scale: scale,
+                  onTap: () => setState(() {
+                    _filter = _RepFilter.open;
+                    _view = _RepView.open;
+                  }),
+                ),
+                _MenuCard(
+                  color: Colors.indigo,
+                  icon: Icons.all_inbox_outlined,
+                  title: t.rep_menu_all_title,
+                  subtitle: t.rep_menu_all_subtitle,
+                  count: allCount,
+                  compact: compact,
+                  scale: scale,
+                  onTap: () => setState(() => _view = _RepView.all),
+                ),
+                _MenuCard(
+                  color: Colors.teal,
+                  icon: Icons.apartment_outlined,
+                  title: t.rep_menu_customers_title,
+                  subtitle: t.rep_menu_customers_subtitle,
+                  count: _customers.length,
+                  compact: compact,
+                  scale: scale,
+                  onTap: () => setState(() => _view = _RepView.customers),
+                ),
+                _MenuCard(
+                  color: Colors.blueGrey,
+                  icon: Icons.person_outline,
+                  title: t.rep_menu_account_title,
+                  subtitle: t.rep_menu_account_subtitle,
+                  count: null,
+                  compact: compact,
+                  scale: scale,
+                  onTap: () => setState(() => _view = _RepView.account),
+                ),
+              ],
+            ),
+          ],
+        ),
       );
     });
   }
@@ -813,18 +1033,15 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
   Widget _buildOpenComplaints() {
     final t = context.t;
 
-    // Firmenliste wie bei „Alle Reklamationen“
     final companies = _emailToCompany.values
         .where((s) => s.trim().isNotEmpty)
         .toSet()
         .toList()
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
-    // Basissatz „offen“
     List<Map<String, dynamic>> items =
         _complaints.where((c) => !_isClosed(c)).toList(growable: false);
 
-    // Firmenfilter anwenden, falls gesetzt
     if ((_selectedCompany ?? '').isNotEmpty) {
       items = items.where((c) {
         final em = (c['customerEmail'] ?? c['email'] ?? '').toString().toLowerCase();
@@ -836,7 +1053,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Filterleiste
         Card(
           elevation: 3,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -850,7 +1066,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                 items: <DropdownMenuItem<String>>[
                   DropdownMenuItem<String>(
                     value: '',
-                    child: Text(t.allCompanies ?? 'Alle Firmen'),
+                    child: Text(t.allCompanies ?? t.allCompanies),
                   ),
                   ...companies.map((co) => DropdownMenuItem<String>(
                         value: co,
@@ -859,7 +1075,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                 ],
                 onChanged: (v) => setState(() => _selectedCompany = (v ?? '')),
                 decoration: const InputDecoration(
-                  labelText: 'Firmenname filtern',
+                  labelText: t.rep_filter_company_label,
                   prefixIcon: Icon(Icons.apartment_outlined),
                 ),
               ),
@@ -868,11 +1084,10 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
         ),
         const SizedBox(height: 12),
 
-        // Liste der offenen Reklamationen
         _Card(
           title: t.complaintsMyCustomer,
           child: items.isEmpty
-              ? Text(t.noComplaintsFound)
+              ? _EmptyState(icon: Icons.inbox_outlined, title: t.noComplaintsFound)
               : ListView.separated(
                   shrinkWrap: true,
                   physics: const BouncingScrollPhysics(),
@@ -902,7 +1117,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
   Widget _buildAllComplaints() {
     final t = context.t;
 
-    // Firmenliste aus Mapping ableiten
     final companies = _emailToCompany.values
         .where((s) => s.trim().isNotEmpty)
         .toSet()
@@ -928,7 +1142,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Filterleiste
         Card(
           elevation: 3,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -947,7 +1160,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                     items: <DropdownMenuItem<String>>[
                       DropdownMenuItem<String>(
                         value: '',
-                        child: Text(t.allCompanies ?? 'Alle Firmen'),
+                        child: Text(t.allCompanies ?? t.allCompanies),
                       ),
                       ...companies.map((co) => DropdownMenuItem<String>(
                             value: co,
@@ -956,18 +1169,18 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                     ],
                     onChanged: (v) => setState(() => _selectedCompany = (v ?? '')),
                     decoration: const InputDecoration(
-                      labelText: 'Firmenname filtern',
+                      labelText: t.rep_filter_company_label,
                       prefixIcon: Icon(Icons.apartment_outlined),
                     ),
                   ),
                 ),
                 FilterChip(
-                  label: const Text('Abgeschlossen anzeigen'),
+                  label: const Text(t.rep_filter_show_closed),
                   selected: _showClosedAll,
                   onSelected: (v) => setState(() => _showClosedAll = v),
                 ),
                 FilterChip(
-                  label: const Text('Nur abgelehnte'),
+                  label: const Text(t.rep_filter_only_rejected),
                   selected: _showRejectedAll,
                   onSelected: (v) => setState(() => _showRejectedAll = v),
                 ),
@@ -976,11 +1189,10 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
           ),
         ),
         const SizedBox(height: 12),
-        // Liste
         _Card(
-          title: 'Alle Reklamationen',
+          title: t.rep_menu_all_title,
           child: list.isEmpty
-              ? Text(t.noComplaintsFound)
+              ? _EmptyState(icon: Icons.inbox_outlined, title: t.noComplaintsFound)
               : ListView.separated(
                   shrinkWrap: true,
                   physics: const BouncingScrollPhysics(),
@@ -1011,7 +1223,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
   // ---- Seite: Kundendatenbank ----
   Widget _buildCustomersCard() {
     final t = context.t;
-    final query = _customerSearch.trim().toLowerCase();
+    final query = _customerQuery.trim().toLowerCase();
 
     bool matches(Map<String, Object?> c) {
       if (query.isEmpty) return true;
@@ -1027,74 +1239,34 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
 
     Widget buildList() {
       if (_customers.isEmpty) {
-        return Text(t.noAddCustomer);
+        return _EmptyState(icon: Icons.apartment_outlined, title: t.noAddCustomer);
       }
       if (filtered.isEmpty) {
-        return Text(t.noDataFound ?? 'Keine Daten gefunden.');
+        return _EmptyState(icon: Icons.search_off, title: t.noDataFound ?? 'Keine Daten gefunden.');
       }
       return ListView.separated(
         shrinkWrap: true,
         physics: const BouncingScrollPhysics(),
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
         itemBuilder: (_, i) {
           final c = filtered[i];
           final email = (c['email'] ?? '').toString();
           final isNew = !_seenCustomers.contains(email.toLowerCase());
 
-          final tile = InkWell(
-            onTap: () {
-              _markCustomerSeen(email);
-              _showCustomerDetails(c);
-            },
-            child: ListTile(
-              dense: true,
-              visualDensity: const VisualDensity(vertical: -2),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              leading: const Icon(Icons.apartment_outlined),
-              title: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      (() {
-                        final comp = (c['company'] ?? '').toString();
-                        final nm = (c['name'] ?? '').toString();
-                        final em = email;
-                        if (comp.isNotEmpty) return comp;
-                        if (nm.isNotEmpty) return nm;
-                        return em;
-                      })(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  if (isNew) const SizedBox(width: 8),
-                  if (isNew) const _PulseNewBadge(),
-                ],
-              ),
-              subtitle: Text(
-                (() {
-                  final nm = (c['name'] ?? '').toString();
-                  final em = email;
-                  if (nm.isNotEmpty && em.isNotEmpty) return '$nm • $em';
-                  return nm.isNotEmpty ? nm : em;
-                })(),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.1),
-              ),
-              trailing: IconButton(
-                icon: const Icon(Icons.link_off),
-                tooltip: t.deleteAdd,
-                onPressed: () => _unassignCustomer(email),
-              ),
-            ),
-          );
-
           return _FadeInOnce(
             delayMs: 35 * i,
-            child: tile,
+            child: _CustomerTile(
+              data: c,
+              isNew: isNew,
+              t: t,
+              onOpen: () {
+                _markCustomerSeen(email);
+                _showCustomerDetails(c);
+              },
+              onRemove: () => _unassignCustomer(email),
+            ),
           );
         },
-        separatorBuilder: (_, __) => const Divider(height: 1),
         itemCount: filtered.length,
       );
     }
@@ -1102,10 +1274,14 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     return _Card(
       title: t.myCustomers,
       actions: [
-        ElevatedButton.icon(
+        FilledButton.tonalIcon(
           onPressed: _assignCustomerDialog,
           icon: const Icon(Icons.person_add_alt_1),
           label: Text(t.addCustomer),
+          style: FilledButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            shape: const StadiumBorder(),
+          ),
         ),
       ],
       child: Column(
@@ -1113,26 +1289,26 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
         children: [
           TextField(
             controller: _customerSearchCtrl,
-            onChanged: (value) => setState(() => _customerSearch = value),
+            onChanged: (value) => setState(() => _customerQuery = value),
             decoration: InputDecoration(
-              hintText: t.search,
               prefixIcon: const Icon(Icons.search),
-              border: const OutlineInputBorder(),
+              hintText: t.search,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
               isDense: true,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           buildList(),
         ],
       ),
     );
   }
-  
-  // ---- Seite: Account – ohne Doppeltitel/Untertitel + getrennte PW-Änderung ----
+
+  // ---- Seite: Account ----
   Widget _buildAccountCard() {
     final t = context.t;
-    final labelProfile   = t.profile_edit ?? 'Profil bearbeiten';
-    final labelPassword  = t.password_change ?? 'Passwort ändern';
+    final labelProfile   = t.profile_edit ?? t.profile_edit;
+    final labelPassword  = t.password_change ?? t.password_change;
 
     Future<void> _openProfile() async {
       await Navigator.of(context).push(
@@ -1163,21 +1339,19 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
             final oldPw = oldCtrl.text;
             final n1 = new1Ctrl.text;
             final n2 = new2Ctrl.text;
-            final baseError = (t.error ?? 'Fehler').toString();
             if (oldPw.isEmpty || n1.isEmpty || n2.isEmpty) {
-              err = '$baseError: Bitte alle Felder ausfüllen';
+              err = t.errorGeneric('Bitte alle Felder ausfüllen');
               (ctx as Element).markNeedsBuild();
               return;
             }
             if (n1 != n2) {
-              err = '$baseError: Passwörter stimmen nicht überein';
+              err = t.errorGeneric('Passwörter stimmen nicht überein');
               (ctx as Element).markNeedsBuild();
               return;
             }
             busy = true;
             (ctx as Element).markNeedsBuild();
             try {
-              // Server erwartet nur neues Passwort? (gemäß bisherigem Client)
               await widget.api.repChangePassword(n1);
               if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
               if (!mounted) return;
@@ -1191,34 +1365,36 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
 
           return AlertDialog(
             title: Text(labelPassword),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: oldCtrl,
-                  obscureText: true,
-                  decoration: InputDecoration(labelText: t.oldPassword),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: new1Ctrl,
-                  obscureText: true,
-                  decoration: InputDecoration(labelText: t.newPassword),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: new2Ctrl,
-                  obscureText: true,
-                  decoration: InputDecoration(labelText: t.newPasswordRepeat),
-                ),
-                if (err != null) ...[
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(err!, style: const TextStyle(color: Colors.red)),
+            content: DialogContentScroll(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: oldCtrl,
+                    obscureText: true,
+                    decoration: InputDecoration(labelText: t.oldPassword),
                   ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: new1Ctrl,
+                    obscureText: true,
+                    decoration: InputDecoration(labelText: t.newPassword),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: new2Ctrl,
+                    obscureText: true,
+                    decoration: InputDecoration(labelText: t.newPasswordRepeat),
+                  ),
+                  if (err != null) ...[
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(err!, style: const TextStyle(color: Colors.red)),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
             actions: [
               TextButton(
@@ -1237,25 +1413,106 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
       );
     }
 
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final profileHint = t.profile_edit_hint ?? labelProfile;
+    final passwordHint = t.password_change_hint ?? labelPassword;
+
+    Widget action({
+      required IconData icon,
+      required String label,
+      required String description,
+      required Color color,
+      required VoidCallback onTap,
+    }) {
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: onTap,
+          child: Ink(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [color.withOpacity(0.18), cs.surfaceVariant.withOpacity(.45)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: color.withOpacity(.35), width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withOpacity(0.18),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(.22),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: color, size: 22),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      if (description.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          description,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: cs.onSurface.withOpacity(.7),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(.7)),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Card(
       elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Column(
-        children: [
-          ListTile(
-            leading: const Icon(Icons.manage_accounts_outlined),
-            title: Text(labelProfile),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _openProfile,
-          ),
-          const Divider(height: 1),
-          ListTile(
-            leading: const Icon(Icons.lock_reset_outlined),
-            title: Text(labelPassword),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _openPasswordChange,
-          ),
-        ],
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 18, 16, 22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            action(
+              icon: Icons.manage_accounts_outlined,
+              label: labelProfile,
+              description: profileHint,
+              color: cs.primary,
+              onTap: _openProfile,
+            ),
+            const SizedBox(height: 16),
+            action(
+              icon: Icons.lock_reset_outlined,
+              label: labelPassword,
+              description: passwordHint,
+              color: cs.tertiary,
+              onTap: _openPasswordChange,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1274,30 +1531,80 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     final customerNo = s(c['customerNo']);
     final vatId      = s(c['vatId']);
 
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final contactTitle = name.isNotEmpty
+        ? name
+        : (email.isNotEmpty ? email : (company.isNotEmpty ? company : context.t.customer_label));
+    final location = [zip, city].where((e) => e.trim().isNotEmpty).join(' ');
+    final t = context.t;
+
+    Widget detailRow({required IconData icon, required Widget child}) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 18, color: cs.primary),
+            const SizedBox(width: 10),
+            Expanded(child: child),
+          ],
+        ),
+      );
+    }
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(company.isNotEmpty ? company : (name.isNotEmpty ? name : email)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (name.isNotEmpty)    Text(name),
-            if (email.isNotEmpty)   SelectableText(email),
-            const SizedBox(height: 8),
-            if (address.isNotEmpty) Text(address),
-            if (zip.isNotEmpty || city.isNotEmpty) Text('${zip.isNotEmpty ? '$zip ' : ''}$city'.trim()),
-            if (country.isNotEmpty) Text(country),
-            if (phone.isNotEmpty)   ...[
-              const SizedBox(height: 8),
-              Text('Tel.: $phone'),
+        title: Text(contactTitle),
+        content: SingleChildScrollView(
+          child: ListBody(
+            children: [
+              if (company.isNotEmpty)
+                detailRow(
+                  icon: Icons.apartment_outlined,
+                  child: Text(company, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                ),
+              if (email.isNotEmpty)
+                detailRow(
+                  icon: Icons.alternate_email,
+                  child: SelectableText(email),
+                ),
+              if (phone.isNotEmpty)
+                detailRow(
+                  icon: Icons.phone_outlined,
+                  child: Text('${context.t.phone ?? 'Telefon'}: $phone'),
+                ),
+              if (address.isNotEmpty)
+                detailRow(
+                  icon: Icons.location_on_outlined,
+                  child: Text(address),
+                ),
+              if (location.isNotEmpty)
+                detailRow(
+                  icon: Icons.map_outlined,
+                  child: Text(location),
+                ),
+              if (country.isNotEmpty)
+                detailRow(
+                  icon: Icons.public,
+                  child: Text(country),
+                ),
+              if (customerNo.isNotEmpty)
+                detailRow(
+                  icon: Icons.badge_outlined,
+                  child: Text('${context.t.customer_number_label ?? 'Kundennr.'}: $customerNo'),
+                ),
+              if (vatId.isNotEmpty)
+                detailRow(
+                  icon: Icons.receipt_long_outlined,
+                  child: Text('${context.t.vat_id_label ?? 'USt-Id.'}: $vatId'),
+                ),
             ],
-            if (customerNo.isNotEmpty) Text('Kundennr.: $customerNo'),
-            if (vatId.isNotEmpty)      Text('USt-Id.: $vatId'),
-          ],
+          ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Schließen')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text(context.t.close ?? 'Schließen')),
         ],
       ),
     );
@@ -1314,27 +1621,58 @@ class _Card extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Responsive Titelgröße nur hier (mit context) berechnen:
     final width   = MediaQuery.of(context).size.width;
     final isPhone = width < 600;
     final fsTitle = isPhone ? 17.0 : 19.0;
+
+    final titleWidget = Text(
+      title,
+      style: TextStyle(fontWeight: FontWeight.w700, fontSize: fsTitle),
+    );
+    final actionsList = actions ?? const <Widget>[];
 
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              Text(title, style: TextStyle(fontWeight: FontWeight.w700, fontSize: fsTitle)),
-              const Spacer(),
-              if (actions != null) ...actions!,
-            ]),
-            const SizedBox(height: 10),
-            child,
-          ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isCompactHeader = constraints.maxWidth < 420;
+            final actionsWrap = actionsList.isEmpty
+                ? const SizedBox.shrink()
+                : Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: actionsList,
+                  );
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (isCompactHeader)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      titleWidget,
+                      if (actionsList.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        actionsWrap,
+                      ],
+                    ],
+                  )
+                else
+                  Row(
+                    children: [
+                      Expanded(child: titleWidget),
+                      if (actionsList.isNotEmpty) actionsWrap,
+                    ],
+                  ),
+                const SizedBox(height: 10),
+                child,
+              ],
+            );
+          },
         ),
       ),
     );
@@ -1373,15 +1711,15 @@ class _MenuCard extends StatelessWidget {
     final isPhone = MediaQuery.of(context).size.width < 600;
 
     final pad      = (compact ? 12.0 : 18.0) * scale;
-    final iconSize = (compact ? 24.0 : 30.0) * scale;     // +2 px
-    final circle   = (compact ? 44.0 : 52.0) * scale;     // +4 px
+    final iconSize = (compact ? 24.0 : 30.0) * scale;
+    final circle   = (compact ? 44.0 : 52.0) * scale;
 
-    final titleSizeBase = (compact ? 15.5 : 18.0);        // +1.5–2 px
-    final subSizeBase   = (compact ? 13.0 : 14.0);        // +1 px
+    final titleSizeBase = (compact ? 15.5 : 18.0);
+    final subSizeBase   = (compact ? 13.0 : 14.0);
     final titleSize     = (titleSizeBase * scale * (isPhone ? 1.00 : 1.05)) * ts;
     final subSize       = (subSizeBase   * scale * (isPhone ? 1.00 : 1.05)) * ts;
 
-    final chevron = (compact ? 22.0 : 24.0) * scale;      // +2 px
+    final chevron = (compact ? 22.0 : 24.0) * scale;
     final radius  = (compact ? 16.0 : 20.0) * scale;
 
     return InkWell(
@@ -1485,6 +1823,275 @@ class _MenuCard extends StatelessWidget {
   }
 }
 
+class _CustomerTile extends StatelessWidget {
+  final Map<String, Object?> data;
+  final bool isNew;
+  final AppLocalizations t;
+  final VoidCallback onOpen;
+  final VoidCallback onRemove;
+
+  const _CustomerTile({
+    required this.data,
+    required this.isNew,
+    required this.t,
+    required this.onOpen,
+    required this.onRemove,
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    String pick(String key) => (data[key] ?? '').toString();
+
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isPhone = MediaQuery.of(context).size.width < 600;
+    final double avatarSize = isPhone ? 40 : 44;
+    final double avatarRadius = isPhone ? 12 : 14;
+    final EdgeInsets contentPadding = isPhone ? const EdgeInsets.all(12) : const EdgeInsets.all(14);
+
+    final email   = pick('email');
+    final contact = pick('name');
+    final company = pick('company');
+    final phone   = pick('phone');
+    final address = pick('address');
+    final zip     = pick('zip');
+    final city    = pick('city');
+    final country = pick('country');
+
+    final contactLabel = (contact.isNotEmpty ? contact : (company.isNotEmpty ? company : email)).trim();
+    final location = [
+      [zip, city].where((e) => e.trim().isNotEmpty).join(' ').trim(),
+      country.trim(),
+    ].where((e) => e.isNotEmpty).join(' · ');
+
+    final accent = isNew ? cs.primary : cs.secondary;
+    final initialsSource = contactLabel.isNotEmpty ? contactLabel : email;
+    final initials = initialsSource.isNotEmpty ? initialsSource[0].toUpperCase() : 'C';
+    final t = context.t;
+
+    // Gemeinsame Kopfzeile (links Avatar + Titel, rechts optional NEW)
+    final nameStyle = (isPhone ? theme.textTheme.titleSmall : theme.textTheme.titleMedium)
+        ?.copyWith(fontWeight: FontWeight.w800);
+    final companyStyle = (isPhone ? theme.textTheme.bodySmall : theme.textTheme.bodyMedium)
+        ?.copyWith(color: cs.onSurfaceVariant, height: 1.05);
+    final emailStyle = theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant, height: 1.05);
+    
+    Widget header() => Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: avatarSize,
+              height: avatarSize,
+              decoration: BoxDecoration(
+                color: accent.withOpacity(0.14),
+                borderRadius: BorderRadius.circular(avatarRadius),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                initials,
+                style: (isPhone ? theme.textTheme.titleSmall : theme.textTheme.titleMedium)?.copyWith(
+                  color: accent,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            SizedBox(width: isPhone ? 10 : 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Name/Überschrift groß, max. 2 Zeilen
+                  Text(
+                    contactLabel,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: nameStyle,
+                  ),
+                  if (company.isNotEmpty && company != contactLabel) ...[
+                    SizedBox(height: isPhone ? 1.5 : 3),
+                    Text(
+                      company,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: companyStyle,
+                    ),
+                  ],
+                  SizedBox(height: isPhone ? 1.5 : 3),
+                  // Email in kleiner, ruhiger Farbe, 1 Zeile
+                  Text(
+                    email,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: emailStyle,
+                  ),
+                ],
+              ),
+            ),
+            if (isNew)
+              const SizedBox(width: 8),
+            if (isNew)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(.15),
+                  border: Border.all(color: Colors.orange),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: const Text(
+                  'NEW',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11,
+                    color: Colors.orange,
+                    letterSpacing: .4,
+                  ),
+                ),
+              ),
+          ],
+        );
+
+    // Sekundärinfos als Chips (Telefon/Ort), umbrechend
+    final List<Widget> chipWidgets = [
+      if (phone.isNotEmpty)
+        _CustomerInfoChip(icon: Icons.phone_outlined, label: phone),
+      if (address.isNotEmpty)
+        _CustomerInfoChip(icon: Icons.location_on_outlined, label: address),
+      if (location.isNotEmpty)
+        _CustomerInfoChip(icon: Icons.map_outlined, label: location),
+    ];
+
+    Widget infoChips() => Wrap(
+          spacing: 10,
+          runSpacing: 8,
+          children: chipWidgets,
+    );
+
+    Widget mobileActions() => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            OutlinedButton.icon(
+              icon: const Icon(Icons.link_off),
+              onPressed: onRemove,
+              label: Text(t.deleteAdd),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                minimumSize: const Size.fromHeight(42),
+                shape: const StadiumBorder(),
+                foregroundColor: cs.error,
+                side: BorderSide(color: cs.error),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerRight,
+              child: IconButton(
+                tooltip: t.showDetails ?? t.showDetails,
+                icon: const Icon(Icons.chevron_right),
+                onPressed: onOpen,
+              ),
+            ),
+          ],
+        );
+
+    Widget desktopActions() => Column(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            OutlinedButton.icon(
+              icon: const Icon(Icons.link_off),
+              onPressed: onRemove,
+              label: Text(t.deleteAdd),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: cs.error,
+                side: BorderSide(color: cs.error),
+              ),
+            ),
+          ],
+        );
+
+    // Container-Optik
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onOpen,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: contentPadding,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            color: Color.alphaBlend(cs.surfaceVariant.withOpacity(isNew ? 0.18 : 0.12), cs.surface),
+            border: Border.all(color: cs.outlineVariant.withOpacity(isNew ? 0.65 : 0.45)),
+          ),
+          child: isPhone
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    header(),
+                    if (chipWidgets.isNotEmpty) ...[
+                      SizedBox(height: isPhone ? 10 : 12),
+                      infoChips(),
+                    ],
+                    SizedBox(height: chipWidgets.isNotEmpty ? 12 : 8),
+                    mobileActions(),
+                  ],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Links: Header + Chips
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          header(),
+                          const SizedBox(height: 12),
+                          infoChips(),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Rechts: Aktionen
+                    desktopActions(),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CustomerInfoChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _CustomerInfoChip({required this.icon, required this.label, super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: cs.surfaceVariant.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: cs.onSurfaceVariant),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ComplaintTile extends StatefulWidget {
   final Map<String, dynamic> data;
   final bool isClosed;
@@ -1493,6 +2100,7 @@ class _ComplaintTile extends StatefulWidget {
   final bool useColoredButtons;
   final String? customerOverride; // Anzeige „Kunde“ (Firma bevorzugt)
   final String? createdOverride;  // Anzeige „Angelegt“ formatiert
+  final t = context.t;
 
   const _ComplaintTile({
     required this.data,
@@ -1510,8 +2118,6 @@ class _ComplaintTile extends StatefulWidget {
 }
 
 class _ComplaintTileState extends State<_ComplaintTile> {
-  bool _hoverAccept = false;
-  bool _hoverReject = false;
   bool _expanded = false; // Toggle für Details
 
   String _pick(Map<String, dynamic>? p, List<String> keys) {
@@ -1524,9 +2130,232 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     }
     return '';
   }
+
   String? _pickOrNull(Map<String, dynamic>? p, List<String> keys) {
     final s = _pick(p, keys);
     return s.isEmpty ? null : s;
+  }
+
+  String _localizeDecisionText(AppLocalizations t, String raw) {
+    final value = raw.trim().toLowerCase();
+    if (value == 'accepted') return t.decision_accepted;
+    if (value == 'rejected') return t.decision_rejected;
+    if (value == 'pending') return t.decision_pending ?? raw;
+    return raw;
+  }
+
+  String? _resolveProductArea(AppLocalizations t, String? segment, String? productType) {
+    final values = <String?>[segment, productType];
+    for (final raw in values) {
+      final v = (raw ?? '').trim().toLowerCase();
+      if (v.isEmpty) continue;
+      if (v.contains('zahnarzt') || v.contains('zahnmedizin')) return t.product_area_medical;
+      if (v.contains('dentist') || v == t.segment_dentist.toLowerCase()) return t.product_area_medical;
+      if (v.contains('dentallabor') || v.contains('zahntechnik')) return t.product_area_lab;
+      if (v.contains('lab') || v == t.segment_lab.toLowerCase()) return t.product_area_lab;
+    }
+    return null;
+  }
+
+  Color _decisionTint(ColorScheme cs, String normalized) {
+    final value = normalized.trim().toLowerCase();
+    if (value == 'accepted') return Colors.green.shade600;
+    if (value == 'rejected') return Colors.red.shade600;
+    if (value == 'pending') return Colors.amber.shade700;
+    return cs.primary;
+  }
+
+  Widget _infoPill(BuildContext context, {required IconData icon, required String text}) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: cs.surfaceVariant.withOpacity(0.42),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: cs.onSurfaceVariant),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: cs.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _metaChip(
+    BuildContext context, {
+    required IconData icon,
+    required String text,
+    double? maxWidth,
+  }) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    final chip = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: cs.surfaceVariant.withOpacity(0.24),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.55)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(icon, size: 18, color: cs.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 3,                 // <- mehr Zeilen erlaubt
+              overflow: TextOverflow.ellipsis,
+              softWrap: true,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                height: 1.25,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    // maxWidth (falls gesetzt) respektieren – keine künstliche Mindestbreite
+    if (maxWidth != null && maxWidth.isFinite) {
+      return SizedBox(width: maxWidth, child: chip);
+    }
+    return chip; // volle Breite zulassen
+  }
+
+  Widget _decisionBadge(BuildContext context, {required IconData icon, required String text, required Color color}) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withOpacity(0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailField(BuildContext context, {required String label, required String value}) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cs.surfaceVariant.withOpacity(0.32),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.6)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: cs.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.2,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: theme.textTheme.bodyMedium?.copyWith(height: 1.35),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _decisionButtons(AppLocalizations t, String ticket) {
+    if (widget.onDecision == null) return const SizedBox.shrink();
+
+    Widget buildButton({required IconData icon, required Color color, required bool approve}) {
+      return IconButton(
+        onPressed: () => widget.onDecision!(ticket, approve),
+        icon: Icon(icon, size: 22),
+        tooltip: approve ? t.decision_accepted : t.decision_rejected,
+        style: IconButton.styleFrom(
+          backgroundColor: color.withOpacity(0.12),
+          foregroundColor: color,
+          minimumSize: const Size(48, 48),
+          padding: const EdgeInsets.all(12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+      );
+    }
+
+    return Wrap(
+      spacing: 14,
+      runSpacing: 10,
+      alignment: WrapAlignment.end,
+      children: [
+        buildButton(icon: Icons.check_rounded, color: Colors.green.shade600, approve: true),
+        buildButton(icon: Icons.close_rounded, color: Colors.red.shade600, approve: false),
+      ],
+    );
+  }
+
+  Widget _metaRowFullWidth(BuildContext context,
+      {required IconData icon, required String text}) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: cs.surfaceVariant.withOpacity(0.24),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.55)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(icon, size: 18, color: cs.onSurfaceVariant),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 3,
+              softWrap: true,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                height: 1.25,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -1536,231 +2365,364 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     final ticket   = (widget.data['ticket'] ?? '').toString();
     final status   = (widget.data['status'] ?? '').toString();
     final decision = (widget.data['decision'] ?? '').toString();
-    final repDecision = (widget.data['repDecision'] ?? '').toString(); // 'accepted' | 'rejected' | ''
+    final repDecision = (widget.data['repDecision'] ?? '').toString();
 
     final created   = widget.createdOverride ?? (widget.data['createdAt'] ?? widget.data['created'] ?? '').toString();
     final customer  = widget.customerOverride ?? (widget.data['customerEmail'] ?? widget.data['email'] ?? '').toString();
-    
+
     final Map<String, dynamic>? p =
-        (widget.data['payload'] is Map)
-            ? (widget.data['payload'] as Map<dynamic, dynamic>).cast<String, dynamic>()
-            : null;
+        (widget.data['payload'] is Map) ? (widget.data['payload'] as Map).cast<String, dynamic>() : null;
 
     final segment      = _pickOrNull(p, ['segment','customer_segment','segment_code']);
     final productType  = _pickOrNull(p, ['product_type','productType','type']);
     final articleNo    = _pickOrNull(p, ['article','article_no','articleNumber','artnr']);
-    final batch        = _pickOrNull(p, ['batch','batch_no','lot','lot_no']);
+    final batch        = _pickOrNull(p, ['batch','batch_no','lot','lot_no','charge','lotnumber','lot_number']);
     final serial       = _pickOrNull(p, ['serial','serial_no','sn']);
     final qty          = _pickOrNull(p, ['qty','quantity','amount','menge']);
     final reason       = _pickOrNull(p, ['reason','failure_reason','cause']);
+    final internalNo  = _pickOrNull(p, ['internalComplaintNo','internalComplaint','internalNo','internal','complaintNo','complaint_no','reklamationsnummer','rekl_nr','reklamationsnr']) ?? (widget.data['internalNo']?.toString());
 
-    // desc priorisieren
     final desc         = _pickOrNull(p, ['desc','description','comment','details','failure_desc']);
     final customerWish = _pickOrNull(p, ['handling','customer_wish','customerWish','wish','treatment_wish']);
 
-    // NEU (aus complaint_form_page.dart)
-    final returned     = _pickOrNull(p, ['returned']);   // 'Ja' | 'Nein'
-    final applied      = _pickOrNull(p, ['applied']);    // 'Ja' | 'Nein' | ''
-    final injury       = _pickOrNull(p, ['injury']);     // 'Ja' | 'Nein' | ''
-    final injuryDesc   = _pickOrNull(p, ['injuryDesc']); // Freitext
+    final returned     = _pickOrNull(p, ['returned']);
+    final applied      = _pickOrNull(p, ['applied']);
+    final injury       = _pickOrNull(p, ['injury']);
+    final injuryDesc   = _pickOrNull(p, ['injuryDesc']);
 
-    // kleine Punkt-Buttons (Gradient + Hover)
-    Widget _dotButton({
-      required bool positive,
-      required String tooltip,
-      required VoidCallback onTap,
-      required bool hover,
-      required ValueChanged<bool> setHover,
-    }) {
-      final gradient = positive
-          ? const LinearGradient(colors: [Color(0xFF2ECC71), Color(0xFF27AE60)])
-          : const LinearGradient(colors: [Color(0xFFE74C3C), Color(0xFFC0392B)]);
-      final icon = positive ? Icons.check_rounded : Icons.close_rounded;
+    final productArea  = _resolveProductArea(t, segment, productType);
+    final articleLabel = articleNo == null || articleNo.isEmpty
+        ? null
+        : productArea == null
+            ? articleNo
+            : '$articleNo · $productArea';
 
-      return MouseRegion(
-        onEnter: (_) => setHover(true),
-        onExit: (_) => setHover(false),
-        child: AnimatedScale(
-          scale: hover ? 1.08 : 1.0,
-          duration: const Duration(milliseconds: 120),
-          child: Tooltip(
-            message: tooltip,
-            child: InkWell(
-              onTap: onTap,
-              customBorder: const CircleBorder(),
-              child: Ink(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: gradient,
-                  boxShadow: [
-                    BoxShadow(
-                      color: (positive ? Colors.green : Colors.red).withOpacity(.35),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Icon(icon, size: 18, color: Colors.white),
-              ),
-            ),
-          ),
+    final createdLabel = created.trim().isEmpty ? null : created.trim();
+    final decisionLabel = decision.trim().isEmpty ? null : _localizeDecisionText(t, decision);
+    final repDecisionLabel = repDecision.trim().isEmpty ? null : _localizeDecisionText(t, repDecision);
+    final repDecisionNormalized = repDecision.trim().toLowerCase();
+
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    Color background = Color.alphaBlend(cs.surfaceVariant.withOpacity(0.14), cs.surface);
+    Color borderColor = cs.outlineVariant.withOpacity(0.45);
+
+    if (repDecisionNormalized == 'accepted') {
+      background = Color.alphaBlend(Colors.green.shade500.withOpacity(0.08), cs.surface);
+      borderColor = Colors.green.shade400.withOpacity(0.4);
+    } else if (repDecisionNormalized == 'rejected') {
+      background = Color.alphaBlend(Colors.red.shade500.withOpacity(0.08), cs.surface);
+      borderColor = Colors.red.shade400.withOpacity(0.4);
+    } else if (repDecisionNormalized == 'pending') {
+      background = Color.alphaBlend(Colors.amber.shade700.withOpacity(0.08), cs.surface);
+      borderColor = Colors.amber.shade600.withOpacity(0.38);
+    }
+
+    if (widget.isClosed) {
+      background = Color.alphaBlend(cs.surfaceContainerHighest.withOpacity(0.4), background);
+      borderColor = Color.alphaBlend(cs.outline.withOpacity(0.25), borderColor);
+    }
+
+    final decisionBadges = <Widget>[];
+    if (decisionLabel != null) {
+      decisionBadges.add(_decisionBadge(context, icon: Icons.gavel_outlined, text: decisionLabel, color: cs.primary));
+    }
+    if (repDecisionLabel != null) {
+      final icon = repDecisionNormalized == 'rejected'
+          ? Icons.thumb_down_alt_outlined
+          : Icons.thumb_up_alt_outlined;
+      decisionBadges.add(
+        _decisionBadge(
+          context,
+          icon: icon,
+          text: repDecisionLabel,
+          color: _decisionTint(cs, repDecisionNormalized),
         ),
       );
     }
 
-    Widget _buttons() {
-      if (widget.onDecision == null) return const SizedBox.shrink();
-      if (widget.useColoredButtons) {
-        return Wrap(
-          spacing: 10,
-          children: [
-            _dotButton(
-              positive: true,
-              tooltip: '${t.decision}: ${t.decision_accepted}',
-              onTap: () => widget.onDecision!(ticket, true),
-              hover: _hoverAccept,
-              setHover: (v) => setState(() => _hoverAccept = v),
-            ),
-            _dotButton(
-              positive: false,
-              tooltip: '${t.decision}: ${t.decision_rejected}',
-              onTap: () => widget.onDecision!(ticket, false),
-              hover: _hoverReject,
-              setHover: (v) => setState(() => _hoverReject = v),
-            ),
-          ],
-        );
-      }
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            tooltip: '${t.decision}: ${t.decision_accepted}',
-            icon: const Icon(Icons.check_circle_outline),
-            onPressed: () => widget.onDecision!(ticket, true),
-          ),
-          IconButton(
-            tooltip: '${t.decision}: ${t.decision_rejected}',
-            icon: const Icon(Icons.cancel_outlined),
-            onPressed: () => widget.onDecision!(ticket, false),
-          ),
-        ],
-      );
-    }
-
-
-
     return LayoutBuilder(
-      builder: (ctx, cons) {
-        final isNarrow = cons.maxWidth < 420;
+      builder: (context, constraints) {
+        final isPhone = MediaQuery.of(context).size.width < 600;
+        final availableWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : MediaQuery.of(context).size.width;
+        final double halfWidth = (availableWidth - 12) / 2;
 
-        return Card(
+        // === Desktop/Tablet-Chips (2 Spalten) ===
+        final desktopChips = <Widget>[];
+        if (customer.isNotEmpty) {
+          desktopChips.add(_metaChip(
+            context,
+            icon: Icons.person_outline_rounded,
+            text: customer,
+            maxWidth: halfWidth,
+          ));
+        }
+        if (articleLabel != null) {
+          desktopChips.add(_metaChip(
+            context,
+            icon: Icons.qr_code_2_outlined,
+            text: articleLabel!,
+            maxWidth: halfWidth,
+          ));
+        }
+        // NEU: Charge / LOT statt Datum/Uhrzeit
+        if ((batch ?? '').trim().isNotEmpty) {
+          desktopChips.add(_metaChip(
+            context,
+            icon: Icons.inventory_2_outlined,
+            text: batch!.trim(),
+            maxWidth: halfWidth,
+          ));
+        }
+        if (internalNo != null && internalNo!.trim().isNotEmpty) {
+          desktopChips.add(_metaChip(
+            context,
+            icon: Icons.confirmation_number_outlined,
+            text: internalNo!.trim(),
+            maxWidth: halfWidth,
+          ));
+        }
+
+        // === Phone: volle Breite, untereinander ===
+        final phoneRows = <Widget>[
+          if (customer.isNotEmpty)
+            _metaRowFullWidth(context,
+                icon: Icons.person_outline_rounded, text: customer),
+          if (articleLabel != null)
+            _metaRowFullWidth(context,
+                icon: Icons.qr_code_2_outlined, text: articleLabel!),
+          // NEU: Charge / LOT statt Datum/Uhrzeit
+          if ((batch ?? '').trim().isNotEmpty)
+            _metaRowFullWidth(context,
+                icon: Icons.inventory_2_outlined, text: batch!.trim()),
+          if (internalNo != null && internalNo!.trim().isNotEmpty)
+            _metaRowFullWidth(context,
+                icon: Icons.confirmation_number_outlined, text: internalNo!.trim()),
+        ];
+
+        // Header (Phone: Ticket allein + Status darunter; Desktop: links Ticket+Status+Chips, rechts Ampel)
+        final showAmpel = repDecision.trim().isNotEmpty;
+        final Widget topHeader = isPhone
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Ticketzeile allein
+                  Text(
+                    ticket.isEmpty ? '(ohne Ticket)' : ticket,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.15,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  // kleiner Status darunter
+                  _StatusChip(
+                    status: status,
+                    decision: decision,
+                    closed: widget.isClosed,
+                    compact: true,
+                  ),
+                  if (showAmpel) ...[
+                    const SizedBox(height: 8),
+                    _RepTrafficLight(opinion: repDecision, compact: true),
+                  ],
+                ],
+              )
+            : Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // linke Spalte
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          ticket.isEmpty ? '(ohne Ticket)' : ticket,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.15,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        _StatusChip(
+                          status: status,
+                          decision: decision,
+                          closed: widget.isClosed,
+                          compact: true,
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 10,
+                          children: desktopChips,
+                        ),
+                      ],
+                    ),
+                  ),
+                  // rechte Spalte: nur Ampel wenn vorhanden
+                  if (showAmpel) const SizedBox(width: 12),
+                  if (showAmpel)
+                    _RepTrafficLight(opinion: repDecision, compact: true),
+                ],
+              );
+
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
           margin: const EdgeInsets.symmetric(vertical: 6),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(
+            color: background,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: borderColor),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(widget.isClosed ? 0.015 : 0.035),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    const Icon(Icons.description_outlined, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        ticket.isEmpty ? '(ohne Ticket)' : ticket,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    _StatusChip(status: status, decision: decision, closed: widget.isClosed),
-                    const SizedBox(width: 6),
-                    if ((repDecision).trim().isNotEmpty)
-                      _RepTrafficLight(opinion: repDecision, compact: true),
+                // 1) Header (Phone/Desktop)
+                topHeader,
+
+                const SizedBox(height: 12),
+
+                // 2) Nur Phone: zusätzliche Zeilen in Vollbreite
+                if (isPhone) ...[
+                  for (int i = 0; i < phoneRows.length; i++) ...[
+                    phoneRows[i],
+                    if (i != phoneRows.length - 1) const SizedBox(height: 8),
                   ],
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: [
-                    if (customer.isNotEmpty) _InfoCapsule('${t.customer_label}: $customer'),
-                    if (widget.data['payload']?['article']?.toString().isNotEmpty ?? false)
-                      _InfoCapsule('${t.articleNo}: ${widget.data['payload']['article']}'),
-                    if (widget.data['payload']?['segment']?.toString().isNotEmpty ?? false)
-                      _InfoCapsule('${t.segment}: ${widget.data['payload']['segment']}'),
-                    if (created.isNotEmpty)
-                      _InfoCapsule('${t.created_at ?? 'Angelegt'}: $created'),
-                    if (decision.isNotEmpty)
-                      _InfoCapsule('${t.decision ?? 'Admin-Entscheidung'}: $decision'),
-                    if (repDecision.isNotEmpty)
-                      _InfoCapsule('${t.my_decision ?? 'Meine Bewertung'}: $repDecision'),
-                  ],
-                ),              
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    TextButton.icon(
-                      onPressed: () => setState(() => _expanded = !_expanded),
-                      icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
-                      label: Text(_expanded
-                          ? (context.t.hideDetails ?? 'Details verbergen')
-                          : (context.t.showDetails ?? 'Details anzeigen')),
-                    ),
-                  ],
-                ),
-                AnimatedCrossFade(
-                  crossFadeState: _expanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
-                  duration: const Duration(milliseconds: 160),
-                  firstChild: _buildDetails(
-                    context,
-                    segment: segment,
-                    productType: productType,
-                    articleNo: articleNo,
-                    batch: batch,
-                    serial: serial,
-                    qty: qty,
-                    reason: reason,
-                    desc: desc,
-                    customerWish: customerWish,
-                    returned: returned,
-                    applied: applied,
-                    injury: injury,
-                    injuryDesc: injuryDesc,
-                  ),
-                  secondChild: const SizedBox.shrink(),
-                ),
-                
-                if (widget.onDecision != null && !widget.isClosed && repDecision.isEmpty) ...[
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: isNarrow ? Alignment.centerLeft : Alignment.centerRight,
-                    child: _buttons(),
+                ],
+
+                // 3) Entscheidungs-Badges (falls vorhanden)
+                if (decisionBadges.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    children: decisionBadges,
                   ),
                 ],
-                if (!widget.isClosed && repDecision.isNotEmpty && widget.onWithdraw != null) ...[
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: isNarrow ? Alignment.centerLeft : Alignment.centerRight,
-                    child: OutlinedButton.icon(
-                      icon: const Icon(Icons.undo),
-                      label: Text(context.t.decision_withdraw ?? 'Entscheidung zurücknehmen'),
-                      onPressed: () async {
-                        final ok = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: Text(context.t.decision_withdraw ?? 'Entscheidung zurücknehmen'),
-                            content: Text(context.t.decision_withdraw_confirm ?? 'Möchtest du deine Entscheidung wirklich zurücknehmen?'),
-                            actions: [
-                              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(context.t.cancel)),
-                              ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(context.t.ok ?? 'OK')),
+
+                const SizedBox(height: 14),
+
+                // 4) Details-Button
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    style: TextButton.styleFrom(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      shape: const StadiumBorder(),
+                      foregroundColor: cs.primary,
+                      textStyle: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    onPressed: () => setState(() => _expanded = !_expanded),
+                    icon: AnimatedRotation(
+                      turns: _expanded ? 0.5 : 0.0,
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      child: const Icon(Icons.keyboard_arrow_down_rounded),
+                    ),
+                    label: Text(
+                      _expanded
+                          ? (t.hideDetails ?? 'Details verbergen')
+                          : (t.showDetails ?? 'Details anzeigen'),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // 5) Detailsbereich (animiert)
+                ClipRect(
+                  child: AnimatedSize(
+                    duration: const Duration(milliseconds: 240),
+                    curve: Curves.easeOutCubic,
+                    child: !_expanded
+                        ? const SizedBox.shrink()
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const SizedBox(height: 16),
+                              _buildDetails(
+                                context,
+                                segment: segment,
+                                productType: productType,
+                                productArea: productArea,
+                                articleNo: articleNo,
+                                batch: batch,
+                                serial: serial,
+                                qty: qty,
+                                reason: reason,
+                                desc: desc,
+                                customerWish: customerWish,
+                                returned: returned,
+                                applied: applied,
+                                injury: injury,
+                                injuryDesc: injuryDesc,
+                              ),
                             ],
                           ),
-                        ) ?? false;
+                  ),
+                ),
+
+                // 6) Aktionen (Entscheiden / Zurücknehmen)
+                if (widget.onDecision != null &&
+                    !widget.isClosed &&
+                    repDecision.isEmpty) ...[
+                  const SizedBox(height: 18),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: _decisionButtons(t, ticket),
+                  ),
+                ],
+                if (!widget.isClosed &&
+                    repDecision.isNotEmpty &&
+                    widget.onWithdraw != null) ...[
+                  const SizedBox(height: 14),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        shape: const StadiumBorder(),
+                        textStyle: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      icon: const Icon(Icons.undo),
+                      label:
+                          Text(t.decision_withdraw ?? 'Entscheidung zurücknehmen'),
+                      onPressed: () async {
+                        final ok = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: Text(
+                                    t.decision_withdraw ?? 'Entscheidung zurücknehmen'),
+                                content: DialogContentScroll(
+                                  child: Text(t.decision_withdraw_confirm ??
+                                      'Möchtest du deine Entscheidung wirklich zurücknehmen?'),
+                                ),
+                                actions: [
+                                  TextButton(
+                                      onPressed: () => Navigator.of(ctx).pop(false),
+                                      child: Text(t.cancel ?? 'Abbrechen')),
+                                  ElevatedButton(
+                                      onPressed: () => Navigator.of(ctx).pop(true),
+                                      child: Text(t.ok ?? 'OK')),
+                                ],
+                              ),
+                            ) ??
+                            false;
 
                         if (ok) widget.onWithdraw!(ticket);
                       },
@@ -1774,10 +2736,12 @@ class _ComplaintTileState extends State<_ComplaintTile> {
       },
     );
   }
-    Widget _buildDetails(
+
+  Widget _buildDetails(
     BuildContext context, {
     String? segment,
     String? productType,
+    String? productArea,
     String? articleNo,
     String? batch,
     String? serial,
@@ -1790,106 +2754,104 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     String? injury,
     String? injuryDesc,
   }) {
-    Widget kv(String label, String? value, {int maxLines = 2}) {
+    final t = context.t;
+    final fields = <_DetailFieldData>[];
+
+    void add(String label, String? value, {bool wide = false}) {
       final v = (value ?? '').trim();
-      if (v.isEmpty) return const SizedBox.shrink();
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(width: 160, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
-            const SizedBox(width: 8),
-            Expanded(child: Text(v, maxLines: maxLines, overflow: TextOverflow.ellipsis)),
-          ],
-        ),
-      );
+      if (v.isEmpty) return;
+      fields.add(_DetailFieldData(label: label, value: v, wide: wide));
+    }
+
+    add(t.segment, segment);
+    add(t.product_type, productType);
+    add(t.product_area_label ?? 'Produktbereich', productArea);
+    add(t.articleNo, articleNo);
+    add('${t.batch ?? 'Charge'} / LOT', batch);
+    add(t.serial_number ?? 'Seriennummer', serial);
+    add(t.quantity ?? 'Menge', qty);
+    add(t.problem_desc ?? 'Fehler / Beschreibung', desc, wide: true);
+    add(t.reason_label ?? 'Grund / Ursache', reason, wide: true);
+    add(t.handling ?? 'Wunsch des Kunden', customerWish, wide: true);
+    add(t.returned_question ?? 'Produkte zurückgeschickt?', returned);
+    add(t.applied_to_patient ?? 'Am Patienten angewendet?', applied);
+    add(t.injury_question ?? 'Verletzung?', injury);
+    add(t.injury_desc ?? 'Verletzungsbeschreibung', injuryDesc, wide: true);
+
+    if (fields.isEmpty) {
+      return const SizedBox.shrink();
     }
 
     final theme = Theme.of(context);
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(top: 4),
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceVariant.withOpacity(0.30),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text('Details', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
+    final cs = theme.colorScheme;
 
-          kv('Segment', segment),
-          kv('Produkttyp', productType),
-          kv('Artikelnummer', articleNo),
+    return LayoutBuilder(
+      builder: (ctx, constraints) {
+        final maxWidth = constraints.maxWidth;
+        final multiColumn = maxWidth >= 560;
+        final columnWidth = multiColumn ? (maxWidth - 12) / 2 : maxWidth;
 
-          Row(
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: cs.surfaceContainerHighest.withOpacity(0.32),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: kv('Charge / LOT', batch)),
-              const SizedBox(width: 12),
-              Expanded(child: kv('Seriennummer', serial)),
+              Text(
+                t.details ?? 'Details',
+                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  for (final field in fields)
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: field.wide || !multiColumn ? maxWidth : columnWidth,
+                        minWidth: field.wide || !multiColumn ? maxWidth : math.min(columnWidth, maxWidth),
+                      ),
+                      child: _detailField(
+                        context,
+                        label: field.label,
+                        value: field.value,
+                      ),
+                    ),
+                ],
+              ),
             ],
           ),
-
-          // Menge: eigene, gut sichtbare Zeile
-          kv('Menge', qty),
-
-          kv('Fehler / Beschreibung', desc, maxLines: 6),
-          kv('Grund / Ursache',       reason, maxLines: 4),
-          kv('Wunsch des Kunden',     customerWish, maxLines: 3),
-
-          // Zusätzliche Formularfelder
-          kv('Produkte zurückgeschickt?', returned),
-          kv('Am Patienten angewendet?',   applied),
-          kv('Verletzung?',                injury),
-          kv('Verletzungsbeschreibung',    injuryDesc, maxLines: 6),
-        ],
-      ),
+        );
+      },
     );
   }
-
 }
 
-// ---------- kleine UI-Helfer ----------
+class _DetailFieldData {
+  final String label;
+  final String value;
+  final bool wide;
 
-class _InfoCapsule extends StatelessWidget {
-  final String text;
-  const _InfoCapsule(this.text, {super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      decoration: BoxDecoration(
-        color: cs.surfaceVariant.withOpacity(.6),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(
-        text,
-        overflow: TextOverflow.ellipsis,
-        maxLines: 1,
-        style: TextStyle(fontSize: 13.5, color: cs.onSurface.withOpacity(.9)),
-      ),
-    );
-  }
+  const _DetailFieldData({required this.label, required this.value, this.wide = false});
 }
 
 // ======================================
 //  Ampel-Widget (wie Admin, 3 Lichter)
 // ======================================
 class _RepTrafficLight extends StatelessWidget {
-  /// opinion: 'accepted' | 'rejected' | 'pending' | ''/null -> keine Anzeige
   final String? opinion;
-  final bool compact; // für enge Layouts (z. B. Zeile neben Status)
+  final bool compact;
+  final t = context.t;
   const _RepTrafficLight({required this.opinion, this.compact = false, super.key});
 
   @override
   Widget build(BuildContext context) {
     final v = (opinion ?? '').trim().toLowerCase();
-    if (v.isEmpty) return const SizedBox.shrink(); // keine Ampel ohne Meinung
+    if (v.isEmpty) return const SizedBox.shrink();
 
     const colRed   = Colors.red;
     const colAmber = Colors.amber;
@@ -1897,9 +2859,8 @@ class _RepTrafficLight extends StatelessWidget {
 
     final onRed   = v == 'rejected';
     final onGreen = v == 'accepted';
-    final onAmber = !(onRed || onGreen); // „pending“ / unklar → gelb
+    final onAmber = !(onRed || onGreen);
 
-    // falls irgendein exotischer Wert, Ampel weglassen
     if (!(onRed || onAmber || onGreen)) return const SizedBox.shrink();
 
     final size   = compact ? 10.0 : 12.0;
@@ -1958,29 +2919,89 @@ class _StatusChip extends StatelessWidget {
   final String status;
   final String decision;
   final bool closed;
-  const _StatusChip({required this.status, required this.decision, required this.closed, super.key});
+  final bool compact; // NEU: kleiner Style
+  final t = context.t;
+  const _StatusChip({
+    required this.status,
+    required this.decision,
+    required this.closed,
+    this.compact = false, // default: wie bisher
+    super.key,
+  });
+
+  int? _statusNumber() {
+    final trimmed = status.trim();
+    if (trimmed.isEmpty) return null;
+    return int.tryParse(trimmed);
+  }
+
+  String _statusLabel(AppLocalizations t, int? value) {
+    final decisionLower = decision.trim().toLowerCase();
+    switch (value) {
+      case 1: return t.status_sent;
+      case 2: return t.status_in_progress;
+      case 3: return t.status_question;
+      case 4:
+        if (decisionLower == 'rejected') return t.status_rejected;
+        if (decisionLower == 'accepted') return t.status_accepted;
+        return t.status_decision;
+      case 5: return t.status_rework;
+      case 6: return t.status_closed;
+      default:
+        final raw = status.trim();
+        return raw.isEmpty ? t.status_unknown : raw;
+    }
+  }
+
+  Color _statusColor(BuildContext context, int? value) {
+    final decisionLower = decision.trim().toLowerCase();
+    if (closed) return Colors.grey;
+    switch (value) {
+      case 1: return Colors.blue;
+      case 2: return Colors.amber.shade800;
+      case 3: return Colors.orange;
+      case 4:
+        if (decisionLower == 'rejected') return Colors.red;
+        if (decisionLower == 'accepted') return Colors.green;
+        return Colors.grey;
+      case 5: return Colors.amber;
+      case 6: return Colors.green;
+      default: return Theme.of(context).colorScheme.primary;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    Color c;
-    if (closed) {
-      c = Colors.grey;
-    } else if (decision == 'rejected') {
-      c = Colors.red;
-    } else if (decision == 'accepted') {
-      c = Colors.green;
-    } else {
-      c = Theme.of(context).colorScheme.primary;
-    }
+    final t = context.t;
+    final number = _statusNumber();
+    final label = _statusLabel(t, number);
+    final color = _statusColor(context, number);
+
+    final padV = compact ? 4.0  : 6.0;
+    final padH = compact ? 8.0  : 10.0;
+    final icon = compact ? 14.0 : 16.0;
+    final fs   = compact ? 12.0 : 13.0;
+    final rad  = compact ? 16.0 : 20.0;
+    final borderOpacity = compact ? .55 : .70;
+    final chipColor = color.withOpacity(compact ? .10 : .14);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
       decoration: BoxDecoration(
-        color: c.withOpacity(.12),
-        border: Border.all(color: c),
-        borderRadius: BorderRadius.circular(10),
+        color: chipColor,
+        borderRadius: BorderRadius.circular(rad),
+        border: Border.all(color: color.withOpacity(borderOpacity)),
       ),
-      child: Text('${context.t.status ?? 'Status'}: $status',
-        style: TextStyle(color: c, fontSize: 13, fontWeight: FontWeight.w600),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.flag_rounded, size: icon, color: color),
+          const SizedBox(width: 6),
+          Text(
+            '${t.status ?? "Status"}: $label',
+            style: TextStyle(color: color, fontSize: fs, fontWeight: FontWeight.w600),
+          ),
+        ],
       ),
     );
   }
@@ -1988,28 +3009,24 @@ class _StatusChip extends StatelessWidget {
 
 class _RepDecisionChip extends StatelessWidget {
   final String repDecision; // '', 'accepted', 'rejected'
+  final t = context.t;
   const _RepDecisionChip({required this.repDecision, super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Ampel: ''  -> gelb (noch keine Entscheidung)
-    //         'accepted' -> grün
-    //         'rejected' -> rot
     late final Color color;
     late final String label;
 
     if (repDecision == 'accepted') {
       color = Colors.green;
-      label = (context.t.decision_accepted) /* z.B. "angenommen" */ ;
+      label = (context.t.decision_accepted);
     } else if (repDecision == 'rejected') {
       color = Colors.red;
-      label = (context.t.decision_rejected) /* z.B. "abgelehnt" */ ;
+      label = (context.t.decision_rejected);
     } else {
       color = Colors.amber;
       label = (context.t.no_decision_yet ?? 'Noch keine Entscheidung');
     }
-
-    final cs = Theme.of(context).colorScheme;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -2021,7 +3038,6 @@ class _RepDecisionChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // kleiner Punkt (Ampel)
           Container(
             width: 8,
             height: 8,
@@ -2134,6 +3150,209 @@ class _PulseNewBadgeState extends State<_PulseNewBadge> with SingleTickerProvide
             letterSpacing: .4,
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// ==============================
+///  Neue Header- & KPI-Widgets
+/// ==============================
+class _WelcomeHeader extends StatelessWidget {
+  final Map<String, dynamic>? me;
+  final int open;
+  final int all;
+  final int rejected;
+  final int finished;
+  final Color brand;
+
+  const _WelcomeHeader({
+    required this.me,
+    required this.open,
+    required this.all,
+    required this.rejected,
+    required this.finished,
+    required this.brand,
+  });
+
+  String _initials(Map<String, dynamic>? me) {
+    final f = (me?['firstName'] ?? '').toString().trim();
+    final l = (me?['lastName'] ?? '').toString().trim();
+    if (f.isEmpty && l.isEmpty) {
+      final e = (me?['email'] ?? '').toString();
+      return e.isNotEmpty ? e[0].toUpperCase() : 'R';
+    }
+    return ((f.isNotEmpty ? f[0] : '') + (l.isNotEmpty ? l[0] : '')).toUpperCase();
+    }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.t;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    final name = [
+      (me?['firstName'] ?? '').toString().trim(),
+      (me?['lastName'] ?? '').toString().trim()
+    ].where((e) => e.isNotEmpty).join(' ');
+    final email = (me?['email'] ?? '').toString();
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [brand.withOpacity(.14), cs.surface],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: cs.outlineVariant),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(.04), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: brand.withOpacity(.18),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: brand.withOpacity(.35)),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  _initials(me),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: brand,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: .2,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name.isNotEmpty ? name : t.rep_dashboard,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: .2,
+                      ),
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                    ),
+                    if (email.isNotEmpty)
+                      Text(
+                        email,
+                        style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (ctx, c) {
+              final isNarrow = c.maxWidth < 520;
+              return Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  _KpiChip(icon: Icons.report_gmailerrorred_outlined, label: t.rep_overview_open, value: open, color: Colors.red),
+                  _KpiChip(icon: Icons.all_inbox_outlined, label: t.rep_overview_all, value: all, color: brand),
+                  _KpiChip(icon: Icons.thumb_down_alt_outlined, label: t.rep_overview_rejected, value: rejected, color: Colors.orange),
+                  _KpiChip(icon: Icons.verified_outlined, label: t.rep_overview_finished, value: finished, color: Colors.green),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _KpiChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final int value;
+  final Color color;
+
+  const _KpiChip({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Color.alphaBlend(color.withOpacity(.08), cs.surface),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withOpacity(.35)),
+        boxShadow: [BoxShadow(color: color.withOpacity(.08), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(width: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(99),
+            ),
+            child: Text(
+              '$value',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  const _EmptyState({required this.icon, required this.title, super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: [
+          Icon(icon, color: cs.onSurfaceVariant),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(color: cs.onSurfaceVariant),
+            ),
+          ),
+        ],
       ),
     );
   }

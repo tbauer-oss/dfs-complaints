@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
+import '../services/push_notifications.dart';
 
 class LogoutAction extends StatelessWidget {
   final ApiClient api;
@@ -30,6 +31,7 @@ class LogoutAction extends StatelessWidget {
     return PopupMenuButton<String>(
       onSelected: (value) async {
         if (value == 'logout' && await _confirm(context)) {
+          await PushNotifications.instance.deactivate(api);
           await api.logout();
           onLoggedOut?.call();
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.loggedOut)));

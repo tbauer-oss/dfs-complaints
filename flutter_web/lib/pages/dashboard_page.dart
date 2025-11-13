@@ -1,8 +1,8 @@
 // lib/pages/dashboard_page.dart
-import 'dart:html' as html; // für mailto
-import 'dart:ui' as ui show platformViewRegistry; // nur für Web
-import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:html' as html;
+import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
@@ -11,45 +11,41 @@ import 'complaint_form_page.dart';
 import 'my_complaints_page.dart';
 import 'account_page.dart';
 import 'support_page.dart';
+import '../widgets/pdf_view_stub.dart'
+  if (dart.library.html) '../widgets/pdf_view_web.dart';
 
-String? _REMOTE_LAB_DEFAULT;
-String? _REMOTE_LAB_ESFR;
-String? _REMOTE_DENT_DEFAULT;
-String? _REMOTE_DENT_ESFR;
+const _labCatalogLinks = [
+  _CatalogLink(
+    label: 'DE / EN / IT',
+    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Labor-DE-US-2025-26_1.pdf',
+    locales: {'de', 'en', 'it'},
+  ),
+  _CatalogLink(
+    label: 'ES / FR',
+    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-LaborES-FR-2025-26_0.pdf',
+    locales: {'es', 'fr'},
+  ),
+];
 
-// const _pdfLabUrl  = 'pdfs/DFS-Labor-DE-US-2025-26_1.pdf';
-// const _pdfDentUrl = 'pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf';
+const _dentCatalogLinks = [
+  _CatalogLink(
+    label: 'DE / EN',
+    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf',
+    locales: {'de', 'en', 'it'},
+  ),
+  _CatalogLink(
+    label: 'ES / FR',
+    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Praxis-ES-FR-2025-2026_1.pdf',
+    locales: {'es', 'fr'},
+  ),
+];
 
-// Sprachabhängige Pfadwahl (relativ, ohne führenden Slash!)
-String _pdfLabFor(BuildContext context) {
-  final lc = Localizations.localeOf(context).languageCode.toLowerCase();
-  final esFr = lc == 'es' || lc == 'fr';
-
-  if (esFr) {
-    // Remote bevorzugen, sonst Fallback
-    return (_REMOTE_LAB_ESFR?.trim().isNotEmpty == true)
-        ? _REMOTE_LAB_ESFR!
-        : 'pdfs/DFS-Labor-ES-FR-2025-26_1.pdf';
-  } else {
-    return (_REMOTE_LAB_DEFAULT?.trim().isNotEmpty == true)
-        ? _REMOTE_LAB_DEFAULT!
-        : 'pdfs/DFS-Labor-DE-US-2025-26_1.pdf';
-  }
-}
-
-String _pdfDentFor(BuildContext context) {
-  final lc = Localizations.localeOf(context).languageCode.toLowerCase();
-  final esFr = lc == 'es' || lc == 'fr';
-
-  if (esFr) {
-    return (_REMOTE_DENT_ESFR?.trim().isNotEmpty == true)
-        ? _REMOTE_DENT_ESFR!
-        : 'pdfs/DFS-Praxis-ES-FR-2025-2026_1.pdf';
-  } else {
-    return (_REMOTE_DENT_DEFAULT?.trim().isNotEmpty == true)
-        ? _REMOTE_DENT_DEFAULT!
-        : 'pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf';
-  }
+_CatalogLink _catalogLinkForLocale(List<_CatalogLink> links, String localeCode) {
+  final normalized = localeCode.toLowerCase();
+  return links.firstWhere(
+    (link) => link.matches(normalized),
+    orElse: () => links.first,
+  );
 }
 
 class DashboardPage extends StatefulWidget {
@@ -69,6 +65,7 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserver {
   MyRep? _myRep;
   String? _customerName;
+  String? _customerEmail;
   bool _repLoading = false;
   bool _repRequested = false;
   int _hoverIndex = -1;
@@ -81,43 +78,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
       _initCustomerName();
     });
     _initRep();
-    _loadCatalogConfigOnce(); // <--- NEU
-  }
-
-  Future<void> _loadCatalogConfigOnce() async {
-    try {
-      final m = await widget.api.fetchCatalogConfig();
-      if (m.isNotEmpty) {
-        // Remote-Overrides setzen
-        _REMOTE_LAB_DEFAULT  = m['lab_default'] ?? _REMOTE_LAB_DEFAULT;
-        _REMOTE_LAB_ESFR     = m['lab_esfr'] ?? _REMOTE_LAB_ESFR;
-        _REMOTE_DENT_DEFAULT = m['dent_default'] ?? _REMOTE_DENT_DEFAULT;
-        _REMOTE_DENT_ESFR    = m['dent_esfr'] ?? _REMOTE_DENT_ESFR;
-
-        if (mounted) setState(() {}); // neu rendern, damit die Links sofort greifen
-      }
-    } catch (_) {
-      // still: Fallback bleibt aktiv
-    }
-  }
-
-  bool _isStandaloneWebApp() {
-    if (!kIsWeb) return false;
-    try {
-      // Chrome/Edge: display-mode
-      final mm = html.window.matchMedia('(display-mode: standalone)');
-      if (mm != null && mm.matches) return true;
-    } catch (_) {}
-    try {
-      // iOS Safari PWA
-      final nav = (html.window.navigator as dynamic);
-      if (nav != null && nav.standalone == true) return true;
-    } catch (_) {}
-    try {
-      // TWA / Spezialfälle
-      if (html.document.referrer.contains('android-app://')) return true;
-    } catch (_) {}
-    return false;
   }
 
   @override
@@ -147,48 +107,78 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
   }
 
   Future<void> _initCustomerName() async {
-    // Wir versuchen mehrere Quellen, ohne harte Abhängigkeit von bestimmten ApiClient-Methoden.
     Map<String, dynamic>? profile;
 
     try {
-      final dyn = widget.api as dynamic; // dynamisch, damit kein Compile-Error, falls Methode fehlt
-
-      // 1) Häufige Varianten
-      try { if (dyn.getMyAccount != null) profile = await dyn.getMyAccount(); } catch (_) {}
-      try { if (profile == null && dyn.getMe != null) profile = await dyn.getMe(); } catch (_) {}
-
-      // 2) Direkt-Caches, falls vorhanden
-      if (profile == null) {
-        try { final p = dyn.currentUser; if (p is Map) profile = Map<String, dynamic>.from(p); } catch (_) {}
+      // sicherstellen, dass eine Session existiert (Token aus LocalStorage holen)
+      if (widget.api.token == null || widget.api.token!.isEmpty) {
+        await widget.api.restoreSession();
       }
 
-      // 3) JWT-Claims, falls verfügbar
-      if (profile == null) {
-        try { final c = dyn.jwtClaims; if (c is Map) profile = Map<String, dynamic>.from(c); } catch (_) {}
-      }
+      // sauber über deine ApiClient-Methode
+      profile = await widget.api.accountGet();
     } catch (_) {
-      // still
+      profile = null; // im Fehlerfall einfach leer lassen → Fallback greift
     }
 
-    final name = _pickCompany(profile);
-    if (mounted) setState(() => _customerName = name);
-  }
+    String? company;
+    String? email;
 
-  String? _pickCompany(Map<String, dynamic>? m) {
-    if (m == null) return null;
-    // typ. Schlüssel, die in deinen Projekten vorkommen könnten
-    const keys = [
-      'company', 'companyName', 'firm', 'firma', 'organization', 'organisation',
-      'org', 'customerCompany', 'customer_name', 'customer', 'accountCompany'
-    ];
-    for (final k in keys) {
-      final v = m[k];
-      if (v is String) {
-        final s = v.trim();
-        if (s.isNotEmpty) return s;
+    if (profile != null) {
+      // typische Firmenschlüssel
+      const companyKeys = [
+        'company',
+        'companyName',
+        'firm',
+        'firma',
+        'organization',
+        'organisation',
+        'org',
+        'customerCompany',
+        'customer_name',
+        'customer',
+        'accountCompany',
+      ];
+
+      for (final k in companyKeys) {
+        final v = profile[k];
+        if (v is String) {
+          final s = v.trim();
+          if (s.isNotEmpty) {
+            company = s;
+            break;
+          }
+        }
+      }
+
+      // typische E-Mail-Schlüssel
+      const emailKeys = [
+        'email',
+        'mail',
+        'emailAddress',
+        'email_address',
+        'contactEmail',
+        'customer_email',
+      ];
+
+      for (final k in emailKeys) {
+        final v = profile[k];
+        if (v is String) {
+          final s = v.trim();
+          if (s.isNotEmpty) {
+            email = s;
+            break;
+          }
+        }
       }
     }
-    return null;
+
+    if (mounted) {
+      setState(() {
+        _customerName  = company;
+        _customerEmail = email;
+      });
+    }
   }
 
   void _ensureRepOnce() {
@@ -198,31 +188,39 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     }
   }
 
-  // --- HILFSFUNKTION: mailto an Vertreter öffnen (mit Betreff + Body aus i18n) ---
-  void _mailToRep(BuildContext context) {
-    final t = AppLocalizations.of(context)!;
-    final r = _myRep;
-    if (r == null || (r.email).trim().isEmpty) return;
-
-    final first = (r.firstName).trim();
-    final last  = (r.lastName).trim();
-    final name  = [first, last].where((s) => s.isNotEmpty).join(' ');
-
-    final subject = Uri.encodeComponent(t.mail_subject_rep);
-    final body    = Uri.encodeComponent(t.mail_body_rep(name));
-    final mailto  = 'mailto:${r.email}?subject=$subject&body=$body';
-    html.window.open(mailto, '_self');
+  Future<void> _openMail(String email, String subject, String body) async {
+    final uri = Uri(
+      scheme: 'mailto',
+      path: email,
+      queryParameters: {'subject': subject, 'body': body},
+    );
+    if (!await launchUrl(uri, mode: LaunchMode.platformDefault)) {
+      // Fallback
+    }
   }
 
-  // --- KOMPAKTE Variante (eingeklappbar) ---
+  void _openRepContactForm(BuildContext context) {
+    final rep = _myRep;
+    if (rep == null) return;
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RepContactPage(
+          api: widget.api,
+          rep: rep,
+          customerCompany: _customerName,
+          customerEmail: _customerEmail,
+        ),
+      ),
+    );
+  }
+
+  // --- KOMPAKTE Variante (handy-optimiert, Name immer sichtbar) ---
   Widget _buildRepCardCompact(BuildContext context) {
-    final theme  = Theme.of(context);
-    final t      = AppLocalizations.of(context)!;
-    final r      = _myRep;
-    final name   = (r == null) ? '' : [r.firstName.trim(), r.lastName.trim()].where((s) => s.isNotEmpty).join(' ');
-    final email  = (r?.email ?? '').trim();
-    final region = (r?.region ?? '').trim();
-    final cs = theme.colorScheme;
+    final theme = Theme.of(context);
+    final t     = AppLocalizations.of(context)!;
+    final r     = _myRep;
+    final cs    = theme.colorScheme;
     final company = (_customerName ?? '').trim();
 
     // Kein Vertreter hinterlegt → dezenter Hinweis + Refresh
@@ -279,54 +277,95 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
         );
       }
 
+    final first  = r.firstName.trim();
+    final last   = r.lastName.trim();
+    final email  = r.email.trim();
+    final region = r.region.trim();
+    final name   = [first, last].where((s) => s.isNotEmpty).join(' ');
+    final title  = name.isNotEmpty ? t.rep_banner_title(name)
+                                   : t.rep_banner_title(email.isNotEmpty ? email : '—');
+
+    // Handy-optimiertes Layout: 1) Avatar + Textblock, 2) Aktionszeile darunter
     return Card(
       margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: ExpansionTile(
-        initiallyExpanded: false,
-        tilePadding: const EdgeInsets.symmetric(horizontal: 12),
-        childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-        leading: const CircleAvatar(child: Icon(Icons.handshake_outlined)),
-        title: Text(
-          t.rep_banner_title(name.isNotEmpty ? name : email),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-        ),
-        subtitle: Text(
-          [if (email.isNotEmpty) email, if (region.isNotEmpty) region].join(' • '),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.bodySmall,
-        ),
-        trailing: Wrap(
-          spacing: 4,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (email.isNotEmpty)
-              IconButton(
-                tooltip: t.rep_email_tooltip,
-                icon: const Icon(Icons.mail_outline),
-                onPressed: () => _mailToRep(context),
-              ),
-            IconButton(
-              tooltip: t.refresh,
-              icon: const Icon(Icons.refresh),
-              onPressed: _initRep,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // kompakter Avatar
+                const CircleAvatar(
+                  radius: 18,
+                  child: Icon(Icons.handshake_outlined, size: 18),
+                ),
+                const SizedBox(width: 10),
+                // Textblock darf platz fressen: 2 Zeilen Titel, 1 Zeile Sub
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Titel mit 2 Zeilen und Ellipsis
+                      Text(
+                        title,
+                        maxLines: 2,
+                        softWrap: true,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          height: 1.1, // engere Zeilenhöhe
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      if (email.isNotEmpty || region.isNotEmpty)
+                        Text(
+                          [if (email.isNotEmpty) email, if (region.isNotEmpty) region].join(' • '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurface.withOpacity(.75),
+                            height: 1.15,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            // Aktionen unter dem Textblock → spart Breite, nichts schneidet ab
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                if (email.isNotEmpty)
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      visualDensity: const VisualDensity(horizontal: -2, vertical: -3),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    ),
+                    onPressed: () => _openRepContactForm(context),
+                    icon: const Icon(Icons.mail_outline, size: 18),
+                    label: Text(
+                      t.rep_email_button,
+                      style: theme.textTheme.labelMedium,
+                    ),
+                  ),
+                const SizedBox(width: 6),
+                IconButton(
+                  tooltip: t.refresh,
+                  visualDensity: const VisualDensity(horizontal: -2, vertical: -3),
+                  padding: const EdgeInsets.all(6),
+                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                  onPressed: _initRep,
+                  icon: const Icon(Icons.refresh, size: 20),
+                ),
+              ],
             ),
           ],
         ),
-        // Optional: Details im aufgeklappten Bereich
-        children: [
-          if (region.isNotEmpty)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text(region, style: theme.textTheme.bodySmall),
-              ),
-            ),
-        ],
       ),
     );
   }
@@ -388,14 +427,14 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
           ),
         );
       }
-
+    
     final first  = r.firstName.trim();
     final last   = r.lastName.trim();
     final email  = r.email.trim();
     final region = r.region.trim();
     final name   = [first, last].where((s) => s.isNotEmpty).join(' ');
     final bannerTitle = name.isNotEmpty ? t.rep_banner_title(name)
-                                       : t.rep_banner_title(email.isNotEmpty ? email : '—');
+                                        : t.rep_banner_title(email.isNotEmpty ? email : '—');
 
     return Card(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -446,7 +485,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
               Tooltip(
                 message: t.rep_email_tooltip,
                 child: TextButton.icon(
-                  onPressed: () => _mailToRep(context),
+                  onPressed: () => _openRepContactForm(context),
                   icon: const Icon(Icons.email_outlined),
                   label: Text(t.rep_email_button),
                 ),
@@ -525,77 +564,81 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
       child: LayoutBuilder(
         builder: (ctx, constraints) {
           final size = MediaQuery.of(ctx).size;
-          final isPortrait = MediaQuery.of(ctx).orientation == Orientation.portrait;
+          final orientation = MediaQuery.of(ctx).orientation;
+          final isPortrait = orientation == Orientation.portrait;
           final isPhone = size.width < 600;
-          final isAppView = _isStandaloneWebApp(); // PWA installiert = true
+          final bool compressedHeight = constraints.maxHeight < (isPhone ? 620 : 540);
 
           final double maxExtent = isPhone
-              ? (isPortrait ? (isAppView ? 150 : 180) : (isAppView ? 170 : 200))
-              : (size.width < 1024 ? (isAppView ? 220 : 240) : (isAppView ? 240 : 260));
+              ? (isPortrait ? 160 : 200)
+              : (size.width < 1024 ? 240 : 260);
 
-          final double iconSize = isPhone
-              ? (isAppView ? 26 : 32)
-              : (isAppView ? 36 : 40);
-
-          final double fontSize = isPhone
-              ? (isAppView ? 12.5 : 14.0)
-              : (isAppView ? 14.0 : 14.5);
+          final double iconSize = isPhone ? 28 : 40;
+          final double fontSize = isPhone ? 13.0 : 14.5;
+          final double aspectRatio;
+          if (compressedHeight) {
+            aspectRatio = isPhone ? 1.18 : 1.15;
+          } else {
+            aspectRatio = isPhone ? 1.06 : 1.1;
+          }
 
           return Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 1080),
-              child: Column(
-                children: [
-                  // ---------- Vertreter-Header (responsiv) ----------
-                  Padding(
+              child: CustomScrollView(
+                slivers: [
+                  SliverPadding(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-                    child: _buildRepHeaderResponsive(context),
+                    sliver: SliverToBoxAdapter(
+                      child: _buildRepHeaderResponsive(context),
+                    ),
                   ),
-
-                  // ---------- Kacheln ----------
-                  Expanded(
-                    child: GridView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    sliver: SliverGrid(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, i) {
+                          final e = tiles[i];
+                          final hovered = _hoverIndex == i;
+                          return MouseRegion(
+                            onEnter: (_) => setState(() => _hoverIndex = i),
+                            onExit: (_) => setState(() => _hoverIndex = -1),
+                            child: AnimatedScale(
+                              duration: const Duration(milliseconds: 140),
+                              scale: hovered ? 1.02 : 1.0,
+                              child: _FancyTile(
+                                label: e.label,
+                                icon: e.icon,
+                                colorA: e.colorA,
+                                colorB: e.colorB,
+                                iconSize: iconSize,
+                                fontSize: fontSize,
+                                onTap: e.onTap,
+                              ),
+                            ),
+                          );
+                        },
+                        childCount: tiles.length,
+                      ),
                       gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                         maxCrossAxisExtent: maxExtent,
                         mainAxisSpacing: 16,
                         crossAxisSpacing: 16,
-                        childAspectRatio: isAppView
-                            ? (isPhone ? 1.12 : 1.15)   // dezenter in App
-                            : (isPhone ? 1.06 : 1.10),  // wie vorher im Web
+                        childAspectRatio: aspectRatio,
                       ),
-                      itemCount: tiles.length,
-                      itemBuilder: (context, i) {
-                        final e = tiles[i];
-                        final hovered = _hoverIndex == i;
-                        return MouseRegion(
-                          onEnter: (_) => setState(() => _hoverIndex = i),
-                          onExit: (_) => setState(() => _hoverIndex = -1),
-                          child: AnimatedScale(
-                            duration: const Duration(milliseconds: 140),
-                            scale: hovered ? 1.02 : 1.0,
-                            child: _FancyTile(
-                              label: e.label,
-                              icon: e.icon,
-                              colorA: e.colorA,
-                              colorB: e.colorB,
-                              iconSize: iconSize,
-                              fontSize: fontSize,
-                              onTap: e.onTap,
-                            ),
-                          ),
-                        );
-                      },
                     ),
                   ),
-
-                  // ---------- Dezente Kataloge (unter den Kacheln) ----------
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                    child: isAppView
-                        ? const _CatalogChips()  // dezent in PWA (Appansicht)
-                        : _CatalogStrip(),       // wie zuvor im Browser/Web
-                   ),
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      0,
+                      16,
+                      16 + MediaQuery.of(ctx).padding.bottom,
+                    ),
+                    sliver: SliverToBoxAdapter(
+                      child: const _CatalogButtons(),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -730,7 +773,12 @@ class _RepBanner extends StatelessWidget {
                   final subject = Uri.encodeComponent(t.mail_subject_rep);
                   final body    = Uri.encodeComponent(t.mail_body_rep(name));
                   final mailto  = 'mailto:$email?subject=$subject&body=$body';
-                  html.window.open(mailto, '_self');
+                  if (kIsWeb) {
+                    html.window.open(mailto, '_self');
+                   } else {
+                    // Vorläufig: nichts tun oder Snackbar anzeigen
+                    // Besser: url_launcher benutzen (siehe unten)
+                  }
                 },
                 icon: const Icon(Icons.email_outlined),
                 label: Text(t.rep_email_button),
@@ -747,276 +795,138 @@ class _RepBanner extends StatelessWidget {
   }
 }
 
-class _CatalogStrip extends StatelessWidget {
+// Dezente Katalog-Leiste: kompakte Darstellung mit nur einer passenden Sprache
+// Dezente Katalog-Leiste: kompaktere Abstände & geringere Zeilenhöhe
+class _CatalogButtons extends StatelessWidget {
+  const _CatalogButtons();
+
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final isPhone = MediaQuery.of(context).size.width < 700;
-    final labUrl  = _pdfLabFor(context);
-    final dentUrl = _pdfDentFor(context);
+    final isPhone = MediaQuery.of(context).size.width < 600;
+    final localeCode = Localizations.localeOf(context).languageCode.toLowerCase();
 
-    return Container(
-      decoration: BoxDecoration(
-        color: cs.surfaceVariant.withOpacity(0.35),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: cs.outlineVariant.withOpacity(0.6)),
-      ),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.menu_book_outlined, size: 18, color: cs.onSurface.withOpacity(0.7)),
-              const SizedBox(width: 8),
-              Text(
-                t.catalogs_title,
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: cs.onSurface.withOpacity(0.8),
-                  letterSpacing: .2,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const Spacer(),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            alignment: isPhone ? WrapAlignment.center : WrapAlignment.start,
-            children: [
-              _CatalogTile(
-                title: t.catalog_lab_title,
-                subtitle: t.catalog_lab_desc,
-                icon: Icons.biotech_outlined,
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => PdfInAppPage(url: labUrl,  title: t.catalog_lab_title),
-                    ),
-                  );
-                },
-              ),
-              _CatalogTile(
-                title: t.catalog_dent_title,
-                subtitle: t.catalog_dent_desc,
-                icon: Icons.medical_services_outlined,
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => PdfInAppPage(url: dentUrl, title: t.catalog_dent_title),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
+    Widget buildCard({
+      required String title,
+      required IconData icon,
+      required String description,
+      required List<_CatalogLink> links,
+    }) {
+      final link = _catalogLinkForLocale(links, localeCode);
 
-class _CatalogChips extends StatelessWidget {
-  const _CatalogChips();
+      // etwas straffer gepolstert
+      final padding = EdgeInsets.fromLTRB(
+        isPhone ? 12 : 14,
+        isPhone ? 8 : 10,
+        isPhone ? 12 : 14,
+        isPhone ? 10 : 12,
+      );
 
-  @override
-  Widget build(BuildContext context) {
-    final t  = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
-    final isPhone = MediaQuery.of(context).size.width < 700;
-    final labUrl  = _pdfLabFor(context);
-    final dentUrl = _pdfDentFor(context);
+      // engere Zeilenhöhen
+      final titleStyle = theme.textTheme.titleSmall?.copyWith(
+        fontWeight: FontWeight.w600,
+        letterSpacing: .2,
+        height: 1.05, // straffer
+      );
+      final descStyle = theme.textTheme.bodySmall?.copyWith(
+        color: cs.onSurface.withOpacity(.75),
+        height: 1.15, // weniger Zeilenabstand
+      );
+      final langStyle = theme.textTheme.bodySmall?.copyWith(
+        color: cs.onSurface.withOpacity(.6),
+        fontStyle: FontStyle.italic,
+        height: 1.10, // dezent
+      );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // winzige, sehr zurückhaltende Überschrift
-        Row(
-          mainAxisSize: MainAxisSize.min,
+      return Container(
+        margin: const EdgeInsets.symmetric(vertical: 4), // war 6
+        padding: padding,
+        decoration: BoxDecoration(
+          color: cs.surfaceVariant.withOpacity(0.16),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: cs.outlineVariant.withOpacity(0.40)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.menu_book_outlined, size: 16, color: cs.onSurface.withOpacity(.65)),
-            const SizedBox(width: 6),
-            Text(
-              t.catalogs_title, // "Kataloge"
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: cs.onSurface.withOpacity(.75),
-                    fontWeight: FontWeight.w600,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(icon, size: isPhone ? 18 : 20, color: cs.onSurface.withOpacity(0.70)),
+                const SizedBox(width: 10), // war 12
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: titleStyle),
+                      const SizedBox(height: 2), // war 4
+                      Text(description, style: descStyle),
+                      const SizedBox(height: 2), // war 6
+                      Text(link.label, style: langStyle),
+                    ],
                   ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6), // war 10
+            TextButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => PdfInAppPage(url: link.url, title: title),
+                  ),
+                );
+              },
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isPhone ? 10 : 12, // etwas kompakter
+                  vertical: 6, // war 8
+                ),
+                textStyle: theme.textTheme.labelMedium,
+                visualDensity: const VisualDensity(horizontal: -1, vertical: -2),
+              ),
+              icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+              label: Text(t.catalog_open),
             ),
           ],
         ),
-        const SizedBox(height: 6),
-        // zwei „Chip“-Links nebeneinander, umbrechend
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          alignment: isPhone ? WrapAlignment.center : WrapAlignment.start,
-          children: [
-            _ChipLink(
-              icon: Icons.science_outlined,
-              label: t.catalog_lab_title, // „Dentallabor Katalog“
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => PdfInAppPage(url: labUrl,  title: t.catalog_lab_title),
-                  ),
-                );
-              },
-            ),
-            _ChipLink(
-              icon: Icons.medical_information_outlined,
-              label: t.catalog_dent_title, // „Zahnmedizin Katalog“
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => PdfInAppPage(url: dentUrl, title: t.catalog_dent_title),
-                  ),
-                );
-              },
-            ),
-          ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        buildCard(
+          title: t.catalog_lab_title,
+          description: '',
+          icon: Icons.biotech_outlined,
+          links: _labCatalogLinks,
+        ),
+        buildCard(
+          title: t.catalog_dent_title,
+          description: '',
+          icon: Icons.medical_services_outlined,
+          links: _dentCatalogLinks,
         ),
       ],
     );
   }
 }
 
-class _ChipLink extends StatelessWidget {
-  final IconData icon;
+class _CatalogLink {
   final String label;
-  final VoidCallback onTap;
-  const _ChipLink({required this.icon, required this.label, required this.onTap});
+  final String url;
+  final Set<String> locales;
 
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return OutlinedButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon, size: 18),
-      label: Text(label, overflow: TextOverflow.ellipsis),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: cs.primary,
-        side: BorderSide(color: cs.outlineVariant),
-        backgroundColor: Colors.transparent,
-        minimumSize: const Size(0, 32),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      ),
-    );
-  }
-}
-
-class _CatalogTile extends StatefulWidget {
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _CatalogTile({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.onTap,
+  const _CatalogLink({
+    required this.label,
+    required this.url,
+    required this.locales,
   });
 
-  @override
-  State<_CatalogTile> createState() => _CatalogTileState();
-}
-
-class _CatalogTileState extends State<_CatalogTile> {
-  bool _hover = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final isNarrow = MediaQuery.of(context).size.width < 700;
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit:  (_) => setState(() => _hover = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 140),
-        curve: Curves.easeOut,
-        width: isNarrow ? 360 : 400,
-        constraints: const BoxConstraints(minHeight: 84),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: cs.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _hover ? cs.primary.withOpacity(.45) : cs.outlineVariant),
-          boxShadow: _hover
-              ? [BoxShadow(color: Colors.black.withOpacity(.06), blurRadius: 10, offset: const Offset(0, 4))]
-              : const [],
-        ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: widget.onTap,
-          child: Row(
-            children: [
-              Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(
-                  color: cs.primary.withOpacity(0.10),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: cs.primary.withOpacity(0.25)),
-                ),
-                child: Icon(widget.icon, size: 24, color: cs.primary.withOpacity(0.90)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: .2,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      widget.subtitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: cs.onSurface.withOpacity(.7),
-                        height: 1.15,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              TextButton.icon(
-                onPressed: widget.onTap,
-                style: TextButton.styleFrom(
-                  foregroundColor: cs.primary,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                ),
-                icon: const Icon(Icons.open_in_new, size: 18),
-                label: Text(
-                  AppLocalizations.of(context)!.catalog_open,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: cs.primary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  bool matches(String localeCode) => locales.contains(localeCode);
 }
 
 class _Entry {
@@ -1127,52 +1037,267 @@ class _FancyTile extends StatelessWidget {
   }
 }
 
-// ---------------- In-App PDF Viewer (pdf.js) ----------------
-class PdfInAppPage extends StatefulWidget {
-  final String url;
-  final String title;
-  const PdfInAppPage({super.key, required this.url, required this.title});
+class RepContactPage extends StatefulWidget {
+  final ApiClient api;
+  final MyRep rep;
+  final String? customerCompany;
+  final String? customerEmail;
+
+  const RepContactPage({
+    super.key,
+    required this.api,
+    required this.rep,
+    this.customerCompany,
+    this.customerEmail,
+  });
 
   @override
-  State<PdfInAppPage> createState() => _PdfInAppPageState();
+  State<RepContactPage> createState() => _RepContactPageState();
 }
 
-class _PdfInAppPageState extends State<PdfInAppPage> {
-  late final String _viewType;
+class _RepContactPageState extends State<RepContactPage> {
+  final _firstName = TextEditingController();
+  final _lastName  = TextEditingController();
+  final _subject   = TextEditingController();
+  final _message   = TextEditingController();
+
+  bool _sending = false;
+  bool _dirty   = false;
 
   @override
   void initState() {
     super.initState();
+    for (final c in [_firstName, _lastName, _subject, _message]) {
+      c.addListener(_onChanged);
+    }
+  }
 
-    // 1) PDF-URL relativ zum aktuellen Base-Pfad auflösen
-    final pdfUrl = Uri.base.resolve(widget.url).toString();
+  void _onChanged() {
+    if (!_dirty &&
+        (_firstName.text.isNotEmpty ||
+         _lastName.text.isNotEmpty ||
+         _subject.text.isNotEmpty ||
+         _message.text.isNotEmpty)) {
+      setState(() => _dirty = true);
+    }
+  }
 
-    // 2) Lokalen pdf.js-Viewer RELATIV aufrufen (kein führender Slash!)
-    final viewerPath = 'pdfjs/web/viewer.html'
-        '?file=${Uri.encodeComponent(pdfUrl)}#zoom=page-width&pagemode=none';
+  @override
+  void dispose() {
+    for (final c in [_firstName, _lastName, _subject, _message]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
 
-    // 3) Auch den Viewer relativ auflösen (deckt Unterpfade ab)
-    final viewerUrl = Uri.base.resolve(viewerPath).toString();
+  Future<bool> _confirmLeaveIfDirty() async {
+    if (!_dirty) return true;
+    final t = AppLocalizations.of(context)!;
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(t.rep_contact_discard_title),
+        content: Text(t.rep_contact_discard_text),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(t.no),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(t.yes),
+          ),
+        ],
+      ),
+    );
+    return res ?? false;
+  }
 
-    _viewType = 'pdfjs-${DateTime.now().millisecondsSinceEpoch}';
+  Future<void> _handleCancel() async {
+    final ok = await _confirmLeaveIfDirty();
+    if (ok && mounted) {
+      Navigator.of(context).pop(); // zurück zum Dashboard
+    }
+  }
 
-    // ignore: undefined_prefixed_name
-    ui.platformViewRegistry.registerViewFactory(_viewType, (int viewId) {
-      final frame = html.IFrameElement()
-        ..src = viewerUrl
-        ..style.border = '0'
-        ..style.width = '100%'
-        ..style.height = '100%';
-      return frame;
-    });
+  Future<void> _handleSend() async {
+    final t = AppLocalizations.of(context)!;
+    final subject = _subject.text.trim();
+    final msg     = _message.text.trim();
+
+    if (subject.isEmpty || msg.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.rep_contact_validation)),
+      );
+      return;
+    }
+
+    final repEmail = widget.rep.email.trim();
+    if (repEmail.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.rep_contact_no_rep_email)),
+      );
+      return;
+    }
+
+    setState(() => _sending = true);
+    try {
+      final company      = (widget.customerCompany ?? '').trim();
+      final companyEmail = (widget.customerEmail ?? '').trim();
+
+      final payload = <String, dynamic>{
+        'repEmail'        : repEmail,
+        'repFirstName'    : widget.rep.firstName,
+        'repLastName'     : widget.rep.lastName,
+        'company'         : company,
+        'companyEmail'    : companyEmail,
+        'contactFirstName': _firstName.text.trim(),
+        'contactLastName' : _lastName.text.trim(),
+        'subject'         : subject,
+        'message'         : msg,
+      };
+
+      // 🔴 Jetzt: Versand über dein Backend mit Kunden-Bearer-Token
+      await widget.api.sendRepContact(payload);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.rep_contact_sent)),
+      );
+      Navigator.of(context).pop(); // zurück zum Dashboard
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${t.rep_contact_error} (${e.message})')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.rep_contact_error)),
+      );
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.title, overflow: TextOverflow.ellipsis)),
-      body: SizedBox.expand(
-        child: HtmlElementView(viewType: _viewType),
+    final t     = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final cs    = theme.colorScheme;
+
+    final company      = (widget.customerCompany ?? '').trim();
+    final companyEmail = (widget.customerEmail ?? '').trim();
+    final firstRep     = widget.rep.firstName.trim();
+    final lastRep      = widget.rep.lastName.trim();
+
+    return WillPopScope(
+      onWillPop: _confirmLeaveIfDirty,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(t.rep_contact_title),
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                t.rep_contact_intro(firstRep, lastRep),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: cs.onSurface.withOpacity(.8),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Firmenname (read-only)
+              TextFormField(
+                initialValue: company.isNotEmpty ? company : t.yourCompany,
+                enabled: false,
+                decoration: InputDecoration(
+                  labelText: t.rep_contact_company_label,
+                  prefixIcon: const Icon(Icons.business),
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Firmen-E-Mail (read-only)
+              TextFormField(
+                initialValue: companyEmail,
+                enabled: false,
+                decoration: InputDecoration(
+                  labelText: t.rep_contact_company_email_label,
+                  prefixIcon: const Icon(Icons.alternate_email),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _firstName,
+                      decoration: InputDecoration(
+                        labelText: t.firstName,
+                        prefixIcon: const Icon(Icons.person_outline),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _lastName,
+                      decoration: InputDecoration(
+                        labelText: t.lastName,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _subject,
+                decoration: InputDecoration(
+                  labelText: t.rep_contact_subject_label,
+                  prefixIcon: const Icon(Icons.subject),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _message,
+                minLines: 5,
+                maxLines: 10,
+                decoration: InputDecoration(
+                  labelText: t.rep_contact_message_label,
+                  alignLabelWithHint: true,
+                  prefixIcon: const Icon(Icons.message_outlined),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _sending ? null : _handleCancel,
+                      child: Text(t.cancel),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _sending ? null : _handleSend,
+                      icon: _sending
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.send_outlined),
+                      label: Text(t.send),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

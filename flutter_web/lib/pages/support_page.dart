@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:html' as html;
 import '../widgets/legal_footer.dart';
 
@@ -55,7 +56,6 @@ class _SupportPageState extends State<SupportPage> {
   String _mapCategoryForApi(String code) {
     switch (code) {
       case 'improve':   // Vorschlag zur Verbesserung
-        return 'feature';     // <- häufig akzeptiert
       case 'feedback':        // allgemeines Feedback
         return 'other';       // fallback
       case 'general':

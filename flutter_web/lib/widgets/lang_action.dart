@@ -56,9 +56,11 @@ class LangAction extends StatelessWidget {
                 children: [
                   CountryFlag.fromCountryCode(
                     flagCode,
-                    height: 16,
-                    width: 24,
-                    borderRadius: 2,
+                    theme: const ImageTheme(
+                      width: 24,
+                      height: 16,
+                      shape: RoundedRectangle(2), // Eckenradius in px
+                    ),
                   ),
                   if (!flagsOnly) ...[
                     const SizedBox(width: 10),
@@ -80,9 +82,11 @@ class LangAction extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 6),
           child: CountryFlag.fromCountryCode(
             currentFlag,
-            height: 18,
-            width: 26,
-            borderRadius: 3,
+            theme: const ImageTheme(
+              width: 26,
+              height: 18,
+              shape: RoundedRectangle(3),
+            ),
           ),
         ),
       ),
