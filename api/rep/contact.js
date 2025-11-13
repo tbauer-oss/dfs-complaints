@@ -1,7 +1,6 @@
 // api/rep/contact.js
-import { send } from '../_lib/mail.js'; // oder '../_lib/mail' je nach Projekt
+import { send } from '../_lib/mail.js'; // Pfad wie bei deinen anderen Routen
 
-// Hilfsfunktion: immer sauberer String
 function asString(v) {
   return (typeof v === 'string' ? v : '').trim();
 }
@@ -14,7 +13,7 @@ export default async function handler(req, res) {
   try {
     const body = req.body || {};
 
-    const repEmail        = asString(body.repEmail);        // kommt mit, wird fürs TESTEN aber ignoriert
+    const repEmail        = asString(body.repEmail);
     const repFirstName    = asString(body.repFirstName);
     const repLastName     = asString(body.repLastName);
     const company         = asString(body.company);
@@ -40,7 +39,13 @@ export default async function handler(req, res) {
     if (company)      lines.push(`Firma: ${company}`);
     if (companyEmail) lines.push(`Firmen-E-Mail: ${companyEmail}`);
     if (contactName)  lines.push(`Kontaktperson: ${contactName}`);
-    if (repEmail)     lines.push(`Zugeteilter Vertreter (App): ${repEmail}`);
+    if (repFirstName || repLastName || repEmail) {
+      lines.push(
+        `Zugewiesener Vertreter: ${
+          [repFirstName, repLastName].filter(Boolean).join(' ') || repEmail || '–'
+        }`
+      );
+    }
     lines.push('');
     lines.push('--- Nachricht des Kunden ---');
     lines.push('');
@@ -48,8 +53,29 @@ export default async function handler(req, res) {
 
     const fullText = lines.join('\n');
 
-    // 🔴 TEST: IMMER an complaint@dfs-diamon.de
-    const toAddress = 'complaint@dfs-diamon.de';
+    // -------------------------------------------------
+    // 1) Test-Override (für dich zum Spielen)
+    // -------------------------------------------------
+    // Wenn REP_CONTACT_OVERRIDE_TO gesetzt ist, geht ALLES dorthin.
+    // Beispiel in Vercel:
+    //   REP_CONTACT_OVERRIDE_TO=complaint@dfs-diamon.de
+    //
+    const overrideTo = asString(process.env.REP_CONTACT_OVERRIDE_TO);
+
+    // -------------------------------------------------
+    // 2) Normales Verhalten (wenn kein Override)
+    // -------------------------------------------------
+    const fallbackQM = asString(process.env.MAIL_QM) || 'complaint@dfs-diamon.de';
+    const repValid   = repEmail && repEmail.includes('@');
+
+    const normalTo = repValid ? repEmail : fallbackQM;
+
+    // -------------------------------------------------
+    // 3) Finale Zieladresse: Override schlägt alles
+    // -------------------------------------------------
+    const toAddress = overrideTo.isNotEmpty
+      ? overrideTo
+      : normalTo;
 
     await send(toAddress, {
       subject: `[Rep-Kontakt] ${subjectRaw}`,
