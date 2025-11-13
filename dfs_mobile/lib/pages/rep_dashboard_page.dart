@@ -295,6 +295,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   }) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final t = context.t;
 
     // kompaktere Abstände/Typo
     const avatarSize = 36.0;
@@ -315,7 +316,6 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       final ln = (_me?['lastName']  ?? '').toString().trim();
       final em = (_me?['email']     ?? '').toString().trim();
       final n = [fn, ln].where((e) => e.isNotEmpty).join(' ');
-      final t = context.t;
       return n.isNotEmpty ? n : em;
     }
 
@@ -1075,9 +1075,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                       )),
                 ],
                 onChanged: (v) => setState(() => _selectedCompany = (v ?? '')),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: t.rep_filter_company_label,
-                  prefixIcon: Icon(Icons.apartment_outlined),
+                  prefixIcon: const Icon(Icons.apartment_outlined),
                 ),
               ),
             ),
@@ -1169,19 +1169,19 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                           )),
                     ],
                     onChanged: (v) => setState(() => _selectedCompany = (v ?? '')),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: t.rep_filter_company_label,
-                      prefixIcon: Icon(Icons.apartment_outlined),
+                      prefixIcon: const Icon(Icons.apartment_outlined),
                     ),
                   ),
                 ),
                 FilterChip(
-                  label: const Text(t.rep_filter_show_closed),
+                  label: Text(t.rep_filter_show_closed),
                   selected: _showClosedAll,
                   onSelected: (v) => setState(() => _showClosedAll = v),
                 ),
                 FilterChip(
-                  label: const Text(t.rep_filter_only_rejected),
+                  label: Text(t.rep_filter_only_rejected),
                   selected: _showRejectedAll,
                   onSelected: (v) => setState(() => _showRejectedAll = v),
                 ),
@@ -2939,7 +2939,6 @@ class _StatusChip extends StatelessWidget {
   }
 
   String _statusLabel(AppLocalizations t, int? value) {
-    final t = context.t;
     final decisionLower = decision.trim().toLowerCase();
     switch (value) {
       case 1: return t.status_sent;
