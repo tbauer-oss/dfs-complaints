@@ -1,6 +1,7 @@
 // lib/pages/my_complaints_page.dart
 import 'dart:async';
-import 'dart:html' as html; // nur Web – für Link-Öffnen & mailto
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../models/complaint.dart';
@@ -244,10 +245,6 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                           Text(t.rep_banner_title(repName.isEmpty ? '—' : repName),
                               style: const TextStyle(fontWeight: FontWeight.w600)),
                           const SizedBox(height: 2),
-                          Text([
-                            if (repEmail.isNotEmpty) repEmail,
-                            if (repRegion.isNotEmpty) repRegion,
-                          ].join(' • ')),
                         ],
                       ),
                     ),
@@ -461,7 +458,14 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 180, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
+          Flexible(
+            flex: 0,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 180),
+              child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+            ),
+          ),
+          const SizedBox(width: 8),
           Expanded(child: Text(value.isEmpty ? '—' : value)),
         ],
       ),
@@ -531,7 +535,14 @@ class _MyComplaintDetailsDialog extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(width: 170, child: Text(l, style: const TextStyle(fontWeight: FontWeight.w600))),
+              Flexible(
+                flex: 0,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 170),
+                  child: Text(l, style: const TextStyle(fontWeight: FontWeight.w600)),
+                ),
+              ),
+              const SizedBox(width: 8),
               Expanded(child: Text(v.isEmpty ? '—' : v)),
             ],
           ),
