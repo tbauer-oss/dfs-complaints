@@ -1136,26 +1136,31 @@ class _RepContactPageState extends State<RepContactPage> {
       final companyEmail = (widget.customerEmail ?? '').trim();
 
       final payload = <String, dynamic>{
-        'repEmail'      : repEmail,
-        'repFirstName'  : widget.rep.firstName,
-        'repLastName'   : widget.rep.lastName,
-        'company'       : company,
-        'companyEmail'  : companyEmail,
+        'repEmail'        : repEmail,
+        'repFirstName'    : widget.rep.firstName,
+        'repLastName'     : widget.rep.lastName,
+        'company'         : company,
+        'companyEmail'    : companyEmail,
         'contactFirstName': _firstName.text.trim(),
         'contactLastName' : _lastName.text.trim(),
-        'subject'       : subject,
-        'message'       : msg,
+        'subject'         : subject,
+        'message'         : msg,
       };
 
-      // 🔴 Hier wird jetzt das Backend aufgerufen – kein mailto mehr!
-      await widget.api.postJson('/api/rep/contact', payload);
+      // 🔴 Jetzt: Versand über dein Backend mit Kunden-Bearer-Token
+      await widget.api.sendRepContact(payload);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(t.rep_contact_sent)),
       );
       Navigator.of(context).pop(); // zurück zum Dashboard
-    } catch (e) {
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${t.rep_contact_error} (${e.message})')),
+      );
+    } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(t.rep_contact_error)),
