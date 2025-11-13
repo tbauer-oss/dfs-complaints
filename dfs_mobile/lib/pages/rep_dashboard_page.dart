@@ -2101,8 +2101,7 @@ class _ComplaintTile extends StatefulWidget {
   final bool useColoredButtons;
   final String? customerOverride; // Anzeige „Kunde“ (Firma bevorzugt)
   final String? createdOverride;  // Anzeige „Angelegt“ formatiert
-  final t = context.t;
-
+  
   const _ComplaintTile({
     required this.data,
     required this.isClosed,
@@ -2139,6 +2138,7 @@ class _ComplaintTileState extends State<_ComplaintTile> {
 
   String _localizeDecisionText(AppLocalizations t, String raw) {
     final value = raw.trim().toLowerCase();
+    final t = context.t;
     if (value == 'accepted') return t.decision_accepted;
     if (value == 'rejected') return t.decision_rejected;
     if (value == 'pending') return t.decision_pending ?? raw;
@@ -2147,6 +2147,7 @@ class _ComplaintTileState extends State<_ComplaintTile> {
 
   String? _resolveProductArea(AppLocalizations t, String? segment, String? productType) {
     final values = <String?>[segment, productType];
+    final t = context.t;
     for (final raw in values) {
       final v = (raw ?? '').trim().toLowerCase();
       if (v.isEmpty) continue;
@@ -2297,6 +2298,7 @@ class _ComplaintTileState extends State<_ComplaintTile> {
   }
 
   Widget _decisionButtons(AppLocalizations t, String ticket) {
+    final t = context.t;
     if (widget.onDecision == null) return const SizedBox.shrink();
 
     Widget buildButton({required IconData icon, required Color color, required bool approve}) {
@@ -2846,7 +2848,6 @@ class _DetailFieldData {
 class _RepTrafficLight extends StatelessWidget {
   final String? opinion;
   final bool compact;
-  final t = context.t;
   const _RepTrafficLight({required this.opinion, this.compact = false, super.key});
 
   @override
@@ -2854,6 +2855,8 @@ class _RepTrafficLight extends StatelessWidget {
     final v = (opinion ?? '').trim().toLowerCase();
     if (v.isEmpty) return const SizedBox.shrink();
 
+    final t = context.t;
+    
     const colRed   = Colors.red;
     const colAmber = Colors.amber;
     const colGreen = Colors.green;
@@ -2921,7 +2924,6 @@ class _StatusChip extends StatelessWidget {
   final String decision;
   final bool closed;
   final bool compact; // NEU: kleiner Style
-  final t = context.t;
   const _StatusChip({
     required this.status,
     required this.decision,
@@ -2937,6 +2939,7 @@ class _StatusChip extends StatelessWidget {
   }
 
   String _statusLabel(AppLocalizations t, int? value) {
+    final t = context.t;
     final decisionLower = decision.trim().toLowerCase();
     switch (value) {
       case 1: return t.status_sent;
@@ -3010,11 +3013,11 @@ class _StatusChip extends StatelessWidget {
 
 class _RepDecisionChip extends StatelessWidget {
   final String repDecision; // '', 'accepted', 'rejected'
-  final t = context.t;
   const _RepDecisionChip({required this.repDecision, super.key});
 
   @override
   Widget build(BuildContext context) {
+    final t = context.t;
     late final Color color;
     late final String label;
 
