@@ -785,9 +785,9 @@ class _CatalogButtons extends StatelessWidget {
 
     Widget buildCard({
       required String title,
-      required String description,
       required IconData icon,
       required List<_CatalogLink> links,
+      String? description,
     }) {
       final link = _catalogLinkForLocale(links, localeCode);
 
@@ -874,12 +874,12 @@ class _CatalogButtons extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         buildCard(
-          name: t.catalog_lab_title,
+          titel: t.catalog_lab_title,
           icon: Icons.biotech_outlined,
           links: _labCatalogLinks,
         ),
         buildCard(
-          name: t.catalog_dent_title,
+          title: t.catalog_dent_title,
           icon: Icons.medical_services_outlined,
           links: _dentCatalogLinks,
         ),
