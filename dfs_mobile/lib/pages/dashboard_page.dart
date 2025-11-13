@@ -890,13 +890,13 @@ class _CatalogButtons extends StatelessWidget {
       children: [
         buildCard(
           title: t.catalog_lab_title,
-          description: ''
+          description: '',
           icon: Icons.biotech_outlined,
           links: _labCatalogLinks,
         ),
         buildCard(
           title: t.catalog_dent_title,
-          description: ''
+          description: '',
           icon: Icons.medical_services_outlined,
           links: _dentCatalogLinks,
         ),
