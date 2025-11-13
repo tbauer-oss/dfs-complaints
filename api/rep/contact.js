@@ -50,7 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     await transporter.sendMail({
-      from: process.env.MAIL_FROM ?? 'no-reply@dfs-diamon.de',
+      from: process.env.MAIL_FROM ?? 'no-reply_dfs-complaints@gmx.net',
       to: repEmail,
       subject: subject,
       text: fullBody,
