@@ -488,7 +488,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                 child: TextButton.icon(
                   onPressed: () => _openRepContactForm(context),
                   icon: const Icon(Icons.email_outlined),
-                  label: Text(t.rep_email_button),
+                  label: Text(t.rep_contact_form),
                 ),
               ),
             IconButton(
@@ -782,7 +782,7 @@ class _RepBanner extends StatelessWidget {
                   }
                 },
                 icon: const Icon(Icons.email_outlined),
-                label: Text(t.rep_email_button),
+                label: Text(t.rep_contact_form),
               ),
             ),
           IconButton(
