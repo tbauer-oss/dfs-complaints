@@ -726,6 +726,17 @@ class ApiClient {
     }
   }
 
+    // ---------- Kontakt zum Vertreter (Mail über Backend) ----------
+  Future<void> sendRepContact(Map<String, dynamic> data) async {
+    // Kunde ist eingeloggt -> Auth: true, damit Bearer-Token mitgesendet wird
+    final r = await _post('/api/rep/contact', data, auth: true);
+    if (!_ok2xx(r.statusCode)) {
+      // Versuch, saubere Fehlermeldung aus dem Body zu ziehen
+      final msg = _extractMessage(r.body);
+      throw ApiError(r.statusCode, msg);
+    }
+  }
+
   // ---------- Complaints ----------
   Future<Map<String, dynamic>?> complaintCreate(
     Map<String, dynamic> data, [
