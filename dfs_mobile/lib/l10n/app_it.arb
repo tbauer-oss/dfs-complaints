@@ -20,6 +20,30 @@
   "theme_light": "Chiaro",
   "theme_dark": "Scuro",
 
+  "rep_contact_title": "Contatta il rappresentante",
+  "rep_contact_intro": "Stai scrivendo a {firstName} {lastName}. Compila i campi sottostanti.",
+  "@rep_contact_intro": {
+    "placeholders": {
+      "firstName": { "type": "String" },
+      "lastName": { "type": "String" }
+    }
+  },
+  "rep_contact_company_label": "Azienda",
+  "rep_contact_company_email_label": "E-mail aziendale",
+  "rep_contact_subject_label": "Oggetto",
+  "rep_contact_message_label": "Messaggio",
+
+  "rep_contact_validation": "Compila oggetto e messaggio.",
+  "rep_contact_no_rep_email": "Non è disponibile un indirizzo e-mail per questo rappresentante.",
+  "rep_contact_sent": "Messaggio inviato con successo.",
+  "rep_contact_error": "Errore durante l'invio del messaggio.",
+
+  "rep_contact_discard_title": "Scartare le modifiche?",
+  "rep_contact_discard_text": "Hai già inserito del testo. Vuoi davvero lasciare la pagina?",
+
+  "firstName": "Nome",
+  "lastName": "Cognome",
+
   "complaint_sub": "Grazie per aiutarci a migliorare continuamente la nostra qualità.",
   "hideDetails": "Nascondi dettagli",
   "showDetails": "Mostra dettagli",
