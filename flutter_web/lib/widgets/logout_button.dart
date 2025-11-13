@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
+import '../services/push_notifications.dart';
 
 class LogoutButton extends StatelessWidget implements PreferredSizeWidget {
   final ApiClient api;
@@ -28,6 +29,7 @@ class LogoutButton extends StatelessWidget implements PreferredSizeWidget {
           icon: const Icon(Icons.logout),
           label: Text(t.logout),
           onPressed: () async {
+            await PushNotifications.instance.deactivate(api);
             await api.logout();
             if (context.mounted) {
               ScaffoldMessenger.of(context)
