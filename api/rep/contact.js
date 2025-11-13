@@ -3,10 +3,12 @@ import nodemailer from 'nodemailer';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
   }
 
   try {
+    console.log('rep/contact body:', req.body);
+
     const {
       repEmail,
       repFirstName,
@@ -19,16 +21,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       message,
     } = req.body || {};
 
-    // 🔧 Test-/Override-Adresse aus ENV (z. B. complaint@dfs-diamon.de)
-    const overrideTo = (process.env.REP_CONTACT_OVERRIDE_TO ?? 'complaint@dfs-diamon.de').trim();
+    // Test-Override: complaint@dfs-diamon.de
+    const overrideTo = (process.env.REP_CONTACT_OVERRIDE_TO ?? '').trim();
 
-    // Empfängerlogik:
-    // - Wenn Override gesetzt -> immer dahin
-    // - sonst normal: Vertreteradresse aus dem Payload
     const to = overrideTo || (repEmail || '').trim();
 
     if (!subject || !message || !to) {
-      return res.status(400).json({ error: 'Missing required fields' });
+      return res.status(400).json({ error: 'MISSING_REQUIRED_FIELDS' });
+    }
+
+    // 🔍 WICHTIG: SMTP-Konfiguration prüfen, bevor wir nodemailer verwenden
+    const host = (process.env.SMTP_HOST ?? '').trim();
+    const user = (process.env.SMTP_USER ?? '').trim();
+    const pass = (process.env.SMTP_PASS ?? '').trim();
+    const port = Number(process.env.SMTP_PORT ?? 587);
+
+    if (!host || !user || !pass) {
+      console.error('SMTP config missing', {
+        hasHost: !!host,
+        hasUser: !!user,
+        hasPass: !!pass,
+      });
+      return res.status(500).json({ error: 'SMTP_NOT_CONFIGURED' });
     }
 
     const contactName = [contactFirstName, contactLastName]
@@ -41,6 +55,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (company)      lines.push(`Firma: ${company}`);
     if (companyEmail) lines.push(`Firmen-E-Mail: ${companyEmail}`);
     if (contactName)  lines.push(`Kontaktperson: ${contactName}`);
+
     if (repFirstName || repLastName) {
       const repName = [repFirstName, repLastName]
         .filter((s) => typeof s === 'string' && s.trim().length > 0)
@@ -48,9 +63,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .trim();
       if (repName) lines.push(`Vertreter: ${repName}`);
     }
-    if (overrideTo) {
-      // Hilfreich im Body zu sehen, an wen es ursprünglich gegangen wäre
-      if (repEmail) lines.push(`(Ursprünglicher Empfänger: ${repEmail})`);
+
+    if (overrideTo && repEmail) {
+      // hilfreich, um zu sehen, wohin es ursprünglich gegangen wäre
+      lines.push(`(Ursprünglicher Empfänger: ${repEmail})`);
     }
 
     lines.push('');
@@ -58,29 +74,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const fullBody = lines.join('\n');
 
-    // Mail-Transporter (deine SMTP-Daten)
     const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT ?? 587),
+      host,
+      port,
       secure: false,
       auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
+        user,
+        pass,
       },
     });
 
+    // optional: Transport verifizieren (hilft beim Debuggen)
+    // await transporter.verify();
+
     await transporter.sendMail({
-      from: process.env.MAIL_FROM ?? 'no-reply_dfs-complaints@gmx.net',
+      from: (process.env.MAIL_FROM ?? 'no-reply_dfs-complaints@gmx.net').trim(),
       to,
-      // Optional: später BCC einschalten
       bcc: (process.env.REP_CONTACT_BCC ?? '').trim() || undefined,
       subject: subject,
       text: fullBody,
     });
 
     return res.status(200).json({ ok: true });
-  } catch (err) {
+  } catch (err: any) {
     console.error('rep/contact error', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    const msg =
+      typeof err?.message === 'string'
+        ? err.message
+        : 'Internal server error';
+    return res.status(500).json({ error: msg });
   }
 }
