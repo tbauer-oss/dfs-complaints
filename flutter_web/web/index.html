@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+
+    <!-- Routing-Basis -->
+    <base href="/" />
+
+    <title>DFS Complaints</title>
+
+    <!-- PWA: Manifest & Icons -->
+    <link rel="manifest" href="manifest.json" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="apple-touch-icon" href="icons/icon_192.png" />
+
+    <!-- Viewport & Design -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1976d2" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+
+    <!-- Flutter Runtime -->
+    <script src="flutter.js" defer></script>
+  </head>
+  <body>
+    <noscript>
+      Bitte JavaScript aktivieren, um die Anwendung zu starten.
+    </noscript>
+
+    <!-- Flutter erwartet diese Variable -->
+    <script>
+      var serviceWorkerVersion = null;
+    </script>
+
+    <!-- ES5: Install-Prompt Hook -->
+    <script>
+      (function () {
+        var deferredPrompt = null;
+        window.__pwaCanInstall = false;
+
+        if (window && window.addEventListener) {
+          window.addEventListener('beforeinstallprompt', function (e) {
+            try { e.preventDefault(); } catch (_) {}
+            deferredPrompt = e;
+            window.__pwaCanInstall = true;
+
+            try {
+              var ev;
+              if (typeof CustomEvent === 'function') {
+                ev = new CustomEvent('pwa-can-install');
+              } else {
+                ev = document.createEvent('Event');
+                ev.initEvent('pwa-can-install', true, true);
+              }
+              window.dispatchEvent(ev);
+            } catch (_) {}
+
+            try { console.log('PWA install prompt captured.'); } catch (_) {}
+          });
+        }
+
+        window.showInstallPrompt = function () {
+          return new Promise(function (resolve) {
+            if (!deferredPrompt || !deferredPrompt.prompt) return resolve(false);
+            var dp = deferredPrompt;
+            deferredPrompt = null;
+            window.__pwaCanInstall = false;
+
+            try {
+              var p = dp.prompt();
+              if (p && typeof p.then === 'function') {
+                p.then(function (choice) {
+                  var ok = choice && choice.outcome === 'accepted';
+                  console.log('PWA prompt outcome:', choice && choice.outcome);
+                  resolve(!!ok);
+                }).catch(function () { resolve(false); });
+              } else {
+                resolve(true);
+              }
+            } catch (e) {
+              resolve(false);
+            }
+          });
+        };
+      })();
+    </script>
+
+    <!-- ES5: ?install=1 + iFrame-Breakout + 'pwa-show-cta' -->
+    <script>
+      (function () {
+        function wantsInstall() {
+          try { return /\binstall=1\b/i.test(window.location.search); } catch (_) { return false; }
+        }
+        function ensureTopLevel() {
+          try {
+            if (window.top !== window.self) {
+              window.top.location = window.location.href;
+            }
+          } catch (_) {}
+        }
+
+        window.addEventListener('pwa-can-install', function () {
+          if (wantsInstall()) {
+            try {
+              var ev;
+              if (typeof CustomEvent === 'function') {
+                ev = new CustomEvent('pwa-show-cta');
+              } else {
+                ev = document.createEvent('Event');
+                ev.initEvent('pwa-show-cta', true, true);
+              }
+              window.dispatchEvent(ev);
+            } catch (_) {}
+          }
+        });
+
+        ensureTopLevel();
+      })();
+    </script>
+
+    <!-- Flutter-Loader -->
+    <script>
+      window.addEventListener('load', function () {
+        if ('serviceWorker' in navigator) {
+          window.flutterConfiguration = {
+            serviceWorker: { serviceWorkerVersion: serviceWorkerVersion }
+          };
+        } else {
+          window.flutterConfiguration = {};
+        }
+
+        window.flutterConfiguration.onEntrypointLoaded = function (engineInitializer) {
+          engineInitializer.initializeEngine().then(function (appRunner) {
+            appRunner.runApp();
+          }).catch(function (e) {
+            console.error('initializeEngine failed:', e);
+          });
+        };
+
+        _flutter.loader.loadEntrypoint(window.flutterConfiguration);
+      });
+    </script>
+  </body>
+</html>
