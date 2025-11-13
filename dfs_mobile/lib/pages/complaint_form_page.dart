@@ -91,7 +91,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> with TickerProvid
     if (res == null) return;
 
     final sum = res.files.fold<int>(0, (s, f) => s + (f.bytes?.length ?? 0));
-    if (sum > 8 * 1024 * 1024) { setState(() => err = t.images_too_large); return; }
+    if (sum > 10 * 1024 * 1024) { setState(() => err = t.images_too_large); return; }
 
     String _guessMime(String name) {
       final ext = name.split('.').last.toLowerCase();
