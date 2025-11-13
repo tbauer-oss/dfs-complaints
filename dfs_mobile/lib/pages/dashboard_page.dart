@@ -874,12 +874,12 @@ class _CatalogButtons extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         buildCard(
-          title: t.catalog_lab_title,
+          name: t.catalog_lab_title,
           icon: Icons.biotech_outlined,
           links: _labCatalogLinks,
         ),
         buildCard(
-          title: t.catalog_dent_title,
+          name: t.catalog_dent_title,
           icon: Icons.medical_services_outlined,
           links: _dentCatalogLinks,
         ),
