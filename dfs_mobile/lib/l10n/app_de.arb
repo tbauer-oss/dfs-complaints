@@ -126,13 +126,6 @@
   "gateRequestPassword": "Passwort anfordern",
   "gateRequestInfo": "Vielen Dank! Wir haben Ihre Anfrage weitergeleitet und melden uns zeitnah.",
   "gateRequestError": "Anfrage konnte nicht gesendet werden: {error}",
-  "@gateRequestError": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
 
   "auth_login": "Login",
   "auth_register": "Registrieren",
