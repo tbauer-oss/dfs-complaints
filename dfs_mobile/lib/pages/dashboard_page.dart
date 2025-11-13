@@ -350,7 +350,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                     onPressed: () => _openRepContactForm(context),
                     icon: const Icon(Icons.mail_outline, size: 18),
                     label: Text(
-                      t.rep_email_button,
+                      t.rep_contact_form,
                       style: theme.textTheme.labelMedium,
                     ),
                   ),
