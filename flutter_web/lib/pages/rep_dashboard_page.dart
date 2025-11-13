@@ -749,62 +749,89 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
   Widget _buildMenu(int allCount, int openCount, int rejectedCount, int finishedCount) {
     return LayoutBuilder(builder: (ctx, c) {
       final width = c.maxWidth;
-      final gridCount = width >= 1200 ? 4 : width >= 900 ? 3 : width >= 600 ? 2 : 1;
-      final aspect = width >= 1400 ? 1.70 : width >= 1100 ? 1.60 : width >= 900 ? 1.55 : width >= 600 ? 1.45 : width >= 480 ? 1.50 : 1.75;
-      final scale = width >= 1400 ? 0.84 : width >= 1100 ? 0.88 : width >= 900 ? 0.90 : width >= 600 ? 0.95 : 1.00;
-      final compact = width < 600;
+      final isPhone = width < 520;
+      final isTablet = width < 1020;
+      final scale = width >= 1500
+          ? 1.08
+          : width >= 1260
+              ? 1.04
+              : width >= 960
+                  ? 1.00
+                  : width >= 760
+                      ? 0.97
+                      : 0.93;
+      final compact = width < 760;
+      final gridPadding = EdgeInsets.fromLTRB(
+        isPhone ? 12 : 20,
+        isPhone ? 16 : 26,
+        isPhone ? 12 : 20,
+        isPhone ? 22 : 36,
+      );
+      final maxExtent = isPhone
+          ? 240.0
+          : isTablet
+              ? 280.0
+              : 320.0;
+      final mainSpacing = isPhone ? 26.0 : isTablet ? 34.0 : 42.0;
+      final crossSpacing = isPhone ? 16.0 : isTablet ? 24.0 : 32.0;
+      final aspect = isPhone ? 0.96 : isTablet ? 1.04 : 1.10;
 
-      return GridView.count(
-        crossAxisCount: gridCount,
-        crossAxisSpacing: compact ? 12 : 14,
-        mainAxisSpacing: compact ? 12 : 14,
-        padding: EdgeInsets.only(bottom: compact ? 4 : 8),
-        childAspectRatio: aspect,
-        children: [
-          _MenuCard(
-            color: Colors.red,
-            icon: Icons.report_gmailerrorred_outlined,
-            title: 'Offene Reklamationen',
-            subtitle: 'Bearbeiten & Entscheiden',
-            count: openCount,
-            compact: compact,
-            scale: scale,
-            onTap: () => setState(() {
-              _filter = _RepFilter.open;
-              _view = _RepView.open;
-            }),
-          ),
-          _MenuCard(
-            color: Colors.indigo,
-            icon: Icons.all_inbox_outlined,
-            title: 'Alle Reklamationen',
-            subtitle: 'Filtern & Suchen',
-            count: allCount,
-            compact: compact,
-            scale: scale,
-            onTap: () => setState(() => _view = _RepView.all),
-          ),
-          _MenuCard(
-            color: Colors.teal,
-            icon: Icons.apartment_outlined,
-            title: 'Kundendatenbank',
-            subtitle: 'Firmen & Kontakte',
-            count: _customers.length,
-            compact: compact,
-            scale: scale,
-            onTap: () => setState(() => _view = _RepView.customers),
-          ),
-          _MenuCard(
-            color: Colors.blueGrey,
-            icon: Icons.person_outline,
-            title: 'Mein Account',
-            subtitle: 'Profil & Passwort',
-            count: null,
-            compact: compact,
-            scale: scale,
-            onTap: () => setState(() => _view = _RepView.account),
-          ),
-        ],
+      final tiles = [
+        _MenuCard(
+          color: Colors.red,
+          icon: Icons.report_gmailerrorred_outlined,
+          title: 'Offene Reklamationen',
+          subtitle: 'Bearbeiten & Entscheiden',
+          count: openCount,
+          compact: compact,
+          scale: scale,
+          onTap: () => setState(() {
+            _filter = _RepFilter.open;
+            _view = _RepView.open;
+          }),
+        ),
+        _MenuCard(
+          color: Colors.indigo,
+          icon: Icons.all_inbox_outlined,
+          title: 'Alle Reklamationen',
+          subtitle: 'Filtern & Suchen',
+          count: allCount,
+          compact: compact,
+          scale: scale,
+          onTap: () => setState(() => _view = _RepView.all),
+        ),
+        _MenuCard(
+          color: Colors.teal,
+          icon: Icons.apartment_outlined,
+          title: 'Kundendatenbank',
+          subtitle: 'Firmen & Kontakte',
+          count: _customers.length,
+          compact: compact,
+          scale: scale,
+          onTap: () => setState(() => _view = _RepView.customers),
+        ),
+        _MenuCard(
+          color: Colors.blueGrey,
+          icon: Icons.person_outline,
+          title: 'Mein Account',
+          subtitle: 'Profil & Passwort',
+          count: null,
+          compact: compact,
+          scale: scale,
+          onTap: () => setState(() => _view = _RepView.account),
+        ),
+      ];
+
+      return GridView.builder(
+        padding: gridPadding,
+        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: maxExtent,
+          mainAxisSpacing: mainSpacing,
+          crossAxisSpacing: crossSpacing,
+          childAspectRatio: aspect,
+        ),
+        itemCount: tiles.length,
+        itemBuilder: (_, i) => tiles[i],
       );
     });
   }
@@ -1341,8 +1368,8 @@ class _Card extends StatelessWidget {
   }
 }
 
-/// Menü-Kachel (kompakt, skaliert)
-class _MenuCard extends StatelessWidget {
+/// Menü-Kachel (angelehnt an Admin-Kacheln)
+class _MenuCard extends StatefulWidget {
   final Color color;
   final IconData icon;
   final String title;
@@ -1365,124 +1392,163 @@ class _MenuCard extends StatelessWidget {
   });
 
   @override
+  State<_MenuCard> createState() => _MenuCardState();
+}
+
+class _MenuCardState extends State<_MenuCard> {
+  bool _hovering = false;
+
+  @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final bg1 = color.withOpacity(0.08);
-    final bg2 = cs.surface;
-    final ts = MediaQuery.of(context).textScaleFactor.clamp(1.0, 1.15);
-    final isPhone = MediaQuery.of(context).size.width < 600;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
 
-    final pad      = (compact ? 12.0 : 18.0) * scale;
-    final iconSize = (compact ? 24.0 : 30.0) * scale;     // +2 px
-    final circle   = (compact ? 44.0 : 52.0) * scale;     // +4 px
+    final accent = widget.color;
+    final baseSurface = isDark
+        ? Color.alphaBlend(Colors.white.withOpacity(0.06), cs.surface)
+        : cs.surface;
+    final bgA = _blend(baseSurface, accent, isDark ? 0.12 : 0.07);
+    final bgB = _blend(baseSurface, accent, isDark ? 0.06 : 0.03);
+    final borderColor = isDark
+        ? cs.outlineVariant.withOpacity(0.32)
+        : cs.outlineVariant.withOpacity(0.22);
 
-    final titleSizeBase = (compact ? 15.5 : 18.0);        // +1.5–2 px
-    final subSizeBase   = (compact ? 13.0 : 14.0);        // +1 px
-    final titleSize     = (titleSizeBase * scale * (isPhone ? 1.00 : 1.05)) * ts;
-    final subSize       = (subSizeBase   * scale * (isPhone ? 1.00 : 1.05)) * ts;
+    final iconColor = isDark ? _blend(accent, cs.onSurface, 0.25) : accent;
+    final titleColor = cs.onSurface;
+    final subtitleColor = cs.onSurfaceVariant;
+    final badgeBg = accent;
+    final badgeFg = _bestOnColor(badgeBg);
 
-    final chevron = (compact ? 22.0 : 24.0) * scale;      // +2 px
-    final radius  = (compact ? 16.0 : 20.0) * scale;
+    final lift = _hovering ? -7.0 : 0.0;
+    final hoverScale = _hovering ? 1.018 : 1.0;
+    final elevation = _hovering ? 12.0 : 3.5;
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(radius),
-      child: Container(
-        padding: EdgeInsets.all(pad),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [bg1, bg2],
-          ),
-          borderRadius: BorderRadius.circular(radius),
-          border: Border.all(color: cs.outlineVariant),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: compact ? 10 : 12,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  width: circle,
-                  height: circle,
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.12),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(icon, color: color, size: iconSize),
+    final baseRadius = widget.compact ? 16.0 : 18.0;
+    final radius = baseRadius * widget.scale;
+    final paddingV = (widget.compact ? 18.0 : 22.0) * widget.scale;
+    final paddingH = (widget.compact ? 14.0 : 20.0) * widget.scale;
+    final spacing = (widget.compact ? 12.0 : 16.0) * widget.scale;
+    final iconSize = (widget.compact ? 44.0 : 58.0) * widget.scale;
+    final badgePadH = (widget.compact ? 7.5 : 9.5) * widget.scale;
+    final badgePadV = (widget.compact ? 3.0 : 3.5) * widget.scale;
+    final titleSize = (widget.compact ? 15.0 : 16.5) * widget.scale;
+    final subtitleSize = (widget.compact ? 12.0 : 13.0) * widget.scale;
+
+    final borderRadius = BorderRadius.circular(radius);
+    final subtitle = widget.subtitle.trim();
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOut,
+        transform: Matrix4.identity()
+          ..translate(0.0, lift)
+          ..scale(hoverScale),
+        child: Material(
+          color: Colors.transparent,
+          elevation: elevation,
+          borderRadius: borderRadius,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: widget.onTap,
+            child: Ink(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [bgA, bgB],
                 ),
-                if (count != null)
-                  Positioned(
-                    right: -6,
-                    top: -6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: color,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: color.withOpacity(0.35),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Text(
-                        '$count',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                          height: 1.0,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            SizedBox(width: compact ? 10 * scale : 14 * scale),
-            Expanded(
+                borderRadius: borderRadius,
+                border: Border.all(color: borderColor),
+              ),
+              padding: EdgeInsets.symmetric(horizontal: paddingH, vertical: paddingV),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Icon(widget.icon, size: iconSize, color: iconColor),
+                      if (widget.count != null)
+                        Positioned(
+                          right: -6,
+                          top: -6,
+                          child: Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: badgePadH,
+                              vertical: badgePadV,
+                            ),
+                            decoration: BoxDecoration(
+                              color: badgeBg,
+                              borderRadius: BorderRadius.circular(999),
+                              boxShadow: [
+                                if (isDark)
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.25),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                              ],
+                            ),
+                            child: Text(
+                              '${widget.count}',
+                              style: TextStyle(
+                                color: badgeFg,
+                                fontWeight: FontWeight.w700,
+                                fontSize: widget.compact ? 12 : 13,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  SizedBox(height: spacing),
                   Text(
-                    title,
+                    widget.title,
+                    textAlign: TextAlign.center,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
+                      color: titleColor,
                       fontSize: titleSize,
-                      letterSpacing: .2,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: cs.onSurface.withOpacity(0.7),
-                      fontSize: subSize,
+                  if (subtitle.isNotEmpty) ...[
+                    SizedBox(height: spacing * 0.65),
+                    Text(
+                      subtitle,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: subtitleColor,
+                        fontSize: subtitleSize,
+                        height: 1.2,
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
-            Icon(Icons.chevron_right, size: chevron),
-          ],
+          ),
         ),
       ),
     );
   }
+}
+
+Color _blend(Color base, Color top, double t) {
+  return Color.alphaBlend(top.withOpacity(t.clamp(0, 1)), base);
+}
+
+Color _bestOnColor(Color c) {
+  final brightness = ThemeData.estimateBrightnessForColor(c);
+  return brightness == Brightness.dark ? Colors.white : Colors.black;
 }
 
 class _ComplaintTile extends StatefulWidget {
