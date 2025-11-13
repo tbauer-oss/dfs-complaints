@@ -30,7 +30,7 @@ const _labCatalogLinks = [
 
 const _dentCatalogLinks = [
   _CatalogLink(
-    label: 'DE / EN / IT',
+    label: 'DE / EN',
     url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf',
     locales: {'de', 'en', 'it'},
   ),
@@ -878,13 +878,11 @@ class _CatalogButtons extends StatelessWidget {
       children: [
         buildCard(
           title: t.catalog_lab_title,
-          description: t.catalog_lab_desc,
           icon: Icons.biotech_outlined,
           links: _labCatalogLinks,
         ),
         buildCard(
           title: t.catalog_dent_title,
-          description: t.catalog_dent_desc,
           icon: Icons.medical_services_outlined,
           links: _dentCatalogLinks,
         ),
