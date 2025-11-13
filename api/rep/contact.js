@@ -1,5 +1,6 @@
+// api/rep/contact.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import nodemailer from 'nodemailer';
+import { send } from '../_lib/mail';  // <--- nutzt deinen bestehenden Mail-Layer
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -8,6 +9,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const {
+      // wir nehmen alles an, was dein Frontend schickt
       repEmail,
       repFirstName,
       repLastName,
@@ -19,17 +21,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       message,
     } = (req.body ?? {}) as Record<string, any>;
 
-    // 🟡 Testziel: alles an complaint@dfs-diamon.de
-    // Später reicht es, diese Zeile auf repEmail zu ändern.
-    const overrideTo = (process.env.REP_CONTACT_OVERRIDE_TO ?? '').trim();
-    const to = overrideTo || 'complaint@dfs-diamon.de';
-
-    if (!subject || !message || !to) {
+    // 🔴 Minimal: subject + message müssen da sein
+    if (!subject || !message) {
       return res.status(400).json({
         error: 'MISSING_REQUIRED_FIELDS',
-        detail: { subjectEmpty: !subject, messageEmpty: !message, toEmpty: !to },
+        detail: {
+          subjectEmpty: !subject,
+          messageEmpty: !message,
+        },
       });
     }
+
+    // 🟡 ZIELADRESSE: **immer** complaint@dfs-diamon.de (für Tests)
+    // später kannst du das beliebig ändern/parametrisieren
+    const to = (process.env.REP_CONTACT_OVERRIDE_TO || 'complaint@dfs-diamon.de').trim();
 
     const contactName = [contactFirstName, contactLastName]
       .filter((s) => typeof s === 'string' && s.trim().length > 0)
@@ -42,37 +47,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (companyEmail) lines.push(`Firmen-E-Mail: ${companyEmail}`);
     if (contactName)  lines.push(`Kontaktperson: ${contactName}`);
     if (repFirstName || repLastName) {
-      lines.push(`Vertreter: ${(repFirstName ?? '')} ${(repLastName ?? '')}`.trim());
+      lines.push(
+        `Vertreter: ${(repFirstName ?? '')} ${(repLastName ?? '')}`.trim()
+      );
     }
     lines.push('');
     lines.push(message);
 
-    const fullBody = lines.join('\n');
+    const text = lines.join('\n');
 
-    // 📨 SMTP-Transporter – hier MÜSSEN deine ENV-Variablen stimmen!
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT ?? 587),
-      secure: false,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
-
-    // optional: kurz Loggen, ob ENV überhaupt da ist
-    console.log('REP_CONTACT: sending mail', {
-      to,
-      host: process.env.SMTP_HOST,
-      user: process.env.SMTP_USER,
-    });
-
-    await transporter.sendMail({
-      from: process.env.MAIL_FROM ?? 'no-reply_dfs-complaints@gmx.net',
-      to,
+    // 📨 Versand über deinen bestehenden Mail-Layer (CI, HTML, Logo, SMTP etc.)
+    const info = await send(to, {
       subject,
-      text: fullBody,
+      text,
+      lang: 'de', // oder später dynamisch
     });
+
+    console.log('rep/contact sent', { to, messageId: info?.messageId });
 
     return res.status(200).json({ ok: true });
   } catch (err: any) {
