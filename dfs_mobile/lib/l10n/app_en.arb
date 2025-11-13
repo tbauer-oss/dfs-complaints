@@ -126,6 +126,13 @@
   "gateRequestPassword": "Request password",
   "gateRequestInfo": "Thank you! We have forwarded your request and will send the temporary password shortly.",
   "gateRequestError": "We could not send your request: {error}",
+  "@gateRequestError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
 
   "auth_login": "Login",
   "auth_register": "Register",
