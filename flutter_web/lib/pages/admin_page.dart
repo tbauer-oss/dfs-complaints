@@ -1,8 +1,13 @@
 // lib/pages/admin_page.dart
 import 'dart:convert';
+import 'dart:math' as math;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:html' as html;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import '../api/client.dart';
+import '../widgets/dialog_content_scroll.dart';
 import '../widgets/legal_footer.dart';
 
 // ===================================================================
@@ -16,7 +21,7 @@ class AdminPage extends StatefulWidget {
   State<AdminPage> createState() => _AdminPageState();
 }
 
-enum _AdminView { menu, pending, users, open, reps, catalogs }
+enum _AdminView { menu, pending, users, open, reps }
 
 class _AdminPageState extends State<AdminPage> {
   late final AdminApi _api;
@@ -28,7 +33,6 @@ class _AdminPageState extends State<AdminPage> {
   bool _loadReps = false;
   String? _fatalErr;
   String? _err;
-  String _userFilterQuery = '';
   String? _userFilterRepId;
   String _userFilterCompany = 'Alle Firmen';
   String _userFilterCountry = 'Alle Länder';
@@ -56,15 +60,6 @@ class _AdminPageState extends State<AdminPage> {
   // Ansicht (Menü / Bereich)
   _AdminView _view = _AdminView.menu;
 
-  // ---- Katalog-Konfig (4 Felder) ----
-  final _labDefaultCtrl  = TextEditingController();
-  final _labEsfrCtrl     = TextEditingController();
-  final _dentDefaultCtrl = TextEditingController();
-  final _dentEsfrCtrl    = TextEditingController();
-
-  bool _catCfgBusy = false;
-  String? _catCfgErr;
-
   @override
   void initState() {
     super.initState();
@@ -88,7 +83,6 @@ class _AdminPageState extends State<AdminPage> {
     _refreshAll();
     _refreshOpen();
     _refreshReps();
-    _loadCatalogConfigAdmin();
   }
 
   bool _customerHasRep(String email) {
@@ -118,18 +112,10 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   List<ActiveUser> _filterUsers() {
-    final q = _userFilterQuery.trim().toLowerCase();
     final repId = _userFilterRepId;
 
     // Basisliste
     Iterable<ActiveUser> list = _users;
-
-    // Textsuche: Firma, Kontakt, E-Mail, Land
-    if (q.isNotEmpty) {
-      bool m(String s) => s.toLowerCase().contains(q);
-      list = list.where((u) =>
-        m(u.company) || m(u.contact) || m(u.email) || m(u.country));
-    }
 
     // Vertreter-Filter
     if (repId != null) {
@@ -257,19 +243,6 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
-    Future<void> _loadCatalogConfigAdmin() async {
-    try {
-      final m = await _api.fetchCatalogConfig();
-      _labDefaultCtrl.text  = m['lab_default']  ?? 'pdfs/DFS-Labor-DE-US-2025-26_1.pdf';
-      _labEsfrCtrl.text     = m['lab_esfr']     ?? 'pdfs/DFS-Labor-ES-FR-2025-26_1.pdf';
-      _dentDefaultCtrl.text = m['dent_default'] ?? 'pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf';
-      _dentEsfrCtrl.text    = m['dent_esfr']    ?? 'pdfs/DFS-Praxis-ES-FR-2025-2026_1.pdf';
-      if (mounted) setState(() {});
-    } catch (e) {
-      setState(() => _catCfgErr = e.toString());
-    }
-  }
-  
   Future<void> _editAppMeta(BuildContext context) async {
     final api = widget.api;
     Map<String, dynamic>? meta;
@@ -283,17 +256,19 @@ class _AdminPageState extends State<AdminPage> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('App-Version bearbeiten'),
-        content: SizedBox(
-          width: 420,
-         child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: vCtrl, decoration: const InputDecoration(labelText: 'Version', border: OutlineInputBorder())),
-              const SizedBox(height: 8),
-              TextField(controller: bCtrl, decoration: const InputDecoration(labelText: 'Build', border: OutlineInputBorder())),
-              const SizedBox(height: 8),
-              TextField(controller: nCtrl, minLines: 2, maxLines: 5, decoration: const InputDecoration(labelText: 'Hinweise', border: OutlineInputBorder())),
-            ],
+        content: DialogContentScroll(
+          child: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(controller: vCtrl, decoration: const InputDecoration(labelText: 'Version', border: OutlineInputBorder())),
+                const SizedBox(height: 8),
+                TextField(controller: bCtrl, decoration: const InputDecoration(labelText: 'Build', border: OutlineInputBorder())),
+                const SizedBox(height: 8),
+                TextField(controller: nCtrl, minLines: 2, maxLines: 5, decoration: const InputDecoration(labelText: 'Hinweise', border: OutlineInputBorder())),
+              ],
+            ),
           ),
         ),
         actions: [
@@ -326,138 +301,11 @@ class _AdminPageState extends State<AdminPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(title),
-        content: Text(msg),
+        content: DialogContentScroll(child: Text(msg)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
           FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('OK')),
         ],
-      ),
-    );
-  }
-
-    Widget _buildCatalogsPanel() {
-    final theme = Theme.of(context);
-    final formKey = GlobalKey<FormState>();
-
-    String? _validate(String v) {
-      final s = v.trim();
-      if (s.isEmpty) return 'Bitte URL angeben';
-      final isHttp = s.startsWith('http://') || s.startsWith('https://');
-      final isRel  = !s.contains('://') && !s.startsWith('/');
-      if (!isHttp && !isRel) return 'Erlaubt: http(s) oder relativer Pfad (z. B. pdfs/...)';
-      return null;
-    }
-
-    InputDecoration _dec(String label) => InputDecoration(
-      labelText: label,
-      border: const OutlineInputBorder(),
-      isDense: true,
-    );
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Form(
-          key: formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(children: [
-                const Icon(Icons.menu_book_outlined),
-                const SizedBox(width: 8),
-                const Text('Kataloge verwalten', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                const Spacer(),
-                IconButton(
-                  tooltip: 'Neu laden',
-                  onPressed: _loadCatalogConfigAdmin,
-                  icon: const Icon(Icons.refresh),
-                ),
-                const SizedBox(width: 8),
-                FilledButton.icon(
-                  onPressed: _catCfgBusy ? null : () async {
-                    if (!(formKey.currentState?.validate() ?? false)) return;
-                    setState(() { _catCfgBusy = true; _catCfgErr = null; });
-                    try {
-                      await _api.updateCatalogConfig({
-                        'lab_default' : _labDefaultCtrl.text.trim(),
-                        'lab_esfr'    : _labEsfrCtrl.text.trim(),
-                        'dent_default': _dentDefaultCtrl.text.trim(),
-                        'dent_esfr'   : _dentEsfrCtrl.text.trim(),
-                      });
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Katalog-Konfiguration gespeichert.'))
-                        );
-                      }
-                    } catch (e) {
-                      setState(() => _catCfgErr = e.toString());
-                    } finally {
-                      if (mounted) setState(() => _catCfgBusy = false);
-                    }
-                  },
-                  icon: _catCfgBusy
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.save_outlined),
-                  label: const Text('Speichern'),
-                ),
-              ]),
-
-              if (_catCfgErr != null) ...[
-                const SizedBox(height: 8),
-                Text(_catCfgErr!, style: const TextStyle(color: Colors.red)),
-              ],
-
-              const SizedBox(height: 12),
-              Text('Dentallabor (Lab) – URLs', style: theme.textTheme.titleSmall),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _labDefaultCtrl,
-                      decoration: _dec('DE/EN/IT (default)'),
-                      validator: (v) => _validate(v ?? ''),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _labEsfrCtrl,
-                      decoration: _dec('ES/FR'),
-                      validator: (v) => _validate(v ?? ''),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 16),
-              Text('Zahnmedizin (Dent) – URLs', style: theme.textTheme.titleSmall),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _dentDefaultCtrl,
-                      decoration: _dec('DE/EN/IT (default)'),
-                      validator: (v) => _validate(v ?? ''),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _dentEsfrCtrl,
-                      decoration: _dec('ES/FR'),
-                      validator: (v) => _validate(v ?? ''),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 8),
-              const Text('Hinweis: Relative Pfade (z. B. „pdfs/...“) zeigen auf gebundelte Dateien, http(s)-Links auf externe PDFs.'),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -502,7 +350,6 @@ class _AdminPageState extends State<AdminPage> {
       _AdminView.users   => 'Aktive Nutzer',
       _AdminView.open    => 'Offene Reklamationen',
       _AdminView.reps    => 'Vertreterverwaltung',
-      _AdminView.catalogs => 'Katalog-Konfiguration',
     };
 
     return WillPopScope(
@@ -568,8 +415,8 @@ class _AdminPageState extends State<AdminPage> {
 
   // ------------------ Kachel-Menü (neues Design) ------------------
   Widget _buildMenu() {
-    final w = MediaQuery.of(context).size.width;
-    final isPhone = w < 640;
+    final size = MediaQuery.of(context).size;
+    final isPhone = size.width < 640;
     final compact = isPhone;
 
     final tiles = <Widget>[
@@ -616,15 +463,6 @@ class _AdminPageState extends State<AdminPage> {
         },
       ),
       AdminTilePro(
-        label: 'Kataloge',
-        subtitle: 'Links & Sprachen',
-        icon: Icons.menu_book_outlined,
-        colorA: AdminPalette.blueA,
-        colorB: AdminPalette.blueB,
-        compact: compact,
-        onTap: () => setState(() => _view = _AdminView.catalogs),
-      ),     
-      AdminTilePro(
         label: 'App-Version',
         subtitle: 'Version, Build, Hinweise',
         icon: Icons.app_settings_alt_outlined,
@@ -634,16 +472,50 @@ class _AdminPageState extends State<AdminPage> {
         onTap: () => _editAppMeta(context),
       ),
     ];
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: isPhone ? 220 : 260,
-        mainAxisSpacing: 60,
-        crossAxisSpacing: 60,
-        childAspectRatio: isPhone ? 0.92 : 1.0,
-      ),
-      itemCount: tiles.length,
-      itemBuilder: (_, i) => tiles[i],
+
+    final headlineStyle = Theme.of(context)
+        .textTheme
+        .headlineSmall
+        ?.copyWith(fontWeight: FontWeight.w700);
+    final subtitleStyle = Theme.of(context)
+        .textTheme
+        .bodyMedium
+        ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
+
+    return CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(20, isPhone ? 12 : 24, 20, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Admin-Dashboard', style: headlineStyle),
+                const SizedBox(height: 6),
+                Text(
+                  'Verwalten Sie Reklamationen, Nutzer und Vertreter an einem Ort.',
+                  style: subtitleStyle,
+                ),
+              ],
+            ),
+          ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          sliver: SliverGrid(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) => tiles[index],
+              childCount: tiles.length,
+            ),
+            gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: isPhone ? 192 : 236,
+              mainAxisSpacing: isPhone ? 14 : 26,
+              crossAxisSpacing: isPhone ? 14 : 26,
+              childAspectRatio: isPhone ? 0.82 : 0.92,
+            ),
+          ),
+        ),
+      ],
     );
   }
   
@@ -660,8 +532,6 @@ class _AdminPageState extends State<AdminPage> {
         return const SizedBox.shrink();
       case _AdminView.reps:
         return _buildRepsPanel();
-      case _AdminView.catalogs: 
-        return _buildCatalogsPanel();
     }
   }
 
@@ -669,273 +539,345 @@ class _AdminPageState extends State<AdminPage> {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              const Icon(Icons.hourglass_top),
-              const SizedBox(width: 8),
-              const Text('Pending (Freigabe ausstehend)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-              const Spacer(),
-              IconButton(
-                tooltip: 'Neu laden',
-                onPressed: _loadPending ? null : () async {
-                  setState(() => _loadPending = true);
-                  try {
-                    final list = await _api.fetchPending();
-                    if (!mounted) return;
-                    setState(() => _pending = list);
-                  } catch (e) {
-                    setState(() => _err = '$e');
-                  } finally {
-                    if (mounted) setState(() => _loadPending = false);
-                  }
-                },
-                icon: const Icon(Icons.refresh),
-              ),
-            ]),
-            const SizedBox(height: 8),
-            if (_loadPending) const LinearProgressIndicator(),
-            const SizedBox(height: 8),
-            Expanded(
-              child: _pending.isEmpty
-                  ? const Center(child: Text('Keine Pending-Anmeldungen.'))
-                  : ListView.separated(
-                      itemCount: _pending.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (ctx, i) {
-                        final p = _pending[i];
-                        return _PendingTile(
-                          data: p,
-                          api: _api,
-                          onApprove: () async {
-                            try {
-                              await _api.approvePending(p.email, lang: p.lang);
-                              if (!mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Freigabe ausgelöst für ${p.email}.')),
-                              );
-                              await _refreshAll();
-                            } catch (e) {
-                              if (!mounted) return;
-                              ScaffoldMessenger.of(context)
-                                  .showSnackBar(SnackBar(content: Text('Fehler: $e')));
-                            }
-                          },
-                          onReject: () async {
-                            final ok = await _confirm('Anmeldung ablehnen',
-                                'Soll ${p.email} wirklich abgelehnt und gelöscht werden?');
-                            if (ok != true) return;
-                            try {
-                              await _api.deleteUser(p.email);
-                              if (mounted) {
-                                ScaffoldMessenger.of(context)
-                                    .showSnackBar(SnackBar(content: Text('Eintrag gelöscht: ${p.email}')));
-                                await _refreshAll();
-                              }
-                            } catch (e) {
-                              if (!mounted) return;
-                              ScaffoldMessenger.of(context)
-                                  .showSnackBar(SnackBar(content: Text('Fehler: $e')));
-                            }
-                          },
-                          onLoadComplaints: () => _loadComplaintsDetailed(p.email),
-                          complaints: _complaints[p.email],
-                        );
-                      },
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isCompact = constraints.maxWidth < 600;
+
+            final spinner = _loadPending
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : null;
+
+            Widget header = Row(
+              children: [
+                const Icon(Icons.hourglass_top),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Pending (Freigabe ausstehend)',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (spinner != null) ...[
+                  const SizedBox(width: 8),
+                  spinner,
+                ],
+              ],
+            );
+
+            if (isCompact) {
+              header = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Icon(Icons.hourglass_top),
+                      SizedBox(width: 8),
+                      Text(
+                        'Pending (Freigabe ausstehend)',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                  if (spinner != null) ...[
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: spinner,
                     ),
-            ),
-          ],
+                  ],
+                ],
+              );
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                header,
+                const SizedBox(height: 8),
+                if (_loadPending) const LinearProgressIndicator(),
+                if (_loadPending) const SizedBox(height: 8) else const SizedBox(height: 12),
+                Expanded(
+                  child: _pending.isEmpty
+                      ? const Center(child: Text('Keine Pending-Anmeldungen.'))
+                      : ListView.separated(
+                          itemCount: _pending.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 12),
+                          itemBuilder: (ctx, i) {
+                            final p = _pending[i];
+                            return _PendingTile(
+                              data: p,
+                              api: _api,
+                              onApprove: () async {
+                                try {
+                                  await _api.approvePending(p.email, lang: p.lang);
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Freigabe ausgelöst für ${p.email}.')),
+                                  );
+                                  await _refreshAll();
+                                } catch (e) {
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(SnackBar(content: Text('Fehler: $e')));
+                                }
+                              },
+                              onReject: () async {
+                                final ok = await _confirm(
+                                  'Anmeldung ablehnen',
+                                  'Soll ${p.email} wirklich abgelehnt und gelöscht werden?',
+                                );
+                                if (ok != true) return;
+                                try {
+                                  await _api.deleteUser(p.email);
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Eintrag gelöscht: ${p.email}')),
+                                    );
+                                    await _refreshAll();
+                                  }
+                                } catch (e) {
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(SnackBar(content: Text('Fehler: $e')));
+                                }
+                              },
+                              onLoadComplaints: () => _loadComplaintsDetailed(p.email),
+                              complaints: _complaints[p.email],
+                            );
+                          },
+                        ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
 
+
 Widget _buildUsersPanel() {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              const Icon(Icons.people),
-              const SizedBox(width: 8),
-              const Text(
-                'Aktive Nutzer',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-              const Spacer(),
-              IconButton(
-                tooltip: 'Neu laden',
-                onPressed: _loadUsers
-                    ? null
-                    : () async {
-                        setState(() => _loadUsers = true);
-                        try {
-                          final list = await _api.fetchUsers();
-                          if (!mounted) return;
-                          setState(() => _users = list);
-                        } catch (e) {
-                          setState(() => _err = '$e');
-                        } finally {
-                          if (mounted) setState(() => _loadUsers = false);
-                        }
-                      },
-                icon: const Icon(Icons.refresh),
-              ),
-            ]),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isCompact = constraints.maxWidth < 720;
 
+            final spinner = _loadUsers
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : null;
 
-            // >>> NEU: Filterzeile direkt unter der Überschrift <<<
-            const SizedBox(height: 8),
-            Row(
+            Widget header;
+            if (isCompact) {
+              header = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Icon(Icons.people),
+                      SizedBox(width: 8),
+                      Text(
+                        'Aktive Nutzer',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      if (spinner != null)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: spinner,
+                        ),
+                    ],
+                  ),
+                ],
+              );
+            } else {
+              header = Row(
+                children: [
+                  const Icon(Icons.people),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Aktive Nutzer',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  const Spacer(),
+                  if (spinner != null)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: spinner,
+                    ),
+                ],
+              );
+            }
+
+            final companies = <String>{
+              'Alle Firmen',
+              ..._users.map((e) => e.company).where((s) => s.trim().isNotEmpty),
+            }.toList()
+              ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+            final countries = <String>{
+              'Alle Länder',
+              ..._users.map((e) => e.country).where((s) => s.trim().isNotEmpty),
+            }.toList()
+              ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+            String repName(String? id) {
+              if (id == null) return 'Alle';
+              if (id.isEmpty) return 'Ohne';
+              final rep = _reps.firstWhere(
+                (r) => r.id == id,
+                orElse: () => Rep(
+                  id: '',
+                  firstName: '',
+                  lastName: '',
+                  email: '',
+                  region: '',
+                  customers: const [],
+                ),
+              );
+              if (rep.id.isEmpty) return 'Alle';
+              final dn = rep.displayName.trim();
+              return dn.isEmpty ? rep.email : dn;
+            }
+
+            final filterWrap = Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                _FilterChipButton<String>(
+                  icon: Icons.business,
+                  label: 'Firma',
+                  valueLabel:
+                      _userFilterCompany == 'Alle Firmen' ? 'Alle' : _userFilterCompany,
+                  maxWidth: isCompact ? constraints.maxWidth : 220,
+                  initialValue: _userFilterCompany,
+                  onSelected: (value) =>
+                      setState(() => _userFilterCompany = value),
+                  items: [
+                    ...companies.map(
+                      (c) => PopupMenuItem<String>(
+                        value: c,
+                        child: Text(c),
+                      ),
+                    ),
+                  ],
+                ),
+                _FilterChipButton<String>(
+                  icon: Icons.public,
+                  label: 'Land',
+                  valueLabel:
+                      _userFilterCountry == 'Alle Länder' ? 'Alle' : _userFilterCountry,
+                  maxWidth: isCompact ? constraints.maxWidth : 200,
+                  initialValue: _userFilterCountry,
+                  onSelected: (value) =>
+                      setState(() => _userFilterCountry = value),
+                  items: [
+                    ...countries.map(
+                      (c) => PopupMenuItem<String>(
+                        value: c,
+                        child: Text(c),
+                      ),
+                    ),
+                  ],
+                ),
+                _FilterChipButton<String?>(
+                  icon: Icons.badge_outlined,
+                  label: 'Vertreter',
+                  valueLabel: repName(_userFilterRepId),
+                  maxWidth: isCompact ? constraints.maxWidth : 240,
+                  initialValue: _userFilterRepId,
+                  onSelected: (value) => setState(() => _userFilterRepId = value),
+                  items: [
+                    const PopupMenuItem<String?>(value: null, child: Text('Alle Vertreter')),
+                    const PopupMenuItem<String?>(value: '', child: Text('Ohne Vertreter')),
+                    ..._reps.map(
+                      (r) => PopupMenuItem<String?>(
+                        value: r.id,
+                        child: Text(r.displayName.isEmpty ? r.email : r.displayName),
+                      ),
+                    ),
+                  ],
+                ),
+                ],
+              ),
+            );
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Suche (Firma/Kontakt/E-Mail/Land)
+                header,
+                const SizedBox(height: 8),
+                filterWrap,
+                const SizedBox(height: 6),
+                if (_loadUsers) const LinearProgressIndicator(),
+                if (_loadUsers) const SizedBox(height: 12) else const SizedBox(height: 8),
                 Expanded(
-                  child: TextField(
-                    decoration: const InputDecoration(
-                      hintText: 'Suchen… (Firma, Kontakt, E-Mail, Land)',
-                      prefixIcon: Icon(Icons.search),
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    onChanged: (v) => setState(() => _userFilterQuery = v),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Firmen-Dropdown
-                SizedBox(
-                  width: 260,
-                  child: DropdownButtonFormField<String>(
-                    value: _userFilterCompany,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Firma',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    items: (() {
-                      final list = <String>{
-                        'Alle Firmen',
-                        ..._users.map((e) => e.company).where((s) => s.trim().isNotEmpty),
-                      }.toList()
-                        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-                      return list.map((c) => DropdownMenuItem<String>(value: c, child: Text(c))).toList();
-                    })(),
-                    onChanged: (v) => setState(() => _userFilterCompany = v ?? 'Alle Firmen'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-
-                // Länder-Dropdown
-                SizedBox(
-                  width: 240,
-                  child: DropdownButtonFormField<String>(
-                    value: _userFilterCountry,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Land',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    items: (() {
-                      final list = <String>{
-                        'Alle Länder',
-                        ..._users.map((e) => e.country).where((s) => s.trim().isNotEmpty),
-                      }.toList()
-                        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-                      return list.map((c) => DropdownMenuItem<String>(value: c, child: Text(c))).toList();
-                    })(),
-                    onChanged: (v) => setState(() => _userFilterCountry = v ?? 'Alle Länder'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                
-                // Vertreter-Dropdown
-                SizedBox(
-                  width: 280,
-                  child: DropdownButtonFormField<String?>(
-                    value: _userFilterRepId,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Vertreter',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    items: (() {
-                      final list = <String>{
-                        'Alle Länder',
-                        ..._users.map((e) => e.country).where((s) => s.trim().isNotEmpty),
-                      }.toList()
-                        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-                      return list.map((c) => DropdownMenuItem<String>(value: c, child: Text(c))).toList();
-                    })(),
-                    onChanged: (v) => setState(() => _userFilterRepId = v),
-                  ),
+                  child: () {
+                    final data = _filterUsers();
+                    return data.isEmpty
+                        ? const Center(child: Text('Keine aktiven Nutzer.'))
+                        : ListView.separated(
+                            itemCount: data.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 12),
+                            itemBuilder: (ctx, i) {
+                              final u = data[i];
+                              final repName = _repNameForEmail(u.email);
+                              return _UserTile(
+                                data: u,
+                                api: _api,
+                                onDelete: () async {
+                                  final ok = await _confirm(
+                                    'Nutzer löschen',
+                                    'Soll der aktive Nutzer ${u.email} wirklich gelöscht werden?',
+                                  );
+                                  if (ok != true) return;
+                                  try {
+                                    await _api.deleteUser(u.email);
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text('Nutzer gelöscht: ${u.email}')),
+                                      );
+                                      await _refreshAll();
+                                      await _refreshOpen();
+                                    }
+                                  } catch (e) {
+                                    if (!mounted) return;
+                                    ScaffoldMessenger.of(context)
+                                        .showSnackBar(SnackBar(content: Text('Fehler: $e')));
+                                  }
+                                },
+                                onLoadComplaints: () => _loadComplaintsDetailed(u.email),
+                                complaints: _complaints[u.email],
+                                onClosedFromEditor: () {
+                                  _refreshOpen();
+                                },
+                                repName: repName,
+                              );
+                            },
+                          );
+                  }(),
                 ),
               ],
-            ),
-            // <<< Ende Filterzeile >>>
-
-            const SizedBox(height: 8),
-            if (_loadUsers) const LinearProgressIndicator(),
-            const SizedBox(height: 8),
-
-            // Gefilterte Daten verwenden
-            Expanded(
-              child: () {
-                final data = _filterUsers();
-                return data.isEmpty
-                    ? const Center(child: Text('Keine aktiven Nutzer.'))
-                    : ListView.separated(
-                        itemCount: data.length,
-                        separatorBuilder: (_, __) =>
-                            const Divider(height: 1),
-                        itemBuilder: (ctx, i) {
-                          final u = data[i];
-                          final repName = _repNameForEmail(u.email);
-                          return _UserTile(
-                            data: u,
-                            api: _api,
-                            onDelete: () async {
-                              final ok = await _confirm(
-                                'Nutzer löschen',
-                                'Soll der aktive Nutzer ${u.email} wirklich gelöscht werden?',
-                              );
-                              if (ok != true) return;
-                              try {
-                                await _api.deleteUser(u.email);
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                          'Nutzer gelöscht: ${u.email}'),
-                                    ),
-                                  );
-                                  await _refreshAll();
-                                  await _refreshOpen();
-                                }
-                              } catch (e) {
-                                if (!mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Fehler: $e')),
-                                );
-                              }
-                            },
-                            onLoadComplaints: () =>
-                                _loadComplaintsDetailed(u.email),
-                            complaints: _complaints[u.email],
-                            onClosedFromEditor: () {
-                              _refreshOpen();
-                            },
-                            repName: repName,
-                          );
-                        },
-                      );
-              }(),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
@@ -945,7 +887,9 @@ Widget _buildUsersPanel() {
     // Firmenliste für Filter-Dropdown (lokal)
     final List<String> companies = <String>{
       'Alle Firmen',
-      ..._openComplaints.map((c) => (_companyByEmail(c.email) ?? '')).where((s) => s.trim().isNotEmpty),
+      ..._openComplaints
+          .map((c) => (_companyByEmail(c.email) ?? ''))
+          .where((s) => s.trim().isNotEmpty),
       ..._users.map((e) => e.company).where((s) => s.trim().isNotEmpty),
     }.toList()
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
@@ -960,59 +904,124 @@ Widget _buildUsersPanel() {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(children: [
-              const Icon(Icons.receipt_long),
-              const SizedBox(width: 8),
-              const Text('Offene Reklamationen', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-              const Spacer(),
-              DropdownButton<String>(
-                value: _filterCompany,
-                onChanged: (v) => setState(() => _filterCompany = v ?? 'Alle Firmen'),
-                items: companies.map((s) => DropdownMenuItem<String>(value: s, child: Text(s))).toList(),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isCompact = constraints.maxWidth < 720;
+            final companyMenu = companies
+                .map((s) => PopupMenuItem<String>(value: s, child: Text(s)))
+                .toList();
+
+            final spinner = _loadOpen
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : null;
+
+            final filterWrap = Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _FilterChipButton<String>(
+                    icon: Icons.business,
+                    label: 'Firma',
+                    valueLabel: _filterCompany == 'Alle Firmen' ? 'Alle' : _filterCompany,
+                    initialValue: _filterCompany,
+                    maxWidth: isCompact ? constraints.maxWidth : 220,
+                    onSelected: (value) => setState(() => _filterCompany = value),
+                    items: companyMenu,
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              if (_loadOpen)
-                const Padding(
-                  padding: EdgeInsets.only(right: 8),
-                  child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+            );
+
+            final titleRow = Row(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                Icon(Icons.receipt_long),
+                SizedBox(width: 8),
+                Text(
+                  'Offene Reklamationen',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
-              IconButton(
-                tooltip: 'Neu laden',
-                onPressed: _loadOpen ? null : _refreshOpen,
-                icon: const Icon(Icons.refresh),
-              ),
-            ]),
-            const SizedBox(height: 8),
-            Expanded(
-              child: list.isEmpty
-                  ? const Center(child: Text('Keine offenen Reklamationen.'))
-                  : ListView.separated(
-                      itemCount: list.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
-                      itemBuilder: (ctx, i) {
-                        final c = list[i];
-                        return _ComplaintEditor(
-                          api: _api,
-                          c: c,
-                          companyHint: _companyByEmail(c.email),
-                          hasRep: _customerHasRep(c.email), // ← NEU
-                          onClosed: () {
-                            setState(() {
-                              _openComplaints.removeWhere((x) => x.ticket == c.ticket);
-                            });
-                          },
-                        );
-                      },
+              ],
+            );
+
+            Widget header;
+            if (isCompact) {
+              header = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  titleRow,
+                  if (spinner != null) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 4),
+                        child: spinner,
+                      ),
                     ),
-            ),
-          ],
+                  ],
+                ],
+              );
+            } else {
+              header = Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  titleRow,
+                  const Spacer(),
+                  if (spinner != null)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: spinner,
+                    ),
+                ],
+              );
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                header,
+                const SizedBox(height: 8),
+                filterWrap,
+                const SizedBox(height: 6),
+                if (_loadOpen) const LinearProgressIndicator(),
+                if (_loadOpen) const SizedBox(height: 12) else const SizedBox(height: 8),
+                Expanded(
+                  child: list.isEmpty
+                      ? const Center(child: Text('Keine offenen Reklamationen.'))
+                      : ListView.separated(
+                          itemCount: list.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 12),
+                          itemBuilder: (ctx, i) {
+                            final c = list[i];
+                            return _ComplaintEditor(
+                              api: _api,
+                              c: c,
+                              companyHint: _companyByEmail(c.email),
+                              hasRep: _customerHasRep(c.email),
+                              onClosed: () {
+                                setState(() {
+                                  _openComplaints.removeWhere((x) => x.ticket == c.ticket);
+                                });
+                              },
+                            );
+                          },
+                        ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
+
 
   Widget _buildRepsPanel() {
     // kleine Helper zum Mail-Schreiben
@@ -1020,37 +1029,40 @@ Widget _buildUsersPanel() {
       if (to.trim().isEmpty) return;
       final url = 'mailto:$to'
           '?subject=${Uri.encodeComponent(subject ?? 'Anfrage / DFS-DIAMON')}'
-          '&body=${Uri.encodeComponent(body ?? 'Guten Tag,\n\nich melde mich als Ihr Ansprechpartner.\n\nBeste Grüße\nDFS-DIAMON GmbH')}';
-      html.window.open(url, '_self');
+          '&body=${Uri.encodeComponent(body ?? 'Guten Tag,\n\n…\n')}';
+      if (kIsWeb) {
+        html.window.open(url, '_self');
+      }
     }
 
-    Future<void> _save({String? id}) async {
-      if (_repBusy) return;
+    Future<bool> _save({String? id}) async {
+      if (_repBusy) return false;
       setState(() => _repBusy = true);
       try {
         final rep = await _api.upsertRep(
           id: id,
           firstName: _repFirstCtrl.text.trim(),
-          lastName:  _repLastCtrl.text.trim(),
-          email:     _repMailCtrl.text.trim(),
-          region:    _repRegion,
+          lastName: _repLastCtrl.text.trim(),
+          email: _repMailCtrl.text.trim(),
+          region: _repRegion,
         );
 
-        // Felder leeren + Liste neu laden
         _repFirstCtrl.clear();
         _repLastCtrl.clear();
         _repMailCtrl.clear();
         _repRegion = kRepRegions.first;
 
         await _refreshReps();
-        if (!mounted) return;
+        if (!mounted) return true;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Gespeichert: ${rep.displayName}')),
         );
+        return true;
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
         }
+        return false;
       } finally {
         if (mounted) setState(() => _repBusy = false);
       }
@@ -1058,38 +1070,43 @@ Widget _buildUsersPanel() {
 
     Future<void> _edit(Rep r) async {
       _repFirstCtrl.text = r.firstName;
-      _repLastCtrl.text  = r.lastName;
-      _repMailCtrl.text  = r.email;
-      _repRegion         = r.region.isNotEmpty ? r.region : kRepRegions.first;
+      _repLastCtrl.text = r.lastName;
+      _repMailCtrl.text = r.email;
+      _repRegion = r.region.isNotEmpty ? r.region : kRepRegions.first;
 
       await showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('Vertreter bearbeiten'),
-          content: SizedBox(
-            width: 520,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(controller: _repFirstCtrl, decoration: const InputDecoration(labelText: 'Vorname')),
-                const SizedBox(height: 8),
-                TextField(controller: _repLastCtrl,  decoration: const InputDecoration(labelText: 'Nachname')),
-                const SizedBox(height: 8),
-                TextField(controller: _repMailCtrl,  decoration: const InputDecoration(labelText: 'E-Mail')),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  value: _repRegion,
-                  decoration: const InputDecoration(labelText: 'Länderbereich'),
-                  items: kRepRegions.map((s) => DropdownMenuItem<String>(value: s, child: Text(s))).toList(),
-                  onChanged: (v) => _repRegion = v ?? kRepRegions.first,
-                ),
-              ],
+          content: DialogContentScroll(
+            child: SizedBox(
+              width: 520,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(controller: _repFirstCtrl, decoration: const InputDecoration(labelText: 'Vorname')),
+                  const SizedBox(height: 8),
+                  TextField(controller: _repLastCtrl, decoration: const InputDecoration(labelText: 'Nachname')),
+                  const SizedBox(height: 8),
+                  TextField(controller: _repMailCtrl, decoration: const InputDecoration(labelText: 'E-Mail')),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: _repRegion,
+                    decoration: const InputDecoration(labelText: 'Länderbereich'),
+                    items: kRepRegions.map((s) => DropdownMenuItem<String>(value: s, child: Text(s))).toList(),
+                    onChanged: (v) => _repRegion = v ?? kRepRegions.first,
+                  ),
+                ],
+              ),
             ),
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
             FilledButton(
-              onPressed: () async { Navigator.pop(ctx); await _save(id: r.id); },
+              onPressed: () async {
+                Navigator.pop(ctx);
+                await _save(id: r.id);
+              },
               child: const Text('Speichern'),
             ),
           ],
@@ -1102,7 +1119,7 @@ Widget _buildUsersPanel() {
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('Vertreter löschen'),
-          content: Text('Soll ${r.displayName} wirklich gelöscht werden?'),
+          content: DialogContentScroll(child: Text('Soll ${r.displayName} wirklich gelöscht werden?')),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
             FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen')),
@@ -1124,26 +1141,130 @@ Widget _buildUsersPanel() {
       }
     }
 
+    Future<void> _openCreateRepSheet() async {
+      _repFirstCtrl.clear();
+      _repLastCtrl.clear();
+      _repMailCtrl.clear();
+      setState(() => _repRegion = kRepRegions.first);
+
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        builder: (ctx) {
+          final bottom = MediaQuery.of(ctx).viewInsets.bottom;
+          final theme = Theme.of(ctx);
+          return Padding(
+            padding: EdgeInsets.only(bottom: bottom),
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Neuen Vertreter hinzufügen',
+                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Schließen',
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _repFirstCtrl,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(
+                        labelText: 'Vorname',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _repLastCtrl,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(
+                        labelText: 'Nachname',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _repMailCtrl,
+                      keyboardType: TextInputType.emailAddress,
+                      autofillHints: const [AutofillHints.email],
+                      decoration: const InputDecoration(
+                        labelText: 'E-Mail',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: _repRegion,
+                      decoration: const InputDecoration(
+                        labelText: 'Länderbereich',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: kRepRegions
+                          .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
+                          .toList(),
+                      onChanged: (v) => setState(() => _repRegion = v ?? kRepRegions.first),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        icon: const Icon(Icons.person_add_alt_1),
+                        onPressed: _repBusy
+                            ? null
+                            : () async {
+                                final ok = await _save();
+                                if (!mounted) return;
+                                if (ok) Navigator.pop(ctx);
+                              },
+                        label: const Text('Vertreter speichern'),
+                      ),
+                    ),
+                    if (_repBusy) ...[
+                      const SizedBox(height: 16),
+                      const Center(
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    }
+
     Future<void> _openRepCustomersDialog(Rep rep) async {
-      // Globale Belegung: email -> repId
       final Map<String, String> emailAssignedToRepId = {};
       for (final r in _reps) {
         for (final e in r.customers) {
-          emailAssignedToRepId[e] ??= r.id; // first wins
+          emailAssignedToRepId[e] ??= r.id;
         }
       }
 
-      // Menge aller bereits irgendwo zugewiesenen Kunden
       var assignedGlobal = emailAssignedToRepId.keys.toSet();
-
-      // Aktuelle Belegung dieses Reps (veränderlich, wir aktualisieren im Dialog)
       var assignedThis = rep.customers.toSet();
-
-      // Kandidaten = ALLE aktiven User (im Dropdown sichtbar, aber ggf. disabled)
       final allUserEmails = _users.map((u) => u.email.trim()).where((e) => e.isNotEmpty).toSet();
       final all = allUserEmails.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
-      // Vorauswahl = erster freier (global nicht zugewiesener)
       String? selEmail = all.firstWhere(
         (e) => !assignedGlobal.contains(e),
         orElse: () => '',
@@ -1158,8 +1279,6 @@ Widget _buildUsersPanel() {
           builder: (ctx, setLocal) {
             Future<void> doAssign() async {
               if (selEmail == null || selEmail!.trim().isEmpty) return;
-
-              // Schutz: Falls ein anderer Rep in der Zwischenzeit zugewiesen hat
               final otherRepId = emailAssignedToRepId[selEmail!];
               if (otherRepId != null && otherRepId != rep.id) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -1171,8 +1290,6 @@ Widget _buildUsersPanel() {
               setLocal(() => busy = true);
               try {
                 final customers = await _api.assignCustomerToRep(repId: rep.id, email: selEmail!.trim());
-
-                // Parent aktualisieren
                 setState(() {
                   final idx = _reps.indexWhere((x) => x.id == rep.id);
                   if (idx >= 0) {
@@ -1187,19 +1304,13 @@ Widget _buildUsersPanel() {
                   }
                 });
 
-                // Zur Sicherheit die gesamte Repliste neu laden (Race-Conditions vermeiden)
                 await _refreshReps();
-
-                // Globale Maps/Mengen nachladen
                 emailAssignedToRepId
                   ..clear()
                   ..addEntries(_reps.expand((r) => r.customers.map((e) => MapEntry(e, r.id))));
                 assignedGlobal = emailAssignedToRepId.keys.toSet();
-
-                // Lokale Sets aktualisieren
                 assignedThis = customers.toSet();
 
-                // Neue Vorauswahl: nächster freier Kunde
                 selEmail = all.firstWhere(
                   (e) => !assignedGlobal.contains(e),
                   orElse: () => '',
@@ -1219,8 +1330,6 @@ Widget _buildUsersPanel() {
               setLocal(() => busy = true);
               try {
                 final customers = await _api.unassignCustomerFromRep(repId: rep.id, email: email);
-
-                // Parent aktualisieren
                 setState(() {
                   final idx = _reps.indexWhere((x) => x.id == rep.id);
                   if (idx >= 0) {
@@ -1235,19 +1344,13 @@ Widget _buildUsersPanel() {
                   }
                 });
 
-                // Globale Reps neu ziehen
                 await _refreshReps();
-
-                // Globale Maps/Mengen nachladen
                 emailAssignedToRepId
                   ..clear()
                   ..addEntries(_reps.expand((r) => r.customers.map((e) => MapEntry(e, r.id))));
                 assignedGlobal = emailAssignedToRepId.keys.toSet();
-
-                // Lokale Sets aktualisieren
                 assignedThis = customers.toSet();
 
-                // Vorauswahl korrigieren (falls aktuell verbotener Wert selektiert war)
                 if (selEmail != null && assignedGlobal.contains(selEmail)) {
                   selEmail = all.firstWhere(
                     (e) => !assignedGlobal.contains(e),
@@ -1267,62 +1370,62 @@ Widget _buildUsersPanel() {
 
             return AlertDialog(
               title: Text('Kunden für ${rep.displayName}'),
-              content: SizedBox(
-                width: 620,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Bestehende Kundenliste
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Zugewiesene Kunden (${rep.customers.length}) – jeder Kunde kann nur genau einem Vertreter zugeordnet sein.',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
+              content: DialogContentScroll(
+                child: SizedBox(
+                  width: 620,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Zugewiesene Kunden (${rep.customers.length}) – jeder Kunde kann nur genau einem Vertreter zugeordnet sein.',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      constraints: const BoxConstraints(maxHeight: 280),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(8),
+                      const SizedBox(height: 8),
+                      Container(
+                        constraints: const BoxConstraints(maxHeight: 280),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: (rep.customers.isEmpty)
+                          ? const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(12),
+                                child: Text('Keine Kunden zugewiesen.'),
+                              ),
+                            )
+                          : ListView.separated(
+                              shrinkWrap: true,
+                              itemCount: rep.customers.length,
+                              separatorBuilder: (_, __) => const Divider(height: 1),
+                              itemBuilder: (_, i) {
+                                final email = rep.customers[i];
+                                final company = _companyByEmail(email) ?? '';
+                                return ListTile(
+                                  leading: const Icon(Icons.person_outline),
+                                  title: Text(company.isNotEmpty ? company : email),
+                                  subtitle: company.isNotEmpty ? Text(email) : null,
+                                  trailing: IconButton(
+                                    tooltip: 'Zuweisung entfernen',
+                                    icon: const Icon(Icons.remove_circle_outline),
+                                    onPressed: busy ? null : () async => await doUnassign(email),
+                                  ),
+                                );
+                              },
+                            ),
                       ),
-                      child: (rep.customers.isEmpty)
-                        ? const Center(child: Padding(
-                            padding: EdgeInsets.all(12),
-                            child: Text('Keine Kunden zugewiesen.'),
-                          ))
-                        : ListView.separated(
-                            shrinkWrap: true,
-                            itemCount: rep.customers.length,
-                            separatorBuilder: (_, __) => const Divider(height: 1),
-                            itemBuilder: (_, i) {
-                              final email = rep.customers[i];
-                              final company = _companyByEmail(email) ?? '';
-                              return ListTile(
-                                leading: const Icon(Icons.person_outline),
-                                title: Text(company.isNotEmpty ? company : email),
-                                subtitle: company.isNotEmpty ? Text(email) : null,
-                                trailing: IconButton(
-                                  tooltip: 'Zuweisung entfernen',
-                                  icon: const Icon(Icons.remove_circle_outline),
-                                  onPressed: busy ? null : () async => await doUnassign(email),
-                                ),
-                              );
-                            },
-                          ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Neuer Kunde zuweisen
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text('Kunden zuweisen', style: const TextStyle(fontWeight: FontWeight.w600)),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
+                      const SizedBox(height: 16),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text('Kunden zuweisen', style: const TextStyle(fontWeight: FontWeight.w600)),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
                           child: DropdownButtonFormField<String>(
                             value: selEmail,
                             decoration: const InputDecoration(
@@ -1332,14 +1435,13 @@ Widget _buildUsersPanel() {
                             items: all.map((e) {
                               final isAssignedSomewhere = assignedGlobal.contains(e);
                               final label = _companyByEmail(e) ?? e;
-                              // Optional: zeigen, wo belegt (nur für Klarheit im UI)
                               final assignedHint = (isAssignedSomewhere && emailAssignedToRepId[e] != rep.id)
                                   ? ' (bereits zugewiesen)'
                                   : '';
 
                               return DropdownMenuItem<String>(
                                 value: e,
-                                enabled: !isAssignedSomewhere, // global belegt => disabled
+                                enabled: !isAssignedSomewhere,
                                 child: Text(
                                   '$label$assignedHint',
                                   style: isAssignedSomewhere
@@ -1352,11 +1454,10 @@ Widget _buildUsersPanel() {
                                 ? null
                                 : (v) {
                                     if (v == null) return;
-                                    // Safety: global gesperrt bleibt gesperrt
                                     if (assignedGlobal.contains(v)) return;
                                     setLocal(() => selEmail = v);
                                   },
-                          )
+                          ),
                         ),
                         const SizedBox(width: 10),
                         FilledButton.icon(
@@ -1367,13 +1468,15 @@ Widget _buildUsersPanel() {
                       ],
                     ),
                   ],
+                 ),
                 ),
               ),
               actions: [
-                if (busy) const Padding(
-                  padding: EdgeInsets.only(right: 12),
-                  child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-                ),
+                if (busy)
+                  const Padding(
+                    padding: EdgeInsets.only(right: 12),
+                    child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                  ),
                 TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen')),
               ],
             );
@@ -1388,117 +1491,83 @@ Widget _buildUsersPanel() {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Kopfzeile
-            Row(children: [
-              const Icon(Icons.badge_outlined),
-              const SizedBox(width: 8),
-              const Text('Vertreterverwaltung', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-              const Spacer(),
-              if (_loadReps)
-                const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-              IconButton(
-                tooltip: 'Neu laden',
-                onPressed: _loadReps ? null : _refreshReps,
-                icon: const Icon(Icons.refresh),
-              ),
-            ]),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final spinner = _loadReps
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : null;
+                final isCompact = constraints.maxWidth < 720;
+
+                final titleRow = Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.badge_outlined),
+                    SizedBox(width: 8),
+                    Text('Vertreterverwaltung', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  ],
+                );
+
+                final actions = Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    FilledButton.tonalIcon(
+                      onPressed: _repBusy ? null : _openCreateRepSheet,
+                      icon: const Icon(Icons.person_add_alt_1),
+                      label: const Text('Neuen Vertreter hinzufügen'),
+                    ),
+                    if (spinner != null)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 4),
+                        child: spinner,
+                      ),
+                  ],
+                );
+
+                if (isCompact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      titleRow,
+                      const SizedBox(height: 12),
+                      actions,
+                    ],
+                  );
+                }
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    titleRow,
+                    const Spacer(),
+                    actions,
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+            const Divider(height: 1),
             const SizedBox(height: 12),
 
-            // Anlegen-Form
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade300),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text('Neuen Vertreter anlegen', style: TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      SizedBox(
-                        width: 240,
-                        child: TextField(controller: _repFirstCtrl, decoration: const InputDecoration(labelText: 'Vorname')),
-                      ),
-                      SizedBox(
-                        width: 260,
-                        child: TextField(controller: _repLastCtrl, decoration: const InputDecoration(labelText: 'Nachname')),
-                      ),
-                      SizedBox(
-                        width: 300,
-                        child: TextField(controller: _repMailCtrl, decoration: const InputDecoration(labelText: 'E-Mail')),
-                      ),
-                      SizedBox(
-                        width: 300,
-                        child: DropdownButtonFormField<String>(
-                          value: _repRegion,
-                          decoration: const InputDecoration(labelText: 'Länderbereich'),
-                          items: kRepRegions.map((s) => DropdownMenuItem<String>(value: s, child: Text(s))).toList(),
-                          onChanged: (v) => setState(() => _repRegion = v ?? kRepRegions.first),
-                        ),
-                      ),
-                      SizedBox(
-                        width: 160,
-                        child: FilledButton.icon(
-                          icon: const Icon(Icons.save_outlined),
-                          onPressed: _repBusy ? null : () => _save(),
-                          label: const Text('Anlegen'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Liste der Vertreter
             Expanded(
               child: _reps.isEmpty
                   ? const Center(child: Text('Keine Vertreter angelegt.'))
                   : ListView.separated(
                       itemCount: _reps.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (ctx, i) {
                         final r = _reps[i];
-                        return ListTile(
-                          leading: const CircleAvatar(child: Icon(Icons.person_outline)),
-                          title: Text(r.displayName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                          subtitle: Text('${r.email} • ${r.region} • Kunden: ${r.customers.length}'),
-                          trailing: Wrap(
-                            spacing: 8,
-                            children: [
-                              IconButton(
-                                tooltip: 'E-Mail schreiben',
-                                icon: const Icon(Icons.mail_outline),
-                                onPressed: () => _composeMail(
-                                  r.email,
-                                  subject: 'DFS-DIAMON – Anfrage / ${r.displayName}',
-                                  body: 'Guten Tag ${r.displayName},\n\n— Nachricht —\n\nBeste Grüße\nDFS-DIAMON GmbH',
-                                ),
-                              ),
-                              IconButton(
-                                tooltip: 'Bearbeiten',
-                                icon: const Icon(Icons.edit_outlined),
-                                onPressed: () => _edit(r),
-                              ),
-                              IconButton(
-                                tooltip: 'Löschen',
-                                icon: const Icon(Icons.delete_outline),
-                                onPressed: () => _confirmDelete(r),
-                              ),
-                              IconButton(
-                                tooltip: 'Kunden zuweisen/anzeigen',
-                                icon: const Icon(Icons.group_add_outlined),
-                                onPressed: () => _openRepCustomersDialog(r),
-                              ),
-                            ],
+                        return _RepTile(
+                          rep: r,
+                          onMail: () => _composeMail(
+                            r.email,
+                            subject: 'DFS-DIAMON – Anfrage / ${r.displayName}',
+                            body: 'Guten Tag ${r.displayName},\n\n— Nachricht —\n\nBeste Grüße\nDFS-DIAMON GmbH',
                           ),
+                          onEdit: () => _edit(r),
+                          onDelete: () => _confirmDelete(r),
+                          onManageCustomers: () => _openRepCustomersDialog(r),
                         );
                       },
                     ),
@@ -1508,6 +1577,7 @@ Widget _buildUsersPanel() {
       ),
     );
   }
+
 }
 
 // ===================================================================
@@ -1530,6 +1600,79 @@ class _Field extends StatelessWidget {
           Text('$label:', style: muted),
           Text(value.isEmpty ? '—' : value),
         ],
+      ),
+    );
+  }
+}
+
+class _FilterChipButton<T> extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String valueLabel;
+  final T initialValue;
+  final List<PopupMenuEntry<T>> items;
+  final ValueChanged<T> onSelected;
+  final double? maxWidth;
+
+  const _FilterChipButton({
+    required this.icon,
+    required this.label,
+    required this.valueLabel,
+    required this.initialValue,
+    required this.items,
+    required this.onSelected,
+    this.maxWidth,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final bg = Color.alphaBlend(
+      scheme.surfaceTint.withOpacity(isDark ? 0.16 : 0.22),
+      scheme.surfaceContainerHigh.withOpacity(isDark ? 0.25 : 0.5),
+    );
+    final borderColor = scheme.outlineVariant.withOpacity(isDark ? 0.5 : 0.35);
+    final baseStyle = theme.textTheme.labelLarge ?? const TextStyle(fontSize: 14);
+    final textStyle = baseStyle.copyWith(
+      fontWeight: FontWeight.w600,
+      letterSpacing: 0.15,
+    );
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth ?? double.infinity),
+      child: PopupMenuButton<T>(
+        initialValue: initialValue,
+        onSelected: onSelected,
+        itemBuilder: (_) => items,
+        offset: const Offset(0, 40),
+        tooltip: '$label wählen',
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: borderColor),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 17, color: scheme.primary),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  '$label: $valueLabel',
+                  style: textStyle,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Icon(Icons.keyboard_arrow_down, size: 17, color: scheme.onSurfaceVariant),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1563,21 +1706,21 @@ class _AdminTile extends StatelessWidget {
         onTap: onTap,
         child: Center(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: 44, color: color),
-                const SizedBox(height: 10),
+                Icon(icon, size: 36, color: color),
+                const SizedBox(height: 8),
                 Text(
                   label,
                   style: const TextStyle(fontWeight: FontWeight.w600),
                   textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
                 ),
-              ],
-            ),
-          ),
-        ),
+              ),
       ),
     );
 
@@ -1762,22 +1905,24 @@ class _PendingTileState extends State<_PendingTile> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Adressdaten (Pending)'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _Field(label: 'Firma', value: d.company),
-            _Field(label: 'Kontakt', value: d.contact),
-            const SizedBox(height: 6),
-            _Field(label: 'Straße', value: d.street),
-            _Field(label: 'PLZ/Ort', value: '${d.zip} ${d.city}'.trim()),
-            _Field(label: 'Land', value: d.country),
-            const SizedBox(height: 6),
-            _Field(label: 'Telefon', value: d.phone),
-            _Field(label: 'E-Mail', value: d.email),
-            _Field(label: 'Sprache', value: d.lang.toUpperCase()),
-            _Field(label: 'Erstellt', value: d.createdAt ?? '—'),
-          ],
+        content: DialogContentScroll(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _Field(label: 'Firma', value: d.company),
+              _Field(label: 'Kontakt', value: d.contact),
+              const SizedBox(height: 6),
+              _Field(label: 'Straße', value: d.street),
+              _Field(label: 'PLZ/Ort', value: '${d.zip} ${d.city}'.trim()),
+              _Field(label: 'Land', value: d.country),
+              const SizedBox(height: 6),
+              _Field(label: 'Telefon', value: d.phone),
+              _Field(label: 'E-Mail', value: d.email),
+              _Field(label: 'Sprache', value: d.lang.toUpperCase()),
+              _Field(label: 'Erstellt', value: d.createdAt ?? '—'),
+            ],
+          ),
         ),
         actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
       ),
@@ -1790,38 +1935,145 @@ class _PendingTileState extends State<_PendingTile> {
     final title = d.company.isNotEmpty ? d.company : d.email;
     final subtitle = (d.country.isNotEmpty) ? d.country : '${d.zip} ${d.city}'.trim();
 
-    return Column(
-      children: [
-        ListTile(
-          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-          subtitle: Text(subtitle.isEmpty ? '—' : subtitle),
-          trailing: Wrap(
-            spacing: 8,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 640;
+
+        Widget buildIconButton({
+          required String tooltip,
+          required IconData icon,
+          required VoidCallback onPressed,
+        }) {
+          return IconButton(
+            tooltip: tooltip,
+            icon: Icon(icon),
+            onPressed: onPressed,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+          );
+        }
+
+        Widget buildApproveButton({double? width}) {
+          final button = FilledButton(onPressed: widget.onApprove, child: const Text('Freigeben'));
+          if (width == null) return button;
+          return SizedBox(width: width, child: button);
+        }
+
+        Widget buildRejectButton({double? width}) {
+          final button = OutlinedButton(onPressed: widget.onReject, child: const Text('Ablehnen'));
+          if (width == null) return button;
+          return SizedBox(width: width, child: button);
+        }
+
+        final header = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Text(subtitle.isEmpty ? '—' : subtitle),
+            const SizedBox(height: 4),
+            Text(d.email, style: Theme.of(context).textTheme.bodySmall),
+          ],
+        );
+
+        Widget actionSection;
+        if (isCompact) {
+          actionSection = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: buildIconButton(
+                      tooltip: 'Adressdaten',
+                      icon: Icons.info_outline,
+                      onPressed: _showAddress,
+                    ),
+                  ),
+                  buildIconButton(
+                    tooltip: 'Reklamationen anzeigen',
+                    icon: _expanded ? Icons.expand_less : Icons.receipt_long,
+                    onPressed: () {
+                      setState(() => _expanded = !_expanded);
+                      if (_expanded) widget.onLoadComplaints();
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              buildApproveButton(width: double.infinity),
+              const SizedBox(height: 8),
+              buildRejectButton(width: double.infinity),
+            ],
+          );
+        } else {
+          actionSection = Wrap(
+            spacing: 10,
+            runSpacing: 10,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              IconButton(tooltip: 'Adressdaten', onPressed: _showAddress, icon: const Icon(Icons.info_outline)),
-              IconButton(
+              buildIconButton(
+                tooltip: 'Adressdaten',
+                icon: Icons.info_outline,
+                onPressed: _showAddress,
+              ),
+              buildIconButton(
                 tooltip: 'Reklamationen anzeigen',
+                icon: _expanded ? Icons.expand_less : Icons.receipt_long,
                 onPressed: () {
                   setState(() => _expanded = !_expanded);
                   if (_expanded) widget.onLoadComplaints();
                 },
-                icon: Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
               ),
-              FilledButton(onPressed: widget.onApprove, child: const Text('Freigeben')),
-              OutlinedButton(onPressed: widget.onReject, child: const Text('Ablehnen')),
+              buildApproveButton(),
+              buildRejectButton(),
+            ],
+          );
+        }
+
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color:
+                  Theme.of(context).colorScheme.outlineVariant.withOpacity(0.4),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (isCompact) ...[
+                header,
+                const SizedBox(height: 12),
+                actionSection,
+              ] else ...[
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: header),
+                    const SizedBox(width: 12),
+                    actionSection,
+                  ],
+                ),
+              ],
+              if (_expanded) ...[
+                const SizedBox(height: 12),
+                _ComplaintsDetailList(
+                  result: widget.complaints,
+                  api: widget.api,
+                  onClosed: () {},
+                  companyHint: d.company,
+                  padding: EdgeInsets.zero,
+                ),
+              ],
             ],
           ),
-        ),
-        if (_expanded)
-          _ComplaintsDetailList(
-            result: widget.complaints,
-            api: widget.api,
-            onClosed: () {},
-            companyHint: d.company,
-          ),
-        const Divider(height: 1),
-      ],
+        );
+      },
     );
   }
 }
@@ -1858,22 +2110,24 @@ class _UserTileState extends State<_UserTile> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Adressdaten'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _Field(label: 'Firma', value: d.company),
-            _Field(label: 'Kontakt', value: d.contact),
-            const SizedBox(height: 6),
-            _Field(label: 'Straße', value: d.street),
-            _Field(label: 'PLZ/Ort', value: '${d.zip} ${d.city}'.trim()),
-            _Field(label: 'Land', value: d.country),
-            const SizedBox(height: 6),
-            _Field(label: 'Telefon', value: d.phone),
-            _Field(label: 'E-Mail', value: d.email),
-            _Field(label: 'Sprache', value: d.lang.toUpperCase()),
-            _Field(label: 'Aktiv seit', value: d.createdAt ?? '—'),
-          ],
+        content: DialogContentScroll(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _Field(label: 'Firma', value: d.company),
+              _Field(label: 'Kontakt', value: d.contact),
+              const SizedBox(height: 6),
+              _Field(label: 'Straße', value: d.street),
+              _Field(label: 'PLZ/Ort', value: '${d.zip} ${d.city}'.trim()),
+              _Field(label: 'Land', value: d.country),
+              const SizedBox(height: 6),
+              _Field(label: 'Telefon', value: d.phone),
+              _Field(label: 'E-Mail', value: d.email),
+              _Field(label: 'Sprache', value: d.lang.toUpperCase()),
+              _Field(label: 'Aktiv seit', value: d.createdAt ?? '—'),
+            ],
+          ),
         ),
         actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
       ),
@@ -1886,62 +2140,249 @@ class _UserTileState extends State<_UserTile> {
     final title = d.company.isNotEmpty ? d.company : d.email;
     final subtitle = d.country.isNotEmpty ? d.country : d.email;
 
-    return Column(
-      children: [
-        ListTile(
-          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(subtitle),
-              if (widget.repName != null && widget.repName!.trim().isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.badge_outlined, size: 16),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Vertreter: ${widget.repName}',
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  ],
-                ),
-              ],
-              if (d.selfDeleted) const SizedBox(height: 4),
-              if (d.selfDeleted)
-                const Text(
-                  'Account durch User gelöscht!',
-                  style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
-                ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 640;
+
+        Widget buildIconButton({
+          required String tooltip,
+          required IconData icon,
+          required VoidCallback onPressed,
+        }) {
+          return IconButton(
+            tooltip: tooltip,
+            icon: Icon(icon),
+            onPressed: onPressed,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+          );
+        }
+
+        final repInfo = widget.repName != null && widget.repName!.trim().isNotEmpty
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.badge_outlined, size: 16),
+                  const SizedBox(width: 6),
+                  Text('Vertreter: ${widget.repName}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                ],
+              )
+            : null;
+
+        final statusLabel = d.selfDeleted
+            ? const Text(
+                'Account durch User gelöscht!',
+                style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
+              )
+            : null;
+
+        final header = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Text(subtitle),
+            const SizedBox(height: 4),
+            Text(d.email, style: Theme.of(context).textTheme.bodySmall),
+            if (repInfo != null) ...[
+              const SizedBox(height: 6),
+              repInfo,
             ],
-          ),
-          trailing: Wrap(
-            spacing: 8,
+            if (statusLabel != null) ...[
+              const SizedBox(height: 6),
+              statusLabel,
+            ],
+          ],
+        );
+
+        Widget actionSection;
+        if (isCompact) {
+          actionSection = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: buildIconButton(
+                      tooltip: 'Adressdaten',
+                      icon: Icons.info_outline,
+                      onPressed: _showAddress,
+                    ),
+                  ),
+                  buildIconButton(
+                    tooltip: 'Reklamationen anzeigen',
+                    icon: _expanded ? Icons.expand_less : Icons.receipt_long,
+                    onPressed: () {
+                      setState(() => _expanded = !_expanded);
+                      if (_expanded) widget.onLoadComplaints();
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () async => widget.onDelete(),
+                  child: const Text('Löschen'),
+                ),
+              ),
+            ],
+          );
+        } else {
+          actionSection = Wrap(
+            spacing: 10,
+            runSpacing: 10,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              IconButton(tooltip: 'Adressdaten', onPressed: _showAddress, icon: const Icon(Icons.info_outline)),
-              IconButton(
+              buildIconButton(
+                tooltip: 'Adressdaten',
+                icon: Icons.info_outline,
+                onPressed: _showAddress,
+              ),
+              buildIconButton(
                 tooltip: 'Reklamationen anzeigen',
+                icon: _expanded ? Icons.expand_less : Icons.receipt_long,
                 onPressed: () {
                   setState(() => _expanded = !_expanded);
                   if (_expanded) widget.onLoadComplaints();
                 },
-                icon: Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
               ),
               OutlinedButton(onPressed: () async => widget.onDelete(), child: const Text('Löschen')),
             ],
+          );
+        }
+
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color:
+                  Theme.of(context).colorScheme.outlineVariant.withOpacity(0.4),
+            ),
           ),
-        ),
-        if (_expanded)
-          _ComplaintsDetailList(
-            result: widget.complaints,
-            api: widget.api,
-            onClosed: widget.onClosedFromEditor,
-            companyHint: d.company,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (isCompact) ...[
+                header,
+                const SizedBox(height: 12),
+                actionSection,
+              ] else ...[
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: header),
+                    const SizedBox(width: 12),
+                    actionSection,
+                  ],
+                ),
+              ],
+              if (_expanded) ...[
+                const SizedBox(height: 12),
+                _ComplaintsDetailList(
+                  result: widget.complaints,
+                  api: widget.api,
+                  onClosed: widget.onClosedFromEditor,
+                  companyHint: d.company,
+                  padding: EdgeInsets.zero,
+                ),
+              ],
+            ],
           ),
-        const Divider(height: 1),
-      ],
+        );
+      },
+    );
+  }
+}
+
+class _RepTile extends StatelessWidget {
+  final Rep rep;
+  final VoidCallback onMail;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  final VoidCallback onManageCustomers;
+
+  const _RepTile({
+    required this.rep,
+    required this.onMail,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onManageCustomers,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 640;
+        final header = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(rep.displayName, style: const TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Text('${rep.email} • ${rep.region} • Kunden: ${rep.customers.length}'),
+          ],
+        );
+
+        IconButton action({
+          required String tooltip,
+          required IconData icon,
+          required VoidCallback onPressed,
+        }) {
+          return IconButton(
+            tooltip: tooltip,
+            icon: Icon(icon),
+            onPressed: onPressed,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+          );
+        }
+
+        final actionBar = Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            action(tooltip: 'E-Mail schreiben', icon: Icons.mail_outline, onPressed: onMail),
+            action(tooltip: 'Bearbeiten', icon: Icons.edit_outlined, onPressed: onEdit),
+            action(tooltip: 'Löschen', icon: Icons.delete_outline, onPressed: onDelete),
+            action(tooltip: 'Kunden zuweisen/anzeigen', icon: Icons.group_add_outlined, onPressed: onManageCustomers),
+          ],
+        );
+
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color:
+                  Theme.of(context).colorScheme.outlineVariant.withOpacity(0.4),
+            ),
+          ),
+          child: isCompact
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    header,
+                    const SizedBox(height: 12),
+                    actionBar,
+                  ],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: header),
+                    const SizedBox(width: 12),
+                    actionBar,
+                  ],
+                ),
+        );
+      },
     );
   }
 }
@@ -1951,39 +2392,42 @@ class _ComplaintsDetailList extends StatelessWidget {
   final AdminApi api;
   final VoidCallback onClosed;
   final String? companyHint;
+  final EdgeInsetsGeometry? padding;
 
   const _ComplaintsDetailList({
     required this.result,
     required this.api,
     required this.onClosed,
     this.companyHint,
+    this.padding,
   });
 
   @override
   Widget build(BuildContext context) {
     final r = result;
+    final contentPadding = padding ?? const EdgeInsets.fromLTRB(16, 0, 16, 12);
     if (r == null) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Text('Noch nicht geladen.'),
+      return Padding(
+        padding: contentPadding,
+        child: const Text('Noch nicht geladen.'),
       );
     }
     if (r.loading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: LinearProgressIndicator(),
+      return Padding(
+        padding: contentPadding,
+        child: const LinearProgressIndicator(),
       );
     }
     if (r.error != null) {
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Text('Fehler beim Laden: ${r.error}', style: TextStyle(color: Colors.red)),
+        padding: contentPadding,
+        child: Text('Fehler beim Laden: ${r.error}', style: const TextStyle(color: Colors.red)),
       );
     }
     if (r.items.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Text('Keine Reklamationen gefunden.'),
+      return Padding(
+        padding: contentPadding,
+        child: const Text('Keine Reklamationen gefunden.'),
       );
     }
 
@@ -1991,7 +2435,7 @@ class _ComplaintsDetailList extends StatelessWidget {
     final parent = context.findAncestorStateOfType<_AdminPageState>();
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: contentPadding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2338,7 +2782,14 @@ class _ComplaintDetailsDialog extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(width: 160, child: Text(l, style: const TextStyle(fontWeight: FontWeight.w600))),
+              Flexible(
+                flex: 0,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 160),
+                  child: Text(l, style: const TextStyle(fontWeight: FontWeight.w600)),
+                ),
+              ),
+              const SizedBox(width: 8),
               Expanded(child: Text(v.isEmpty ? '—' : v)),
             ],
           ),
@@ -2437,7 +2888,13 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 160, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
+          Flexible(
+            flex: 0,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 160),
+              child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+            ),
+          ),
           const SizedBox(width: 8),
           Expanded(child: Text(v, maxLines: maxLines, overflow: TextOverflow.ellipsis)),
         ],
@@ -2458,7 +2915,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   void dispose() {
     _reportCtrl.dispose();
     _internalCtrl.dispose();
-    
     super.dispose();
   }
 
@@ -2624,7 +3080,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Reklamation löschen'),
-        content: Text('Soll Ticket ${widget.c.ticket} wirklich gelöscht werden?'),
+        content: DialogContentScroll(child: Text('Soll Ticket ${widget.c.ticket} wirklich gelöscht werden?')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
           FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen')),
@@ -2807,128 +3263,143 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       return '${two(d.day)}.${two(d.month)}.${d.year}';
     }
 
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 720;
+        final isNarrow = constraints.maxWidth < 560;
+
+        final headerLeft = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // =====================
-            // Kopfzeile (übersichtlich)
-            // =====================
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Linke Seite: Ticket + Interne Nr. + Datum + Status-Chip
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // 1) Ticket + (optional) Interne Nr. als Tag direkt daneben
-                      Row(
-                        children: [
-                          Text(
-                            'Ticket: ${c.ticket}',
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                          ),
-                          const SizedBox(width: 10),
-                          if ((c.internalNo ?? '').trim().isNotEmpty)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.surfaceVariant,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: Theme.of(context).colorScheme.outlineVariant,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.tag, size: 14),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'Intern: ${c.internalNo}',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      // 3) Datum + Status + (optional) Vertreter-Ampel
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 6,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: const [
-                              Icon(Icons.event, size: 16),
-                              SizedBox(width: 6),
-                            ],
-                          ),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.event, size: 16),
-                              const SizedBox(width: 6),
-                              Text('Eingang: ${_fmtDate(c.createdAt)}'),
-                            ],
-                          ),
-                          _statusChip(c.status),
-
-                          // Ampel nur zeigen, wenn Kunde einem Vertreter zugeordnet ist
-                          if (widget.hasRep)
-                            _RepTrafficLight(
-                              opinion: ((c.repOpinion ?? '').trim().isEmpty) ? 'pending' : c.repOpinion,
-                              compact: true,
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
+                Text(
+                  'Ticket: ${c.ticket}',
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
                 ),
-
-                const SizedBox(width: 8),
-
-                // Rechte Seite: Firma/E-Mail – lesbar (Light: schwarz, Dark: onSurface) + Mail-Icon
-                Builder(
-                  builder: (ctx) {
-                    final isDark = Theme.of(ctx).brightness == Brightness.dark;
-                    final label = (widget.companyHint != null && widget.companyHint!.trim().isNotEmpty)
-                        ? 'Firma: ${widget.companyHint}'
-                        : 'E-Mail: ${c.email}';
-                    return Row(
+                const SizedBox(width: 10),
+                if ((c.internalNo ?? '').trim().isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceVariant,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
+                    ),
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        const Icon(Icons.tag, size: 14),
+                        const SizedBox(width: 6),
                         Text(
-                          label,
+                          'Intern: ${c.internalNo}',
                           style: TextStyle(
-                            fontSize: 15,
                             fontWeight: FontWeight.w600,
-                            color: isDark ? Theme.of(ctx).colorScheme.onSurface : Colors.black,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          tooltip: 'E-Mail an Kunden verfassen',
-                          icon: const Icon(Icons.email_outlined),
-                          onPressed: _busy ? null : _composeMailToCustomer,
                         ),
                       ],
-                    );
-                  },
-                ),
+                    ),
+                  ),
               ],
             ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 10,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.event, size: 16),
+                    SizedBox(width: 6),
+                  ],
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.event, size: 16),
+                    const SizedBox(width: 6),
+                    Text('Eingang: ${_fmtDate(c.createdAt)}'),
+                  ],
+                ),
+                _statusChip(c.status),
+                if (widget.hasRep)
+                  _RepTrafficLight(
+                    opinion: ((c.repOpinion ?? '').trim().isEmpty) ? 'pending' : c.repOpinion,
+                    compact: true,
+                  ),
+              ],
+            ),
+          ],
+        );
+
+        final contactInfo = Builder(
+          builder: (ctx) {
+            final isDark = Theme.of(ctx).brightness == Brightness.dark;
+            final label = (widget.companyHint != null && widget.companyHint!.trim().isNotEmpty)
+                ? 'Firma: ${widget.companyHint}'
+                : 'E-Mail: ${c.email}';
+            final width = isCompact ? constraints.maxWidth : math.min(360.0, constraints.maxWidth);
+            return SizedBox(
+              width: width,
+              child: Row(
+                mainAxisSize: MainAxisSize.max,
+                children: [
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Theme.of(ctx).colorScheme.onSurface : Colors.black,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: isNarrow ? 2 : 1,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    tooltip: 'E-Mail an Kunden verfassen',
+                    icon: const Icon(Icons.email_outlined),
+                    onPressed: _busy ? null : _composeMailToCustomer,
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+
+        final topSection = isCompact
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  headerLeft,
+                  const SizedBox(height: 12),
+                  contactInfo,
+                ],
+              )
+            : Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: headerLeft),
+                  const SizedBox(width: 12),
+                  Align(alignment: Alignment.topRight, child: contactInfo),
+                ],
+              );
+
+        return Card(
+          margin: const EdgeInsets.symmetric(vertical: 6),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                topSection,
 
             const SizedBox(height: 10),
 
@@ -2979,11 +3450,24 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                   ],
                 );
 
+                if (isCompact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      left,
+                      const SizedBox(height: 8),
+                      TextButton.icon(
+                        onPressed: () => setState(() => _expanded = !_expanded),
+                        icon: Icon(_expanded ? Icons.expand_less : Icons.edit),
+                        label: Text(_expanded ? 'Bearbeiten schließen' : 'Bearbeiten'),
+                      ),
+                    ],
+                  );
+                }
+
                 return Row(
                   children: [
-                    // links: Entscheidung + Wunsch im Wrap (bricht sauber auf kleinen Screens)
                     Expanded(child: left),
-                    // rechts: Bearbeiten-Button wie gehabt
                     TextButton.icon(
                       onPressed: () => setState(() => _expanded = !_expanded),
                       icon: Icon(_expanded ? Icons.expand_less : Icons.edit),
@@ -2999,99 +3483,131 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
             if (_expanded) ...[
               const SizedBox(height: 10),
 
-              // ---- Toggle + Details-Container (NEU, optional ein/ausklappbar) ----
               const SizedBox(height: 8),
-              AnimatedCrossFade(
-                crossFadeState: _expanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
-                duration: const Duration(milliseconds: 160),
-                firstChild: Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.only(top: 4),
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.30),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Details der Reklamation',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 8),
-                      _detKv('Segment',       segment),
-                      _detKv('Produkttyp',    productType),
-                      _detKv('Artikelnummer', articleNo),
-                      _detKv('Produkte zurückgeschickt?', returned),
-                      _detKv('Am Patienten angewendet?', applied),
-                      _detKv('Verletzung?', injury),
-                      _detKv('Verletzungsbeschreibung', injuryDesc, maxLines: 6),
-
-                      Row(
-                        children: [
-                          Expanded(child: _detKv('Charge / LOT', batch)),
-                          const SizedBox(width: 12),
-                          Expanded(child: _detKv('Seriennummer', serial)),
-                        ],
-                      ),
-                      _detKv('Menge', qty),
-                      _detKv('Fehler / Beschreibung', desc, maxLines: 6),
-                      _detKv('Grund / Ursache',       reason, maxLines: 4),
-                      _detKv('Wunsch des Kunden',     customerWish, maxLines: 3),
-                    ],
-                  ),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.30),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                secondChild: const SizedBox.shrink(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Details der Reklamation',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 8),
+                    _detKv('Segment',       segment),
+                    _detKv('Produkttyp',    productType),
+                    _detKv('Artikelnummer', articleNo),
+                    _detKv('Produkte zurückgeschickt?', returned),
+                    _detKv('Am Patienten angewendet?', applied),
+                    _detKv('Verletzung?', injury),
+                    _detKv('Verletzungsbeschreibung', injuryDesc, maxLines: 6),
+
+                    Row(
+                      children: [
+                        Expanded(child: _detKv('Charge / LOT', batch)),
+                        const SizedBox(width: 12),
+                        Expanded(child: _detKv('Seriennummer', serial)),
+                      ],
+                    ),
+                    _detKv('Menge', qty),
+                    _detKv('Fehler / Beschreibung', desc, maxLines: 6),
+                    _detKv('Grund / Ursache',       reason, maxLines: 4),
+                    _detKv('Wunsch des Kunden',     customerWish, maxLines: 3),
+                  ],
+                ),
               ),
 
               // ====== Editor-Bereich (unverändert inhaltlich) ======                        
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: DropdownButtonFormField<int>(
-                          value: _status,
-                          decoration: const InputDecoration(
-                            labelText: 'Status',
-                            border: OutlineInputBorder(),
-                          ),
-                          items: kStatusItems
-                              .map((e) => DropdownMenuItem<int>(
-                                    value: e['value'] as int,
-                                    child: Text(e['label'] as String),
-                                  ))
-                              .toList(),
-                          onChanged: (v) => setState(() => _status = v),
-                        ),
+                  if (isNarrow) ...[
+                    DropdownButtonFormField<int>(
+                      value: _status,
+                      decoration: const InputDecoration(
+                        labelText: 'Status',
+                        border: OutlineInputBorder(),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          value: _decision ?? '',
-                          decoration: const InputDecoration(
-                            labelText: 'Entscheidung',
-                            border: OutlineInputBorder(),
-                          ),
-                          items: kDecisionItems
-                              .map((e) => DropdownMenuItem<String>(
-                                    value: e['value']!,
-                                    child: Text(e['label']!),
-                                  ))
-                              .toList(),
-                          onChanged: (v) =>
-                              setState(() => _decision = (v == null || v.isEmpty) ? null : v),
-                        ),
+                      items: kStatusItems
+                          .map((e) => DropdownMenuItem<int>(
+                                value: e['value'] as int,
+                                child: Text(e['label'] as String),
+                              ))
+                          .toList(),
+                      onChanged: (v) => setState(() => _status = v),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: _decision ?? '',
+                      decoration: const InputDecoration(
+                        labelText: 'Entscheidung',
+                        border: OutlineInputBorder(),
                       ),
-                      const SizedBox(width: 12),
-                      FilledButton(
+                      items: kDecisionItems
+                          .map((e) => DropdownMenuItem<String>(
+                                value: e['value']!,
+                                child: Text(e['label']!),
+                              ))
+                          .toList(),
+                      onChanged: (v) => setState(() => _decision = (v == null || v.isEmpty) ? null : v),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
                         onPressed: _busy ? null : _saveStatusDecision,
                         child: const Text('Speichern'),
                       ),
-                    ],
-                  ),
+                    ),
+                  ] else
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<int>(
+                            value: _status,
+                            decoration: const InputDecoration(
+                              labelText: 'Status',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: kStatusItems
+                                .map((e) => DropdownMenuItem<int>(
+                                      value: e['value'] as int,
+                                      child: Text(e['label'] as String),
+                                    ))
+                                .toList(),
+                            onChanged: (v) => setState(() => _status = v),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: _decision ?? '',
+                            decoration: const InputDecoration(
+                              labelText: 'Entscheidung',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: kDecisionItems
+                                .map((e) => DropdownMenuItem<String>(
+                                      value: e['value']!,
+                                      child: Text(e['label']!),
+                                    ))
+                                .toList(),
+                            onChanged: (v) =>
+                                setState(() => _decision = (v == null || v.isEmpty) ? null : v),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        FilledButton(
+                          onPressed: _busy ? null : _saveStatusDecision,
+                          child: const Text('Speichern'),
+                        ),
+                      ],
+                    ),
 
                   const SizedBox(height: 12),
 
@@ -3160,19 +3676,27 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
         ),
       ),
     );
+      },
+    );
   }
 }
 // ===================================================================
-// Admin API (Browser, dart:html)
+// Admin API – http-basiert (kein dart:html HttpRequest mehr)
 // ===================================================================
 class AdminApi {
   String _secret = '';
   void setSecret(String s) => _secret = s;
 
   String get baseUrl {
-    final b = const String.fromEnvironment('API_BASE', defaultValue: '');
+    const b = String.fromEnvironment('API_BASE', defaultValue: '');
     if (b.isNotEmpty) return b;
-    return html.window.location.origin;
+    if (kIsWeb) {
+      try {
+        return html.window.location.origin;
+      } catch (_) {}
+    }
+    // Mobile/Desktop-Fallback
+    return 'https://dfs-complaints-backend.vercel.app';
   }
 
   Map<String, String> _headersJson() => {
@@ -3182,57 +3706,72 @@ class AdminApi {
 
   Uri _u(String path, [Map<String, String>? q]) {
     final uri = Uri.parse('$baseUrl$path');
-    if (q == null || q.isEmpty) return uri;
-    return uri.replace(queryParameters: q);
+    return (q == null || q.isEmpty) ? uri : uri.replace(queryParameters: q);
   }
 
-  Future<html.HttpRequest> _request(
+  Future<_Resp> _request(
     String method,
     String path, {
     Map<String, String>? q,
     Object? body,
   }) async {
-    try {
-      final res = await html.HttpRequest.request(
-        _u(path, q).toString(),
-        method: method,
-        requestHeaders: _headersJson(),
-        sendData: body is String ? body : (body == null ? null : jsonEncode(body)),
-        withCredentials: true,
-      );
-      return res;
-    } catch (e) {
-      if (e is html.ProgressEvent) {
-        final t = e.target;
-        if (t is html.HttpRequest) {
-          final st = t.status;
-          final txt = t.responseText ?? '';
-          final stx = t.statusText ?? '';
-          throw 'HTTP $st $stx — ${txt.isEmpty ? "Request fehlgeschlagen" : txt}';
-        }
-      }
-      throw e.toString();
+    final uri = _u(path, q);
+    final hdrs = _headersJson();
+
+    String? payload;
+    if (body != null) {
+      payload = body is String ? body : jsonEncode(body);
     }
+
+    http.Response r;
+    switch (method.toUpperCase()) {
+      case 'GET':
+        r = await http.get(uri, headers: hdrs);
+        break;
+      case 'POST':
+        r = await http.post(uri, headers: hdrs, body: payload);
+        break;
+      case 'PUT':
+        r = await http.put(uri, headers: hdrs, body: payload);
+        break;
+      case 'PATCH':
+        r = await http.patch(uri, headers: hdrs, body: payload);
+        break;
+      case 'DELETE':
+        // Einige Endpunkte akzeptieren Body bei DELETE → unterstützt
+        r = await http.delete(uri, headers: hdrs, body: payload);
+        break;
+      default:
+        throw UnsupportedError('Unsupported method: $method');
+    }
+
+    return _Resp(
+      r.statusCode,
+      r.body,
+      r.reasonPhrase ?? '',
+      r.headers,
+    );
   }
 
-  // Pending
+  // ---------------- Pending ----------------
   Future<List<PendingUser>> fetchPending() async {
     final res = await _request('GET', '/api/admin/pending');
-    if (res.status != 200) throw 'pending GET: HTTP ${res.status} ${res.responseText}';
-    final txt = res.responseText ?? '';
-    if (txt.trim().isEmpty) return <PendingUser>[];
+    if (res.status != 200) throw 'pending GET: HTTP ${res.status} ${res.body}';
+    final txt = res.body.trim();
+    if (txt.isEmpty) return const <PendingUser>[];
     final List data = jsonDecode(txt);
-    return data.map((e) => PendingUser.fromJson(e as Map<String, dynamic>)).toList();
+    return data.map((e) => PendingUser.fromJson((e as Map).cast<String, dynamic>())).toList();
   }
 
   Future<void> approvePending(String email, {String? lang}) async {
     final body = {'email': email, 'action': 'approve', if (lang != null) 'lang': lang};
     final res = await _request('POST', '/api/admin/pending', body: body);
     if (res.status != 200 && res.status != 204) {
-      throw 'pending POST approve: HTTP ${res.status} ${res.responseText}';
+      throw 'pending POST approve: HTTP ${res.status} ${res.body}';
     }
   }
 
+  // ---------------- Users ----------------
   Future<void> deleteUser(String email) async {
     // Versuch 1: DELETE mit Query
     try {
@@ -3247,64 +3786,60 @@ class AdminApi {
     // Versuch 3: POST action=delete
     final r3 = await _request('POST', '/api/admin/users', body: {'action': 'delete', 'email': email});
     if (r3.status != 200 && r3.status != 204) {
-      throw 'users DELETE/POST(delete) failed: HTTP ${r3.status} ${r3.responseText}';
+      throw 'users DELETE/POST(delete) failed: HTTP ${r3.status} ${r3.body}';
     }
   }
 
-  // Users
   Future<List<ActiveUser>> fetchUsers() async {
     final res = await _request('GET', '/api/admin/users');
-    if (res.status != 200) throw 'users GET: HTTP ${res.status} ${res.responseText}';
-    final txt = res.responseText ?? '';
-    if (txt.trim().isEmpty) return <ActiveUser>[];
+    if (res.status != 200) throw 'users GET: HTTP ${res.status} ${res.body}';
+    final txt = res.body.trim();
+    if (txt.isEmpty) return const <ActiveUser>[];
     final List data = jsonDecode(txt);
-    return data.map((e) => ActiveUser.fromJson(e as Map<String, dynamic>)).toList();
+    return data.map((e) => ActiveUser.fromJson((e as Map).cast<String, dynamic>())).toList();
   }
 
-  // Complaints (by email / open)
+  // ---------------- Complaints ----------------
   Future<List<AdminComplaint>> fetchComplaintsByEmailDetailed(String email) async {
     final res = await _request('GET', '/api/admin/complaints', q: {'email': email, 'details': '1'});
-    if (res.status != 200) throw 'complaints email GET: HTTP ${res.status} ${res.responseText}';
-    final List data = jsonDecode(res.responseText ?? '[]');
-    return data.map((e) => AdminComplaint.fromJson(e as Map<String, dynamic>)).toList();
+    if (res.status != 200) throw 'complaints email GET: HTTP ${res.status} ${res.body}';
+    final List data = jsonDecode(res.body.isEmpty ? '[]' : res.body);
+    return data.map((e) => AdminComplaint.fromJson((e as Map).cast<String, dynamic>())).toList();
   }
 
   Future<List<AdminComplaint>> fetchOpenComplaints() async {
     final res = await _request('GET', '/api/admin/complaints', q: {'open': '1'});
-    if (res.status != 200) throw 'open complaints GET: HTTP ${res.status} ${res.responseText}';
-    final List data = jsonDecode(res.responseText ?? '[]');
-    return data.map((e) => AdminComplaint.fromJson(e as Map<String, dynamic>)).toList();
+    if (res.status != 200) throw 'open complaints GET: HTTP ${res.status} ${res.body}';
+    final List data = jsonDecode(res.body.isEmpty ? '[]' : res.body);
+    return data.map((e) => AdminComplaint.fromJson((e as Map).cast<String, dynamic>())).toList();
   }
 
   Future<Map<String, dynamic>> fetchComplaintRawByTicket(String ticket) async {
     final res = await _request('GET', '/api/admin/complaints', q: {'ticket': ticket});
     if (res.status != 200) {
-      throw 'complaint GET by ticket: HTTP ${res.status} ${res.responseText}';
+      throw 'complaint GET by ticket: HTTP ${res.status} ${res.body}';
     }
-    final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
-    return j;
+    return (res.body.isEmpty ? <String, dynamic>{} : jsonDecode(res.body)) as Map<String, dynamic>;
   }
 
-  // Update / Delete
   Future<AdminComplaint> adminComplaintUpdate({
     required String ticket,
     int? status,
     String? decision,
     String? reportLink,
-    String? internalNo, // ← NEU
+    String? internalNo,
   }) async {
     final body = <String, dynamic>{'ticket': ticket};
     if (status != null) body['status'] = status;
     body['decision'] = decision ?? '';
     if (reportLink != null) body['reportLink'] = reportLink;
-    if (internalNo != null) body['internalNo'] = internalNo; // ← NEU
+    if (internalNo != null) body['internalNo'] = internalNo;
 
     final res = await _request('POST', '/api/admin/complaints', body: body);
     if (res.status != 200) {
-      throw 'HTTP ${res.status} ${res.statusText} — ${res.responseText ?? ''}';
+      throw 'HTTP ${res.status} ${res.statusText} — ${res.body}';
     }
-    final Map<String, dynamic> j =
-        (res.responseText ?? '').trim().isEmpty ? <String, dynamic>{} : jsonDecode(res.responseText!);
+    final Map<String, dynamic> j = (res.body.trim().isEmpty) ? <String, dynamic>{} : jsonDecode(res.body);
     return AdminComplaint.fromJson(j);
   }
 
@@ -3313,16 +3848,16 @@ class AdminApi {
     try {
       final r1 = await _request('DELETE', '/api/admin/complaints', q: {'ticket': ticket});
       if (r1.status == 200 || r1.status == 204) return;
-    } catch (_) {/* Fallback */}
+    } catch (_) {}
     // 2) DELETE Body
     final r2 = await _request('DELETE', '/api/admin/complaints', body: {'ticket': ticket});
     if (r2.status != 200 && r2.status != 204) {
-      throw 'HTTP ${r2.status} ${r2.statusText} — ${r2.responseText ?? ''}';
+      throw 'HTTP ${r2.status} ${r2.statusText} — ${r2.body}';
     }
   }
 
-  // ---------- Representatives (Vertreter) ----------
- Future<Rep> upsertRep({
+  // ---------------- Representatives (Vertreter) ----------------
+  Future<Rep> upsertRep({
     String? id,
     required String firstName,
     required String lastName,
@@ -3330,7 +3865,7 @@ class AdminApi {
     required String region,
   }) async {
     final body = {
-      'action': 'upsert',                 // <-- NEU
+      'action': 'upsert',
       if (id != null && id.isNotEmpty) 'id': id,
       'firstName': firstName,
       'lastName': lastName,
@@ -3339,24 +3874,20 @@ class AdminApi {
     };
     final res = await _request('POST', '/api/admin/reps', body: body);
     if (res.status != 200 && res.status != 201) {
-      throw 'reps POST: HTTP ${res.status} ${res.responseText}';
+      throw 'reps POST: HTTP ${res.status} ${res.body}';
     }
-    final Map<String, dynamic> j =
-        (res.responseText ?? '').trim().isEmpty ? <String, dynamic>{} : jsonDecode(res.responseText!);
+    final Map<String, dynamic> j = (res.body.trim().isEmpty) ? <String, dynamic>{} : jsonDecode(res.body);
     return Rep.fromJson(j);
   }
 
   Future<void> deleteRep(String id) async {
-    // Query-Variante (falls dein Backend das unterstützt)
     try {
       final r1 = await _request('DELETE', '/api/admin/reps', q: {'id': id});
       if (r1.status == 200 || r1.status == 204) return;
     } catch (_) {}
-
-    // Body-Variante mit action: 'delete'
     final r2 = await _request('DELETE', '/api/admin/reps', body: {'action': 'delete', 'id': id});
     if (r2.status != 200 && r2.status != 204) {
-      throw 'reps DELETE: HTTP ${r2.status} ${r2.responseText}';
+      throw 'reps DELETE: HTTP ${r2.status} ${r2.body}';
     }
   }
 
@@ -3364,26 +3895,25 @@ class AdminApi {
     final q = includeCustomers ? {'includeCustomers': '1'} : null;
     final res = await _request('GET', '/api/admin/reps', q: q);
     if (res.status != 200) {
-      throw 'reps GET: HTTP ${res.status} ${res.responseText}';
+      throw 'reps GET: HTTP ${res.status} ${res.body}';
     }
-    final List data = jsonDecode(res.responseText ?? '[]');
+    final List data = jsonDecode(res.body.isEmpty ? '[]' : res.body);
     return data.map((e) => Rep.fromJson((e as Map).cast<String, dynamic>())).toList();
   }
-  
+
   Future<List<String>> assignCustomerToRep({required String repId, required String email}) async {
-  final res = await _request('POST', '/api/admin/reps', body: {
-    'action': 'assign',
-    'repId': repId,
-    'email': email,
-  });
-  if (res.status != 200) {
-    throw 'reps assign: HTTP ${res.status} ${res.responseText}';
+    final res = await _request('POST', '/api/admin/reps', body: {
+      'action': 'assign',
+      'repId': repId,
+      'email': email,
+    });
+    if (res.status != 200) {
+      throw 'reps assign: HTTP ${res.status} ${res.body}';
+    }
+    final Map<String, dynamic> j = (res.body.trim().isEmpty) ? <String, dynamic>{} : jsonDecode(res.body);
+    final list = (j['customers'] is List) ? (j['customers'] as List) : const [];
+    return List<String>.from(list.map((e) => e.toString()));
   }
-  final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
-  return (j['customers'] is List)
-      ? List<String>.from((j['customers'] as List).map((e) => e.toString()))
-      : const <String>[];
-}
 
   Future<List<String>> unassignCustomerFromRep({required String repId, required String email}) async {
     final res = await _request('POST', '/api/admin/reps', body: {
@@ -3392,45 +3922,23 @@ class AdminApi {
       'email': email,
     });
     if (res.status != 200) {
-      throw 'reps unassign: HTTP ${res.status} ${res.responseText}';
+      throw 'reps unassign: HTTP ${res.status} ${res.body}';
     }
-    final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
-    return (j['customers'] is List)
-        ? List<String>.from((j['customers'] as List).map((e) => e.toString()))
-        : const <String>[];
+    final Map<String, dynamic> j = (res.body.trim().isEmpty) ? <String, dynamic>{} : jsonDecode(res.body);
+    final list = (j['customers'] is List) ? (j['customers'] as List) : const [];
+    return List<String>.from(list.map((e) => e.toString()));
   }
-
-    // ---------- Catalogs (Katalog-Konfiguration) ----------
-  Future<Map<String, String>> fetchCatalogConfig() async {
-    final res = await _request('GET', '/api/catalogs/config');
-    if (res.status != 200) {
-      throw 'catalog config GET: HTTP ${res.status} ${res.responseText}';
-    }
-    final txt = res.responseText ?? '{}';
-    final Map j = (txt.trim().isEmpty) ? <String, dynamic>{} : jsonDecode(txt);
-    final out = <String, String>{};
-    for (final k in ['lab_default','lab_esfr','dent_default','dent_esfr']) {
-      final v = j[k];
-      if (v is String && v.trim().isNotEmpty) out[k] = v.trim();
-    }
-    return out;
-  }
-
-  Future<void> updateCatalogConfig(Map<String, String> cfg) async {
-    final body = <String, String>{};
-    for (final k in ['lab_default','lab_esfr','dent_default','dent_esfr']) {
-      final v = cfg[k];
-      if (v != null) body[k] = v;
-    }
-    final res = await _request('PUT', '/api/catalogs/config', body: body);
-    if (res.status != 200 && res.status != 204) {
-      throw 'catalog config PUT: HTTP ${res.status} ${res.responseText}';
-    }
-  }
-
-
-  
 }
+
+  // Kleiner interner Response-Wrapper (angleicht an das frühere HttpRequest-Handling)
+class _Resp {
+    final int status;
+    final String body;
+    final String statusText;
+    final Map<String, String> headers;
+    _Resp(this.status, this.body, this.statusText, this.headers);
+  }
+
 
 // Farb-Mixer: mischt "top" mit Deckkraft t über "base"
 Color _blend(Color base, Color top, double t) {
@@ -3521,98 +4029,139 @@ class _AdminTileProState extends State<AdminTilePro> {
     final scale = _hovering ? 1.015 : 1.0;
     final elevation = _hovering ? 12.0 : 3.0;
 
-    final iconSize = widget.compact ? 44.0 : 54.0;
-
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        transform: Matrix4.identity()..translate(0.0, liftY)..scale(scale),
-        child: Material(
-          elevation: elevation,
-          borderRadius: br,
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: widget.onTap,
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: br,
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [bgA, bgB],
-                ),
-                border: Border.all(
-                  color: isDark ? cs.outlineVariant.withOpacity(0.35) : cs.outlineVariant.withOpacity(0.25),
-                ),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Stack(
-                    clipBehavior: Clip.none,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final height = constraints.maxHeight.isFinite ? constraints.maxHeight : 0;
+          final width = constraints.maxWidth.isFinite ? constraints.maxWidth : 0;
+          final dense = height > 0 && height < 190;
+          final ultraCompact = height > 0 && height < 160 || width > 0 && width < 150;
+
+          double adaptiveIcon() {
+            if (ultraCompact) {
+              final basis = height > 0 ? height * 0.32 : 40;
+              return basis.clamp(34, 46).toDouble();
+            }
+            if (dense) {
+              return widget.compact ? 44.0 : 50.0;
+            }
+            return widget.compact ? 48.0 : 56.0;
+          }
+
+          final iconSize = adaptiveIcon();
+          final verticalPadding = ultraCompact ? 14.0 : (dense ? 16.0 : 20.0);
+          final horizontalPadding = ultraCompact ? 14.0 : 18.0;
+          final gap = ultraCompact ? 8.0 : (dense ? 11.0 : 14.0);
+          final subtitleGap = ultraCompact ? 6.0 : 8.0;
+
+          final textTheme = Theme.of(context).textTheme;
+          final titleStyle = (textTheme.titleMedium ?? const TextStyle(fontSize: 16)).copyWith(
+            fontSize: ultraCompact ? 15.6 : (dense ? 16.4 : 17.0),
+            fontWeight: FontWeight.w700,
+            color: titleColor,
+            height: 1.25,
+            letterSpacing: 0.2,
+          );
+          final subtitleStyle = (textTheme.bodySmall ?? const TextStyle(fontSize: 13)).copyWith(
+            color: subtitleColor,
+            height: 1.28,
+            fontSize: ultraCompact ? 12.2 : 13.0,
+          );
+
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            transform: Matrix4.identity()..translate(0.0, liftY)..scale(scale),
+            child: Material(
+              elevation: elevation,
+              borderRadius: br,
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: widget.onTap,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: br,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [bgA, bgB],
+                    ),
+                    border: Border.all(
+                      color: isDark
+                          ? cs.outlineVariant.withOpacity(0.35)
+                          : cs.outlineVariant.withOpacity(0.25),
+                    ),
+                  ),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: horizontalPadding,
+                    vertical: verticalPadding,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(widget.icon, size: iconSize, color: iconColor),
-                      if (widget.count != null)
-                        Positioned(
-                          right: -6,
-                          top: -6,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: badgeBg,
-                              borderRadius: BorderRadius.circular(999),
-                              boxShadow: [
-                                if (isDark)
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.25),
-                                    blurRadius: 6,
-                                    offset: const Offset(0, 2),
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Icon(widget.icon, size: iconSize, color: iconColor),
+                          if (widget.count != null)
+                            Positioned(
+                              right: -6,
+                              top: -6,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: badgeBg,
+                                  borderRadius: BorderRadius.circular(999),
+                                  boxShadow: [
+                                    if (isDark)
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.25),
+                                        blurRadius: 6,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                  ],
+                                ),
+                                child: Text(
+                                  '${widget.count}',
+                                  style: TextStyle(
+                                    color: badgeFg,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12.5,
                                   ),
-                              ],
-                            ),
-                            child: Text(
-                              '${widget.count}',
-                              style: TextStyle(
-                                color: badgeFg,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12.5,
+                                ),
                               ),
                             ),
-                          ),
+                        ],
+                      ),
+                      SizedBox(height: gap),
+                      Text(
+                        widget.label,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: titleStyle,
+                      ),
+                      if ((widget.subtitle ?? '').isNotEmpty) ...[
+                        SizedBox(height: subtitleGap),
+                        Text(
+                          widget.subtitle!,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: subtitleStyle,
                         ),
+                      ],
                     ],
                   ),
-                  const SizedBox(height: 14),
-                  Text(
-                    widget.label,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: titleColor,
-                      fontSize: 15.5,
-                    ),
-                  ),
-                  if ((widget.subtitle ?? '').isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      widget.subtitle!,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: subtitleColor,
-                        fontSize: 13.0,
-                      ),
-                    ),
-                  ],
-                ],
+                ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
