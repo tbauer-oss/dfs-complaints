@@ -66,6 +66,7 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserver {
   MyRep? _myRep;
   String? _customerName;
+  String? _customerEmail;
   bool _repLoading = false;
   bool _repRequested = false;
   int _hoverIndex = -1;
@@ -107,7 +108,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
   }
 
   Future<void> _initCustomerName() async {
-    // Wir versuchen mehrere Quellen, ohne harte Abhängigkeit von bestimmten ApiClient-Methoden.
     Map<String, dynamic>? profile;
 
     try {
@@ -116,22 +116,42 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
       // 1) Häufige Varianten
       try { if (dyn.getMyAccount != null) profile = await dyn.getMyAccount(); } catch (_) {}
       try { if (profile == null && dyn.getMe != null) profile = await dyn.getMe(); } catch (_) {}
-  
+
       // 2) Direkt-Caches, falls vorhanden
       if (profile == null) {
-        try { final p = dyn.currentUser; if (p is Map) profile = Map<String, dynamic>.from(p); } catch (_) {}
+        try {
+          final p = dyn.currentUser;
+          if (p is Map) profile = Map<String, dynamic>.from(p);
+        } catch (_) {}
       }
 
       // 3) JWT-Claims, falls verfügbar
-     if (profile == null) {
-        try { final c = dyn.jwtClaims; if (c is Map) profile = Map<String, dynamic>.from(c); } catch (_) {}
+      if (profile == null) {
+        try {
+          final c = dyn.jwtClaims;
+          if (c is Map) profile = Map<String, dynamic>.from(c);
+        } catch (_) {}
       }
     } catch (_) {
       // still
     }
 
     final name = _pickCompany(profile);
-    if (mounted) setState(() => _customerName = name);
+
+    String? email;
+    if (profile != null) {
+      final e = profile['email'];
+      if (e is String && e.trim().isNotEmpty) {
+        email = e.trim();
+      }
+    }
+  
+    if (mounted) {
+      setState(() {
+        _customerName = name;
+        _customerEmail = email;
+      });
+    }
   }
 
   String? _pickCompany(Map<String, dynamic>? m) {
@@ -158,30 +178,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     }
   }
 
-  // --- HILFSFUNKTION: mailto an Vertreter öffnen (mit Betreff + Body aus i18n) ---
-  void _mailToRep(BuildContext context) async {
-    final t = AppLocalizations.of(context)!;
-    final r = _myRep;
-    if (r == null || (r.email).trim().isEmpty) return;
-
-    final first = r.firstName.trim();
-    final last  = r.lastName.trim();
-    final name  = [first, last].where((s) => s.isNotEmpty).join(' ');
-
-    final subject = Uri.encodeComponent(t.mail_subject_rep);
-    final body    = Uri.encodeComponent(t.mail_body_rep(name));
-    final mailto  = 'mailto:${r.email}?subject=$subject&body=$body';
-
-    if (kIsWeb) {
-      html.window.open(mailto, '_self');
-    } else {
-      // Optional schöner: url_launcher (siehe unten). Vorläufig: Snackbar statt Crash.
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.rep_email_tooltip)),
-      );
-    }
-  }
-
   Future<void> _openMail(String email, String subject, String body) async {
     final uri = Uri(
       scheme: 'mailto',
@@ -191,6 +187,22 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     if (!await launchUrl(uri, mode: LaunchMode.platformDefault)) {
       // Fallback
     }
+  }
+
+  void _openRepContactForm(BuildContext context) {
+    final rep = _myRep;
+    if (rep == null) return;
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RepContactPage(
+          api: widget.api,
+          rep: rep,
+          customerCompany: _customerName,
+          customerEmail: _customerEmail,
+        ),
+      ),
+    );
   }
 
   // --- KOMPAKTE Variante (handy-optimiert, Name immer sichtbar) ---
@@ -323,7 +335,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                       visualDensity: const VisualDensity(horizontal: -2, vertical: -3),
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     ),
-                    onPressed: () => _mailToRep(context),
+                    onPressed: () => _openRepContactForm(context),
                     icon: const Icon(Icons.mail_outline, size: 18),
                     label: Text(
                       t.rep_email_button,
@@ -461,7 +473,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
               Tooltip(
                 message: t.rep_email_tooltip,
                 child: TextButton.icon(
-                  onPressed: () => _mailToRep(context),
+                  onPressed: () => _openRepContactForm(context),
                   icon: const Icon(Icons.email_outlined),
                   label: Text(t.rep_email_button),
                 ),
@@ -786,8 +798,8 @@ class _CatalogButtons extends StatelessWidget {
     Widget buildCard({
       required String title,
       required IconData icon,
+      required String description,
       required List<_CatalogLink> links,
-      String? description,
     }) {
       final link = _catalogLinkForLocale(links, localeCode);
 
@@ -875,11 +887,13 @@ class _CatalogButtons extends StatelessWidget {
       children: [
         buildCard(
           titel: t.catalog_lab_title,
+          description: ''
           icon: Icons.biotech_outlined,
           links: _labCatalogLinks,
         ),
         buildCard(
           title: t.catalog_dent_title,
+          description: ''
           icon: Icons.medical_services_outlined,
           links: _dentCatalogLinks,
         ),
@@ -1003,6 +1017,280 @@ class _FancyTile extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class RepContactPage extends StatefulWidget {
+  final ApiClient api;
+  final MyRep rep;
+  final String? customerCompany;
+  final String? customerEmail;
+
+  const RepContactPage({
+    super.key,
+    required this.api,
+    required this.rep,
+    this.customerCompany,
+    this.customerEmail,
+  });
+
+  @override
+  State<RepContactPage> createState() => _RepContactPageState();
+}
+
+class _RepContactPageState extends State<RepContactPage> {
+  final _firstName = TextEditingController();
+  final _lastName  = TextEditingController();
+  final _subject   = TextEditingController();
+  final _message   = TextEditingController();
+
+  bool _sending = false;
+  bool _dirty   = false;
+
+  @override
+  void initState() {
+    super.initState();
+    for (final c in [_firstName, _lastName, _subject, _message]) {
+      c.addListener(_onChanged);
+    }
+  }
+
+  void _onChanged() {
+    if (!_dirty &&
+        (_firstName.text.isNotEmpty ||
+         _lastName.text.isNotEmpty ||
+         _subject.text.isNotEmpty ||
+         _message.text.isNotEmpty)) {
+      setState(() => _dirty = true);
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final c in [_firstName, _lastName, _subject, _message]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<bool> _confirmLeaveIfDirty() async {
+    if (!_dirty) return true;
+    final t = AppLocalizations.of(context)!;
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(t.rep_contact_discard_title),
+        content: Text(t.rep_contact_discard_text),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(t.no),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(t.yes),
+          ),
+        ],
+      ),
+    );
+    return res ?? false;
+  }
+
+  Future<void> _handleCancel() async {
+    final ok = await _confirmLeaveIfDirty();
+    if (ok && mounted) {
+      Navigator.of(context).pop(); // zurück zum Dashboard
+    }
+  }
+
+  Future<void> _handleSend() async {
+    final t = AppLocalizations.of(context)!;
+    final subject = _subject.text.trim();
+    final msg     = _message.text.trim();
+
+    if (subject.isEmpty || msg.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.rep_contact_validation)),
+      );
+      return;
+    }
+
+    final repEmail = widget.rep.email.trim();
+    if (repEmail.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.rep_contact_no_rep_email)),
+      );
+      return;
+    }
+
+    setState(() => _sending = true);
+    try {
+      final company      = (widget.customerCompany ?? '').trim();
+      final companyEmail = (widget.customerEmail ?? '').trim();
+
+      final bodyLines = <String>[
+        if (company.isNotEmpty)      'Firma: $company',
+        if (companyEmail.isNotEmpty) 'Firmen-E-Mail: $companyEmail',
+        if (_firstName.text.trim().isNotEmpty || _lastName.text.trim().isNotEmpty)
+          'Kontaktperson: ${_firstName.text.trim()} ${_lastName.text.trim()}',
+        '',
+        msg,
+      ];
+      final body = bodyLines.join('\n');
+
+      // Aktuell: Versand per mailto – d.h. es öffnet sich das E-Mail-Programm.
+      // Wenn du lieber direkt über dein Backend senden willst,
+      // kannst du hier stattdessen eine API-Funktion aufrufen.
+      final mailto = Uri(
+        scheme: 'mailto',
+        path: repEmail,
+        queryParameters: {
+          'subject': subject,
+          'body': body,
+        },
+      );
+
+      if (kIsWeb) {
+        html.window.open(mailto.toString(), '_self');
+      } else {
+        await launchUrl(mailto, mode: LaunchMode.platformDefault);
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.rep_contact_sent)),
+      );
+      Navigator.of(context).pop(); // zurück zum Dashboard
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.rep_contact_error)),
+      );
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t     = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final cs    = theme.colorScheme;
+
+    final company      = (widget.customerCompany ?? '').trim();
+    final companyEmail = (widget.customerEmail ?? '').trim();
+    final firstRep     = widget.rep.firstName.trim();
+    final lastRep      = widget.rep.lastName.trim();
+
+    return WillPopScope(
+      onWillPop: _confirmLeaveIfDirty,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(t.rep_contact_title),
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                t.rep_contact_intro(firstRep, lastRep),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: cs.onSurface.withOpacity(.8),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Firmenname (read-only)
+              TextFormField(
+                initialValue: company.isNotEmpty ? company : t.yourCompany,
+                enabled: false,
+                decoration: InputDecoration(
+                  labelText: t.rep_contact_company_label,
+                  prefixIcon: const Icon(Icons.business),
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Firmen-E-Mail (read-only)
+              TextFormField(
+                initialValue: companyEmail,
+                enabled: false,
+                decoration: InputDecoration(
+                  labelText: t.rep_contact_company_email_label,
+                  prefixIcon: const Icon(Icons.alternate_email),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _firstName,
+                      decoration: InputDecoration(
+                        labelText: t.firstName,
+                        prefixIcon: const Icon(Icons.person_outline),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _lastName,
+                      decoration: InputDecoration(
+                        labelText: t.lastName,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _subject,
+                decoration: InputDecoration(
+                  labelText: t.rep_contact_subject_label,
+                  prefixIcon: const Icon(Icons.subject),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _message,
+                minLines: 5,
+                maxLines: 10,
+                decoration: InputDecoration(
+                  labelText: t.rep_contact_message_label,
+                  alignLabelWithHint: true,
+                  prefixIcon: const Icon(Icons.message_outlined),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _sending ? null : _handleCancel,
+                      child: Text(t.cancel),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _sending ? null : _handleSend,
+                      icon: _sending
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.send_outlined),
+                      label: Text(t.send),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
