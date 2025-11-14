@@ -1612,214 +1612,306 @@ Widget _buildUsersPanel() {
       }
 
       var assignedGlobal = emailAssignedToRepId.keys.toSet();
-      var assignedThis = rep.customers.toSet();
       final allUserEmails = _users.map((u) => u.email.trim()).where((e) => e.isNotEmpty).toSet();
       final all = allUserEmails.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
-      String? selEmail = all.firstWhere(
-        (e) => !assignedGlobal.contains(e),
-        orElse: () => '',
-      );
-      if ((selEmail ?? '').isEmpty) selEmail = null;
+      String? nextAssignableEmail() {
+        final candidate = all.firstWhere(
+          (e) => !assignedGlobal.contains(e),
+          orElse: () => '',
+        );
+        return candidate.isEmpty ? null : candidate;
+      }
+
+      String? selEmail = nextAssignableEmail();
 
       bool busy = false;
+      var localCustomers = List<String>.from(rep.customers);
+      final media = MediaQuery.of(context);
+      final useBottomSheet = media.size.width < 640;
+
+      Widget buildBody(BuildContext ctx, StateSetter setLocal) {
+        final theme = Theme.of(ctx);
+        final textTheme = theme.textTheme;
+        final listMaxHeight = useBottomSheet
+            ? MediaQuery.of(ctx).size.height * 0.4
+            : 280.0;
+        final constrainedListHeight = listMaxHeight.clamp(160.0, 360.0).toDouble();
+
+        Future<void> doAssign() async {
+          if (selEmail == null || selEmail!.trim().isEmpty) return;
+          final otherRepId = emailAssignedToRepId[selEmail!];
+          if (otherRepId != null && otherRepId != rep.id) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Dieser Kunde ist bereits einem anderen Vertreter zugewiesen.')),
+            );
+            return;
+          }
+
+          setLocal(() => busy = true);
+          try {
+            final customers = await _api.assignCustomerToRep(repId: rep.id, email: selEmail!.trim());
+            setState(() {
+              final idx = _reps.indexWhere((x) => x.id == rep.id);
+              if (idx >= 0) {
+                _reps[idx] = Rep(
+                  id: _reps[idx].id,
+                  firstName: _reps[idx].firstName,
+                  lastName: _reps[idx].lastName,
+                  email: _reps[idx].email,
+                  region: _reps[idx].region,
+                  customers: customers,
+                );
+              }
+            });
+
+            await _refreshReps();
+            emailAssignedToRepId
+              ..clear()
+              ..addEntries(_reps.expand((r) => r.customers.map((e) => MapEntry(e, r.id))));
+            assignedGlobal = emailAssignedToRepId.keys.toSet();
+
+            setLocal(() {
+              busy = false;
+              localCustomers = List<String>.from(customers);
+              selEmail = nextAssignableEmail();
+            });
+          } catch (e) {
+            setLocal(() => busy = false);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+            }
+          }
+        }
+
+        Future<void> doUnassign(String email) async {
+          setLocal(() => busy = true);
+          try {
+            final customers = await _api.unassignCustomerFromRep(repId: rep.id, email: email);
+            setState(() {
+              final idx = _reps.indexWhere((x) => x.id == rep.id);
+              if (idx >= 0) {
+                _reps[idx] = Rep(
+                  id: _reps[idx].id,
+                  firstName: _reps[idx].firstName,
+                  lastName: _reps[idx].lastName,
+                  email: _reps[idx].email,
+                  region: _reps[idx].region,
+                  customers: customers,
+                );
+              }
+            });
+
+            await _refreshReps();
+            emailAssignedToRepId
+              ..clear()
+              ..addEntries(_reps.expand((r) => r.customers.map((e) => MapEntry(e, r.id))));
+            assignedGlobal = emailAssignedToRepId.keys.toSet();
+
+            setLocal(() {
+              busy = false;
+              localCustomers = List<String>.from(customers);
+              if (selEmail != null && assignedGlobal.contains(selEmail)) {
+                selEmail = nextAssignableEmail();
+              }
+            });
+          } catch (e) {
+            setLocal(() => busy = false);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+            }
+          }
+        }
+
+        final assignDropdown = DropdownButtonFormField<String>(
+          value: selEmail,
+          decoration: const InputDecoration(
+            labelText: 'Kunde (E-Mail)',
+            border: OutlineInputBorder(),
+          ),
+          items: all.map((e) {
+            final isAssignedSomewhere = assignedGlobal.contains(e);
+            final label = _companyByEmail(e) ?? e;
+            final assignedHint = (isAssignedSomewhere && emailAssignedToRepId[e] != rep.id)
+                ? ' (bereits zugewiesen)'
+                : '';
+
+            return DropdownMenuItem<String>(
+              value: e,
+              enabled: !isAssignedSomewhere,
+              child: Text(
+                '$label$assignedHint',
+                style: isAssignedSomewhere
+                    ? TextStyle(color: Theme.of(context).disabledColor)
+                    : null,
+              ),
+            );
+          }).toList(),
+          onChanged: busy
+              ? null
+              : (v) {
+                  if (v == null) return;
+                  if (assignedGlobal.contains(v)) return;
+                  setLocal(() => selEmail = v);
+                },
+        );
+
+        Widget buildAssignControls(BoxConstraints constraints) {
+          final isNarrow = constraints.maxWidth < 420;
+          final assignButton = FilledButton.icon(
+            onPressed: busy || selEmail == null ? null : doAssign,
+            icon: const Icon(Icons.add),
+            label: const Text('Zuweisen'),
+          );
+
+          if (isNarrow) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                assignDropdown,
+                const SizedBox(height: 12),
+                assignButton,
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(child: assignDropdown),
+              const SizedBox(width: 12),
+              assignButton,
+            ],
+          );
+        }
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Zugewiesene Kunden (${localCustomers.length}) – jeder Kunde kann nur genau einem Vertreter zugeordnet sein.',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: constrainedListHeight),
+                  child: localCustomers.isEmpty
+                      ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(12),
+                            child: Text('Keine Kunden zugewiesen.'),
+                          ),
+                        )
+                      : ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: localCustomers.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (_, i) {
+                            final email = localCustomers[i];
+                            final company = _companyByEmail(email) ?? '';
+                            return ListTile(
+                              leading: const Icon(Icons.person_outline),
+                              title: Text(company.isNotEmpty ? company : email),
+                              subtitle: company.isNotEmpty ? Text(email) : null,
+                              trailing: IconButton(
+                                tooltip: 'Zuweisung entfernen',
+                                icon: const Icon(Icons.remove_circle_outline),
+                                onPressed: busy ? null : () async => await doUnassign(email),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Kunden zuweisen',
+                style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600) ??
+                    const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+            const SizedBox(height: 8),
+            LayoutBuilder(builder: (ctx, constraints) => buildAssignControls(constraints)),
+          ],
+        );
+      }
+
+      if (useBottomSheet) {
+        await showModalBottomSheet<void>(
+          context: context,
+          isScrollControlled: true,
+          builder: (ctx) => StatefulBuilder(
+            builder: (ctx, setLocal) {
+              return SafeArea(
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    left: 20,
+                    right: 20,
+                    top: 16,
+                    bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Kunden für ${rep.displayName}',
+                              style: Theme.of(ctx).textTheme.titleLarge,
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Schließen',
+                            icon: const Icon(Icons.close),
+                            onPressed: () => Navigator.pop(ctx),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      buildBody(ctx, setLocal),
+                      if (busy)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 16),
+                          child: Center(
+                            child: SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+        return;
+      }
 
       await showDialog<void>(
         context: context,
         builder: (ctx) => StatefulBuilder(
           builder: (ctx, setLocal) {
-            Future<void> doAssign() async {
-              if (selEmail == null || selEmail!.trim().isEmpty) return;
-              final otherRepId = emailAssignedToRepId[selEmail!];
-              if (otherRepId != null && otherRepId != rep.id) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Dieser Kunde ist bereits einem anderen Vertreter zugewiesen.')),
-                );
-                return;
-              }
-
-              setLocal(() => busy = true);
-              try {
-                final customers = await _api.assignCustomerToRep(repId: rep.id, email: selEmail!.trim());
-                setState(() {
-                  final idx = _reps.indexWhere((x) => x.id == rep.id);
-                  if (idx >= 0) {
-                    _reps[idx] = Rep(
-                      id: _reps[idx].id,
-                      firstName: _reps[idx].firstName,
-                      lastName: _reps[idx].lastName,
-                      email: _reps[idx].email,
-                      region: _reps[idx].region,
-                      customers: customers,
-                    );
-                  }
-                });
-
-                await _refreshReps();
-                emailAssignedToRepId
-                  ..clear()
-                  ..addEntries(_reps.expand((r) => r.customers.map((e) => MapEntry(e, r.id))));
-                assignedGlobal = emailAssignedToRepId.keys.toSet();
-                assignedThis = customers.toSet();
-
-                selEmail = all.firstWhere(
-                  (e) => !assignedGlobal.contains(e),
-                  orElse: () => '',
-                );
-                if ((selEmail ?? '').isEmpty) selEmail = null;
-
-                setLocal(() => busy = false);
-              } catch (e) {
-                setLocal(() => busy = false);
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
-                }
-              }
-            }
-
-            Future<void> doUnassign(String email) async {
-              setLocal(() => busy = true);
-              try {
-                final customers = await _api.unassignCustomerFromRep(repId: rep.id, email: email);
-                setState(() {
-                  final idx = _reps.indexWhere((x) => x.id == rep.id);
-                  if (idx >= 0) {
-                    _reps[idx] = Rep(
-                      id: _reps[idx].id,
-                      firstName: _reps[idx].firstName,
-                      lastName: _reps[idx].lastName,
-                      email: _reps[idx].email,
-                      region: _reps[idx].region,
-                      customers: customers,
-                    );
-                  }
-                });
-
-                await _refreshReps();
-                emailAssignedToRepId
-                  ..clear()
-                  ..addEntries(_reps.expand((r) => r.customers.map((e) => MapEntry(e, r.id))));
-                assignedGlobal = emailAssignedToRepId.keys.toSet();
-                assignedThis = customers.toSet();
-
-                if (selEmail != null && assignedGlobal.contains(selEmail)) {
-                  selEmail = all.firstWhere(
-                    (e) => !assignedGlobal.contains(e),
-                    orElse: () => '',
-                  );
-                  if ((selEmail ?? '').isEmpty) selEmail = null;
-                }
-
-                setLocal(() => busy = false);
-              } catch (e) {
-                setLocal(() => busy = false);
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
-                }
-              }
-            }
-
             return AlertDialog(
               title: Text('Kunden für ${rep.displayName}'),
               content: DialogContentScroll(
-                child: SizedBox(
-                  width: 620,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'Zugewiesene Kunden (${rep.customers.length}) – jeder Kunde kann nur genau einem Vertreter zugeordnet sein.',
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        constraints: const BoxConstraints(maxHeight: 280),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: (rep.customers.isEmpty)
-                          ? const Center(
-                              child: Padding(
-                                padding: EdgeInsets.all(12),
-                                child: Text('Keine Kunden zugewiesen.'),
-                              ),
-                            )
-                          : ListView.separated(
-                              shrinkWrap: true,
-                              itemCount: rep.customers.length,
-                              separatorBuilder: (_, __) => const Divider(height: 1),
-                              itemBuilder: (_, i) {
-                                final email = rep.customers[i];
-                                final company = _companyByEmail(email) ?? '';
-                                return ListTile(
-                                  leading: const Icon(Icons.person_outline),
-                                  title: Text(company.isNotEmpty ? company : email),
-                                  subtitle: company.isNotEmpty ? Text(email) : null,
-                                  trailing: IconButton(
-                                    tooltip: 'Zuweisung entfernen',
-                                    icon: const Icon(Icons.remove_circle_outline),
-                                    onPressed: busy ? null : () async => await doUnassign(email),
-                                  ),
-                                );
-                              },
-                            ),
-                      ),
-                      const SizedBox(height: 16),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text('Kunden zuweisen', style: const TextStyle(fontWeight: FontWeight.w600)),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                          child: DropdownButtonFormField<String>(
-                            value: selEmail,
-                            decoration: const InputDecoration(
-                              labelText: 'Kunde (E-Mail)',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: all.map((e) {
-                              final isAssignedSomewhere = assignedGlobal.contains(e);
-                              final label = _companyByEmail(e) ?? e;
-                              final assignedHint = (isAssignedSomewhere && emailAssignedToRepId[e] != rep.id)
-                                  ? ' (bereits zugewiesen)'
-                                  : '';
-
-                              return DropdownMenuItem<String>(
-                                value: e,
-                                enabled: !isAssignedSomewhere,
-                                child: Text(
-                                  '$label$assignedHint',
-                                  style: isAssignedSomewhere
-                                      ? TextStyle(color: Theme.of(context).disabledColor)
-                                      : null,
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: busy
-                                ? null
-                                : (v) {
-                                    if (v == null) return;
-                                    if (assignedGlobal.contains(v)) return;
-                                    setLocal(() => selEmail = v);
-                                  },
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        FilledButton.icon(
-                          onPressed: busy || selEmail == null ? null : doAssign,
-                          icon: const Icon(Icons.add),
-                          label: const Text('Zuweisen'),
-                        ),
-                      ],
-                    ),
-                  ],
-                 ),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 620),
+                  child: buildBody(ctx, setLocal),
                 ),
               ),
               actions: [
