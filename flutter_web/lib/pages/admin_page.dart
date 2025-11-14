@@ -44,7 +44,6 @@ class _AdminPageState extends State<AdminPage> {
 
   // Admin-Kundenanlage (Form-Felder)
   final _custCompanyCtrl   = TextEditingController();
-  final _custContactCtrl   = TextEditingController();
   final _custFirstNameCtrl = TextEditingController();
   final _custLastNameCtrl  = TextEditingController();
   final _custEmailCtrl     = TextEditingController();
@@ -818,25 +817,15 @@ class _AdminPageState extends State<AdminPage> {
                     ),
                   ),
                   SizedBox(
-                    width: 280,
-                    child: TextFormField(
-                      controller: _custContactCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Kontaktperson (optional)',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                    ),
-                  ),
-                  SizedBox(
                     width: 220,
                     child: TextFormField(
                       controller: _custFirstNameCtrl,
                       decoration: const InputDecoration(
-                        labelText: 'Vorname (optional)',
+                        labelText: 'Vorname',
                         border: OutlineInputBorder(),
                         isDense: true,
                       ),
+                      validator: (v) => _req(v ?? '', 'Vorname'),
                     ),
                   ),
                   SizedBox(
@@ -844,10 +833,11 @@ class _AdminPageState extends State<AdminPage> {
                     child: TextFormField(
                       controller: _custLastNameCtrl,
                       decoration: const InputDecoration(
-                        labelText: 'Nachname (optional)',
+                        labelText: 'Nachname',
                         border: OutlineInputBorder(),
                         isDense: true,
                       ),
+                      validator: (v) => _req(v ?? '', 'Nachname'),
                     ),
                   ),
                   SizedBox(
@@ -948,25 +938,18 @@ class _AdminPageState extends State<AdminPage> {
                       ? null
                       : () async {
                           if (!(formKey.currentState?.validate() ?? false)) return;
-                          final contact = _custContactCtrl.text.trim();
                           final first = _custFirstNameCtrl.text.trim();
                           final last = _custLastNameCtrl.text.trim();
-                          if (contact.isEmpty && (first.isEmpty || last.isEmpty)) {
-                            setState(() {
-                              _custErr =
-                                  'Bitte eine Kontaktperson oder Vor- und Nachname angeben.';
-                            });
-                            return;
-                          }
                           setState(() {
                             _custBusy = true;
                             _custErr = null;
                           });
                           try {
                             final selectedCountry = _custCountry;
+                            final contactCombined = '$first $last'.trim();
                             await _api.createCustomerAdmin(
                               company: _custCompanyCtrl.text.trim(),
-                              contact: contact,
+                              contact: contactCombined,
                               email: _custEmailCtrl.text.trim(),
                               street: _custStreetCtrl.text.trim(),
                               zip: _custZipCtrl.text.trim(),
@@ -985,7 +968,6 @@ class _AdminPageState extends State<AdminPage> {
 
                             // Felder leeren
                             _custCompanyCtrl.clear();
-                            _custContactCtrl.clear();
                             _custFirstNameCtrl.clear();
                             _custLastNameCtrl.clear();
                             _custEmailCtrl.clear();
