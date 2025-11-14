@@ -15,6 +15,9 @@ const redis = (redisUrl && redisToken) ? new Redis({ url: redisUrl, token: redis
 
 function requireRedis() { if (!redis) throw new Error('Redis not configured'); }
 const S = (v) => (v ?? '').toString().trim();
+const rid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+const nowIso = () => new Date().toISOString();
+const RESET_AUDIT_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 Tage
 
 // ---- CORS (wie bei dir) ----
 function setCors(res) {
@@ -105,10 +108,16 @@ export default async function handler(req, res) {
   try {
     requireRedis();
 
+    const debug = S(req.query?.debug) === '1' || S(req.headers?.['x-debug']) === '1';
+
     // Auth aus Bearer
     let auth = null;
     try { auth = getRepFromAuthHeader(req); } catch {}
-    if (!auth || !auth.repId) return res.status(401).json({ error: 'unauthorized' });
+    if (!auth || !auth.repId) {
+      return debug
+        ? res.status(200).json({ ok: false, error: 'unauthorized' })
+        : res.status(401).json({ error: 'unauthorized' });
+    }
     const repId = S(auth.repId);
 
     // Body robust parsen
@@ -117,6 +126,11 @@ export default async function handler(req, res) {
     body = body || {};
 
     const ticket = S(body.ticket || body.id);
+    const action = S(req.query?.__action || body.action || '').toLowerCase();
+
+    if (action === 'reset') {
+      return await handleDecisionReset({ res, ticket, repId, debug });
+    }
 
     // decision-Mapping (accept/approve/... → accepted | rejected) + approve:boolean
     const rawByDecision = S(body.decision).toLowerCase();
@@ -159,5 +173,71 @@ export default async function handler(req, res) {
   } catch (e) {
     console.error('[rep/decision] error', e);
     return res.status(500).json({ error: String(e?.message || e) });
+  }
+}
+
+async function handleDecisionReset({ res, ticket, repId, debug }) {
+  const reqId = rid();
+
+  if (!ticket) {
+    return debug
+      ? res.status(200).json({ ok: false, reqId, error: 'ticket required' })
+      : res.status(400).json({ error: 'ticket required' });
+  }
+
+  try {
+    const found = await loadComplaintByTicket(ticket);
+    if (!found) {
+      return debug
+        ? res.status(200).json({ ok: false, reqId, error: 'complaint not found', ticket })
+        : res.status(404).json({ error: 'complaint not found' });
+    }
+
+    const { key, c } = found;
+
+    if (c.repId && S(c.repId) !== repId) {
+      return debug
+        ? res.status(200).json({ ok: false, reqId, error: 'forbidden (wrong rep)', repIdOnRecord: c.repId })
+        : res.status(403).json({ error: 'forbidden (wrong rep)' });
+    }
+
+    delete c.repDecision;
+    delete c.repDecisionAt;
+    delete c.repDecisionBy;
+    delete c.repId;
+
+    c.updatedAt = Date.now();
+
+    await redis.set(key, c);
+
+    try {
+      const auditKey = `dfs:audit:repDecisionReset:${ticket}`;
+      let prev = await redis.get(auditKey);
+      let list = [];
+
+      if (Array.isArray(prev)) {
+        list = prev;
+      } else if (typeof prev === 'string' && prev.trim()) {
+        try {
+          const parsed = JSON.parse(prev);
+          if (Array.isArray(parsed)) list = parsed;
+        } catch {}
+      }
+
+      list.push({ by: repId, at: nowIso(), action: 'reset', reqId });
+
+      await redis.set(auditKey, JSON.stringify(list), { ex: RESET_AUDIT_TTL_SECONDS });
+    } catch (auditErr) {
+      console.warn('[rep/decision] reset audit write failed', auditErr);
+    }
+
+    if (debug) {
+      return res.status(200).json({ ok: true, reqId, ticket, removed: ['repDecision', 'repDecisionAt', 'repDecisionBy', 'repId'], savedKey: key });
+    }
+
+    return res.status(204).end();
+  } catch (err) {
+    console.error(`[rep/decision] ${reqId} reset error`, err);
+    return res.status(500).json({ error: err?.message || String(err) });
   }
 }
