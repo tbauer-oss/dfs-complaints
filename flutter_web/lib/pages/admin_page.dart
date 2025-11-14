@@ -1613,391 +1613,366 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  Widget _buildRepsPanel() {
-    // kleine Helper zum Mail-Schreiben
-    void _composeMail(String to, {String? subject, String? body}) {
-      if (to.trim().isEmpty) return;
-      final url = 'mailto:$to'
-          '?subject=${Uri.encodeComponent(subject ?? 'Anfrage / DFS-DIAMON')}'
-          '&body=${Uri.encodeComponent(body ?? 'Guten Tag,\n\nich melde mich als Ihr Ansprechpartner.\n\nBeste Grüße\nDFS-DIAMON GmbH')}';
-      html.window.open(url, '_self');
-    }
+  Future<bool> _saveRep({String? id}) async {
+    if (_repBusy) return false;
+    if (!mounted) return false;
 
-    Future<void> _save({String? id}) async {
-      if (_repBusy) return;
-      setState(() => _repBusy = true);
-      try {
-        final rep = await _api.upsertRep(
-          id: id,
-          firstName: _repFirstCtrl.text.trim(),
-          lastName:  _repLastCtrl.text.trim(),
-          email:     _repMailCtrl.text.trim(),
-          region:    _repRegion,
-        );
-
-        // Felder leeren + Liste neu laden
-        _repFirstCtrl.clear();
-        _repLastCtrl.clear();
-        _repMailCtrl.clear();
-        _repRegion = kRepRegions.first;
-
-        await _refreshReps();
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gespeichert: ${rep.displayName}')),
-        );
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
-        }
-      } finally {
-        if (mounted) setState(() => _repBusy = false);
-      }
-    }
-
-    Future<void> _edit(Rep r) async {
-      _repFirstCtrl.text = r.firstName;
-      _repLastCtrl.text  = r.lastName;
-      _repMailCtrl.text  = r.email;
-      _repRegion         = r.region.isNotEmpty ? r.region : kRepRegions.first;
-
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Vertreter bearbeiten'),
-          content: SizedBox(
-            width: 520,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(controller: _repFirstCtrl, decoration: const InputDecoration(labelText: 'Vorname')),
-                const SizedBox(height: 8),
-                TextField(controller: _repLastCtrl,  decoration: const InputDecoration(labelText: 'Nachname')),
-                const SizedBox(height: 8),
-                TextField(controller: _repMailCtrl,  decoration: const InputDecoration(labelText: 'E-Mail')),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  value: _repRegion,
-                  decoration: const InputDecoration(labelText: 'Länderbereich'),
-                  items: kRepRegions.map((s) => DropdownMenuItem<String>(value: s, child: Text(s))).toList(),
-                  onChanged: (v) => _repRegion = v ?? kRepRegions.first,
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-            FilledButton(
-              onPressed: () async { Navigator.pop(ctx); await _save(id: r.id); },
-              child: const Text('Speichern'),
-            ),
-          ],
-        ),
+    setState(() => _repBusy = true);
+    var success = false;
+    try {
+      final rep = await _api.upsertRep(
+        id: id,
+        firstName: _repFirstCtrl.text.trim(),
+        lastName:  _repLastCtrl.text.trim(),
+        email:     _repMailCtrl.text.trim(),
+        region:    _repRegion,
       );
-    }
 
-    Future<void> _confirmDelete(Rep r) async {
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Vertreter löschen'),
-          content: Text('Soll ${r.displayName} wirklich gelöscht werden?'),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen')),
-          ],
-        ),
-      );
-      if (ok == true) {
-        try {
-          await _api.deleteRep(r.id);
-          await _refreshReps();
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gelöscht: ${r.displayName}')));
-          }
-        } catch (e) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
-          }
-        }
-      }
-    }
-
-    Future<void> _openCreateRepSheet() async {
       _repFirstCtrl.clear();
       _repLastCtrl.clear();
       _repMailCtrl.clear();
-      setState(() => _repRegion = kRepRegions.first);
+      _repRegion = kRepRegions.first;
 
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        builder: (ctx) {
-          final bottom = MediaQuery.of(ctx).viewInsets.bottom;
-          final theme = Theme.of(ctx);
-          return Padding(
-            padding: EdgeInsets.only(bottom: bottom),
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Neuen Vertreter hinzufügen',
-                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: 'Schließen',
-                          onPressed: () => Navigator.pop(ctx),
-                          icon: const Icon(Icons.close),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _repFirstCtrl,
-                      textCapitalization: TextCapitalization.words,
-                      decoration: const InputDecoration(
-                        labelText: 'Vorname',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _repLastCtrl,
-                      textCapitalization: TextCapitalization.words,
-                      decoration: const InputDecoration(
-                        labelText: 'Nachname',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _repMailCtrl,
-                      keyboardType: TextInputType.emailAddress,
-                      autofillHints: const [AutofillHints.email],
-                      decoration: const InputDecoration(
-                        labelText: 'E-Mail',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: _repRegion,
-                      decoration: const InputDecoration(
-                        labelText: 'Länderbereich',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: kRepRegions
-                          .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
-                          .toList(),
-                      onChanged: (v) => setState(() => _repRegion = v ?? kRepRegions.first),
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        icon: const Icon(Icons.person_add_alt_1),
-                        onPressed: _repBusy
-                            ? null
-                            : () async {
-                                final ok = await _save();
-                                if (!mounted) return;
-                                if (ok) Navigator.pop(ctx);
-                              },
-                        label: const Text('Vertreter speichern'),
-                      ),
-                    ),
-                    if (_repBusy) ...[
-                      const SizedBox(height: 16),
-                      const Center(
-                        child: SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      );
+      await _refreshReps();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gespeichert: ${rep.displayName}')),
+        );
+      }
+      success = true;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _repBusy = false);
     }
 
-    Future<void> _openRepCustomersDialog(Rep rep) async {
-      // Globale Belegung: email -> repId
-      final Map<String, String> emailAssignedToRepId = {};
-      for (final r in _reps) {
-        for (final e in r.customers) {
-          emailAssignedToRepId[e] ??= r.id; // first wins
+    return success;
+  }
+
+  Future<void> _editRep(Rep r) async {
+    _repFirstCtrl.text = r.firstName;
+    _repLastCtrl.text  = r.lastName;
+    _repMailCtrl.text  = r.email;
+    _repRegion         = r.region.isNotEmpty ? r.region : kRepRegions.first;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Vertreter bearbeiten'),
+        content: SizedBox(
+          width: 520,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: _repFirstCtrl, decoration: const InputDecoration(labelText: 'Vorname')),
+              const SizedBox(height: 8),
+              TextField(controller: _repLastCtrl,  decoration: const InputDecoration(labelText: 'Nachname')),
+              const SizedBox(height: 8),
+              TextField(controller: _repMailCtrl,  decoration: const InputDecoration(labelText: 'E-Mail')),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: _repRegion,
+                decoration: const InputDecoration(labelText: 'Länderbereich'),
+                items: kRepRegions.map((s) => DropdownMenuItem<String>(value: s, child: Text(s))).toList(),
+                onChanged: (v) => _repRegion = v ?? kRepRegions.first,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _saveRep(id: r.id);
+            },
+            child: const Text('Speichern'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmDeleteRep(Rep r) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Vertreter löschen'),
+        content: Text('Soll ${r.displayName} wirklich gelöscht werden?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen')),
+        ],
+      ),
+    );
+    if (ok == true) {
+      try {
+        await _api.deleteRep(r.id);
+        await _refreshReps();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Gelöscht: ${r.displayName}')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Fehler: $e')),
+          );
         }
       }
+    }
+  }
 
-      // Menge aller bereits irgendwo zugewiesenen Kunden
-      var assignedGlobal = emailAssignedToRepId.keys.toSet();
+  Future<void> _openCreateRepSheet() async {
+    _repFirstCtrl.clear();
+    _repLastCtrl.clear();
+    _repMailCtrl.clear();
+    setState(() => _repRegion = kRepRegions.first);
 
-      // Aktuelle Belegung dieses Reps (veränderlich, wir aktualisieren im Dialog)
-      var assignedThis = rep.customers.toSet();
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        final bottom = MediaQuery.of(ctx).viewInsets.bottom;
+        final theme = Theme.of(ctx);
+        return Padding(
+          padding: EdgeInsets.only(bottom: bottom),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Neuen Vertreter hinzufügen',
+                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Schließen',
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _repFirstCtrl,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      labelText: 'Vorname',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _repLastCtrl,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      labelText: 'Nachname',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _repMailCtrl,
+                    keyboardType: TextInputType.emailAddress,
+                    autofillHints: const [AutofillHints.email],
+                    decoration: const InputDecoration(
+                      labelText: 'E-Mail',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: _repRegion,
+                    decoration: const InputDecoration(
+                      labelText: 'Länderbereich',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: kRepRegions
+                        .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
+                        .toList(),
+                    onChanged: (v) => setState(() => _repRegion = v ?? kRepRegions.first),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      icon: const Icon(Icons.person_add_alt_1),
+                      onPressed: _repBusy
+                          ? null
+                          : () async {
+                              final ok = await _saveRep();
+                              if (!mounted) return;
+                              if (ok) Navigator.pop(ctx);
+                            },
+                      label: const Text('Vertreter speichern'),
+                    ),
+                  ),
+                  if (_repBusy) ...[
+                    const SizedBox(height: 16),
+                    const Center(
+                      child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 
-      // Kandidaten = ALLE aktiven User (im Dropdown sichtbar, aber ggf. disabled)
-      final allUserEmails = _users.map((u) => u.email.trim()).where((e) => e.isNotEmpty).toSet();
-      final all = allUserEmails.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+  Future<void> _openRepCustomersDialog(Rep rep) async {
+    final Map<String, String> emailAssignedToRepId = {};
+    for (final r in _reps) {
+      for (final e in r.customers) {
+        emailAssignedToRepId[e] ??= r.id;
+      }
+    }
 
-      // Vorauswahl = erster freier (global nicht zugewiesener)
-      String? selEmail = all.firstWhere(
-        (e) => !assignedGlobal.contains(e),
-        orElse: () => '',
-      );
-      if ((selEmail ?? '').isEmpty) selEmail = null;
+    var assignedGlobal = emailAssignedToRepId.keys.toSet();
 
-      bool busy = false;
+    final allUserEmails = _users.map((u) => u.email.trim()).where((e) => e.isNotEmpty).toSet();
+    final all = allUserEmails.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) => StatefulBuilder(
-          builder: (ctx, setLocal) {
-            Future<void> doAssign() async {
-              if (selEmail == null || selEmail!.trim().isEmpty) return;
+    String? selEmail = all.firstWhere(
+      (e) => !assignedGlobal.contains(e),
+      orElse: () => '',
+    );
+    if ((selEmail ?? '').isEmpty) selEmail = null;
 
-              // Schutz: Falls ein anderer Rep in der Zwischenzeit zugewiesen hat
-              final otherRepId = emailAssignedToRepId[selEmail!];
-              if (otherRepId != null && otherRepId != rep.id) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Dieser Kunde ist bereits einem anderen Vertreter zugewiesen.')),
-                );
-                return;
+    bool busy = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) {
+          Future<void> doAssign() async {
+            if (selEmail == null || selEmail!.trim().isEmpty) return;
+
+            final otherRepId = emailAssignedToRepId[selEmail!];
+            if (otherRepId != null && otherRepId != rep.id) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Dieser Kunde ist bereits einem anderen Vertreter zugewiesen.')),
+              );
+              return;
+            }
+
+            setLocal(() => busy = true);
+            try {
+              final customers = await _api.assignCustomerToRep(repId: rep.id, email: selEmail!.trim());
+
+              setState(() {
+                final idx = _reps.indexWhere((x) => x.id == rep.id);
+                if (idx >= 0) {
+                  _reps[idx] = Rep(
+                    id: _reps[idx].id,
+                    firstName: _reps[idx].firstName,
+                    lastName: _reps[idx].lastName,
+                    email: _reps[idx].email,
+                    region: _reps[idx].region,
+                    customers: customers,
+                  );
+                }
+              });
+
+              await _refreshReps();
+
+              emailAssignedToRepId
+                ..clear()
+                ..addEntries(_reps.expand((r) => r.customers.map((e) => MapEntry(e, r.id))));
+              assignedGlobal = emailAssignedToRepId.keys.toSet();
+
+              selEmail = all.firstWhere(
+                (e) => !assignedGlobal.contains(e),
+                orElse: () => '',
+              );
+              if ((selEmail ?? '').isEmpty) selEmail = null;
+
+              setLocal(() => busy = false);
+            } catch (e) {
+              setLocal(() => busy = false);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
               }
+            }
+          }
 
-              setLocal(() => busy = true);
-              try {
-                final customers = await _api.assignCustomerToRep(repId: rep.id, email: selEmail!.trim());
+          Future<void> doUnassign(String email) async {
+            setLocal(() => busy = true);
+            try {
+              final customers = await _api.unassignCustomerFromRep(repId: rep.id, email: email);
 
-                // Parent aktualisieren
-                setState(() {
-                  final idx = _reps.indexWhere((x) => x.id == rep.id);
-                  if (idx >= 0) {
-                    _reps[idx] = Rep(
-                      id: _reps[idx].id,
-                      firstName: _reps[idx].firstName,
-                      lastName: _reps[idx].lastName,
-                      email: _reps[idx].email,
-                      region: _reps[idx].region,
-                      customers: customers,
-                    );
-                  }
-                });
+              setState(() {
+                final idx = _reps.indexWhere((x) => x.id == rep.id);
+                if (idx >= 0) {
+                  _reps[idx] = Rep(
+                    id: _reps[idx].id,
+                    firstName: _reps[idx].firstName,
+                    lastName: _reps[idx].lastName,
+                    email: _reps[idx].email,
+                    region: _reps[idx].region,
+                    customers: customers,
+                  );
+                }
+              });
 
-                // Zur Sicherheit die gesamte Repliste neu laden (Race-Conditions vermeiden)
-                await _refreshReps();
+              await _refreshReps();
 
-                // Globale Maps/Mengen nachladen
-                emailAssignedToRepId
-                  ..clear()
-                  ..addEntries(_reps.expand((r) => r.customers.map((e) => MapEntry(e, r.id))));
-                assignedGlobal = emailAssignedToRepId.keys.toSet();
+              emailAssignedToRepId
+                ..clear()
+                ..addEntries(_reps.expand((r) => r.customers.map((e) => MapEntry(e, r.id))));
+              assignedGlobal = emailAssignedToRepId.keys.toSet();
 
-                // Lokale Sets aktualisieren
-                assignedThis = customers.toSet();
-
-                // Neue Vorauswahl: nächster freier Kunde
+              if (selEmail != null && assignedGlobal.contains(selEmail)) {
                 selEmail = all.firstWhere(
                   (e) => !assignedGlobal.contains(e),
                   orElse: () => '',
                 );
                 if ((selEmail ?? '').isEmpty) selEmail = null;
+              }
 
-                setLocal(() => busy = false);
-              } catch (e) {
-                setLocal(() => busy = false);
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
-                }
+              setLocal(() => busy = false);
+            } catch (e) {
+              setLocal(() => busy = false);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
               }
             }
+          }
 
-            Future<void> doUnassign(String email) async {
-              setLocal(() => busy = true);
-              try {
-                final customers = await _api.unassignCustomerFromRep(repId: rep.id, email: email);
-
-                // Parent aktualisieren
-                setState(() {
-                  final idx = _reps.indexWhere((x) => x.id == rep.id);
-                  if (idx >= 0) {
-                    _reps[idx] = Rep(
-                      id: _reps[idx].id,
-                      firstName: _reps[idx].firstName,
-                      lastName: _reps[idx].lastName,
-                      email: _reps[idx].email,
-                      region: _reps[idx].region,
-                      customers: customers,
-                    );
-                  }
-                });
-
-                // Globale Reps neu ziehen
-                await _refreshReps();
-
-                // Globale Maps/Mengen nachladen
-                emailAssignedToRepId
-                  ..clear()
-                  ..addEntries(_reps.expand((r) => r.customers.map((e) => MapEntry(e, r.id))));
-                assignedGlobal = emailAssignedToRepId.keys.toSet();
-
-                // Lokale Sets aktualisieren
-                assignedThis = customers.toSet();
-
-                // Vorauswahl korrigieren (falls aktuell verbotener Wert selektiert war)
-                if (selEmail != null && assignedGlobal.contains(selEmail)) {
-                  selEmail = all.firstWhere(
-                    (e) => !assignedGlobal.contains(e),
-                    orElse: () => '',
-                  );
-                  if ((selEmail ?? '').isEmpty) selEmail = null;
-                }
-
-                setLocal(() => busy = false);
-              } catch (e) {
-                setLocal(() => busy = false);
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
-                }
-              }
-            }
-
-            return AlertDialog(
-              title: Text('Kunden für ${rep.displayName}'),
-              content: SizedBox(
-                width: 620,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Bestehende Kundenliste
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Zugewiesene Kunden (${rep.customers.length}) – jeder Kunde kann nur genau einem Vertreter zugeordnet sein.',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
+          return AlertDialog(
+            title: Text('Kunden für ${rep.displayName}'),
+            content: SizedBox(
+              width: 620,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    constraints: const BoxConstraints(maxHeight: 300),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.25),
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    const SizedBox(height: 8),
-                    Container(
-                      constraints: const BoxConstraints(maxHeight: 280),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: (rep.customers.isEmpty)
+                    child: (rep.customers.isEmpty)
                         ? const Center(child: Padding(
                             padding: EdgeInsets.all(12),
                             child: Text('Keine Kunden zugewiesen.'),
@@ -2021,76 +1996,83 @@ class _AdminPageState extends State<AdminPage> {
                               );
                             },
                           ),
-                    ),
-                    const SizedBox(height: 16),
+                  ),
+                  const SizedBox(height: 16),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Kunden zuweisen', style: const TextStyle(fontWeight: FontWeight.w600)),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: selEmail,
+                          decoration: const InputDecoration(
+                            labelText: 'Kunde (E-Mail)',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: all.map((e) {
+                            final isAssignedSomewhere = assignedGlobal.contains(e);
+                            final label = _companyByEmail(e) ?? e;
+                            final assignedHint = (isAssignedSomewhere && emailAssignedToRepId[e] != rep.id)
+                                ? ' (bereits zugewiesen)'
+                                : '';
 
-                    // Neuer Kunde zuweisen
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text('Kunden zuweisen', style: const TextStyle(fontWeight: FontWeight.w600)),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            value: selEmail,
-                            decoration: const InputDecoration(
-                              labelText: 'Kunde (E-Mail)',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: all.map((e) {
-                              final isAssignedSomewhere = assignedGlobal.contains(e);
-                              final label = _companyByEmail(e) ?? e;
-                              // Optional: zeigen, wo belegt (nur für Klarheit im UI)
-                              final assignedHint = (isAssignedSomewhere && emailAssignedToRepId[e] != rep.id)
-                                  ? ' (bereits zugewiesen)'
-                                  : '';
-
-                              return DropdownMenuItem<String>(
-                                value: e,
-                                enabled: !isAssignedSomewhere, // global belegt => disabled
-                                child: Text(
-                                  '$label$assignedHint',
-                                  style: isAssignedSomewhere
-                                      ? TextStyle(color: Theme.of(context).disabledColor)
-                                      : null,
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: busy
-                                ? null
-                                : (v) {
-                                    if (v == null) return;
-                                    // Safety: global gesperrt bleibt gesperrt
-                                    if (assignedGlobal.contains(v)) return;
-                                    setLocal(() => selEmail = v);
-                                  },
-                          )
+                            return DropdownMenuItem<String>(
+                              value: e,
+                              enabled: !isAssignedSomewhere,
+                              child: Text(
+                                '$label$assignedHint',
+                                style: isAssignedSomewhere
+                                    ? TextStyle(color: Theme.of(context).disabledColor)
+                                    : null,
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: busy
+                              ? null
+                              : (v) {
+                                  if (v == null) return;
+                                  if (assignedGlobal.contains(v)) return;
+                                  setLocal(() => selEmail = v);
+                                },
                         ),
-                        const SizedBox(width: 10),
-                        FilledButton.icon(
-                          onPressed: busy || selEmail == null ? null : doAssign,
-                          icon: const Icon(Icons.add),
-                          label: const Text('Zuweisen'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
+                      const SizedBox(width: 10),
+                      FilledButton.icon(
+                        onPressed: busy || selEmail == null ? null : doAssign,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Zuweisen'),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              actions: [
-                if (busy) const Padding(
-                  padding: EdgeInsets.only(right: 12),
-                  child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-                ),
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen')),
-              ],
-            );
-          },
-        ),
-      );
+            ),
+            actions: [
+              if (busy) const Padding(
+                padding: EdgeInsets.only(right: 12),
+                child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+              ),
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen')),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildRepsPanel() {
+    // kleine Helper zum Mail-Schreiben
+    void _composeMail(String to, {String? subject, String? body}) {
+      if (to.trim().isEmpty) return;
+      final url = 'mailto:$to'
+          '?subject=${Uri.encodeComponent(subject ?? 'Anfrage / DFS-DIAMON')}'
+          '&body=${Uri.encodeComponent(body ?? 'Guten Tag,\n\nich melde mich als Ihr Ansprechpartner.\n\nBeste Grüße\nDFS-DIAMON GmbH')}';
+      html.window.open(url, '_self');
     }
+
 
     return Card(
       child: Padding(
@@ -2155,7 +2137,7 @@ class _AdminPageState extends State<AdminPage> {
                         width: 160,
                         child: FilledButton.icon(
                           icon: const Icon(Icons.save_outlined),
-                          onPressed: _repBusy ? null : () => _save(),
+                          onPressed: _repBusy ? null : () async => await _saveRep(),
                           label: const Text('Anlegen'),
                         ),
                       ),
@@ -2195,12 +2177,12 @@ class _AdminPageState extends State<AdminPage> {
                               IconButton(
                                 tooltip: 'Bearbeiten',
                                 icon: const Icon(Icons.edit_outlined),
-                                onPressed: () => _edit(r),
+                                onPressed: () => _editRep(r),
                               ),
                               IconButton(
                                 tooltip: 'Löschen',
                                 icon: const Icon(Icons.delete_outline),
-                                onPressed: () => _confirmDelete(r),
+                                onPressed: () => _confirmDeleteRep(r),
                               ),
                               IconButton(
                                 tooltip: 'Kunden zuweisen/anzeigen',
