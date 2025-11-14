@@ -43,6 +43,7 @@ export default async function handler(req, res) {
     try {
       const u = await userByEmail(email);
       if (!u) return bad(res, 'not found', 404);
+
       const out = {
         email: u.email || '',
         company: u.company || '',
@@ -55,14 +56,18 @@ export default async function handler(req, res) {
         lang: (u.lang || 'de'),
         createdAt: u.createdAt || null,
         revoked: !!u.revoked,
+
+        // NEU: Kundennummer – nur lesen
+        customerNumber: u.customerNumber || u.customer_no || '',
       };
+
       return ok(res, out);
     } catch (e) {
       console.error('account GET error:', e);
       return bad(res, 'server error', 500);
     }
   }
-
+  
   // ---------- PUT/PATCH: Accountdaten ändern ----------
   if (req.method === 'PUT' || req.method === 'PATCH') {
     try {
@@ -111,6 +116,7 @@ export default async function handler(req, res) {
         createdAt: saved.createdAt || null,
         updatedAt: saved.updatedAt || null,
         revoked: !!saved.revoked,
+        customerNumber: saved.customerNumber || saved.customer_no || '',
       };
       return ok(res, out);
     } catch (e) {
