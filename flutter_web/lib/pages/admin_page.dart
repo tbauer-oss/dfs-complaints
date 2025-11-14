@@ -3472,13 +3472,10 @@ class AdminApi {
       'country': country,
       'lang': lang,
     };
-
-    // Passwort nur mitsenden, wenn explizit gesetzt
     if (password != null && password.isNotEmpty) {
       body['password'] = password;
     }
 
-    // wie bei den anderen Admin-Calls: über _request()
     final res = await _request('POST', '/api/admin/customers', body: body);
     if (res.status != 200 && res.status != 201 && res.status != 204) {
       throw 'admin customers POST: HTTP ${res.status} ${res.responseText}';
