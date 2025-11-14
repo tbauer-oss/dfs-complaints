@@ -964,7 +964,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
               ? 1.00
               : width >= 700
                   ? 0.97
-                  : 0.94;
+                  : width >= 420
+                      ? 0.94
+                      : 0.9;
       final compact = width < 720;
       final gridPadding = EdgeInsets.fromLTRB(
         isPhone ? 12 : 18,
@@ -979,7 +981,15 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
               : 290.0;
       final mainSpacing = isPhone ? 24.0 : isTablet ? 30.0 : 36.0;
       final crossSpacing = isPhone ? 16.0 : isTablet ? 22.0 : 26.0;
-      final aspect = isPhone ? 0.95 : isTablet ? 1.01 : 1.06;
+      final aspect = isPhone
+          ? (width < 360
+              ? 0.8
+              : width < 420
+                  ? 0.86
+                  : 0.92)
+          : isTablet
+              ? 1.01
+              : 1.06;
       final t = context.t;
 
       final tiles = [
