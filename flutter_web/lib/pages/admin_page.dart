@@ -567,7 +567,7 @@ class _AdminPageState extends State<AdminPage> {
                           TextFormField(
                             controller: _labDefaultCtrl,
                             decoration: _dec(
-                              'DE / EN / IT (Standard)',
+                              '', // oder null, je nachdem wie _dec gebaut ist
                               hint: 'z. B. pdfs/DFS-Labor-DE-US-2025-26_1.pdf',
                             ),
                             validator: (v) => _validate(v ?? ''),
@@ -588,7 +588,7 @@ class _AdminPageState extends State<AdminPage> {
                           TextFormField(
                             controller: _labEsfrCtrl,
                             decoration: _dec(
-                              'ES / FR',
+                              '', // oder null, je nachdem wie _dec gebaut ist
                               hint: 'z. B. pdfs/DFS-Labor-ES-FR-2025-26_1.pdf',
                             ),
                             validator: (v) => _validate(v ?? ''),
