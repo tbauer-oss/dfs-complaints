@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../api/client.dart';
+import '../l10n/app_localizations.dart';
 
 class LegalFooter extends StatelessWidget {
   final ApiClient api;
@@ -82,6 +83,7 @@ class LegalFooter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final t = AppLocalizations.of(context)!;
     return SafeArea(
       top: false,
       child: Container(
