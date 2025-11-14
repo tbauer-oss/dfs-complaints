@@ -1062,30 +1062,44 @@ Widget _buildUsersPanel() {
                 ),
                 const SizedBox(width: 8),
                 
-                // Vertreter-Dropdown
+                // Vertreter-Dropdown (KORRIGIERT)
                 SizedBox(
                   width: 280,
-                  child: DropdownButtonFormField<String?>(
-                    value: _userFilterRepId,
+                  child: DropdownButtonFormField<String>(
+                    value: _userFilterRepId ?? 'Alle Vertreter',
                     isExpanded: true,
                     decoration: const InputDecoration(
                       labelText: 'Vertreter',
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
-                    items: (() {
-                      final list = <String>{
-                        'Alle Länder',
-                        ..._users.map((e) => e.country).where((s) => s.trim().isNotEmpty),
-                      }.toList()
-                        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-                      return list.map((c) => DropdownMenuItem<String>(value: c, child: Text(c))).toList();
-                    })(),
-                    onChanged: (v) => setState(() => _userFilterRepId = v),
+                    items: [
+                      const DropdownMenuItem(
+                        value: 'Alle Vertreter',        // → repId = null
+                        child: Text('Alle Vertreter'),
+                      ),
+                      const DropdownMenuItem(
+                        value: '',                      // → repId = ""  = ohne Vertreter
+                        child: Text('Ohne Vertreter'),
+                      ),
+                      ..._reps.map(
+                        (r) => DropdownMenuItem(
+                          value: r.id,                  // → repId = r.id
+                          child: Text('${r.firstName} ${r.lastName} (${r.region})'),
+                        ),
+                      ),
+                    ],
+                    onChanged: (v) {
+                      setState(() {
+                        if (v == 'Alle Vertreter') {
+                          _userFilterRepId = null;     // kein Vertreterfilter
+                        } else {
+                          _userFilterRepId = v;        // "" oder r.id
+                        }
+                      });
+                    },
                   ),
                 ),
-              ],
-            ),
             // <<< Ende Filterzeile >>>
 
             const SizedBox(height: 8),
