@@ -1,93 +1,99 @@
 // api/admin/customers.js
 export const config = { runtime: 'nodejs' };
 
-import { setCors, ok, bad, noContent, methodNotAllowed } from '../_lib/http.js';
-import { userByEmail, userSave } from '../_lib/store.js';
+import { setCors } from '../_lib/cors.js';
+import { userSave } from '../_lib/store.js';
 import { hashPassword } from '../_lib/auth.js';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 
 function adminAuthorized(req) {
-  const hdr = req.headers?.['x-admin-secret'];
-  return !!(hdr && ADMIN_SECRET && hdr === ADMIN_SECRET);
+  const hdr = req.headers?.['x-admin-secret'] || req.headers?.['X-Admin-Secret'];
+  return !!(ADMIN_SECRET && hdr && hdr === ADMIN_SECRET);
 }
 
 export default async function handler(req, res) {
-  setCors(req, res);
-  if (req.method === 'OPTIONS') return noContent(res);
+  // CORS – exakt wie bei /api/rep/complaints.js, nur mit X-Admin-Secret
+  setCors(req, res, 'Content-Type, Authorization, X-Admin-Secret, X-Gate');
 
-  if (!adminAuthorized(req)) {
-    return bad(res, 'admin unauthorized', 401);
+  // Preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
   }
 
+  // Nur POST zulassen
   if (req.method !== 'POST') {
-    return methodNotAllowed(res);
+    return res
+      .status(405)
+      .end(JSON.stringify({ error: 'method not allowed' }));
   }
 
-  let body = {};
+  // Admin-Auth (Header X-Admin-Secret muss mit ENV übereinstimmen)
+  if (!adminAuthorized(req)) {
+    return res
+      .status(401)
+      .end(JSON.stringify({ error: 'admin unauthorized' }));
+  }
+
+  // Body lesen
+  let body;
   try {
-    body = typeof req.body === 'object' ? req.body : JSON.parse(req.body ?? '{}');
+    body =
+      typeof req.body === 'object'
+        ? req.body
+        : JSON.parse(req.body ?? '{}');
   } catch (e) {
-    return bad(res, 'invalid json', 400);
+    return res
+      .status(400)
+      .end(JSON.stringify({ error: 'invalid json' }));
   }
 
-  const email = (body.email ?? '').toString().trim().toLowerCase();
-  const company = (body.company ?? '').toString().trim();
-  const contact = (body.contact ?? '').toString().trim();
-  const country = (body.country ?? '').toString().trim();
-  const langRaw = (body.lang ?? '').toString().trim().toLowerCase();
-  const plainPassword = (body.password ?? '').toString().trim();
+  const email   = String(body.email   || '').trim().toLowerCase();
+  const company = String(body.company || '').trim();
+  const contact = String(body.contact || '').trim();
+  const country = String(body.country || '').trim();
+  const lang    = String(body.lang    || 'de').trim() || 'de';
+
+  // Wenn kein Passwort angegeben wurde, ADMIN_SECRET als Startpasswort
+  const pwRaw = String(body.password || '').trim() || ADMIN_SECRET;
 
   if (!email || !company) {
-    return bad(res, 'email and company required', 400);
+    return res
+      .status(400)
+      .end(JSON.stringify({ error: 'company and email required' }));
   }
 
-  // Prüfen, ob es den Nutzer schon gibt
-  const existing = await userByEmail(email);
-  if (existing) {
-    return bad(res, 'user already exists', 409);
-  }
+  try {
+    const passHash = await hashPassword(pwRaw);
 
-  // Startpasswort:
-  // - wenn Admin eins eingibt -> das nehmen
-  // - sonst -> ADMIN_SECRET
-  const passwordToUse = plainPassword || ADMIN_SECRET;
-  if (!passwordToUse) {
-    return bad(res, 'no password configured (ADMIN_SECRET missing)', 500);
-  }
-
-  const passwordHash = await hashPassword(passwordToUse);
-
-  // Sprache grob normalisieren (Backend normiert in userSave nochmal)
-  const supported = ['de', 'en', 'fr', 'it', 'es'];
-  const lang = supported.includes(langRaw) ? langRaw : 'de';
-
-  const now = Date.now();
-
-  const user = {
-    email,
-    company,
-    contact,
-    country,
-    lang,
-    passwordHash,
-    createdAt: now,
-    updatedAt: now,
-    // optional:
-    // createdByAdmin: true,
-  };
-
-  await userSave(user);
-
-  return ok(res, {
-    ok: true,
-    user: {
+    const user = {
       email,
       company,
       contact,
       country,
       lang,
-      createdAt: now,
-    },
-  });
+      passHash,
+      createdAt: Date.now(),
+      adminCreated: true, // Flag: vom Admin angelegt
+    };
+
+    await userSave(user);
+
+    // Antwort im gleichen Stil wie deine anderen Admin-Endpoints
+    return res.status(200).end(
+      JSON.stringify({
+        ok: true,
+        email,
+        company,
+        contact,
+        country,
+        lang,
+      }),
+    );
+  } catch (e) {
+    console.error('[admin/customers] error:', e);
+    return res
+      .status(500)
+      .end(JSON.stringify({ error: e?.message || 'internal error' }));
+  }
 }
