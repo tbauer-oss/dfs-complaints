@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:dfs_mobile/api/client.dart';
+import 'package:dfs_mobile/models/country.dart';
 import 'package:dfs_mobile/widgets/dialog_content_scroll.dart';
 import 'package:dfs_mobile/widgets/legal_footer.dart';
 
@@ -22,7 +23,7 @@ class AdminPage extends StatefulWidget {
   State<AdminPage> createState() => _AdminPageState();
 }
 
-enum _AdminView { menu, pending, users, open, reps }
+enum _AdminView { menu, pending, users, open, reps, createCustomer }
 
 class _AdminPageState extends State<AdminPage> {
   late final AdminApi _api;
@@ -46,6 +47,22 @@ class _AdminPageState extends State<AdminPage> {
   String _repRegion   = kRepRegions.first;
   bool _repBusy       = false;
 
+  // Admin-Kundenanlage (persistente Felder)
+  final _custFormKey       = GlobalKey<FormState>();
+  final _custCompanyCtrl   = TextEditingController();
+  final _custFirstNameCtrl = TextEditingController();
+  final _custLastNameCtrl  = TextEditingController();
+  final _custEmailCtrl     = TextEditingController();
+  final _custStreetCtrl    = TextEditingController();
+  final _custZipCtrl       = TextEditingController();
+  final _custCityCtrl      = TextEditingController();
+  final _custPhoneCtrl     = TextEditingController();
+  final _custPasswordCtrl  = TextEditingController();
+  String _custLang         = 'de';
+  late Country _custCountry;
+  bool _custBusy           = false;
+  String? _custErr;
+
   // Daten
   List<PendingUser> _pending = [];
   List<ActiveUser> _users = [];
@@ -61,10 +78,16 @@ class _AdminPageState extends State<AdminPage> {
   // Ansicht (Menü / Bereich)
   _AdminView _view = _AdminView.menu;
 
+  Country get _defaultCountry => kCountries.firstWhere(
+        (c) => c.code == 'DE',
+        orElse: () => kCountries.first,
+      );
+
   @override
   void initState() {
     super.initState();
     _api = AdminApi();
+    _custCountry = _defaultCountry;
 
     // Secret zuerst aus der API (wenn über Admin-Button gekommen),
     // sonst aus LocalStorage (dfs_admin).
@@ -346,11 +369,12 @@ class _AdminPageState extends State<AdminPage> {
 
     final theme = Theme.of(context);
     final title = switch (_view) {
-      _AdminView.menu    => 'Adminbereich – DFS Customer Complaint',
-      _AdminView.pending => 'Pending (Freigabe ausstehend)',
-      _AdminView.users   => 'Aktive Nutzer',
-      _AdminView.open    => 'Offene Reklamationen',
-      _AdminView.reps    => 'Vertreterverwaltung',
+      _AdminView.menu           => 'Adminbereich – DFS Customer Complaint',
+      _AdminView.pending        => 'Pending (Freigabe ausstehend)',
+      _AdminView.users          => 'Aktive Nutzer',
+      _AdminView.open           => 'Offene Reklamationen',
+      _AdminView.reps           => 'Vertreterverwaltung',
+      _AdminView.createCustomer => 'Neuen Kunden anlegen',
     };
 
     return WillPopScope(
@@ -452,6 +476,15 @@ class _AdminPageState extends State<AdminPage> {
         onTap: () => setState(() => _view = _AdminView.users),
       ),
       AdminTilePro(
+        label: 'Neuen Kunden anlegen',
+        subtitle: 'Account direkt erstellen',
+        icon: Icons.person_add_alt_1_outlined,
+        colorA: AdminPalette.tealA,
+        colorB: AdminPalette.tealB,
+        compact: compact,
+        onTap: () => setState(() => _view = _AdminView.createCustomer),
+      ),
+      AdminTilePro(
         label: 'Vertreterverwaltung',
         subtitle: 'Zuordnen & Regionen',
         icon: Icons.badge_outlined,
@@ -533,7 +566,324 @@ class _AdminPageState extends State<AdminPage> {
         return const SizedBox.shrink();
       case _AdminView.reps:
         return _buildRepsPanel();
+      case _AdminView.createCustomer:
+        return _buildCreateCustomerPanel();
     }
+  }
+
+  Widget _buildCreateCustomerPanel() {
+    String? req(String value, String label) {
+      if (value.trim().isEmpty) return '$label wird benötigt';
+      return null;
+    }
+
+    String? emailValidator(String? value) {
+      final v = value?.trim() ?? '';
+      if (v.isEmpty) return 'E-Mail wird benötigt';
+      if (!v.contains('@') || !v.contains('.')) return 'E-Mail ungültig';
+      return null;
+    }
+
+    final langItems = const <MapEntry<String, String>>[
+      MapEntry('de', 'Deutsch'),
+      MapEntry('en', 'Englisch'),
+      MapEntry('fr', 'Französisch'),
+      MapEntry('it', 'Italienisch'),
+      MapEntry('es', 'Spanisch'),
+    ];
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Form(
+          key: _custFormKey,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 560;
+
+              Widget dualField(Widget a, Widget b) {
+                if (isNarrow) {
+                  return Column(
+                    children: [
+                      a,
+                      const SizedBox(height: 12),
+                      b,
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: a),
+                    const SizedBox(width: 12),
+                    Expanded(child: b),
+                  ],
+                );
+              }
+
+              return SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.person_add_alt_1_outlined),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            'Neuen Kunden anlegen',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        if (_custBusy)
+                          const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (_custErr != null) ...[
+                      Text(_custErr!, style: const TextStyle(color: Colors.red)),
+                      const SizedBox(height: 8),
+                    ],
+                    TextFormField(
+                      controller: _custCompanyCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Firma',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      textInputAction: TextInputAction.next,
+                      validator: (v) => req(v ?? '', 'Firma'),
+                    ),
+                    const SizedBox(height: 12),
+                    dualField(
+                      TextFormField(
+                        controller: _custFirstNameCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Vorname',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        textInputAction: TextInputAction.next,
+                        validator: (v) => req(v ?? '', 'Vorname'),
+                      ),
+                      TextFormField(
+                        controller: _custLastNameCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Nachname',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        textInputAction: TextInputAction.next,
+                        validator: (v) => req(v ?? '', 'Nachname'),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _custEmailCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'E-Mail',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
+                      validator: emailValidator,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _custStreetCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Straße & Hausnummer',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      textInputAction: TextInputAction.next,
+                    ),
+                    const SizedBox(height: 12),
+                    dualField(
+                      TextFormField(
+                        controller: _custZipCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'PLZ',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        textInputAction: TextInputAction.next,
+                      ),
+                      TextFormField(
+                        controller: _custCityCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Ort',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        textInputAction: TextInputAction.next,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<Country>(
+                      value: _custCountry,
+                      decoration: const InputDecoration(
+                        labelText: 'Land',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      isExpanded: true,
+                      items: kCountries
+                          .map(
+                            (c) => DropdownMenuItem<Country>(
+                              value: c,
+                              child: Text(c.label(context)),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null) {
+                          setState(() => _custCountry = v);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _custPhoneCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Telefon (optional)',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      keyboardType: TextInputType.phone,
+                      textInputAction: TextInputAction.next,
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: _custLang,
+                      decoration: const InputDecoration(
+                        labelText: 'Sprache',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      items: langItems
+                          .map(
+                            (entry) => DropdownMenuItem<String>(
+                              value: entry.key,
+                              child: Text(entry.value),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) => setState(() => _custLang = value ?? 'de'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _custPasswordCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Startpasswort (optional)',
+                        helperText: 'Leer lassen = Admin-Passwort wird verwendet',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      obscureText: true,
+                    ),
+                    const SizedBox(height: 16),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: FilledButton.icon(
+                        icon: const Icon(Icons.save_outlined),
+                        label: const Text('Kundenaccount anlegen'),
+                        onPressed: _custBusy
+                            ? null
+                            : () async {
+                                final form = _custFormKey.currentState;
+                                if (form == null || !form.validate()) return;
+
+                                final first = _custFirstNameCtrl.text.trim();
+                                final last = _custLastNameCtrl.text.trim();
+
+                                setState(() {
+                                  _custBusy = true;
+                                  _custErr = null;
+                                });
+
+                                try {
+                                  final selectedCountry = _custCountry;
+                                  final contactCombined = '$first $last'.trim();
+
+                                  await _api.createCustomerAdmin(
+                                    company: _custCompanyCtrl.text.trim(),
+                                    contact: contactCombined,
+                                    email: _custEmailCtrl.text.trim(),
+                                    street: _custStreetCtrl.text.trim(),
+                                    zip: _custZipCtrl.text.trim(),
+                                    city: _custCityCtrl.text.trim(),
+                                    country: selectedCountry.label(context),
+                                    countryCode: selectedCountry.code,
+                                    firstName: first,
+                                    lastName: last,
+                                    phone: _custPhoneCtrl.text.trim(),
+                                    lang: _custLang,
+                                    password: _custPasswordCtrl.text.trim().isEmpty
+                                        ? null
+                                        : _custPasswordCtrl.text.trim(),
+                                  );
+
+                                  if (!mounted) return;
+                                  FocusScope.of(context).unfocus();
+                                  _resetCustomerForm();
+
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Kundenaccount wurde angelegt.'),
+                                    ),
+                                  );
+
+                                  await _refreshAll();
+                                } catch (e) {
+                                  if (mounted) {
+                                    setState(() => _custErr = e.toString());
+                                  }
+                                } finally {
+                                  if (mounted) {
+                                    setState(() => _custBusy = false);
+                                  }
+                                }
+                              },
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _resetCustomerForm() {
+    _custCompanyCtrl.clear();
+    _custFirstNameCtrl.clear();
+    _custLastNameCtrl.clear();
+    _custEmailCtrl.clear();
+    _custStreetCtrl.clear();
+    _custZipCtrl.clear();
+    _custCityCtrl.clear();
+    _custPhoneCtrl.clear();
+    _custPasswordCtrl.clear();
+
+    if (!mounted) {
+      _custLang = 'de';
+      _custCountry = _defaultCountry;
+      return;
+    }
+
+    setState(() {
+      _custLang = 'de';
+      _custCountry = _defaultCountry;
+    });
   }
 
   Widget _buildPendingPanel() {
@@ -1577,6 +1927,25 @@ Widget _buildUsersPanel() {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _repFirstCtrl.dispose();
+    _repLastCtrl.dispose();
+    _repMailCtrl.dispose();
+
+    _custCompanyCtrl.dispose();
+    _custFirstNameCtrl.dispose();
+    _custLastNameCtrl.dispose();
+    _custEmailCtrl.dispose();
+    _custStreetCtrl.dispose();
+    _custZipCtrl.dispose();
+    _custCityCtrl.dispose();
+    _custPhoneCtrl.dispose();
+    _custPasswordCtrl.dispose();
+
+    super.dispose();
   }
 
 }
@@ -3769,6 +4138,45 @@ class AdminApi {
     final res = await _request('POST', '/api/admin/pending', body: body);
     if (res.status != 200 && res.status != 204) {
       throw 'pending POST approve: HTTP ${res.status} ${res.body}';
+    }
+  }
+
+  Future<void> createCustomerAdmin({
+    required String company,
+    required String contact,
+    required String email,
+    required String street,
+    required String zip,
+    required String city,
+    required String country,
+    String? countryCode,
+    required String lang,
+    String? firstName,
+    String? lastName,
+    String? phone,
+    String? password,
+  }) async {
+    final body = <String, dynamic>{
+      'company': company,
+      'contact': contact,
+      'email': email,
+      'street': street,
+      'zip': zip,
+      'city': city,
+      'country': country,
+      if (countryCode != null && countryCode.isNotEmpty) 'countryCode': countryCode,
+      if (firstName != null && firstName.isNotEmpty) 'firstName': firstName,
+      if (lastName != null && lastName.isNotEmpty) 'lastName': lastName,
+      if (phone != null && phone.isNotEmpty) 'phone': phone,
+      'lang': lang,
+    };
+    if (password != null && password.isNotEmpty) {
+      body['password'] = password;
+    }
+
+    final res = await _request('POST', '/api/admin/customers', body: body);
+    if (res.status != 200 && res.status != 201 && res.status != 204) {
+      throw 'admin customers POST: HTTP ${res.status} ${res.body}';
     }
   }
 
