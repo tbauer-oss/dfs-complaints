@@ -43,7 +43,19 @@ class _AccountPageState extends State<AccountPage> {
   Future<void> _load() async {
     setState(() { busy = true; err = null; });
     try {
-      acc = await widget.api.accountGet();
+      final data = await widget.api.accountGet();
+      if (!mounted) return;
+
+      final prefs = AppPrefsScope.of(context);
+      final lang = normalizeLangCode(data['lang']?.toString());
+      final currentLang = prefs.locale?.languageCode.toLowerCase();
+      if (currentLang != lang) {
+        await prefs.setLang(lang);
+      }
+
+      setState(() {
+        acc = data;
+      });
     } catch (e) {
       final s = e.toString();
       if (s.contains('401')) {
@@ -55,7 +67,11 @@ class _AccountPageState extends State<AccountPage> {
         }
         return;
       }
-      err = s;
+      if (mounted) {
+        setState(() {
+          err = s;
+        });
+      }
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -82,6 +98,16 @@ class _AccountPageState extends State<AccountPage> {
               // FIX: v(...) existierte nicht -> Helper _val
               Text('${t.contact_person}: ${_val(acc!['contact'])}'),
               Text('${t.catalog_select_language}: ${_langDisplay(context, acc!['lang'])}'),
+              Builder(
+                builder: (_) {
+                  final raw =
+                      (acc!['customerNumber'] ?? acc!['customer_no'] ?? '').toString().trim();
+                  if (raw.isEmpty) {
+                    return Text('${t.customer_number_label ?? 'Kundennr.'}: -');
+                  }
+                  return Text('${t.customer_number_label ?? 'Kundennr.'}: $raw');
+                },
+              ),
               const SizedBox(height: 16),
 
               FilledButton.icon(
@@ -242,6 +268,8 @@ class _AccountEditPageState extends State<_AccountEditPage> {
   Widget build(BuildContext context) {
     final t = context.t;
     final prefs = AppPrefsScope.of(context);
+    final customerNo =
+        (widget.initial['customerNumber'] ?? widget.initial['customer_no'] ?? '').toString().trim();
 
     return Scaffold(
       appBar: AppBar(title: Text(t.editData ?? 'Daten ändern')),
@@ -257,6 +285,13 @@ class _AccountEditPageState extends State<_AccountEditPage> {
                   labelText: t.email, border: const OutlineInputBorder(),
                 ),
               ),
+              if (customerNo.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  '${t.customer_number_label ?? 'Kundennr.'}: $customerNo',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ],
               const SizedBox(height: 8),
               TextField(
                 controller: contact,
