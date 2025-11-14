@@ -358,7 +358,7 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   // ---------------------------------------------
-  // Kataloge – hübscheres Panel
+  // Kataloge – optisch überarbeitetes Panel
   // ---------------------------------------------
   Widget _buildCatalogsPanel() {
     final theme = Theme.of(context);
@@ -367,229 +367,332 @@ class _AdminPageState extends State<AdminPage> {
 
     String? _validate(String v) {
       final s = v.trim();
-      if (s.isEmpty) return 'Bitte URL angeben';
+      if (s.isEmpty) return 'Bitte URL angeben.';
       final isHttp = s.startsWith('http://') || s.startsWith('https://');
       final isRel  = !s.contains('://') && !s.startsWith('/');
       if (!isHttp && !isRel) {
-        return 'Erlaubt: http(s) oder relativer Pfad (z. B. pdfs/...)';
+        return 'Erlaubt sind http(s)-Links oder relative Pfade (z. B. „pdfs/...“).';
       }
       return null;
     }
 
-    InputDecoration _dec(String label) => InputDecoration(
+    InputDecoration _dec(String label, {String? hint}) => InputDecoration(
       labelText: label,
-      border: const OutlineInputBorder(),
+      hintText: hint,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+      ),
       isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     );
 
     TextStyle _sectionTitle() => theme.textTheme.titleMedium!.copyWith(
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w700,
         );
     TextStyle _sectionSubtitle() =>
         theme.textTheme.bodySmall!.copyWith(color: cs.onSurfaceVariant);
 
     return Card(
-      elevation: 3,
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Form(
           key: formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Kopfzeile
-              Row(
-                children: [
-                  const Icon(Icons.menu_book_outlined),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Kataloge verwalten',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              // ---------- Kopfzeile ----------
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  gradient: LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [
+                      cs.primary.withOpacity(0.14),
+                      cs.primary.withOpacity(0.05),
+                    ],
                   ),
-                  const Spacer(),
-                  IconButton(
-                    tooltip: 'Neu laden',
-                    onPressed: _loadCatalogConfigAdmin,
-                    icon: const Icon(Icons.refresh),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton.icon(
-                    onPressed: _catCfgBusy
-                        ? null
-                        : () async {
-                            if (!(formKey.currentState?.validate() ?? false)) return;
-                            setState(() {
-                              _catCfgBusy = true;
-                              _catCfgErr = null;
-                            });
-                            try {
-                              await _api.updateCatalogConfig({
-                                'lab_default': _labDefaultCtrl.text.trim(),
-                                'lab_esfr': _labEsfrCtrl.text.trim(),
-                                'dent_default': _dentDefaultCtrl.text.trim(),
-                                'dent_esfr': _dentEsfrCtrl.text.trim(),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: cs.primary.withOpacity(0.16),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.menu_book_outlined, size: 20),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: const [
+                          Text(
+                            'Kataloge verwalten',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'PDF-Links für Labor- und Praxiskatalog zentral pflegen.',
+                            style: TextStyle(fontSize: 12.5),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Neu laden',
+                      onPressed: _loadCatalogConfigAdmin,
+                      icon: const Icon(Icons.refresh),
+                    ),
+                    const SizedBox(width: 4),
+                    FilledButton.icon(
+                      onPressed: _catCfgBusy
+                          ? null
+                          : () async {
+                              if (!(formKey.currentState?.validate() ?? false)) return;
+                              setState(() {
+                                _catCfgBusy = true;
+                                _catCfgErr = null;
                               });
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content:
-                                        Text('Katalog-Konfiguration gespeichert.'),
-                                  ),
-                                );
+                              try {
+                                await _api.updateCatalogConfig({
+                                  'lab_default': _labDefaultCtrl.text.trim(),
+                                  'lab_esfr': _labEsfrCtrl.text.trim(),
+                                  'dent_default': _dentDefaultCtrl.text.trim(),
+                                  'dent_esfr': _dentEsfrCtrl.text.trim(),
+                                });
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Katalog-Konfiguration gespeichert.'),
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                if (mounted) {
+                                  setState(() => _catCfgErr = e.toString());
+                                }
+                              } finally {
+                                if (mounted) {
+                                  setState(() => _catCfgBusy = false);
+                                }
                               }
-                            } catch (e) {
-                              if (mounted) {
-                                setState(() => _catCfgErr = e.toString());
-                              }
-                            } finally {
-                              if (mounted) {
-                                setState(() => _catCfgBusy = false);
-                              }
-                            }
-                          },
-                    icon: _catCfgBusy
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.save_outlined),
-                    label: const Text('Speichern'),
-                  ),
-                ],
+                            },
+                      icon: _catCfgBusy
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.save_outlined),
+                      label: const Text('Speichern'),
+                    ),
+                  ],
+                ),
               ),
 
               if (_catCfgErr != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  _catCfgErr!,
-                  style: TextStyle(color: cs.error),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: cs.errorContainer.withOpacity(0.8),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.error_outline,
+                          size: 18, color: cs.onErrorContainer),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _catCfgErr!,
+                          style: TextStyle(
+                            color: cs.onErrorContainer,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
 
-              const SizedBox(height: 18),
+              const SizedBox(height: 20),
 
               // ---------- LABOR ----------
               Row(
                 children: [
                   const Icon(Icons.science_outlined, size: 20),
                   const SizedBox(width: 6),
-                  Text('Dentallabor (Lab) – URLs', style: _sectionTitle()),
+                  Text('Dentallabor (Lab)', style: _sectionTitle()),
                 ],
               ),
               const SizedBox(height: 2),
               Text(
-                'Katalog-Links für Dentallabore (Labor-Katalog).',
+                'Links für den Labor-Katalog – je nach Sprache werden passende PDFs geöffnet.',
                 style: _sectionSubtitle(),
               ),
               const SizedBox(height: 10),
 
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('DE/EN/IT (default)',
-                            style: _sectionSubtitle()),
-                        const SizedBox(height: 4),
-                        TextFormField(
-                          controller: _labDefaultCtrl,
-                          decoration:
-                              _dec('z. B. pdfs/DFS-Labor-DE-US-2025-26_1.pdf'),
-                          validator: (v) => _validate(v ?? ''),
-                        ),
-                      ],
-                    ),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: cs.surfaceVariant.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: cs.outlineVariant.withOpacity(0.5),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('ES/FR', style: _sectionSubtitle()),
-                        const SizedBox(height: 4),
-                        TextFormField(
-                          controller: _labEsfrCtrl,
-                          decoration:
-                              _dec('z. B. pdfs/DFS-Labor-ES-FR-2025-26_1.pdf'),
-                          validator: (v) => _validate(v ?? ''),
-                        ),
-                      ],
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'DE / EN / IT (Standard)',
+                            style: _sectionSubtitle(),
+                          ),
+                          const SizedBox(height: 4),
+                          TextFormField(
+                            controller: _labDefaultCtrl,
+                            decoration: _dec(
+                              'DE / EN / IT (Standard)',
+                              hint: 'z. B. pdfs/DFS-Labor-DE-US-2025-26_1.pdf',
+                            ),
+                            validator: (v) => _validate(v ?? ''),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'ES / FR',
+                            style: _sectionSubtitle(),
+                          ),
+                          const SizedBox(height: 4),
+                          TextFormField(
+                            controller: _labEsfrCtrl,
+                            decoration: _dec(
+                              'ES / FR',
+                              hint: 'z. B. pdfs/DFS-Labor-ES-FR-2025-26_1.pdf',
+                            ),
+                            validator: (v) => _validate(v ?? ''),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 22),
 
               // ---------- PRAXIS ----------
               Row(
                 children: [
                   const Icon(Icons.medical_services_outlined, size: 20),
                   const SizedBox(width: 6),
-                  Text('Zahnmedizin (Dent) – URLs', style: _sectionTitle()),
+                  Text('Zahnmedizin (Dent)', style: _sectionTitle()),
                 ],
               ),
               const SizedBox(height: 2),
               Text(
-                'Katalog-Links für Zahnarztpraxen (Praxis-Katalog).',
+                'Links für den Praxis-Katalog – analog zum Labor-Katalog.',
                 style: _sectionSubtitle(),
               ),
               const SizedBox(height: 10),
 
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('DE/EN/IT (default)',
-                            style: _sectionSubtitle()),
-                        const SizedBox(height: 4),
-                        TextFormField(
-                          controller: _dentDefaultCtrl,
-                          decoration:
-                              _dec('z. B. pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf'),
-                          validator: (v) => _validate(v ?? ''),
-                        ),
-                      ],
-                    ),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: cs.surfaceVariant.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: cs.outlineVariant.withOpacity(0.5),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('ES/FR', style: _sectionSubtitle()),
-                        const SizedBox(height: 4),
-                        TextFormField(
-                          controller: _dentEsfrCtrl,
-                          decoration:
-                              _dec('z. B. pdfs/DFS-Praxis-ES-FR-2025-2026_1.pdf'),
-                          validator: (v) => _validate(v ?? ''),
-                        ),
-                      ],
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'DE / EN / IT (Standard)',
+                            style: _sectionSubtitle(),
+                          ),
+                          const SizedBox(height: 4),
+                          TextFormField(
+                            controller: _dentDefaultCtrl,
+                            decoration: _dec(
+                              'DE / EN / IT (Standard)',
+                              hint: 'z. B. pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf',
+                            ),
+                            validator: (v) => _validate(v ?? ''),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'ES / FR',
+                            style: _sectionSubtitle(),
+                          ),
+                          const SizedBox(height: 4),
+                          TextFormField(
+                            controller: _dentEsfrCtrl,
+                            decoration: _dec(
+                              'ES / FR',
+                              hint: 'z. B. pdfs/DFS-Praxis-ES-FR-2025-2026_1.pdf',
+                            ),
+                            validator: (v) => _validate(v ?? ''),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
 
               const SizedBox(height: 18),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.info_outline, size: 18),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'Hinweis: Relative Pfade (z. B. „pdfs/…“) zeigen auf '
-                      'gebundelte Dateien im Webprojekt. http(s)-Links verweisen '
-                      'auf externe PDFs (z. B. aus Drupal).',
-                      style: _sectionSubtitle(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: cs.surfaceVariant.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Icon(Icons.info_outline, size: 18),
+                    SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Relative Pfade (z. B. „pdfs/…“) verweisen auf gebundelte PDFs im Webprojekt. '
+                        'http(s)-Links können auf in Drupal hochgeladene Dateien zeigen.',
+                        style: TextStyle(fontSize: 12.5),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
