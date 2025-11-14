@@ -274,9 +274,10 @@ class ApiClient {
         DateTime.now().difference(_appMetaLoadedAt!).inMinutes < 5;
     if (!refresh && cacheValid) return _appMeta;
 
-    final base = _apiBase.isEmpty ? '' : _apiBase;
-    final uri = Uri.parse('$base/api/meta');
-    final r = await http.get(uri, headers: {'Content-Type': 'application/json'});
+    final r = await http.get(
+      _u('/api/meta'),
+      headers: {'Content-Type': 'application/json'},
+    );
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
@@ -383,8 +384,6 @@ class ApiClient {
     String? build,
     String? notes,
   }) async {
-    final base = _apiBase.isEmpty ? '' : _apiBase;
-    final uri = Uri.parse('$base/api/admin/meta');
     final body = jsonEncode({
       'version': version,
       if (build != null) 'build': build,
@@ -396,7 +395,11 @@ class ApiClient {
       if (adminSecret != null && adminSecret!.isNotEmpty) 'X-Admin-Secret': adminSecret!,
     };
 
-    final r = await http.post(uri, headers: headers, body: body);
+    final r = await http.post(
+      _u('/api/admin/meta'),
+      headers: headers,
+      body: body,
+    );
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
