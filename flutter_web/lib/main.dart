@@ -9,6 +9,7 @@ import 'l10n/app_localizations.dart';
 import 'services/app_prefs.dart';
 import 'services/app_prefs_scope.dart';
 import 'dart:html' as html; // für Web-Tab-Titel
+import 'utils/lang_utils.dart';
 
 // Seiten
 import 'pages/register_page.dart';
@@ -316,9 +317,7 @@ class _MyAppState extends State<MyApp> {
 
             // ---- i18n ----
             locale: prefs.locale,
-            supportedLocales: const [
-              Locale('de'), Locale('en'), Locale('fr'), Locale('it'), Locale('es'),
-            ],
+            supportedLocales: supportedLangLocales,
             localizationsDelegates: const [
               AppLocalizations.delegate,
               GlobalMaterialLocalizations.delegate,
@@ -330,14 +329,15 @@ class _MyAppState extends State<MyApp> {
               if (forced != null) return forced;
               if (locales != null) {
                 for (final loc in locales) {
+                  final normalized = normalizeLangCode(loc.languageCode);
                   for (final s in supported) {
-                    if (s.languageCode.toLowerCase() == loc.languageCode.toLowerCase()) {
+                    if (s.languageCode.toLowerCase() == normalized) {
                       return s;
                     }
                   }
                 }
               }
-              return const Locale('de');
+              return localeFromLangCode(null);
             },
 
             // ---- Theme ----
