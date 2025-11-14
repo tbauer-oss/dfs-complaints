@@ -1,9 +1,12 @@
 // api/rep/customers.js
 export const config = { runtime: 'nodejs' };
 
+import bcrypt from 'bcryptjs';
+
 import { setCors } from '../_lib/cors.js';
 import { getRepFromAuthHeader } from '../_lib/repAuth.js';
 import { repCustomers as storeRepCustomers } from '../_lib/repsStore.js';
+import { userSave, userByEmail } from '../_lib/store.js';
 
 function S(v) { return (v ?? '').toString().trim(); }
 
@@ -134,6 +137,102 @@ export default async function handler(req, res) {
         } catch {}
 
         const action = S(body.action || body.op); // Alias: op
+
+        if (action === 'create') {
+          try {
+            const email = S(body.email).toLowerCase();
+            const company = S(body.company);
+            const contactRaw = S(body.contact);
+            const firstName = S(body.firstName);
+            const lastName = S(body.lastName);
+            const street = S(body.street);
+            const zip = S(body.zip);
+            const city = S(body.city);
+            const country = S(body.country);
+            const countryCode = S(body.countryCode).toUpperCase().slice(0, 2);
+            const phone = S(body.phone);
+            const lang = (S(body.lang) || 'de').toLowerCase();
+            const password = S(body.password);
+            const customerNo = S(body.customerNo);
+            const vatId = S(body.vatId);
+
+            if (!email || !email.includes('@')) {
+              return res.status(400).end(JSON.stringify({ error: 'invalid email' }));
+            }
+            if (!company) {
+              return res.status(400).end(JSON.stringify({ error: 'company required' }));
+            }
+            if (!street || !zip || !city || !country) {
+              return res.status(400).end(JSON.stringify({ error: 'address required' }));
+            }
+            const hasContact = contactRaw.length > 0;
+            const hasNames = firstName.length > 0 && lastName.length > 0;
+            if (!hasContact && !hasNames) {
+              return res.status(400).end(JSON.stringify({ error: 'contact or name required' }));
+            }
+            if (!password || password.length < 8) {
+              return res.status(400).end(JSON.stringify({ error: 'password too short' }));
+            }
+
+            const existing = await userByEmail(email);
+            if (existing) {
+              return res.status(409).end(JSON.stringify({ error: 'customer exists' }));
+            }
+
+            const contact = hasContact ? contactRaw : `${firstName} ${lastName}`.trim();
+            const passhash = await bcrypt.hash(password, 10);
+
+            const user = {
+              email,
+              company,
+              contact,
+              firstName: firstName || undefined,
+              lastName: lastName || undefined,
+              street,
+              zip,
+              city,
+              country,
+              countryCode: countryCode || undefined,
+              phone: phone || undefined,
+              lang,
+              passhash,
+              createdAt: Date.now(),
+              repCreated: auth.repId,
+            };
+            if (customerNo) {
+              user.customerNo = customerNo;
+              user.customerNumber = customerNo;
+            }
+            if (vatId) {
+              user.vatId = vatId;
+            }
+
+            await userSave(user);
+
+            let assigned = false;
+            try {
+              const store = await import('../_lib/repsStore.js');
+              if (typeof store.repAssign === 'function') {
+                await store.repAssign(auth.repId, email);
+                assigned = true;
+              }
+            } catch (_) {}
+            if (!assigned) {
+              await fallbackRepAssign(auth.repId, email);
+            }
+
+            return res.status(200).end(JSON.stringify({
+              ok: true,
+              email,
+              company,
+              assigned: true,
+            }));
+          } catch (e) {
+            console.error('[rep/customers] create error:', e);
+            return res.status(500).end(JSON.stringify({ error: 'server error', where: 'create' }));
+          }
+        }
+
         const email  = (S(body.email) || S(body.customerEmail)).toLowerCase();
         if (!email || !email.includes('@')) {
           return res.status(400).end(JSON.stringify({ error: 'invalid email' }));

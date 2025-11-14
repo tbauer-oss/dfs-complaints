@@ -1,5 +1,6 @@
 // lib/pages/rep_dashboard_page.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../api/client.dart';
 import 'rep_profile_page.dart';
 import 'dart:html' as html;
@@ -278,6 +279,328 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
       try { await dyn.postJson('/api/rep/assignment/notify', payload); return; } catch (_) {}
     } catch (_) {
       // still ok – UI muss weiterlaufen
+    }
+  }
+
+  Future<void> _createCustomerDialog() async {
+    final t = context.t;
+    final formKey = GlobalKey<FormState>();
+
+    final companyCtrl    = TextEditingController();
+    final contactCtrl    = TextEditingController();
+    final firstNameCtrl  = TextEditingController();
+    final lastNameCtrl   = TextEditingController();
+    final emailCtrl      = TextEditingController();
+    final streetCtrl     = TextEditingController();
+    final zipCtrl        = TextEditingController();
+    final cityCtrl       = TextEditingController();
+    final countryCtrl    = TextEditingController();
+    final countryCodeCtrl= TextEditingController();
+    final phoneCtrl      = TextEditingController();
+    final customerNoCtrl = TextEditingController();
+    final vatIdCtrl      = TextEditingController();
+    final passwordCtrl   = TextEditingController();
+    final password2Ctrl  = TextEditingController();
+
+    String lang = 'de';
+    String? locErr;
+    bool saving = false;
+
+    bool emailValid(String value) {
+      final v = value.trim();
+      if (v.isEmpty) return false;
+      return v.contains('@') && v.contains('.');
+    }
+
+    bool requireNames() => contactCtrl.text.trim().isEmpty;
+
+    List<DropdownMenuItem<String>> langItems() => [
+          DropdownMenuItem(value: 'de', child: Text(t.langNameDE)),
+          DropdownMenuItem(value: 'en', child: Text(t.langNameEN)),
+          DropdownMenuItem(value: 'fr', child: Text(t.langNameFR)),
+          DropdownMenuItem(value: 'it', child: Text(t.langNameIT)),
+          DropdownMenuItem(value: 'es', child: Text(t.langNameES)),
+        ];
+
+    bool? result;
+
+    try {
+      result = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setLocal) {
+            Future<void> submit() async {
+              final form = formKey.currentState;
+              if (form == null) return;
+              if (!form.validate()) return;
+              setLocal(() {
+                locErr = null;
+                saving = true;
+              });
+
+              final Map<String, dynamic> payload = {
+                'company'    : companyCtrl.text.trim(),
+                'contact'    : contactCtrl.text.trim(),
+                'firstName'  : firstNameCtrl.text.trim(),
+                'lastName'   : lastNameCtrl.text.trim(),
+                'email'      : emailCtrl.text.trim(),
+                'street'     : streetCtrl.text.trim(),
+                'zip'        : zipCtrl.text.trim(),
+                'city'       : cityCtrl.text.trim(),
+                'country'    : countryCtrl.text.trim(),
+                'countryCode': countryCodeCtrl.text.trim().toUpperCase(),
+                'phone'      : phoneCtrl.text.trim(),
+                'customerNo' : customerNoCtrl.text.trim(),
+                'vatId'      : vatIdCtrl.text.trim(),
+                'password'   : passwordCtrl.text,
+                'lang'       : lang,
+              };
+
+              payload.removeWhere((key, value) => value is String && value.trim().isEmpty);
+
+              try {
+                await widget.api.ensureRepSession();
+                await widget.api.repCreateCustomer(payload);
+                if (Navigator.of(ctx).canPop()) {
+                  Navigator.of(ctx).pop(true);
+                }
+              } catch (e) {
+                setLocal(() {
+                  locErr = '$e';
+                  saving = false;
+                });
+              }
+            }
+
+            String? requiredValidator(String? value) {
+              if (value == null || value.trim().isEmpty) {
+                return t.required_fields;
+              }
+              return null;
+            }
+
+            return AlertDialog(
+              title: Text(t.rep_create_customer_title ?? t.rep_create_customer ?? t.addCustomer),
+              content: Form(
+                key: formKey,
+                child: SizedBox(
+                  width: 520,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        TextFormField(
+                          controller: companyCtrl,
+                          decoration: InputDecoration(labelText: t.company_plain),
+                          autofillHints: const [AutofillHints.organizationName],
+                          validator: requiredValidator,
+                          textInputAction: TextInputAction.next,
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: contactCtrl,
+                          decoration: InputDecoration(labelText: t.contact),
+                          textInputAction: TextInputAction.next,
+                          validator: (_) {
+                            if (!requireNames()) return null;
+                            if (contactCtrl.text.trim().isEmpty &&
+                                (firstNameCtrl.text.trim().isEmpty || lastNameCtrl.text.trim().isEmpty)) {
+                              return t.name_required;
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: firstNameCtrl,
+                                decoration: InputDecoration(labelText: t.first_name),
+                                textInputAction: TextInputAction.next,
+                                validator: (value) {
+                                  if (!requireNames()) return null;
+                                  if ((value ?? '').trim().isEmpty) return t.name_required;
+                                  return null;
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextFormField(
+                                controller: lastNameCtrl,
+                                decoration: InputDecoration(labelText: t.last_name),
+                                textInputAction: TextInputAction.next,
+                                validator: (value) {
+                                  if (!requireNames()) return null;
+                                  if ((value ?? '').trim().isEmpty) return t.name_required;
+                                  return null;
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: emailCtrl,
+                          decoration: InputDecoration(labelText: t.customerMail),
+                          keyboardType: TextInputType.emailAddress,
+                          autofillHints: const [AutofillHints.emailAddress],
+                          textInputAction: TextInputAction.next,
+                          validator: (value) {
+                            final v = value?.trim() ?? '';
+                            if (v.isEmpty) return t.required_fields;
+                            if (!emailValid(v)) return t.email_invalid;
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: streetCtrl,
+                          decoration: InputDecoration(labelText: t.street),
+                          textInputAction: TextInputAction.next,
+                          validator: requiredValidator,
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: zipCtrl,
+                                decoration: InputDecoration(labelText: t.zip),
+                                textInputAction: TextInputAction.next,
+                                validator: requiredValidator,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextFormField(
+                                controller: cityCtrl,
+                                decoration: InputDecoration(labelText: t.city),
+                                textInputAction: TextInputAction.next,
+                                validator: requiredValidator,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: countryCtrl,
+                          decoration: InputDecoration(labelText: t.country),
+                          textInputAction: TextInputAction.next,
+                          validator: requiredValidator,
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: countryCodeCtrl,
+                          decoration: InputDecoration(labelText: t.country_code_optional ?? 'Ländercode (optional)'),
+                          textInputAction: TextInputAction.next,
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: phoneCtrl,
+                          decoration: InputDecoration(labelText: t.phone),
+                          keyboardType: TextInputType.phone,
+                          textInputAction: TextInputAction.next,
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: customerNoCtrl,
+                          decoration: InputDecoration(labelText: t.customer_number_label ?? 'Kundennr.'),
+                          textInputAction: TextInputAction.next,
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: vatIdCtrl,
+                          decoration: InputDecoration(labelText: t.vat_id_label ?? 'USt-Id.'),
+                          textInputAction: TextInputAction.next,
+                        ),
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          value: lang,
+                          decoration: InputDecoration(labelText: t.langMenuTooltip),
+                          items: langItems(),
+                          onChanged: (v) => setLocal(() => lang = v ?? 'de'),
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: passwordCtrl,
+                          decoration: InputDecoration(labelText: t.password),
+                          obscureText: true,
+                          textInputAction: TextInputAction.next,
+                          validator: (value) {
+                            final v = value ?? '';
+                            if (v.trim().isEmpty) return t.password_required;
+                            if (v.length < 8) return t.password_min_length;
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: password2Ctrl,
+                          decoration: InputDecoration(labelText: t.password_repeat),
+                          obscureText: true,
+                          textInputAction: TextInputAction.done,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) return t.password_required;
+                            if (value != passwordCtrl.text) return t.password_mismatch;
+                            return null;
+                          },
+                        ),
+                        if (locErr != null) ...[
+                          const SizedBox(height: 12),
+                          Text(locErr!, style: const TextStyle(color: Colors.red)),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              actions: [
+                if (saving)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                  ),
+                TextButton(
+                  onPressed: saving ? null : () => Navigator.of(ctx).pop(false),
+                  child: Text(t.close),
+                ),
+                ElevatedButton.icon(
+                  onPressed: saving ? null : submit,
+                  icon: const Icon(Icons.save_outlined),
+                  label: Text(t.save),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+    } finally {
+      companyCtrl.dispose();
+      contactCtrl.dispose();
+      firstNameCtrl.dispose();
+      lastNameCtrl.dispose();
+      emailCtrl.dispose();
+      streetCtrl.dispose();
+      zipCtrl.dispose();
+      cityCtrl.dispose();
+      countryCtrl.dispose();
+      countryCodeCtrl.dispose();
+      phoneCtrl.dispose();
+      customerNoCtrl.dispose();
+      vatIdCtrl.dispose();
+      passwordCtrl.dispose();
+      password2Ctrl.dispose();
+    }
+
+    if (result == true) {
+      await _loadAll();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.rep_create_customer_success ?? t.saved)),
+      );
     }
   }
 
@@ -1129,6 +1452,11 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     return _Card(
       title: t.myCustomers,
       actions: [
+        ElevatedButton.icon(
+          onPressed: _createCustomerDialog,
+          icon: const Icon(Icons.add_business),
+          label: Text(t.rep_create_customer ?? t.addCustomer),
+        ),
         ElevatedButton.icon(
           onPressed: _assignCustomerDialog,
           icon: const Icon(Icons.person_add_alt_1),

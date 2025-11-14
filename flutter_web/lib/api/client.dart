@@ -968,6 +968,24 @@ class ApiClient {
     }
   }
 
+  Future<Map<String, dynamic>> repCreateCustomer(Map<String, dynamic> data) async {
+    final r = await _repFetch(
+      '/api/rep/customers',
+      method: 'POST',
+      body: {'action': 'create', ...data},
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw Exception('POST /api/rep/customers create failed: ${r.statusCode} ${r.body}');
+    }
+    final txt = r.body.trim();
+    if (txt.isEmpty) return <String, dynamic>{};
+    final decoded = jsonDecode(txt);
+    if (decoded is Map) {
+      return decoded.cast<String, dynamic>();
+    }
+    return <String, dynamic>{};
+  }
+
   Future<void> repUnassignCustomer(String email) async {
     final r = await http.post(
       _u('/api/rep/customers'),
