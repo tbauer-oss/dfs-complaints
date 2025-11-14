@@ -98,6 +98,26 @@
   "allCompanies": "All companies",
   "@allCompanies": { "description": "Filter option to show all companies" },
   "yourCompany": "Your company",
+  "we_are_here_for_you": "We are here for you.",
+  "rep_contact_form": "Send message",
+  "rep_contact_title": "Contact representative",
+  "rep_contact_intro": "You are writing to {firstName} {lastName}. Please fill out the fields below.",
+  "@rep_contact_intro": {
+    "placeholders": {
+      "firstName": { "type": "String" },
+      "lastName": { "type": "String" }
+    }
+  },
+  "rep_contact_company_label": "Company",
+  "rep_contact_company_email_label": "Company email",
+  "rep_contact_subject_label": "Subject",
+  "rep_contact_message_label": "Message",
+  "rep_contact_validation": "Please fill in subject and message.",
+  "rep_contact_no_rep_email": "No email address is available for this representative.",
+  "rep_contact_sent": "Message sent successfully.",
+  "rep_contact_error": "Error while sending the message.",
+  "rep_contact_discard_title": "Discard changes?",
+  "rep_contact_discard_text": "You have already entered text. Do you really want to leave the page?",
 
   "logout": "Logout",
   "loggedOut": "Logged out.",

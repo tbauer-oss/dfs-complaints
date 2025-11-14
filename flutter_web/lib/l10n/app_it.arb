@@ -95,6 +95,26 @@
   "allCompanies": "Tutte le aziende",
   "@allCompanies": { "description": "Opzione di filtro per mostrare tutte le aziende" },
   "yourCompany": "La vostra azienda",
+  "we_are_here_for_you": "Siamo qui per voi.",
+  "rep_contact_form": "Inviare messaggio",
+  "rep_contact_title": "Contatta il rappresentante",
+  "rep_contact_intro": "Stai scrivendo a {firstName} {lastName}. Compila i seguenti campi.",
+  "@rep_contact_intro": {
+    "placeholders": {
+      "firstName": { "type": "String" },
+      "lastName": { "type": "String" }
+    }
+  },
+  "rep_contact_company_label": "Azienda",
+  "rep_contact_company_email_label": "E-mail aziendale",
+  "rep_contact_subject_label": "Oggetto",
+  "rep_contact_message_label": "Messaggio",
+  "rep_contact_validation": "Inserisci oggetto e messaggio.",
+  "rep_contact_no_rep_email": "Nessun indirizzo e-mail disponibile per questo rappresentante.",
+  "rep_contact_sent": "Messaggio inviato correttamente.",
+  "rep_contact_error": "Errore durante l'invio del messaggio.",
+  "rep_contact_discard_title": "Annullare le modifiche?",
+  "rep_contact_discard_text": "Hai già inserito del testo. Vuoi davvero lasciare la pagina?",
 
   "logout": "Disconnetti",
   "loggedOut": "Disconnesso.",

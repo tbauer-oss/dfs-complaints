@@ -64,6 +64,13 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserver {
+  static const _fallbackRep = MyRep(
+    firstName: 'DFS-Diamon',
+    lastName: 'GmbH',
+    email: 'complaint@dfs-diamon.de',
+    region: '',
+  );
+
   MyRep? _myRep;
   String? _customerName;
   String? _customerEmail;
@@ -200,9 +207,16 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     }
   }
 
-  void _openRepContactForm(BuildContext context) {
+  MyRep _repForContact() {
     final rep = _myRep;
-    if (rep == null) return;
+    if (rep == null || rep.email.trim().isEmpty) {
+      return _fallbackRep;
+    }
+    return rep;
+  }
+
+  void _openRepContactForm(BuildContext context) {
+    final rep = _repForContact();
 
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -224,7 +238,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     final cs    = theme.colorScheme;
     final company = (_customerName ?? '').trim();
 
-    // Kein Vertreter hinterlegt → dezenter Hinweis + Refresh
+    // Kein Vertreter hinterlegt → Hinweis + Kontakt & Refresh
     if (r == null) {
       return Container(
           width: double.infinity,
@@ -245,7 +259,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                   children: [
                     // Zeige den Kundennamen (statt "DFS-Diamon GmbH")
                     Text(
-                      company.isNotEmpty ? company : t.yourCompany,
+                      company.isNotEmpty ? company : t.we_are_here_for_you,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodyMedium?.copyWith(
@@ -254,13 +268,32 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                       ),
                     ),
                     const SizedBox(height: 2),
-                    // dezenter Hinweis, dass kein Vertreter zugewiesen ist
-                    Text(
-                      AppLocalizations.of(context)!.rep_not_assigned,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: cs.onSurface.withOpacity(.70),
-                        height: 1.15,
-                      ),
+                    // Hinweis + Kontaktmöglichkeit
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          AppLocalizations.of(context)!.rep_not_assigned,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: cs.onSurface.withOpacity(.70),
+                            height: 1.15,
+                          ),
+                        ),
+                        TextButton.icon(
+                          style: TextButton.styleFrom(
+                            visualDensity: const VisualDensity(horizontal: -2, vertical: -3),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          ),
+                          onPressed: () => _openRepContactForm(context),
+                          icon: const Icon(Icons.mail_outline, size: 18),
+                          label: Text(
+                            t.rep_contact_form,
+                            style: theme.textTheme.labelMedium,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -285,6 +318,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     final name   = [first, last].where((s) => s.isNotEmpty).join(' ');
     final title  = name.isNotEmpty ? t.rep_banner_title(name)
                                    : t.rep_banner_title(email.isNotEmpty ? email : '—');
+    final hasContact = _repForContact().email.trim().isNotEmpty;
 
     // Handy-optimiertes Layout: 1) Avatar + Textblock, 2) Aktionszeile darunter
     return Card(
@@ -341,7 +375,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
             const SizedBox(height: 8),
             Row(
               children: [
-                if (email.isNotEmpty)
+                if (hasContact)
                   TextButton.icon(
                     style: TextButton.styleFrom(
                       visualDensity: const VisualDensity(horizontal: -2, vertical: -3),
@@ -404,14 +438,26 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      company.isNotEmpty ? company : t.yourCompany,
+                      company.isNotEmpty ? company : t.we_are_here_for_you,
                       style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
                       maxLines: 2, overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      t.rep_not_assigned,
-                      style: TextStyle(color: cs.onSurface.withOpacity(.75), fontSize: 13),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          t.rep_not_assigned,
+                          style: TextStyle(color: cs.onSurface.withOpacity(.75), fontSize: 13),
+                        ),
+                        TextButton.icon(
+                          onPressed: () => _openRepContactForm(context),
+                          icon: const Icon(Icons.mail_outline),
+                          label: Text(t.rep_contact_form),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -436,6 +482,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     final name   = [first, last].where((s) => s.isNotEmpty).join(' ');
     final bannerTitle = name.isNotEmpty ? t.rep_banner_title(name)
                                         : t.rep_banner_title(email.isNotEmpty ? email : '—');
+    final hasContact = _repForContact().email.trim().isNotEmpty;
 
     return Card(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -482,9 +529,9 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                 ],
               ),
             ),
-            if (email.isNotEmpty)
+            if (hasContact)
               Tooltip(
-                message: t.rep_email_tooltip,
+                message: t.rep_contact_form,
                 child: TextButton.icon(
                   onPressed: () => _openRepContactForm(context),
                   icon: const Icon(Icons.email_outlined),

@@ -733,6 +733,14 @@ class ApiClient {
     }
   }
 
+  Future<void> sendRepContact(Map<String, dynamic> data) async {
+    final r = await _post('/api/rep/contact', data, auth: true);
+    if (!_ok2xx(r.statusCode)) {
+      final msg = _extractMessage(r.body);
+      throw ApiError(r.statusCode, msg);
+    }
+  }
+
   // ---------- Complaints ----------
   Future<Map<String, dynamic>?> complaintCreate(
     Map<String, dynamic> data, [
