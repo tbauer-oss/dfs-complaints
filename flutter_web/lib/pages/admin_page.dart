@@ -1194,9 +1194,6 @@ class _AdminPageState extends State<AdminPage> {
           setState(() => _view = _AdminView.reps);
           if (_reps.isEmpty) _refreshReps();
         },
-        actionLabel: 'Neuen Vertreter anlegen',
-        actionIcon: Icons.person_add_alt_1_outlined,
-        onActionTap: _openCreateRepSheet, // ✅ hier ist der Fix
       ),
       AdminTilePro(
         label: 'Kataloge',
@@ -2086,6 +2083,12 @@ class _AdminPageState extends State<AdminPage> {
               const SizedBox(width: 8),
               const Text('Vertreterverwaltung', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
               const Spacer(),
+              FilledButton.icon(
+                icon: const Icon(Icons.person_add_alt_1_outlined),
+                onPressed: _openCreateRepSheet,
+                label: const Text('Vertreter anlegen'),
+              ),
+              const SizedBox(width: 8),
               if (_loadReps)
                 const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
               IconButton(
@@ -2095,57 +2098,6 @@ class _AdminPageState extends State<AdminPage> {
               ),
             ]),
             const SizedBox(height: 12),
-
-            // Anlegen-Form
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade300),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text('Neuen Vertreter anlegen', style: TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      SizedBox(
-                        width: 240,
-                        child: TextField(controller: _repFirstCtrl, decoration: const InputDecoration(labelText: 'Vorname')),
-                      ),
-                      SizedBox(
-                        width: 260,
-                        child: TextField(controller: _repLastCtrl, decoration: const InputDecoration(labelText: 'Nachname')),
-                      ),
-                      SizedBox(
-                        width: 300,
-                        child: TextField(controller: _repMailCtrl, decoration: const InputDecoration(labelText: 'E-Mail')),
-                      ),
-                      SizedBox(
-                        width: 300,
-                        child: DropdownButtonFormField<String>(
-                          value: _repRegion,
-                          decoration: const InputDecoration(labelText: 'Länderbereich'),
-                          items: kRepRegions.map((s) => DropdownMenuItem<String>(value: s, child: Text(s))).toList(),
-                          onChanged: (v) => setState(() => _repRegion = v ?? kRepRegions.first),
-                        ),
-                      ),
-                      SizedBox(
-                        width: 160,
-                        child: FilledButton.icon(
-                          icon: const Icon(Icons.save_outlined),
-                          onPressed: _repBusy ? null : () async => await _saveRep(),
-                          label: const Text('Anlegen'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
 
             const SizedBox(height: 16),
 
