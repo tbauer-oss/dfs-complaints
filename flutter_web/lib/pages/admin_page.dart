@@ -1194,15 +1194,9 @@ class _AdminPageState extends State<AdminPage> {
           setState(() => _view = _AdminView.reps);
           if (_reps.isEmpty) _refreshReps();
         },
-
-        // NEU: Extra-Button „Neuen Vertreter anlegen“
         actionLabel: 'Neuen Vertreter anlegen',
         actionIcon: Icons.person_add_alt_1_outlined,
-        onActionTap: () {
-          // HIER dieselbe Logik wie in dfs_mobile für „Neuen Vertreter“
-          // Beispiel:
-          _openRepForm(null); // oder editRep(null) / showRepDialog(null)
-        },
+        onActionTap: _openCreateRepSheet, // ✅ hier ist der Fix
       ),
       AdminTilePro(
         label: 'Kataloge',
@@ -1727,6 +1721,117 @@ class _AdminPageState extends State<AdminPage> {
           }
         }
       }
+    }
+
+    Future<void> _openCreateRepSheet() async {
+      _repFirstCtrl.clear();
+      _repLastCtrl.clear();
+      _repMailCtrl.clear();
+      setState(() => _repRegion = kRepRegions.first);
+
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        builder: (ctx) {
+          final bottom = MediaQuery.of(ctx).viewInsets.bottom;
+          final theme = Theme.of(ctx);
+          return Padding(
+            padding: EdgeInsets.only(bottom: bottom),
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Neuen Vertreter hinzufügen',
+                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Schließen',
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _repFirstCtrl,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(
+                        labelText: 'Vorname',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _repLastCtrl,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(
+                        labelText: 'Nachname',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _repMailCtrl,
+                      keyboardType: TextInputType.emailAddress,
+                      autofillHints: const [AutofillHints.email],
+                      decoration: const InputDecoration(
+                        labelText: 'E-Mail',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: _repRegion,
+                      decoration: const InputDecoration(
+                        labelText: 'Länderbereich',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: kRepRegions
+                          .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
+                          .toList(),
+                      onChanged: (v) => setState(() => _repRegion = v ?? kRepRegions.first),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        icon: const Icon(Icons.person_add_alt_1),
+                        onPressed: _repBusy
+                            ? null
+                            : () async {
+                                final ok = await _save();
+                                if (!mounted) return;
+                                if (ok) Navigator.pop(ctx);
+                              },
+                        label: const Text('Vertreter speichern'),
+                      ),
+                    ),
+                    if (_repBusy) ...[
+                      const SizedBox(height: 16),
+                      const Center(
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
     }
 
     Future<void> _openRepCustomersDialog(Rep rep) async {
