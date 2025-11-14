@@ -87,7 +87,7 @@ async function loadUpstashFacade() {
   if (!get && client) {
     get = async (key) => client.get(key);
   } else if (!get && typeof exp.redisMGet === 'function') {
-    // dein ursprünglicher MGET-Fallback
+    // ursprünglicher MGET-Fallback
     get = async (key) => {
       const arr = await exp.redisMGet([key]);
       return Array.isArray(arr) ? (arr[0] ?? null) : null;
@@ -107,7 +107,7 @@ async function loadUpstashFacade() {
   } else if (typeof exp.redisSetJSON === 'function') {
     set = (key, value, ttlSec) => exp.redisSetJSON(key, value, ttlSec);
   } else if (client) {
-    // *** WICHTIGER FIX: lokaler Fallback, damit "No redis set function available" nicht mehr auftritt ***
+    // lokaler Fallback
     set = (key, value, ttlSec) => {
       const opts = ttlSec ? { ex: ttlSec } : undefined;
       return client.set(key, value, opts);
@@ -261,13 +261,32 @@ export default async function handler(req, res) {
     const saveKey = existedInKey1 ? key1 : key2;
     await up.set(saveKey, JSON.stringify(c));
 
-    // Audit (Best-Effort, TTL 7 Tage)
+    // Audit – Variante B: EIN Key pro Ticket mit Liste von Resets, TTL 7 Tage
     try {
-      await up.set(
-        `dfs:audit:repDecisionReset:${ticket}:${nowIso()}`,
-        JSON.stringify({ by: auth.repId, at: nowIso(), action: 'reset' }),
-        60 * 60 * 24 * 7
-      );
+      const auditKey = `dfs:audit:repDecisionReset:${ticket}`;
+      const prev = await up.get(auditKey);
+      let list = [];
+
+      if (Array.isArray(prev)) {
+        list = prev;
+      } else if (typeof prev === 'string' && prev.trim()) {
+        try {
+          const parsed = JSON.parse(prev);
+          if (Array.isArray(parsed)) list = parsed;
+        } catch {
+          // wenn kein gültiges JSON: neu anfangen
+          list = [];
+        }
+      }
+
+      list.push({
+        by: auth.repId,
+        at: nowIso(),
+        action: 'reset',
+        reqId,
+      });
+
+      await up.set(auditKey, JSON.stringify(list), 60 * 60 * 24 * 7); // 7 Tage TTL
     } catch (e) {
       console.warn('[rep/decision/reset] audit write failed:', e);
     }
