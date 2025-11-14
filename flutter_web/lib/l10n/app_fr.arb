@@ -20,6 +20,7 @@
   "theme_light": "Clair",
   "theme_dark": "Sombre",
 
+  "versioninfo": "Version de l'application",
   "addAnother_title": "Ajouter un autre élément ?",
   "addAnother_body": "Souhaitez-vous ajouter un autre produit/lot à cette réclamation avant l’envoi ?",
   "addAnother_no": "Non, continuer",
