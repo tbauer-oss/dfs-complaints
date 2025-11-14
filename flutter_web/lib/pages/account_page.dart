@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
+import '../services/app_prefs_scope.dart';
+import '../utils/lang_utils.dart';
 import '../widgets/legal_footer.dart';
 
 extension _L10nX on BuildContext {
@@ -12,6 +14,11 @@ extension _L10nX on BuildContext {
 String _val(Object? v, [String dash = '-' ]) {
   final s = (v ?? '').toString().trim();
   return s.isEmpty ? dash : s;
+}
+
+String _langDisplay(BuildContext context, Object? value) {
+  final code = value == null ? null : value.toString();
+  return langNameFor(AppLocalizations.of(context), normalizeLangCode(code));
 }
 
 class AccountPage extends StatefulWidget {
@@ -73,6 +80,7 @@ class _AccountPageState extends State<AccountPage> {
               Text('E-Mail: ${_val(acc!['email'], '')}'),
               Text('${t.company}: ${_val(acc!['company'])}'),
               Text('${t.contact_person}: ${_val(acc!['contact'])}'),
+              Text('${t.catalog_select_language}: ${_langDisplay(context, acc!['lang'])}'),
 
               // NEU: Kundennummer (nur Anzeige)
               // Backend liefert "customerNumber" (oder optional "customer_no")
@@ -227,6 +235,13 @@ class _AccountEditPageState extends State<_AccountEditPage> {
       TextEditingController(text: widget.initial['city']?.toString() ?? '');
 
   bool busy = false;
+  late String _selectedLang;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedLang = normalizeLangCode(widget.initial['lang']?.toString());
+  }
 
   @override
   void dispose() {
@@ -242,6 +257,7 @@ class _AccountEditPageState extends State<_AccountEditPage> {
   @override
   Widget build(BuildContext context) {
     final t = context.t;
+    final prefs = AppPrefsScope.of(context);
     final customerNo = (widget.initial['customerNumber'] ?? widget.initial['customer_no'] ?? '').toString().trim();
 
     return Scaffold(
@@ -272,6 +288,26 @@ class _AccountEditPageState extends State<_AccountEditPage> {
                 decoration: InputDecoration(
                   labelText: t.contact_person, border: const OutlineInputBorder(),
                 ),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: _selectedLang,
+                isExpanded: true,
+                decoration: InputDecoration(
+                  labelText: t.catalog_select_language,
+                  border: const OutlineInputBorder(),
+                ),
+                items: supportedLangCodes
+                    .map((code) => DropdownMenuItem<String>(
+                          value: code,
+                          child: Text(langNameFor(t, code)),
+                        ))
+                    .toList(),
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() => _selectedLang = value);
+                  prefs.setLang(value);
+                },
               ),
               const SizedBox(height: 8),
               TextField(
@@ -323,7 +359,9 @@ class _AccountEditPageState extends State<_AccountEditPage> {
                           'street':  street.text.trim(),
                           'zip':     zip.text.trim(),
                           'city':    city.text.trim(),
+                          'lang':    _selectedLang,
                         });
+                        await prefs.setLang(_selectedLang);
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text(context.t.saved ?? 'Gespeichert.')),
