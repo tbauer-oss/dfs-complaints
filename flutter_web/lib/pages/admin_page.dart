@@ -87,6 +87,18 @@ class _AdminPageState extends State<AdminPage> {
   bool _catCfgBusy = false;
   String? _catCfgErr;
 
+  String _stripPdfsPrefix(String? v) {
+    if (v == null) return '';
+    var s = v.trim();
+    if (s.startsWith('pdfs/')) {
+      s = s.substring(5);
+    }
+    if (s.toLowerCase().endsWith('.pdf')) {
+      s = s.substring(0, s.length - 4);
+    }
+    return s;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -280,13 +292,21 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
-    Future<void> _loadCatalogConfigAdmin() async {
+  Future<void> _loadCatalogConfigAdmin() async {
     try {
       final m = await _api.fetchCatalogConfig();
-      _labDefaultCtrl.text  = m['lab_default']  ?? 'pdfs/DFS-Labor-DE-US-2025-26_1.pdf';
-      _labEsfrCtrl.text     = m['lab_esfr']     ?? 'pdfs/DFS-Labor-ES-FR-2025-26_1.pdf';
-      _dentDefaultCtrl.text = m['dent_default'] ?? 'pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf';
-      _dentEsfrCtrl.text    = m['dent_esfr']    ?? 'pdfs/DFS-Praxis-ES-FR-2025-2026_1.pdf';
+      _labDefaultCtrl.text  = _stripPdfsPrefix(
+        m['lab_default']  ?? 'pdfs/DFS-Labor-DE-US-2025-26_1.pdf',
+      );
+      _labEsfrCtrl.text     = _stripPdfsPrefix(
+        m['lab_esfr']     ?? 'pdfs/DFS-Labor-ES-FR-2025-26_1.pdf',
+      );
+      _dentDefaultCtrl.text = _stripPdfsPrefix(
+        m['dent_default'] ?? 'pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf',
+      );
+      _dentEsfrCtrl.text    = _stripPdfsPrefix(
+        m['dent_esfr']    ?? 'pdfs/DFS-Praxis-ES-FR-2025-2026_1.pdf',
+      );
       if (mounted) setState(() {});
     } catch (e) {
       setState(() => _catCfgErr = e.toString());
@@ -368,18 +388,24 @@ class _AdminPageState extends State<AdminPage> {
 
     String? _validate(String v) {
       final s = v.trim();
-      if (s.isEmpty) return 'Bitte URL angeben.';
-      final isHttp = s.startsWith('http://') || s.startsWith('https://');
-      final isRel  = !s.contains('://') && !s.startsWith('/');
-      if (!isHttp && !isRel) {
-        return 'Erlaubt sind http(s)-Links oder relative Pfade (z. B. „pdfs/...“).';
+      if (s.isEmpty) return 'Bitte Dateinamen angeben.';
+      if (s.contains('/') || s.contains('\\')) {
+        return 'Bitte nur den Dateinamen ohne Pfad eingeben (ohne „pdfs/“).';
       }
       return null;
     }
 
+    String _ensurePdf(String name) {
+      final n = name.trim();
+      if (n.isEmpty) return n;
+      return n.toLowerCase().endsWith('.pdf') ? n : '$n.pdf';
+    }
+
     InputDecoration _dec(String label, {String? hint}) => InputDecoration(
-      labelText: label,
+      labelText: label.isEmpty ? null : label,
       hintText: hint,
+      prefixText: 'pdfs/',
+      suffixText: '.pdf',
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
       ),
@@ -387,12 +413,9 @@ class _AdminPageState extends State<AdminPage> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     );
 
-    TextStyle _sectionTitle() => theme.textTheme.titleMedium!.copyWith(
-          fontWeight: FontWeight.w700,
-        );
-    TextStyle _sectionSubtitle() =>
-        theme.textTheme.bodySmall!.copyWith(color: cs.onSurfaceVariant);
-
+    TextStyle _sectionTitle() => ...
+    TextStyle _sectionSubtitle() => ...
+  
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
@@ -465,10 +488,10 @@ class _AdminPageState extends State<AdminPage> {
                               });
                               try {
                                 await _api.updateCatalogConfig({
-                                  'lab_default': _labDefaultCtrl.text.trim(),
-                                  'lab_esfr': _labEsfrCtrl.text.trim(),
-                                  'dent_default': _dentDefaultCtrl.text.trim(),
-                                  'dent_esfr': _dentEsfrCtrl.text.trim(),
+                                  'lab_default': 'pdfs/${_ensurePdf(_labDefaultCtrl.text)}',
+                                  'lab_esfr':    'pdfs/${_ensurePdf(_labEsfrCtrl.text)}',
+                                  'dent_default':'pdfs/${_ensurePdf(_dentDefaultCtrl.text)}',
+                                  'dent_esfr':   'pdfs/${_ensurePdf(_dentEsfrCtrl.text)}',
                                 });
                                 if (mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
@@ -567,8 +590,8 @@ class _AdminPageState extends State<AdminPage> {
                           TextFormField(
                             controller: _labDefaultCtrl,
                             decoration: _dec(
-                              '', // oder null, je nachdem wie _dec gebaut ist
-                              hint: 'z. B. pdfs/DFS-Labor-DE-US-2025-26_1.pdf',
+                              '',
+                              hint: 'DFS-Labor-DE-US-2025-26_1',
                             ),
                             validator: (v) => _validate(v ?? ''),
                           ),
@@ -588,8 +611,8 @@ class _AdminPageState extends State<AdminPage> {
                           TextFormField(
                             controller: _labEsfrCtrl,
                             decoration: _dec(
-                              '', // oder null, je nachdem wie _dec gebaut ist
-                              hint: 'z. B. pdfs/DFS-Labor-ES-FR-2025-26_1.pdf',
+                              '',
+                              hint: 'DFS-Labor-ES-FR-2025-26_1',
                             ),
                             validator: (v) => _validate(v ?? ''),
                           ),
@@ -640,8 +663,8 @@ class _AdminPageState extends State<AdminPage> {
                           TextFormField(
                             controller: _dentDefaultCtrl,
                             decoration: _dec(
-                              'DE / EN / IT (Standard)',
-                              hint: 'z. B. pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf',
+                              '',
+                              hint: 'DFS-Praxis-DE-US-2025-2026_1',
                             ),
                             validator: (v) => _validate(v ?? ''),
                           ),
@@ -661,8 +684,8 @@ class _AdminPageState extends State<AdminPage> {
                           TextFormField(
                             controller: _dentEsfrCtrl,
                             decoration: _dec(
-                              'ES / FR',
-                              hint: 'z. B. pdfs/DFS-Praxis-ES-FR-2025-2026_1.pdf',
+                              '',
+                              hint: 'DFS-Praxis-ES-FR-2025-2026_1',
                             ),
                             validator: (v) => _validate(v ?? ''),
                           ),
@@ -687,8 +710,9 @@ class _AdminPageState extends State<AdminPage> {
                     SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        'Relative Pfade (z. B. „pdfs/…“) verweisen auf gebundelte PDFs im Webprojekt. '
-                        'http(s)-Links können auf in Drupal hochgeladene Dateien zeigen.',
+                        'Die Kataloge werden immer aus dem Ordner „pdfs/“ im Webprojekt geladen. '
+                        'Bitte hier nur den Dateinamen ohne Pfad eingeben; die App verwendet automatisch '
+                        '„pdfs/<Dateiname>.pdf“.',
                         style: TextStyle(fontSize: 12.5),
                       ),
                     ),
@@ -1305,7 +1329,7 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-Widget _buildUsersPanel() {
+  Widget _buildUsersPanel() {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -2475,7 +2499,7 @@ class _UserTileState extends State<_UserTile> {
             controller: ctrl,
             decoration: const InputDecoration(
               labelText: 'Kundennr.',
-              hintText: 'z. B. aus ERP-System',
+              hintText: 'aus ERP-System (abas)',
               border: OutlineInputBorder(),
             ),
           ),
@@ -4236,6 +4260,11 @@ class AdminTilePro extends StatefulWidget {
   final bool compact; // für kleine Screens
   final VoidCallback onTap;
 
+  // NEU: optionaler Extra-Button in der Kachel
+  final String? actionLabel;
+  final IconData? actionIcon;
+  final VoidCallback? onActionTap;
+
   const AdminTilePro({
     super.key,
     required this.label,
@@ -4246,6 +4275,9 @@ class AdminTilePro extends StatefulWidget {
     this.count,
     this.compact = false,
     required this.onTap,
+    this.actionLabel,
+    this.actionIcon,
+    this.onActionTap,
   });
 
   @override
@@ -4279,6 +4311,8 @@ class _AdminTileProState extends State<AdminTilePro> {
 
     final iconSize = widget.compact ? 44.0 : 54.0;
 
+    final hasAction = widget.onActionTap != null;
+
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovering = true),
@@ -4302,7 +4336,9 @@ class _AdminTileProState extends State<AdminTilePro> {
                   colors: [bgA, bgB],
                 ),
                 border: Border.all(
-                  color: isDark ? cs.outlineVariant.withOpacity(0.35) : cs.outlineVariant.withOpacity(0.25),
+                  color: isDark
+                      ? cs.outlineVariant.withOpacity(0.35)
+                      : cs.outlineVariant.withOpacity(0.25),
                 ),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
@@ -4318,7 +4354,8 @@ class _AdminTileProState extends State<AdminTilePro> {
                           right: -6,
                           top: -6,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 9, vertical: 3),
                             decoration: BoxDecoration(
                               color: badgeBg,
                               borderRadius: BorderRadius.circular(999),
@@ -4361,6 +4398,40 @@ class _AdminTileProState extends State<AdminTilePro> {
                       style: TextStyle(
                         color: subtitleColor,
                         fontSize: 13.0,
+                      ),
+                    ),
+                  ],
+
+                  // NEU: Extra-Button in der Kachel
+                  if (hasAction) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: widget.onActionTap,
+                        icon: Icon(
+                          widget.actionIcon ?? Icons.add,
+                          size: 18,
+                        ),
+                        label: Text(
+                          widget.actionLabel ?? 'Aktion',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: accent,
+                          side: BorderSide(color: accent.withOpacity(0.85)),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          textStyle: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
                       ),
                     ),
                   ],
