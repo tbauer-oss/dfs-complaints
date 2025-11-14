@@ -358,8 +358,12 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-    Widget _buildCatalogsPanel() {
+  // ---------------------------------------------
+  // Kataloge – hübscheres Panel
+  // ---------------------------------------------
+  Widget _buildCatalogsPanel() {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final formKey = GlobalKey<FormState>();
 
     String? _validate(String v) {
@@ -367,7 +371,9 @@ class _AdminPageState extends State<AdminPage> {
       if (s.isEmpty) return 'Bitte URL angeben';
       final isHttp = s.startsWith('http://') || s.startsWith('https://');
       final isRel  = !s.contains('://') && !s.startsWith('/');
-      if (!isHttp && !isRel) return 'Erlaubt: http(s) oder relativer Pfad (z. B. pdfs/...)';
+      if (!isHttp && !isRel) {
+        return 'Erlaubt: http(s) oder relativer Pfad (z. B. pdfs/...)';
+      }
       return null;
     }
 
@@ -377,107 +383,215 @@ class _AdminPageState extends State<AdminPage> {
       isDense: true,
     );
 
+    TextStyle _sectionTitle() => theme.textTheme.titleMedium!.copyWith(
+          fontWeight: FontWeight.w600,
+        );
+    TextStyle _sectionSubtitle() =>
+        theme.textTheme.bodySmall!.copyWith(color: cs.onSurfaceVariant);
+
     return Card(
+      elevation: 3,
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         child: Form(
           key: formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(children: [
-                const Icon(Icons.menu_book_outlined),
-                const SizedBox(width: 8),
-                const Text('Kataloge verwalten', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                const Spacer(),
-                IconButton(
-                  tooltip: 'Neu laden',
-                  onPressed: _loadCatalogConfigAdmin,
-                  icon: const Icon(Icons.refresh),
-                ),
-                const SizedBox(width: 8),
-                FilledButton.icon(
-                  onPressed: _catCfgBusy ? null : () async {
-                    if (!(formKey.currentState?.validate() ?? false)) return;
-                    setState(() { _catCfgBusy = true; _catCfgErr = null; });
-                    try {
-                      await _api.updateCatalogConfig({
-                        'lab_default' : _labDefaultCtrl.text.trim(),
-                        'lab_esfr'    : _labEsfrCtrl.text.trim(),
-                        'dent_default': _dentDefaultCtrl.text.trim(),
-                        'dent_esfr'   : _dentEsfrCtrl.text.trim(),
-                      });
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Katalog-Konfiguration gespeichert.'))
-                        );
-                      }
-                    } catch (e) {
-                      setState(() => _catCfgErr = e.toString());
-                    } finally {
-                      if (mounted) setState(() => _catCfgBusy = false);
-                    }
-                  },
-                  icon: _catCfgBusy
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.save_outlined),
-                  label: const Text('Speichern'),
-                ),
-              ]),
+              // Kopfzeile
+              Row(
+                children: [
+                  const Icon(Icons.menu_book_outlined),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Kataloge verwalten',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    tooltip: 'Neu laden',
+                    onPressed: _loadCatalogConfigAdmin,
+                    icon: const Icon(Icons.refresh),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton.icon(
+                    onPressed: _catCfgBusy
+                        ? null
+                        : () async {
+                            if (!(formKey.currentState?.validate() ?? false)) return;
+                            setState(() {
+                              _catCfgBusy = true;
+                              _catCfgErr = null;
+                            });
+                            try {
+                              await _api.updateCatalogConfig({
+                                'lab_default': _labDefaultCtrl.text.trim(),
+                                'lab_esfr': _labEsfrCtrl.text.trim(),
+                                'dent_default': _dentDefaultCtrl.text.trim(),
+                                'dent_esfr': _dentEsfrCtrl.text.trim(),
+                              });
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content:
+                                        Text('Katalog-Konfiguration gespeichert.'),
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              if (mounted) {
+                                setState(() => _catCfgErr = e.toString());
+                              }
+                            } finally {
+                              if (mounted) {
+                                setState(() => _catCfgBusy = false);
+                              }
+                            }
+                          },
+                    icon: _catCfgBusy
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.save_outlined),
+                    label: const Text('Speichern'),
+                  ),
+                ],
+              ),
 
               if (_catCfgErr != null) ...[
                 const SizedBox(height: 8),
-                Text(_catCfgErr!, style: const TextStyle(color: Colors.red)),
+                Text(
+                  _catCfgErr!,
+                  style: TextStyle(color: cs.error),
+                ),
               ],
 
-              const SizedBox(height: 12),
-              Text('Dentallabor (Lab) – URLs', style: theme.textTheme.titleSmall),
-              const SizedBox(height: 8),
+              const SizedBox(height: 18),
+
+              // ---------- LABOR ----------
+              Row(
+                children: [
+                  const Icon(Icons.science_outlined, size: 20),
+                  const SizedBox(width: 6),
+                  Text('Dentallabor (Lab) – URLs', style: _sectionTitle()),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Katalog-Links für Dentallabore (Labor-Katalog).',
+                style: _sectionSubtitle(),
+              ),
+              const SizedBox(height: 10),
+
               Row(
                 children: [
                   Expanded(
-                    child: TextFormField(
-                      controller: _labDefaultCtrl,
-                      decoration: _dec('DE/EN/IT (default)'),
-                      validator: (v) => _validate(v ?? ''),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('DE/EN/IT (default)',
+                            style: _sectionSubtitle()),
+                        const SizedBox(height: 4),
+                        TextFormField(
+                          controller: _labDefaultCtrl,
+                          decoration:
+                              _dec('z. B. pdfs/DFS-Labor-DE-US-2025-26_1.pdf'),
+                          validator: (v) => _validate(v ?? ''),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 16),
                   Expanded(
-                    child: TextFormField(
-                      controller: _labEsfrCtrl,
-                      decoration: _dec('ES/FR'),
-                      validator: (v) => _validate(v ?? ''),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('ES/FR', style: _sectionSubtitle()),
+                        const SizedBox(height: 4),
+                        TextFormField(
+                          controller: _labEsfrCtrl,
+                          decoration:
+                              _dec('z. B. pdfs/DFS-Labor-ES-FR-2025-26_1.pdf'),
+                          validator: (v) => _validate(v ?? ''),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
 
-              const SizedBox(height: 16),
-              Text('Zahnmedizin (Dent) – URLs', style: theme.textTheme.titleSmall),
-              const SizedBox(height: 8),
+              const SizedBox(height: 24),
+
+              // ---------- PRAXIS ----------
+              Row(
+                children: [
+                  const Icon(Icons.medical_services_outlined, size: 20),
+                  const SizedBox(width: 6),
+                  Text('Zahnmedizin (Dent) – URLs', style: _sectionTitle()),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Katalog-Links für Zahnarztpraxen (Praxis-Katalog).',
+                style: _sectionSubtitle(),
+              ),
+              const SizedBox(height: 10),
+
               Row(
                 children: [
                   Expanded(
-                    child: TextFormField(
-                      controller: _dentDefaultCtrl,
-                      decoration: _dec('DE/EN/IT (default)'),
-                      validator: (v) => _validate(v ?? ''),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('DE/EN/IT (default)',
+                            style: _sectionSubtitle()),
+                        const SizedBox(height: 4),
+                        TextFormField(
+                          controller: _dentDefaultCtrl,
+                          decoration:
+                              _dec('z. B. pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf'),
+                          validator: (v) => _validate(v ?? ''),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 16),
                   Expanded(
-                    child: TextFormField(
-                      controller: _dentEsfrCtrl,
-                      decoration: _dec('ES/FR'),
-                      validator: (v) => _validate(v ?? ''),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('ES/FR', style: _sectionSubtitle()),
+                        const SizedBox(height: 4),
+                        TextFormField(
+                          controller: _dentEsfrCtrl,
+                          decoration:
+                              _dec('z. B. pdfs/DFS-Praxis-ES-FR-2025-2026_1.pdf'),
+                          validator: (v) => _validate(v ?? ''),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
 
-              const SizedBox(height: 8),
-              const Text('Hinweis: Relative Pfade (z. B. „pdfs/...“) zeigen auf gebundelte Dateien, http(s)-Links auf externe PDFs.'),
+              const SizedBox(height: 18),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.info_outline, size: 18),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Hinweis: Relative Pfade (z. B. „pdfs/…“) zeigen auf '
+                      'gebundelte Dateien im Webprojekt. http(s)-Links verweisen '
+                      'auf externe PDFs (z. B. aus Drupal).',
+                      style: _sectionSubtitle(),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
