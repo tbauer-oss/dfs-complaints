@@ -9,6 +9,7 @@ import '../widgets/lang_action.dart';
 import '../widgets/theme_action.dart' as w;
 import '../services/app_prefs_scope.dart';
 import '../widgets/legal_footer.dart';
+import '../models/country.dart';
 
 // ---- L10n-Helper (top-level) ----
 extension _L10nX on BuildContext {
@@ -287,20 +288,22 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     final formKey = GlobalKey<FormState>();
 
     final companyCtrl    = TextEditingController();
-    final contactCtrl    = TextEditingController();
     final firstNameCtrl  = TextEditingController();
     final lastNameCtrl   = TextEditingController();
     final emailCtrl      = TextEditingController();
     final streetCtrl     = TextEditingController();
     final zipCtrl        = TextEditingController();
     final cityCtrl       = TextEditingController();
-    final countryCtrl    = TextEditingController();
-    final countryCodeCtrl= TextEditingController();
     final phoneCtrl      = TextEditingController();
     final customerNoCtrl = TextEditingController();
     final vatIdCtrl      = TextEditingController();
     final passwordCtrl   = TextEditingController();
     final password2Ctrl  = TextEditingController();
+
+    Country? selectedCountry = kCountries.firstWhere(
+      (c) => c.code == 'DE',
+      orElse: () => kCountries.first,
+    );
 
     String lang = 'de';
     String? locErr;
@@ -320,8 +323,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
       if (v.isEmpty) return false;
       return v.contains('@') && v.contains('.');
     }
-
-    bool requireNames() => contactCtrl.text.trim().isEmpty;
 
     List<DropdownMenuItem<String>> langItems() => [
           DropdownMenuItem(value: 'de', child: Text(t.langNameDE)),
@@ -349,15 +350,15 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
 
               final Map<String, dynamic> payload = {
                 'company'    : companyCtrl.text.trim(),
-                'contact'    : contactCtrl.text.trim(),
+                'contact'    : '${firstNameCtrl.text.trim()} ${lastNameCtrl.text.trim()}'.trim(),
                 'firstName'  : firstNameCtrl.text.trim(),
                 'lastName'   : lastNameCtrl.text.trim(),
                 'email'      : emailCtrl.text.trim(),
                 'street'     : streetCtrl.text.trim(),
                 'zip'        : zipCtrl.text.trim(),
                 'city'       : cityCtrl.text.trim(),
-                'country'    : countryCtrl.text.trim(),
-                'countryCode': countryCodeCtrl.text.trim().toUpperCase(),
+                'country'    : selectedCountry?.label(ctx) ?? '',
+                'countryCode': selectedCountry?.code ?? '',
                 'phone'      : phoneCtrl.text.trim(),
                 'customerNo' : customerNoCtrl.text.trim(),
                 'vatId'      : vatIdCtrl.text.trim(),
@@ -411,20 +412,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                           textInputAction: TextInputAction.next,
                         ),
                         const SizedBox(height: 12),
-                        TextFormField(
-                          controller: contactCtrl,
-                          decoration: InputDecoration(labelText: t.contact),
-                          textInputAction: TextInputAction.next,
-                          validator: (_) {
-                            if (!requireNames()) return null;
-                            if (contactCtrl.text.trim().isEmpty &&
-                                (firstNameCtrl.text.trim().isEmpty || lastNameCtrl.text.trim().isEmpty)) {
-                              return t.name_required;
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 12),
                         Row(
                           children: [
                             Expanded(
@@ -432,11 +419,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                                 controller: firstNameCtrl,
                                 decoration: InputDecoration(labelText: t.first_name),
                                 textInputAction: TextInputAction.next,
-                                validator: (value) {
-                                  if (!requireNames()) return null;
-                                  if ((value ?? '').trim().isEmpty) return t.name_required;
-                                  return null;
-                                },
+                                validator: requiredValidator,
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -445,11 +428,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                                 controller: lastNameCtrl,
                                 decoration: InputDecoration(labelText: t.last_name),
                                 textInputAction: TextInputAction.next,
-                                validator: (value) {
-                                  if (!requireNames()) return null;
-                                  if ((value ?? '').trim().isEmpty) return t.name_required;
-                                  return null;
-                                },
+                                validator: requiredValidator,
                               ),
                             ),
                           ],
@@ -498,17 +477,20 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        TextFormField(
-                          controller: countryCtrl,
+                        DropdownButtonFormField<Country>(
+                          value: selectedCountry,
                           decoration: InputDecoration(labelText: t.country),
-                          textInputAction: TextInputAction.next,
-                          validator: requiredValidator,
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: countryCodeCtrl,
-                          decoration: InputDecoration(labelText: t.country_code_optional ?? 'Ländercode (optional)'),
-                          textInputAction: TextInputAction.next,
+                          isExpanded: true,
+                          items: kCountries
+                              .map(
+                                (c) => DropdownMenuItem<Country>(
+                                  value: c,
+                                  child: Text(c.label(ctx)),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) => setLocal(() => selectedCountry = value),
+                          validator: (value) => value == null ? t.required_fields : null,
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
@@ -592,15 +574,12 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
       );
     } finally {
       companyCtrl.dispose();
-      contactCtrl.dispose();
       firstNameCtrl.dispose();
       lastNameCtrl.dispose();
       emailCtrl.dispose();
       streetCtrl.dispose();
       zipCtrl.dispose();
       cityCtrl.dispose();
-      countryCtrl.dispose();
-      countryCodeCtrl.dispose();
       phoneCtrl.dispose();
       customerNoCtrl.dispose();
       vatIdCtrl.dispose();
