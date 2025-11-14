@@ -25,7 +25,7 @@ export default async function handler(req, res) {
     // ---- LIST ----
     if (req.method === 'GET') {
       const list = await usersList();
-      // Stelle sicher, dass selfDeleted mitgeliefert wird
+
       const out = list.map(u => ({
         email: u.email || '',
         company: u.company || '',
@@ -38,8 +38,11 @@ export default async function handler(req, res) {
         lang: (u.lang || 'de'),
         createdAt: u.createdAt || null,
         revoked: !!u.revoked,
-        selfDeleted: !!u.selfDeleted,   // <— WICHTIG
+        selfDeleted: !!u.selfDeleted,
+        // NEU: Kundennummer mitliefern, egal ob Feld bei dir customerNumber oder customer_no heißt
+       customerNumber: u.customerNumber || u.customer_no || '',
       }));
+
       return ok(res, out);
     }
 
@@ -70,19 +73,41 @@ export default async function handler(req, res) {
       return ok(res, { deleted: true, email: wanted });
     }
 
-    // ---- POST Fallback: action=delete ----
+    // ---- POST: Aktionen (z. B. delete, updateCustomerNumber) ----
     if (req.method === 'POST') {
       const body = readJson(req) || {};
-      const action = (body.action || '').toString();
+      const action = (body.action || '').toString().trim();
+
+      // 1) Kundennummer aktualisieren
+      if (action === 'updateCustomerNumber') {
+        const email = (body.email || '').toString().trim().toLowerCase();
+        if (!email) return bad(res, 'missing email', 400);
+
+        const list = await usersList();
+        const u = list.find(
+          x => (x?.email || '').toString().trim().toLowerCase() === email
+        );
+        if (!u) return bad(res, 'not found', 404);
+
+        const customerNumber = (body.customerNumber || '').toString().trim();
+        // hier schreiben wir es in das User-Objekt
+        u.customerNumber = customerNumber;
+
+        await userSave(u);
+        return ok(res, { ok: true, email, customerNumber });
+      }
+
+      // 2) Nutzer löschen (wie bisher)
       if (action === 'delete') {
         const wanted = (body.email || '').toString().trim().toLowerCase();
         if (!wanted) return bad(res, 'missing email', 400);
         await userDelete(wanted);
         return ok(res, { deleted: true, email: wanted });
       }
+
       return bad(res, 'unknown action', 400);
     }
-
+    
     return methodNotAllowed(res);
   } catch (e) {
     return bad(res, e?.message || String(e), 500);
