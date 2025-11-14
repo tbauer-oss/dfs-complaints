@@ -3773,7 +3773,6 @@ class _RepCreateCustomerDialogState extends State<_RepCreateCustomerDialog> {
   }
 }
 
-
 class _EmptyState extends StatelessWidget {
   final IconData icon;
   final String title;
