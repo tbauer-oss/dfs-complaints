@@ -1,9 +1,10 @@
 // api/admin/customers.js
 export const config = { runtime: 'nodejs' };
 
+import bcrypt from 'bcryptjs';
+
 import { setCors } from '../_lib/cors.js';
 import { userSave } from '../_lib/store.js';
-import { hashPassword } from '../_lib/auth.js';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 
@@ -64,15 +65,15 @@ export default async function handler(req, res) {
   }
 
   try {
-    const passHash = await hashPassword(pwRaw);
-
+    const passhash = await bcrypt.hash(pwRaw, 10);
+    
     const user = {
       email,
       company,
       contact,
       country,
       lang,
-      passHash,
+      passhash,
       createdAt: Date.now(),
       adminCreated: true, // Flag: vom Admin angelegt
     };
