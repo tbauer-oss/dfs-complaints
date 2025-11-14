@@ -413,8 +413,12 @@ class _AdminPageState extends State<AdminPage> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     );
 
-    TextStyle _sectionTitle() => ...
-    TextStyle _sectionSubtitle() => ...
+    TextStyle _sectionTitle() => theme.textTheme.titleMedium!.copyWith(
+        fontWeight: FontWeight.w700,
+      );
+
+    TextStyle _sectionSubtitle() =>
+        theme.textTheme.bodySmall!.copyWith(color: cs.onSurfaceVariant);
   
     return Card(
       elevation: 4,
