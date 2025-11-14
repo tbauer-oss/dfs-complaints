@@ -18,6 +18,11 @@
   ],
   "routes": [
     {
+      "src": "/api/rep/decision/reset",
+      "methods": ["POST"],
+      "dest": "/api/rep/decision.js?__action=reset"
+    },
+    {
       "src": "/api/(.*)",
       "methods": ["OPTIONS"],
       "dest": "/api/_options.js"
