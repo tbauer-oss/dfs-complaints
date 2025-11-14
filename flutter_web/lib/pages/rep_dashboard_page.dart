@@ -459,7 +459,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                           controller: emailCtrl,
                           decoration: InputDecoration(labelText: t.customerMail),
                           keyboardType: TextInputType.emailAddress,
-                          autofillHints: const [AutofillHints.emailAddress],
+                          autofillHints: const [AutofillHints.email],
                           textInputAction: TextInputAction.next,
                           validator: (value) {
                             final v = value?.trim() ?? '';
