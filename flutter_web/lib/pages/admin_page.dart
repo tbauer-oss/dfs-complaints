@@ -995,8 +995,6 @@ Widget _buildUsersPanel() {
                 icon: const Icon(Icons.refresh),
               ),
             ]),
-          ]
-
             // >>> NEU: Filterzeile direkt unter der Überschrift <<<
             const SizedBox(height: 8),
             Row(
