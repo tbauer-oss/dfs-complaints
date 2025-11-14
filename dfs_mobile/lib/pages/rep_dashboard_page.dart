@@ -503,311 +503,11 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
   Future<void> _createCustomerDialog() async {
     final t = context.t;
-    final formKey = GlobalKey<FormState>();
 
-    final companyCtrl    = TextEditingController();
-    final firstNameCtrl  = TextEditingController();
-    final lastNameCtrl   = TextEditingController();
-    final emailCtrl      = TextEditingController();
-    final streetCtrl     = TextEditingController();
-    final zipCtrl        = TextEditingController();
-    final cityCtrl       = TextEditingController();
-    final phoneCtrl      = TextEditingController();
-    final customerNoCtrl = TextEditingController();
-    final vatIdCtrl      = TextEditingController();
-    final passwordCtrl   = TextEditingController();
-    final password2Ctrl  = TextEditingController();
-
-    Country? selectedCountry = kCountries.firstWhere(
-      (c) => c.code == 'DE',
-      orElse: () => kCountries.first,
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => _RepCreateCustomerDialog(api: widget.api),
     );
-
-    String lang = 'de';
-    String? locErr;
-    bool saving = false;
-
-    String mapError(String code) {
-      switch (code) {
-        case 'password_admin_secret':
-          return t.rep_create_customer_password_admin_secret ?? code;
-        default:
-          return code;
-      }
-    }
-
-    bool emailValid(String value) {
-      final v = value.trim();
-      if (v.isEmpty) return false;
-      return v.contains('@') && v.contains('.');
-    }
-    
-    List<DropdownMenuItem<String>> langItems() => [
-          DropdownMenuItem(value: 'de', child: Text(t.langNameDE)),
-          DropdownMenuItem(value: 'en', child: Text(t.langNameEN)),
-          DropdownMenuItem(value: 'fr', child: Text(t.langNameFR)),
-          DropdownMenuItem(value: 'it', child: Text(t.langNameIT)),
-          DropdownMenuItem(value: 'es', child: Text(t.langNameES)),
-        ];
-
-    bool? result;
-
-    try {
-      result = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => StatefulBuilder(
-          builder: (ctx, setLocal) {
-            Future<void> submit() async {
-              final form = formKey.currentState;
-              if (form == null) return;
-              if (!form.validate()) return;
-              setLocal(() {
-                locErr = null;
-                saving = true;
-              });
-
-              final Map<String, dynamic> payload = {
-                'company'    : companyCtrl.text.trim(),
-                'contact'    : '${firstNameCtrl.text.trim()} ${lastNameCtrl.text.trim()}'.trim(),
-                'firstName'  : firstNameCtrl.text.trim(),
-                'lastName'   : lastNameCtrl.text.trim(),
-                'email'      : emailCtrl.text.trim(),
-                'street'     : streetCtrl.text.trim(),
-                'zip'        : zipCtrl.text.trim(),
-                'city'       : cityCtrl.text.trim(),
-                'country'    : selectedCountry?.label(ctx) ?? '',
-                'countryCode': selectedCountry?.code ?? '',
-                'phone'      : phoneCtrl.text.trim(),
-                'customerNo' : customerNoCtrl.text.trim(),
-                'vatId'      : vatIdCtrl.text.trim(),
-                'password'   : passwordCtrl.text,
-                'lang'       : lang,
-              };
-
-              payload.removeWhere((key, value) => value is String && value.trim().isEmpty);
-
-              try {
-                await widget.api.ensureRepSession();
-                await widget.api.repCreateCustomer(payload);
-                FocusScope.of(ctx).unfocus();
-                FocusManager.instance.primaryFocus?.unfocus();
-                if (Navigator.of(ctx).canPop()) {
-                  Navigator.of(ctx).pop(true);
-                }
-              } catch (e) {
-                setLocal(() {
-                  saving = false;
-                  if (e is ApiError) {
-                    locErr = mapError(e.message);
-                  } else {
-                    locErr = '$e';
-                  }
-                });
-              }
-            }
-
-            String? requiredValidator(String? value) {
-              if (value == null || value.trim().isEmpty) {
-                return t.required_fields;
-              }
-              return null;
-            }
-
-            return AlertDialog(
-              title: Text(t.rep_create_customer_title ?? t.rep_create_customer ?? t.addCustomer),
-              content: Form(
-                key: formKey,
-                child: DialogContentScroll(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextFormField(
-                        controller: companyCtrl,
-                        decoration: InputDecoration(labelText: t.company_plain),
-                        autofillHints: const [AutofillHints.organizationName],
-                        validator: requiredValidator,
-                        textInputAction: TextInputAction.next,
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: firstNameCtrl,
-                              decoration: InputDecoration(labelText: t.first_name),
-                              textInputAction: TextInputAction.next,
-                              validator: requiredValidator,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextFormField(
-                              controller: lastNameCtrl,
-                              decoration: InputDecoration(labelText: t.last_name),
-                              textInputAction: TextInputAction.next,
-                              validator: requiredValidator,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: emailCtrl,
-                        decoration: InputDecoration(labelText: t.customerMail),
-                        keyboardType: TextInputType.emailAddress,
-                        autofillHints: const [AutofillHints.email],
-                        textInputAction: TextInputAction.next,
-                        validator: (value) {
-                          final v = value?.trim() ?? '';
-                          if (v.isEmpty) return t.required_fields;
-                          if (!emailValid(v)) return t.email_invalid;
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: streetCtrl,
-                        decoration: InputDecoration(labelText: t.street),
-                        textInputAction: TextInputAction.next,
-                        validator: requiredValidator,
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: zipCtrl,
-                              decoration: InputDecoration(labelText: t.zip),
-                              textInputAction: TextInputAction.next,
-                              validator: requiredValidator,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextFormField(
-                              controller: cityCtrl,
-                              decoration: InputDecoration(labelText: t.city),
-                              textInputAction: TextInputAction.next,
-                              validator: requiredValidator,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<Country>(
-                        value: selectedCountry,
-                        decoration: InputDecoration(labelText: t.country),
-                        isExpanded: true,
-                        items: kCountries
-                            .map(
-                              (c) => DropdownMenuItem<Country>(
-                                value: c,
-                                child: Text(c.label(ctx)),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) => setLocal(() => selectedCountry = value),
-                        validator: (value) => value == null ? t.required_fields : null,
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: phoneCtrl,
-                        decoration: InputDecoration(labelText: t.phone),
-                        keyboardType: TextInputType.phone,
-                        textInputAction: TextInputAction.next,
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: customerNoCtrl,
-                        decoration: InputDecoration(labelText: t.customer_number_label ?? 'Kundennr.'),
-                        textInputAction: TextInputAction.next,
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: vatIdCtrl,
-                        decoration: InputDecoration(labelText: t.vat_id_label ?? 'USt-Id.'),
-                        textInputAction: TextInputAction.next,
-                      ),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        value: lang,
-                        decoration: InputDecoration(labelText: t.langMenuTooltip),
-                        items: langItems(),
-                        onChanged: (v) => setLocal(() => lang = v ?? 'de'),
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: passwordCtrl,
-                        decoration: InputDecoration(labelText: t.password),
-                        obscureText: true,
-                        textInputAction: TextInputAction.next,
-                        validator: (value) {
-                          final v = value ?? '';
-                          if (v.trim().isEmpty) return t.password_required;
-                          if (v.length < 8) return t.password_min_length;
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: password2Ctrl,
-                        decoration: InputDecoration(labelText: t.password_repeat),
-                        obscureText: true,
-                        textInputAction: TextInputAction.done,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) return t.password_required;
-                          if (value != passwordCtrl.text) return t.password_mismatch;
-                          return null;
-                        },
-                      ),
-                      if (locErr != null) ...[
-                        const SizedBox(height: 12),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            locErr!,
-                            style: const TextStyle(color: Colors.red),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              actions: [
-                if (saving)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 8),
-                    child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-                  ),
-                TextButton(
-                  onPressed: saving ? null : () => Navigator.of(ctx).pop(false),
-                  child: Text(t.close),
-                ),
-                FilledButton.icon(
-                  onPressed: saving ? null : submit,
-                  icon: const Icon(Icons.save_outlined),
-                  label: Text(t.save),
-                ),
-              ],
-            );
-          },
-        ),
-      );
-    } finally {
-      companyCtrl.dispose();
-      firstNameCtrl.dispose();
-      lastNameCtrl.dispose();
-      emailCtrl.dispose();
-      streetCtrl.dispose();
-      zipCtrl.dispose();
-      cityCtrl.dispose();
-      phoneCtrl.dispose();
-      customerNoCtrl.dispose();
-      vatIdCtrl.dispose();
-      passwordCtrl.dispose();
-      password2Ctrl.dispose();
-    }
 
     if (result == true) {
       await _loadAll();
@@ -3738,6 +3438,675 @@ class _KpiChip extends StatelessWidget {
     );
   }
 }
+
+class _RepCreateCustomerDialog extends StatefulWidget {
+  final ApiClient api;
+  const _RepCreateCustomerDialog({required this.api});
+
+  @override
+  State<_RepCreateCustomerDialog> createState() => _RepCreateCustomerDialogState();
+}
+
+class _RepCreateCustomerDialogState extends State<_RepCreateCustomerDialog> {
+  final _formKey = GlobalKey<FormState>();
+
+  late final TextEditingController _companyCtrl;
+  late final TextEditingController _firstNameCtrl;
+  late final TextEditingController _lastNameCtrl;
+  late final TextEditingController _emailCtrl;
+  late final TextEditingController _streetCtrl;
+  late final TextEditingController _zipCtrl;
+  late final TextEditingController _cityCtrl;
+  late final TextEditingController _phoneCtrl;
+  late final TextEditingController _customerNoCtrl;
+  late final TextEditingController _vatIdCtrl;
+  late final TextEditingController _passwordCtrl;
+  late final TextEditingController _password2Ctrl;
+
+  Country? _selectedCountry;
+  String _lang = 'de';
+  String? _locErr;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _companyCtrl    = TextEditingController();
+    _firstNameCtrl  = TextEditingController();
+    _lastNameCtrl   = TextEditingController();
+    _emailCtrl      = TextEditingController();
+    _streetCtrl     = TextEditingController();
+    _zipCtrl        = TextEditingController();
+    _cityCtrl       = TextEditingController();
+    _phoneCtrl      = TextEditingController();
+    _customerNoCtrl = TextEditingController();
+    _vatIdCtrl      = TextEditingController();
+    _passwordCtrl   = TextEditingController();
+    _password2Ctrl  = TextEditingController();
+
+    _selectedCountry = kCountries.firstWhere(
+      (c) => c.code == 'DE',
+      orElse: () => kCountries.first,
+    );
+  }
+
+  @override
+  void dispose() {
+    _companyCtrl.dispose();
+    _firstNameCtrl.dispose();
+    _lastNameCtrl.dispose();
+    _emailCtrl.dispose();
+    _streetCtrl.dispose();
+    _zipCtrl.dispose();
+    _cityCtrl.dispose();
+    _phoneCtrl.dispose();
+    _customerNoCtrl.dispose();
+    _vatIdCtrl.dispose();
+    _passwordCtrl.dispose();
+    _password2Ctrl.dispose();
+    super.dispose();
+  }
+
+  String _mapError(String code) {
+    final t = context.t;
+    switch (code) {
+      case 'password_admin_secret':
+        return t.rep_create_customer_password_admin_secret ?? code;
+      default:
+        return code;
+    }
+  }
+
+  bool _emailValid(String value) {
+    final v = value.trim();
+    if (v.isEmpty) return false;
+    return v.contains('@') && v.contains('.');
+  }
+
+  List<DropdownMenuItem<String>> _langItems(AppLocalizations t) => [
+        DropdownMenuItem(value: 'de', child: Text(t.langNameDE)),
+        DropdownMenuItem(value: 'en', child: Text(t.langNameEN)),
+        DropdownMenuItem(value: 'fr', child: Text(t.langNameFR)),
+        DropdownMenuItem(value: 'it', child: Text(t.langNameIT)),
+        DropdownMenuItem(value: 'es', child: Text(t.langNameES)),
+      ];
+
+  String? _requiredValidator(String? value) {
+    final t = context.t;
+    if (value == null || value.trim().isEmpty) {
+      return t.required_fields;
+    }
+    return null;
+  }
+
+  Future<void> _submit() async {
+    final form = _formKey.currentState;
+    if (form == null || !form.validate()) return;
+
+    setState(() {
+      _locErr = null;
+      _saving = true;
+    });
+
+    final payload = <String, dynamic>{
+      'company'    : _companyCtrl.text.trim(),
+      'contact'    : '${_firstNameCtrl.text.trim()} ${_lastNameCtrl.text.trim()}'.trim(),
+      'firstName'  : _firstNameCtrl.text.trim(),
+      'lastName'   : _lastNameCtrl.text.trim(),
+      'email'      : _emailCtrl.text.trim(),
+      'street'     : _streetCtrl.text.trim(),
+      'zip'        : _zipCtrl.text.trim(),
+      'city'       : _cityCtrl.text.trim(),
+      'country'    : _selectedCountry?.label(context) ?? '',
+      'countryCode': _selectedCountry?.code ?? '',
+      'phone'      : _phoneCtrl.text.trim(),
+      'customerNo' : _customerNoCtrl.text.trim(),
+      'vatId'      : _vatIdCtrl.text.trim(),
+      'password'   : _passwordCtrl.text,
+      'lang'       : _lang,
+    };
+
+    payload.removeWhere((key, value) => value is String && value.trim().isEmpty);
+
+    try {
+      await widget.api.ensureRepSession();
+      await widget.api.repCreateCustomer(payload);
+      if (!mounted) return;
+      FocusScope.of(context).unfocus();
+      FocusManager.instance.primaryFocus?.unfocus();
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        if (e is ApiError) {
+          _locErr = _mapError(e.message);
+        } else {
+          _locErr = '$e';
+        }
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.t;
+
+    return AlertDialog(
+      title: Text(t.rep_create_customer_title ?? t.rep_create_customer ?? t.addCustomer),
+      content: Form(
+        key: _formKey,
+        child: DialogContentScroll(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _companyCtrl,
+                decoration: InputDecoration(labelText: t.company_plain),
+                autofillHints: const [AutofillHints.organizationName],
+                validator: _requiredValidator,
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _firstNameCtrl,
+                      decoration: InputDecoration(labelText: t.first_name),
+                      textInputAction: TextInputAction.next,
+                      validator: _requiredValidator,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _lastNameCtrl,
+                      decoration: InputDecoration(labelText: t.last_name),
+                      textInputAction: TextInputAction.next,
+                      validator: _requiredValidator,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _emailCtrl,
+                decoration: InputDecoration(labelText: t.customerMail),
+                keyboardType: TextInputType.emailAddress,
+                autofillHints: const [AutofillHints.email],
+                textInputAction: TextInputAction.next,
+                validator: (value) {
+                  final v = value?.trim() ?? '';
+                  if (v.isEmpty) return t.required_fields;
+                  if (!_emailValid(v)) return t.email_invalid;
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _streetCtrl,
+                decoration: InputDecoration(labelText: t.street),
+                textInputAction: TextInputAction.next,
+                validator: _requiredValidator,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _zipCtrl,
+                      decoration: InputDecoration(labelText: t.zip),
+                      textInputAction: TextInputAction.next,
+                      validator: _requiredValidator,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _cityCtrl,
+                      decoration: InputDecoration(labelText: t.city),
+                      textInputAction: TextInputAction.next,
+                      validator: _requiredValidator,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<Country>(
+                value: _selectedCountry,
+                decoration: InputDecoration(labelText: t.country),
+                isExpanded: true,
+                items: kCountries
+                    .map(
+                      (c) => DropdownMenuItem<Country>(
+                        value: c,
+                        child: Text(c.label(context)),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) => setState(() => _selectedCountry = value),
+                validator: (value) => value == null ? t.required_fields : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _phoneCtrl,
+                decoration: InputDecoration(labelText: t.phone),
+                keyboardType: TextInputType.phone,
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _customerNoCtrl,
+                decoration: InputDecoration(labelText: t.customer_number_label ?? 'Kundennr.'),
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _vatIdCtrl,
+                decoration: InputDecoration(labelText: t.vat_id_label ?? 'USt-Id.'),
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: _lang,
+                decoration: InputDecoration(labelText: t.langMenuTooltip),
+                items: _langItems(t),
+                onChanged: (v) => setState(() => _lang = v ?? 'de'),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _passwordCtrl,
+                decoration: InputDecoration(labelText: t.password),
+                obscureText: true,
+                textInputAction: TextInputAction.next,
+                validator: (value) {
+                  final v = value ?? '';
+                  if (v.trim().isEmpty) return t.password_required;
+                  if (v.length < 8) return t.password_min_length;
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _password2Ctrl,
+                decoration: InputDecoration(labelText: t.password_repeat),
+                obscureText: true,
+                textInputAction: TextInputAction.done,
+                validator: (value) {
+                  if (value == null || value.isEmpty) return t.password_required;
+                  if (value != _passwordCtrl.text) return t.password_mismatch;
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              if (_locErr != null) ...[
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    _locErr!,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        if (_saving)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8),
+            child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+          ),
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.of(context).pop(false),
+          child: Text(t.close),
+        ),
+        FilledButton.icon(
+          onPressed: _saving ? null : _submit,
+          icon: const Icon(Icons.save_outlined),
+          label: Text(t.save),
+        ),
+      ],
+    );
+  }
+}
+
+class _RepCreateCustomerDialog extends StatefulWidget {
+  final ApiClient api;
+  const _RepCreateCustomerDialog({required this.api});
+
+  @override
+  State<_RepCreateCustomerDialog> createState() => _RepCreateCustomerDialogState();
+}
+
+class _RepCreateCustomerDialogState extends State<_RepCreateCustomerDialog> {
+  final _formKey = GlobalKey<FormState>();
+
+  late final TextEditingController _companyCtrl;
+  late final TextEditingController _firstNameCtrl;
+  late final TextEditingController _lastNameCtrl;
+  late final TextEditingController _emailCtrl;
+  late final TextEditingController _streetCtrl;
+  late final TextEditingController _zipCtrl;
+  late final TextEditingController _cityCtrl;
+  late final TextEditingController _phoneCtrl;
+  late final TextEditingController _customerNoCtrl;
+  late final TextEditingController _vatIdCtrl;
+  late final TextEditingController _passwordCtrl;
+  late final TextEditingController _password2Ctrl;
+
+  Country? _selectedCountry;
+  String _lang = 'de';
+  String? _locErr;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _companyCtrl    = TextEditingController();
+    _firstNameCtrl  = TextEditingController();
+    _lastNameCtrl   = TextEditingController();
+    _emailCtrl      = TextEditingController();
+    _streetCtrl     = TextEditingController();
+    _zipCtrl        = TextEditingController();
+    _cityCtrl       = TextEditingController();
+    _phoneCtrl      = TextEditingController();
+    _customerNoCtrl = TextEditingController();
+    _vatIdCtrl      = TextEditingController();
+    _passwordCtrl   = TextEditingController();
+    _password2Ctrl  = TextEditingController();
+
+    _selectedCountry = kCountries.firstWhere(
+      (c) => c.code == 'DE',
+      orElse: () => kCountries.first,
+    );
+  }
+
+  @override
+  void dispose() {
+    _companyCtrl.dispose();
+    _firstNameCtrl.dispose();
+    _lastNameCtrl.dispose();
+    _emailCtrl.dispose();
+    _streetCtrl.dispose();
+    _zipCtrl.dispose();
+    _cityCtrl.dispose();
+    _phoneCtrl.dispose();
+    _customerNoCtrl.dispose();
+    _vatIdCtrl.dispose();
+    _passwordCtrl.dispose();
+    _password2Ctrl.dispose();
+    super.dispose();
+  }
+
+  String _mapError(String code) {
+    final t = context.t;
+    switch (code) {
+      case 'password_admin_secret':
+        return t.rep_create_customer_password_admin_secret ?? code;
+      default:
+        return code;
+    }
+  }
+
+  bool _emailValid(String value) {
+    final v = value.trim();
+    if (v.isEmpty) return false;
+    return v.contains('@') && v.contains('.');
+  }
+
+  List<DropdownMenuItem<String>> _langItems(AppLocalizations t) => [
+        DropdownMenuItem(value: 'de', child: Text(t.langNameDE)),
+        DropdownMenuItem(value: 'en', child: Text(t.langNameEN)),
+        DropdownMenuItem(value: 'fr', child: Text(t.langNameFR)),
+        DropdownMenuItem(value: 'it', child: Text(t.langNameIT)),
+        DropdownMenuItem(value: 'es', child: Text(t.langNameES)),
+      ];
+
+  String? _requiredValidator(String? value) {
+    final t = context.t;
+    if (value == null || value.trim().isEmpty) {
+      return t.required_fields;
+    }
+    return null;
+  }
+
+  Future<void> _submit() async {
+    final form = _formKey.currentState;
+    if (form == null || !form.validate()) return;
+
+    setState(() {
+      _locErr = null;
+      _saving = true;
+    });
+
+    final payload = <String, dynamic>{
+      'company'    : _companyCtrl.text.trim(),
+      'contact'    : '${_firstNameCtrl.text.trim()} ${_lastNameCtrl.text.trim()}'.trim(),
+      'firstName'  : _firstNameCtrl.text.trim(),
+      'lastName'   : _lastNameCtrl.text.trim(),
+      'email'      : _emailCtrl.text.trim(),
+      'street'     : _streetCtrl.text.trim(),
+      'zip'        : _zipCtrl.text.trim(),
+      'city'       : _cityCtrl.text.trim(),
+      'country'    : _selectedCountry?.label(context) ?? '',
+      'countryCode': _selectedCountry?.code ?? '',
+      'phone'      : _phoneCtrl.text.trim(),
+      'customerNo' : _customerNoCtrl.text.trim(),
+      'vatId'      : _vatIdCtrl.text.trim(),
+      'password'   : _passwordCtrl.text,
+      'lang'       : _lang,
+    };
+
+    payload.removeWhere((key, value) => value is String && value.trim().isEmpty);
+
+    try {
+      await widget.api.ensureRepSession();
+      await widget.api.repCreateCustomer(payload);
+      if (!mounted) return;
+      FocusScope.of(context).unfocus();
+      FocusManager.instance.primaryFocus?.unfocus();
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        if (e is ApiError) {
+          _locErr = _mapError(e.message);
+        } else {
+          _locErr = '$e';
+        }
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.t;
+
+    return AlertDialog(
+      title: Text(t.rep_create_customer_title ?? t.rep_create_customer ?? t.addCustomer),
+      content: Form(
+        key: _formKey,
+        child: DialogContentScroll(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _companyCtrl,
+                decoration: InputDecoration(labelText: t.company_plain),
+                autofillHints: const [AutofillHints.organizationName],
+                validator: _requiredValidator,
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _firstNameCtrl,
+                      decoration: InputDecoration(labelText: t.first_name),
+                      textInputAction: TextInputAction.next,
+                      validator: _requiredValidator,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _lastNameCtrl,
+                      decoration: InputDecoration(labelText: t.last_name),
+                      textInputAction: TextInputAction.next,
+                      validator: _requiredValidator,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _emailCtrl,
+                decoration: InputDecoration(labelText: t.customerMail),
+                keyboardType: TextInputType.emailAddress,
+                autofillHints: const [AutofillHints.email],
+                textInputAction: TextInputAction.next,
+                validator: (value) {
+                  final v = value?.trim() ?? '';
+                  if (v.isEmpty) return t.required_fields;
+                  if (!_emailValid(v)) return t.email_invalid;
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _streetCtrl,
+                decoration: InputDecoration(labelText: t.street),
+                textInputAction: TextInputAction.next,
+                validator: _requiredValidator,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _zipCtrl,
+                      decoration: InputDecoration(labelText: t.zip),
+                      textInputAction: TextInputAction.next,
+                      validator: _requiredValidator,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _cityCtrl,
+                      decoration: InputDecoration(labelText: t.city),
+                      textInputAction: TextInputAction.next,
+                      validator: _requiredValidator,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<Country>(
+                value: _selectedCountry,
+                decoration: InputDecoration(labelText: t.country),
+                isExpanded: true,
+                items: kCountries
+                    .map(
+                      (c) => DropdownMenuItem<Country>(
+                        value: c,
+                        child: Text(c.label(context)),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) => setState(() => _selectedCountry = value),
+                validator: (value) => value == null ? t.required_fields : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _phoneCtrl,
+                decoration: InputDecoration(labelText: t.phone),
+                keyboardType: TextInputType.phone,
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _customerNoCtrl,
+                decoration: InputDecoration(labelText: t.customer_number_label ?? 'Kundennr.'),
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _vatIdCtrl,
+                decoration: InputDecoration(labelText: t.vat_id_label ?? 'USt-Id.'),
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: _lang,
+                decoration: InputDecoration(labelText: t.langMenuTooltip),
+                items: _langItems(t),
+                onChanged: (v) => setState(() => _lang = v ?? 'de'),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _passwordCtrl,
+                decoration: InputDecoration(labelText: t.password),
+                obscureText: true,
+                textInputAction: TextInputAction.next,
+                validator: (value) {
+                  final v = value ?? '';
+                  if (v.trim().isEmpty) return t.password_required;
+                  if (v.length < 8) return t.password_min_length;
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _password2Ctrl,
+                decoration: InputDecoration(labelText: t.password_repeat),
+                obscureText: true,
+                textInputAction: TextInputAction.done,
+                validator: (value) {
+                  if (value == null || value.isEmpty) return t.password_required;
+                  if (value != _passwordCtrl.text) return t.password_mismatch;
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              if (_locErr != null) ...[
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    _locErr!,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        if (_saving)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8),
+            child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+          ),
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.of(context).pop(false),
+          child: Text(t.close),
+        ),
+        FilledButton.icon(
+          onPressed: _saving ? null : _submit,
+          icon: const Icon(Icons.save_outlined),
+          label: Text(t.save),
+        ),
+      ],
+    );
+  }
+}
+
 
 class _EmptyState extends StatelessWidget {
   final IconData icon;
