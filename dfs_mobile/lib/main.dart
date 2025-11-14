@@ -30,6 +30,7 @@ import 'widgets/legal_footer.dart';
 // Widgets
 import 'widgets/lang_action.dart';
 import 'widgets/theme_action.dart' as w;
+import 'utils/lang_utils.dart';
 
 // ===== THEME BRANDING ===== //
 // DFS-Blau leicht heller und lebendiger (dezent medizinisch/vertrauenswürdig)
@@ -351,8 +352,21 @@ class _MyAppState extends State<MyApp> {
     Navigator.of(ctx).pushNamed('/repLogin');
   }
 
+  Future<void> _syncAccountLanguage() async {
+    try {
+      final profile = await api.accountGet();
+      final lang = (profile['lang'] ?? '').toString();
+      if (isSupportedLangCode(lang)) {
+        await _prefs.setLang(normalizeLangCode(lang));
+      }
+    } catch (e) {
+      debugPrint('Failed to sync account language: $e');
+    }
+  }
+
   void _onLoggedIn() {
     setState(() => _loggedIn = true);   // Kundenlogin
+    _syncAccountLanguage();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       push.setup(api, languageCode: _prefs.locale?.languageCode);
@@ -387,9 +401,7 @@ class _MyAppState extends State<MyApp> {
 
             // ---- i18n ----
             locale: prefs.locale,
-            supportedLocales: const [
-              Locale('de'), Locale('en'), Locale('fr'), Locale('it'), Locale('es'),
-            ],
+            supportedLocales: supportedLangLocales,
             localizationsDelegates: const [
               AppLocalizations.delegate,
               GlobalMaterialLocalizations.delegate,
