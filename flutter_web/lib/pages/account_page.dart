@@ -69,10 +69,29 @@ class _AccountPageState extends State<AccountPage> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              // evtl. Kurz-Variable, damit wir nicht ständig acc! schreiben
               Text('E-Mail: ${_val(acc!['email'], '')}'),
               Text('${t.company}: ${_val(acc!['company'])}'),
-              // FIX: v(...) existierte nicht -> Helper _val
               Text('${t.contact_person}: ${_val(acc!['contact'])}'),
+
+              // NEU: Kundennummer (nur Anzeige)
+              // Backend liefert "customerNumber" (oder optional "customer_no")
+              Builder(
+                builder: (_) {
+                  final raw = (acc!['customerNumber'] ?? acc!['customer_no'] ?? '').toString().trim();
+                  if (raw.isEmpty) {
+                    // Wenn du bei "nicht hinterlegt" NICHTS anzeigen willst:
+                    // return const SizedBox.shrink();
+                    return Text(
+                      '${t.customer_number_label}: -',
+                    );
+                  }
+                  return Text(
+                    '${t.customer_number_label}: $raw',
+                  );
+                },
+              ),
+
               const SizedBox(height: 16),
 
               FilledButton.icon(
@@ -223,6 +242,7 @@ class _AccountEditPageState extends State<_AccountEditPage> {
   @override
   Widget build(BuildContext context) {
     final t = context.t;
+    final customerNo = (widget.initial['customerNumber'] ?? widget.initial['customer_no'] ?? '').toString().trim();
 
     return Scaffold(
       appBar: AppBar(title: Text(t.editData ?? 'Daten ändern')),
@@ -237,7 +257,15 @@ class _AccountEditPageState extends State<_AccountEditPage> {
                 decoration: InputDecoration(
                   labelText: t.email, border: const OutlineInputBorder(),
                 ),
-              ),
+              ),              
+              // NEU: Kundennummer nur lesend anzeigen
+              if (customerNo.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  '${t.customer_number_label}: $customerNo',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ],              
               const SizedBox(height: 8),
               TextField(
                 controller: contact,
