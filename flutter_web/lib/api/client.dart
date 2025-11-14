@@ -105,6 +105,11 @@ class ApiClient {
     _saveSession();
   }
 
+  void clearGate() {
+    gate = null;
+    _saveSession();
+  }
+
   // ---------- Header-Helfer ----------
   Map<String, String> _headers({bool auth = false, Map<String, String>? extra}) {
     final h = <String, String>{
