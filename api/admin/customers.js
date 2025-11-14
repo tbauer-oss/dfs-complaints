@@ -1,9 +1,10 @@
 // api/admin/customers.js
 export const config = { runtime: 'nodejs' };
 
+import bcrypt from 'bcryptjs';
+
 import { setCors } from '../_lib/cors.js';
 import { userSave } from '../_lib/store.js';
-import { hashPassword } from '../_lib/auth.js';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 
@@ -48,11 +49,18 @@ export default async function handler(req, res) {
       .end(JSON.stringify({ error: 'invalid json' }));
   }
 
-  const email   = String(body.email   || '').trim().toLowerCase();
-  const company = String(body.company || '').trim();
-  const contact = String(body.contact || '').trim();
-  const country = String(body.country || '').trim();
-  const lang    = String(body.lang    || 'de').trim() || 'de';
+  const email       = String(body.email       || '').trim().toLowerCase();
+  const company     = String(body.company     || '').trim();
+  const contactRaw  = String(body.contact     || '').trim();
+  const firstName   = String(body.firstName   || '').trim();
+  const lastName    = String(body.lastName    || '').trim();
+  const street      = String(body.street      || '').trim();
+  const zip         = String(body.zip         || '').trim();
+  const city        = String(body.city        || '').trim();
+  const country     = String(body.country     || '').trim();
+  const countryCode = String(body.countryCode || '').trim().toUpperCase().slice(0, 2);
+  const phone       = String(body.phone       || '').trim();
+  const lang        = String(body.lang        || 'de').trim() || 'de';
 
   // Wenn kein Passwort angegeben wurde, ADMIN_SECRET als Startpasswort
   const pwRaw = String(body.password || '').trim() || ADMIN_SECRET;
@@ -63,16 +71,39 @@ export default async function handler(req, res) {
       .end(JSON.stringify({ error: 'company and email required' }));
   }
 
+  if (!street || !zip || !city || !country) {
+    return res
+      .status(400)
+      .end(JSON.stringify({ error: 'street, zip, city and country required' }));
+  }
+
+  const hasContact = contactRaw.length > 0;
+  const hasNames = firstName.length > 0 && lastName.length > 0;
+  if (!hasContact && !hasNames) {
+    return res
+      .status(400)
+      .end(JSON.stringify({ error: 'contact or first/last name required' }));
+  }
+
+  const contact = hasContact ? contactRaw : `${firstName} ${lastName}`.trim();
+
   try {
-    const passHash = await hashPassword(pwRaw);
+    const passhash = await bcrypt.hash(pwRaw, 10);
 
     const user = {
       email,
       company,
       contact,
+      firstName: firstName || undefined,
+      lastName: lastName || undefined,
+      street,
+      zip,
+      city,
       country,
+      countryCode: countryCode || undefined,
+      phone: phone || undefined,
       lang,
-      passHash,
+      passhash,
       createdAt: Date.now(),
       adminCreated: true, // Flag: vom Admin angelegt
     };
@@ -86,7 +117,14 @@ export default async function handler(req, res) {
         email,
         company,
         contact,
+        firstName: firstName || undefined,
+        lastName: lastName || undefined,
+        street,
+        zip,
+        city,
         country,
+        countryCode: countryCode || undefined,
+        phone: phone || undefined,
         lang,
       }),
     );

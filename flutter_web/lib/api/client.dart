@@ -94,7 +94,7 @@ class ApiClient {
     gate = null;
     _saveSession();
   }
-  
+
   void setAdminSecret(String? s) {
     adminSecret = (s ?? '').trim().isEmpty ? null : s!.trim();
     _saveSession();
@@ -102,6 +102,11 @@ class ApiClient {
 
   void clearAdminSecret() {
     adminSecret = null;
+    _saveSession();
+  }
+
+  void clearGate() {
+    gate = null;
     _saveSession();
   }
 

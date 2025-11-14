@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import '../api/client.dart';
+import '../models/country.dart';
 import '../widgets/legal_footer.dart';
 
 // ===================================================================
@@ -42,12 +43,18 @@ class _AdminPageState extends State<AdminPage> {
   bool _repBusy       = false;
 
   // Admin-Kundenanlage (Form-Felder)
-  final _custCompanyCtrl  = TextEditingController();
-  final _custContactCtrl  = TextEditingController();
-  final _custEmailCtrl    = TextEditingController();
-  final _custCountryCtrl  = TextEditingController();
-  final _custPasswordCtrl = TextEditingController(); // optional
+  final _custCompanyCtrl   = TextEditingController();
+  final _custContactCtrl   = TextEditingController();
+  final _custFirstNameCtrl = TextEditingController();
+  final _custLastNameCtrl  = TextEditingController();
+  final _custEmailCtrl     = TextEditingController();
+  final _custStreetCtrl    = TextEditingController();
+  final _custZipCtrl       = TextEditingController();
+  final _custCityCtrl      = TextEditingController();
+  final _custPhoneCtrl     = TextEditingController();
+  final _custPasswordCtrl  = TextEditingController(); // optional
   String _custLang        = 'de';
+  late Country _custCountry;
   bool _custBusy          = false;
   String? _custErr;
 
@@ -66,6 +73,11 @@ class _AdminPageState extends State<AdminPage> {
   // Ansicht (Menü / Bereich)
   _AdminView _view = _AdminView.menu;
 
+  Country get _defaultCountry => kCountries.firstWhere(
+        (c) => c.code == 'DE',
+        orElse: () => kCountries.first,
+      );
+
   // ---- Katalog-Konfig (4 Felder) ----
   final _labDefaultCtrl  = TextEditingController();
   final _labEsfrCtrl     = TextEditingController();
@@ -79,6 +91,7 @@ class _AdminPageState extends State<AdminPage> {
   void initState() {
     super.initState();
     _api = AdminApi();
+    _custCountry = _defaultCountry;
 
     // Secret zuerst aus der API (wenn über Admin-Button gekommen),
     // sonst aus LocalStorage (dfs_admin).
@@ -529,17 +542,6 @@ class _AdminPageState extends State<AdminPage> {
                     ),
                   ),
                   SizedBox(
-                    width: 280,
-                    child: TextFormField(
-                      controller: _custContactCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Kontaktperson',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                    ),
-                  ),
-                  SizedBox(
                     width: 320,
                     child: TextFormField(
                       controller: _custEmailCtrl,
@@ -552,18 +554,7 @@ class _AdminPageState extends State<AdminPage> {
                     ),
                   ),
                   SizedBox(
-                    width: 220,
-                    child: TextFormField(
-                      controller: _custCountryCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Land (optional)',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    width: 180,
+                    width: 200,
                     child: DropdownButtonFormField<String>(
                       value: _custLang,
                       decoration: const InputDecoration(
@@ -579,6 +570,111 @@ class _AdminPageState extends State<AdminPage> {
                         DropdownMenuItem(value: 'es', child: Text('Spanisch')),
                       ],
                       onChanged: (v) => setState(() => _custLang = v ?? 'de'),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 280,
+                    child: TextFormField(
+                      controller: _custContactCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Kontaktperson (optional)',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 220,
+                    child: TextFormField(
+                      controller: _custFirstNameCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Vorname (optional)',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 220,
+                    child: TextFormField(
+                      controller: _custLastNameCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Nachname (optional)',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 520,
+                    child: TextFormField(
+                      controller: _custStreetCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Straße und Hausnummer',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      validator: (v) => _req(v ?? '', 'Straße'),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 180,
+                    child: TextFormField(
+                      controller: _custZipCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'PLZ',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      validator: (v) => _req(v ?? '', 'PLZ'),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 280,
+                    child: TextFormField(
+                      controller: _custCityCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Ort',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      validator: (v) => _req(v ?? '', 'Ort'),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 280,
+                    child: DropdownButtonFormField<Country>(
+                      value: _custCountry,
+                      decoration: const InputDecoration(
+                        labelText: 'Land',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      isExpanded: true,
+                      items: kCountries
+                          .map(
+                            (c) => DropdownMenuItem<Country>(
+                              value: c,
+                              child: Text(c.label(context)),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) {
+                        if (v == null) return;
+                        setState(() => _custCountry = v);
+                      },
+                      validator: (v) => v == null ? 'Land auswählen' : null,
+                    ),
+                  ),
+                  SizedBox(
+                    width: 220,
+                    child: TextFormField(
+                      controller: _custPhoneCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Telefon (optional)',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
                     ),
                   ),
                   SizedBox(
@@ -607,16 +703,34 @@ class _AdminPageState extends State<AdminPage> {
                       ? null
                       : () async {
                           if (!(formKey.currentState?.validate() ?? false)) return;
+                          final contact = _custContactCtrl.text.trim();
+                          final first = _custFirstNameCtrl.text.trim();
+                          final last = _custLastNameCtrl.text.trim();
+                          if (contact.isEmpty && (first.isEmpty || last.isEmpty)) {
+                            setState(() {
+                              _custErr =
+                                  'Bitte eine Kontaktperson oder Vor- und Nachname angeben.';
+                            });
+                            return;
+                          }
                           setState(() {
                             _custBusy = true;
                             _custErr = null;
                           });
                           try {
+                            final selectedCountry = _custCountry;
                             await _api.createCustomerAdmin(
                               company: _custCompanyCtrl.text.trim(),
-                              contact: _custContactCtrl.text.trim(),
+                              contact: contact,
                               email: _custEmailCtrl.text.trim(),
-                              country: _custCountryCtrl.text.trim(),
+                              street: _custStreetCtrl.text.trim(),
+                              zip: _custZipCtrl.text.trim(),
+                              city: _custCityCtrl.text.trim(),
+                              country: selectedCountry.label(context),
+                              countryCode: selectedCountry.code,
+                              firstName: first,
+                              lastName: last,
+                              phone: _custPhoneCtrl.text.trim(),
                               lang: _custLang,
                               // WICHTIG: Passwort optional; wenn leer, sendest du null
                               password: _custPasswordCtrl.text.trim().isEmpty
@@ -627,10 +741,23 @@ class _AdminPageState extends State<AdminPage> {
                             // Felder leeren
                             _custCompanyCtrl.clear();
                             _custContactCtrl.clear();
+                            _custFirstNameCtrl.clear();
+                            _custLastNameCtrl.clear();
                             _custEmailCtrl.clear();
-                            _custCountryCtrl.clear();
+                            _custStreetCtrl.clear();
+                            _custZipCtrl.clear();
+                            _custCityCtrl.clear();
+                            _custPhoneCtrl.clear();
                             _custPasswordCtrl.clear();
-                            _custLang = 'de';
+                            if (mounted) {
+                              setState(() {
+                                _custLang = 'de';
+                                _custCountry = _defaultCountry;
+                              });
+                            } else {
+                              _custLang = 'de';
+                              _custCountry = _defaultCountry;
+                            }
 
                             if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -3461,15 +3588,29 @@ class AdminApi {
     required String company,
     required String contact,
     required String email,
+    required String street,
+    required String zip,
+    required String city,
     required String country,
+    String? countryCode,
     required String lang,
+    String? firstName,
+    String? lastName,
+    String? phone,
     String? password,
   }) async {
     final body = <String, dynamic>{
       'company': company,
       'contact': contact,
       'email': email,
+      'street': street,
+      'zip': zip,
+      'city': city,
       'country': country,
+      if (countryCode != null && countryCode.isNotEmpty) 'countryCode': countryCode,
+      if (firstName != null && firstName.isNotEmpty) 'firstName': firstName,
+      if (lastName != null && lastName.isNotEmpty) 'lastName': lastName,
+      if (phone != null && phone.isNotEmpty) 'phone': phone,
       'lang': lang,
     };
     if (password != null && password.isNotEmpty) {

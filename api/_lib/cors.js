@@ -13,7 +13,8 @@ export function setCors(
   res,
   allowHeaders = 'Content-Type, Authorization, X-Admin-Secret, X-Gate, X-Rep-Secret, X-Debug'
 ) {
-  const origin = req.headers.origin || '';
+  const headers = req?.headers ?? {};
+  const origin = headers.origin || headers.Origin || '';
 
   // Zulässige Origins: Prod + Preview + lokales Testing (optional)
   const allow =
@@ -23,15 +24,15 @@ export function setCors(
       : (process.env.WEB_ORIGIN || PROD_FE);
 
   // Standard-Header
-  res.setHeader('Access-Control-Allow-Origin', allow);
-  res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader(
+  res?.setHeader?.('Access-Control-Allow-Origin', allow);
+  res?.setHeader?.('Vary', 'Origin');
+  res?.setHeader?.('Access-Control-Allow-Credentials', 'true');
+  res?.setHeader?.(
     'Access-Control-Allow-Methods',
     'GET,POST,PUT,PATCH,DELETE,OPTIONS'
   );
-  res.setHeader('Access-Control-Allow-Headers', allowHeaders);
+  res?.setHeader?.('Access-Control-Allow-Headers', allowHeaders);
 
   // Einheitliches Response-Encoding
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res?.setHeader?.('Content-Type', 'application/json; charset=utf-8');
 }
