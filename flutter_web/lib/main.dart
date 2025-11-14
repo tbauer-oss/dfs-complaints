@@ -280,6 +280,7 @@ class _MyAppState extends State<MyApp> {
   }
 
   void _openRegister(BuildContext context) {
+    api.clearGate();
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => RegisterPage(api: api)));
   }
 
