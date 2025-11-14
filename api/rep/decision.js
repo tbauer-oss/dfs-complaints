@@ -125,7 +125,7 @@ export default async function handler(req, res) {
       accept: 'accepted', accepted: 'accepted', approve: 'accepted', approved: 'accepted',
       reject: 'rejected', rejected: 'rejected', decline: 'rejected'
     };
-    const decision = map[raw];
+    const decision = map[rawByDecision];
 
     if (!ticket || !decision) return res.status(400).json({ error: 'invalid data' });
 
