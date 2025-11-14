@@ -96,7 +96,7 @@ class LegalFooter extends StatelessWidget {
             InkWell(
               onTap: () => Navigator.of(context).pushNamed('/legal/imprint'),
               child: Text(
-                'Impressum',
+                t.imprint_title,
                 style: TextStyle(
                   color: scheme.primary,
                   decoration: TextDecoration.underline,
@@ -114,7 +114,7 @@ class LegalFooter extends StatelessWidget {
                   const Icon(Icons.privacy_tip_outlined, size: 18),
                   const SizedBox(width: 6),
                   Text(
-                    'Datenschutz',
+                    t.privacy_link,
                     style: TextStyle(
                       color: scheme.primary,
                       decoration: TextDecoration.underline,
@@ -127,7 +127,7 @@ class LegalFooter extends StatelessWidget {
             const Spacer(),
             // „?“ / Info-Icon für Version
             IconButton(
-              tooltip: 'Versionsinformationen',
+              tooltip: t.versioninfo,
               onPressed: () => _showVersionDialog(context),
               icon: const Icon(Icons.help_outline),
             ),
