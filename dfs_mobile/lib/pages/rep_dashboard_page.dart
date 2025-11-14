@@ -589,6 +589,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
               try {
                 await widget.api.ensureRepSession();
                 await widget.api.repCreateCustomer(payload);
+                FocusScope.of(ctx).unfocus();
                 FocusManager.instance.primaryFocus?.unfocus();
                 if (Navigator.of(ctx).canPop()) {
                   Navigator.of(ctx).pop(true);
