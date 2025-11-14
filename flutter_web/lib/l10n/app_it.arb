@@ -20,6 +20,9 @@
   "theme_light": "Chiaro",
   "theme_dark": "Scuro",
 
+  "firstName": "Nome",
+  "lastName": "Cognome",
+
   "versioninfo": "Versione app",
   "addAnother_title": "Aggiungere un altro elemento?",
   "addAnother_body": "Vuoi aggiungere un altro prodotto/lotto a questo reclamo prima dell’invio?",
