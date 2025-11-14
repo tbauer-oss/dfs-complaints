@@ -20,6 +20,7 @@
   "theme_light": "Light",
   "theme_dark": "Dark",
 
+  "versioninfo": "App version",
   "addAnother_title": "Add another item?",
   "addAnother_body": "Do you want to add another product/lot to this complaint before you submit?",
   "addAnother_no": "No, continue",
