@@ -16,12 +16,6 @@
       ]
     }
   ],
-    "rewrites": [
-    {
-      "source": "/api/rep/decision/reset",
-      "destination": "/api/rep/decision?__action=reset"
-    }
-  ],
   "routes": [
     {
       "src": "/api/(.*)",
