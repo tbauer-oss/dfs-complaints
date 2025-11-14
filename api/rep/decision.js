@@ -118,12 +118,26 @@ export default async function handler(req, res) {
 
     const ticket = S(body.ticket || body.id);
 
-    // decision-Mapping (accept/approve/... → accepted | rejected) + approve:boolean
-    const rawByDecision = S(body.decision).toLowerCase();
-    
+    // decision-Mapping (accept/approve/... → accepted | rejected)
+    const rawDecisionInput =
+      body.decision ??
+      (typeof body.approve === 'boolean'
+        ? (body.approve ? 'accepted' : 'rejected')
+        : body.status ?? '');
+    const rawByDecision = S(rawDecisionInput).toLowerCase();
+
     const map = {
-      accept: 'accepted', accepted: 'accepted', approve: 'accepted', approved: 'accepted',
-      reject: 'rejected', rejected: 'rejected', decline: 'rejected'
+      accept: 'accepted',
+      accepted: 'accepted',
+      approve: 'accepted',
+      approved: 'accepted',
+      yes: 'accepted',
+      reject: 'rejected',
+      rejected: 'rejected',
+      decline: 'rejected',
+      denied: 'rejected',
+      deny: 'rejected',
+      no: 'rejected',
     };
     const decision = map[rawByDecision];
 
@@ -147,7 +161,7 @@ export default async function handler(req, res) {
     complaint.repDecisionBy = repId;
     if (!complaint.repId) complaint.repId = repId;
 
-    await redis.set(key, complaint);
+    await redis.set(key, JSON.stringify(complaint));
 
     // Vertreter-Endpoint liefert bewusst keinen Body (nur Erfolg)
     return res.status(204).end();
