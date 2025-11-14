@@ -1190,6 +1190,15 @@ class _AdminPageState extends State<AdminPage> {
           setState(() => _view = _AdminView.reps);
           if (_reps.isEmpty) _refreshReps();
         },
+
+        // NEU: Extra-Button „Neuen Vertreter anlegen“
+        actionLabel: 'Neuen Vertreter anlegen',
+        actionIcon: Icons.person_add_alt_1_outlined,
+        onActionTap: () {
+          // HIER dieselbe Logik wie in dfs_mobile für „Neuen Vertreter“
+          // Beispiel:
+          _openRepForm(null); // oder editRep(null) / showRepDialog(null)
+        },
       ),
       AdminTilePro(
         label: 'Kataloge',
@@ -4254,10 +4263,10 @@ class AdminTilePro extends StatefulWidget {
   final String label;
   final String? subtitle;
   final IconData icon;
-  final Color colorA; // Hintergrund (hell)
-  final Color colorB; // Akzent/Ikone
-  final int? count;   // optionaler Zähler
-  final bool compact; // für kleine Screens
+  final Color colorA;
+  final Color colorB;
+  final int? count;
+  final bool compact;
   final VoidCallback onTap;
 
   // NEU: optionaler Extra-Button in der Kachel
