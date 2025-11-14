@@ -5,6 +5,7 @@ import '../l10n/app_localizations.dart';
 import '../models/country.dart';
 import '../widgets/lang_action.dart';
 import '../services/app_prefs_scope.dart';
+import '../utils/lang_utils.dart';
 import '../widgets/theme_action.dart' as w;
 import '../widgets/legal_footer.dart';
 
@@ -47,6 +48,7 @@ class _RegisterPageState extends State<RegisterPage> {
   Country? _countrySel;
   Salutation _salutation = Salutation.mr;
   bool _privacy = false;
+  String _selectedLang = 'de';
 
   bool _busy = false;
   String? _err;
@@ -76,6 +78,17 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final prefs = AppPrefsScope.of(context);
+    final locale = prefs.locale ?? Localizations.localeOf(context);
+    final normalized = normalizeLangCode(locale.languageCode);
+    if (_selectedLang != normalized) {
+      _selectedLang = normalized;
+    }
+  }
+
+  @override
   void dispose() {
     _gateEmail.dispose();
     _gatePw.dispose();
@@ -90,20 +103,6 @@ class _RegisterPageState extends State<RegisterPage> {
     _city.dispose();
     _phone.dispose();
     super.dispose();
-  }
-
-  String _langCode(BuildContext ctx) {
-    final lc = Localizations.localeOf(ctx).languageCode.toLowerCase();
-    switch (lc) {
-      case 'de':
-      case 'en':
-      case 'fr':
-      case 'it':
-      case 'es':
-        return lc;
-      default:
-        return 'de';
-    }
   }
 
   String _salutationLabel(AppLocalizations t, Salutation s) {
@@ -241,7 +240,7 @@ class _RegisterPageState extends State<RegisterPage> {
         'countryCode': sel.code,
         'phone': _phone.text.trim(),
         'privacy': true,
-        'lang': _langCode(context),
+        'lang': _selectedLang,
       };
 
       final String? errMsg = await widget.api.register(payload);
@@ -460,6 +459,27 @@ class _RegisterPageState extends State<RegisterPage> {
                       ),
                     ],
                     onChanged: (v) => setState(() => _salutation = v ?? Salutation.mr),
+                  ),
+                  const SizedBox(height: 8),
+
+                  DropdownButtonFormField<String>(
+                    value: _selectedLang,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: t.catalog_select_language,
+                      border: const OutlineInputBorder(),
+                    ),
+                    items: supportedLangCodes
+                        .map((code) => DropdownMenuItem<String>(
+                              value: code,
+                              child: Text(langNameFor(t, code)),
+                            ))
+                        .toList(),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setState(() => _selectedLang = value);
+                      prefs.setLang(value);
+                    },
                   ),
                   const SizedBox(height: 8),
 
