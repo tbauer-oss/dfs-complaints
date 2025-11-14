@@ -140,6 +140,11 @@ class ApiClient {
     adminSecret = null;
     _saveSession();
   }
+  
+  void clearGate() {
+    gate = null;
+    _saveSession();
+  }
 
   // ---------- Header-Helfer ----------
   Map<String, String> _headers({bool auth = false, Map<String, String>? extra}) {
