@@ -44,6 +44,7 @@ class _AdminPageState extends State<AdminPage> {
 
   // Admin-Kundenanlage (Form-Felder)
   final _custCompanyCtrl   = TextEditingController();
+  final _custContactCtrl   = TextEditingController();
   final _custFirstNameCtrl = TextEditingController();
   final _custLastNameCtrl  = TextEditingController();
   final _custEmailCtrl     = TextEditingController();
@@ -358,7 +359,7 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   // ---------------------------------------------
-  // Kataloge – optisch überarbeitetes Panel
+  // Kataloge – Panel
   // ---------------------------------------------
   Widget _buildCatalogsPanel() {
     final theme = Theme.of(context);
@@ -789,11 +790,22 @@ class _AdminPageState extends State<AdminPage> {
                     ),
                   ),
                   SizedBox(
+                    width: 280,
+                    child: TextFormField(
+                      controller: _custContactCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Kontaktperson (optional)',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                  SizedBox(
                     width: 220,
                     child: TextFormField(
                       controller: _custFirstNameCtrl,
                       decoration: const InputDecoration(
-                        labelText: 'Vorname',
+                        labelText: 'Vorname (optional)',
                         border: OutlineInputBorder(),
                         isDense: true,
                       ),
@@ -804,7 +816,7 @@ class _AdminPageState extends State<AdminPage> {
                     child: TextFormField(
                       controller: _custLastNameCtrl,
                       decoration: const InputDecoration(
-                        labelText: 'Nachname',
+                        labelText: 'Nachname (optional)',
                         border: OutlineInputBorder(),
                         isDense: true,
                       ),
@@ -908,18 +920,16 @@ class _AdminPageState extends State<AdminPage> {
                       ? null
                       : () async {
                           if (!(formKey.currentState?.validate() ?? false)) return;
-
+                          final contact = _custContactCtrl.text.trim();
                           final first = _custFirstNameCtrl.text.trim();
-                          final last  = _custLastNameCtrl.text.trim();
-
-                          // Pflicht: Vor- UND Nachname
-                          if (first.isEmpty || last.isEmpty) {
+                          final last = _custLastNameCtrl.text.trim();
+                          if (contact.isEmpty && (first.isEmpty || last.isEmpty)) {
                             setState(() {
-                              _custErr = 'Bitte Vor- und Nachname angeben.';
+                              _custErr =
+                                  'Bitte eine Kontaktperson oder Vor- und Nachname angeben.';
                             });
                             return;
                           }
-
                           setState(() {
                             _custBusy = true;
                             _custErr = null;
@@ -928,6 +938,7 @@ class _AdminPageState extends State<AdminPage> {
                             final selectedCountry = _custCountry;
                             await _api.createCustomerAdmin(
                               company: _custCompanyCtrl.text.trim(),
+                              contact: contact,
                               email: _custEmailCtrl.text.trim(),
                               street: _custStreetCtrl.text.trim(),
                               zip: _custZipCtrl.text.trim(),
@@ -946,6 +957,7 @@ class _AdminPageState extends State<AdminPage> {
 
                             // Felder leeren
                             _custCompanyCtrl.clear();
+                            _custContactCtrl.clear();
                             _custFirstNameCtrl.clear();
                             _custLastNameCtrl.clear();
                             _custEmailCtrl.clear();
