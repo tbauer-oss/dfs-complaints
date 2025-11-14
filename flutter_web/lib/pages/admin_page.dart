@@ -16,7 +16,7 @@ class AdminPage extends StatefulWidget {
   State<AdminPage> createState() => _AdminPageState();
 }
 
-enum _AdminView { menu, pending, users, open, reps, catalogs }
+enum _AdminView { menu, pending, users, open, reps, catalogs, createCustomer }
 
 class _AdminPageState extends State<AdminPage> {
   late final AdminApi _api;
@@ -40,6 +40,16 @@ class _AdminPageState extends State<AdminPage> {
   final _repMailCtrl  = TextEditingController();
   String _repRegion   = kRepRegions.first;
   bool _repBusy       = false;
+
+  // Admin-Kundenanlage (Form-Felder)
+  final _custCompanyCtrl  = TextEditingController();
+  final _custContactCtrl  = TextEditingController();
+  final _custEmailCtrl    = TextEditingController();
+  final _custCountryCtrl  = TextEditingController();
+  final _custPasswordCtrl = TextEditingController(); // optional
+  String _custLang        = 'de';
+  bool _custBusy          = false;
+  String? _custErr;
 
   // Daten
   List<PendingUser> _pending = [];
@@ -462,6 +472,194 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  Widget _buildCreateCustomerPanel() {
+    final formKey = GlobalKey<FormState>();
+
+    String? _req(String v, String label) {
+      if (v.trim().isEmpty) return '$label wird benötigt';
+      return null;
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Form(
+          key: formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.person_add_alt_1_outlined),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Neuen Kunden anlegen',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  const Spacer(),
+                  if (_custBusy)
+                    const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              if (_custErr != null) ...[
+                Text(_custErr!, style: const TextStyle(color: Colors.red)),
+                const SizedBox(height: 8),
+              ],
+
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  SizedBox(
+                    width: 320,
+                    child: TextFormField(
+                      controller: _custCompanyCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Firma',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      validator: (v) => _req(v ?? '', 'Firma'),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 280,
+                    child: TextFormField(
+                      controller: _custContactCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Kontaktperson',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 320,
+                    child: TextFormField(
+                      controller: _custEmailCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'E-Mail',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      validator: (v) => _req(v ?? '', 'E-Mail'),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 220,
+                    child: TextFormField(
+                      controller: _custCountryCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Land (optional)',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 180,
+                    child: DropdownButtonFormField<String>(
+                      value: _custLang,
+                      decoration: const InputDecoration(
+                        labelText: 'Sprache',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'de', child: Text('Deutsch')),
+                        DropdownMenuItem(value: 'en', child: Text('Englisch')),
+                        DropdownMenuItem(value: 'fr', child: Text('Französisch')),
+                        DropdownMenuItem(value: 'it', child: Text('Italienisch')),
+                        DropdownMenuItem(value: 'es', child: Text('Spanisch')),
+                      ],
+                      onChanged: (v) => setState(() => _custLang = v ?? 'de'),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 260,
+                    child: TextFormField(
+                      controller: _custPasswordCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Startpasswort (optional)',
+                        helperText: 'Leer lassen = ADMIN_SECRET wird verwendet',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      obscureText: true,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.icon(
+                  icon: const Icon(Icons.save_outlined),
+                  label: const Text('Kundenaccount anlegen'),
+                  onPressed: _custBusy
+                      ? null
+                      : () async {
+                          if (!(formKey.currentState?.validate() ?? false)) return;
+                          setState(() {
+                            _custBusy = true;
+                            _custErr = null;
+                          });
+                          try {
+                            await _api.createCustomerAdmin(
+                              company: _custCompanyCtrl.text.trim(),
+                              contact: _custContactCtrl.text.trim(),
+                              email: _custEmailCtrl.text.trim(),
+                              country: _custCountryCtrl.text.trim(),
+                              lang: _custLang,
+                              // WICHTIG: Passwort optional; wenn leer, sendest du null
+                              password: _custPasswordCtrl.text.trim().isEmpty
+                                  ? null
+                                  : _custPasswordCtrl.text.trim(),
+                            );
+
+                            // Felder leeren
+                            _custCompanyCtrl.clear();
+                            _custContactCtrl.clear();
+                            _custEmailCtrl.clear();
+                            _custCountryCtrl.clear();
+                            _custPasswordCtrl.clear();
+                            _custLang = 'de';
+
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Kundenaccount wurde angelegt.'),
+                                ),
+                              );
+                              // Users neu laden, damit der neue Kunde in der Liste erscheint
+                              await _refreshAll();
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              setState(() => _custErr = e.toString());
+                            }
+                          } finally {
+                            if (mounted) {
+                              setState(() => _custBusy = false);
+                            }
+                          }
+                        },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   // UI ----------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
@@ -503,6 +701,7 @@ class _AdminPageState extends State<AdminPage> {
       _AdminView.open    => 'Offene Reklamationen',
       _AdminView.reps    => 'Vertreterverwaltung',
       _AdminView.catalogs => 'Katalog-Konfiguration',
+      _AdminView.createCustomer => 'Neuen Kunden anlegen',
     };
 
     return WillPopScope(
@@ -604,6 +803,15 @@ class _AdminPageState extends State<AdminPage> {
         onTap: () => setState(() => _view = _AdminView.users),
       ),
       AdminTilePro(
+        label: 'Neuen Kunden anlegen',
+        subtitle: 'Account direkt erstellen',
+        icon: Icons.person_add_alt_1_outlined,
+        colorA: AdminPalette.tealA,   // Design bleibt, Farben wie bei den anderen
+        colorB: AdminPalette.tealB,
+        compact: compact,
+        onTap: () => setState(() => _view = _AdminView.createCustomer),
+      ),
+      AdminTilePro(
         label: 'Vertreterverwaltung',
         subtitle: 'Zuordnen & Regionen',
         icon: Icons.badge_outlined,
@@ -662,6 +870,8 @@ class _AdminPageState extends State<AdminPage> {
         return _buildRepsPanel();
       case _AdminView.catalogs: 
         return _buildCatalogsPanel();
+      case _AdminView.createCustomer:
+        return _buildCreateCustomerPanel();
     }
   }
 
@@ -3231,6 +3441,28 @@ class AdminApi {
     if (res.status != 200 && res.status != 204) {
       throw 'pending POST approve: HTTP ${res.status} ${res.responseText}';
     }
+  }
+
+    Future<void> createCustomerAdmin({
+    required String company,
+    required String contact,
+    required String email,
+    required String country,
+    required String lang,
+    String? password,
+  }) async {
+    final body = <String, dynamic>{
+      'company': company,
+      'contact': contact,
+      'email': email,
+      'country': country,
+      'lang': lang,
+    };
+    if (password != null && password.isNotEmpty) {
+      body['password'] = password;
+    }
+
+    await api.postJson('/api/admin/customers', body);
   }
 
   Future<void> deleteUser(String email) async {
