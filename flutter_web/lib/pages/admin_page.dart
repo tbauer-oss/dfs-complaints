@@ -2419,6 +2419,7 @@ class _UserTile extends StatefulWidget {
 
 class _UserTileState extends State<_UserTile> {
   bool _expanded = false;
+  bool _busy = false; // NEU: für Laden/Speichern Kundennummer
 
   void _showAddress() {
     final d = widget.data;
@@ -2441,11 +2442,81 @@ class _UserTileState extends State<_UserTile> {
             _Field(label: 'E-Mail', value: d.email),
             _Field(label: 'Sprache', value: d.lang.toUpperCase()),
             _Field(label: 'Aktiv seit', value: d.createdAt ?? '—'),
+            const SizedBox(height: 6),
+            _Field(
+              label: 'Kundennummer',
+              value: (d.customerNumber ?? '').isEmpty
+                  ? 'nicht hinterlegt'
+                  : (d.customerNumber ?? ''),
+            ),
           ],
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Schließen'),
+          ),
+        ],
       ),
     );
+  }
+
+  Future<void> _editCustomerNumber() async {
+    final d = widget.data;
+    final ctrl = TextEditingController(text: d.customerNumber ?? '');
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Kundennummer bearbeiten'),
+        content: SizedBox(
+          width: 360,
+          child: TextField(
+            controller: ctrl,
+            decoration: const InputDecoration(
+              labelText: 'Kundennr.',
+              hintText: 'z. B. aus ERP-System',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Speichern'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true) return;
+
+    setState(() => _busy = true);
+    try {
+      await widget.api.updateCustomerNumber(
+        email: d.email,
+        customerNumber: ctrl.text,
+      );
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Kundennummer gespeichert.')),
+      );
+
+      // Optional: _refreshAll() im Eltern-Widget – du rufst das ja schon nach Aktionen
+      // Hier belassen wir es bei der Info; das nächste Neu-Laden zieht den Wert.
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fehler beim Speichern: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override
@@ -2454,15 +2525,24 @@ class _UserTileState extends State<_UserTile> {
     final title = d.company.isNotEmpty ? d.company : d.email;
     final subtitle = d.country.isNotEmpty ? d.country : d.email;
 
+    final hasCustomerNo =
+        (d.customerNumber != null && d.customerNumber!.trim().isNotEmpty);
+
     return Column(
       children: [
         ListTile(
-          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+          title: Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(subtitle),
-              if (widget.repName != null && widget.repName!.trim().isNotEmpty) ...[
+
+              // Vertreter
+              if (widget.repName != null &&
+                  widget.repName!.trim().isNotEmpty) ...[
                 const SizedBox(height: 4),
                 Row(
                   mainAxisSize: MainAxisSize.min,
@@ -2476,28 +2556,72 @@ class _UserTileState extends State<_UserTile> {
                   ],
                 ),
               ],
+
+              // Hinweis Selbst-Löschung
               if (d.selfDeleted) const SizedBox(height: 4),
               if (d.selfDeleted)
                 const Text(
                   'Account durch User gelöscht!',
-                  style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
+                  style:
+                      TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
                 ),
+
+              // NEU: Kundennummer-Zeile
+              const SizedBox(height: 4),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Kundennr.: ',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  Text(
+                    hasCustomerNo
+                        ? d.customerNumber!
+                        : 'nicht hinterlegt',
+                    style: TextStyle(
+                      fontStyle:
+                          hasCustomerNo ? FontStyle.normal : FontStyle.italic,
+                      color: hasCustomerNo
+                          ? null
+                          : Colors.grey.shade700,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton.icon(
+                    onPressed: _busy ? null : _editCustomerNumber,
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    label: const Text(
+                      'Bearbeiten',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
           trailing: Wrap(
             spacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              IconButton(tooltip: 'Adressdaten', onPressed: _showAddress, icon: const Icon(Icons.info_outline)),
+              IconButton(
+                tooltip: 'Adressdaten',
+                onPressed: _showAddress,
+                icon: const Icon(Icons.info_outline),
+              ),
               IconButton(
                 tooltip: 'Reklamationen anzeigen',
                 onPressed: () {
                   setState(() => _expanded = !_expanded);
                   if (_expanded) widget.onLoadComplaints();
                 },
-                icon: Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
+                icon:
+                    Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
               ),
-              OutlinedButton(onPressed: () async => widget.onDelete(), child: const Text('Löschen')),
+              OutlinedButton(
+                onPressed: _busy ? null : () async => widget.onDelete(),
+                child: const Text('Löschen'),
+              ),
             ],
           ),
         ),
@@ -2651,6 +2775,9 @@ class ActiveUser {
   final String? createdAt;
   final bool selfDeleted;
 
+  // NEU:
+  final String? customerNumber; // Kundennummer aus ERP
+
   ActiveUser({
     required this.email,
     required this.company,
@@ -2663,6 +2790,7 @@ class ActiveUser {
     required this.lang,
     required this.createdAt,
     required this.selfDeleted,
+    this.customerNumber, // NEU
   });
 
   factory ActiveUser.fromJson(Map<String, dynamic> j) => ActiveUser(
@@ -2677,6 +2805,10 @@ class ActiveUser {
         lang: (j['lang'] ?? 'de').toString(),
         createdAt: j['createdAt']?.toString(),
         selfDeleted: (j['selfDeleted'] ?? false) == true,
+        // NEU: mehrere mögliche Feldnamen abfangen
+        customerNumber: j['customerNumber']?.toString() ??
+            j['customer_no']?.toString() ??
+            null,
       );
 
   factory ActiveUser.empty() => ActiveUser(
@@ -2691,6 +2823,7 @@ class ActiveUser {
         lang: 'de',
         createdAt: '',
         selfDeleted: false,
+        customerNumber: null, // NEU
       );
 }
 
@@ -3855,6 +3988,22 @@ class AdminApi {
     final r3 = await _request('POST', '/api/admin/users', body: {'action': 'delete', 'email': email});
     if (r3.status != 200 && r3.status != 204) {
       throw 'users DELETE/POST(delete) failed: HTTP ${r3.status} ${r3.responseText}';
+    }
+  }
+
+  Future<void> updateCustomerNumber({
+    required String email,
+    required String? customerNumber,
+  }) async {
+    final body = <String, dynamic>{
+      'action': 'updateCustomerNumber',
+      'email': email,
+      'customerNumber': (customerNumber ?? '').trim(),
+    };
+
+    final res = await _request('POST', '/api/admin/users', body: body);
+    if (res.status != 200 && res.status != 204) {
+      throw 'users POST(updateCustomerNumber): HTTP ${res.status} ${res.responseText}';
     }
   }
 
