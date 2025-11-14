@@ -1098,6 +1098,8 @@ Widget _buildUsersPanel() {
                     },
                   ),
                 ),
+              ],
+            ),
             // <<< Ende Filterzeile >>>
 
             const SizedBox(height: 8),
