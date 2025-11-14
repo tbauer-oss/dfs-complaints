@@ -126,7 +126,13 @@ export default async function handler(req, res) {
     body = body || {};
 
     const ticket = S(body.ticket || body.id);
-    const action = S(req.query?.__action || body.action || '').toLowerCase();
+    let action = S(req.query?.__action || body.action || '').toLowerCase();
+
+    if (!action && typeof req.url === 'string') {
+      const path = req.url.split('?')[0] || '';
+      const lastSegment = path.split('/').filter(Boolean).pop();
+      if (lastSegment === 'reset') action = 'reset';
+    }
 
     if (action === 'reset') {
       return await handleDecisionReset({ res, ticket, repId, debug });
@@ -134,11 +140,7 @@ export default async function handler(req, res) {
 
     // decision-Mapping (accept/approve/... → accepted | rejected) + approve:boolean
     const rawByDecision = S(body.decision).toLowerCase();
-    const rawByApprove  = (body.approve === true)  ? 'accept'
-                         : (body.approve === false) ? 'reject'
-                         : '';
-    const raw = rawByDecision || rawByApprove;
-
+    
     const map = {
       accept: 'accepted', accepted: 'accepted', approve: 'accepted', approved: 'accepted',
       reject: 'rejected', rejected: 'rejected', decline: 'rejected'
@@ -232,7 +234,13 @@ async function handleDecisionReset({ res, ticket, repId, debug }) {
     }
 
     if (debug) {
-      return res.status(200).json({ ok: true, reqId, ticket, removed: ['repDecision', 'repDecisionAt', 'repDecisionBy', 'repId'], savedKey: key });
+      return res.status(200).json({
+        ok: true,
+        reqId,
+        ticket,
+        removed: ['repDecision', 'repDecisionAt', 'repDecisionBy', 'repId'],
+        savedKey: key,
+      });
     }
 
     return res.status(204).end();
