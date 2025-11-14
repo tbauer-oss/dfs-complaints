@@ -98,6 +98,26 @@
   "allCompanies": "Alle Firmen",
   "@allCompanies": { "description": "Filteroption, um alle Unternehmen anzuzeigen" },
   "yourCompany": "Ihr Unternehmen",
+  "we_are_here_for_you": "Wir sind für Sie da.",
+  "rep_contact_form": "Nachricht senden",
+  "rep_contact_title": "Kontakt zum Vertreter",
+  "rep_contact_intro": "Sie schreiben an {firstName} {lastName}. Bitte füllen Sie die folgenden Felder aus.",
+  "@rep_contact_intro": {
+    "placeholders": {
+      "firstName": { "type": "String" },
+      "lastName": { "type": "String" }
+    }
+  },
+  "rep_contact_company_label": "Firma",
+  "rep_contact_company_email_label": "Firmen-E-Mail",
+  "rep_contact_subject_label": "Betreff",
+  "rep_contact_message_label": "Nachricht",
+  "rep_contact_validation": "Bitte Betreff und Nachricht ausfüllen.",
+  "rep_contact_no_rep_email": "Es ist keine E-Mail-Adresse für diesen Vertreter hinterlegt.",
+  "rep_contact_sent": "Nachricht erfolgreich gesendet.",
+  "rep_contact_error": "Fehler beim Senden der Nachricht.",
+  "rep_contact_discard_title": "Änderungen verwerfen?",
+  "rep_contact_discard_text": "Sie haben bereits Text eingegeben. Möchten Sie die Seite wirklich verlassen?",
 
   "logout": "Abmelden",
   "loggedOut": "Abgemeldet.",
