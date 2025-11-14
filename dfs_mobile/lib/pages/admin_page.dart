@@ -1666,12 +1666,12 @@ Widget _buildUsersPanel() {
             });
 
             await _refreshReps();
-            emailAssignedToRepId
-              ..clear()
-              ..addEntries(_reps.expand((r) => r.customers.map((e) => MapEntry(e, r.id))));
-            assignedGlobal = emailAssignedToRepId.keys.toSet();
 
             setLocal(() {
+              emailAssignedToRepId
+                ..clear()
+                ..addEntries(_reps.expand((r) => r.customers.map((e) => MapEntry(e, r.id))));
+              assignedGlobal = emailAssignedToRepId.keys.toSet();
               busy = false;
               localCustomers = List<String>.from(customers);
               selEmail = nextAssignableEmail();
@@ -1703,12 +1703,12 @@ Widget _buildUsersPanel() {
             });
 
             await _refreshReps();
-            emailAssignedToRepId
-              ..clear()
-              ..addEntries(_reps.expand((r) => r.customers.map((e) => MapEntry(e, r.id))));
-            assignedGlobal = emailAssignedToRepId.keys.toSet();
 
             setLocal(() {
+              emailAssignedToRepId
+                ..clear()
+                ..addEntries(_reps.expand((r) => r.customers.map((e) => MapEntry(e, r.id))));
+              assignedGlobal = emailAssignedToRepId.keys.toSet();
               busy = false;
               localCustomers = List<String>.from(customers);
               if (selEmail != null && assignedGlobal.contains(selEmail)) {
@@ -1811,6 +1811,7 @@ Widget _buildUsersPanel() {
                         )
                       : ListView.separated(
                           shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
                           itemCount: localCustomers.length,
                           separatorBuilder: (_, __) => const Divider(height: 1),
                           itemBuilder: (_, i) {
@@ -1850,51 +1851,64 @@ Widget _buildUsersPanel() {
         await showModalBottomSheet<void>(
           context: context,
           isScrollControlled: true,
+          useSafeArea: true,
+          backgroundColor: Colors.transparent,
           builder: (ctx) => StatefulBuilder(
             builder: (ctx, setLocal) {
-              return SafeArea(
-                child: Padding(
-                  padding: EdgeInsets.only(
-                    left: 20,
-                    right: 20,
-                    top: 16,
-                    bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Kunden für ${rep.displayName}',
-                              style: Theme.of(ctx).textTheme.titleLarge,
+              return DraggableScrollableSheet(
+                expand: false,
+                initialChildSize: 0.9,
+                minChildSize: 0.6,
+                maxChildSize: 0.95,
+                builder: (context, scrollController) {
+                  final viewInsets = MediaQuery.of(context).viewInsets.bottom;
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(20, 16, 20, 16 + viewInsets),
+                      child: SingleChildScrollView(
+                        controller: scrollController,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'Kunden für ${rep.displayName}',
+                                    style: Theme.of(ctx).textTheme.titleLarge,
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: 'Schließen',
+                                  icon: const Icon(Icons.close),
+                                  onPressed: () => Navigator.pop(ctx),
+                                ),
+                              ],
                             ),
-                          ),
-                          IconButton(
-                            tooltip: 'Schließen',
-                            icon: const Icon(Icons.close),
-                            onPressed: () => Navigator.pop(ctx),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      buildBody(ctx, setLocal),
-                      if (busy)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 16),
-                          child: Center(
-                            child: SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          ),
+                            const SizedBox(height: 12),
+                            buildBody(ctx, setLocal),
+                            if (busy)
+                              const Padding(
+                                padding: EdgeInsets.only(top: 16),
+                                child: Center(
+                                  child: SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  ),
+                                ),
+                              ),
+                            SizedBox(height: MediaQuery.of(ctx).padding.bottom),
+                          ],
                         ),
-                    ],
-                  ),
-                ),
+                      ),
+                    ),
+                  );
+                },
               );
             },
           ),
