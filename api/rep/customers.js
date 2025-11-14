@@ -8,6 +8,8 @@ import { getRepFromAuthHeader } from '../_lib/repAuth.js';
 import { repCustomers as storeRepCustomers } from '../_lib/repsStore.js';
 import { userSave, userByEmail } from '../_lib/store.js';
 
+const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
+
 function S(v) { return (v ?? '').toString().trim(); }
 
 // ------- Minimaler Upstash-Client (REST) -------
@@ -172,6 +174,12 @@ export default async function handler(req, res) {
             }
             if (!password || password.length < 8) {
               return res.status(400).end(JSON.stringify({ error: 'password too short' }));
+            }
+            if (ADMIN_SECRET && password === ADMIN_SECRET) {
+              return res.status(400).end(JSON.stringify({
+                error: 'password_admin_secret',
+                message: 'password_admin_secret',
+              }));
             }
 
             const existing = await userByEmail(email);

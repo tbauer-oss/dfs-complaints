@@ -250,6 +250,7 @@
   "rep_create_customer": "Crear cliente",
   "rep_create_customer_title": "Crear nuevo cliente",
   "rep_create_customer_success": "Cliente creado y asignado.",
+  "rep_create_customer_password_admin_secret": "La contraseña no debe coincidir con el secreto de administración.",
   "add": "Asignar",
   "noAddCustomer": "Aún no hay clientes asignados",
   "deleteAdd": "Eliminar asignación",

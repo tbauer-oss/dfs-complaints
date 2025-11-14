@@ -975,7 +975,7 @@ class ApiClient {
       body: {'action': 'create', ...data},
     );
     if (!_ok2xx(r.statusCode)) {
-      throw Exception('POST /api/rep/customers create failed: ${r.statusCode} ${r.body}');
+      throw ApiError(r.statusCode, _extractMessage(r.body));
     }
     final txt = r.body.trim();
     if (txt.isEmpty) return <String, dynamic>{};

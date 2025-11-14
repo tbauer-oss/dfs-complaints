@@ -290,6 +290,7 @@
   "rep_create_customer": "Create customer",
   "rep_create_customer_title": "Create new customer",
   "rep_create_customer_success": "Customer created and assigned.",
+  "rep_create_customer_password_admin_secret": "Password must not match the admin secret.",
   "add": "Assign",
   "noAddCustomer": "No customers assigned yet",
   "deleteAdd": "Remove assignment",

@@ -524,6 +524,15 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     String? locErr;
     bool saving = false;
 
+    String mapError(String code) {
+      switch (code) {
+        case 'password_admin_secret':
+          return t.rep_create_customer_password_admin_secret ?? code;
+        default:
+          return code;
+      }
+    }
+
     bool emailValid(String value) {
       final v = value.trim();
       if (v.isEmpty) return false;
@@ -586,8 +595,12 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                 }
               } catch (e) {
                 setLocal(() {
-                  locErr = '$e';
                   saving = false;
+                  if (e is ApiError) {
+                    locErr = mapError(e.message);
+                  } else {
+                    locErr = '$e';
+                  }
                 });
               }
             }

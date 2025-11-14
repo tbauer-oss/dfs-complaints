@@ -251,6 +251,7 @@
   "rep_create_customer": "Créer un client",
   "rep_create_customer_title": "Créer un nouveau client",
   "rep_create_customer_success": "Client créé et attribué.",
+  "rep_create_customer_password_admin_secret": "Le mot de passe ne doit pas correspondre au secret administrateur.",
   "add": "Attribuer",
   "noAddCustomer": "Aucun client attribué pour le moment",
   "deleteAdd": "Supprimer l’attribution",

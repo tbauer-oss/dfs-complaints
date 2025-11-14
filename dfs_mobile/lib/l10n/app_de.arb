@@ -288,6 +288,7 @@
   "rep_create_customer": "Kunden anlegen",
   "rep_create_customer_title": "Neuen Kunden anlegen",
   "rep_create_customer_success": "Kunde angelegt und zugewiesen.",
+  "rep_create_customer_password_admin_secret": "Passwort darf nicht dem Admin-Secret entsprechen.",
   "add": "Zuweisen",
   "noAddCustomer": "Noch keine Kunden zugewiesen",
   "deleteAdd": "Zuweisung entfernen",

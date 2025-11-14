@@ -288,6 +288,7 @@
   "rep_create_customer": "Crea cliente",
   "rep_create_customer_title": "Crea nuovo cliente",
   "rep_create_customer_success": "Cliente creato e assegnato.",
+  "rep_create_customer_password_admin_secret": "La password non deve corrispondere all'admin secret.",
   "add": "Assegna",
   "noAddCustomer": "Nessun cliente ancora assegnato",
   "deleteAdd": "Rimuovi assegnazione",
