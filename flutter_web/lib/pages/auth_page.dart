@@ -3,6 +3,8 @@ import 'dart:html' as html;
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 import '../models/country.dart';
+import '../services/app_prefs_scope.dart';
+import '../utils/lang_utils.dart';
 
 enum Salutation { mr, ms, diverse }
 
@@ -34,6 +36,7 @@ class _AuthPageState extends State<AuthPage> {
   bool _privacy = false;
   String? _err;
   bool _busy = false;
+  String _selectedLang = 'de';
 
   @override
   void initState() {
@@ -42,6 +45,17 @@ class _AuthPageState extends State<AuthPage> {
       (c) => c.code == 'DE',
       orElse: () => kCountries.first,
     );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final prefs = AppPrefsScope.of(context);
+    final locale = prefs.locale ?? Localizations.localeOf(context);
+    final normalized = normalizeLangCode(locale.languageCode);
+    if (_selectedLang != normalized) {
+      _selectedLang = normalized;
+    }
   }
 
   @override
@@ -59,20 +73,6 @@ class _AuthPageState extends State<AuthPage> {
     super.dispose();
   }
 
-  String _langCode(BuildContext ctx) {
-    final lc = Localizations.localeOf(ctx).languageCode.toLowerCase();
-    switch (lc) {
-      case 'de':
-      case 'en':
-      case 'fr':
-      case 'it':
-      case 'es':
-        return lc;
-      default:
-        return 'de';
-    }
-  }
-
   String _salutationLabel(BuildContext context, Salutation s) {
     final t = AppLocalizations.of(context)!;
     switch (s) {
@@ -85,6 +85,7 @@ class _AuthPageState extends State<AuthPage> {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
+    final prefs = AppPrefsScope.of(context);
 
     return Center(
       child: SizedBox(
@@ -167,6 +168,26 @@ class _AuthPageState extends State<AuthPage> {
                   DropdownMenuItem(value: Salutation.diverse, child: Text(_salutationLabel(context, Salutation.diverse))),
                 ],
                 onChanged: (v) => setState(() => _salutation = v ?? Salutation.mr),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: _selectedLang,
+                isExpanded: true,
+                decoration: InputDecoration(
+                  labelText: t.catalog_select_language,
+                  border: const OutlineInputBorder(),
+                ),
+                items: supportedLangCodes
+                    .map((code) => DropdownMenuItem<String>(
+                          value: code,
+                          child: Text(langNameFor(t, code)),
+                        ))
+                    .toList(),
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() => _selectedLang = value);
+                  prefs.setLang(value);
+                },
               ),
               const SizedBox(height: 8),
 
@@ -356,7 +377,7 @@ class _AuthPageState extends State<AuthPage> {
         'countryCode': selected.code,
         'phone': _phone.text.trim(),
         'privacy': true,
-        'lang': _langCode(context),
+        'lang': _selectedLang,
       });
 
       if (!mounted) return;
