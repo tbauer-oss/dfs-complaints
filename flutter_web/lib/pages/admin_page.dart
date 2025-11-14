@@ -928,7 +928,7 @@ class _AdminPageState extends State<AdminPage> {
                       controller: _custPasswordCtrl,
                       decoration: const InputDecoration(
                         labelText: 'Startpasswort (optional)',
-                        helperText: 'Leer lassen = ADMIN_SECRET wird verwendet',
+                        helperText: 'Leer lassen = Admin-Passwort wird verwendet',
                         border: OutlineInputBorder(),
                         isDense: true,
                       ),
