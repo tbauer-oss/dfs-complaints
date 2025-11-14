@@ -229,8 +229,52 @@ export async function userSave(u) {
 
 export async function userDelete(email) {
   email = String(email || '').toLowerCase();
-  const key = `${P}user:${email}`;
+  if (!email) return true;
+
   const r = getRedis();
+
+  if (r) {
+    const repOfKey = `${P}repOf:${email}`;
+    const legacyRepOfKey = `${P}repOf${email}`; // frühe Variante ohne Doppelpunkt
+
+    try {
+      const repIds = new Set();
+      const addId = (value) => {
+        const id = String(value ?? '').trim();
+        if (id) repIds.add(id);
+      };
+
+      const repId = await r.get(repOfKey).catch(() => null);
+      addId(repId);
+
+      const legacyRepId = await r.get(legacyRepOfKey).catch(() => null);
+      addId(legacyRepId);
+
+      if (repIds.size === 0) {
+        const all = await r.smembers(`${P}reps:all`).catch(() => []);
+        if (Array.isArray(all)) {
+          for (const id of all) {
+            addId(id);
+          }
+        }
+      }
+
+      const cleanupJobs = [
+        r.del(repOfKey).catch(() => {}),
+        r.del(legacyRepOfKey).catch(() => {}),
+      ];
+      for (const id of repIds) {
+        cleanupJobs.push(
+          r.srem(`${P}rep:${id}:customers`, email).catch(() => {}),
+        );
+      }
+      await Promise.all(cleanupJobs);
+    } catch (e) {
+      console.error('[store] userDelete rep cleanup failed:', e);
+    }
+  }
+
+  const key = `${P}user:${email}`;
   if (r) await rdel(key); else mem.users.delete(email);
   return true;
 }
