@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:country_flags/country_flags.dart';
 import '../l10n/app_localizations.dart';
+import '../utils/lang_utils.dart';
 
 /// Sprachcode -> Flaggen-Ländercode (für EN nehme ich GB)
 const _langToCountry = <String, String>{
@@ -11,14 +12,6 @@ const _langToCountry = <String, String>{
   'it': 'it',
   'es': 'es',
 };
-
-const _supported = <Locale>[
-  Locale('de'),
-  Locale('en'),
-  Locale('fr'),
-  Locale('it'),
-  Locale('es'),
-];
 
 class LangAction extends StatelessWidget {
   final void Function(Locale)? onLocaleChanged;
@@ -35,7 +28,7 @@ class LangAction extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
     final current = Localizations.localeOf(context);
-    final currentLang = current.languageCode.toLowerCase();
+    final currentLang = normalizeLangCode(current.languageCode);
     final currentFlag = _langToCountry[currentLang] ?? 'gb';
 
     return Tooltip(
@@ -45,7 +38,7 @@ class LangAction extends StatelessWidget {
         position: PopupMenuPosition.under,
         offset: const Offset(0, 8),
         itemBuilder: (context) {
-          return _supported.map((loc) {
+          return supportedLangLocales.map((loc) {
             final code = loc.languageCode.toLowerCase();
             final flagCode = _langToCountry[code] ?? 'gb';
             final isActive = code == currentLang;
@@ -62,9 +55,7 @@ class LangAction extends StatelessWidget {
                   ),
                   if (!flagsOnly) ...[
                     const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(_nameFor(t, code)),
-                    ),
+                    Expanded(child: Text(langNameFor(t, code))),
                   ],
                   if (isActive) const Padding(
                     padding: EdgeInsets.only(left: 8),
@@ -87,16 +78,5 @@ class LangAction extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  String _nameFor(AppLocalizations? t, String code) {
-    switch (code) {
-      case 'de': return t?.langNameDE ?? 'German';
-      case 'en': return t?.langNameEN ?? 'English';
-      case 'fr': return t?.langNameFR ?? 'French';
-      case 'it': return t?.langNameIT ?? 'Italian';
-      case 'es': return t?.langNameES ?? 'Spanish';
-      default:   return 'English';
-    }
   }
 }

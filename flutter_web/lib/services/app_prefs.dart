@@ -2,6 +2,8 @@ import 'dart:html' as html;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../utils/lang_utils.dart';
+
 class AppPrefs extends ChangeNotifier {
   // ------------------------------
   // Keys in localStorage
@@ -37,7 +39,11 @@ class AppPrefs extends ChangeNotifier {
       };
 
       final lang = (html.window.localStorage[_kLang] ?? '').trim();
-      _locale = lang.isEmpty ? null : Locale(lang);
+      if (lang.isEmpty) {
+        _locale = null;
+      } else {
+        _locale = localeFromLangCode(lang);
+      }
 
       // Version & Build laden
       _version = (html.window.localStorage[_kVer] ?? '1.0.0').trim();
@@ -63,8 +69,9 @@ class AppPrefs extends ChangeNotifier {
   // Sprache ändern
   // ------------------------------
   Future<void> setLang(String langCode) async {
-    try { html.window.localStorage[_kLang] = langCode; } catch (_) {}
-    _locale = langCode.trim().isEmpty ? null : Locale(langCode);
+    final normalized = normalizeLangCode(langCode);
+    try { html.window.localStorage[_kLang] = normalized; } catch (_) {}
+    _locale = localeFromLangCode(normalized);
     notifyListeners();
   }
 
