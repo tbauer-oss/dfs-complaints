@@ -118,6 +118,54 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     return '${l.year}-${two(l.month)}-${two(l.day)} ${two(l.hour)}:${two(l.minute)}';
   }
 
+  String _formatBytes(int size) {
+    if (size <= 0) return '0 B';
+    const kb = 1024;
+    const mb = kb * 1024;
+    if (size >= mb) {
+      final value = size / mb;
+      return value >= 10 ? '${value.toStringAsFixed(0)} MB' : '${value.toStringAsFixed(1)} MB';
+    }
+    if (size >= kb) {
+      final value = size / kb;
+      return value >= 10 ? '${value.toStringAsFixed(0)} KB' : '${value.toStringAsFixed(1)} KB';
+    }
+    return '$size B';
+  }
+
+  Widget _attachmentRow(AppLocalizations t, ComplaintUpload upload) {
+    final name = upload.name.trim().isEmpty ? t.attachments_file_unknown : upload.name.trim();
+    final meta = <String>[];
+    if (upload.size > 0) meta.add(_formatBytes(upload.size));
+    if (upload.uploadedAt != null) meta.add(_fmt(upload.uploadedAt!.toLocal()));
+
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.attachment_outlined, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                if (meta.isNotEmpty)
+                  Text(
+                    meta.join(' • '),
+                    style: theme.textTheme.bodySmall,
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // Lokalisierte Status-Texte
   String _statusTextLocalized(AppLocalizations t, int s, String? decision) {
     switch (s) {
@@ -514,6 +562,15 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                           ],
                                         ),
 
+                                        if (c.uploads.isNotEmpty)
+                                          _DetailGroup(
+                                            title: t.attachments_existing,
+                                            children: [
+                                              for (final upload in c.uploads)
+                                                _attachmentRow(t, upload),
+                                            ],
+                                          ),
+
                                         // Aktionen
                                         Row(
                                           children: [
@@ -672,12 +729,37 @@ class _MyComplaintDetailsDialog extends StatelessWidget {
                 if (_safeStr(payload['country']).isNotEmpty)
                   row(t.country_label, _safeStr(payload['country'])),
               ],
-              const SizedBox(height: 8),
-              row(t.created, _fmtLocal(c.createdAt)),
-              if (c.updatedAt.millisecondsSinceEpoch > 0)
-                row(t.updated, _fmtLocal(c.updatedAt)),
-              if ((c.internalNo ?? '').toString().isNotEmpty)
-                row(t.internal_no_label, c.internalNo!),
+            if (c.uploads.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(t.attachments_existing, style: const TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              ...c.uploads.map((upload) {
+                final details = <String>[];
+                if (upload.size > 0) details.add(_formatBytes(upload.size));
+                if (upload.uploadedAt != null) details.add(_fmtLocal(upload.uploadedAt!));
+                final subtitle = details.join(' • ');
+                final name = upload.name.trim().isEmpty
+                    ? t.attachments_file_unknown
+                    : upload.name.trim();
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      if (subtitle.isNotEmpty)
+                        Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+                    ],
+                  ),
+                );
+              }),
+            ],
+            const SizedBox(height: 8),
+            row(t.created, _fmtLocal(c.createdAt)),
+            if (c.updatedAt.millisecondsSinceEpoch > 0)
+              row(t.updated, _fmtLocal(c.updatedAt)),
+            if ((c.internalNo ?? '').toString().isNotEmpty)
+              row(t.internal_no_label, c.internalNo!),
             ],
           ),
         ),
@@ -692,6 +774,21 @@ class _MyComplaintDetailsDialog extends StatelessWidget {
     final l = dt.toLocal();
     String two(int x) => x < 10 ? '0$x' : '$x';
     return '${l.year}-${two(l.month)}-${two(l.day)} ${two(l.hour)}:${two(l.minute)}';
+  }
+
+  String _formatBytes(int size) {
+    if (size <= 0) return '0 B';
+    const kb = 1024;
+    const mb = kb * 1024;
+    if (size >= mb) {
+      final value = size / mb;
+      return value >= 10 ? '${value.toStringAsFixed(0)} MB' : '${value.toStringAsFixed(1)} MB';
+    }
+    if (size >= kb) {
+      final value = size / kb;
+      return value >= 10 ? '${value.toStringAsFixed(0)} KB' : '${value.toStringAsFixed(1)} KB';
+    }
+    return '$size B';
   }
 }
 
