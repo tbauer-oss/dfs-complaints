@@ -1,8 +1,8 @@
 // lib/pages/my_complaints_page.dart
 import 'dart:async';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:dfs_mobile/web_compat/html_stub.dart'
   if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../models/complaint.dart';
@@ -174,6 +174,100 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
       if (v.isNotEmpty) return v;
     }
     return '';
+  }
+
+  String _guessMime(String name) {
+    final parts = name.split('.');
+    final ext = parts.length > 1 ? parts.last.toLowerCase() : '';
+    switch (ext) {
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'webp':
+        return 'image/webp';
+      case 'heic':
+      case 'heif':
+        return 'image/heic';
+      case 'pdf':
+        return 'application/pdf';
+      case 'mp4':
+        return 'video/mp4';
+      case 'mov':
+        return 'video/quicktime';
+      case 'avi':
+        return 'video/x-msvideo';
+      case 'mkv':
+        return 'video/x-matroska';
+      case 'mpg':
+      case 'mpeg':
+        return 'video/mpeg';
+      case 'wmv':
+        return 'video/x-ms-wmv';
+      case 'zip':
+        return 'application/zip';
+      default:
+        return 'application/octet-stream';
+    }
+  }
+
+  Future<void> _addAttachments(Complaint c) async {
+    final t = AppLocalizations.of(context)!;
+    final res = await FilePicker.platform.pickFiles(allowMultiple: true, withData: true);
+    if (res == null || res.files.isEmpty) return;
+
+    const limit = 8 * 1024 * 1024;
+    int totalBytes = 0;
+    final selected = <({String name, List<int> bytes, String mime})>[];
+
+    for (final file in res.files) {
+      final data = file.bytes;
+      if (data == null || data.isEmpty) continue;
+      totalBytes += data.length;
+      if (totalBytes > limit) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(t.attachments_too_large)),
+        );
+        return;
+      }
+      selected.add((
+        name: file.name,
+        bytes: List<int>.from(data),
+        mime: _guessMime(file.name),
+      ));
+    }
+
+    if (selected.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.attachments_error)),
+      );
+      return;
+    }
+
+    setState(() => _busy = true);
+    try {
+      await widget.api.complaintUploadFiles(c.ticket, selected);
+      await _load(silent: true);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.attachments_success)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      final errMsg = (e is ApiError && (e.message).contains('too large'))
+          ? t.attachments_too_large
+          : t.attachments_error;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(errMsg)),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override
@@ -426,6 +520,13 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                                 icon: const Icon(Icons.open_in_new),
                                                 label: Text(t.report_open),
                                               ),
+                                            if (canOpenReport)
+                                              const SizedBox(width: 8),
+                                            TextButton.icon(
+                                              onPressed: _busy ? null : () => _addAttachments(c),
+                                              icon: const Icon(Icons.attach_file_outlined),
+                                              label: Text(t.attachments_add),
+                                            ),
                                             const Spacer(),
                                             TextButton.icon(
                                               onPressed: () async {
