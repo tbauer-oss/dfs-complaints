@@ -3302,12 +3302,14 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-    final labelStyle = theme.textTheme.labelSmall?.copyWith(
+    final labelStyle = theme.textTheme.labelMedium?.copyWith(
       fontWeight: FontWeight.w700,
-      letterSpacing: 0.6,
-      color: scheme.onSurfaceVariant.withOpacity(isDark ? 0.9 : 0.7),
+      letterSpacing: 0.4,
+      color: scheme.onSurfaceVariant.withOpacity(isDark ? 0.95 : 0.78),
     );
-    final valueStyle = theme.textTheme.bodyMedium?.copyWith(height: 1.4);
+    final valueStyle = theme.textTheme.bodyMedium?.copyWith(
+      height: 1.46,
+    );
     final baseColor = scheme.surfaceContainerHighest.withOpacity(isDark ? 0.3 : 0.82);
     final borderColor = scheme.outlineVariant.withOpacity(isDark ? 0.28 : 0.35);
     final shadowColor = isDark ? Colors.black.withOpacity(0.32) : Colors.black.withOpacity(0.08);
@@ -3332,8 +3334,11 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
           runSpacing: spacing,
           children: [
             for (final entry in entries)
-              SizedBox(
-                width: columns == 1 ? maxWidth : math.min(tileWidth, 440.0),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: columns == 1 ? maxWidth : math.min(tileWidth, 480.0),
+                  minWidth: columns == 1 ? 0 : math.min(tileWidth, 300.0),
+                ),
                 child: Container(
                   padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
                   decoration: BoxDecoration(
@@ -3352,16 +3357,12 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(entry.label.toUpperCase(), style: labelStyle),
+                      Text(entry.label, style: labelStyle),
                       const SizedBox(height: 8),
-                      Text(
+                      SelectableText(
                         entry.value,
                         style: valueStyle,
-                        softWrap: true,
-                        maxLines: entry.maxLines,
-                        overflow: entry.maxLines != null
-                            ? TextOverflow.ellipsis
-                            : TextOverflow.visible,
+                        textAlign: TextAlign.start,
                       ),
                     ],
                   ),
@@ -3947,16 +3948,13 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                           noteButton(),
                           const SizedBox(width: 4),
                           Expanded(
-                            child: Text(
+                            child: SelectableText(
                               label,
                               style: TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600,
                                 color: isDark ? Theme.of(ctx).colorScheme.onSurface : Colors.black,
                               ),
-                              softWrap: true,
-                              overflow: TextOverflow.fade,
-                              maxLines: isCompact ? 4 : 2,
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -3968,9 +3966,13 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                         ],
                       );
 
-                      return isCompact
-                          ? Align(alignment: Alignment.centerLeft, child: content)
-                          : content;
+                      final width = isCompact ? constraints.maxWidth : math.min(constraints.maxWidth, 640.0);
+                      return ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: width),
+                        child: isCompact
+                            ? Align(alignment: Alignment.centerLeft, child: content)
+                            : content,
+                      );
                     },
                   );
                 }
