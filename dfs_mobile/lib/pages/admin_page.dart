@@ -3447,22 +3447,57 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   Widget _detKv(String label, String? value, {int maxLines = 2}) {
     final v = (value ?? '').trim();
     if (v.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Flexible(
-            flex: 0,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 160),
-              child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+
+    const labelStyle = TextStyle(fontWeight: FontWeight.w600);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 420;
+        final valueStyle = Theme.of(context).textTheme.bodyMedium;
+
+        if (isCompact) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: labelStyle),
+                const SizedBox(height: 4),
+                Text(
+                  v,
+                  style: valueStyle,
+                  softWrap: true,
+                  maxLines: maxLines > 3 ? maxLines : null,
+                  overflow: maxLines > 3 ? TextOverflow.ellipsis : TextOverflow.visible,
+                ),
+              ],
             ),
+          );
+        }
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 150, maxWidth: 220),
+                child: Text(label, style: labelStyle),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  v,
+                  style: valueStyle,
+                  maxLines: maxLines,
+                  softWrap: true,
+                  overflow: TextOverflow.fade,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          Expanded(child: Text(v, maxLines: maxLines, overflow: TextOverflow.ellipsis)),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -3949,17 +3984,10 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
             ),
             const SizedBox(height: 6),
             Wrap(
-              spacing: 10,
+              spacing: 12,
               runSpacing: 6,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    Icon(Icons.event, size: 16),
-                    SizedBox(width: 6),
-                  ],
-                ),
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -3990,7 +4018,43 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
               width: width,
               child: Row(
                 mainAxisSize: MainAxisSize.max,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      IconButton(
+                        tooltip: _noteOpen
+                            ? 'Notiz schließen'
+                            : (hasNote ? 'Notiz anzeigen/bearbeiten' : 'Notiz hinzufügen'),
+                        icon: Icon(
+                          (_noteOpen || hasNote) ? Icons.sticky_note_2 : Icons.sticky_note_2_outlined,
+                          color: (_noteOpen || hasNote) ? const Color(0xFF8D6E63) : null,
+                        ),
+                        onPressed: _busy ? null : _toggleNotes,
+                      ),
+                      if (hasNote)
+                        Positioned(
+                          top: 10,
+                          right: 10,
+                          child: Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: Colors.amber.shade700,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.amber.shade200,
+                                  blurRadius: 2,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(width: 4),
                   Expanded(
                     child: Text(
                       label,
@@ -3999,21 +4063,12 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                         fontWeight: FontWeight.w600,
                         color: isDark ? Theme.of(ctx).colorScheme.onSurface : Colors.black,
                       ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: isNarrow ? 2 : 1,
+                      softWrap: true,
+                      overflow: TextOverflow.fade,
+                      maxLines: isNarrow ? 4 : 2,
                     ),
                   ),
-                  IconButton(
-                    tooltip: _noteOpen
-                        ? 'Notiz schließen'
-                        : (hasNote ? 'Notiz anzeigen/bearbeiten' : 'Notiz hinzufügen'),
-                    icon: Icon(
-                      (_noteOpen || hasNote) ? Icons.sticky_note_2 : Icons.sticky_note_2_outlined,
-                      color: (_noteOpen || hasNote) ? const Color(0xFF8D6E63) : null,
-                    ),
-                    onPressed: _busy ? null : _toggleNotes,
-                  ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 8),
                   IconButton(
                     tooltip: 'E-Mail an Kunden verfassen',
                     icon: const Icon(Icons.email_outlined),

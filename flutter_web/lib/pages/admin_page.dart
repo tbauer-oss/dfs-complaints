@@ -3803,17 +3803,10 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                       ),
                       const SizedBox(height: 6),
                       Wrap(
-                        spacing: 10,
+                        spacing: 12,
                         runSpacing: 6,
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: const [
-                              Icon(Icons.event, size: 16),
-                              SizedBox(width: 6),
-                            ],
-                          ),
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
