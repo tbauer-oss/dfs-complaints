@@ -5,6 +5,7 @@ import '../l10n/app_localizations.dart';
 import '../models/country.dart';
 import '../widgets/lang_action.dart';
 import '../utils/lang_utils.dart';
+import '../services/app_prefs.dart';
 import '../services/app_prefs_scope.dart';
 import '../widgets/theme_action.dart' as w;
 import '../widgets/legal_footer.dart';
