@@ -4,6 +4,7 @@ import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 import '../models/country.dart';
 import '../widgets/lang_action.dart';
+import '../services/app_prefs.dart';
 import '../services/app_prefs_scope.dart';
 import '../utils/lang_utils.dart';
 import '../widgets/theme_action.dart' as w;
