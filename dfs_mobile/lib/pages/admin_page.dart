@@ -4114,108 +4114,166 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                       : Builder(
                           builder: (ctx) {
                             final editingHasNote = _notesCtrl.text.trim().isNotEmpty;
-                            return Container(
-                              key: const ValueKey('admin-note'),
-                              width: double.infinity,
-                              margin: const EdgeInsets.only(top: 4),
-                              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFFF9C4),
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.brown.withOpacity(0.18),
-                                    blurRadius: 14,
-                                    offset: const Offset(0, 6),
-                                  ),
-                                ],
-                                border: Border.all(color: Colors.amber.shade200, width: 1.2),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Row(
+                            return LayoutBuilder(
+                              builder: (ctx, noteConstraints) {
+                                final isNoteCompact = noteConstraints.maxWidth < 520;
+                                final isVeryNarrow = noteConstraints.maxWidth < 380;
+                                final noteMinLines = isNoteCompact ? 3 : 4;
+                                final noteMaxLines = isNoteCompact ? 6 : 10;
+                                final padding = EdgeInsets.fromLTRB(
+                                  isNoteCompact ? 12 : 16,
+                                  14,
+                                  isNoteCompact ? 12 : 16,
+                                  isNoteCompact ? 14 : 16,
+                                );
+
+                                final infoText = Text(
+                                  editingHasNote
+                                      ? 'Notizen sind nur im Adminbereich sichtbar.'
+                                      : 'Noch keine Notiz gespeichert – alles bleibt intern.',
+                                  style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                                        color: const Color(0xFF6D4C41),
+                                      ),
+                                );
+
+                                final closeButton = TextButton.icon(
+                                  onPressed: _busy ? null : _closeNotes,
+                                  icon: const Icon(Icons.close),
+                                  label: const Text('Schließen'),
+                                );
+
+                                final saveButton = FilledButton.icon(
+                                  onPressed: (_busy || !noteChanged) ? null : _saveNotes,
+                                  icon: const Icon(Icons.save_outlined),
+                                  label: const Text('Notiz speichern'),
+                                );
+
+                                Widget actionSection;
+                                if (isNoteCompact) {
+                                  actionSection = Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
                                     children: [
-                                      const Icon(Icons.sticky_note_2, color: Color(0xFF8D6E63)),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          'Interne Notiz',
-                                          style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
-                                                fontWeight: FontWeight.w700,
-                                                color: const Color(0xFF5D4037),
-                                              ),
+                                      infoText,
+                                      const SizedBox(height: 12),
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: Wrap(
+                                          alignment:
+                                              isVeryNarrow ? WrapAlignment.center : WrapAlignment.end,
+                                          spacing: 8,
+                                          runSpacing: 8,
+                                          children: [
+                                            SizedBox(
+                                              width: isVeryNarrow ? double.infinity : null,
+                                              child: closeButton,
+                                            ),
+                                            SizedBox(
+                                              width: isVeryNarrow ? double.infinity : null,
+                                              child: saveButton,
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                      IconButton(
-                                        tooltip: 'Schließen',
-                                        onPressed: _busy ? null : _closeNotes,
-                                        icon: const Icon(Icons.close),
+                                    ],
+                                  );
+                                } else {
+                                  actionSection = Row(
+                                    children: [
+                                      Expanded(child: infoText),
+                                      closeButton,
+                                      const SizedBox(width: 8),
+                                      saveButton,
+                                    ],
+                                  );
+                                }
+
+                                return Container(
+                                  key: const ValueKey('admin-note'),
+                                  width: double.infinity,
+                                  margin: const EdgeInsets.only(top: 4),
+                                  padding: padding,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFFF9C4),
+                                    borderRadius: BorderRadius.circular(16),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.brown.withOpacity(0.18),
+                                        blurRadius: 14,
+                                        offset: const Offset(0, 6),
                                       ),
                                     ],
+                                    border: Border.all(color: Colors.amber.shade200, width: 1.2),
                                   ),
-                                  const SizedBox(height: 8),
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFFF8DC),
-                                      borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(color: Colors.amber.shade100),
-                                    ),
-                                    padding: const EdgeInsets.all(6),
-                                    child: DecoratedBox(
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFFFFDF4),
-                                        borderRadius: BorderRadius.circular(10),
-                                        boxShadow: const [
-                                          BoxShadow(
-                                            color: Color(0x33BCAAA4),
-                                            blurRadius: 8,
-                                            offset: Offset(0, 2),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          const Icon(Icons.sticky_note_2, color: Color(0xFF8D6E63)),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              'Interne Notiz',
+                                              style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
+                                                    fontWeight: FontWeight.w700,
+                                                    color: const Color(0xFF5D4037),
+                                                  ),
+                                            ),
+                                          ),
+                                          IconButton(
+                                            tooltip: 'Schließen',
+                                            onPressed: _busy ? null : _closeNotes,
+                                            icon: const Icon(Icons.close),
                                           ),
                                         ],
                                       ),
-                                      child: TextField(
-                                        controller: _notesCtrl,
-                                        minLines: 4,
-                                        maxLines: 10,
-                                        enabled: !_busy,
-                                        onChanged: (_) => setState(() {}),
-                                        decoration: const InputDecoration(
-                                          border: InputBorder.none,
-                                          hintText: 'Hier deine interne Notiz zur Reklamation erfassen ...',
-                                          contentPadding: EdgeInsets.fromLTRB(18, 16, 18, 18),
+                                      SizedBox(height: isNoteCompact ? 6 : 8),
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFFFF8DC),
+                                          borderRadius: BorderRadius.circular(14),
+                                          border: Border.all(color: Colors.amber.shade100),
                                         ),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          editingHasNote
-                                              ? 'Notizen sind nur im Adminbereich sichtbar.'
-                                              : 'Noch keine Notiz gespeichert – alles bleibt intern.',
-                                          style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                                                color: const Color(0xFF6D4C41),
+                                        padding: const EdgeInsets.all(6),
+                                        child: DecoratedBox(
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFFFFDF4),
+                                            borderRadius: BorderRadius.circular(10),
+                                            boxShadow: const [
+                                              BoxShadow(
+                                                color: Color(0x33BCAAA4),
+                                                blurRadius: 8,
+                                                offset: Offset(0, 2),
                                               ),
+                                            ],
+                                          ),
+                                          child: TextField(
+                                            controller: _notesCtrl,
+                                            minLines: noteMinLines,
+                                            maxLines: noteMaxLines,
+                                            keyboardType: TextInputType.multiline,
+                                            textInputAction: TextInputAction.newline,
+                                            scrollPadding: EdgeInsets.only(
+                                              bottom: MediaQuery.of(ctx).viewInsets.bottom + 80,
+                                            ),
+                                            enabled: !_busy,
+                                            onChanged: (_) => setState(() {}),
+                                            decoration: const InputDecoration(
+                                              border: InputBorder.none,
+                                              hintText:
+                                                  'Hier deine interne Notiz zur Reklamation erfassen ...',
+                                              contentPadding: EdgeInsets.fromLTRB(18, 16, 18, 18),
+                                            ),
+                                          ),
                                         ),
                                       ),
-                                      TextButton.icon(
-                                        onPressed: _busy ? null : _closeNotes,
-                                        icon: const Icon(Icons.close),
-                                        label: const Text('Schließen'),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      FilledButton.icon(
-                                        onPressed: (_busy || !noteChanged) ? null : _saveNotes,
-                                        icon: const Icon(Icons.save_outlined),
-                                        label: const Text('Notiz speichern'),
-                                      ),
+                                      SizedBox(height: isNoteCompact ? 10 : 12),
+                                      actionSection,
                                     ],
                                   ),
-                                ],
-                              ),
+                                );
+                              },
                             );
                           },
                         ),
