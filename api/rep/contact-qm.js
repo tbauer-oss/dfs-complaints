@@ -80,13 +80,36 @@ export default async function handler(req, res) {
       ? `${displayName} <${rep.email}>`
       : rep.email;
 
-    await send(QM_MAIL, {
+    const mailPayload = {
       subject: `[Rep-Support] ${subjectRaw}`,
       text: textBody,
       lang: 'de',
-      from: fromHeader,
-      replyTo: rep.email,
-    });
+    };
+
+    try {
+      await send(QM_MAIL, {
+        ...mailPayload,
+        from: fromHeader,
+        replyTo: rep.email,
+      });
+    } catch (primaryError) {
+      console.warn('[rep/contact-qm] primary send failed, retrying with default sender', primaryError);
+
+      const fallbackLines = [
+        textBody,
+        '',
+        '--- Technischer Hinweis ---',
+        'Versand über die Absenderadresse des Vertreters war nicht möglich.',
+        `E-Mail des Vertreters: ${rep.email}`,
+        repName ? `Name des Vertreters: ${repName}` : null,
+      ].filter(Boolean);
+
+      await send(QM_MAIL, {
+        ...mailPayload,
+        text: fallbackLines.join('\n'),
+        replyTo: rep.email,
+      });
+    }
 
     return res.status(200).json({ ok: true });
   } catch (err) {
