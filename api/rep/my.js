@@ -40,6 +40,7 @@ export default async function handler(req, res) {
       lastName:  rep.lastName  || '',
       email:     rep.email     || '',
       region:    rep.region    || '',
+      lang:      rep.lang      || 'de',
     }));
   } catch (e) {
     console.error('[rep/my]', e);
