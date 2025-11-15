@@ -20,6 +20,11 @@
   "theme_light": "Hell",
   "theme_dark": "Dunkel",
 
+  "attachments_add": "Anhänge nachträglich senden",
+  "attachments_success": "Anhänge wurden erfolgreich übermittelt.",
+  "attachments_error": "Anhänge konnten nicht gesendet werden.",
+  "attachments_too_large": "Max. 10 MB Gesamtgröße für Anhänge",
+
   "firstName": "Vorname",
   "lastName": "Nachname",
 
