@@ -865,6 +865,20 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     return m;
   }
 
+  String _validSelectedCompany(List<String> companies) {
+    final raw = _selectedCompany ?? '';
+    if (raw.isEmpty || companies.contains(raw)) {
+      return raw;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if ((_selectedCompany ?? '').isNotEmpty && !companies.contains(_selectedCompany)) {
+        setState(() => _selectedCompany = '');
+      }
+    });
+    return '';
+  }
+
   // ------ Anzeige-Helper ------
   String _displayCustomerFor(Map<String, dynamic> c) {
     final em = (c['customerEmail'] ?? c['email'] ?? '').toString().toLowerCase();
@@ -1130,14 +1144,16 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         .toList()
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
+    final selectedCompany = _validSelectedCompany(companies);
+
     List<Map<String, dynamic>> items =
         _complaints.where((c) => !_isClosed(c)).toList(growable: false);
 
-    if ((_selectedCompany ?? '').isNotEmpty) {
+    if (selectedCompany.isNotEmpty) {
       items = items.where((c) {
         final em = (c['customerEmail'] ?? c['email'] ?? '').toString().toLowerCase();
         final co = (_emailToCompany[em] ?? '');
-        return co == _selectedCompany;
+        return co == selectedCompany;
       }).toList(growable: false);
     }
 
@@ -1153,7 +1169,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
               width: 320,
               child: DropdownButtonFormField<String>(
                 isExpanded: true,
-                value: _selectedCompany,
+                value: selectedCompany,
                 items: <DropdownMenuItem<String>>[
                   DropdownMenuItem<String>(
                     value: '',
@@ -1214,6 +1230,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         .toList()
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
+    final selectedCompany = _validSelectedCompany(companies);
+
     List<Map<String, dynamic>> list = List<Map<String, dynamic>>.from(_complaints);
 
     if (!_showClosedAll) {
@@ -1222,11 +1240,11 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     if (_showRejectedAll) {
       list = list.where(_isRejected).toList();
     }
-    if ((_selectedCompany ?? '').isNotEmpty) {
+    if (selectedCompany.isNotEmpty) {
       list = list.where((c) {
         final em = (c['customerEmail'] ?? c['email'] ?? '').toString().toLowerCase();
         final co = (_emailToCompany[em] ?? '');
-        return co == _selectedCompany;
+        return co == selectedCompany;
       }).toList();
     }
 
@@ -1247,7 +1265,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                   width: 320,
                   child: DropdownButtonFormField<String>(
                     isExpanded: true,
-                    value: _selectedCompany,
+                    value: selectedCompany,
                     items: <DropdownMenuItem<String>>[
                       DropdownMenuItem<String>(
                         value: '',
