@@ -4407,34 +4407,124 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                     color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.30),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Details der Reklamation',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 8),
-                      _detKv('Segment',       segment),
-                      _detKv('Produkttyp',    productType),
-                      _detKv('Artikelnummer', articleNo),
-                      _detKv('Produkte zurückgeschickt?', returned),
-                      _detKv('Am Patienten angewendet?', applied),
-                      _detKv('Verletzung?', injury),
-                      _detKv('Verletzungsbeschreibung', injuryDesc, maxLines: 6),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final theme = Theme.of(context);
+                      final textTheme = theme.textTheme;
+                      final colorScheme = theme.colorScheme;
+                      final useTwoColumns = constraints.maxWidth >= 820;
 
-                      Row(
+                      void addDetail(List<Widget> list, String label, String? value,
+                          {int maxLines = 2}) {
+                        final trimmed = (value ?? '').trim();
+                        if (trimmed.isEmpty) return;
+                        final widget = _detKv(label, value, maxLines: maxLines);
+                        list.add(widget);
+                      }
+
+                      List<Widget> spaced(List<Widget> items) {
+                        final result = <Widget>[];
+                        for (var i = 0; i < items.length; i++) {
+                          result.add(items[i]);
+                          if (i < items.length - 1) {
+                            result.add(const SizedBox(height: 8));
+                          }
+                        }
+                        return result;
+                      }
+
+                      final leftColumn = <Widget>[];
+                      final rightColumn = <Widget>[];
+                      final bottomSection = <Widget>[];
+
+                      addDetail(leftColumn, 'Segment', segment);
+                      addDetail(leftColumn, 'Produkttyp', productType);
+                      addDetail(leftColumn, 'Artikelnummer', articleNo);
+                      addDetail(leftColumn, 'Charge / LOT', batch);
+                      addDetail(leftColumn, 'Seriennummer', serial);
+                      addDetail(leftColumn, 'Menge', qty);
+
+                      addDetail(rightColumn, 'Produkte zurückgeschickt?', returned);
+                      addDetail(rightColumn, 'Am Patienten angewendet?', applied);
+                      addDetail(rightColumn, 'Verletzung?', injury);
+
+                      addDetail(bottomSection, 'Verletzungsbeschreibung', injuryDesc,
+                          maxLines: 6);
+                      addDetail(bottomSection, 'Fehler / Beschreibung', desc,
+                          maxLines: 6);
+                      addDetail(bottomSection, 'Grund / Ursache', reason,
+                          maxLines: 4);
+                      addDetail(bottomSection, 'Wunsch des Kunden', customerWish,
+                          maxLines: 3);
+
+                      final hasDetails = leftColumn.isNotEmpty ||
+                          rightColumn.isNotEmpty ||
+                          bottomSection.isNotEmpty;
+
+                      if (!hasDetails) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Details der Reklamation',
+                              style: textTheme.titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Keine zusätzlichen Angaben vorhanden.',
+                              style: textTheme.bodyMedium?.copyWith(
+                                color:
+                                    colorScheme.onSurfaceVariant.withOpacity(0.72),
+                              ),
+                            ),
+                          ],
+                        );
+                      }
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Expanded(child: _detKv('Charge / LOT', batch)),
-                          const SizedBox(width: 12),
-                          Expanded(child: _detKv('Seriennummer', serial)),
+                          Text(
+                            'Details der Reklamation',
+                            style: textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 12),
+                          if (useTwoColumns &&
+                              (leftColumn.isNotEmpty || rightColumn.isNotEmpty))
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (leftColumn.isNotEmpty)
+                                  Expanded(child: Column(children: spaced(leftColumn))),
+                                if (leftColumn.isNotEmpty && rightColumn.isNotEmpty)
+                                  const SizedBox(width: 24),
+                                if (rightColumn.isNotEmpty)
+                                  Expanded(child: Column(children: spaced(rightColumn))),
+                              ],
+                            )
+                          else
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                ...spaced(leftColumn),
+                                if (leftColumn.isNotEmpty && rightColumn.isNotEmpty)
+                                  const Divider(height: 24),
+                                ...spaced(rightColumn),
+                              ],
+                            ),
+                          if (bottomSection.isNotEmpty &&
+                              (leftColumn.isNotEmpty || rightColumn.isNotEmpty))
+                            const Divider(height: 28),
+                          if (bottomSection.isNotEmpty)
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: spaced(bottomSection),
+                            ),
                         ],
-                      ),
-                      _detKv('Menge', qty),
-                      _detKv('Fehler / Beschreibung', desc, maxLines: 6),
-                      _detKv('Grund / Ursache',       reason, maxLines: 4),
-                      _detKv('Wunsch des Kunden',     customerWish, maxLines: 3),
-                    ],
+                      );
+                    },
                   ),
                 ),
                 secondChild: const SizedBox.shrink(),
