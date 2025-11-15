@@ -11,6 +11,7 @@ import '../widgets/theme_action.dart' as w;
 import '../services/app_prefs_scope.dart';
 import '../widgets/legal_footer.dart';
 import '../models/country.dart';
+import '../utils/lang_utils.dart';
 
 // ---- L10n-Helper (top-level) ----
 extension _L10nX on BuildContext {
@@ -146,6 +147,18 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
       final me   = await widget.api.repMe();
       final comp = await widget.api.repComplaints();
+
+      if (mounted) {
+        final meLang = (me['lang'] ?? '').toString().trim();
+        if (isSupportedLangCode(meLang)) {
+          final normalized = normalizeLangCode(meLang);
+          final prefs = AppPrefsScope.of(context);
+          final current = prefs.locale?.languageCode.toLowerCase() ?? '';
+          if (current != normalized) {
+            await prefs.setLang(normalized);
+          }
+        }
+      }
 
       // Kunden – tolerant: Details (neu) ODER Strings (alt)
       List<dynamic> rawCustomers;
@@ -1582,8 +1595,24 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
   // ---- Seite: Account – ohne Doppeltitel/Untertitel + getrennte PW-Änderung ----
   Widget _buildAccountCard() {
     final t = context.t;
+    final theme = Theme.of(context);
     final labelProfile   = t.profile_edit ?? 'Profil bearbeiten';
     final labelPassword  = t.password_change ?? 'Passwort ändern';
+
+    String s(Object? v) => (v ?? '').toString().trim();
+
+    final data = _me ?? const <String, dynamic>{};
+    final firstName = s(data['firstName']);
+    final lastName  = s(data['lastName']);
+    final email     = s(data['email']);
+    final region    = s(data['region']);
+    final langRaw   = s(data['lang']);
+    final normalizedLang = normalizeLangCode(langRaw.isEmpty ? 'de' : langRaw);
+    final langDisplay = langNameFor(t, normalizedLang);
+    final customerCount = _customers.length;
+
+    final displayName = [firstName, lastName].where((e) => e.isNotEmpty).join(' ').trim();
+    final headline = displayName.isEmpty ? (email.isNotEmpty ? email : t.profile_edit ?? 'Profil') : displayName;
 
     Future<void> _openProfile() async {
       await Navigator.of(context).push(
@@ -1628,7 +1657,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
             busy = true;
             (ctx as Element).markNeedsBuild();
             try {
-              // Server erwartet nur neues Passwort? (gemäß bisherigem Client)
               await widget.api.repChangePassword(n1);
               if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
               if (!mounted) return;
@@ -1688,25 +1716,96 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
       );
     }
 
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Column(
-        children: [
-          ListTile(
-            leading: const Icon(Icons.manage_accounts_outlined),
-            title: Text(labelProfile),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _openProfile,
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: Card(
+          elevation: 6,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 28),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    CircleAvatar(
+                      radius: 32,
+                      backgroundColor: theme.colorScheme.primaryContainer,
+                      child: Icon(
+                        Icons.person_outline,
+                        size: 32,
+                        color: theme.colorScheme.onPrimaryContainer,
+                      ),
+                    ),
+                    const SizedBox(width: 18),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            headline,
+                            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          if (email.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              email,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 22),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 10,
+                  children: [
+                    if (region.isNotEmpty)
+                      _AccountInfoChip(
+                        icon: Icons.public,
+                        label: t.region,
+                        value: region,
+                      ),
+                    _AccountInfoChip(
+                      icon: Icons.people_outline,
+                      label: t.myCustomers,
+                      value: '$customerCount',
+                    ),
+                    _AccountInfoChip(
+                      icon: Icons.language_outlined,
+                      label: t.catalog_select_language,
+                      value: langDisplay,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 26),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: _openProfile,
+                      icon: const Icon(Icons.manage_accounts_outlined),
+                      label: Text(labelProfile),
+                    ),
+                    FilledButton.tonalIcon(
+                      onPressed: _openPasswordChange,
+                      icon: const Icon(Icons.lock_reset_outlined),
+                      label: Text(labelPassword),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-          const Divider(height: 1),
-          ListTile(
-            leading: const Icon(Icons.lock_reset_outlined),
-            title: Text(labelPassword),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _openPasswordChange,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -2322,19 +2421,77 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     String? injury,
     String? injuryDesc,
   }) {
-    Widget kv(String label, String? value, {int maxLines = 2}) {
+    Widget kv(String label, String? value, {int? maxLines = 2}) {
       final v = (value ?? '').trim();
       if (v.isEmpty) return const SizedBox.shrink();
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(width: 160, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
-            const SizedBox(width: 8),
-            Expanded(child: Text(v, maxLines: maxLines, overflow: TextOverflow.ellipsis)),
-          ],
-        ),
+
+      const labelStyle = TextStyle(fontWeight: FontWeight.w600);
+
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 520;
+          final valueWidget = Text(
+            v,
+            softWrap: true,
+            maxLines: compact ? null : maxLines,
+          );
+
+          if (compact) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: labelStyle),
+                  const SizedBox(height: 4),
+                  valueWidget,
+                ],
+              ),
+            );
+          }
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(width: 190, child: Text(label, style: labelStyle)),
+                const SizedBox(width: 12),
+                Expanded(child: valueWidget),
+              ],
+            ),
+          );
+        },
+      );
+    }
+
+    Widget kvPair(String label1, String? value1, String label2, String? value2) {
+      final hasA = (value1 ?? '').trim().isNotEmpty;
+      final hasB = (value2 ?? '').trim().isNotEmpty;
+      if (!hasA && !hasB) return const SizedBox.shrink();
+
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 680;
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (hasA) kv(label1, value1),
+                if (hasB) kv(label2, value2),
+              ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (hasA) Expanded(child: kv(label1, value1)),
+              if (hasA && hasB) const SizedBox(width: 20),
+              if (hasB) Expanded(child: kv(label2, value2)),
+            ],
+          );
+        },
       );
     }
 
@@ -2359,13 +2516,7 @@ class _ComplaintTileState extends State<_ComplaintTile> {
           kv('Produkttyp', productType),
           kv('Artikelnummer', articleNo),
 
-          Row(
-            children: [
-              Expanded(child: kv('Charge / LOT', batch)),
-              const SizedBox(width: 12),
-              Expanded(child: kv('Seriennummer', serial)),
-            ],
-          ),
+          kvPair('Charge / LOT', batch, 'Seriennummer', serial),
 
           // Menge: eigene, gut sichtbare Zeile
           kv('Menge', qty),
@@ -2406,6 +2557,61 @@ class _InfoCapsule extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
         maxLines: 1,
         style: TextStyle(fontSize: 13.5, color: cs.onSurface.withOpacity(.9)),
+      ),
+    );
+  }
+}
+
+class _AccountInfoChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _AccountInfoChip({
+    required this.icon,
+    required this.label,
+    required this.value,
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final bg = cs.surfaceVariant.withOpacity(theme.brightness == Brightness.dark ? 0.35 : 0.7);
+    final on = cs.onSurfaceVariant;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(icon, size: 18, color: on),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: on.withOpacity(0.75),
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.2,
+                ),
+              ),
+              Text(
+                value.isEmpty ? '-' : value,
+                style: theme.textTheme.bodyMedium?.copyWith(color: on, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

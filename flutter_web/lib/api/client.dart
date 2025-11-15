@@ -485,6 +485,41 @@ class ApiClient {
     return (j is Map) ? j.cast<String, dynamic>() : <String, dynamic>{};
   }
 
+  Future<RepMe> repUpdateProfile({
+    String? firstName,
+    String? lastName,
+    String? region,
+    String? lang,
+  }) async {
+    final body = <String, dynamic>{};
+    if (firstName != null) body['firstName'] = firstName;
+    if (lastName != null) body['lastName'] = lastName;
+    if (region != null) body['region'] = region;
+    if (lang != null) body['lang'] = lang;
+
+    final r = await _repFetch(
+      '/api/rep/update',
+      method: 'PUT',
+      body: body,
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw Exception('PUT /api/rep/update failed: ${r.statusCode} ${r.body}');
+    }
+
+    final raw = r.body.trim().isEmpty ? '{}' : r.body;
+    final decoded = jsonDecode(raw);
+    if (decoded is Map<String, dynamic>) {
+      if (decoded['rep'] is Map) {
+        return RepMe.fromJson((decoded['rep'] as Map).cast<String, dynamic>());
+      }
+      return RepMe.fromJson(decoded);
+    }
+    if (decoded is Map) {
+      return RepMe.fromJson(decoded.cast<String, dynamic>());
+    }
+    throw Exception('invalid response for /api/rep/update');
+  }
+
   Future<List<String>> repCustomers() async {
     final r = await _repFetch('/api/rep/customers');
     if (!_ok2xx(r.statusCode)) {
@@ -1213,6 +1248,7 @@ class RepMe {
   final String lastName;
   final String email;
   final String region;
+  final String lang;
   final List<String> customers;
   const RepMe({
     required this.id,
@@ -1220,6 +1256,7 @@ class RepMe {
     required this.lastName,
     required this.email,
     required this.region,
+    required this.lang,
     required this.customers,
   });
 
@@ -1229,6 +1266,7 @@ class RepMe {
     lastName: (j['lastName']  ?? '').toString(),
     email:    (j['email']     ?? '').toString(),
     region:   (j['region']    ?? '').toString(),
+    lang:     (j['lang']      ?? '').toString(),
     customers: (j['customers'] as List? ?? const []).cast<String>(),
   );
 }

@@ -44,6 +44,7 @@ export default async function handler(req, res) {
       lastName:  rep.lastName,
       email:     rep.email,
       region:    rep.region,
+      lang:      rep.lang || 'de',
       customers: customers || [],
     }));
   } catch (err) {
