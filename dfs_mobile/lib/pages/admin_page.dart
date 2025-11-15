@@ -4104,21 +4104,34 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                                   const SizedBox(height: 8),
                                   Container(
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFFFFFDE7),
-                                      borderRadius: BorderRadius.circular(12),
+                                      color: const Color(0xFFFFF8DC),
+                                      borderRadius: BorderRadius.circular(14),
                                       border: Border.all(color: Colors.amber.shade100),
                                     ),
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                    child: TextField(
-                                      controller: _notesCtrl,
-                                      minLines: 4,
-                                      maxLines: 8,
-                                      enabled: !_busy,
-                                      onChanged: (_) => setState(() {}),
-                                      decoration: const InputDecoration(
-                                        isCollapsed: true,
-                                        border: InputBorder.none,
-                                        hintText: 'Hier deine interne Notiz zur Reklamation erfassen ...',
+                                    padding: const EdgeInsets.all(6),
+                                    child: DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFFFDF4),
+                                        borderRadius: BorderRadius.circular(10),
+                                        boxShadow: const [
+                                          BoxShadow(
+                                            color: Color(0x33BCAAA4),
+                                            blurRadius: 8,
+                                            offset: Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      child: TextField(
+                                        controller: _notesCtrl,
+                                        minLines: 4,
+                                        maxLines: 10,
+                                        enabled: !_busy,
+                                        onChanged: (_) => setState(() {}),
+                                        decoration: const InputDecoration(
+                                          border: InputBorder.none,
+                                          hintText: 'Hier deine interne Notiz zur Reklamation erfassen ...',
+                                          contentPadding: EdgeInsets.fromLTRB(18, 16, 18, 18),
+                                        ),
                                       ),
                                     ),
                                   ),
