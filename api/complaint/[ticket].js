@@ -10,7 +10,12 @@ import {
   readJson,
 } from "../_lib/http.js";
 import { getAuthUser } from "../_lib/auth.js";
-import { complaintGet, complaintUpdate, Status } from "../_lib/store.js";
+import {
+  complaintGet,
+  complaintUpdate,
+  Status,
+  userByEmail,
+} from "../_lib/store.js";
 import { sendMail } from "../_lib/mailer.js";
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "";
@@ -18,6 +23,14 @@ const ADMIN_SECRET = process.env.ADMIN_SECRET || "";
 function adminAuthorized(req) {
   const hdr = req.headers?.["x-admin-secret"];
   return !!(hdr && ADMIN_SECRET && hdr === ADMIN_SECRET);
+}
+
+function firstNonEmpty(...values) {
+  for (const value of values) {
+    const str = (value ?? "").toString().trim();
+    if (str) return str;
+  }
+  return "";
 }
 
 export default async function handler(req, res) {
@@ -80,7 +93,12 @@ export default async function handler(req, res) {
       totalBytes += buffer.length;
       if (totalBytes > MAX_BYTES) return bad(res, "files too large", 400);
 
-      meta.push({ name, mime, size: buffer.length });
+      meta.push({
+        name,
+        mime,
+        size: buffer.length,
+        uploadedAt: Date.now(),
+      });
       mailAttachments.push({
         filename: name || `attachment_${i + 1}.bin`,
         content: buffer,
@@ -97,7 +115,31 @@ export default async function handler(req, res) {
 
     try {
       const { send } = await import("../_lib/mail.js");
-      const summary = `Neue Anhänge für Ticket ${ticket}\nKunde: ${comp.email || user.email}\nAnzahl: ${meta.length}\nGesamtgröße: ${Math.round(totalBytes / 1024)} KB`;
+      let account = null;
+      try {
+        account = comp?.email ? await userByEmail(comp.email) : null;
+      } catch (err) {
+        console.warn(
+          "[complaint][attachments] userByEmail failed",
+          err?.message || err,
+        );
+      }
+
+      const payload = (comp?.payload && typeof comp.payload === "object")
+        ? comp.payload
+        : {};
+      const company = firstNonEmpty(
+        comp?.company,
+        comp?.customer?.company,
+        comp?.account?.company,
+        payload?.customerName,
+        payload?.company,
+        payload?.companyName,
+        payload?.firma,
+        account?.company,
+      );
+      const customerEmail = firstNonEmpty(comp?.email, user.email);
+      const summary = `Neue Anhänge für Ticket ${ticket}\nKunde: ${company || "(unbekannt)"}\nE-Mail: ${customerEmail}\nAnzahl: ${meta.length}\nGesamtgröße: ${Math.round(totalBytes / 1024)} KB`;
       await send(
         "complaint@dfs-diamon.de",
         {
