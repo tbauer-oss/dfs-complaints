@@ -3577,16 +3577,46 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   Widget _detKv(String label, String? value, {int maxLines = 2}) {
     final v = (value ?? '').trim();
     if (v.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(width: 160, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
-          const SizedBox(width: 8),
-          Expanded(child: Text(v, maxLines: maxLines, overflow: TextOverflow.ellipsis)),
-        ],
-      ),
+
+    const labelStyle = TextStyle(fontWeight: FontWeight.w600);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 420;
+        final effectiveMaxLines = compact ? null : maxLines;
+
+        final valueText = Text(
+          v,
+          maxLines: effectiveMaxLines,
+          softWrap: true,
+        );
+
+        if (compact) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: labelStyle),
+                const SizedBox(height: 4),
+                valueText,
+              ],
+            ),
+          );
+        }
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(width: 160, child: Text(label, style: labelStyle)),
+              const SizedBox(width: 8),
+              Expanded(child: valueText),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -4157,18 +4187,20 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                     }
 
                     return Row(
-                      mainAxisSize: MainAxisSize.min,
+                      mainAxisSize: MainAxisSize.max,
                       children: [
                         noteButton(),
                         const SizedBox(width: 4),
-                        Text(
-                          label,
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: isDark ? Theme.of(ctx).colorScheme.onSurface : Colors.black,
+                        Expanded(
+                          child: Text(
+                            label,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? Theme.of(ctx).colorScheme.onSurface : Colors.black,
+                            ),
+                            softWrap: true,
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(width: 8),
                         IconButton(
