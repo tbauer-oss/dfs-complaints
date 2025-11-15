@@ -56,16 +56,13 @@ class _SupportPageState extends State<SupportPage> {
   // Mappt UI-Codes auf vom Backend akzeptierte Kategorien
   String _mapCategoryForApi(String code) {
     switch (code) {
-      case 'improve':   // Vorschlag zur Verbesserung
-      case 'feedback':        // allgemeines Feedback
-        return 'other';       // fallback
       case 'general':
-        return 'other';       // neutral zusammenfassen
-      // folgende i. d. R. bereits kompatibel:
       case 'complaint':
       case 'technical':
       case 'account':
       case 'privacy':
+      case 'feedback':
+      case 'improve':
         return code;
       default:
         return 'other';       // robuste Absicherung
