@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 
 import { setCors } from '../_lib/cors.js';
 import { userSave } from '../_lib/store.js';
+import { isStrongPassword } from '../_lib/passwords.js';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 
@@ -86,6 +87,14 @@ export default async function handler(req, res) {
   }
 
   const contact = hasContact ? contactRaw : `${firstName} ${lastName}`.trim();
+
+  if (!isStrongPassword(pwRaw)) {
+    return res
+      .status(400)
+      .end(
+        JSON.stringify({ error: 'password requirements not met (min. 8 chars incl. letters, numbers & special characters)' })
+      );
+  }
 
   try {
     const passhash = await bcrypt.hash(pwRaw, 10);

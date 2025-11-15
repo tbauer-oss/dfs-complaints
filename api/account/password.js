@@ -4,6 +4,7 @@ export const config = { runtime: 'nodejs' };
 import { setCors, ok, bad, noContent, methodNotAllowed } from '../_lib/http.js';
 import { getAuthUser } from '../_lib/auth.js';
 import { userByEmail, userSave } from '../_lib/store.js';
+import { isStrongPassword } from '../_lib/passwords.js';
 import bcrypt from 'bcryptjs';
 import { sendMail } from '../_lib/mailer.js';
 
@@ -24,6 +25,10 @@ export default async function handler(req, res) {
 
   const okOld = await bcrypt.compare(oldPw, u.passhash);
   if (!okOld) return bad(res, 'wrong password', 400);
+
+  if (!isStrongPassword(newPw)) {
+    return bad(res, 'password requirements not met (min. 8 chars incl. letters, numbers & special characters)', 400);
+  }
 
   const passhash = await bcrypt.hash(newPw, 10);
   await userSave({ ...u, passhash });
