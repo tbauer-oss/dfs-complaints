@@ -88,98 +88,19 @@ class _RepLoginPageState extends State<RepLoginPage> {
   // SECRET-REGISTRATION FLOW
   // =========
   Future<void> _openSecretDialog() async {
-    final t = context.t;
-    final mailCtrl = TextEditingController(text: _email.text.trim());
-    final secCtrl  = TextEditingController();
-    String? locErr;
-    bool saving = false;
-
     final want = await showDialog<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setS) => AlertDialog(
-          title: Text(t.register_temp_password_title), // NEU
-          content: DialogContentScroll(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: mailCtrl,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecoration(
-                    labelText: t.rep_email_label, // NEU
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: secCtrl,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    labelText: t.temp_password_label, // NEU
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-                if (locErr != null) ...[
-                  const SizedBox(height: 8),
-                  Text(locErr!, style: const TextStyle(color: Colors.red)),
-                ],
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: saving ? null : () => Navigator.pop(ctx, false),
-              child: Text(t.cancel),
-            ),
-            FilledButton.icon(
-              onPressed: saving
-                  ? null
-                  : () async {
-                      final email = mailCtrl.text.trim().toLowerCase();
-                      final sec   = secCtrl.text.trim();
-                      if (email.isEmpty || !email.contains('@')) {
-                        setS(() => locErr = t.email_invalid); // NEU
-                        return;
-                      }
-                      if (sec.isEmpty) {
-                        setS(() => locErr = t.temp_password_required); // NEU
-                        return;
-                      }
-                      setS(() { saving = true; locErr = null; });
-                      try {
-                        final ok = await widget.api.repLoginWithSecret(email, sec);
-                        if (!ok) {
-                          setS(() {
-                            saving = false;
-                            locErr = t.temp_password_invalid; // NEU
-                          });
-                          return;
-                        }
-                        if (ctx.mounted) Navigator.pop(ctx, true);
-                      } catch (e) {
-                        setS(() {
-                          saving = false;
-                          locErr = '${t.error ?? 'Fehler'}: $e';
-                        });
-                      }
-                    },
-              icon: saving
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.login),
-              label: Text(t.continueLabel),
-            ),
-          ],
-        ),
+      builder: (_) => _TempPasswordDialog(
+        api: widget.api,
+        initialEmail: _email.text.trim(),
       ),
     );
+
+    if (!mounted) return;
 
     if (want == true) {
       await _openChangePwDialog();
     }
-
-    mailCtrl.dispose();
-    secCtrl.dispose();
   }
 
   // Dialog zum Passwort-Ändern (nach Secret-Login oder mustChangePw)
@@ -383,6 +304,128 @@ class _RepLoginPageState extends State<RepLoginPage> {
         ),
       ),
       bottomNavigationBar: LegalFooter(api: widget.api),
+    );
+  }
+}
+
+class _TempPasswordDialog extends StatefulWidget {
+  final ApiClient api;
+  final String initialEmail;
+
+  const _TempPasswordDialog({
+    required this.api,
+    required this.initialEmail,
+  });
+
+  @override
+  State<_TempPasswordDialog> createState() => _TempPasswordDialogState();
+}
+
+class _TempPasswordDialogState extends State<_TempPasswordDialog> {
+  late final TextEditingController _mailCtrl;
+  final TextEditingController _secCtrl = TextEditingController();
+  String? _error;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _mailCtrl = TextEditingController(text: widget.initialEmail);
+  }
+
+  @override
+  void dispose() {
+    _mailCtrl.dispose();
+    _secCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final t = context.t;
+    final email = _mailCtrl.text.trim().toLowerCase();
+    final sec   = _secCtrl.text.trim();
+
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() => _error = t.email_invalid);
+      return;
+    }
+    if (sec.isEmpty) {
+      setState(() => _error = t.temp_password_required);
+      return;
+    }
+
+    setState(() {
+      _saving = true;
+      _error  = null;
+    });
+
+    try {
+      final ok = await widget.api.repLoginWithSecret(email, sec);
+      if (!mounted) return;
+      if (!ok) {
+        setState(() {
+          _saving = false;
+          _error  = t.temp_password_invalid;
+        });
+        return;
+      }
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      final errMsg = '${t.error ?? 'Fehler'}: $e';
+      setState(() {
+        _saving = false;
+        _error  = errMsg;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.t;
+    return AlertDialog(
+      title: Text(t.register_temp_password_title),
+      content: DialogContentScroll(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _mailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(
+                labelText: t.rep_email_label,
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _secCtrl,
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: t.temp_password_label,
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 8),
+              Text(_error!, style: const TextStyle(color: Colors.red)),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.of(context).pop(false),
+          child: Text(t.cancel),
+        ),
+        FilledButton.icon(
+          onPressed: _saving ? null : _submit,
+          icon: _saving
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.login),
+          label: Text(t.continueLabel),
+        ),
+      ],
     );
   }
 }
