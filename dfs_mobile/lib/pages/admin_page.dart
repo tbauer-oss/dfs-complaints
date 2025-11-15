@@ -3416,6 +3416,18 @@ class _ComplaintEditor extends StatefulWidget {
   State<_ComplaintEditor> createState() => _ComplaintEditorState();
 }
 
+class _DetailEntry {
+  final String label;
+  final String value;
+  final int? maxLines;
+
+  const _DetailEntry({
+    required this.label,
+    required this.value,
+    this.maxLines,
+  });
+}
+
 class _ComplaintEditorState extends State<_ComplaintEditor> {
   final _reportCtrl = TextEditingController();
   final _internalCtrl = TextEditingController();
@@ -3444,58 +3456,103 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     return s.isEmpty ? null : s;
   }
 
-  Widget _detKv(String label, String? value, {int maxLines = 2}) {
+  _DetailEntry? _detailEntry(String label, String? value, {int? maxLines}) {
     final v = (value ?? '').trim();
-    if (v.isEmpty) return const SizedBox.shrink();
+    if (v.isEmpty) return null;
+    return _DetailEntry(label: label, value: v, maxLines: maxLines);
+  }
 
-    const labelStyle = TextStyle(fontWeight: FontWeight.w600);
+  Widget _buildDetailCards(List<_DetailEntry> entries) {
+    if (entries.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 12),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.18),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.35),
+          ),
+        ),
+        child: Text(
+          'Keine zusätzlichen Detailangaben vorhanden.',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontStyle: FontStyle.italic,
+                color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.72),
+              ),
+        ),
+      );
+    }
+
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final labelStyle = theme.textTheme.labelSmall?.copyWith(
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0.6,
+      color: scheme.onSurfaceVariant.withOpacity(isDark ? 0.9 : 0.72),
+    );
+    final valueStyle = theme.textTheme.bodyMedium?.copyWith(height: 1.38);
+    final baseColor = scheme.surfaceContainerHighest.withOpacity(isDark ? 0.32 : 0.78);
+    final borderColor = scheme.outlineVariant.withOpacity(isDark ? 0.25 : 0.35);
+    final shadowColor = isDark ? Colors.black.withOpacity(0.3) : Colors.black.withOpacity(0.08);
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isCompact = constraints.maxWidth < 420;
-        final valueStyle = Theme.of(context).textTheme.bodyMedium;
-
-        if (isCompact) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: labelStyle),
-                const SizedBox(height: 4),
-                Text(
-                  v,
-                  style: valueStyle,
-                  softWrap: true,
-                  maxLines: maxLines > 3 ? maxLines : null,
-                  overflow: maxLines > 3 ? TextOverflow.ellipsis : TextOverflow.visible,
-                ),
-              ],
-            ),
-          );
+        double maxWidth = constraints.maxWidth;
+        if (!maxWidth.isFinite || maxWidth <= 0) {
+          maxWidth = MediaQuery.of(context).size.width;
         }
 
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 150, maxWidth: 220),
-                child: Text(label, style: labelStyle),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  v,
-                  style: valueStyle,
-                  maxLines: maxLines,
-                  softWrap: true,
-                  overflow: TextOverflow.fade,
+        const spacing = 12.0;
+        final columns = maxWidth >= 1100
+            ? 3
+            : maxWidth >= 700
+                ? 2
+                : 1;
+        final tileWidth = columns == 1 ? maxWidth : (maxWidth - spacing * (columns - 1)) / columns;
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            for (final entry in entries)
+              SizedBox(
+                width: columns == 1 ? maxWidth : math.min(tileWidth, 420.0),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                  decoration: BoxDecoration(
+                    color: baseColor,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: borderColor),
+                    boxShadow: [
+                      BoxShadow(
+                        color: shadowColor,
+                        blurRadius: isDark ? 18 : 16,
+                        offset: const Offset(0, 8),
+                        spreadRadius: isDark ? 2 : 0,
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(entry.label.toUpperCase(), style: labelStyle),
+                      const SizedBox(height: 6),
+                      Text(
+                        entry.value,
+                        style: valueStyle,
+                        softWrap: true,
+                        maxLines: entry.maxLines,
+                        overflow: entry.maxLines != null
+                            ? TextOverflow.ellipsis
+                            : TextOverflow.visible,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ],
-          ),
+          ],
         );
       },
     );
@@ -3886,10 +3943,26 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     final reason       = _detPickOrNull(p, ['reason','failure_reason','cause']);
     final desc         = _detPickOrNull(p, ['desc','description','comment','details','failure_desc']);
     final customerWish = _detPickOrNull(p, ['customer_wish','customerWish','wish','treatment_wish']);
-    final applied     = _detPickOrNull(p, ['applied']);          // 'Ja' | 'Nein' | ''
-    final injury      = _detPickOrNull(p, ['injury']);           // 'Ja' | 'Nein' | ''
-    final injuryDesc  = _detPickOrNull(p, ['injuryDesc']);       // Freitext
-    final returned    = _detPickOrNull(p, ['returned']);         // 'Ja' | 'Nein'
+    final applied      = _detPickOrNull(p, ['applied']);          // 'Ja' | 'Nein' | ''
+    final injury       = _detPickOrNull(p, ['injury']);           // 'Ja' | 'Nein' | ''
+    final injuryDesc   = _detPickOrNull(p, ['injuryDesc']);       // Freitext
+    final returned     = _detPickOrNull(p, ['returned']);         // 'Ja' | 'Nein'
+
+    final detailEntries = <_DetailEntry>[
+      _detailEntry('Segment', segment),
+      _detailEntry('Produkttyp', productType),
+      _detailEntry('Artikelnummer', articleNo),
+      _detailEntry('Charge / LOT', batch),
+      _detailEntry('Seriennummer', serial),
+      _detailEntry('Menge', qty),
+      _detailEntry('Produkte zurückgeschickt?', returned),
+      _detailEntry('Am Patienten angewendet?', applied),
+      _detailEntry('Verletzung?', injury),
+      _detailEntry('Verletzungsbeschreibung', injuryDesc, maxLines: 14),
+      _detailEntry('Fehler / Beschreibung', desc, maxLines: 18),
+      _detailEntry('Grund / Ursache', reason, maxLines: 12),
+      _detailEntry('Wunsch des Kunden', customerWish, maxLines: 10),
+    ].whereType<_DetailEntry>().toList();
 
     Color _statusColor(int s) {
       // gleiche Logik/Farben wie im Kundenbereich
@@ -4307,38 +4380,26 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
               const SizedBox(height: 8),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 18),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.30),
-                  borderRadius: BorderRadius.circular(12),
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.28),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.25),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
                       'Details der Reklamation',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w700, letterSpacing: 0.3),
                     ),
-                    const SizedBox(height: 8),
-                    _detKv('Segment',       segment),
-                    _detKv('Produkttyp',    productType),
-                    _detKv('Artikelnummer', articleNo),
-                    _detKv('Produkte zurückgeschickt?', returned),
-                    _detKv('Am Patienten angewendet?', applied),
-                    _detKv('Verletzung?', injury),
-                    _detKv('Verletzungsbeschreibung', injuryDesc, maxLines: 6),
-
-                    Row(
-                      children: [
-                        Expanded(child: _detKv('Charge / LOT', batch)),
-                        const SizedBox(width: 12),
-                        Expanded(child: _detKv('Seriennummer', serial)),
-                      ],
-                    ),
-                    _detKv('Menge', qty),
-                    _detKv('Fehler / Beschreibung', desc, maxLines: 6),
-                    _detKv('Grund / Ursache',       reason, maxLines: 4),
-                    _detKv('Wunsch des Kunden',     customerWish, maxLines: 3),
+                    const SizedBox(height: 12),
+                    _buildDetailCards(detailEntries),
                   ],
                 ),
               ),
