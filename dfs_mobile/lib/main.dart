@@ -943,12 +943,20 @@ class _LoginScreenState extends State<_LoginScreen> {
   Future<void> _doLogin() async {
     setState(() { _busy = true; _err = null; });
     try {
-      final ok = await widget.api.login(_email.text.trim(), _pw.text); // Kunden-Login
+      final result = await widget.api.login(_email.text.trim(), _pw.text); // Kunden-Login
       if (!mounted) return;
-      if (ok) {
+      if (result.ok) {
         widget.onLoggedIn();
       } else {
-        setState(() => _err = AppLocalizations.of(context)!.invalid);
+        final t = AppLocalizations.of(context)!;
+        final err = result.revoked
+            ? t.account_blocked
+            : (result.statusCode == 401
+                ? t.login_failed_check_credentials
+                : (result.message?.isNotEmpty == true
+                    ? result.message!
+                    : t.invalid));
+        setState(() => _err = err);
       }
     } catch (e) {
       if (!mounted) return;
