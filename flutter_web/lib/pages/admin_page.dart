@@ -737,9 +737,11 @@ class _AdminPageState extends State<AdminPage> {
       return null;
     }
 
+    final theme = Theme.of(context);
     return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
         child: Form(
           key: formKey,
           child: Column(
@@ -748,61 +750,81 @@ class _AdminPageState extends State<AdminPage> {
               Row(
                 children: [
                   const Icon(Icons.person_add_alt_1_outlined),
-                  const SizedBox(width: 8),
-                  const Text(
+                  const SizedBox(width: 10),
+                  Text(
                     'Neuen Kunden anlegen',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                   ),
                   const Spacer(),
                   if (_custBusy)
                     const SizedBox(
-                      width: 18,
-                      height: 18,
+                      width: 20,
+                      height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 6),
+              Text(
+                'Lege einen neuen Kundenaccount mit den untenstehenden Daten an. '
+                'Pflichtfelder sind entsprechend markiert.',
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: 16),
 
               if (_custErr != null) ...[
-                Text(_custErr!, style: const TextStyle(color: Colors.red)),
-                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.errorContainer,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    _custErr!,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onErrorContainer,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
               ],
 
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: [
-                  SizedBox(
-                    width: 320,
+              _AdminFormSection(
+                icon: Icons.apartment_outlined,
+                title: 'Firmendaten',
+                description: 'Allgemeine Informationen zum Unternehmen.',
+                fields: [
+                  _FieldConfig(
+                    preferredWidth: 380,
                     child: TextFormField(
                       controller: _custCompanyCtrl,
                       decoration: const InputDecoration(
-                        labelText: 'Firma',
+                        labelText: 'Firma *',
                         border: OutlineInputBorder(),
                         isDense: true,
                       ),
                       validator: (v) => _req(v ?? '', 'Firma'),
                     ),
                   ),
-                  SizedBox(
-                    width: 320,
+                  _FieldConfig(
+                    preferredWidth: 380,
                     child: TextFormField(
                       controller: _custEmailCtrl,
                       decoration: const InputDecoration(
-                        labelText: 'E-Mail',
+                        labelText: 'E-Mail *',
                         border: OutlineInputBorder(),
                         isDense: true,
                       ),
                       validator: (v) => _req(v ?? '', 'E-Mail'),
                     ),
                   ),
-                  SizedBox(
-                    width: 200,
+                  _FieldConfig(
+                    preferredWidth: 240,
                     child: DropdownButtonFormField<String>(
                       value: _custLang,
                       decoration: const InputDecoration(
-                        labelText: 'Sprache',
+                        labelText: 'Sprache *',
                         border: OutlineInputBorder(),
                         isDense: true,
                       ),
@@ -816,72 +838,99 @@ class _AdminPageState extends State<AdminPage> {
                       onChanged: (v) => setState(() => _custLang = v ?? 'de'),
                     ),
                   ),
-                  SizedBox(
-                    width: 220,
+                ],
+              ),
+
+              _AdminFormSection(
+                icon: Icons.person_outline,
+                title: 'Ansprechpartner',
+                description: 'Persönliche Daten für den Kontakt.',
+                fields: [
+                  _FieldConfig(
+                    preferredWidth: 260,
                     child: TextFormField(
                       controller: _custFirstNameCtrl,
                       decoration: const InputDecoration(
-                        labelText: 'Vorname',
+                        labelText: 'Vorname *',
                         border: OutlineInputBorder(),
                         isDense: true,
                       ),
                       validator: (v) => _req(v ?? '', 'Vorname'),
                     ),
                   ),
-                  SizedBox(
-                    width: 220,
+                  _FieldConfig(
+                    preferredWidth: 260,
                     child: TextFormField(
                       controller: _custLastNameCtrl,
                       decoration: const InputDecoration(
-                        labelText: 'Nachname',
+                        labelText: 'Nachname *',
                         border: OutlineInputBorder(),
                         isDense: true,
                       ),
                       validator: (v) => _req(v ?? '', 'Nachname'),
                     ),
                   ),
-                  SizedBox(
-                    width: 520,
+                  _FieldConfig(
+                    preferredWidth: 260,
+                    child: TextFormField(
+                      controller: _custPhoneCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Telefon (optional)',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              _AdminFormSection(
+                icon: Icons.map_outlined,
+                title: 'Adresse',
+                description: 'Standort des Kundenunternehmens.',
+                fields: [
+                  _FieldConfig(
+                    preferredWidth: 480,
                     child: TextFormField(
                       controller: _custStreetCtrl,
                       decoration: const InputDecoration(
-                        labelText: 'Straße und Hausnummer',
+                        labelText: 'Straße und Hausnummer *',
                         border: OutlineInputBorder(),
                         isDense: true,
                       ),
                       validator: (v) => _req(v ?? '', 'Straße'),
                     ),
                   ),
-                  SizedBox(
-                    width: 180,
+                  _FieldConfig(
+                    preferredWidth: 220,
                     child: TextFormField(
                       controller: _custZipCtrl,
                       decoration: const InputDecoration(
-                        labelText: 'PLZ',
+                        labelText: 'PLZ *',
                         border: OutlineInputBorder(),
                         isDense: true,
                       ),
                       validator: (v) => _req(v ?? '', 'PLZ'),
                     ),
                   ),
-                  SizedBox(
-                    width: 280,
+                  _FieldConfig(
+                    preferredWidth: 280,
                     child: TextFormField(
                       controller: _custCityCtrl,
                       decoration: const InputDecoration(
-                        labelText: 'Ort',
+                        labelText: 'Ort *',
                         border: OutlineInputBorder(),
                         isDense: true,
                       ),
                       validator: (v) => _req(v ?? '', 'Ort'),
                     ),
                   ),
-                  SizedBox(
-                    width: 280,
+                  _FieldConfig(
+                    preferredWidth: 320,
                     child: DropdownButtonFormField<Country>(
                       value: _custCountry,
                       decoration: const InputDecoration(
-                        labelText: 'Land',
+                        labelText: 'Land *',
                         border: OutlineInputBorder(),
                         isDense: true,
                       ),
@@ -901,19 +950,16 @@ class _AdminPageState extends State<AdminPage> {
                       validator: (v) => v == null ? 'Land auswählen' : null,
                     ),
                   ),
-                  SizedBox(
-                    width: 220,
-                    child: TextFormField(
-                      controller: _custPhoneCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Telefon (optional)',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    width: 260,
+                ],
+              ),
+
+              _AdminFormSection(
+                icon: Icons.lock_outline,
+                title: 'Zugangsdaten',
+                description: 'Optionales Startpasswort für den Login.',
+                fields: [
+                  _FieldConfig(
+                    preferredWidth: 320,
                     child: TextFormField(
                       controller: _custPasswordCtrl,
                       decoration: const InputDecoration(
@@ -928,7 +974,6 @@ class _AdminPageState extends State<AdminPage> {
                 ],
               ),
 
-              const SizedBox(height: 16),
               Align(
                 alignment: Alignment.centerRight,
                 child: FilledButton.icon(
@@ -2154,6 +2199,122 @@ class _AdminPageState extends State<AdminPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _FieldConfig {
+  const _FieldConfig({required this.child, this.preferredWidth});
+
+  final Widget child;
+  final double? preferredWidth;
+}
+
+class _AdminFormSection extends StatelessWidget {
+  const _AdminFormSection({
+    required this.icon,
+    required this.title,
+    required this.fields,
+    this.description,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? description;
+  final List<_FieldConfig> fields;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    const spacing = 16.0;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        final bool threeColumns = maxWidth >= 1024;
+        final bool twoColumns = !threeColumns && maxWidth >= 720;
+        final double columnWidth;
+
+        if (threeColumns) {
+          columnWidth = (maxWidth - spacing * 2) / 3;
+        } else if (twoColumns) {
+          columnWidth = (maxWidth - spacing) / 2;
+        } else {
+          columnWidth = maxWidth;
+        }
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 18),
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceVariant.withOpacity(0.32),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(icon, color: theme.colorScheme.primary),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (description != null && description!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              description!,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: spacing,
+                runSpacing: spacing,
+                children: fields.map((field) {
+                  double widthForField = columnWidth;
+                  if (field.preferredWidth != null) {
+                    widthForField = field.preferredWidth!;
+                    if (widthForField < columnWidth) {
+                      widthForField = columnWidth;
+                    }
+                    if (widthForField > maxWidth) {
+                      widthForField = maxWidth;
+                    }
+                  }
+
+                  return ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minWidth: columnWidth,
+                      maxWidth: widthForField,
+                    ),
+                    child: SizedBox(
+                      width: widthForField,
+                      child: field.child,
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
