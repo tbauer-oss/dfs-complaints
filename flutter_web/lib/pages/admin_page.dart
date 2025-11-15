@@ -3574,7 +3574,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     return s.isEmpty ? null : s;
   }
 
-  Widget _detKv(String label, String? value, {int maxLines = 2}) {
+  Widget _detKv(String label, String? value, {int? maxLines = 2}) {
     final v = (value ?? '').trim();
     if (v.isEmpty) return const SizedBox.shrink();
 
@@ -4415,7 +4415,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                       final useTwoColumns = constraints.maxWidth >= 820;
 
                       void addDetail(List<Widget> list, String label, String? value,
-                          {int maxLines = 2}) {
+                          {int? maxLines = 2}) {
                         final trimmed = (value ?? '').trim();
                         if (trimmed.isEmpty) return;
                         final widget = _detKv(label, value, maxLines: maxLines);
@@ -4433,32 +4433,63 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                         return result;
                       }
 
-                      final leftColumn = <Widget>[];
-                      final rightColumn = <Widget>[];
+                      String? normalizeSegment(String? value) {
+                        final raw = (value ?? '').trim();
+                        if (raw.isEmpty) return null;
+                        switch (raw.toLowerCase()) {
+                          case 'zahnarzt':
+                            return 'Zahnmedizin';
+                          case 'zahntechnik':
+                            return 'Dentallabor';
+                        }
+                        return raw;
+                      }
+
+                      String? deriveProductType(String? area) {
+                        if (area == null) return null;
+                        switch (area.toLowerCase()) {
+                          case 'zahnmedizin':
+                            return 'Medizinprodukt';
+                          case 'dentallabor':
+                            return 'Laborprodukt';
+                        }
+                        return null;
+                      }
+
+                      final productArea = normalizeSegment(segment);
+                      final derivedProductType =
+                          deriveProductType(productArea ?? segment);
+
+                      final primaryColumn = <Widget>[];
+                      final secondaryColumn = <Widget>[];
                       final bottomSection = <Widget>[];
 
-                      addDetail(leftColumn, 'Segment', segment);
-                      addDetail(leftColumn, 'Produkttyp', productType);
-                      addDetail(leftColumn, 'Artikelnummer', articleNo);
-                      addDetail(leftColumn, 'Charge / LOT', batch);
-                      addDetail(leftColumn, 'Seriennummer', serial);
-                      addDetail(leftColumn, 'Menge', qty);
+                      addDetail(primaryColumn, 'Produktbereich', productArea ?? segment);
+                      addDetail(primaryColumn, 'Produkttyp',
+                          derivedProductType ?? productType);
+                      addDetail(primaryColumn, 'Artikelnummer', articleNo);
+                      addDetail(primaryColumn, 'Charge / Lot', batch);
+                      addDetail(primaryColumn, 'Menge', qty);
 
-                      addDetail(rightColumn, 'Produkte zurückgeschickt?', returned);
-                      addDetail(rightColumn, 'Am Patienten angewendet?', applied);
-                      addDetail(rightColumn, 'Verletzung?', injury);
+                      addDetail(secondaryColumn, 'Fehler / Beschreibung', desc,
+                          maxLines: null);
+                      addDetail(secondaryColumn, 'Am Patienten angewendet?', applied);
+                      addDetail(
+                          secondaryColumn,
+                          'Wurde ein Patient, Anwender oder Dritter verletzt?',
+                          injury);
+                      addDetail(secondaryColumn, 'Beschreibung der Verletzung',
+                          injuryDesc,
+                          maxLines: null);
 
-                      addDetail(bottomSection, 'Verletzungsbeschreibung', injuryDesc,
-                          maxLines: 6);
-                      addDetail(bottomSection, 'Fehler / Beschreibung', desc,
-                          maxLines: 6);
+                      addDetail(bottomSection, 'Produkte zurückgeschickt?', returned);
                       addDetail(bottomSection, 'Grund / Ursache', reason,
                           maxLines: 4);
                       addDetail(bottomSection, 'Wunsch des Kunden', customerWish,
                           maxLines: 3);
 
-                      final hasDetails = leftColumn.isNotEmpty ||
-                          rightColumn.isNotEmpty ||
+                      final hasDetails = primaryColumn.isNotEmpty ||
+                          secondaryColumn.isNotEmpty ||
                           bottomSection.isNotEmpty;
 
                       if (!hasDetails) {
@@ -4492,30 +4523,42 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                           ),
                           const SizedBox(height: 12),
                           if (useTwoColumns &&
-                              (leftColumn.isNotEmpty || rightColumn.isNotEmpty))
+                              (primaryColumn.isNotEmpty ||
+                                  secondaryColumn.isNotEmpty))
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                if (leftColumn.isNotEmpty)
-                                  Expanded(child: Column(children: spaced(leftColumn))),
-                                if (leftColumn.isNotEmpty && rightColumn.isNotEmpty)
+                                if (primaryColumn.isNotEmpty)
+                                  Expanded(
+                                      child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: spaced(primaryColumn))),
+                                if (primaryColumn.isNotEmpty &&
+                                    secondaryColumn.isNotEmpty)
                                   const SizedBox(width: 24),
-                                if (rightColumn.isNotEmpty)
-                                  Expanded(child: Column(children: spaced(rightColumn))),
+                                if (secondaryColumn.isNotEmpty)
+                                  Expanded(
+                                      child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: spaced(secondaryColumn))),
                               ],
                             )
                           else
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                ...spaced(leftColumn),
-                                if (leftColumn.isNotEmpty && rightColumn.isNotEmpty)
+                                ...spaced(primaryColumn),
+                                if (primaryColumn.isNotEmpty &&
+                                    secondaryColumn.isNotEmpty)
                                   const Divider(height: 24),
-                                ...spaced(rightColumn),
+                                ...spaced(secondaryColumn),
                               ],
                             ),
                           if (bottomSection.isNotEmpty &&
-                              (leftColumn.isNotEmpty || rightColumn.isNotEmpty))
+                              (primaryColumn.isNotEmpty ||
+                                  secondaryColumn.isNotEmpty))
                             const Divider(height: 28),
                           if (bottomSection.isNotEmpty)
                             Column(
