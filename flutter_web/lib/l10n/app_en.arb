@@ -120,6 +120,22 @@
   },
   "rep_contact_company_label": "Company",
   "rep_contact_company_email_label": "Company email",
+  "rep_menu_support_title": "Contact QM / Support",
+  "rep_menu_support_subtitle": "Reach DFS Quality Management directly",
+  "rep_support_contact_title": "Contact QM / Support",
+  "rep_support_contact_intro": "Your message will be sent directly to {email}. Please describe your request.",
+  "@rep_support_contact_intro": {
+    "placeholders": {
+      "email": { "type": "String" }
+    }
+  },
+  "rep_support_contact_from_hint": "The message will be sent using your registered email address ({email}).",
+  "@rep_support_contact_from_hint": {
+    "placeholders": {
+      "email": { "type": "String" }
+    }
+  },
+  "rep_support_contact_no_email": "No valid email address is stored for your profile.",
   "rep_contact_subject_label": "Subject",
   "rep_contact_message_label": "Message",
   "rep_contact_validation": "Please fill in subject and message.",
