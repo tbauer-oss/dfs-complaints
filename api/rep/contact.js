@@ -73,7 +73,7 @@ export default async function handler(req, res) {
     // -------------------------------------------------
     // 3) Finale Zieladresse: Override schlägt alles
     // -------------------------------------------------
-    const toAddress = overrideTo.isNotEmpty
+    const toAddress = overrideTo
       ? overrideTo
       : normalTo;
 
@@ -82,6 +82,31 @@ export default async function handler(req, res) {
       text: fullText,
       lang: 'de',
     });
+
+    const hasCompanyEmail = companyEmail && companyEmail.includes('@');
+    if (hasCompanyEmail) {
+      const confirmationLines = [
+        'Guten Tag,',
+        '',
+        'vielen Dank für Ihre Nachricht über das DFS Kundenportal.',
+        'Nachfolgend erhalten Sie eine Kopie Ihrer übermittelten Nachricht:',
+        '',
+        `Betreff: ${subjectRaw}`,
+        '',
+        '--- Nachricht ---',
+        '',
+        messageRaw,
+        '',
+        'Mit freundlichen Grüßen',
+        'DFS-DIAMON Kundenportal',
+      ];
+
+      await send(companyEmail, {
+        subject: `[DFS Kundenportal] Kopie Ihrer Nachricht: ${subjectRaw}`,
+        text: confirmationLines.join('\n'),
+        lang: 'de',
+      });
+    }
 
     return res.status(200).json({ ok: true });
   } catch (err) {
