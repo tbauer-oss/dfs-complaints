@@ -2609,9 +2609,9 @@ class _RepTrafficLight extends StatelessWidget {
 
     // Beschriftung rechts daneben (kompakt gehalten)
     String label;
-    if (onGreen)      label = 'Vertreter: akzeptiert';
-    else if (onRed)   label = 'Vertreter: abgelehnt';
-    else              label = 'Vertreter: offen';
+    if (onGreen)      label = 'Vertreterentscheidung: akzeptiert';
+    else if (onRed)   label = 'Vertreterentscheidung: abgelehnt';
+    else              label = 'Vertreterentscheidung: offen';
 
     final textStyle = TextStyle(
       fontWeight: FontWeight.w700,
