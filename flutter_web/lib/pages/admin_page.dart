@@ -2956,6 +2956,7 @@ class AdminComplaint {
   String? decision;
   String? reportLink;
   String? internalNo;
+  String? adminNotes;
   final Map<String, dynamic>? payload;
 
   // Vertreter-Daten
@@ -2982,6 +2983,7 @@ class AdminComplaint {
     this.decision,
     this.reportLink,
     this.internalNo,
+    this.adminNotes,
     this.payload,
     this.repOpinion,
     this.repId,
@@ -3052,6 +3054,9 @@ class AdminComplaint {
       internalNo: (j['internalNo']?.toString().trim().isEmpty ?? true)
           ? null
           : j['internalNo']!.toString().trim(),
+      adminNotes: (j['adminNotes'] ?? j['notes']) == null
+          ? null
+          : j['adminNotes']?.toString() ?? j['notes']?.toString(),
       payload: payload,
       repOpinion: _norm(repRaw),
       repId: repIdLocal,
@@ -3067,6 +3072,7 @@ class AdminComplaint {
         'decision': decision,
         'reportLink': reportLink,
         'internalNo': internalNo,
+        'adminNotes': adminNotes,
         'payload': payload,
         if (repOpinion != null) 'repOpinion': repOpinion,
         if (repId != null) 'repId': repId,
@@ -3227,8 +3233,10 @@ class _ComplaintEditor extends StatefulWidget {
 class _ComplaintEditorState extends State<_ComplaintEditor> {
   final _reportCtrl = TextEditingController();
   final _internalCtrl = TextEditingController();
+  final _notesCtrl = TextEditingController();
   bool _busy = false;
   bool _expanded = false;
+  bool _noteOpen = false;
 
   int? _status; // 1..6
   String? _decision;
@@ -3271,6 +3279,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     super.initState();
     _reportCtrl.text = widget.c.reportLink ?? '';
     _internalCtrl.text = widget.c.internalNo ?? '';
+    _notesCtrl.text = widget.c.adminNotes ?? '';
     _status = widget.c.status;
     _decision = widget.c.decision;
   }
@@ -3279,7 +3288,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   void dispose() {
     _reportCtrl.dispose();
     _internalCtrl.dispose();
-    
+    _notesCtrl.dispose();
+
     super.dispose();
   }
 
@@ -3345,6 +3355,66 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       setState(() {
         widget.c.internalNo = (widget.c.internalNo ?? '').isEmpty ? null : widget.c.internalNo;
       });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _toggleNotes() {
+    setState(() {
+      if (!_noteOpen) {
+        _notesCtrl.text = widget.c.adminNotes ?? '';
+      }
+      _noteOpen = !_noteOpen;
+    });
+  }
+
+  void _closeNotes() {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _noteOpen = false;
+      _notesCtrl.text = widget.c.adminNotes ?? '';
+    });
+  }
+
+  Future<void> _saveNotes() async {
+    if (_busy) return;
+
+    final current = widget.c.adminNotes ?? '';
+    final local = _notesCtrl.text;
+    if (local == current) {
+      _closeNotes();
+      return;
+    }
+
+    setState(() => _busy = true);
+    try {
+      final trimmedRight = local.trimRight();
+      final normalized = trimmedRight.trim().isEmpty ? '' : trimmedRight;
+
+      final updated = await widget.api.adminComplaintUpdate(
+        ticket: widget.c.ticket,
+        notes: normalized,
+      );
+
+      if (!mounted) return;
+      FocusScope.of(context).unfocus();
+      setState(() {
+        widget.c.adminNotes = updated.adminNotes;
+        _notesCtrl.text = updated.adminNotes ?? '';
+        _noteOpen = false;
+      });
+
+      final hasNote = (updated.adminNotes ?? '').trim().isNotEmpty;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(hasNote ? 'Notiz gespeichert.' : 'Notiz entfernt.')),
+      );
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Fehler: $e')),
@@ -3574,6 +3644,9 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     final c = widget.c;
     final scheme = Theme.of(context).colorScheme;
     // ---- Payload-Felder (nur lesend) ----
+    final currentNote = widget.c.adminNotes ?? '';
+    final hasNote = currentNote.trim().isNotEmpty;
+    final noteChanged = _notesCtrl.text != currentNote;
     final Map<String, dynamic>? p = (c.payload is Map) ? (c.payload as Map).cast<String, dynamic>() : null;
     final segment      = _detPickOrNull(p, ['segment','customer_segment','segment_code']);
     final productType  = _detPickOrNull(p, ['product_type','productType','type']);
@@ -3653,6 +3726,15 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                             'Ticket: ${c.ticket}',
                             style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
                           ),
+                          if (hasNote)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 6),
+                              child: Icon(
+                                Icons.sticky_note_2,
+                                size: 16,
+                                color: Colors.amber.shade800,
+                              ),
+                            ),
                           const SizedBox(width: 10),
                           if ((c.internalNo ?? '').trim().isNotEmpty)
                             Container(
@@ -3726,9 +3808,43 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                     final label = (widget.companyHint != null && widget.companyHint!.trim().isNotEmpty)
                         ? 'Firma: ${widget.companyHint}'
                         : 'E-Mail: ${c.email}';
+                    Widget noteButton() {
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          IconButton(
+                            tooltip: hasNote ? 'Notiz anzeigen/bearbeiten' : 'Notiz hinzufügen',
+                            icon: Icon(_noteOpen ? Icons.sticky_note_2 : Icons.sticky_note_2_outlined),
+                            onPressed: _busy ? null : _toggleNotes,
+                          ),
+                          if (hasNote)
+                            Positioned(
+                              top: 10,
+                              right: 10,
+                              child: Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: Colors.amber.shade700,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.amber.shade200,
+                                      blurRadius: 2,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
+                    }
+
                     return Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        noteButton(),
+                        const SizedBox(width: 4),
                         Text(
                           label,
                           style: TextStyle(
@@ -3749,6 +3865,103 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                   },
                 ),
               ],
+            ),
+
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              transitionBuilder: (child, anim) => SizeTransition(sizeFactor: anim, axisAlignment: -1, child: child),
+              child: !_noteOpen
+                  ? const SizedBox.shrink()
+                  : Container(
+                      key: const ValueKey('admin-note'),
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(top: 12),
+                      padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF9C4),
+                        borderRadius: BorderRadius.circular(18),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.brown.withOpacity(0.18),
+                            blurRadius: 18,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                        border: Border.all(color: Colors.amber.shade200, width: 1.2),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.sticky_note_2, color: Color(0xFF8D6E63)),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Interne Notiz',
+                                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                        color: const Color(0xFF5D4037),
+                                      ),
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: 'Schließen',
+                                onPressed: _closeNotes,
+                                icon: const Icon(Icons.close),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFFDE7),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.amber.shade100),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            child: TextField(
+                              controller: _notesCtrl,
+                              minLines: 4,
+                              maxLines: 8,
+                              enabled: !_busy,
+                              onChanged: (_) => setState(() {}),
+                              decoration: const InputDecoration(
+                                isCollapsed: true,
+                                border: InputBorder.none,
+                                hintText: 'Hier deine interne Notiz zur Reklamation erfassen ...',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  hasNote
+                                      ? 'Notizen sind nur im Adminbereich sichtbar.'
+                                      : 'Noch keine Notiz gespeichert – alles bleibt intern.',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: const Color(0xFF6D4C41),
+                                      ),
+                                ),
+                              ),
+                              TextButton.icon(
+                                onPressed: _busy ? null : _closeNotes,
+                                icon: const Icon(Icons.close),
+                                label: const Text('Schließen'),
+                              ),
+                              const SizedBox(width: 8),
+                              FilledButton.icon(
+                                onPressed: (_busy || !noteChanged) ? null : _saveNotes,
+                                icon: const Icon(Icons.save_outlined),
+                                label: const Text('Notiz speichern'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
             ),
 
             const SizedBox(height: 10),
@@ -4174,13 +4387,15 @@ class AdminApi {
     int? status,
     String? decision,
     String? reportLink,
-    String? internalNo, // ← NEU
+    String? internalNo,
+    String? notes,
   }) async {
     final body = <String, dynamic>{'ticket': ticket};
     if (status != null) body['status'] = status;
     body['decision'] = decision ?? '';
     if (reportLink != null) body['reportLink'] = reportLink;
-    if (internalNo != null) body['internalNo'] = internalNo; // ← NEU
+    if (internalNo != null) body['internalNo'] = internalNo;
+    if (notes != null) body['notes'] = notes;
 
     final res = await _request('POST', '/api/admin/complaints', body: body);
     if (res.status != 200) {
