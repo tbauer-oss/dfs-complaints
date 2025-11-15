@@ -4440,115 +4440,281 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                 secondChild: const SizedBox.shrink(),
               ),
 
-              // ====== Editor-Bereich (unverändert inhaltlich) ======                        
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: DropdownButtonFormField<int>(
-                          value: _status,
-                          decoration: const InputDecoration(
-                            labelText: 'Status',
-                            border: OutlineInputBorder(),
+              // ====== Editor-Bereich (Layout überarbeitet) ======
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final theme = Theme.of(context);
+                  final scheme = theme.colorScheme;
+                  final textTheme = theme.textTheme;
+                  final isWide = constraints.maxWidth >= 920;
+                  final inlineActions = constraints.maxWidth >= 720;
+                  final secondaryTextColor =
+                      theme.textTheme.bodySmall?.color?.withOpacity(0.7) ??
+                          scheme.onSurfaceVariant.withOpacity(0.85);
+
+                  Widget buildStatusSection() {
+                    final dropdownStyle = const InputDecoration(
+                      border: OutlineInputBorder(),
+                    );
+
+                    final statusField = DropdownButtonFormField<int>(
+                      value: _status,
+                      decoration: dropdownStyle.copyWith(labelText: 'Status'),
+                      items: kStatusItems
+                          .map((e) => DropdownMenuItem<int>(
+                                value: e['value'] as int,
+                                child: Text(e['label'] as String),
+                              ))
+                          .toList(),
+                      onChanged: (v) => setState(() => _status = v),
+                    );
+
+                    final decisionField = DropdownButtonFormField<String>(
+                      value: _decision ?? '',
+                      decoration: dropdownStyle.copyWith(labelText: 'Entscheidung'),
+                      items: kDecisionItems
+                          .map((e) => DropdownMenuItem<String>(
+                                value: e['value']!,
+                                child: Text(e['label']!),
+                              ))
+                          .toList(),
+                      onChanged: (v) =>
+                          setState(() => _decision = (v == null || v.isEmpty) ? null : v),
+                    );
+
+                    final saveButton = FilledButton.icon(
+                      onPressed: _busy ? null : _saveStatusDecision,
+                      icon: const Icon(Icons.save_outlined),
+                      label: const Text('Änderungen speichern'),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(0, 56),
+                      ),
+                    );
+
+                    if (isWide) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            'Status & Entscheidung',
+                            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                           ),
-                          items: kStatusItems
-                              .map((e) => DropdownMenuItem<int>(
-                                    value: e['value'] as int,
-                                    child: Text(e['label'] as String),
-                                  ))
-                              .toList(),
-                          onChanged: (v) => setState(() => _status = v),
+                          const SizedBox(height: 12),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Expanded(child: statusField),
+                              const SizedBox(width: 12),
+                              Expanded(child: decisionField),
+                              const SizedBox(width: 12),
+                              SizedBox(width: 200, child: saveButton),
+                            ],
+                          ),
+                        ],
+                      );
+                    }
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Status & Entscheidung',
+                          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 12),
+                        statusField,
+                        const SizedBox(height: 12),
+                        decisionField,
+                        const SizedBox(height: 12),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: SizedBox(width: 220, child: saveButton),
+                        ),
+                      ],
+                    );
+                  }
+
+                  Widget buildFieldWithAction({
+                    required Widget field,
+                    required Widget action,
+                  }) {
+                    if (inlineActions) {
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Expanded(child: field),
+                          const SizedBox(width: 12),
+                          SizedBox(height: 52, child: action),
+                        ],
+                      );
+                    }
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        field,
+                        const SizedBox(height: 8),
+                        Align(alignment: Alignment.centerRight, child: action),
+                      ],
+                    );
+                  }
+
+                  Widget buildMetaSection() {
+                    final internalField = TextField(
+                      controller: _internalCtrl,
+                      decoration: InputDecoration(
+                        labelText: 'Interne DFS-Reklamationsnummer',
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.tag),
+                        suffixIcon: IconButton(
+                          tooltip: 'Interne Nummer entfernen',
+                          onPressed: _busy ? null : _clearInternalNo,
+                          icon: const Icon(Icons.delete_outline),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          value: _decision ?? '',
-                          decoration: const InputDecoration(
-                            labelText: 'Entscheidung',
-                            border: OutlineInputBorder(),
-                          ),
-                          items: kDecisionItems
-                              .map((e) => DropdownMenuItem<String>(
-                                    value: e['value']!,
-                                    child: Text(e['label']!),
-                                  ))
-                              .toList(),
-                          onChanged: (v) =>
-                              setState(() => _decision = (v == null || v.isEmpty) ? null : v),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      FilledButton(
-                        onPressed: _busy ? null : _saveStatusDecision,
-                        child: const Text('Speichern'),
-                      ),
-                    ],
-                  ),
+                      onSubmitted: (_) => _busy ? null : _saveInternalNo(),
+                    );
 
-                  const SizedBox(height: 12),
-
-                  TextField(
-                    controller: _internalCtrl,
-                    decoration: InputDecoration(
-                      labelText: 'Interne DFS-Reklamationsnummer',
-                      border: const OutlineInputBorder(),
-                      prefixIcon: const Icon(Icons.tag),
-                      suffixIcon: IconButton(
-                        tooltip: 'Interne Nummer entfernen',
-                        onPressed: _busy ? null : _clearInternalNo,
-                        icon: const Icon(Icons.delete_outline),
-                      ),
-                    ),
-                    onSubmitted: (_) => _busy ? null : _saveInternalNo(), // ← NEU
-                  ),
-
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: OutlinedButton.icon(
+                    final internalAction = OutlinedButton.icon(
                       onPressed: _busy ? null : _saveInternalNo,
                       icon: const Icon(Icons.save_outlined),
                       label: const Text('Interne Nummer speichern'),
-                    ),
-                  ),
+                    );
 
-                  const SizedBox(height: 12),
-
-                  TextField(
-                    controller: _reportCtrl,
-                    decoration: InputDecoration(
-                      labelText: 'Report-Link (optional)',
-                      border: const OutlineInputBorder(),
-                      suffixIcon: IconButton(
-                        tooltip: 'Link entfernen',
-                        onPressed: _busy ? null : _clearReportLink,
-                        icon: const Icon(Icons.delete_outline),
+                    final reportField = TextField(
+                      controller: _reportCtrl,
+                      decoration: InputDecoration(
+                        labelText: 'Report-Link (optional)',
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          tooltip: 'Link entfernen',
+                          onPressed: _busy ? null : _clearReportLink,
+                          icon: const Icon(Icons.delete_outline),
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: OutlinedButton.icon(
+                    );
+
+                    final reportAction = OutlinedButton.icon(
                       onPressed: _busy ? null : _saveReportLink,
                       icon: const Icon(Icons.save_outlined),
                       label: const Text('Link speichern'),
-                    ),
-                  ),
+                    );
 
-                  const SizedBox(height: 6),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                      onPressed: _busy ? null : _deleteComplaint,
-                      icon: const Icon(Icons.delete_outline),
-                      label: const Text('Ticket löschen'),
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Meta & Aktionen',
+                          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 12),
+                        buildFieldWithAction(field: internalField, action: internalAction),
+                        const SizedBox(height: 16),
+                        buildFieldWithAction(field: reportField, action: reportAction),
+                        const SizedBox(height: 20),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            onPressed: _busy ? null : _deleteComplaint,
+                            icon: const Icon(Icons.delete_outline),
+                            label: const Text('Ticket löschen'),
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+
+                  final editor = isWide
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: buildStatusSection()),
+                            const SizedBox(width: 28),
+                            Expanded(child: buildMetaSection()),
+                          ],
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            buildStatusSection(),
+                            const SizedBox(height: 24),
+                            buildMetaSection(),
+                          ],
+                        );
+
+                  final baseColor = scheme.surface;
+                  final overlay = theme.brightness == Brightness.dark
+                      ? Colors.white.withOpacity(0.08)
+                      : Colors.black.withOpacity(0.04);
+
+                  return Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isWide ? 24 : 18,
+                      vertical: 22,
                     ),
-                  ),
-                ],
+                    decoration: BoxDecoration(
+                      color: Color.alphaBlend(overlay, baseColor),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: scheme.outline.withOpacity(0.35)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(
+                            theme.brightness == Brightness.dark ? 0.35 : 0.08,
+                          ),
+                          blurRadius: 18,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 18,
+                                  backgroundColor: scheme.primary.withOpacity(0.12),
+                                  child: Icon(
+                                    Icons.manage_accounts_outlined,
+                                    color: scheme.primary,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  'Reklamation bearbeiten',
+                                  style: textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (!isWide)
+                              Text(
+                                'Ticket: ${c.ticket}',
+                                style: textTheme.bodySmall?.copyWith(
+                                  color: secondaryTextColor,
+                                ),
+                              ),
+                          ],
+                        ),
+                        if (isWide) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Ticket: ${c.ticket}',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: secondaryTextColor,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 20),
+                        editor,
+                      ],
+                    ),
+                  );
+                },
               ),
             ],
           ],
