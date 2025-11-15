@@ -219,6 +219,10 @@ export default async function handler(req, res) {
       const hasDecision = Object.prototype.hasOwnProperty.call(body, 'decision');
       const rawDecision = hasDecision ? body.decision : undefined; // 'accepted' | 'rejected' | "" | null | undefined
       const reportLink  = body?.reportLink; // string | "" | null | undefined
+      const hasInternal = Object.prototype.hasOwnProperty.call(body, 'internalNo');
+      const rawInternal = hasInternal ? body.internalNo : undefined;
+      const hasNotes    = Object.prototype.hasOwnProperty.call(body, 'notes');
+      const rawNotes    = hasNotes ? body.notes : undefined;
 
       if (!ticket) return bad(res, 'missing ticket', 400);
 
@@ -262,6 +266,20 @@ export default async function handler(req, res) {
         const v = (reportLink ?? '').toString().trim();
         if (v) c.reportLink = v;
         else delete c.reportLink;
+      }
+
+      // Interne Nummer (optional; "" => löschen)
+      if (hasInternal) {
+        const v = (rawInternal ?? '').toString().trim();
+        if (v) c.internalNo = v;
+        else delete c.internalNo;
+      }
+
+      // Admin-Notizen (optional; "" => löschen)
+      if (hasNotes) {
+        const v = (rawNotes ?? '').toString();
+        if (v.trim()) c.adminNotes = v;
+        else delete c.adminNotes;
       }
 
       c.updatedAt = Date.now();
@@ -380,6 +398,8 @@ export default async function handler(req, res) {
         statusLabel: STATUS_LABEL[c.status] || STATUS_LABEL[1],
         decision: c.decision ?? null,
         reportLink: c.reportLink ?? null,
+        internalNo: c.internalNo ?? null,
+        adminNotes: c.adminNotes ?? null,
         updatedAt: c.updatedAt,
       });
     }
