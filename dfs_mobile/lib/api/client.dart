@@ -274,24 +274,6 @@ class ApiClient {
     return _repPostJson(path, body);
   }
 
-  Future<void> repContactQM({
-    required String subject,
-    required String message,
-  }) async {
-    final r = await http.post(
-      _u('/api/rep/contact-qm'),
-      headers: _repHeaders(),
-      body: jsonEncode({
-        'subject': subject,
-        'message': message,
-      }),
-    );
-
-    if (!_ok2xx(r.statusCode)) {
-      throw ApiError(r.statusCode, _extractMessage(r.body));
-    }
-  }
-
   Future<Map<String, dynamic>?> getAppMeta({bool refresh = false}) async {
     final cacheValid = _appMeta != null && _appMetaLoadedAt != null &&
         DateTime.now().difference(_appMetaLoadedAt!).inMinutes < 5;
