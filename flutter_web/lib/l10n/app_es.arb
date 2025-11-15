@@ -116,6 +116,22 @@
   "rep_contact_company_email_label": "Correo electrónico de la empresa",
   "rep_contact_subject_label": "Asunto",
   "rep_contact_message_label": "Mensaje",
+  "rep_menu_support_title": "Contactar con QM / Soporte",
+  "rep_menu_support_subtitle": "Contacte directamente con Quality Management",
+  "rep_support_contact_title": "Contactar con QM / Soporte",
+  "rep_support_contact_intro": "Su mensaje se enviará directamente a {email}. Describa su solicitud, por favor.",
+  "@rep_support_contact_intro": {
+    "placeholders": {
+      "email": { "type": "String" }
+    }
+  },
+  "rep_support_contact_from_hint": "El mensaje se enviará con su dirección de correo registrada ({email}).",
+  "@rep_support_contact_from_hint": {
+    "placeholders": {
+      "email": { "type": "String" }
+    }
+  },
+  "rep_support_contact_no_email": "No hay ninguna dirección de correo válida guardada para su perfil.",
   "rep_contact_validation": "Introduzca el asunto y el mensaje.",
   "rep_contact_no_rep_email": "No hay ninguna dirección de correo para este representante.",
   "rep_contact_sent": "Mensaje enviado correctamente.",

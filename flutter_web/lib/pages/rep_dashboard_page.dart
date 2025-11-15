@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../api/client.dart';
 import 'rep_profile_page.dart';
+import 'rep_support_contact_form.dart';
 import 'dart:html' as html;
 import '../l10n/app_localizations.dart';
 import '../widgets/lang_action.dart';
@@ -20,7 +21,7 @@ extension _L10nX on BuildContext {
 enum _RepFilter { all, open, rejected, finished }
 
 // Menü-Views
-enum _RepView { menu, open, all, customers, account }
+enum _RepView { menu, open, all, customers, support, account }
 
 class RepDashboardPage extends StatefulWidget {
   final ApiClient api;
@@ -50,6 +51,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
   // neue Menü-/Seitenlogik
   _RepView _view = _RepView.menu;
+  final GlobalKey<RepSupportContactFormState> _supportFormKey =
+      GlobalKey<RepSupportContactFormState>();
 
   // Firmenfilter (Dropdown) – gilt für „Alle Reklamationen“ und „Offene Reklamationen“
   String? _selectedCompany;
@@ -93,6 +96,17 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       _persistSeen();
       if (mounted) setState(() {});
     }
+  }
+
+  Future<bool> _confirmLeaveCurrentView() async {
+    if (_view == _RepView.support) {
+      final form = _supportFormKey.currentState;
+      if (form != null) {
+        final ok = await form.confirmLeave();
+        if (!ok) return false;
+      }
+    }
+    return true;
   }
 
   @override
@@ -981,6 +995,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
       _RepView.open      => t.complaintsMyCustomer,
       _RepView.all       => 'Alle Reklamationen',
       _RepView.customers => t.myCustomers,
+      _RepView.support   => t.rep_support_contact_title,
       _RepView.account   => t.profilePW,
     };
 
@@ -993,6 +1008,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                 _RepView.open      => _scrollWrap(_buildOpenComplaints()),
                 _RepView.all       => _scrollWrap(_buildAllComplaints()),
                 _RepView.customers => _scrollWrap(_buildCustomersCard()),
+                _RepView.support   => _scrollWrap(_buildSupportContactCard()),
                 _RepView.account   => _scrollWrap(_buildAccountCard()),
               };
 
@@ -1001,7 +1017,11 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     return WillPopScope(
       onWillPop: () async {
         if (canGoBack) {
-          setState(() => _view = _RepView.menu);
+          final ok = await _confirmLeaveCurrentView();
+          if (!ok) return false;
+          if (mounted) {
+            setState(() => _view = _RepView.menu);
+          }
           return false;
         }
         Navigator.of(context).pushNamedAndRemoveUntil('/', (Route<dynamic> r) => false);
@@ -1014,7 +1034,11 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
           leading: canGoBack
               ? IconButton(
                   icon: const Icon(Icons.arrow_back),
-                  onPressed: () => setState(() => _view = _RepView.menu),
+                  onPressed: () async {
+                    if (!await _confirmLeaveCurrentView()) return;
+                    if (!mounted) return;
+                    setState(() => _view = _RepView.menu);
+                  },
                 )
               : null,
           actions: [
@@ -1100,10 +1124,14 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
           count: openCount,
           compact: compact,
           scale: scale,
-          onTap: () => setState(() {
-            _filter = _RepFilter.open;
-            _view = _RepView.open;
-          }),
+          onTap: () async {
+            if (!await _confirmLeaveCurrentView()) return;
+            if (!mounted) return;
+            setState(() {
+              _filter = _RepFilter.open;
+              _view = _RepView.open;
+            });
+          },
         ),
         _MenuCard(
           color: Colors.indigo,
@@ -1113,7 +1141,11 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
           count: allCount,
           compact: compact,
           scale: scale,
-          onTap: () => setState(() => _view = _RepView.all),
+          onTap: () async {
+            if (!await _confirmLeaveCurrentView()) return;
+            if (!mounted) return;
+            setState(() => _view = _RepView.all);
+          },
         ),
         _MenuCard(
           color: Colors.teal,
@@ -1123,7 +1155,11 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
           count: _customers.length,
           compact: compact,
           scale: scale,
-          onTap: () => setState(() => _view = _RepView.customers),
+          onTap: () async {
+            if (!await _confirmLeaveCurrentView()) return;
+            if (!mounted) return;
+            setState(() => _view = _RepView.customers);
+          },
         ),
         _MenuCard(
           color: Colors.blueGrey,
@@ -1133,7 +1169,25 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
           count: null,
           compact: compact,
           scale: scale,
-          onTap: () => setState(() => _view = _RepView.account),
+          onTap: () async {
+            if (!await _confirmLeaveCurrentView()) return;
+            if (!mounted) return;
+            setState(() => _view = _RepView.account);
+          },
+        ),
+        _MenuCard(
+          color: Colors.deepOrange,
+          icon: Icons.support_agent_outlined,
+          title: ctx.t.rep_menu_support_title,
+          subtitle: ctx.t.rep_menu_support_subtitle,
+          count: null,
+          compact: compact,
+          scale: scale,
+          onTap: () async {
+            if (!await _confirmLeaveCurrentView()) return;
+            if (!mounted) return;
+            setState(() => _view = _RepView.support);
+          },
         ),
       ];
 
@@ -1149,6 +1203,39 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
         itemBuilder: (_, i) => tiles[i],
       );
     });
+  }
+
+  Widget _buildSupportContactCard() {
+    String s(Object? v) => (v ?? '').toString().trim();
+
+    final firstName = s(_me?['firstName']);
+    final lastName  = s(_me?['lastName']);
+    final email     = s(_me?['email']);
+    final region    = s(_me?['region']);
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: RepSupportContactForm(
+          key: _supportFormKey,
+          api: widget.api,
+          repFirstName: firstName,
+          repLastName: lastName,
+          repEmail: email,
+          repRegion: region,
+          onCancel: () {
+            if (mounted) {
+              setState(() => _view = _RepView.menu);
+            }
+          },
+          onSent: () {
+            if (mounted) {
+              setState(() => _view = _RepView.menu);
+            }
+          },
+        ),
+      ),
+    );
   }
 
   // ---- Seite: Offene Reklamationen (mit Firmen-Dropdown) ----
