@@ -443,22 +443,63 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                 final productType = _productTypeFromPayload(p);
 
                                 // HEADER: Status, Artikelnummer, Produkttyp sofort sichtbar
-                                final headerLine = Wrap(
+                                final attachmentsButton = TextButton.icon(
+                                  onPressed: _busy ? null : () => _addAttachments(c),
+                                  icon: const Icon(Icons.attach_file_outlined),
+                                  label: Text(t.attachments_add),
+                                );
+
+                                final infoWrap = Wrap(
                                   spacing: 8,
                                   runSpacing: 8,
                                   crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
                                     _StatusPill(text: statusText, color: statusColor),
                                     if (articleNo.isNotEmpty)
-                                      _KeyValuePill(icon: Icons.handyman_outlined, label: (t.articleNo ?? t.article), value: articleNo),
+                                      _KeyValuePill(
+                                          icon: Icons.handyman_outlined,
+                                          label: (t.articleNo ?? t.article),
+                                          value: articleNo),
                                     if (productType.isNotEmpty)
-                                      _KeyValuePill(icon: Icons.category_outlined, label: t.product_type ?? 'Produkttyp', value: productType),
+                                      _KeyValuePill(
+                                          icon: Icons.category_outlined,
+                                          label: t.product_type ?? 'Produkttyp',
+                                          value: productType),
                                     if ((c.decision ?? '').isNotEmpty)
                                       _StatusPill(
-                                        text: (c.decision == 'accepted') ? t.decision_accepted : t.decision_rejected,
+                                        text: (c.decision == 'accepted')
+                                            ? t.decision_accepted
+                                            : t.decision_rejected,
                                         color: (c.decision == 'accepted') ? Colors.green : Colors.red,
                                       ),
                                   ],
+                                );
+
+                                final headerLine = LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    if (constraints.maxWidth < 520) {
+                                      return Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          infoWrap,
+                                          const SizedBox(height: 8),
+                                          Align(
+                                            alignment: Alignment.centerRight,
+                                            child: attachmentsButton,
+                                          ),
+                                        ],
+                                      );
+                                    }
+
+                                    return Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Expanded(child: infoWrap),
+                                        const SizedBox(width: 12),
+                                        attachmentsButton,
+                                      ],
+                                    );
+                                  },
                                 );
 
                                 // EXPANSION: alle Details
@@ -582,11 +623,6 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                               ),
                                             if (canOpenReport)
                                               const SizedBox(width: 8),
-                                            TextButton.icon(
-                                              onPressed: _busy ? null : () => _addAttachments(c),
-                                              icon: const Icon(Icons.attach_file_outlined),
-                                              label: Text(t.attachments_add),
-                                            ),
                                             const Spacer(),
                                             TextButton.icon(
                                               onPressed: () async {
