@@ -3136,6 +3136,7 @@ class AdminComplaint {
   String? decision;
   String? reportLink;
   String? internalNo;
+  String? adminNotes;
   final Map<String, dynamic>? payload;
 
   // Vertreter-Daten
@@ -3162,6 +3163,7 @@ class AdminComplaint {
     this.decision,
     this.reportLink,
     this.internalNo,
+    this.adminNotes,
     this.payload,
     this.repOpinion,
     this.repId,
@@ -3232,6 +3234,9 @@ class AdminComplaint {
       internalNo: (j['internalNo']?.toString().trim().isEmpty ?? true)
           ? null
           : j['internalNo']!.toString().trim(),
+      adminNotes: (j['adminNotes'] ?? j['notes']) == null
+          ? null
+          : j['adminNotes']?.toString() ?? j['notes']?.toString(),
       payload: payload,
       repOpinion: _norm(repRaw),
       repId: repIdLocal,
@@ -3414,8 +3419,10 @@ class _ComplaintEditor extends StatefulWidget {
 class _ComplaintEditorState extends State<_ComplaintEditor> {
   final _reportCtrl = TextEditingController();
   final _internalCtrl = TextEditingController();
+  final _notesCtrl = TextEditingController();
   bool _busy = false;
   bool _expanded = false;
+  bool _noteOpen = false;
 
   int? _status; // 1..6
   String? _decision;
@@ -3464,6 +3471,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     super.initState();
     _reportCtrl.text = widget.c.reportLink ?? '';
     _internalCtrl.text = widget.c.internalNo ?? '';
+    _notesCtrl.text = widget.c.adminNotes ?? '';
     _status = widget.c.status;
     _decision = widget.c.decision;
   }
@@ -3472,7 +3480,67 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   void dispose() {
     _reportCtrl.dispose();
     _internalCtrl.dispose();
+    _notesCtrl.dispose();
     super.dispose();
+  }
+
+  void _syncNotesFrom(AdminComplaint updated) {
+    final previous = widget.c.adminNotes ?? '';
+    final next = updated.adminNotes ?? '';
+    widget.c.adminNotes = updated.adminNotes;
+    if (!_noteOpen || _notesCtrl.text == previous) {
+      _notesCtrl.text = next;
+    }
+  }
+
+  void _toggleNotes() {
+    if (_noteOpen) {
+      _closeNotes();
+    } else {
+      setState(() {
+        _noteOpen = true;
+        _notesCtrl.text = widget.c.adminNotes ?? '';
+      });
+    }
+  }
+
+  void _closeNotes() {
+    setState(() {
+      _noteOpen = false;
+      _notesCtrl.text = widget.c.adminNotes ?? '';
+    });
+  }
+
+  Future<void> _saveNotes() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final updated = await widget.api.adminComplaintUpdate(
+        ticket: widget.c.ticket,
+        notes: _notesCtrl.text,
+      );
+      _syncNotesFrom(updated);
+      _notesCtrl.text = updated.adminNotes ?? '';
+      if (updated.status == 6 || updated.decision == 'rejected') {
+        widget.onClosed();
+      }
+      setState(() {
+        _noteOpen = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Notiz gespeichert.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<void> _saveReportLink() async {
@@ -3486,6 +3554,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       widget.c.reportLink = updated.reportLink;
       widget.c.status = updated.status;
       widget.c.decision = updated.decision;
+      _syncNotesFrom(updated);
 
       if (updated.status == 6 || updated.decision == 'rejected') {
         widget.onClosed();
@@ -3521,8 +3590,9 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       );
       // Fallback, falls dein Backend etwas „bereinigt“ zurückgibt
       setState(() {
-       widget.c.internalNo = updated.internalNo ?? newVal;
+        widget.c.internalNo = updated.internalNo ?? newVal;
       });
+      _syncNotesFrom(updated);
 
       if (updated.status == 6 || updated.decision == 'rejected') {
         widget.onClosed();
@@ -3565,6 +3635,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       setState(() {
         widget.c.internalNo = updated.internalNo; // bleibt i. d. R. null/leer
       });
+      _syncNotesFrom(updated);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Interne Nummer entfernt.')),
@@ -3614,6 +3685,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       );
       widget.c.status = updated.status;
       widget.c.decision = updated.decision;
+      _syncNotesFrom(updated);
 
       if (updated.status == 6 || updated.decision == 'rejected') {
         widget.onClosed();
@@ -3765,6 +3837,9 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   Widget build(BuildContext context) {
     final c = widget.c;
     final scheme = Theme.of(context).colorScheme;
+    final storedNote = widget.c.adminNotes ?? '';
+    final hasNote = storedNote.trim().isNotEmpty;
+    final noteChanged = _notesCtrl.text != storedNote;
     // ---- Payload-Felder (nur lesend) ----
     final Map<String, dynamic>? p = (c.payload is Map) ? (c.payload as Map).cast<String, dynamic>() : null;
     final segment      = _detPickOrNull(p, ['segment','customer_segment','segment_code']);
@@ -3835,6 +3910,15 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                   'Ticket: ${c.ticket}',
                   style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
                 ),
+                if (hasNote)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 6),
+                    child: Icon(
+                      Icons.sticky_note_2,
+                      size: 16,
+                      color: Colors.amber.shade800,
+                    ),
+                  ),
                 const SizedBox(width: 10),
                 if ((c.internalNo ?? '').trim().isNotEmpty)
                   Container(
@@ -3919,7 +4003,17 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                       maxLines: isNarrow ? 2 : 1,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  IconButton(
+                    tooltip: _noteOpen
+                        ? 'Notiz schließen'
+                        : (hasNote ? 'Notiz anzeigen/bearbeiten' : 'Notiz hinzufügen'),
+                    icon: Icon(
+                      (_noteOpen || hasNote) ? Icons.sticky_note_2 : Icons.sticky_note_2_outlined,
+                      color: (_noteOpen || hasNote) ? const Color(0xFF8D6E63) : null,
+                    ),
+                    onPressed: _busy ? null : _toggleNotes,
+                  ),
+                  const SizedBox(width: 4),
                   IconButton(
                     tooltip: 'E-Mail an Kunden verfassen',
                     icon: const Icon(Icons.email_outlined),
@@ -3957,11 +4051,113 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 topSection,
+                const SizedBox(height: 8),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  transitionBuilder: (child, anim) =>
+                      SizeTransition(sizeFactor: anim, axisAlignment: -1, child: child),
+                  child: !_noteOpen
+                      ? const SizedBox.shrink()
+                      : Builder(
+                          builder: (ctx) {
+                            final editingHasNote = _notesCtrl.text.trim().isNotEmpty;
+                            return Container(
+                              key: const ValueKey('admin-note'),
+                              width: double.infinity,
+                              margin: const EdgeInsets.only(top: 4),
+                              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFF9C4),
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.brown.withOpacity(0.18),
+                                    blurRadius: 14,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                                border: Border.all(color: Colors.amber.shade200, width: 1.2),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.sticky_note_2, color: Color(0xFF8D6E63)),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Interne Notiz',
+                                          style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
+                                                fontWeight: FontWeight.w700,
+                                                color: const Color(0xFF5D4037),
+                                              ),
+                                        ),
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Schließen',
+                                        onPressed: _busy ? null : _closeNotes,
+                                        icon: const Icon(Icons.close),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFFDE7),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: Colors.amber.shade100),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                    child: TextField(
+                                      controller: _notesCtrl,
+                                      minLines: 4,
+                                      maxLines: 8,
+                                      enabled: !_busy,
+                                      onChanged: (_) => setState(() {}),
+                                      decoration: const InputDecoration(
+                                        isCollapsed: true,
+                                        border: InputBorder.none,
+                                        hintText: 'Hier deine interne Notiz zur Reklamation erfassen ...',
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          editingHasNote
+                                              ? 'Notizen sind nur im Adminbereich sichtbar.'
+                                              : 'Noch keine Notiz gespeichert – alles bleibt intern.',
+                                          style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                                                color: const Color(0xFF6D4C41),
+                                              ),
+                                        ),
+                                      ),
+                                      TextButton.icon(
+                                        onPressed: _busy ? null : _closeNotes,
+                                        icon: const Icon(Icons.close),
+                                        label: const Text('Schließen'),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      FilledButton.icon(
+                                        onPressed: (_busy || !noteChanged) ? null : _saveNotes,
+                                        icon: const Icon(Icons.save_outlined),
+                                        label: const Text('Notiz speichern'),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                ),
+                const SizedBox(height: 10),
 
-            const SizedBox(height: 10),
-
-            // ===================== Entscheidung + Wunsch (gemeinsame Meta-Zeile) =====================
-            Builder(
+                // ===================== Entscheidung + Wunsch (gemeinsame Meta-Zeile) =====================
+                Builder(
               builder: (_) {
                 final decText = _labelForDecision(c.decision);
                 final decCol  = _decisionColor(c.decision);
@@ -4431,12 +4627,14 @@ class AdminApi {
     String? decision,
     String? reportLink,
     String? internalNo,
+    String? notes,
   }) async {
     final body = <String, dynamic>{'ticket': ticket};
     if (status != null) body['status'] = status;
     body['decision'] = decision ?? '';
     if (reportLink != null) body['reportLink'] = reportLink;
     if (internalNo != null) body['internalNo'] = internalNo;
+    if (notes != null) body['notes'] = notes;
 
     final res = await _request('POST', '/api/admin/complaints', body: body);
     if (res.status != 200) {
