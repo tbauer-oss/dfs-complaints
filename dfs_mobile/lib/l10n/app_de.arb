@@ -332,6 +332,8 @@
   "attachments_success": "Anhänge wurden erfolgreich übermittelt.",
   "attachments_error": "Anhänge konnten nicht gesendet werden.",
   "attachments_too_large": "Max. 8 MB Gesamtgröße für Anhänge",
+  "attachments_existing": "Bereits gesendete Anhänge",
+  "attachments_file_unknown": "Anhang",
   "returned_question": "Produkte bereits zurückgeschickt?*",
   "handling": "Gewünschte Behandlung*",
   "handling_replacement": "Ersatz",

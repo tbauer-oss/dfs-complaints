@@ -334,6 +334,8 @@
   "attachments_success": "Gli allegati sono stati inviati con successo.",
   "attachments_error": "Impossibile inviare gli allegati.",
   "attachments_too_large": "Dimensione totale massima degli allegati: 8 MB",
+  "attachments_existing": "Allegati già inviati",
+  "attachments_file_unknown": "Allegato",
   "returned_question": "Prodotti già restituiti?*",
   "handling": "Trattamento richiesto*",
   "handling_replacement": "Sostituzione",

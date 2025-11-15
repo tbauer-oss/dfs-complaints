@@ -319,6 +319,8 @@
   "attachments_success": "Les pièces jointes ont été envoyées avec succès.",
   "attachments_error": "Les pièces jointes n'ont pas pu être envoyées.",
   "attachments_too_large": "Taille totale maximale des pièces jointes : 8 Mo",
+  "attachments_existing": "Pièces jointes déjà envoyées",
+  "attachments_file_unknown": "Pièce jointe",
   "returned_question": "Produits déjà retournés ?*",
   "handling": "Traitement souhaité*",
   "handling_replacement": "Remplacement",

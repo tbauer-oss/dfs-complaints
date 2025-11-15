@@ -11,6 +11,7 @@ class Complaint {
 
   // ⬇️ NEU: interne Reklamationsnummer
   final String? internalNo;
+  final List<ComplaintUpload> uploads;
 
   Complaint({
     required this.ticket,
@@ -22,7 +23,8 @@ class Complaint {
     this.reportLink,
     this.payload,
     this.internalNo, // ⬅️ NEU
-  });
+    List<ComplaintUpload>? uploads,
+  }) : uploads = List.unmodifiable(uploads ?? const <ComplaintUpload>[]);
 
   String get articleLabel {
     final p = payload;
@@ -106,6 +108,31 @@ class Complaint {
     return null;
   }
 
+  static List<ComplaintUpload> _parseUploads(dynamic value) {
+    if (value is List) {
+      final out = <ComplaintUpload>[];
+      for (final entry in value) {
+        if (entry is Map) {
+          try {
+            out.add(ComplaintUpload.fromJson(entry.cast<String, dynamic>()));
+          } catch (_) {
+            out.add(ComplaintUpload.fromJson(_coerceMap(entry)));
+          }
+        }
+      }
+      return List.unmodifiable(out);
+    }
+    return const <ComplaintUpload>[];
+  }
+
+  static Map<String, dynamic> _coerceMap(dynamic value) {
+    final map = <String, dynamic>{};
+    if (value is Map) {
+      value.forEach((key, v) => map['$key'] = v);
+    }
+    return map;
+  }
+
   factory Complaint.fromJson(Map<String, dynamic> j) {
     return Complaint(
       ticket: (j['ticket'] ?? '').toString(),
@@ -119,6 +146,68 @@ class Complaint {
           : j['reportLink']!.toString().trim(),
       payload: _parsePayload(j['payload']),
       internalNo: _parseInternal(j), // ⬅️ NEU
+      uploads: _parseUploads(j['uploads']),
+    );
+  }
+}
+
+class ComplaintUpload {
+  final String name;
+  final String mime;
+  final int size;
+  final DateTime? uploadedAt;
+
+  ComplaintUpload({
+    required this.name,
+    required this.mime,
+    required this.size,
+    required this.uploadedAt,
+  });
+
+  static int _parseSize(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) {
+      final n = int.tryParse(value.trim());
+      if (n != null) return n;
+    }
+    return 0;
+  }
+
+  static DateTime? _parseUploadedAt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) {
+      if (value <= 0) return null;
+      return DateTime.fromMillisecondsSinceEpoch(value, isUtc: true);
+    }
+    if (value is num) {
+      final ms = value.toInt();
+      if (ms <= 0) return null;
+      return DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
+    }
+    if (value is String) {
+      final trimmed = value.trim();
+      if (trimmed.isEmpty) return null;
+      final numeric = int.tryParse(trimmed);
+      if (numeric != null) {
+        if (numeric <= 0) return null;
+        return DateTime.fromMillisecondsSinceEpoch(numeric, isUtc: true);
+      }
+      try {
+        return DateTime.parse(trimmed).toUtc();
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  factory ComplaintUpload.fromJson(Map<String, dynamic> json) {
+    return ComplaintUpload(
+      name: (json['name'] ?? '').toString(),
+      mime: (json['mime'] ?? 'application/octet-stream').toString(),
+      size: _parseSize(json['size']),
+      uploadedAt: _parseUploadedAt(json['uploadedAt']),
     );
   }
 }

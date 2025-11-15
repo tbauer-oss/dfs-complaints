@@ -322,6 +322,8 @@
   "attachments_success": "Attachments were sent successfully.",
   "attachments_error": "Attachments could not be sent.",
   "attachments_too_large": "Max. 8 MB total for attachments",
+  "attachments_existing": "Previously sent attachments",
+  "attachments_file_unknown": "Attachment",
   "returned_question": "Products already returned?*",
   "handling": "Requested handling*",
   "handling_replacement": "Replacement",

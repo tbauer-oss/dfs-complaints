@@ -318,6 +318,8 @@
   "attachments_success": "Los archivos adjuntos se enviaron correctamente.",
   "attachments_error": "No se pudieron enviar los archivos adjuntos.",
   "attachments_too_large": "Tamaño total máximo de los adjuntos: 8 MB",
+  "attachments_existing": "Adjuntos enviados previamente",
+  "attachments_file_unknown": "Adjunto",
   "returned_question": "¿Productos ya devueltos?*",
   "handling": "Tratamiento solicitado*",
   "handling_replacement": "Reemplazo",
