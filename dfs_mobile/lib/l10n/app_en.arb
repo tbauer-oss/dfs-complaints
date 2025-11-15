@@ -24,7 +24,7 @@
   "attachments_add": "Send additional attachments",
   "attachments_success": "Attachments were sent successfully.",
   "attachments_error": "Attachments could not be sent.",
-  "attachments_too_large": "Max. 8 MB total for attachments",
+  "attachments_too_large": "Max. 10 MB total for attachments",
 
   "rep_contact_form": "Send message",
   "rep_overview_open": "Open",
