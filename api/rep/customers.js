@@ -7,6 +7,7 @@ import { setCors } from '../_lib/cors.js';
 import { getRepFromAuthHeader } from '../_lib/repAuth.js';
 import { repCustomers as storeRepCustomers } from '../_lib/repsStore.js';
 import { userSave, userByEmail } from '../_lib/store.js';
+import { isStrongPassword } from '../_lib/passwords.js';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 
@@ -172,8 +173,10 @@ export default async function handler(req, res) {
             if (!hasContact && !hasNames) {
               return res.status(400).end(JSON.stringify({ error: 'contact or name required' }));
             }
-            if (!password || password.length < 8) {
-              return res.status(400).end(JSON.stringify({ error: 'password too short' }));
+            if (!isStrongPassword(password)) {
+              return res.status(400).end(
+                JSON.stringify({ error: 'password requirements not met (min. 8 chars incl. letters, numbers & special characters)' })
+              );
             }
             if (ADMIN_SECRET && password === ADMIN_SECRET) {
               return res.status(400).end(JSON.stringify({
