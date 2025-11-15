@@ -7,7 +7,7 @@ import {
 import jwt from 'jsonwebtoken';
 import {
   userByEmail, userSave, userDelete, pendingDelete,
-  complaintsByEmail, complaintDelete
+  complaintsByEmail, complaintDelete, anonymizeUserAndComplaints,
 } from './_lib/store.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || '';
@@ -129,6 +129,7 @@ export default async function handler(req, res) {
   if (req.method === 'DELETE') {
     try {
       const hard = String(req.query?.hard || '').trim() === '1';
+      const anonymize = !hard && String(req.query?.anonymize || '').trim() === '1';
 
       if (hard) {
         // 1) Reklamationen löschen
@@ -144,6 +145,14 @@ export default async function handler(req, res) {
         try { await userDelete(email); } catch (_) {}
         // 3) evtl. Pending-Eintrag löschen
         try { await pendingDelete(email); } catch (_) {}
+      } else if (anonymize) {
+        // DSGVO-konforme Anonymisierung (statt Hard-Delete)
+        const result = await anonymizeUserAndComplaints(email).catch((e) => {
+          console.error('[account DELETE anonymize] failed:', e);
+          return null;
+        });
+        if (!result) return bad(res, 'anonymize failed', 500);
+        return ok(res, { ok: true, anonymized: true, complaints: result.complaints || 0 });
       } else {
         // Soft-Delete: Markierung als durch User gelöscht
         const u = (await userByEmail(email)) || { email };
