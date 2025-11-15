@@ -401,6 +401,428 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
+  List<Widget> _buildGateUnlockSection(
+    BuildContext context,
+    AppLocalizations t,
+  ) {
+    final widgets = <Widget>[
+      Text(
+        t.gateUnlockHint,
+        style: const TextStyle(fontWeight: FontWeight.w500),
+      ),
+      const SizedBox(height: 12),
+      TextField(
+        controller: _gateEmail,
+        keyboardType: TextInputType.emailAddress,
+        autofillHints: const [AutofillHints.email],
+        decoration: InputDecoration(
+          labelText: t.email,
+          border: const OutlineInputBorder(),
+        ),
+        onSubmitted: (_) {
+          if (!_gateBusy && !_gateRequestBusy) _unlockGate();
+        },
+      ),
+      const SizedBox(height: 12),
+      TextField(
+        controller: _gatePw,
+        obscureText: true,
+        decoration: InputDecoration(
+          labelText: t.gate_password,
+          border: const OutlineInputBorder(),
+        ),
+        onSubmitted: (_) {
+          if (!_gateBusy && !_gateRequestBusy) _unlockGate();
+        },
+      ),
+      const SizedBox(height: 12),
+      FilledButton(
+        onPressed: (_gateBusy || _gateRequestBusy) ? null : _unlockGate,
+        child: _gateBusy
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Text(t.unlock),
+      ),
+      const SizedBox(height: 8),
+      OutlinedButton(
+        onPressed: (_gateBusy || _gateRequestBusy) ? null : _requestGatePassword,
+        child: _gateRequestBusy
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Text(t.gateRequestPassword),
+      ),
+    ];
+
+    if (_gateErr != null) {
+      widgets.addAll([
+        const SizedBox(height: 8),
+        Text(_gateErr!, style: const TextStyle(color: Colors.red)),
+      ]);
+    }
+    if (_gateInfo != null) {
+      widgets.addAll([
+        const SizedBox(height: 8),
+        Text(
+          _gateInfo!,
+          style: const TextStyle(color: Colors.green),
+        ),
+      ]);
+    }
+
+    widgets.addAll([
+      const SizedBox(height: 8),
+      TextButton(
+        onPressed: () => Navigator.of(context).maybePop(),
+        child: Text(t.back),
+      ),
+    ]);
+
+    return widgets;
+  }
+
+  Widget _buildRegistrationCard(
+    BuildContext context,
+    AppLocalizations t,
+    ColorScheme scheme,
+    AppPrefs prefs,
+  ) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOutCubic,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+      decoration: BoxDecoration(
+        color: scheme.surface
+            .withOpacity(scheme.brightness == Brightness.dark ? 0.92 : 0.98),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: scheme.outline.withOpacity(0.08)),
+        boxShadow: [
+          if (scheme.brightness == Brightness.light)
+            BoxShadow(
+              color: scheme.primary.withOpacity(0.12),
+              blurRadius: 32,
+              offset: const Offset(0, 18),
+            ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionTitle(
+            context,
+            Icons.lock_outline,
+            t.auth_register,
+          ),
+          TextField(
+            controller: _email,
+            keyboardType: TextInputType.emailAddress,
+            autofillHints: const [AutofillHints.email],
+            decoration: _decor(
+              context,
+              t.email,
+              icon: Icons.alternate_email,
+            ),
+          ),
+          const SizedBox(height: 16),
+          _dualFields(
+            context,
+            TextField(
+              controller: _pw,
+              obscureText: true,
+              decoration: _decor(
+                context,
+                t.password,
+                icon: Icons.lock_outline,
+              ),
+            ),
+            TextField(
+              controller: _pw2,
+              obscureText: true,
+              decoration: _decor(
+                context,
+                t.password_repeat,
+                icon: Icons.lock_reset,
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Divider(height: 1, color: scheme.outline.withOpacity(0.12)),
+          const SizedBox(height: 24),
+          _sectionTitle(
+            context,
+            Icons.business_center_outlined,
+            t.company_plain,
+          ),
+          TextField(
+            controller: _company,
+            decoration: _decor(
+              context,
+              t.company,
+              icon: Icons.business_outlined,
+            ),
+          ),
+          const SizedBox(height: 24),
+          _sectionTitle(
+            context,
+            Icons.person_outline,
+            t.contact_person,
+          ),
+          _dualFields(
+            context,
+            DropdownButtonFormField<Salutation>(
+              value: _salutation,
+              isExpanded: true,
+              decoration: _decor(
+                context,
+                t.salutation,
+                icon: Icons.wc,
+              ),
+              items: [
+                DropdownMenuItem(
+                  value: Salutation.mr,
+                  child: Text(_salutationLabel(t, Salutation.mr)),
+                ),
+                DropdownMenuItem(
+                  value: Salutation.ms,
+                  child: Text(_salutationLabel(t, Salutation.ms)),
+                ),
+                DropdownMenuItem(
+                  value: Salutation.diverse,
+                  child: Text(_salutationLabel(t, Salutation.diverse)),
+                ),
+              ],
+              onChanged: (v) => setState(() => _salutation = v ?? Salutation.mr),
+            ),
+            DropdownButtonFormField<String>(
+              value: _selectedLang,
+              isExpanded: true,
+              decoration: _decor(
+                context,
+                t.catalog_select_language,
+                icon: Icons.language_outlined,
+              ),
+              items: supportedLangCodes
+                  .map((code) => DropdownMenuItem<String>(
+                        value: code,
+                        child: Text(langNameFor(t, code)),
+                      ))
+                  .toList(),
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() => _selectedLang = value);
+                prefs.setLang(value);
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+          _dualFields(
+            context,
+            TextField(
+              controller: _firstName,
+              decoration: _decor(
+                context,
+                t.first_name,
+                icon: Icons.badge_outlined,
+              ),
+            ),
+            TextField(
+              controller: _lastName,
+              decoration: _decor(
+                context,
+                t.last_name,
+                icon: Icons.badge,
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Divider(height: 1, color: scheme.outline.withOpacity(0.12)),
+          const SizedBox(height: 24),
+          _sectionTitle(
+            context,
+            Icons.location_on_outlined,
+            t.address,
+          ),
+          TextField(
+            controller: _street,
+            decoration: _decor(
+              context,
+              t.street,
+              icon: Icons.route_outlined,
+            ),
+          ),
+          const SizedBox(height: 16),
+          _dualFields(
+            context,
+            TextField(
+              controller: _zip,
+              decoration: _decor(
+                context,
+                t.zip,
+                icon: Icons.local_post_office_outlined,
+              ),
+            ),
+            TextField(
+              controller: _city,
+              decoration: _decor(
+                context,
+                t.city,
+                icon: Icons.location_city_outlined,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<Country>(
+            value: _countrySel,
+            isExpanded: true,
+            decoration: _decor(
+              context,
+              t.country,
+              icon: Icons.public,
+            ),
+            items: kCountries
+                .map((c) => DropdownMenuItem<Country>(
+                    value: c, child: Text(c.label(context))))
+                .toList(),
+            onChanged: (val) => setState(() => _countrySel = val),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _phone,
+            keyboardType: TextInputType.phone,
+            decoration: _decor(
+              context,
+              t.phone,
+              icon: Icons.phone_outlined,
+            ),
+          ),
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: scheme.primary.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: scheme.primary.withOpacity(0.1)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Checkbox(
+                  value: _privacy,
+                  onChanged: (v) => setState(() => _privacy = v ?? false),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        t.privacy_agree,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 6),
+                      InkWell(
+                        onTap: () =>
+                            Navigator.of(context).pushNamed('/legal/privacy'),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.privacy_tip_outlined,
+                              size: 18,
+                              color: scheme.primary,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              t.privacy_view,
+                              style: TextStyle(
+                                color: scheme.primary,
+                                decoration: TextDecoration.underline,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_err != null) ...[
+            const SizedBox(height: 20),
+            _messageBanner(
+              context,
+              message: _err!,
+              color: scheme.error,
+              icon: Icons.error_outline,
+            ),
+          ],
+          if (_info != null) ...[
+            const SizedBox(height: 20),
+            _messageBanner(
+              context,
+              message: _info!,
+              color: scheme.secondary,
+              icon: Icons.check_circle_outline,
+            ),
+          ],
+          const SizedBox(height: 24),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              alignment: WrapAlignment.end,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () {
+                    final nav = Navigator.of(context);
+                    if (nav.canPop()) {
+                      nav.pop();
+                    } else {
+                      nav.pushReplacementNamed('/');
+                    }
+                  },
+                  icon: const Icon(Icons.arrow_back),
+                  label: Text(t.back),
+                ),
+                FilledButton(
+                  onPressed: _busy ? null : _submit,
+                  child: _busy
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.check_circle_outline),
+                            const SizedBox(width: 8),
+                            Text(t.auth_register),
+                          ],
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.t;
@@ -469,410 +891,12 @@ class _RegisterPageState extends State<RegisterPage> {
               constraints: const BoxConstraints(maxWidth: 560),
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
-                children: [
-                  if (needsGate) ...[
-                  Text(
-                    t.gateUnlockHint,
-                    style: const TextStyle(fontWeight: FontWeight.w500),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _gateEmail,
-                    keyboardType: TextInputType.emailAddress,
-                    autofillHints: const [AutofillHints.email],
-                    decoration: InputDecoration(
-                      labelText: t.email,
-                      border: const OutlineInputBorder(),
-                    ),
-                    onSubmitted: (_) {
-                      if (!_gateBusy && !_gateRequestBusy) _unlockGate();
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _gatePw,
-                    obscureText: true,
-                    decoration: InputDecoration(
-                      labelText: t.gate_password,
-                      border: const OutlineInputBorder(),
-                    ),
-                    onSubmitted: (_) {
-                      if (!_gateBusy && !_gateRequestBusy) _unlockGate();
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  FilledButton(
-                    onPressed:
-                        (_gateBusy || _gateRequestBusy) ? null : _unlockGate,
-                    child: _gateBusy
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Text(t.unlock),
-                  ),
-                  const SizedBox(height: 8),
-                  OutlinedButton(
-                    onPressed: (_gateBusy || _gateRequestBusy)
-                        ? null
-                        : _requestGatePassword,
-                    child: _gateRequestBusy
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Text(t.gateRequestPassword),
-                  ),
-                  if (_gateErr != null) ...[
-                    const SizedBox(height: 8),
-                    Text(_gateErr!, style: const TextStyle(color: Colors.red)),
-                  ],
-                  if (_gateInfo != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      _gateInfo!,
-                      style: const TextStyle(color: Colors.green),
-                    ),
-                  ],
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: () => Navigator.of(context).maybePop(),
-                    child: Text(t.back),
-                  ),
-                ] else ...[
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 400),
-                    curve: Curves.easeOutCubic,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
-                    decoration: BoxDecoration(
-                      color: scheme.surface
-                          .withOpacity(scheme.brightness == Brightness.dark ? 0.92 : 0.98),
-                      borderRadius: BorderRadius.circular(28),
-                      border: Border.all(color: scheme.outline.withOpacity(0.08)),
-                      boxShadow: [
-                        if (scheme.brightness == Brightness.light)
-                          BoxShadow(
-                            color: scheme.primary.withOpacity(0.12),
-                            blurRadius: 32,
-                            offset: const Offset(0, 18),
-                          ),
+                children: needsGate
+                    ? _buildGateUnlockSection(context, t)
+                    : [
+                        _buildRegistrationCard(context, t, scheme, prefs),
                       ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _sectionTitle(
-                          context,
-                          Icons.lock_outline,
-                          t.auth_register,
-                        ),
-                        TextField(
-                          controller: _email,
-                          keyboardType: TextInputType.emailAddress,
-                          autofillHints: const [AutofillHints.email],
-                          decoration: _decor(
-                            context,
-                            t.email,
-                            icon: Icons.alternate_email,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        _dualFields(
-                          context,
-                          TextField(
-                            controller: _pw,
-                            obscureText: true,
-                            decoration: _decor(
-                              context,
-                              t.password,
-                              icon: Icons.lock_outline,
-                            ),
-                          ),
-                          TextField(
-                            controller: _pw2,
-                            obscureText: true,
-                            decoration: _decor(
-                              context,
-                              t.password_repeat,
-                              icon: Icons.lock_reset,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        Divider(height: 1, color: scheme.outline.withOpacity(0.12)),
-                        const SizedBox(height: 24),
-                        _sectionTitle(
-                          context,
-                          Icons.business_center_outlined,
-                          t.company_plain,
-                        ),
-                        TextField(
-                          controller: _company,
-                          decoration: _decor(
-                            context,
-                            t.company,
-                            icon: Icons.business_outlined,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        _sectionTitle(
-                          context,
-                          Icons.person_outline,
-                          t.contact_person,
-                        ),
-                        _dualFields(
-                          context,
-                          DropdownButtonFormField<Salutation>(
-                            value: _salutation,
-                            isExpanded: true,
-                            decoration: _decor(
-                              context,
-                              t.salutation,
-                              icon: Icons.wc,
-                            ),
-                            items: [
-                              DropdownMenuItem(
-                                value: Salutation.mr,
-                                child: Text(_salutationLabel(t, Salutation.mr)),
-                              ),
-                              DropdownMenuItem(
-                                value: Salutation.ms,
-                                child: Text(_salutationLabel(t, Salutation.ms)),
-                              ),
-                              DropdownMenuItem(
-                                value: Salutation.diverse,
-                                child: Text(_salutationLabel(t, Salutation.diverse)),
-                              ),
-                            ],
-                            onChanged: (v) => setState(() => _salutation = v ?? Salutation.mr),
-                          ),
-                          DropdownButtonFormField<String>(
-                            value: _selectedLang,
-                            isExpanded: true,
-                            decoration: _decor(
-                              context,
-                              t.catalog_select_language,
-                              icon: Icons.language_outlined,
-                            ),
-                            items: supportedLangCodes
-                                .map((code) => DropdownMenuItem<String>(
-                                      value: code,
-                                      child: Text(langNameFor(t, code)),
-                                    ))
-                                .toList(),
-                            onChanged: (value) {
-                              if (value == null) return;
-                              setState(() => _selectedLang = value);
-                              prefs.setLang(value);
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        _dualFields(
-                          context,
-                          TextField(
-                            controller: _firstName,
-                            decoration: _decor(
-                              context,
-                              t.first_name,
-                              icon: Icons.badge_outlined,
-                            ),
-                          ),
-                          TextField(
-                            controller: _lastName,
-                            decoration: _decor(
-                              context,
-                              t.last_name,
-                              icon: Icons.badge,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        Divider(height: 1, color: scheme.outline.withOpacity(0.12)),
-                        const SizedBox(height: 24),
-                        _sectionTitle(
-                          context,
-                          Icons.location_on_outlined,
-                          t.address,
-                        ),
-                        TextField(
-                          controller: _street,
-                          decoration: _decor(
-                            context,
-                            t.street,
-                            icon: Icons.route_outlined,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        _dualFields(
-                          context,
-                          TextField(
-                            controller: _zip,
-                            decoration: _decor(
-                              context,
-                              t.zip,
-                              icon: Icons.local_post_office_outlined,
-                            ),
-                          ),
-                          TextField(
-                            controller: _city,
-                            decoration: _decor(
-                              context,
-                              t.city,
-                              icon: Icons.location_city_outlined,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        DropdownButtonFormField<Country>(
-                          value: _countrySel,
-                          isExpanded: true,
-                          decoration: _decor(
-                            context,
-                            t.country,
-                            icon: Icons.public,
-                          ),
-                          items: kCountries
-                              .map((c) => DropdownMenuItem<Country>(
-                                  value: c, child: Text(c.label(context))))
-                              .toList(),
-                          onChanged: (val) => setState(() => _countrySel = val),
-                        ),
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: _phone,
-                          keyboardType: TextInputType.phone,
-                          decoration: _decor(
-                            context,
-                            t.phone,
-                            icon: Icons.phone_outlined,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: scheme.primary.withOpacity(0.05),
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: scheme.primary.withOpacity(0.1)),
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Checkbox(
-                                value: _privacy,
-                                onChanged: (v) => setState(() => _privacy = v ?? false),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      t.privacy_agree,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium
-                                          ?.copyWith(fontWeight: FontWeight.w600),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    InkWell(
-                                      onTap: () =>
-                                          Navigator.of(context).pushNamed('/legal/privacy'),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            Icons.privacy_tip_outlined,
-                                            size: 18,
-                                            color: scheme.primary,
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            t.privacy_view,
-                                            style: TextStyle(
-                                              color: scheme.primary,
-                                              decoration: TextDecoration.underline,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (_err != null) ...[
-                          const SizedBox(height: 20),
-                          _messageBanner(
-                            context,
-                            message: _err!,
-                            color: scheme.error,
-                            icon: Icons.error_outline,
-                          ),
-                        ],
-                        if (_info != null) ...[
-                          const SizedBox(height: 20),
-                          _messageBanner(
-                            context,
-                            message: _info!,
-                            color: scheme.secondary,
-                            icon: Icons.check_circle_outline,
-                          ),
-                        ],
-                        const SizedBox(height: 24),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: Wrap(
-                            spacing: 12,
-                            runSpacing: 12,
-                            alignment: WrapAlignment.end,
-                            children: [
-                              OutlinedButton.icon(
-                                onPressed: () {
-                                  final nav = Navigator.of(context);
-                                  if (nav.canPop()) {
-                                    nav.pop();
-                                  } else {
-                                    nav.pushReplacementNamed('/');
-                                  }
-                                },
-                                icon: const Icon(Icons.arrow_back),
-                                label: Text(t.back),
-                              ),
-                              FilledButton(
-                                onPressed: _busy ? null : _submit,
-                                child: _busy
-                                    ? const SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
-                                      )
-                                    : Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          const Icon(Icons.check_circle_outline),
-                                          const SizedBox(width: 8),
-                                          Text(t.auth_register),
-                                        ],
-                                      ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
+              ),
             ),
           ),
         ),
