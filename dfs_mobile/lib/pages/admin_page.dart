@@ -3452,10 +3452,18 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isCompact = constraints.maxWidth < 420;
+        final compact = constraints.maxWidth < 420;
         final valueStyle = Theme.of(context).textTheme.bodyMedium;
+        final effectiveMaxLines = compact ? null : maxLines;
 
-        if (isCompact) {
+        final valueText = Text(
+          v,
+          style: valueStyle,
+          maxLines: effectiveMaxLines,
+          softWrap: true,
+        );
+
+        if (compact) {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 6),
             child: Column(
@@ -3463,13 +3471,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
               children: [
                 Text(label, style: labelStyle),
                 const SizedBox(height: 4),
-                Text(
-                  v,
-                  style: valueStyle,
-                  softWrap: true,
-                  maxLines: maxLines > 3 ? maxLines : null,
-                  overflow: maxLines > 3 ? TextOverflow.ellipsis : TextOverflow.visible,
-                ),
+                valueText,
               ],
             ),
           );
@@ -3485,15 +3487,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                 child: Text(label, style: labelStyle),
               ),
               const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  v,
-                  style: valueStyle,
-                  maxLines: maxLines,
-                  softWrap: true,
-                  overflow: TextOverflow.fade,
-                ),
-              ),
+              Expanded(child: valueText),
             ],
           ),
         );
@@ -4328,13 +4322,17 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                     _detKv('Verletzung?', injury),
                     _detKv('Verletzungsbeschreibung', injuryDesc, maxLines: 6),
 
-                    Row(
-                      children: [
-                        Expanded(child: _detKv('Charge / LOT', batch)),
-                        const SizedBox(width: 12),
-                        Expanded(child: _detKv('Seriennummer', serial)),
-                      ],
-                    ),
+                    if (isNarrow) ...[
+                      _detKv('Charge / LOT', batch),
+                      _detKv('Seriennummer', serial),
+                    ] else
+                      Row(
+                        children: [
+                          Expanded(child: _detKv('Charge / LOT', batch)),
+                          const SizedBox(width: 12),
+                          Expanded(child: _detKv('Seriennummer', serial)),
+                        ],
+                      ),
                     _detKv('Menge', qty),
                     _detKv('Fehler / Beschreibung', desc, maxLines: 6),
                     _detKv('Grund / Ursache',       reason, maxLines: 4),
