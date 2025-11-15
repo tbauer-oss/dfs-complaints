@@ -3261,16 +3261,58 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   Widget _detKv(String label, String? value, {int maxLines = 2}) {
     final v = (value ?? '').trim();
     if (v.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(width: 160, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
-          const SizedBox(width: 8),
-          Expanded(child: Text(v, maxLines: maxLines, overflow: TextOverflow.ellipsis)),
-        ],
-      ),
+
+    final labelStyle = const TextStyle(fontWeight: FontWeight.w600);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 420;
+        final textTheme = Theme.of(context).textTheme;
+        final valueStyle = textTheme.bodyMedium;
+
+        if (isCompact) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: labelStyle),
+                const SizedBox(height: 4),
+                Text(
+                  v,
+                  style: valueStyle,
+                  softWrap: true,
+                  maxLines: maxLines > 3 ? maxLines : null,
+                  overflow: maxLines > 3 ? TextOverflow.ellipsis : TextOverflow.visible,
+                ),
+              ],
+            ),
+          );
+        }
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 150, maxWidth: 220),
+                child: Text(label, style: labelStyle),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  v,
+                  style: valueStyle,
+                  maxLines: maxLines,
+                  softWrap: true,
+                  overflow: TextOverflow.fade,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -3622,7 +3664,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   }
 
   String _fmtDate(DateTime d) {
-    return '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    String two(int n) => n < 10 ? '0$n' : '$n';
+    return '${two(d.day)}.${two(d.month)}.${d.year}';
   }
 
   void _composeMailToCustomer() {
@@ -3696,11 +3739,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       );
     }
 
-    String _fmtDate(DateTime d) {
-      String two(int n) => n < 10 ? '0$n' : '$n';
-      return '${two(d.day)}.${two(d.month)}.${d.year}';
-    }
-
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
       child: Padding(
@@ -3711,31 +3749,31 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
             // =====================
             // Kopfzeile (übersichtlich)
             // =====================
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Linke Seite: Ticket + Interne Nr. + Datum + Status-Chip
-                Expanded(
-                  child: Column(
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isCompact = constraints.maxWidth < 720;
+
+                Widget leftColumn() {
+                  return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 1) Ticket + (optional) Interne Nr. als Tag direkt daneben
-                      Row(
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           Text(
                             'Ticket: ${c.ticket}',
                             style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                            overflow: TextOverflow.fade,
+                            softWrap: true,
                           ),
                           if (hasNote)
-                            Padding(
-                              padding: const EdgeInsets.only(left: 6),
-                              child: Icon(
-                                Icons.sticky_note_2,
-                                size: 16,
-                                color: Colors.amber.shade800,
-                              ),
+                            Icon(
+                              Icons.sticky_note_2,
+                              size: 18,
+                              color: Colors.amber.shade800,
                             ),
-                          const SizedBox(width: 10),
                           if ((c.internalNo ?? '').trim().isNotEmpty)
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -3764,7 +3802,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                         ],
                       ),
                       const SizedBox(height: 6),
-                      // 3) Datum + Status + (optional) Vertreter-Ampel
                       Wrap(
                         spacing: 10,
                         runSpacing: 6,
@@ -3786,8 +3823,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                             ],
                           ),
                           _statusChip(c.status),
-
-                          // Ampel nur zeigen, wenn Kunde einem Vertreter zugeordnet ist
                           if (widget.hasRep)
                             _RepTrafficLight(
                               opinion: ((c.repOpinion ?? '').trim().isEmpty) ? 'pending' : c.repOpinion,
@@ -3796,75 +3831,104 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                         ],
                       ),
                     ],
-                  ),
-                ),
+                  );
+                }
 
-                const SizedBox(width: 8),
+                Widget rightColumn() {
+                  return Builder(
+                    builder: (ctx) {
+                      final isDark = Theme.of(ctx).brightness == Brightness.dark;
+                      final label = (widget.companyHint != null && widget.companyHint!.trim().isNotEmpty)
+                          ? 'Firma: ${widget.companyHint}'
+                          : 'E-Mail: ${c.email}';
 
-                // Rechte Seite: Firma/E-Mail – lesbar (Light: schwarz, Dark: onSurface) + Mail-Icon
-                Builder(
-                  builder: (ctx) {
-                    final isDark = Theme.of(ctx).brightness == Brightness.dark;
-                    final label = (widget.companyHint != null && widget.companyHint!.trim().isNotEmpty)
-                        ? 'Firma: ${widget.companyHint}'
-                        : 'E-Mail: ${c.email}';
-                    Widget noteButton() {
-                      return Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          IconButton(
-                            tooltip: hasNote ? 'Notiz anzeigen/bearbeiten' : 'Notiz hinzufügen',
-                            icon: Icon(_noteOpen ? Icons.sticky_note_2 : Icons.sticky_note_2_outlined),
-                            onPressed: _busy ? null : _toggleNotes,
-                          ),
-                          if (hasNote)
-                            Positioned(
-                              top: 10,
-                              right: 10,
-                              child: Container(
-                                width: 8,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  color: Colors.amber.shade700,
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.amber.shade200,
-                                      blurRadius: 2,
-                                    ),
-                                  ],
+                      Widget noteButton() {
+                        return Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            IconButton(
+                              tooltip: hasNote ? 'Notiz anzeigen/bearbeiten' : 'Notiz hinzufügen',
+                              icon: Icon(_noteOpen ? Icons.sticky_note_2 : Icons.sticky_note_2_outlined),
+                              onPressed: _busy ? null : _toggleNotes,
+                            ),
+                            if (hasNote)
+                              Positioned(
+                                top: 10,
+                                right: 10,
+                                child: Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    color: Colors.amber.shade700,
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.amber.shade200,
+                                        blurRadius: 2,
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
+                          ],
+                        );
+                      }
+
+                      final content = Row(
+                        mainAxisSize: MainAxisSize.max,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          noteButton(),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              label,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? Theme.of(ctx).colorScheme.onSurface : Colors.black,
+                              ),
+                              softWrap: true,
+                              overflow: TextOverflow.fade,
+                              maxLines: isCompact ? 4 : 2,
                             ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            tooltip: 'E-Mail an Kunden verfassen',
+                            icon: const Icon(Icons.email_outlined),
+                            onPressed: _busy ? null : _composeMailToCustomer,
+                          ),
                         ],
                       );
-                    }
 
-                    return Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        noteButton(),
-                        const SizedBox(width: 4),
-                        Text(
-                          label,
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: isDark ? Theme.of(ctx).colorScheme.onSurface : Colors.black,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          tooltip: 'E-Mail an Kunden verfassen',
-                          icon: const Icon(Icons.email_outlined),
-                          onPressed: _busy ? null : _composeMailToCustomer,
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ],
+                      return isCompact
+                          ? Align(alignment: Alignment.centerLeft, child: content)
+                          : content;
+                    },
+                  );
+                }
+
+                if (isCompact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      leftColumn(),
+                      const SizedBox(height: 12),
+                      rightColumn(),
+                    ],
+                  );
+                }
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: leftColumn()),
+                    const SizedBox(width: 12),
+                    rightColumn(),
+                  ],
+                );
+              },
             ),
 
             AnimatedSwitcher(
