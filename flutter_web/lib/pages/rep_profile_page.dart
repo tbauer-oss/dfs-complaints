@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
+import '../services/app_prefs_scope.dart';
+import '../utils/lang_utils.dart';
 
 extension _L10nX on BuildContext {
   AppLocalizations get t => AppLocalizations.of(this)!;
@@ -32,11 +34,13 @@ class _RepProfilePageState extends State<RepProfilePage> {
   final _first  = TextEditingController();
   final _last   = TextEditingController();
   final _region = TextEditingController();
+  String _lang = 'de';
 
   // Passwort ändern
   final _pw1 = TextEditingController();
   final _pw2 = TextEditingController();
   bool _busyPw = false;
+  bool _savingProfile = false;
 
   @override
   void initState() {
@@ -58,6 +62,7 @@ class _RepProfilePageState extends State<RepProfilePage> {
       _first.text  = me.firstName;
       _last.text   = me.lastName;
       _region.text = me.region;
+      _lang = normalizeLangCode(me.lang.isEmpty ? 'de' : me.lang);
 
       if (mounted) setState(() {});
     } catch (e) {
@@ -67,31 +72,44 @@ class _RepProfilePageState extends State<RepProfilePage> {
     }
   }
 
-  // Platzhalter – bis Server-Endpoint existiert.
   Future<void> _saveProfile() async {
-    if (_me == null) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(context.t.profile_not_active)),
-    );
+    if (_savingProfile) return;
+    setState(() => _savingProfile = true);
+    final t = context.t;
 
-    // Wenn /api/rep/update und ApiClient.repUpdateProfile(...) existieren:
-    // try {
-    //   await widget.api.repUpdateProfile({
-    //     'firstName': _first.text.trim(),
-    //     'lastName' : _last.text.trim(),
-    //     'region'   : _region.text.trim(),
-    //   });
-    //   if (!mounted) return;
-    //   ScaffoldMessenger.of(context).showSnackBar(
-    //     SnackBar(content: Text(context.t.saved ?? 'Gespeichert.')),
-    //   );
-    //   await _load();
-    // } catch (e) {
-    //   if (!mounted) return;
-    //   ScaffoldMessenger.of(context).showSnackBar(
-    //     SnackBar(content: Text(context.t.password_set_failed('$e'))),
-    //   );
-    // }
+    try {
+      final updated = await widget.api.repUpdateProfile(
+        firstName: _first.text.trim(),
+        lastName: _last.text.trim(),
+        region: _region.text.trim(),
+        lang: _lang,
+      );
+
+      final newLang = normalizeLangCode(updated.lang.isEmpty ? _lang : updated.lang);
+      _first.text  = updated.firstName;
+      _last.text   = updated.lastName;
+      _region.text = updated.region;
+
+      setState(() {
+        _me = updated;
+        _lang = newLang;
+      });
+
+      final prefs = AppPrefsScope.of(context);
+      await prefs.setLang(newLang);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.saved ?? 'Gespeichert.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${t.error ?? 'Fehler'}: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _savingProfile = false);
+    }
   }
 
   Future<void> _changePassword() async {
@@ -207,21 +225,47 @@ class _RepProfilePageState extends State<RepProfilePage> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    TextField(
-                      enabled: false,
-                      controller: TextEditingController(text: email),
+                    TextFormField(
+                      initialValue: email,
+                      readOnly: true,
                       decoration: InputDecoration(
                         labelText: t.email,
                         border: const OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: _lang,
+                      decoration: InputDecoration(
+                        labelText: t.catalog_select_language,
+                        border: const OutlineInputBorder(),
+                      ),
+                      items: supportedLangLocales
+                          .map(
+                            (loc) => DropdownMenuItem<String>(
+                              value: loc.languageCode,
+                              child: Text(langNameFor(t, loc.languageCode)),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() => _lang = normalizeLangCode(value));
+                      },
+                    ),
+                    const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
-                        onPressed: _saveProfile, // aktuell Info-Toast
-                        icon: const Icon(Icons.save),
-                        label: Text(t.save_profile),
+                        onPressed: _savingProfile ? null : _saveProfile,
+                        icon: _savingProfile
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.save),
+                        label: Text(_savingProfile ? t.save : t.save_profile),
                       ),
                     ),
                   ],
