@@ -2445,6 +2445,7 @@ class _StatusChip extends StatelessWidget {
     } else {
       c = Theme.of(context).colorScheme.primary;
     }
+    final statusLabel = _localizedStatusLabel(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -2452,10 +2453,41 @@ class _StatusChip extends StatelessWidget {
         border: Border.all(color: c),
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Text('${context.t.status ?? 'Status'}: $status',
+      child: Text('${context.t.status ?? 'Status'}: $statusLabel',
         style: TextStyle(color: c, fontSize: 13, fontWeight: FontWeight.w600),
       ),
     );
+  }
+
+  String _localizedStatusLabel(BuildContext context) {
+    final t = context.t;
+    final raw = status.trim();
+    final parsed = int.tryParse(raw);
+    if (parsed == null) {
+      if (raw.isEmpty) return t.status_unknown;
+      return raw;
+    }
+
+    final normalizedDecision = decision.trim().toLowerCase();
+
+    switch (parsed) {
+      case 1:
+        return t.status_sent;
+      case 2:
+        return t.status_in_progress;
+      case 3:
+        return t.status_question;
+      case 4:
+        if (normalizedDecision == 'rejected') return t.status_rejected;
+        if (normalizedDecision == 'accepted') return t.status_accepted;
+        return t.status_decision;
+      case 5:
+        return t.status_rework;
+      case 6:
+        return t.status_closed;
+      default:
+        return t.status_unknown;
+    }
   }
 }
 
