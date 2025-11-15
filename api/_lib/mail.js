@@ -114,6 +114,138 @@ function logoAttachment(){
 const SUPPORTED = new Set(['de','en','fr','it','es']);
 const L = (lang) => SUPPORTED.has(lang) ? lang : 'de';
 
+function cleanSubjectLine(subject) {
+  return String(subject ?? '')
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function normalizeMessageBody(message) {
+  return String(message ?? '')
+    .replace(/\r\n/g, '\n')
+    .trim();
+}
+
+const MC_SUBJECT_PREFIX = {
+  de: '[DFS Kundenportal] Kopie Ihrer Nachricht',
+  en: '[DFS Customer Portal] Copy of your message',
+  fr: '[Portail DFS] Copie de votre message',
+  it: '[Portale DFS] Copia del suo messaggio',
+  es: '[Portal DFS] Copia de su mensaje',
+};
+
+const MC_SUBJECT_FALLBACK = {
+  de: 'Ihre Nachricht an DFS-DIAMON',
+  en: 'Your message to DFS-DIAMON',
+  fr: 'Votre message à DFS-DIAMON',
+  it: 'Il suo messaggio per DFS-DIAMON',
+  es: 'Su mensaje a DFS-DIAMON',
+};
+
+const MC_GREETING = {
+  de: (name) => `Guten Tag${name ? ` ${name}` : ''},`,
+  en: (name) => `Dear ${name || 'customer'},`,
+  fr: (name) => `Bonjour${name ? ` ${name}` : ''},`,
+  it: (name) => `Gentile${name ? ` ${name}` : ''},`,
+  es: (name) => `Hola${name ? ` ${name}` : ''},`,
+};
+
+const MC_INTRO = {
+  de: {
+    rep: 'vielen Dank für Ihre Nachricht über das DFS Kundenportal an Ihren Ansprechpartner bei DFS-DIAMON.',
+    support: 'vielen Dank für Ihre Nachricht an den DFS Support über das DFS Kundenportal.',
+  },
+  en: {
+    rep: 'thank you for your message via the DFS-DIAMON customer portal to your representative.',
+    support: 'thank you for contacting the DFS support team via the DFS-DIAMON customer portal.',
+  },
+  fr: {
+    rep: 'merci pour votre message transmis via le portail client DFS-DIAMON à votre interlocuteur commercial.',
+    support: 'merci d’avoir contacté l’assistance DFS via le portail client DFS-DIAMON.',
+  },
+  it: {
+    rep: 'grazie per il suo messaggio inviato tramite il portale clienti DFS-DIAMON al suo referente commerciale.',
+    support: 'grazie per aver contattato il supporto DFS tramite il portale clienti DFS-DIAMON.',
+  },
+  es: {
+    rep: 'gracias por su mensaje enviado a través del portal de clientes de DFS-DIAMON a su representante comercial.',
+    support: 'gracias por contactar con el soporte de DFS a través del portal de clientes de DFS-DIAMON.',
+  },
+};
+
+const MC_INFO = {
+  de: 'Nachfolgend erhalten Sie eine Kopie Ihrer übermittelten Nachricht.',
+  en: 'Below you will find a copy of the message you submitted.',
+  fr: 'Vous trouverez ci-dessous une copie du message que vous avez transmis.',
+  it: 'Di seguito trova una copia del messaggio trasmesso.',
+  es: 'A continuación encontrará una copia del mensaje que envió.',
+};
+
+const MC_SUBJECT_LABEL = {
+  de: 'Betreff',
+  en: 'Subject',
+  fr: 'Objet',
+  it: 'Oggetto',
+  es: 'Asunto',
+};
+
+const MC_MESSAGE_HEADING = {
+  de: 'Nachricht',
+  en: 'Message',
+  fr: 'Message',
+  it: 'Messaggio',
+  es: 'Mensaje',
+};
+
+const MC_CLOSING = {
+  de: 'Mit freundlichen Grüßen\nDFS-DIAMON Kundenportal',
+  en: 'Kind regards\nDFS-DIAMON Customer Portal',
+  fr: 'Cordialement\nPortail client DFS-DIAMON',
+  it: 'Cordiali saluti\nPortale clienti DFS-DIAMON',
+  es: 'Saludos cordiales\nPortal de clientes DFS-DIAMON',
+};
+
+function buildMessageConfirmation(lang, { name, subject, message, channel } = {}) {
+  const channelKey = channel === 'support' ? 'support' : 'rep';
+  const intro = MC_INTRO[lang][channelKey];
+  const greeting = MC_GREETING[lang](name ? String(name).trim() : '');
+  const info = MC_INFO[lang];
+  const subjectLabel = MC_SUBJECT_LABEL[lang];
+  const messageHeading = MC_MESSAGE_HEADING[lang];
+  const closing = MC_CLOSING[lang];
+
+  const cleanedSubject = cleanSubjectLine(subject);
+  const subjectDisplay = cleanedSubject || MC_SUBJECT_FALLBACK[lang];
+  const emailSubjectBase = MC_SUBJECT_PREFIX[lang];
+  const emailSubject = cleanedSubject
+    ? `${emailSubjectBase}: ${cleanedSubject}`
+    : emailSubjectBase;
+
+  const normalizedMessage = normalizeMessageBody(message);
+  const messageDisplay = normalizedMessage || '—';
+
+  const lines = [
+    greeting,
+    '',
+    intro,
+    info,
+    '',
+    `${subjectLabel}: ${subjectDisplay}`,
+    '',
+    `--- ${messageHeading} ---`,
+    '',
+    messageDisplay,
+    '',
+    closing,
+  ];
+
+  return {
+    subject: emailSubject,
+    text: lines.join('\n'),
+  };
+}
+
 const TEXTS = {
   afterRegisterToCustomer: {
     de: (name)=>({ subject: 'Ihre Registrierung bei DFS-Diamon', text:
@@ -284,6 +416,14 @@ La informeremo in caso di cambiamenti di stato.` }),
 Su reclamación se ha registrado con el ticket ${ticket}.
 Le informaremos si cambia el estado.` }),
   },
+
+  messageConfirmation: {
+    de: (data)=>buildMessageConfirmation('de', data),
+    en: (data)=>buildMessageConfirmation('en', data),
+    fr: (data)=>buildMessageConfirmation('fr', data),
+    it: (data)=>buildMessageConfirmation('it', data),
+    es: (data)=>buildMessageConfirmation('es', data),
+  },
 };
 
 export const tpl = {
@@ -292,6 +432,7 @@ export const tpl = {
   gateRequest:             (email, lang='de')  => TEXTS.gateRequest[L(lang)](email),
   approved:                (name, lang='de')   => TEXTS.approved[L(lang)](name),
   complaintCustomer:       (ticket, lang='de') => TEXTS.complaintCustomer[L(lang)](ticket),
+  messageConfirmation:     (data, lang='de')   => TEXTS.messageConfirmation[L(lang)](data),
 };
 
 // ---- Senden: nimmt {subject,text}, baut HTML+Logo, nutzt lazy Transport ----
