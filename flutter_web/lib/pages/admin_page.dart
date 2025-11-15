@@ -3045,9 +3045,14 @@ class _UserTileState extends State<_UserTile> {
                 icon: Icon(widget.data.revoked ? Icons.lock_open : Icons.lock_outline),
                 label: Text(widget.data.revoked ? 'Freigeben' : 'Sperren'),
               ),
-              OutlinedButton(
+              FilledButton.icon(
                 onPressed: _busy ? null : () async => widget.onDelete(),
-                child: const Text('Löschen'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                  foregroundColor: Theme.of(context).colorScheme.onError,
+                ),
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Löschen'),
               ),
             ],
           ),
