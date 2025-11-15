@@ -761,6 +761,25 @@ class ApiClient {
     throw Exception('PUT/PATCH/POST /api/account failed: ${r.statusCode} ${r.body}');
   }
 
+  Future<Map<String, dynamic>> accountExport() async {
+    try {
+      final r = await _get('/api/account_export', auth: true);
+      if (!_ok2xx(r.statusCode)) {
+        final msg = _extractMessage(r.body);
+        throw ApiError(r.statusCode, msg);
+      }
+      final body = r.body.trim();
+      if (body.isEmpty) return const <String, dynamic>{};
+      final j = jsonDecode(body);
+      if (j is Map<String, dynamic>) return j;
+      if (j is Map) return j.cast<String, dynamic>();
+      return const <String, dynamic>{};
+    } catch (e) {
+      if (e is ApiError) rethrow;
+      throw ApiError(0, e.toString());
+    }
+  }
+
   Future<void> accountDelete(String password) async {
     var r = await _delete('/api/account', body: {'password': password}, auth: true);
     if (_ok2xx(r.statusCode)) {
@@ -777,6 +796,19 @@ class ApiClient {
     }
 
     throw Exception('DELETE/POST /api/account failed: ${r.statusCode} ${r.body}');
+  }
+
+  Future<void> accountAnonymize() async {
+    try {
+      final r = await _delete('/api/account?anonymize=1', auth: true);
+      if (!_ok2xx(r.statusCode)) {
+        final msg = _extractMessage(r.body);
+        throw ApiError(r.statusCode, msg);
+      }
+    } catch (e) {
+      if (e is ApiError) rethrow;
+      throw ApiError(0, e.toString());
+    }
   }
 
   Future<void> accountChangePassword(String oldPw, String newPw) async {
