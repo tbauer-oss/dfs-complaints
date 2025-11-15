@@ -1508,6 +1508,28 @@ class _AdminPageState extends State<AdminPage> {
                               _refreshOpen();
                             },
                             repName: repName,
+                            onToggleRevoked: (revoked) async {
+                              final title = revoked ? 'Nutzer sperren' : 'Sperre aufheben';
+                              final msg = revoked
+                                  ? 'Soll der Zugang für ${u.email} wirklich gesperrt werden?'
+                                  : 'Soll der Zugang für ${u.email} wieder freigeschaltet werden?';
+                              final ok = await _confirm(title, msg);
+                              if (ok != true) return;
+                              try {
+                                await _api.setUserRevoked(u.email, revoked);
+                                if (!mounted) return;
+                                final info = revoked
+                                    ? 'Account gesperrt: ${u.email}'
+                                    : 'Account freigeschaltet: ${u.email}';
+                                ScaffoldMessenger.of(context)
+                                    .showSnackBar(SnackBar(content: Text(info)));
+                                await _refreshAll();
+                              } catch (e) {
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(context)
+                                    .showSnackBar(SnackBar(content: Text('Fehler: $e')));
+                              }
+                            },
                           );
                         },
                       );
@@ -2460,7 +2482,8 @@ class _UserTile extends StatefulWidget {
   final _ComplaintsResult? complaints;
   final VoidCallback onClosedFromEditor;
   final String? repName;
-  
+  final Future<void> Function(bool revoked) onToggleRevoked;
+
   const _UserTile({
     required this.data,
     required this.api,
@@ -2468,6 +2491,7 @@ class _UserTile extends StatefulWidget {
     required this.onLoadComplaints,
     required this.complaints,
     required this.onClosedFromEditor,
+    required this.onToggleRevoked,
     this.repName,
   });
 
@@ -2577,6 +2601,16 @@ class _UserTileState extends State<_UserTile> {
     }
   }
 
+  Future<void> _toggleRevoked() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await widget.onToggleRevoked(!widget.data.revoked);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final d = widget.data;
@@ -2585,6 +2619,25 @@ class _UserTileState extends State<_UserTile> {
 
     final hasCustomerNo =
         (d.customerNumber != null && d.customerNumber!.trim().isNotEmpty);
+
+    Widget statusBadge(String text, Color color) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: color.withOpacity(0.4)),
+          ),
+          child: Text(text, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+        );
+
+    final statusBadges = <Widget>[];
+    if (d.revoked) {
+      final color = Theme.of(context).colorScheme.error;
+      statusBadges.add(statusBadge('Account gesperrt', color));
+    }
+    if (d.selfDeleted) {
+      statusBadges.add(statusBadge('Account durch User gelöscht', Colors.red.shade700));
+    }
 
     return Column(
       children: [
@@ -2615,14 +2668,14 @@ class _UserTileState extends State<_UserTile> {
                 ),
               ],
 
-              // Hinweis Selbst-Löschung
-              if (d.selfDeleted) const SizedBox(height: 4),
-              if (d.selfDeleted)
-                const Text(
-                  'Account durch User gelöscht!',
-                  style:
-                      TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
+              if (statusBadges.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: statusBadges,
                 ),
+              ],
 
               // NEU: Kundennummer-Zeile
               const SizedBox(height: 4),
@@ -2675,6 +2728,11 @@ class _UserTileState extends State<_UserTile> {
                 },
                 icon:
                     Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
+              ),
+              OutlinedButton.icon(
+                onPressed: _busy ? null : _toggleRevoked,
+                icon: Icon(widget.data.revoked ? Icons.lock_open : Icons.lock_outline),
+                label: Text(widget.data.revoked ? 'Freigeben' : 'Sperren'),
               ),
               OutlinedButton(
                 onPressed: _busy ? null : () async => widget.onDelete(),
@@ -2831,6 +2889,7 @@ class ActiveUser {
   final String phone;
   final String lang;
   final String? createdAt;
+  final bool revoked;
   final bool selfDeleted;
 
   // NEU:
@@ -2847,6 +2906,7 @@ class ActiveUser {
     required this.phone,
     required this.lang,
     required this.createdAt,
+    required this.revoked,
     required this.selfDeleted,
     this.customerNumber, // NEU
   });
@@ -2862,6 +2922,7 @@ class ActiveUser {
         phone: j['phone'] ?? '',
         lang: (j['lang'] ?? 'de').toString(),
         createdAt: j['createdAt']?.toString(),
+        revoked: (j['revoked'] ?? false) == true,
         selfDeleted: (j['selfDeleted'] ?? false) == true,
         // NEU: mehrere mögliche Feldnamen abfangen
         customerNumber: j['customerNumber']?.toString() ??
@@ -2880,6 +2941,7 @@ class ActiveUser {
         phone: '',
         lang: 'de',
         createdAt: '',
+        revoked: false,
         selfDeleted: false,
         customerNumber: null, // NEU
       );
@@ -4046,6 +4108,13 @@ class AdminApi {
     final r3 = await _request('POST', '/api/admin/users', body: {'action': 'delete', 'email': email});
     if (r3.status != 200 && r3.status != 204) {
       throw 'users DELETE/POST(delete) failed: HTTP ${r3.status} ${r3.responseText}';
+    }
+  }
+
+  Future<void> setUserRevoked(String email, bool revoked) async {
+    final res = await _request('PATCH', '/api/admin/users', body: {'email': email, 'revoked': revoked});
+    if (res.status != 200 && res.status != 204) {
+      throw 'users PATCH revoke failed: HTTP ${res.status} ${res.responseText}';
     }
   }
 
