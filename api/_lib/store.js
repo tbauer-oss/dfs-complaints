@@ -581,6 +581,51 @@ export const Status = {
   CLOSED: 6,
 };
 
+const PII_EMAIL_KEYS = new Set([
+  'email', 'customeremail', 'customer_email', 'contactemail', 'contact_email',
+  'useremail', 'user_email', 'customer_mail', 'customermail',
+].map(key => key.toLowerCase()));
+
+const PII_EMPTY_KEYS = new Set([
+  'company', 'contact', 'contactperson', 'contact_person', 'contactname', 'contact_name',
+  'customername', 'customer_name', 'customercontact', 'customer_contact',
+  'phone', 'customerphone', 'customer_phone', 'contactphone', 'contact_phone', 'userphone', 'user_phone',
+  'street', 'street1', 'street2', 'address', 'address1', 'address2',
+  'customerstreet', 'customer_street', 'customeraddress', 'customer_address',
+  'zip', 'zipcode', 'postalcode', 'postal_code', 'customerzip', 'customer_zip',
+  'city', 'customercity', 'customer_city', 'country',
+  'firstname', 'first_name', 'lastname', 'last_name',
+  'customerfirstname', 'customer_firstname', 'customerlastname', 'customer_lastname',
+  'customernumber', 'customer_no', 'customerno', 'customerid', 'customer_id',
+].map(key => key.toLowerCase()));
+
+function _placeholderFromEmail(email) {
+  const base = (email || '').toString().replace(/[^a-z0-9]/gi, '').slice(-6) || 'user';
+  const rnd = Math.floor(Math.random() * 1e6).toString(36);
+  return `deleted-user-${base}-${rnd}`.toLowerCase();
+}
+
+function _scrubValue(value, placeholderEmail) {
+  if (value == null) return value;
+  if (Array.isArray(value)) return value.map((v) => _scrubValue(v, placeholderEmail));
+  if (typeof value !== 'object') return value;
+
+  const out = { ...value };
+  for (const [key, val] of Object.entries(out)) {
+    const lower = key.toLowerCase();
+    if (PII_EMAIL_KEYS.has(lower)) {
+      out[key] = placeholderEmail;
+      continue;
+    }
+    if (PII_EMPTY_KEYS.has(lower)) {
+      out[key] = '';
+      continue;
+    }
+    out[key] = _scrubValue(val, placeholderEmail);
+  }
+  return out;
+}
+
 export async function complaintSave(c) {
   if (!c?.ticket) c.ticket = await nextTicket();
   const key = `${P}complaint:${c.ticket}`;
@@ -739,4 +784,53 @@ export async function complaintsForRepEmails(emails, { status = '' } = {}) {
   });
 
   return out;
+}
+
+/* ============== DSGVO: User + Complaints anonymisieren ============== */
+export async function anonymizeUserAndComplaints(email) {
+  const mail = _nm(email);
+  if (!mail) return { user: false, complaints: 0 };
+
+  const placeholder = _placeholderFromEmail(mail);
+  const placeholderEmail = `${placeholder}@anon.dfs.invalid`;
+  const now = Date.now();
+
+  const user = await userByEmail(mail).catch(() => null);
+  let anonymizedUser = false;
+  if (user) {
+    const scrubbed = _scrubValue({ ...user }, placeholderEmail) || {};
+    scrubbed.email = placeholderEmail;
+    scrubbed.revoked = true;
+    scrubbed.revokedAt = now;
+    scrubbed.selfDeleted = true;
+    scrubbed.deletedAt = now;
+    scrubbed.anonymized = true;
+    scrubbed.anonymizedAt = now;
+    delete scrubbed.pushTokens;
+    delete scrubbed.passhash;
+    try { await userDelete(mail); } catch (e) { console.warn('[store] anonymize user delete failed:', e); }
+    await userSave(scrubbed);
+    anonymizedUser = true;
+  } else {
+    try { await userDelete(mail); } catch (_) {}
+  }
+
+  const list = await complaintsByEmail(mail).catch(() => []);
+  let updated = 0;
+  if (Array.isArray(list)) {
+    for (const c of list) {
+      if (!c?.ticket) continue;
+      const scrubbedComplaint = _scrubValue({ ...c }, placeholderEmail) || {};
+      scrubbedComplaint.ticket = c.ticket;
+      scrubbedComplaint.updatedAt = now;
+      scrubbedComplaint.anonymized = true;
+      scrubbedComplaint.anonymizedAt = now;
+      await complaintSave(scrubbedComplaint).catch((e) => {
+        console.error('[store] anonymize complaint save failed:', e);
+      });
+      updated++;
+    }
+  }
+
+  return { user: anonymizedUser, complaints: updated, placeholderEmail };
 }
