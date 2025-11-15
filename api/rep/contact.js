@@ -1,8 +1,15 @@
 // api/rep/contact.js
-import { send } from '../_lib/mail.js'; // Pfad wie bei deinen anderen Routen
+import { send, tpl } from '../_lib/mail.js'; // Pfad wie bei deinen anderen Routen
 
 function asString(v) {
   return (typeof v === 'string' ? v : '').trim();
+}
+
+const LANGS = new Set(['de', 'en', 'fr', 'it', 'es']);
+function normLang(x) {
+  const lc = String(x || '').toLowerCase();
+  const two = lc.split(/[-_]/)[0];
+  return LANGS.has(two) ? two : 'de';
 }
 
 export default async function handler(req, res) {
@@ -22,6 +29,7 @@ export default async function handler(req, res) {
     const contactLast     = asString(body.contactLastName);
     const subjectRaw      = asString(body.subject);
     const messageRaw      = asString(body.message);
+    const lang            = normLang(body.lang || req.headers['accept-language']);
 
     if (!subjectRaw || !messageRaw) {
       return res.status(400).json({ error: 'Missing subject or message' });
@@ -73,7 +81,7 @@ export default async function handler(req, res) {
     // -------------------------------------------------
     // 3) Finale Zieladresse: Override schlägt alles
     // -------------------------------------------------
-    const toAddress = overrideTo.isNotEmpty
+    const toAddress = overrideTo
       ? overrideTo
       : normalTo;
 
@@ -82,6 +90,24 @@ export default async function handler(req, res) {
       text: fullText,
       lang: 'de',
     });
+
+    const hasCompanyEmail = companyEmail && companyEmail.includes('@');
+    if (hasCompanyEmail) {
+      const confirmation = tpl.messageConfirmation(
+        {
+          name: contactName,
+          subject: subjectRaw,
+          message: messageRaw,
+          channel: 'rep',
+        },
+        lang,
+      );
+
+      await send(companyEmail, {
+        ...confirmation,
+        lang,
+      });
+    }
 
     return res.status(200).json({ ok: true });
   } catch (err) {
