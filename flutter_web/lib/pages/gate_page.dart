@@ -134,13 +134,14 @@ class _GatePageState extends State<GatePage> {
               right: -40,
               child: _AmbientGlow(color: scheme.secondary.withOpacity(.20), size: 320),
             ),
-            Align(
-              alignment: Alignment.center,
-              child: Padding(
+            Positioned.fill(
+              child: SingleChildScrollView(
                 padding: EdgeInsets.symmetric(horizontal: isCompact ? 16 : 32, vertical: isCompact ? 24 : 48),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 520),
-                  child: MouseRegion(
+                child: Align(
+                  alignment: Alignment.center,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 520),
+                    child: MouseRegion(
                     onEnter: (_) => setState(() => _cardHovered = true),
                     onExit: (_) => setState(() => _cardHovered = false),
                     child: AnimatedContainer(
