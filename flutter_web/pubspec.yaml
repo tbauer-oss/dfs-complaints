@@ -16,6 +16,7 @@ dependencies:
   provider: ^6.1.2
   file_picker: ^10.3.3
   country_flags: ^2.2.0
+  fl_chart: ^0.69.0
 
 flutter:
   uses-material-design: true

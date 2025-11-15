@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../models/country.dart';
 import '../widgets/legal_footer.dart';
+import 'admin_stats_page.dart';
 
 // ===================================================================
 // Admin Page – mit Kachel-Menü (wie Kunden-Dashboard)
@@ -1296,6 +1297,19 @@ class _AdminPageState extends State<AdminPage> {
         count: _openComplaints.length,
         compact: compact,
         onTap: () => setState(() => _view = _AdminView.open),
+      ),
+      AdminTilePro(
+        label: 'Statistik & KPIs',
+        subtitle: 'Reklamationsübersicht',
+        icon: Icons.query_stats_outlined,
+        colorA: AdminPalette.blueA,
+        colorB: AdminPalette.blueB,
+        compact: compact,
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => AdminStatsPage(api: widget.api)),
+          );
+        },
       ),
       AdminTilePro(
         label: 'Anträge / Pending',

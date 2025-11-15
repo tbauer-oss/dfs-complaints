@@ -163,6 +163,13 @@ class ApiClient {
     return h;
   }
 
+  String _formatDateOnly(DateTime date) {
+    final d = DateTime.utc(date.year, date.month, date.day);
+    final mm = d.month.toString().padLeft(2, '0');
+    final dd = d.day.toString().padLeft(2, '0');
+    return '${d.year}-$mm-$dd';
+  }
+
   // Header für Vertreter-Endpunkte (erzwingt X-Gate: rep)
   Map<String, String> _repHeaders({Map<String, String>? extra}) {
     final h = <String, String>{
@@ -943,6 +950,28 @@ class ApiClient {
     } catch (_) {
       return false;
     }
+  }
+
+  Future<Map<String, dynamic>> adminStats({DateTime? from, DateTime? to}) async {
+    final params = <String, String>{};
+    if (from != null) params['from'] = _formatDateOnly(from);
+    if (to != null) params['to'] = _formatDateOnly(to);
+    var path = '/api/admin/stats';
+    if (params.isNotEmpty) {
+      final query = params.entries
+          .map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
+          .join('&');
+      path = '$path?$query';
+    }
+    final r = await http.get(_u(path), headers: _adminHeaders());
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final txt = r.body.trim();
+    if (txt.isEmpty) return const <String, dynamic>{};
+    final decoded = jsonDecode(txt);
+    if (decoded is Map) return decoded.cast<String, dynamic>();
+    return const <String, dynamic>{};
   }
 
   // ---------- Vertreter (Kundenbereich) ----------
