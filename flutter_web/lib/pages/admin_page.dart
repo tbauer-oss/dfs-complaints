@@ -56,6 +56,7 @@ class _AdminPageState extends State<AdminPage> {
   late Country _custCountry;
   bool _custBusy          = false;
   String? _custErr;
+  final _createCustomerFormKey = GlobalKey<FormState>();
 
   // Daten
   List<PendingUser> _pending = [];
@@ -96,6 +97,32 @@ class _AdminPageState extends State<AdminPage> {
       s = s.substring(0, s.length - 4);
     }
     return s;
+  }
+
+  void _resetCustomerForm() {
+    _custCompanyCtrl.clear();
+    _custFirstNameCtrl.clear();
+    _custLastNameCtrl.clear();
+    _custEmailCtrl.clear();
+    _custStreetCtrl.clear();
+    _custZipCtrl.clear();
+    _custCityCtrl.clear();
+    _custPhoneCtrl.clear();
+    _custPasswordCtrl.clear();
+    _createCustomerFormKey.currentState?.reset();
+
+    if (!mounted) {
+      _custLang = 'de';
+      _custCountry = _defaultCountry;
+      _custErr = null;
+      return;
+    }
+
+    setState(() {
+      _custLang = 'de';
+      _custCountry = _defaultCountry;
+      _custErr = null;
+    });
   }
 
   @override
@@ -730,287 +757,421 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   Widget _buildCreateCustomerPanel() {
-    final formKey = GlobalKey<FormState>();
-
     String? _req(String v, String label) {
       if (v.trim().isEmpty) return '$label wird benötigt';
       return null;
     }
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Form(
-          key: formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.person_add_alt_1_outlined),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Neuen Kunden anlegen',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
-                  const Spacer(),
-                  if (_custBusy)
-                    const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 12),
+    final theme = Theme.of(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double availableWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : MediaQuery.of(context).size.width;
+        final bool compact = availableWidth < 720;
+        final double horizontalPadding = compact ? 12 : 24;
+        final double maxCardWidth = availableWidth > 980 ? 940 : availableWidth;
+        final EdgeInsets cardPadding = EdgeInsets.symmetric(
+          horizontal: compact ? 18 : 28,
+          vertical: compact ? 20 : 26,
+        );
 
-              if (_custErr != null) ...[
-                Text(_custErr!, style: const TextStyle(color: Colors.red)),
-                const SizedBox(height: 8),
-              ],
-
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
+        return Align(
+          alignment: Alignment.topCenter,
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+            padding: EdgeInsets.fromLTRB(horizontalPadding, 16, horizontalPadding, 32),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxCardWidth),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SizedBox(
-                    width: 320,
-                    child: TextFormField(
-                      controller: _custCompanyCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Firma',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                      validator: (v) => _req(v ?? '', 'Firma'),
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: compact ? 18 : 26,
+                      vertical: compact ? 20 : 26,
                     ),
-                  ),
-                  SizedBox(
-                    width: 320,
-                    child: TextFormField(
-                      controller: _custEmailCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'E-Mail',
-                        border: OutlineInputBorder(),
-                        isDense: true,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          theme.colorScheme.primaryContainer,
+                          theme.colorScheme.primaryContainer.withOpacity(0.72),
+                        ],
                       ),
-                      validator: (v) => _req(v ?? '', 'E-Mail'),
+                      borderRadius: BorderRadius.circular(22),
                     ),
-                  ),
-                  SizedBox(
-                    width: 200,
-                    child: DropdownButtonFormField<String>(
-                      value: _custLang,
-                      decoration: const InputDecoration(
-                        labelText: 'Sprache',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                      items: const [
-                        DropdownMenuItem(value: 'de', child: Text('Deutsch')),
-                        DropdownMenuItem(value: 'en', child: Text('Englisch')),
-                        DropdownMenuItem(value: 'fr', child: Text('Französisch')),
-                        DropdownMenuItem(value: 'it', child: Text('Italienisch')),
-                        DropdownMenuItem(value: 'es', child: Text('Spanisch')),
-                      ],
-                      onChanged: (v) => setState(() => _custLang = v ?? 'de'),
-                    ),
-                  ),
-                  SizedBox(
-                    width: 220,
-                    child: TextFormField(
-                      controller: _custFirstNameCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Vorname',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                      validator: (v) => _req(v ?? '', 'Vorname'),
-                    ),
-                  ),
-                  SizedBox(
-                    width: 220,
-                    child: TextFormField(
-                      controller: _custLastNameCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Nachname',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                      validator: (v) => _req(v ?? '', 'Nachname'),
-                    ),
-                  ),
-                  SizedBox(
-                    width: 520,
-                    child: TextFormField(
-                      controller: _custStreetCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Straße und Hausnummer',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                      validator: (v) => _req(v ?? '', 'Straße'),
-                    ),
-                  ),
-                  SizedBox(
-                    width: 180,
-                    child: TextFormField(
-                      controller: _custZipCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'PLZ',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                      validator: (v) => _req(v ?? '', 'PLZ'),
-                    ),
-                  ),
-                  SizedBox(
-                    width: 280,
-                    child: TextFormField(
-                      controller: _custCityCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Ort',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                      validator: (v) => _req(v ?? '', 'Ort'),
-                    ),
-                  ),
-                  SizedBox(
-                    width: 280,
-                    child: DropdownButtonFormField<Country>(
-                      value: _custCountry,
-                      decoration: const InputDecoration(
-                        labelText: 'Land',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                      isExpanded: true,
-                      items: kCountries
-                          .map(
-                            (c) => DropdownMenuItem<Country>(
-                              value: c,
-                              child: Text(c.label(context)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            CircleAvatar(
+                              radius: 22,
+                              backgroundColor: theme.colorScheme.primary,
+                              child: const Icon(Icons.person_add_alt_1_outlined, color: Colors.white),
                             ),
-                          )
-                          .toList(),
-                      onChanged: (v) {
-                        if (v == null) return;
-                        setState(() => _custCountry = v);
-                      },
-                      validator: (v) => v == null ? 'Land auswählen' : null,
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Neuen Kunden anlegen',
+                                    style: theme.textTheme.titleLarge?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                      color: theme.colorScheme.onPrimaryContainer,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Erstelle strukturierte Kundenkonten mit klaren Abschnitten und hilfreichen Hinweisen. '
+                                    'Alle Pflichtfelder sind mit einem Stern (*) markiert.',
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: theme.colorScheme.onPrimaryContainer.withOpacity(0.9),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (_custBusy)
+                              const Padding(
+                                padding: EdgeInsets.only(left: 12),
+                                child: SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(strokeWidth: 2.4),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: const [
+                            _FeatureHighlight(icon: Icons.auto_fix_high_outlined, label: 'Automatische Begrüßungs-Mail'),
+                            _FeatureHighlight(icon: Icons.security_outlined, label: 'Sichere Zugangsdaten'),
+                            _FeatureHighlight(icon: Icons.event_available_outlined, label: 'Sofort einsatzbereit'),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                  SizedBox(
-                    width: 220,
-                    child: TextFormField(
-                      controller: _custPhoneCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Telefon (optional)',
-                        border: OutlineInputBorder(),
-                        isDense: true,
+                  const SizedBox(height: 18),
+                  Card(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    elevation: 2,
+                    child: Container(
+                      padding: cardPadding,
+                      child: Form(
+                        key: _createCustomerFormKey,
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (_custErr != null) ...[
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.errorContainer,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(Icons.error_outline, color: theme.colorScheme.onErrorContainer),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        _custErr!,
+                                        style: theme.textTheme.bodyMedium?.copyWith(
+                                          color: theme.colorScheme.onErrorContainer,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 18),
+                            ],
+
+                            _AdminFormSection(
+                              icon: Icons.apartment_outlined,
+                              title: 'Firmendaten',
+                              description: 'Allgemeine Informationen zum Unternehmen.',
+                              fields: [
+                                _FieldConfig(
+                                  preferredWidth: 380,
+                                  child: TextFormField(
+                                    controller: _custCompanyCtrl,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Firma *',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    validator: (v) => _req(v ?? '', 'Firma'),
+                                  ),
+                                ),
+                                _FieldConfig(
+                                  preferredWidth: 380,
+                                  child: TextFormField(
+                                    controller: _custEmailCtrl,
+                                    decoration: const InputDecoration(
+                                      labelText: 'E-Mail *',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    validator: (v) => _req(v ?? '', 'E-Mail'),
+                                  ),
+                                ),
+                                _FieldConfig(
+                                  preferredWidth: 240,
+                                  child: DropdownButtonFormField<String>(
+                                    value: _custLang,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Sprache *',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    items: const [
+                                      DropdownMenuItem(value: 'de', child: Text('Deutsch')),
+                                      DropdownMenuItem(value: 'en', child: Text('Englisch')),
+                                      DropdownMenuItem(value: 'fr', child: Text('Französisch')),
+                                      DropdownMenuItem(value: 'it', child: Text('Italienisch')),
+                                      DropdownMenuItem(value: 'es', child: Text('Spanisch')),
+                                    ],
+                                    onChanged: (v) => setState(() => _custLang = v ?? 'de'),
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            _AdminFormSection(
+                              icon: Icons.person_outline,
+                              title: 'Ansprechpartner',
+                              description: 'Persönliche Daten für den Kontakt.',
+                              fields: [
+                                _FieldConfig(
+                                  preferredWidth: 260,
+                                  child: TextFormField(
+                                    controller: _custFirstNameCtrl,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Vorname *',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    validator: (v) => _req(v ?? '', 'Vorname'),
+                                  ),
+                                ),
+                                _FieldConfig(
+                                  preferredWidth: 260,
+                                  child: TextFormField(
+                                    controller: _custLastNameCtrl,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Nachname *',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    validator: (v) => _req(v ?? '', 'Nachname'),
+                                  ),
+                                ),
+                                _FieldConfig(
+                                  preferredWidth: 260,
+                                  child: TextFormField(
+                                    controller: _custPhoneCtrl,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Telefon (optional)',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            _AdminFormSection(
+                              icon: Icons.map_outlined,
+                              title: 'Adresse',
+                              description: 'Standort des Kundenunternehmens.',
+                              fields: [
+                                _FieldConfig(
+                                  preferredWidth: 480,
+                                  child: TextFormField(
+                                    controller: _custStreetCtrl,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Straße und Hausnummer *',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    validator: (v) => _req(v ?? '', 'Straße'),
+                                  ),
+                                ),
+                                _FieldConfig(
+                                  preferredWidth: 220,
+                                  child: TextFormField(
+                                    controller: _custZipCtrl,
+                                    decoration: const InputDecoration(
+                                      labelText: 'PLZ *',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    validator: (v) => _req(v ?? '', 'PLZ'),
+                                  ),
+                                ),
+                                _FieldConfig(
+                                  preferredWidth: 280,
+                                  child: TextFormField(
+                                    controller: _custCityCtrl,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Ort *',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    validator: (v) => _req(v ?? '', 'Ort'),
+                                  ),
+                                ),
+                                _FieldConfig(
+                                  preferredWidth: 320,
+                                  child: DropdownButtonFormField<Country>(
+                                    value: _custCountry,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Land *',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    isExpanded: true,
+                                    items: kCountries
+                                        .map(
+                                          (c) => DropdownMenuItem<Country>(
+                                            value: c,
+                                            child: Text(c.label(context)),
+                                          ),
+                                        )
+                                        .toList(),
+                                    onChanged: (v) {
+                                      if (v == null) return;
+                                      setState(() => _custCountry = v);
+                                    },
+                                    validator: (v) => v == null ? 'Land auswählen' : null,
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            _AdminFormSection(
+                              icon: Icons.lock_outline,
+                              title: 'Zugangsdaten',
+                              description: 'Optionales Startpasswort für den Login.',
+                              fields: [
+                                _FieldConfig(
+                                  preferredWidth: 320,
+                                  child: TextFormField(
+                                    controller: _custPasswordCtrl,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Startpasswort (optional)',
+                                      helperText: 'Leer lassen = Admin-Passwort wird verwendet',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    obscureText: true,
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                OutlinedButton.icon(
+                                  icon: const Icon(Icons.refresh_outlined),
+                                  label: const Text('Formular zurücksetzen'),
+                                  onPressed: _custBusy
+                                      ? null
+                                      : () {
+                                          FocusScope.of(context).unfocus();
+                                          _resetCustomerForm();
+                                        },
+                                ),
+                                const Spacer(),
+                                FilledButton.icon(
+                                  icon: const Icon(Icons.save_outlined),
+                                  label: const Text('Kundenaccount anlegen'),
+                                  onPressed: _custBusy
+                                      ? null
+                                      : () async {
+                                          final isValid =
+                                              _createCustomerFormKey.currentState?.validate() ?? false;
+                                          if (!isValid) {
+                                            return;
+                                          }
+                                          FocusScope.of(context).unfocus();
+                                          final first = _custFirstNameCtrl.text.trim();
+                                          final last = _custLastNameCtrl.text.trim();
+                                          setState(() {
+                                            _custBusy = true;
+                                            _custErr = null;
+                                          });
+                                          try {
+                                            final selectedCountry = _custCountry;
+                                            final contactCombined = '$first $last'.trim();
+                                            await _api.createCustomerAdmin(
+                                              company: _custCompanyCtrl.text.trim(),
+                                              contact: contactCombined,
+                                              email: _custEmailCtrl.text.trim(),
+                                              street: _custStreetCtrl.text.trim(),
+                                              zip: _custZipCtrl.text.trim(),
+                                              city: _custCityCtrl.text.trim(),
+                                              country: selectedCountry.label(context),
+                                              countryCode: selectedCountry.code,
+                                              firstName: first,
+                                              lastName: last,
+                                              phone: _custPhoneCtrl.text.trim(),
+                                              lang: _custLang,
+                                              password: _custPasswordCtrl.text.trim().isEmpty
+                                                  ? null
+                                                  : _custPasswordCtrl.text.trim(),
+                                            );
+
+                                            _resetCustomerForm();
+
+                                            if (!mounted) {
+                                              return;
+                                            }
+
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(
+                                                content: Text('Kundenaccount wurde angelegt.'),
+                                              ),
+                                            );
+                                            await _refreshAll();
+                                          } catch (e) {
+                                            if (mounted) {
+                                              setState(() => _custErr = e.toString());
+                                            }
+                                          } finally {
+                                            if (mounted) {
+                                              setState(() => _custBusy = false);
+                                            }
+                                          }
+                                        },
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ),
-                  SizedBox(
-                    width: 260,
-                    child: TextFormField(
-                      controller: _custPasswordCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Startpasswort (optional)',
-                        helperText: 'Leer lassen = Admin-Passwort wird verwendet',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                      obscureText: true,
                     ),
                   ),
                 ],
               ),
-
-              const SizedBox(height: 16),
-              Align(
-                alignment: Alignment.centerRight,
-                child: FilledButton.icon(
-                  icon: const Icon(Icons.save_outlined),
-                  label: const Text('Kundenaccount anlegen'),
-                  onPressed: _custBusy
-                      ? null
-                      : () async {
-                          if (!(formKey.currentState?.validate() ?? false)) return;
-                          final first = _custFirstNameCtrl.text.trim();
-                          final last = _custLastNameCtrl.text.trim();
-                          setState(() {
-                            _custBusy = true;
-                            _custErr = null;
-                          });
-                          try {
-                            final selectedCountry = _custCountry;
-                            final contactCombined = '$first $last'.trim();
-                            await _api.createCustomerAdmin(
-                              company: _custCompanyCtrl.text.trim(),
-                              contact: contactCombined,
-                              email: _custEmailCtrl.text.trim(),
-                              street: _custStreetCtrl.text.trim(),
-                              zip: _custZipCtrl.text.trim(),
-                              city: _custCityCtrl.text.trim(),
-                              country: selectedCountry.label(context),
-                              countryCode: selectedCountry.code,
-                              firstName: first,
-                              lastName: last,
-                              phone: _custPhoneCtrl.text.trim(),
-                              lang: _custLang,
-                              // WICHTIG: Passwort optional; wenn leer, sendest du null
-                              password: _custPasswordCtrl.text.trim().isEmpty
-                                  ? null
-                                  : _custPasswordCtrl.text.trim(),
-                            );
-
-                            // Felder leeren
-                            _custCompanyCtrl.clear();
-                            _custFirstNameCtrl.clear();
-                            _custLastNameCtrl.clear();
-                            _custEmailCtrl.clear();
-                            _custStreetCtrl.clear();
-                            _custZipCtrl.clear();
-                            _custCityCtrl.clear();
-                            _custPhoneCtrl.clear();
-                            _custPasswordCtrl.clear();
-                            if (mounted) {
-                              setState(() {
-                                _custLang = 'de';
-                                _custCountry = _defaultCountry;
-                              });
-                            } else {
-                              _custLang = 'de';
-                              _custCountry = _defaultCountry;
-                            }
-
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Kundenaccount wurde angelegt.'),
-                                ),
-                              );
-                              // Users neu laden, damit der neue Kunde in der Liste erscheint
-                              await _refreshAll();
-                            }
-                          } catch (e) {
-                            if (mounted) {
-                              setState(() => _custErr = e.toString());
-                            }
-                          } finally {
-                            if (mounted) {
-                              setState(() => _custBusy = false);
-                            }
-                          }
-                        },
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -2158,6 +2319,156 @@ class _AdminPageState extends State<AdminPage> {
   }
 }
 
+class _FieldConfig {
+  const _FieldConfig({required this.child, this.preferredWidth});
+
+  final Widget child;
+  final double? preferredWidth;
+}
+
+class _AdminFormSection extends StatelessWidget {
+  const _AdminFormSection({
+    required this.icon,
+    required this.title,
+    required this.fields,
+    this.description,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? description;
+  final List<_FieldConfig> fields;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    const spacing = 16.0;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        final bool threeColumns = maxWidth >= 1024;
+        final bool twoColumns = !threeColumns && maxWidth >= 720;
+        final double columnWidth;
+
+        if (threeColumns) {
+          columnWidth = (maxWidth - spacing * 2) / 3;
+        } else if (twoColumns) {
+          columnWidth = (maxWidth - spacing) / 2;
+        } else {
+          columnWidth = maxWidth;
+        }
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 18),
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceVariant.withOpacity(0.32),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(icon, color: theme.colorScheme.primary),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (description != null && description!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              description!,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: spacing,
+                runSpacing: spacing,
+                children: fields.map((field) {
+                  double widthForField = columnWidth;
+                  if (field.preferredWidth != null) {
+                    widthForField = field.preferredWidth!;
+                    if (widthForField < columnWidth) {
+                      widthForField = columnWidth;
+                    }
+                    if (widthForField > maxWidth) {
+                      widthForField = maxWidth;
+                    }
+                  }
+
+                  return ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minWidth: columnWidth,
+                      maxWidth: widthForField,
+                    ),
+                    child: SizedBox(
+                      width: widthForField,
+                      child: field.child,
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _FeatureHighlight extends StatelessWidget {
+  const _FeatureHighlight({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final Color textColor = theme.colorScheme.onPrimaryContainer;
+    return Container(
+      decoration: BoxDecoration(
+        color: textColor.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: textColor),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: textColor,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ===================================================================
 // Kleine Hilfswidgets
 // ===================================================================
@@ -3261,58 +3572,16 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   Widget _detKv(String label, String? value, {int maxLines = 2}) {
     final v = (value ?? '').trim();
     if (v.isEmpty) return const SizedBox.shrink();
-
-    final labelStyle = const TextStyle(fontWeight: FontWeight.w600);
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isCompact = constraints.maxWidth < 420;
-        final textTheme = Theme.of(context).textTheme;
-        final valueStyle = textTheme.bodyMedium;
-
-        if (isCompact) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: labelStyle),
-                const SizedBox(height: 4),
-                Text(
-                  v,
-                  style: valueStyle,
-                  softWrap: true,
-                  maxLines: maxLines > 3 ? maxLines : null,
-                  overflow: maxLines > 3 ? TextOverflow.ellipsis : TextOverflow.visible,
-                ),
-              ],
-            ),
-          );
-        }
-
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 150, maxWidth: 220),
-                child: Text(label, style: labelStyle),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  v,
-                  style: valueStyle,
-                  maxLines: maxLines,
-                  softWrap: true,
-                  overflow: TextOverflow.fade,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 160, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
+          const SizedBox(width: 8),
+          Expanded(child: Text(v, maxLines: maxLines, overflow: TextOverflow.ellipsis)),
+        ],
+      ),
     );
   }
 
@@ -3664,8 +3933,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   }
 
   String _fmtDate(DateTime d) {
-    String two(int n) => n < 10 ? '0$n' : '$n';
-    return '${two(d.day)}.${two(d.month)}.${d.year}';
+    return '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
   }
 
   void _composeMailToCustomer() {
@@ -3739,6 +4007,11 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       );
     }
 
+    String _fmtDate(DateTime d) {
+      String two(int n) => n < 10 ? '0$n' : '$n';
+      return '${two(d.day)}.${two(d.month)}.${d.year}';
+    }
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
       child: Padding(
@@ -3749,31 +4022,31 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
             // =====================
             // Kopfzeile (übersichtlich)
             // =====================
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final isCompact = constraints.maxWidth < 720;
-
-                Widget leftColumn() {
-                  return Column(
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Linke Seite: Ticket + Interne Nr. + Datum + Status-Chip
+                Expanded(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 6,
-                        crossAxisAlignment: WrapCrossAlignment.center,
+                      // 1) Ticket + (optional) Interne Nr. als Tag direkt daneben
+                      Row(
                         children: [
                           Text(
                             'Ticket: ${c.ticket}',
                             style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                            overflow: TextOverflow.fade,
-                            softWrap: true,
                           ),
                           if (hasNote)
-                            Icon(
-                              Icons.sticky_note_2,
-                              size: 18,
-                              color: Colors.amber.shade800,
+                            Padding(
+                              padding: const EdgeInsets.only(left: 6),
+                              child: Icon(
+                                Icons.sticky_note_2,
+                                size: 16,
+                                color: Colors.amber.shade800,
+                              ),
                             ),
+                          const SizedBox(width: 10),
                           if ((c.internalNo ?? '').trim().isNotEmpty)
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -3802,11 +4075,19 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                         ],
                       ),
                       const SizedBox(height: 6),
+                      // 3) Datum + Status + (optional) Vertreter-Ampel
                       Wrap(
-                        spacing: 12,
+                        spacing: 10,
                         runSpacing: 6,
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Icon(Icons.event, size: 16),
+                              SizedBox(width: 6),
+                            ],
+                          ),
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -3816,6 +4097,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                             ],
                           ),
                           _statusChip(c.status),
+
+                          // Ampel nur zeigen, wenn Kunde einem Vertreter zugeordnet ist
                           if (widget.hasRep)
                             _RepTrafficLight(
                               opinion: ((c.repOpinion ?? '').trim().isEmpty) ? 'pending' : c.repOpinion,
@@ -3824,104 +4107,75 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                         ],
                       ),
                     ],
-                  );
-                }
+                  ),
+                ),
 
-                Widget rightColumn() {
-                  return Builder(
-                    builder: (ctx) {
-                      final isDark = Theme.of(ctx).brightness == Brightness.dark;
-                      final label = (widget.companyHint != null && widget.companyHint!.trim().isNotEmpty)
-                          ? 'Firma: ${widget.companyHint}'
-                          : 'E-Mail: ${c.email}';
+                const SizedBox(width: 8),
 
-                      Widget noteButton() {
-                        return Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            IconButton(
-                              tooltip: hasNote ? 'Notiz anzeigen/bearbeiten' : 'Notiz hinzufügen',
-                              icon: Icon(_noteOpen ? Icons.sticky_note_2 : Icons.sticky_note_2_outlined),
-                              onPressed: _busy ? null : _toggleNotes,
-                            ),
-                            if (hasNote)
-                              Positioned(
-                                top: 10,
-                                right: 10,
-                                child: Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: BoxDecoration(
-                                    color: Colors.amber.shade700,
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.amber.shade200,
-                                        blurRadius: 2,
-                                      ),
-                                    ],
-                                  ),
+                // Rechte Seite: Firma/E-Mail – lesbar (Light: schwarz, Dark: onSurface) + Mail-Icon
+                Builder(
+                  builder: (ctx) {
+                    final isDark = Theme.of(ctx).brightness == Brightness.dark;
+                    final label = (widget.companyHint != null && widget.companyHint!.trim().isNotEmpty)
+                        ? 'Firma: ${widget.companyHint}'
+                        : 'E-Mail: ${c.email}';
+                    Widget noteButton() {
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          IconButton(
+                            tooltip: hasNote ? 'Notiz anzeigen/bearbeiten' : 'Notiz hinzufügen',
+                            icon: Icon(_noteOpen ? Icons.sticky_note_2 : Icons.sticky_note_2_outlined),
+                            onPressed: _busy ? null : _toggleNotes,
+                          ),
+                          if (hasNote)
+                            Positioned(
+                              top: 10,
+                              right: 10,
+                              child: Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: Colors.amber.shade700,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.amber.shade200,
+                                      blurRadius: 2,
+                                    ),
+                                  ],
                                 ),
                               ),
-                          ],
-                        );
-                      }
-
-                      final content = Row(
-                        mainAxisSize: MainAxisSize.max,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          noteButton(),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              label,
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: isDark ? Theme.of(ctx).colorScheme.onSurface : Colors.black,
-                              ),
-                              softWrap: true,
-                              overflow: TextOverflow.fade,
-                              maxLines: isCompact ? 4 : 2,
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            tooltip: 'E-Mail an Kunden verfassen',
-                            icon: const Icon(Icons.email_outlined),
-                            onPressed: _busy ? null : _composeMailToCustomer,
-                          ),
                         ],
                       );
+                    }
 
-                      return isCompact
-                          ? Align(alignment: Alignment.centerLeft, child: content)
-                          : content;
-                    },
-                  );
-                }
-
-                if (isCompact) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      leftColumn(),
-                      const SizedBox(height: 12),
-                      rightColumn(),
-                    ],
-                  );
-                }
-
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: leftColumn()),
-                    const SizedBox(width: 12),
-                    rightColumn(),
-                  ],
-                );
-              },
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        noteButton(),
+                        const SizedBox(width: 4),
+                        Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Theme.of(ctx).colorScheme.onSurface : Colors.black,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          tooltip: 'E-Mail an Kunden verfassen',
+                          icon: const Icon(Icons.email_outlined),
+                          onPressed: _busy ? null : _composeMailToCustomer,
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ],
             ),
 
             AnimatedSwitcher(
