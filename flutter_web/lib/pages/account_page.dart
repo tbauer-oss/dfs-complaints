@@ -1,5 +1,8 @@
 // lib/pages/account_page.dart
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 import '../services/app_prefs_scope.dart';
@@ -32,6 +35,8 @@ class _AccountPageState extends State<AccountPage> {
   bool busy = true;
   String? err;
   Map<String, dynamic>? acc;
+  bool _exportBusy = false;
+  bool _anonymizeBusy = false;
 
   @override
   void initState() {
@@ -57,6 +62,111 @@ class _AccountPageState extends State<AccountPage> {
       err = s;
     } finally {
       if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> _handleExport() async {
+    if (_exportBusy) return;
+    setState(() => _exportBusy = true);
+    try {
+      final data = await widget.api.accountExport();
+      if (!mounted) return;
+      final pretty = const JsonEncoder.withIndent('  ').convert(data);
+      final rootContext = context;
+      await showDialog<void>(
+        context: rootContext,
+        builder: (dialogCtx) => AlertDialog(
+          title: Text(dialogCtx.t.dataExportTitle ?? 'Datenexport (DSGVO)'),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480, maxHeight: 360),
+            child: Scrollbar(
+              thumbVisibility: true,
+              child: SingleChildScrollView(
+                child: SelectableText(
+                  pretty,
+                  style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: pretty));
+                if (!mounted) return;
+                ScaffoldMessenger.of(rootContext).showSnackBar(
+                  SnackBar(content: Text(rootContext.t.copied ?? 'In Zwischenablage kopiert.')),
+                );
+              },
+              child: Text(dialogCtx.t.copy ?? 'Kopieren'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: Text(dialogCtx.t.close ?? 'Schließen'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${context.t.error ?? 'Fehler'}: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _exportBusy = false);
+    }
+  }
+
+  Future<void> _handleAnonymize() async {
+    if (_anonymizeBusy) return;
+    final t = context.t;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(t.accountAnonymizeTitle ?? 'Konto anonymisieren'),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 320),
+          child: Scrollbar(
+            thumbVisibility: true,
+            child: SingleChildScrollView(
+              child: Text(
+                t.accountAnonymizeDescription ??
+                    'Alle personenbezogenen Daten werden anonymisiert. Reklamationen '
+                    'bleiben für Statistik und Qualitätsmanagement erhalten, ein Login ist danach nicht mehr möglich.',
+              ),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(t.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(t.continueLabel),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    setState(() => _anonymizeBusy = true);
+    try {
+      await widget.api.accountAnonymize();
+      await widget.api.logout();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.accountAnonymized ?? 'Konto anonymisiert.')),
+      );
+      Navigator.of(context).popUntil((r) => r.isFirst);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${t.error ?? 'Fehler'}: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _anonymizeBusy = false);
     }
   }
 
@@ -119,6 +229,35 @@ class _AccountPageState extends State<AccountPage> {
                   MaterialPageRoute(builder: (_) => _PasswordPage(api: widget.api)),
                 ),
                 label: Text(t.changePassword),
+              ),
+              const SizedBox(height: 12),
+
+              OutlinedButton.icon(
+                icon: _exportBusy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.file_download),
+                label: Text(t.dataExportButton ?? 'Datenexport (DSGVO)'),
+                onPressed: _exportBusy ? null : _handleExport,
+              ),
+              const SizedBox(height: 12),
+
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.deepOrange,
+                ),
+                icon: _anonymizeBusy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.shield_moon),
+                label: Text(t.accountAnonymizeButton ?? 'Konto anonymisieren'),
+                onPressed: _anonymizeBusy ? null : _handleAnonymize,
               ),
               const SizedBox(height: 12),
 
