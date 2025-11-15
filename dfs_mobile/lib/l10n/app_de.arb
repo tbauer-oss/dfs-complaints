@@ -25,6 +25,8 @@
   "attachments_success": "Anhänge wurden erfolgreich übermittelt.",
   "attachments_error": "Anhänge konnten nicht gesendet werden.",
   "attachments_too_large": "Max. 10 MB Gesamtgröße für Anhänge",
+  "attachments_existing": "Bereits gesendete Anhänge",
+  "attachments_file_unknown": "Anhang",
 
   "we_are_here_for_you": "Wir sind für Sie da.",
   "rep_overview_open": "Offen",
