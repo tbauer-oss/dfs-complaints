@@ -39,6 +39,8 @@
   "rep_menu_customers_subtitle": "Aziende e contatti",
   "rep_menu_account_title": "Il mio account",
   "rep_menu_account_subtitle": "Profilo e password",
+  "rep_menu_support_title": "Contatta QM / Supporto",
+  "rep_menu_support_subtitle": "Contatta direttamente il Quality Management",
   "rep_filter_company_label": "Filtra per azienda",
   "rep_filter_show_closed": "Mostra completati",
   "rep_filter_only_rejected": "Solo rifiutati",
@@ -56,6 +58,21 @@
   "rep_contact_company_email_label": "E-mail aziendale",
   "rep_contact_subject_label": "Oggetto",
   "rep_contact_message_label": "Messaggio",
+
+  "rep_support_contact_title": "Contatta QM / Supporto",
+  "rep_support_contact_intro": "Il tuo messaggio sarà inviato direttamente a {email}. Descrivi la tua richiesta.",
+  "@rep_support_contact_intro": {
+    "placeholders": {
+      "email": { "type": "String" }
+    }
+  },
+  "rep_support_contact_from_hint": "Il messaggio verrà inviato utilizzando il tuo indirizzo e-mail registrato ({email}).",
+  "@rep_support_contact_from_hint": {
+    "placeholders": {
+      "email": { "type": "String" }
+    }
+  },
+  "rep_support_contact_no_email": "Per il tuo profilo non è memorizzato alcun indirizzo e-mail valido.",
 
   "rep_contact_validation": "Compila oggetto e messaggio.",
   "rep_contact_no_rep_email": "Non è disponibile un indirizzo e-mail per questo rappresentante.",

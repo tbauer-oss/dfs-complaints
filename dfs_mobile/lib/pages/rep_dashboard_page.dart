@@ -26,7 +26,7 @@ extension _L10nX on BuildContext {
 enum _RepFilter { all, open, rejected, finished }
 
 // Menü-Views
-enum _RepView { menu, open, all, customers, account }
+enum _RepView { menu, open, all, customers, support, account }
 
 class RepDashboardPage extends StatefulWidget {
   final ApiClient api;
@@ -56,6 +56,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
   // neue Menü-/Seitenlogik
   _RepView _view = _RepView.menu;
+
+  final GlobalKey<_RepSupportContactFormState> _supportFormKey =
+      GlobalKey<_RepSupportContactFormState>();
 
   // Firmenfilter (Dropdown) – gilt für „Alle Reklamationen“ und „Offene Reklamationen“
   String? _selectedCompany;
@@ -152,6 +155,16 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       _persistSeenAsync(); // async persist
       if (mounted) setState(() {}); // UI aktualisieren
     }
+  }
+
+  Future<bool> _confirmLeaveCurrentView() async {
+    if (_view == _RepView.support) {
+      final form = _supportFormKey.currentState;
+      if (form != null) {
+        return await form.confirmLeave();
+      }
+    }
+    return true;
   }
 
   // ---- Admin-gleiche „freie Kunden“-Quelle holen (identisch & live) ----
@@ -251,7 +264,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       return <Map<String, Object?>>[];
     }
 
-    String s(Object? v) => (v ?? '').toString();
+    String s(Object? v) => (v ?? '').toString().trim();
     final out = <Map<String, Object?>>[];
     for (final it in raw) {
       final email = s(it['email']).toLowerCase();
@@ -896,6 +909,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       _RepView.open      => t.complaintsMyCustomer,
       _RepView.all       => t.rep_menu_all_title,
       _RepView.customers => t.myCustomers,
+      _RepView.support   => t.rep_support_contact_title,
       _RepView.account   => t.profilePW,
     };
 
@@ -908,6 +922,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                 _RepView.open      => _scrollWrap(_buildOpenComplaints()),
                 _RepView.all       => _scrollWrap(_buildAllComplaints()),
                 _RepView.customers => _scrollWrap(_buildCustomersCard()),
+                _RepView.support   => _scrollWrap(_buildSupportContactCard()),
                 _RepView.account   => _scrollWrap(_buildAccountCard()),
               };
 
@@ -915,11 +930,13 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
     return WillPopScope(
       onWillPop: () async {
-        if (canGoBack) {
-          setState(() => _view = _RepView.menu);
+        if (_view == _RepView.menu) {
+          Navigator.of(context).pushNamedAndRemoveUntil('/', (Route<dynamic> r) => false);
           return false;
         }
-        Navigator.of(context).pushNamedAndRemoveUntil('/', (Route<dynamic> r) => false);
+        final ok = await _confirmLeaveCurrentView();
+        if (!ok) return false;
+        setState(() => _view = _RepView.menu);
         return false;
       },
       child: Scaffold(
@@ -930,7 +947,11 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
           leading: canGoBack
               ? IconButton(
                   icon: const Icon(Icons.arrow_back),
-                  onPressed: () => setState(() => _view = _RepView.menu),
+                  onPressed: () async {
+                    if (await _confirmLeaveCurrentView()) {
+                      setState(() => _view = _RepView.menu);
+                    }
+                  },
                 )
               : null,
           actions: [
@@ -1054,6 +1075,16 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
           compact: compact,
           scale: scale,
           onTap: () => setState(() => _view = _RepView.account),
+        ),
+        _MenuCard(
+          color: Colors.deepOrange,
+          icon: Icons.support_agent_outlined,
+          title: t.rep_menu_support_title,
+          subtitle: t.rep_menu_support_subtitle,
+          count: null,
+          compact: compact,
+          scale: scale,
+          onTap: () => setState(() => _view = _RepView.support),
         ),
       ];
 
@@ -1582,6 +1613,39 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     );
   }
 
+    Widget _buildSupportContactCard() {
+      String s(Object? v) => (v ?? '').toString().trim();
+
+    final firstName = s(_me?['firstName']);
+    final lastName  = s(_me?['lastName']);
+    final email     = s(_me?['email']);
+    final region    = s(_me?['region']);
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: _RepSupportContactForm(
+          key: _supportFormKey,
+          api: widget.api,
+          repFirstName: firstName,
+          repLastName: lastName,
+          repEmail: email,
+          repRegion: region,
+          onCancel: () {
+            if (mounted) {
+              setState(() => _view = _RepView.menu);
+            }
+          },
+          onSent: () {
+            if (mounted) {
+              setState(() => _view = _RepView.menu);
+            }
+          },
+        ),
+      ),
+    );
+  }
+
   void _showCustomerDetails(Map<String, Object?> c) {
     String s(Object? v) => (v ?? '').toString();
 
@@ -1677,6 +1741,263 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 }
 
 // ----------------- UI Bausteine -----------------
+
+class _RepSupportContactForm extends StatefulWidget {
+  final ApiClient api;
+  final String repFirstName;
+  final String repLastName;
+  final String repEmail;
+  final String repRegion;
+  final VoidCallback? onCancel;
+  final VoidCallback? onSent;
+
+  const _RepSupportContactForm({
+    required this.api,
+    required this.repFirstName,
+    required this.repLastName,
+    required this.repEmail,
+    required this.repRegion,
+    this.onCancel,
+    this.onSent,
+    super.key,
+  });
+
+  @override
+  State<_RepSupportContactForm> createState() => _RepSupportContactFormState();
+}
+
+class _RepSupportContactFormState extends State<_RepSupportContactForm> {
+  final TextEditingController _subject = TextEditingController();
+  final TextEditingController _message = TextEditingController();
+
+  bool _dirty = false;
+  bool _sending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    for (final c in [_subject, _message]) {
+      c.addListener(_markDirty);
+    }
+  }
+
+  void _markDirty() {
+    if (!_dirty && (_subject.text.isNotEmpty || _message.text.isNotEmpty)) {
+      setState(() => _dirty = true);
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final c in [_subject, _message]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<bool> confirmLeave() async {
+    if (!_dirty) return true;
+    final t = AppLocalizations.of(context)!;
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(t.rep_contact_discard_title),
+        content: Text(t.rep_contact_discard_text),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(t.no),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(t.yes),
+          ),
+        ],
+      ),
+    );
+    return res ?? false;
+  }
+
+  Future<void> _handleSend() async {
+    final t = AppLocalizations.of(context)!;
+    final subject = _subject.text.trim();
+    final message = _message.text.trim();
+
+    if (subject.isEmpty || message.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.rep_contact_validation)),
+      );
+      return;
+    }
+
+    final email = widget.repEmail.trim();
+    final hasValidEmail = email.contains('@');
+    if (!hasValidEmail) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.rep_support_contact_no_email)),
+      );
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+    setState(() => _sending = true);
+
+    try {
+      await widget.api.repContactQM(subject: subject, message: message);
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.rep_contact_sent)),
+      );
+
+      _subject.clear();
+      _message.clear();
+      setState(() => _dirty = false);
+
+      widget.onSent?.call();
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${t.rep_contact_error} (${e.message})')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.rep_contact_error)),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _sending = false);
+      }
+    }
+  }
+
+  Future<void> _handleCancel() async {
+    final ok = await confirmLeave();
+    if (!ok) return;
+    widget.onCancel?.call();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    final email = widget.repEmail.trim();
+    final name =
+        '${widget.repFirstName.trim()} ${widget.repLastName.trim()}'.trim();
+    final region = widget.repRegion.trim();
+    final qmMail = 'complaint@dfs-diamon.de';
+
+    Widget infoRow({required IconData icon, required String label, required String value}) {
+      if (value.isEmpty) return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 18, color: cs.primary),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                '$label: $value',
+                style: theme.textTheme.bodyMedium,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final bool canSend = !_sending && email.contains('@');
+
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              t.rep_support_contact_intro(qmMail),
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 12),
+            if (email.contains('@'))
+              Text(
+                t.rep_support_contact_from_hint(email),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: cs.onSurface.withOpacity(.7),
+                ),
+              )
+            else
+              Text(
+                t.rep_support_contact_no_email,
+                style: theme.textTheme.bodySmall?.copyWith(color: cs.error),
+              ),
+            const SizedBox(height: 16),
+            infoRow(
+              icon: Icons.person_outline,
+              label: t.contact_person_plain,
+              value: name,
+            ),
+            infoRow(
+              icon: Icons.alternate_email,
+              label: t.rep_email_label,
+              value: email,
+            ),
+            infoRow(
+              icon: Icons.public,
+              label: t.region,
+              value: region,
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: _subject,
+              decoration: InputDecoration(
+                labelText: t.rep_contact_subject_label,
+                prefixIcon: const Icon(Icons.subject),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _message,
+              minLines: 5,
+              maxLines: 12,
+              decoration: InputDecoration(
+                labelText: t.rep_contact_message_label,
+                alignLabelWithHint: true,
+                prefixIcon: const Icon(Icons.message_outlined),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                FilledButton(
+                  onPressed: canSend ? _handleSend : null,
+                  child: _sending
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(t.send),
+                ),
+                const SizedBox(width: 12),
+                TextButton(
+                  onPressed: _handleCancel,
+                  child: Text(t.cancel),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _Card extends StatelessWidget {
   final String title;

@@ -39,6 +39,8 @@
   "rep_menu_customers_subtitle": "Firmen & Kontakte",
   "rep_menu_account_title": "Mein Account",
   "rep_menu_account_subtitle": "Profil & Passwort",
+  "rep_menu_support_title": "QM / Support kontaktieren",
+  "rep_menu_support_subtitle": "Direkter Draht zum Quality Management",
   "rep_filter_company_label": "Firmenname filtern",
   "rep_filter_show_closed": "Abgeschlossen anzeigen",
   "rep_filter_only_rejected": "Nur abgelehnte",
@@ -57,6 +59,21 @@
   "rep_contact_company_email_label": "Firmen-E-Mail",
   "rep_contact_subject_label": "Betreff",
   "rep_contact_message_label": "Nachricht",
+
+  "rep_support_contact_title": "QM / Support kontaktieren",
+  "rep_support_contact_intro": "Ihre Nachricht wird direkt an {email} gesendet. Bitte schildern Sie Ihr Anliegen.",
+  "@rep_support_contact_intro": {
+    "placeholders": {
+      "email": { "type": "String" }
+    }
+  },
+  "rep_support_contact_from_hint": "Versand erfolgt mit Ihrer hinterlegten E-Mail-Adresse ({email}).",
+  "@rep_support_contact_from_hint": {
+    "placeholders": {
+      "email": { "type": "String" }
+    }
+  },
+  "rep_support_contact_no_email": "Für Ihr Profil ist keine gültige E-Mail-Adresse hinterlegt.",
 
   "rep_contact_validation": "Bitte Betreff und Nachricht ausfüllen.",
   "rep_contact_no_rep_email": "Es ist keine E-Mail-Adresse für diesen Vertreter hinterlegt.",
