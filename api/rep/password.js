@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { setCors } from '../_lib/cors.js';
 import { loadRepById, updateRepPassword } from '../_lib/repsStore.js';
+import { isStrongPassword } from '../_lib/passwords.js';
 
 const REP_SECRET = process.env.REP_JWT_SECRET;
 
@@ -49,8 +50,10 @@ export default async function handler(req, res) {
     if (!newPw) {
       return res.status(400).end(JSON.stringify({ error: 'missing new password' }));
     }
-    if (newPw.length < 8) {
-      return res.status(400).end(JSON.stringify({ error: 'password too short (min. 8 chars)' }));
+    if (!isStrongPassword(newPw)) {
+      return res.status(400).end(
+        JSON.stringify({ error: 'password requirements not met (min. 8 chars incl. letters, numbers & special characters)' })
+      );
     }
 
     // Optional: altes Passwort prüfen, wenn bereits gesetzt und übergeben
