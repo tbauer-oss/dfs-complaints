@@ -745,6 +745,25 @@ class ApiClient {
     }
   }
 
+  Future<void> repContactQM({
+    required String subject,
+    required String message,
+  }) async {
+    final r = await http.post(
+      _u('/api/rep/contact-qm'),
+      headers: _repHeaders(),
+      body: jsonEncode({
+        'subject': subject,
+        'message': message,
+      }),
+    );
+
+    if (!_ok2xx(r.statusCode)) {
+      final msg = _extractMessage(r.body);
+      throw ApiError(r.statusCode, msg);
+    }
+  }
+
   // ---------- Complaints ----------
   Future<Map<String, dynamic>?> complaintCreate(
     Map<String, dynamic> data, [
