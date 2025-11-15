@@ -4,6 +4,18 @@ export const config = { runtime: 'nodejs' };
 import { setCors, ok, bad, noContent, methodNotAllowed } from './_lib/http.js';
 import { getAuthUser } from './_lib/auth.js';
 import { sendMail } from './_lib/mailer.js';
+import { send, tpl } from './_lib/mail.js';
+
+const LANGS = new Set(['de', 'en', 'fr', 'it', 'es']);
+function normLang(x) {
+  const lc = String(x || '').toLowerCase();
+  const two = lc.split(/[-_]/)[0];
+  return LANGS.has(two) ? two : 'de';
+}
+
+function asString(v) {
+  return typeof v === 'string' ? v.trim() : '';
+}
 
 const CATS = new Set(['general','complaint','technical','account','privacy','feedback','improve','other']);
 
@@ -24,12 +36,36 @@ export default async function handler(req, res) {
   if (!text.trim()) return bad(res, 'empty message', 400);
   if (!consent) return bad(res, 'consent required', 400);
 
+  const lang = normLang(user?.lang || req.headers['accept-language']);
+  const contactName = asString(user?.contact || user?.contactName || user?.name);
+
   await sendMail({
     to: 'complaint@dfs-diamon.de',
     cc: user.email,
     subject: `[DFS Support] ${cat} von ${user.email}`,
     html: `<p>${text.replace(/\n/g,'<br/>')}</p>`
   });
+
+  if (user?.email) {
+    try {
+      const confirmation = tpl.messageConfirmation(
+        {
+          name: contactName,
+          subject: '',
+          message: text,
+          channel: 'support',
+        },
+        lang,
+      );
+
+      await send(user.email, {
+        ...confirmation,
+        lang,
+      });
+    } catch (err) {
+      console.error('support confirmation mail failed', err);
+    }
+  }
 
   return ok(res, { ok: true });
 }
