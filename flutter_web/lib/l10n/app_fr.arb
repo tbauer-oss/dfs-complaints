@@ -20,6 +20,11 @@
   "theme_light": "Clair",
   "theme_dark": "Sombre",
 
+  "attachments_add": "Envoyer des pièces jointes supplémentaires",
+  "attachments_success": "Les pièces jointes ont été envoyées avec succès.",
+  "attachments_error": "Les pièces jointes n'ont pas pu être envoyées.",
+  "attachments_too_large": "Taille totale maximale des pièces jointes : 10 Mo",
+
   "firstName": "Prénom",
   "lastName": "Nom",
 
