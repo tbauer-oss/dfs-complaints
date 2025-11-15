@@ -24,6 +24,8 @@
   "attachments_success": "Gli allegati sono stati inviati con successo.",
   "attachments_error": "Impossibile inviare gli allegati.",
   "attachments_too_large": "Dimensione totale massima degli allegati: 10 MB",
+  "attachments_existing": "Allegati già inviati",
+  "attachments_file_unknown": "Allegato",
 
   "we_are_here_for_you": "Siamo qui per voi.",
   "rep_contact_form": "Inviare messaggio",
