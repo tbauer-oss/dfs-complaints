@@ -8,10 +8,10 @@ import {
   noContent,
   methodNotAllowed,
   readJson,
-} from "../../_lib/http.js";
-import { getAuthUser } from "../../_lib/auth.js";
-import { complaintGet, complaintUpdate, Status } from "../../_lib/store.js";
-import { sendMail } from "../../_lib/mailer.js";
+} from "../_lib/http.js";
+import { getAuthUser } from "../_lib/auth.js";
+import { complaintGet, complaintUpdate, Status } from "../_lib/store.js";
+import { sendMail } from "../_lib/mailer.js";
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "";
 
