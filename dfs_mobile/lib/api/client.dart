@@ -770,6 +770,41 @@ class ApiClient {
     return (j is Map) ? j.cast<String, dynamic>() : <String, dynamic>{};
   }
 
+  Future<Map<String, dynamic>> complaintUploadFiles(
+    String ticket,
+    List<({String name, List<int> bytes, String mime})> files,
+  ) async {
+    if (ticket.trim().isEmpty) {
+      throw ArgumentError('ticket required');
+    }
+    if (files.isEmpty) {
+      return const <String, dynamic>{};
+    }
+
+    final encFiles = files
+        .map((f) => {
+              'name': f.name,
+              'mime': f.mime,
+              'bytes': base64Encode(f.bytes),
+            })
+        .toList(growable: false);
+
+    final r = await _post('/api/complaint/$ticket', {
+      'files': encFiles,
+    }, auth: true);
+
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+
+    final body = r.body.trim().isEmpty ? '{}' : r.body;
+    final decoded = jsonDecode(body);
+    if (decoded is Map) {
+      return decoded.cast<String, dynamic>();
+    }
+    return const <String, dynamic>{};
+  }
+
   Future<List<Map<String, dynamic>>> complaintListRaw() async {
     final r = await _get('/api/complaint/mine', auth: true);
     if (!_ok2xx(r.statusCode)) {
