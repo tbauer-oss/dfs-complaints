@@ -80,9 +80,16 @@ class _RepLoginPageState extends State<RepLoginPage> {
     final t = context.t;
     setState(() { _busy = true; _err = null; });
     try {
-      final ok = await widget.api.login(_email.text.trim(), _pw.text);
-      if (!ok) {
-        setState(() => _err = t.login_failed);
+      final result = await widget.api.login(_email.text.trim(), _pw.text);
+      if (!result.ok) {
+        final err = result.revoked
+            ? t.account_blocked
+            : (result.statusCode == 401
+                ? t.login_failed_check_credentials
+                : (result.message?.isNotEmpty == true
+                    ? result.message!
+                    : t.login_failed));
+        setState(() => _err = err);
         return;
       }
       if (!mounted) return;
