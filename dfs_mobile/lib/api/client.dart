@@ -17,6 +17,34 @@ class ApiError implements Exception {
   String toString() => 'HTTP $status: $message';
 }
 
+class LoginResult {
+  final bool ok;
+  final bool revoked;
+  final String? message;
+  final int? statusCode;
+
+  const LoginResult({
+    required this.ok,
+    this.revoked = false,
+    this.message,
+    this.statusCode,
+  });
+
+  factory LoginResult.success() => const LoginResult(ok: true);
+
+  factory LoginResult.failure({
+    bool revoked = false,
+    String? message,
+    int? statusCode,
+  }) =>
+      LoginResult(
+        ok: false,
+        revoked: revoked,
+        message: message,
+        statusCode: statusCode,
+      );
+}
+
 String _extractMessage(String body) {
   try {
     final j = jsonDecode(body);
@@ -627,16 +655,26 @@ class ApiClient {
   }
 
   // ---------- Auth (Kunden) ----------
-  Future<bool> login(String email, String password) async {
-    final r = await _post('/api/auth/login', {'email': email, 'password': password});
-    if (!_ok2xx(r.statusCode)) return false;
-    final j = jsonDecode(r.body);
-    if (j is Map && j['token'] is String) {
-      token = j['token'] as String;
-      _saveSession();
-      return true;
+  Future<LoginResult> login(String email, String password) async {
+    try {
+      final r = await _post('/api/auth/login', {'email': email, 'password': password});
+      final status = r.statusCode;
+      if (_ok2xx(status)) {
+        final j = jsonDecode(r.body);
+        if (j is Map && j['token'] is String) {
+          token = j['token'] as String;
+          _saveSession();
+          return LoginResult.success();
+        }
+        return LoginResult.failure(message: 'unexpected response', statusCode: status);
+      }
+
+      final msg = _extractMessage(r.body);
+      final revoked = status == 403 && msg.toLowerCase().contains('revoked');
+      return LoginResult.failure(revoked: revoked, message: msg, statusCode: status);
+    } catch (e) {
+      return LoginResult.failure(message: e.toString());
     }
-    return false;
   }
 
   /// Registrierung: `null` = Erfolg, sonst Fehlermeldung

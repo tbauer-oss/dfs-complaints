@@ -338,12 +338,19 @@ class _AuthPageState extends State<AuthPage> {
     try {
       // ---------- LOGIN ----------
       if (isLogin) {
-        final ok = await widget.api.login(_email.text.trim(), _pw.text);
+        final result = await widget.api.login(_email.text.trim(), _pw.text);
         if (!mounted) return;
-        if (ok) {
+        if (result.ok) {
           widget.onLoggedIn();
         } else {
-          setState(() => _err = t.login_failed);
+          final err = result.revoked
+              ? t.account_blocked
+              : (result.statusCode == 401
+                  ? t.login_failed_check_credentials
+                  : (result.message?.isNotEmpty == true
+                      ? result.message!
+                      : t.login_failed));
+          setState(() => _err = err);
         }
         return;
       }

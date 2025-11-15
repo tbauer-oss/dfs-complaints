@@ -192,6 +192,7 @@
   "login_failed": "Error al iniciar sesión",
   "login_failed_check_credentials": "Error al iniciar sesión. Verifique su correo y contraseña.",
   "login_failed_with_error": "Error de inicio de sesión: {error}",
+  "account_blocked": "Cuenta bloqueada. Contacte con su persona de contacto.",
   "@login_failed_with_error": { "placeholders": { "error": { "type": "String" } } },
   "register_failed": "Registro fallido: {reason}",
   "privacy_required": "Confirme la política de privacidad.",

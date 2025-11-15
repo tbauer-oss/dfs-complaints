@@ -201,6 +201,7 @@
   "login_failed": "Login fehlgeschlagen",
   "login_failed_check_credentials": "Anmeldung fehlgeschlagen. Bitte E-Mail/Passwort prüfen.",
   "login_failed_with_error": "Login fehlgeschlagen: {error}",
+  "account_blocked": "Account gesperrt. Bitte wenden Sie sich an Ihren Ansprechpartner.",
   "@login_failed_with_error": { "placeholders": { "error": { "type": "String" } } },
   "register_failed": "Registrierung fehlgeschlagen: {reason}",
   "privacy_required": "Bitte Datenschutz bestätigen",
