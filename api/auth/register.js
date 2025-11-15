@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import {
   handlePreflight, ok, bad, methodNotAllowed, readJson
 } from '../_lib/http.js';
+import { isStrongPassword } from '../_lib/passwords.js';
 
 const isPreview  = process.env.VERCEL_ENV !== 'production';
 const validEmail = s => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || ''));
@@ -41,6 +42,8 @@ export default async function handler(req, res) {
     if (!validEmail(b.email))                return bad(res, 'invalid email', 400);
     if (String(b.password) !== String(b.password2))
                                             return bad(res, 'password mismatch', 400);
+    if (!isStrongPassword(b.password))
+                                            return bad(res, 'password requirements not met (min. 8 chars incl. letters, numbers & special characters)', 400);
     if (!toBool(b.privacy))                 return bad(res, 'privacy not accepted', 400);
 
     // Kontakt-Pflicht: entweder "contact" ODER (firstName & lastName)
