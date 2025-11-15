@@ -3310,6 +3310,7 @@ const kStatusItems = <Map<String, dynamic>>[
   {'label': 'Eingegegangen', 'value': 1},
   {'label': 'In Bearbeitung', 'value': 2},
   {'label': 'Rückfrage erforderlich', 'value': 3},
+  {'label': 'Entscheidung', 'value': 4},
   {'label': 'In Nacharbeit', 'value': 5},
   {'label': 'Abgeschlossen', 'value': 6},
 ];
@@ -3929,6 +3930,9 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       builder: (context, constraints) {
         final isCompact = constraints.maxWidth < 720;
         final isNarrow = constraints.maxWidth < 560;
+        final currentStatus = kStatusItems.any((e) => e['value'] == _status)
+            ? _status
+            : null;
 
         final headerLeft = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -4450,7 +4454,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                 children: [
                   if (isNarrow) ...[
                     DropdownButtonFormField<int>(
-                      value: _status,
+                      value: currentStatus,
                       decoration: const InputDecoration(
                         labelText: 'Status',
                         border: OutlineInputBorder(),
@@ -4491,7 +4495,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                       children: [
                         Expanded(
                           child: DropdownButtonFormField<int>(
-                            value: _status,
+                            value: currentStatus,
                             decoration: const InputDecoration(
                               labelText: 'Status',
                               border: OutlineInputBorder(),
