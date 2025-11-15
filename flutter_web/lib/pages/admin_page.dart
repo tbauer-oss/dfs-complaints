@@ -4462,7 +4462,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
 
                       final primaryColumn = <Widget>[];
                       final secondaryColumn = <Widget>[];
-                      final bottomSection = <Widget>[];
 
                       addDetail(primaryColumn, 'Produktbereich', productArea ?? segment);
                       addDetail(primaryColumn, 'Produkttyp',
@@ -4470,6 +4469,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                       addDetail(primaryColumn, 'Artikelnummer', articleNo);
                       addDetail(primaryColumn, 'Charge / Lot', batch);
                       addDetail(primaryColumn, 'Menge', qty);
+                      addDetail(primaryColumn, 'Produkte zurückgeschickt?', returned);
 
                       addDetail(secondaryColumn, 'Fehler / Beschreibung', desc,
                           maxLines: null);
@@ -4481,16 +4481,13 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                       addDetail(secondaryColumn, 'Beschreibung der Verletzung',
                           injuryDesc,
                           maxLines: null);
-
-                      addDetail(bottomSection, 'Produkte zurückgeschickt?', returned);
-                      addDetail(bottomSection, 'Grund / Ursache', reason,
+                      addDetail(secondaryColumn, 'Grund / Ursache', reason,
                           maxLines: 4);
-                      addDetail(bottomSection, 'Wunsch des Kunden', customerWish,
+                      addDetail(secondaryColumn, 'Wunsch des Kunden', customerWish,
                           maxLines: 3);
 
                       final hasDetails = primaryColumn.isNotEmpty ||
-                          secondaryColumn.isNotEmpty ||
-                          bottomSection.isNotEmpty;
+                          secondaryColumn.isNotEmpty;
 
                       if (!hasDetails) {
                         return Column(
@@ -4555,15 +4552,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                                   const Divider(height: 24),
                                 ...spaced(secondaryColumn),
                               ],
-                            ),
-                          if (bottomSection.isNotEmpty &&
-                              (primaryColumn.isNotEmpty ||
-                                  secondaryColumn.isNotEmpty))
-                            const Divider(height: 28),
-                          if (bottomSection.isNotEmpty)
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: spaced(bottomSection),
                             ),
                         ],
                       );
