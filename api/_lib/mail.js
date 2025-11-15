@@ -295,19 +295,42 @@ export const tpl = {
 };
 
 // ---- Senden: nimmt {subject,text}, baut HTML+Logo, nutzt lazy Transport ----
-export async function send(to, { subject, text, lang = 'de' }, attachments = []) {
+function cleanAddress(v) {
+  return (typeof v === 'string' ? v : '').trim();
+}
+
+export async function send(
+  to,
+  { subject, text, lang = 'de', from, replyTo },
+  attachments = [],
+) {
   const html = htmlShell({ title: subject, bodyHtml: textToParagraphs(text), lang });
   const atts = [...logoAttachment(), ...attachments];
 
-  const info = await getTransport().sendMail({
-    from: SMTP_USER,                         // <<< Absender = exakt der GMX-Login
+  const fromAddress = cleanAddress(from) || SMTP_USER;
+  const replyToAddress =
+    replyTo !== undefined
+      ? cleanAddress(replyTo)
+      : (fromAddress === SMTP_USER ? REPLY_TO : fromAddress);
+
+  const mailOptions = {
+    from: fromAddress,
     to,
     subject,
     text,
     html,
-    replyTo: 'complaint@dfs-diamon.de',      // Antworten an DFS-Adresse
-    attachments: atts
-  });
+    attachments: atts,
+  };
+
+  if (fromAddress !== SMTP_USER) {
+    mailOptions.sender = SMTP_USER;
+  }
+
+  if (replyToAddress) {
+    mailOptions.replyTo = replyToAddress;
+  }
+
+  const info = await getTransport().sendMail(mailOptions);
   console.log('mail: sent', { to, messageId: info.messageId });
   return info;
 }
