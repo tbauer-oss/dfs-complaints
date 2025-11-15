@@ -24,6 +24,8 @@
   "attachments_success": "Los archivos adjuntos se enviaron correctamente.",
   "attachments_error": "No se pudieron enviar los archivos adjuntos.",
   "attachments_too_large": "Tamaño total máximo de los adjuntos: 10 MB",
+  "attachments_existing": "Adjuntos enviados previamente",
+  "attachments_file_unknown": "Adjunto",
 
   "firstName": "Nombre",
   "lastName": "Apellido",
