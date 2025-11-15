@@ -417,9 +417,10 @@ class _MyAppState extends State<MyApp> {
                           ),
                           child: LayoutBuilder(
                             builder: (context, constraints) {
+                              final minHeight = constraints.maxHeight;
                               return SingleChildScrollView(
                                 child: ConstrainedBox(
-                                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                                  constraints: BoxConstraints(minHeight: minHeight),
                                   child: Center(
                                     child: ConstrainedBox(
                                       constraints: const BoxConstraints(maxWidth: 920),
@@ -428,92 +429,94 @@ class _MyAppState extends State<MyApp> {
                                         child: Column(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
-                                    _LoginScreen(
-                                      api: api,
-                                      onLoggedIn: _onLoggedIn,
-                                      onOpenRegister: () => _openRegister(ctx),
-                                      onOpenAdmin: () => _openAdmin(ctx),
-                                      onOpenRep: () => _openRepArea(ctx), // -> /repLogin
-                                    ),
-
-                                    const SizedBox(height: 18),
-                                    Align(
-                                      alignment: Alignment.centerLeft,
-                                      child: Text(
-                                        t.more_areas,
-                                        style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
-                                              color: Theme.of(ctx).colorScheme.primary,
-                                              fontWeight: FontWeight.w700,
+                                            _LoginScreen(
+                                              api: api,
+                                              onLoggedIn: _onLoggedIn,
+                                              onOpenRegister: () => _openRegister(ctx),
+                                              onOpenAdmin: () => _openAdmin(ctx),
+                                              onOpenRep: () => _openRepArea(ctx), // -> /repLogin
                                             ),
+                                            const SizedBox(height: 18),
+                                            Align(
+                                              alignment: Alignment.centerLeft,
+                                              child: Text(
+                                                t.more_areas,
+                                                style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
+                                                      color: Theme.of(ctx).colorScheme.primary,
+                                                      fontWeight: FontWeight.w700,
+                                                    ),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 10),
+                                            LayoutBuilder(
+                                              builder: (context, innerConstraints) {
+                                                final isNarrow = innerConstraints.maxWidth < 560;
+                                                if (isNarrow) {
+                                                  // mobil: Buttons untereinander
+                                                  return Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                                    children: [
+                                                      FilledButton.tonalIcon(
+                                                        icon: const Icon(Icons.handshake),
+                                                        label: Text(t.rep_area ?? t.rep_area),
+                                                        onPressed: () => _openRepArea(ctx),
+                                                        style: FilledButton.styleFrom(
+                                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                                          shape: const StadiumBorder(),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 10),
+                                                      OutlinedButton.icon(
+                                                        icon: const Icon(Icons.admin_panel_settings),
+                                                        label: Text(t.admin_area),
+                                                        onPressed: () => _openAdmin(ctx),
+                                                        style: OutlinedButton.styleFrom(
+                                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                                          shape: const StadiumBorder(),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  );
+                                                }
+
+                                                // Desktop: Buttons nebeneinander
+                                                return Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: FilledButton.tonalIcon(
+                                                        icon: const Icon(Icons.handshake),
+                                                        label: Text(t.rep_area ?? 'Vertreterbereich'),
+                                                        onPressed: () => _openRepArea(ctx),
+                                                        style: FilledButton.styleFrom(
+                                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                                          shape: const StadiumBorder(),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 12),
+                                                    Expanded(
+                                                      child: OutlinedButton.icon(
+                                                        icon: const Icon(Icons.admin_panel_settings),
+                                                        label: Text(t.admin_area),
+                                                        onPressed: () => _openAdmin(ctx),
+                                                        style: OutlinedButton.styleFrom(
+                                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                                          shape: const StadiumBorder(),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                );
+                                              },
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
-                                    const SizedBox(height: 10),
-
-                                    LayoutBuilder(
-                                      builder: (context, constraints) {
-                                        final isNarrow = constraints.maxWidth < 560;
-                                        if (isNarrow) {
-                                          // mobil: Buttons untereinander
-                                          return Column(
-                                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                                            children: [
-                                              FilledButton.tonalIcon(
-                                                icon: const Icon(Icons.handshake),
-                                                label: Text(t.rep_area ?? t.rep_area),
-                                                onPressed: () => _openRepArea(ctx),
-                                                style: FilledButton.styleFrom(
-                                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                                  shape: const StadiumBorder(),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 10),
-                                              OutlinedButton.icon(
-                                                icon: const Icon(Icons.admin_panel_settings),
-                                                label: Text(t.admin_area),
-                                                onPressed: () => _openAdmin(ctx),
-                                                style: OutlinedButton.styleFrom(
-                                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                                  shape: const StadiumBorder(),
-                                                ),
-                                              ),
-                                            ],
-                                          );
-                                        } else {
-                                          // Desktop: Buttons nebeneinander
-                                          return Row(
-                                            children: [
-                                              Expanded(
-                                                child: FilledButton.tonalIcon(
-                                                  icon: const Icon(Icons.handshake),
-                                                  label: Text(t.rep_area ?? 'Vertreterbereich'),
-                                                  onPressed: () => _openRepArea(ctx),
-                                                  style: FilledButton.styleFrom(
-                                                    padding: const EdgeInsets.symmetric(vertical: 14),
-                                                    shape: const StadiumBorder(),
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: OutlinedButton.icon(
-                                                  icon: const Icon(Icons.admin_panel_settings),
-                                                  label: Text(t.admin_area),
-                                                  onPressed: () => _openAdmin(ctx),
-                                                  style: OutlinedButton.styleFrom(
-                                                    padding: const EdgeInsets.symmetric(vertical: 14),
-                                                    shape: const StadiumBorder(),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          );
-                                        }
-                                      },
-                                    ),
-                                  ],
+                                  ),
                                 ),
-                              ),
-                            ),
+                              );
+                            },
                           ),
                         ),
                         bottomNavigationBar: LegalFooter(api: api),
