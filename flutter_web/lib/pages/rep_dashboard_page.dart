@@ -1453,6 +1453,11 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     }
 
     final filtered = _customers.where(matches).toList(growable: false);
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    const buttonPadding = EdgeInsets.symmetric(horizontal: 18, vertical: 12);
+    const buttonTextStyle = TextStyle(fontWeight: FontWeight.w600);
+    final buttonShape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(14));
 
     Widget buildList() {
       if (_customers.isEmpty) {
@@ -1535,11 +1540,23 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
           onPressed: _createCustomerDialog,
           icon: const Icon(Icons.add_business),
           label: Text(t.rep_create_customer ?? t.addCustomer),
+          style: ElevatedButton.styleFrom(
+            padding: buttonPadding,
+            shape: buttonShape,
+            textStyle: buttonTextStyle,
+          ),
         ),
-        ElevatedButton.icon(
+        OutlinedButton.icon(
           onPressed: _assignCustomerDialog,
           icon: const Icon(Icons.person_add_alt_1),
           label: Text(t.addCustomer),
+          style: OutlinedButton.styleFrom(
+            padding: buttonPadding,
+            shape: buttonShape,
+            textStyle: buttonTextStyle,
+            foregroundColor: cs.primary,
+            side: BorderSide(color: cs.primary.withOpacity(0.5)),
+          ),
         ),
       ],
       child: Column(
@@ -1761,11 +1778,23 @@ class _Card extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(children: [
-              Text(title, style: TextStyle(fontWeight: FontWeight.w700, fontSize: fsTitle)),
-              const Spacer(),
-              if (actions != null) ...actions!,
-            ]),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(title, style: TextStyle(fontWeight: FontWeight.w700, fontSize: fsTitle)),
+                ),
+                if (actions != null)
+                  Flexible(
+                    child: Wrap(
+                      spacing: 12,
+                      runSpacing: 8,
+                      alignment: WrapAlignment.end,
+                      children: actions!,
+                    ),
+                  ),
+              ],
+            ),
             const SizedBox(height: 10),
             child,
           ],
