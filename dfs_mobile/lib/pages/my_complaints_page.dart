@@ -440,22 +440,68 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                 final productType = _productTypeFromPayload(p);
 
                                 // HEADER: Status, Artikelnummer, Produkttyp sofort sichtbar
-                                final headerLine = Wrap(
+                                final attachmentsButton = TextButton.icon(
+                                  onPressed: _busy ? null : () => _addAttachments(c),
+                                  icon: const Icon(Icons.attach_file_outlined),
+                                  label: Text(t.attachments_add),
+                                );
+
+                                final infoWrap = Wrap(
                                   spacing: 8,
                                   runSpacing: 8,
                                   crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
                                     _StatusPill(text: statusText, color: statusColor),
                                     if (articleNo.isNotEmpty)
-                                      _KeyValuePill(icon: Icons.handyman_outlined, label: (t.articleNo ?? t.article), value: articleNo),
+                                      _KeyValuePill(
+                                        icon: Icons.handyman_outlined,
+                                        label: (t.articleNo ?? t.article),
+                                        value: articleNo,
+                                      ),
                                     if (productType.isNotEmpty)
-                                      _KeyValuePill(icon: Icons.category_outlined, label: t.product_type ?? 'Produkttyp', value: productType),
+                                      _KeyValuePill(
+                                        icon: Icons.category_outlined,
+                                        label: t.product_type ?? 'Produkttyp',
+                                        value: productType,
+                                      ),
                                     if ((c.decision ?? '').isNotEmpty)
                                       _StatusPill(
-                                        text: (c.decision == 'accepted') ? t.decision_accepted : t.decision_rejected,
+                                        text: (c.decision == 'accepted')
+                                            ? t.decision_accepted
+                                            : t.decision_rejected,
                                         color: (c.decision == 'accepted') ? Colors.green : Colors.red,
                                       ),
                                   ],
+                                );
+
+                                final headerLine = LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    if (constraints.maxWidth < 520) {
+                                      return Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          infoWrap,
+                                          const SizedBox(height: 8),
+                                          Align(
+                                            alignment: Alignment.centerRight,
+                                            child: ConstrainedBox(
+                                              constraints: const BoxConstraints(maxWidth: 320),
+                                              child: attachmentsButton,
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    }
+
+                                    return Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Expanded(child: infoWrap),
+                                        const SizedBox(width: 12),
+                                        attachmentsButton,
+                                      ],
+                                    );
+                                  },
                                 );
 
                                 // EXPANSION: alle Details
@@ -569,34 +615,16 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                           ),
 
                                         // Aktionen
-                                        Row(
-                                          children: [
-                                            if (canOpenReport)
+                                        if (canOpenReport)
+                                          Row(
+                                            children: [
                                               TextButton.icon(
                                                 onPressed: () => html.window.open(reportLink, '_blank'),
                                                 icon: const Icon(Icons.open_in_new),
                                                 label: Text(t.report_open),
                                               ),
-                                            if (canOpenReport)
-                                              const SizedBox(width: 8),
-                                            TextButton.icon(
-                                              onPressed: _busy ? null : () => _addAttachments(c),
-                                              icon: const Icon(Icons.attach_file_outlined),
-                                              label: Text(t.attachments_add),
-                                            ),
-                                            const Spacer(),
-                                            TextButton.icon(
-                                              onPressed: () async {
-                                                await showDialog(
-                                                  context: context,
-                                                  builder: (_) => _MyComplaintDetailsDialog(c: c),
-                                                );
-                                              },
-                                              icon: const Icon(Icons.info_outline),
-                                              label: Text(t.details),
-                                            ),
-                                          ],
-                                        ),
+                                            ],
+                                          ),
                                       ],
                                     ),
                                   ),
@@ -667,139 +695,6 @@ class _SortControls extends StatelessWidget {
         ),
       ],
     );
-  }
-}
-
-// ---- Details-Dialog (optionaler Deep-Dive, unverändert in der Logik) ----
-class _MyComplaintDetailsDialog extends StatelessWidget {
-  final Complaint c;
-  const _MyComplaintDetailsDialog({required this.c});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = AppLocalizations.of(context)!;
-    final Map<String, dynamic> payload = c.payload ?? const <String, dynamic>{};
-
-    String _segLabel(String raw) {
-      final v = raw.trim().toLowerCase();
-      if (v == 'zahnarzt' || v == t.segment_dentist.toLowerCase()) return t.segment_dentist;
-      if (v == 'zahntechnik' || v == t.segment_lab.toLowerCase()) return t.segment_lab;
-      return raw;
-    }
-
-    String _safeStr(dynamic v) => (v ?? '').toString();
-
-    Widget row(String l, String v) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 3),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Flexible(
-                flex: 0,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 170),
-                  child: Text(l, style: const TextStyle(fontWeight: FontWeight.w600)),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(child: Text(v.isEmpty ? '—' : v)),
-            ],
-          ),
-        );
-
-    return AlertDialog(
-      title: Text('${t.details} – ${c.ticket}'),
-      content: SizedBox(
-        width: 600,
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (payload.isEmpty) ...[
-                Text(t.no_details),
-              ] else ...[
-                if (_safeStr(payload['segment']).isNotEmpty)
-                  row(t.segment, _segLabel(_safeStr(payload['segment']))),
-                row(t.article, _safeStr(payload['article'])),
-                row(t.batch, _safeStr(payload['batch'])),
-                row(t.quantity, _safeStr(payload['qty'])),
-                row(t.expiry, _safeStr(payload['expiry'])),
-                row(t.description, _safeStr(payload['desc'])),
-                if (_safeStr(payload['returned']).isNotEmpty)
-                  row((t.returned ?? t.returned_question), _safeStr(payload['returned'])),
-                if (_safeStr(payload['handling']).isNotEmpty)
-                  row(t.handling, _safeStr(payload['handling'])),
-                if (_safeStr(payload['applied']).isNotEmpty)
-                  row(t.applied, _safeStr(payload['applied'])),
-                if (_safeStr(payload['injury']).isNotEmpty)
-                  row(t.injury, _safeStr(payload['injury'])),
-                if (_safeStr(payload['injuryDesc']).trim().isNotEmpty)
-                  row(t.injury_desc, _safeStr(payload['injuryDesc'])),
-                if (_safeStr(payload['customerName']).isNotEmpty)
-                  row(t.customer_label, _safeStr(payload['customerName'])),
-                if (_safeStr(payload['country']).isNotEmpty)
-                  row(t.country_label, _safeStr(payload['country'])),
-              ],
-            if (c.uploads.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(t.attachments_existing, style: const TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 4),
-              ...c.uploads.map((upload) {
-                final details = <String>[];
-                if (upload.size > 0) details.add(_formatBytes(upload.size));
-                if (upload.uploadedAt != null) details.add(_fmtLocal(upload.uploadedAt!));
-                final subtitle = details.join(' • ');
-                final name = upload.name.trim().isEmpty
-                    ? t.attachments_file_unknown
-                    : upload.name.trim();
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 3),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                      if (subtitle.isNotEmpty)
-                        Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
-                    ],
-                  ),
-                );
-              }),
-            ],
-            const SizedBox(height: 8),
-            row(t.created, _fmtLocal(c.createdAt)),
-            if (c.updatedAt.millisecondsSinceEpoch > 0)
-              row(t.updated, _fmtLocal(c.updatedAt)),
-            if ((c.internalNo ?? '').toString().isNotEmpty)
-              row(t.internal_no_label, c.internalNo!),
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: Text(t.close)),
-      ],
-    );
-  }
-
-  String _fmtLocal(DateTime dt) {
-    final l = dt.toLocal();
-    String two(int x) => x < 10 ? '0$x' : '$x';
-    return '${l.year}-${two(l.month)}-${two(l.day)} ${two(l.hour)}:${two(l.minute)}';
-  }
-
-  String _formatBytes(int size) {
-    if (size <= 0) return '0 B';
-    const kb = 1024;
-    const mb = kb * 1024;
-    if (size >= mb) {
-      final value = size / mb;
-      return value >= 10 ? '${value.toStringAsFixed(0)} MB' : '${value.toStringAsFixed(1)} MB';
-    }
-    if (size >= kb) {
-      final value = size / kb;
-      return value >= 10 ? '${value.toStringAsFixed(0)} KB' : '${value.toStringAsFixed(1)} KB';
-    }
-    return '$size B';
   }
 }
 
