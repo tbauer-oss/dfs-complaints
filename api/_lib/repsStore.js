@@ -34,6 +34,15 @@ const IDX_ROF = (email)   => `${PFX}repOf:${email.toLowerCase()}`; // customerEm
 const S = (v) => (v ?? '').toString().trim();
 const nowIso = () => new Date().toISOString();
 
+const SUPPORTED_LANGS = new Set(['de', 'en', 'fr', 'it', 'es']);
+
+const normalizeLang = (value, fallback = '') => {
+  const lc = S(value).toLowerCase();
+  if (SUPPORTED_LANGS.has(lc)) return lc;
+  const fb = S(fallback).toLowerCase();
+  return SUPPORTED_LANGS.has(fb) ? fb : '';
+};
+
 async function requireRedis() {
   if (!redis) {
     throw new Error('redis not configured (REDIS_URL/REDIS_TOKEN or UPSTASH_REDIS_REST_URL/UPSTASH_REDIS_REST_TOKEN)');
@@ -81,6 +90,7 @@ function normalizeRep(rep) {
   ).toLowerCase();
 
   const region = pick(rep.region, rep.area, rep.territory, rep.regionName, rep.regions);
+  const lang = normalizeLang(pick(rep.lang, rep.language, rep.locale, rep.langCode));
 
   return {
     id,
@@ -88,6 +98,7 @@ function normalizeRep(rep) {
     lastName,
     email,
     region,
+    lang,
     passHash: rep.passHash || null,
     mustChangePw: !!rep.mustChangePw,
     active: (rep.active === undefined ? true : !!rep.active),
@@ -188,13 +199,14 @@ export async function getAllRepsWithCustomers() {
   return withCus;
 }
 
-export async function upsertRep({ id, firstName, lastName, email, region, active }) {
+export async function upsertRep({ id, firstName, lastName, email, region, lang, active }) {
   await requireRedis();
 
   firstName = S(firstName);
   lastName  = S(lastName);
   email     = S(email).toLowerCase();
   region    = S(region);
+  lang      = normalizeLang(lang);
   const activeFlag = (active === undefined ? true : !!active);
 
   if (!firstName || !lastName || !email || !region) {
@@ -219,7 +231,11 @@ export async function upsertRep({ id, firstName, lastName, email, region, active
     const prevEmail = S(rep.email).toLowerCase();
     const updated = normalizeRep({
       ...rep,
-      firstName, lastName, email, region,
+      firstName,
+      lastName,
+      email,
+      region,
+      lang: normalizeLang(lang, rep.lang),
       active: activeFlag,
       passHash: rep.passHash ?? null,
       mustChangePw: (rep.mustChangePw === undefined ? false : !!rep.mustChangePw),
@@ -236,7 +252,11 @@ export async function upsertRep({ id, firstName, lastName, email, region, active
     const newId = await nextId();
     const created = normalizeRep({
       id: newId,
-      firstName, lastName, email, region,
+      firstName,
+      lastName,
+      email,
+      region,
+      lang: normalizeLang(lang, 'de'),
       passHash: null,
       mustChangePw: true,
       active: activeFlag,
