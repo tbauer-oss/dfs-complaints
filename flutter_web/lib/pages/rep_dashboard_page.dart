@@ -2031,6 +2031,28 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     return s.isEmpty ? null : s;
   }
 
+  String? _resolveProductArea(AppLocalizations t, String? segment, String? productType) {
+    final candidates = <String?>[segment, productType];
+    for (final raw in candidates) {
+      final value = (raw ?? '').trim().toLowerCase();
+      if (value.isEmpty) continue;
+
+      if (value.contains('zahnarzt') || value.contains('zahnmedizin')) {
+        return t.product_area_medical ?? 'Medizinprodukt';
+      }
+      if (value.contains('dentist') || value == (t.segment_dentist ?? '').toLowerCase()) {
+        return t.product_area_medical ?? 'Medizinprodukt';
+      }
+      if (value.contains('dentallabor') || value.contains('zahntechnik')) {
+        return t.product_area_lab ?? 'Laborprodukt';
+      }
+      if (value.contains('lab') || value == (t.segment_lab ?? '').toLowerCase()) {
+        return t.product_area_lab ?? 'Laborprodukt';
+      }
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.t;
@@ -2065,6 +2087,11 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     final applied      = _pickOrNull(p, ['applied']);    // 'Ja' | 'Nein' | ''
     final injury       = _pickOrNull(p, ['injury']);     // 'Ja' | 'Nein' | ''
     final injuryDesc   = _pickOrNull(p, ['injuryDesc']); // Freitext
+
+    final resolvedProductArea = _resolveProductArea(t, segment, productType);
+    final normalizedSegment = segment?.trim();
+    final displayProductArea =
+        resolvedProductArea ?? ((normalizedSegment == null || normalizedSegment.isEmpty) ? null : normalizedSegment);
 
     // kleine Punkt-Buttons (Gradient + Hover)
     Widget _dotButton({
@@ -2193,8 +2220,8 @@ class _ComplaintTileState extends State<_ComplaintTile> {
                     if (customer.isNotEmpty) _InfoCapsule('${t.customer_label}: $customer'),
                     if (widget.data['payload']?['article']?.toString().isNotEmpty ?? false)
                       _InfoCapsule('${t.articleNo}: ${widget.data['payload']['article']}'),
-                    if (widget.data['payload']?['segment']?.toString().isNotEmpty ?? false)
-                      _InfoCapsule('${t.segment}: ${widget.data['payload']['segment']}'),
+                    if (displayProductArea != null && displayProductArea.isNotEmpty)
+                      _InfoCapsule('${t.product_area_label ?? 'Produktbereich'}: $displayProductArea'),
                     if (created.isNotEmpty)
                       _InfoCapsule('${t.created_at ?? 'Angelegt'}: $created'),
                     if (decision.isNotEmpty)
@@ -2222,6 +2249,7 @@ class _ComplaintTileState extends State<_ComplaintTile> {
                     context,
                     segment: segment,
                     productType: productType,
+                    productArea: resolvedProductArea ?? segment,
                     articleNo: articleNo,
                     batch: batch,
                     serial: serial,
@@ -2276,10 +2304,12 @@ class _ComplaintTileState extends State<_ComplaintTile> {
       },
     );
   }
-    Widget _buildDetails(
+
+  Widget _buildDetails(
     BuildContext context, {
     String? segment,
     String? productType,
+    String? productArea,
     String? articleNo,
     String? batch,
     String? serial,
@@ -2308,6 +2338,7 @@ class _ComplaintTileState extends State<_ComplaintTile> {
       );
     }
 
+    final t = context.t;
     final theme = Theme.of(context);
     return Container(
       width: double.infinity,
@@ -2323,6 +2354,7 @@ class _ComplaintTileState extends State<_ComplaintTile> {
           Text('Details', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
 
+          kv(t.product_area_label ?? 'Produktbereich', productArea),
           kv('Segment', segment),
           kv('Produkttyp', productType),
           kv('Artikelnummer', articleNo),
