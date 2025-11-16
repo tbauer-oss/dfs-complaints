@@ -1,9 +1,5 @@
 // lib/main.dart
-import 'dart:math' as math;
-import 'dart:ui' as ui show ImageFilter;
-
 import 'package:flutter/material.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -12,10 +8,8 @@ import 'api/client.dart';
 import 'l10n/app_localizations.dart';
 import 'services/app_prefs.dart';
 import 'services/app_prefs_scope.dart';
-import 'services/push_notifications.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:dfs_mobile/web_compat/html_stub.dart'
-  if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
+import 'dart:html' as html; // für Web-Tab-Titel
+import 'utils/lang_utils.dart';
 
 // Seiten
 import 'pages/register_page.dart';
@@ -31,79 +25,60 @@ import 'pages/reset_password_page.dart';
 // Widgets
 import 'widgets/lang_action.dart';
 import 'widgets/theme_action.dart' as w;
-import 'utils/lang_utils.dart';
 
 // ===== THEME BRANDING ===== //
-// DFS-Blau leicht heller und lebendiger (dezent medizinisch/vertrauenswürdig)
-const kBrandSeed = Color(0xFF0A4FA3);
+const kBrandSeed = Color(0xFF1F4C8F); // DFS-Blau – bei Bedarf anpassen
 
 ThemeData _lightTheme() {
   final scheme = ColorScheme.fromSeed(
     seedColor: kBrandSeed,
     brightness: Brightness.light,
   );
-
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
     scaffoldBackgroundColor: scheme.surface,
-    visualDensity: VisualDensity.standard,
-    typography: Typography.material2021(),
     appBarTheme: AppBarTheme(
       backgroundColor: scheme.surface,
       foregroundColor: scheme.onSurface,
       elevation: 0,
       centerTitle: false,
-      titleTextStyle: TextStyle(
-        color: scheme.onSurface,
-        fontWeight: FontWeight.w700,
-        fontSize: 20,
-      ),
     ),
-    // <-- geändert: CardThemeData
-    cardTheme: CardThemeData(
-      color: scheme.surface.withOpacity(0.75),
-      surfaceTintColor: Colors.transparent,
-      elevation: 6,
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      shadowColor: scheme.primary.withOpacity(.15),
+    cardTheme: CardTheme(
+      color: scheme.surfaceContainerHighest,
+      elevation: 2,
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         foregroundColor: scheme.onPrimary,
         backgroundColor: scheme.primary,
-        minimumSize: const Size(48, 44),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        shape: const StadiumBorder(),
-        elevation: 2,
+        minimumSize: const Size(48, 40),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        minimumSize: const Size(48, 44),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        shape: const StadiumBorder(),
-      ),
+        minimumSize: const Size(48, 40)),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        minimumSize: const Size(48, 44),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
         side: BorderSide(color: scheme.outline),
-        shape: const StadiumBorder(),
+        minimumSize: const Size(48, 40),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: scheme.surfaceContainerHighest.withOpacity(.75),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+      fillColor: scheme.surfaceContainerHighest,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         borderSide: BorderSide(color: scheme.outlineVariant),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         borderSide: BorderSide(color: scheme.primary, width: 2),
       ),
       labelStyle: TextStyle(color: scheme.onSurfaceVariant),
@@ -113,21 +88,19 @@ ThemeData _lightTheme() {
       backgroundColor: scheme.inverseSurface,
       contentTextStyle: TextStyle(color: scheme.onInverseSurface),
       behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     ),
-    // <-- geändert: DialogThemeData
-    dialogTheme: DialogThemeData(
-      backgroundColor: scheme.surfaceContainerHigh.withOpacity(.9),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    dialogTheme: DialogTheme(
+      backgroundColor: scheme.surfaceContainerHigh,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
     ),
     dividerTheme: DividerThemeData(color: scheme.outlineVariant),
     listTileTheme: ListTileThemeData(iconColor: scheme.onSurfaceVariant),
-    // <-- geändert: MaterialStatePropertyAll
-    checkboxTheme: CheckboxThemeData(fillColor: MaterialStatePropertyAll(scheme.primary)),
-    radioTheme: RadioThemeData(fillColor: MaterialStatePropertyAll(scheme.primary)),
+    checkboxTheme: CheckboxThemeData(fillColor: WidgetStatePropertyAll(scheme.primary)),
+    radioTheme: RadioThemeData(fillColor: WidgetStatePropertyAll(scheme.primary)),
     switchTheme: SwitchThemeData(
-      thumbColor: MaterialStatePropertyAll(scheme.primary),
-      trackColor: MaterialStatePropertyAll(scheme.primary.withOpacity(.35)),
+      thumbColor: WidgetStatePropertyAll(scheme.primary),
+      trackColor: WidgetStatePropertyAll(scheme.primary.withOpacity(.35)),
     ),
   );
 }
@@ -137,71 +110,56 @@ ThemeData _darkTheme() {
     seedColor: kBrandSeed,
     brightness: Brightness.dark,
   );
-
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
     scaffoldBackgroundColor: scheme.surface,
-    visualDensity: VisualDensity.standard,
-    typography: Typography.material2021(),
     appBarTheme: AppBarTheme(
       backgroundColor: scheme.surface,
       foregroundColor: scheme.onSurface,
       elevation: 0,
       centerTitle: false,
-      titleTextStyle: TextStyle(
-        color: scheme.onSurface,
-        fontWeight: FontWeight.w700,
-        fontSize: 20,
-      ),
     ),
-    // <-- geändert: CardThemeData
-    cardTheme: CardThemeData(
-      color: scheme.surfaceContainerHigh.withOpacity(.7),
-      surfaceTintColor: Colors.transparent,
-      elevation: 4,
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      shadowColor: scheme.primary.withOpacity(.18),
+    cardTheme: CardTheme(
+      color: scheme.surfaceContainerHighest,
+      elevation: 1,
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         foregroundColor: scheme.onPrimary,
         backgroundColor: scheme.primary,
-        minimumSize: const Size(48, 44),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        shape: const StadiumBorder(),
-        elevation: 2,
+        minimumSize: const Size(48, 40),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         foregroundColor: scheme.onSecondaryContainer,
         backgroundColor: scheme.secondaryContainer,
-        minimumSize: const Size(48, 44),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        shape: const StadiumBorder(),
+        minimumSize: const Size(48, 40),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: scheme.onSurface,
         side: BorderSide(color: scheme.outline),
-        minimumSize: const Size(48, 44),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        shape: const StadiumBorder(),
+        minimumSize: const Size(48, 40),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: scheme.surfaceContainerHigh.withOpacity(.7),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+      fillColor: scheme.surfaceContainerHigh,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         borderSide: BorderSide(color: scheme.outlineVariant),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         borderSide: BorderSide(color: scheme.primary, width: 2),
       ),
       labelStyle: TextStyle(color: scheme.onSurfaceVariant),
@@ -211,40 +169,35 @@ ThemeData _darkTheme() {
       backgroundColor: scheme.inverseSurface,
       contentTextStyle: TextStyle(color: scheme.onInverseSurface),
       behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     ),
-    // <-- geändert: DialogThemeData
-    dialogTheme: DialogThemeData(
-      backgroundColor: scheme.surfaceContainerHigh.withOpacity(.9),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    dialogTheme: DialogTheme(
+      backgroundColor: scheme.surfaceContainerHigh,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
     ),
     dividerTheme: DividerThemeData(color: scheme.outlineVariant),
     listTileTheme: ListTileThemeData(iconColor: scheme.onSurfaceVariant),
-    // <-- geändert: MaterialStatePropertyAll
-    checkboxTheme: CheckboxThemeData(fillColor: MaterialStatePropertyAll(scheme.primary)),
-    radioTheme: RadioThemeData(fillColor: MaterialStatePropertyAll(scheme.primary)),
+    checkboxTheme: CheckboxThemeData(fillColor: WidgetStatePropertyAll(scheme.primary)),
+    radioTheme: RadioThemeData(fillColor: WidgetStatePropertyAll(scheme.primary)),
     switchTheme: SwitchThemeData(
-      thumbColor: MaterialStatePropertyAll(scheme.primary),
-      trackColor: MaterialStatePropertyAll(scheme.primary.withOpacity(.35)),
+      thumbColor: WidgetStatePropertyAll(scheme.primary),
+      trackColor: WidgetStatePropertyAll(scheme.primary.withOpacity(.35)),
     ),
   );
 }
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  if (!kIsWeb) {
-    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-  }
   if (html.window.navigator.userAgent.contains('Chrome')) {
-    if (kIsWeb) {
-      html.window.addEventListener('beforeinstallprompt', (event) {
-        final deferredPrompt = event; // dynamic
+    html.window.addEventListener('beforeinstallprompt', (event) {
+      event.preventDefault(); // verhindert automatisches Anzeigen
+      final deferredPrompt = event as html.BeforeInstallPromptEvent;
+      // Beispiel-Button oder Timer:
+      Future.delayed(const Duration(seconds: 5), () {
+        deferredPrompt.prompt();
       });
-      if (kIsWeb) {
-        try { html.document.title = 'DFS Complaints'; } catch (_) {}
-      }
-    }
+    });
   }
+
   runApp(const MyApp());
 }
 
@@ -257,7 +210,6 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   // ---- Core ----
   final api = ApiClient();
-  final push = PushNotifications.instance;
   final GlobalKey<NavigatorState> _navKey = GlobalKey<NavigatorState>();
   final _prefs = AppPrefs(); // zentrale Quelle für Theme & Locale
 
@@ -272,26 +224,16 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     _prefs.load();        // Theme & Sprache laden (triggert Rebuild)
-    _boot();              // Session-Logik
+    _boot();              // deine Session-Logik wie gehabt
   }
 
   Future<void> _boot() async {
     await api.restoreSession();
     await api.ensureRepSession(); // invalides repToken nach Deploys o.ä. wegräumen
-    final wasLoggedIn = _customerLoggedIn;
-    final hasRep = _repLoggedIn;
-    final hasAdmin = (api.adminSecret ?? '').isNotEmpty;
     setState(() {
-      _loggedIn = wasLoggedIn; // Kunden-Flow bleibt unabhängig vom Vertreter-Flow
+      _loggedIn = _customerLoggedIn; // Kunden-Flow bleibt unabhängig vom Vertreter-Flow
       _bootDone = true;
     });
-    if (wasLoggedIn || hasRep || hasAdmin) {
-      try {
-        await push.setup(api, languageCode: _prefs.locale?.languageCode);
-      } catch (e) {
-        debugPrint('[push] setup on boot failed: $e');
-      }
-    }
   }
 
   Future<void> _openAdmin(BuildContext context) async {
@@ -335,11 +277,6 @@ class _MyAppState extends State<MyApp> {
     }
 
     api.setAdminSecret(secret);
-    try {
-      await push.setup(api, languageCode: _prefs.locale?.languageCode);
-    } catch (e) {
-      debugPrint('[push] setup for admin failed: $e');
-    }
     if (!mounted) return;
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => AdminPage(api: api)));
   }
@@ -357,26 +294,7 @@ class _MyAppState extends State<MyApp> {
     Navigator.of(ctx).pushNamed('/reset-password');
   }
 
-  Future<void> _syncAccountLanguage() async {
-    try {
-      final profile = await api.accountGet();
-      final lang = (profile['lang'] ?? '').toString();
-      if (isSupportedLangCode(lang)) {
-        await _prefs.setLang(normalizeLangCode(lang));
-      }
-    } catch (e) {
-      debugPrint('Failed to sync account language: $e');
-    }
-  }
-
-  void _onLoggedIn() {
-    setState(() => _loggedIn = true);   // Kundenlogin
-    _syncAccountLanguage();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      push.setup(api, languageCode: _prefs.locale?.languageCode);
-    });
-  }
+  void _onLoggedIn() => setState(() => _loggedIn = true);   // Kundenlogin
   void _onLoggedOut() => setState(() => _loggedIn = false); // Kundenlogout
 
   @override
@@ -388,9 +306,7 @@ class _MyAppState extends State<MyApp> {
     }
 
     // Web-Tab-Titel setzen (failsafe)
-    if (kIsWeb) {
-      try { html.document.title = 'DFS Complaints'; } catch (_) {}
-    }
+    try { html.document.title = 'DFS Complaints'; } catch (_) {}
 
     // prefs global verfügbar machen
     return AppPrefsScope(
@@ -418,14 +334,15 @@ class _MyAppState extends State<MyApp> {
               if (forced != null) return forced;
               if (locales != null) {
                 for (final loc in locales) {
+                  final normalized = normalizeLangCode(loc.languageCode);
                   for (final s in supported) {
-                    if (s.languageCode.toLowerCase() == loc.languageCode.toLowerCase()) {
+                    if (s.languageCode.toLowerCase() == normalized) {
                       return s;
                     }
                   }
                 }
               }
-              return const Locale('de');
+              return localeFromLangCode(null);
             },
 
             // ---- Theme ----
@@ -443,7 +360,7 @@ class _MyAppState extends State<MyApp> {
 
                       // Kunde eingeloggt -> Dashboard
                       if (_loggedIn) {
-                        return _ScaffoldWithAnimatedBackground(
+                        return Scaffold(
                           appBar: AppBar(
                             title: Text(t.appTitle),
                             actions: [
@@ -460,7 +377,6 @@ class _MyAppState extends State<MyApp> {
                                     icon: const Icon(Icons.logout),
                                     label: Text(t.logout),
                                     onPressed: () async {
-                                      await push.deactivate(api);
                                       await api.logout(); // Kunden-Logout
                                       if (ctx.mounted) {
                                         ScaffoldMessenger.of(ctx).showSnackBar(
@@ -474,25 +390,142 @@ class _MyAppState extends State<MyApp> {
                               ),
                             ),
                           ),
-                          body: SafeArea(
-                            child: Padding(
-                              padding: const EdgeInsets.only(top: 0),
-                              child: DashboardPage(api: api, onLoggedOut: _onLoggedOut),
-                            ),
-                          ),
-                          footer: const SizedBox.shrink(),
+                          body: DashboardPage(api: api, onLoggedOut: _onLoggedOut),
+                          bottomNavigationBar: LegalFooter(api: api),
                         );
                       }
 
-                      // Kunde NICHT eingeloggt -> Startseite (Login)
-                      return _LoginLanding(
-                        prefs: prefs,
-                        api: api,
-                        onOpenRegister: () => _openRegister(ctx),
-                        onOpenAdmin: () => _openAdmin(ctx),
-                        onOpenRep: () => _openRepArea(ctx),
-                        onLoggedIn: _onLoggedIn,
-                        onOpenResetPassword: () => _openResetPassword(ctx),
+                      // Kunde NICHT eingeloggt -> Startseite
+                      final scheme = Theme.of(ctx).colorScheme;
+                      final isDark = Theme.of(ctx).brightness == Brightness.dark;
+                      return Scaffold(
+                        appBar: AppBar(
+                          title: Text(t.appTitle),
+                          actions: [
+                            LangAction(onLocaleChanged: (l) => prefs.setLang(l.languageCode)),
+                            w.ThemeAction(),
+                          ],
+                        ),
+                        body: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: isDark
+                                ? LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [scheme.surface, scheme.surfaceContainerHighest],
+                                  )
+                                : const LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [Color(0xFFEFF3FA), Color(0xFFFFFFFF)],
+                                  ),
+                          ),
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final minHeight = constraints.maxHeight;
+                              return SingleChildScrollView(
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(minHeight: minHeight),
+                                  child: Center(
+                                    child: ConstrainedBox(
+                                      constraints: const BoxConstraints(maxWidth: 920),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(24),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            _LoginScreen(
+                                              api: api,
+                                              onLoggedIn: _onLoggedIn,
+                                              onOpenRegister: () => _openRegister(ctx),
+                                              onOpenAdmin: () => _openAdmin(ctx),
+                                              onOpenRep: () => _openRepArea(ctx), // -> /repLogin
+                                              onOpenResetPassword: () => _openResetPassword(ctx),
+                                            ),
+                                            const SizedBox(height: 18),
+                                            Align(
+                                              alignment: Alignment.centerLeft,
+                                              child: Text(
+                                                t.more_areas,
+                                                style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
+                                                      color: Theme.of(ctx).colorScheme.primary,
+                                                      fontWeight: FontWeight.w700,
+                                                    ),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 10),
+                                            LayoutBuilder(
+                                              builder: (context, innerConstraints) {
+                                                final isNarrow = innerConstraints.maxWidth < 560;
+                                                if (isNarrow) {
+                                                  // mobil: Buttons untereinander
+                                                  return Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                                    children: [
+                                                      FilledButton.tonalIcon(
+                                                        icon: const Icon(Icons.handshake),
+                                                        label: Text(t.rep_area ?? t.rep_area),
+                                                        onPressed: () => _openRepArea(ctx),
+                                                        style: FilledButton.styleFrom(
+                                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                                          shape: const StadiumBorder(),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 10),
+                                                      OutlinedButton.icon(
+                                                        icon: const Icon(Icons.admin_panel_settings),
+                                                        label: Text(t.admin_area),
+                                                        onPressed: () => _openAdmin(ctx),
+                                                        style: OutlinedButton.styleFrom(
+                                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                                          shape: const StadiumBorder(),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  );
+                                                }
+
+                                                // Desktop: Buttons nebeneinander
+                                                return Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: FilledButton.tonalIcon(
+                                                        icon: const Icon(Icons.handshake),
+                                                        label: Text(t.rep_area ?? 'Vertreterbereich'),
+                                                        onPressed: () => _openRepArea(ctx),
+                                                        style: FilledButton.styleFrom(
+                                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                                          shape: const StadiumBorder(),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 12),
+                                                    Expanded(
+                                                      child: OutlinedButton.icon(
+                                                        icon: const Icon(Icons.admin_panel_settings),
+                                                        label: Text(t.admin_area),
+                                                        onPressed: () => _openAdmin(ctx),
+                                                        style: OutlinedButton.styleFrom(
+                                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                                          shape: const StadiumBorder(),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                );
+                                              },
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        bottomNavigationBar: LegalFooter(api: api),
                       );
                     },
                   ),
@@ -501,7 +534,6 @@ class _MyAppState extends State<MyApp> {
               '/repLogin': (_) => RepLoginPage(api: api),
               // Vertreter-Dashboard
               '/rep': (_) => RepDashboardPage(api: api),
-              // Passwort-Reset
               '/reset-password': (_) => ResetPasswordPage(api: api),
               // Datenschutz-Seite
               '/legal/privacy': (_) => const LegalPrivacyPage(),
@@ -534,387 +566,10 @@ class _MyAppState extends State<MyApp> {
       ),
     );
   }
-} // <<< _MyAppState
-
-// ------------------------
-// Dekor: Animierter „Aurora“-Hintergrund mit weichen Blobs
-// ------------------------
-class _AuroraBackground extends StatefulWidget {
-  final bool dense;
-  const _AuroraBackground({this.dense = false});
-
-  @override
-  State<_AuroraBackground> createState() => _AuroraBackgroundState();
-}
-
-class _AuroraBackgroundState extends State<_AuroraBackground>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _c;
-
-  @override
-  void initState() {
-    super.initState();
-    _c = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 18),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final base = scheme.brightness == Brightness.dark
-        ? [scheme.surface, scheme.surfaceContainerHighest]
-        : [const Color(0xFFEFF4FB), Colors.white];
-
-    final blobColorA = scheme.primary.withOpacity(.18);
-    final blobColorB = scheme.tertiary.withOpacity(.12);
-    final blobColorC = scheme.secondary.withOpacity(.14);
-
-    return AnimatedBuilder(
-      animation: _c,
-      builder: (_, __) {
-        final t = _c.value;
-        return CustomPaint(
-          painter: _GradientPainter(base: base, t: t),
-          child: Stack(
-            children: [
-              _movingBlob(
-                size: widget.dense ? 220 : 320,
-                color: blobColorA,
-                alignment: Alignment(
-                  math.sin(t * math.pi * 2) * .7,
-                  math.cos(t * math.pi * 2) * .6,
-                ),
-              ),
-              _movingBlob(
-                size: widget.dense ? 180 : 260,
-                color: blobColorB,
-                alignment: Alignment(
-                  math.cos(t * math.pi * 2 + 1.2) * .8,
-                  math.sin(t * math.pi * 2 + .8) * .7,
-                ),
-              ),
-              _movingBlob(
-                size: widget.dense ? 140 : 220,
-                color: blobColorC,
-                alignment: Alignment(
-                  math.sin(t * math.pi * 2 + .4) * .9,
-                  math.sin(t * math.pi * 2 + 1.0) * .9,
-                ),
-              ),
-              // Leichte „Glass“-Überlagerung
-              Positioned.fill(
-                child: BackdropFilter(
-                  filter: ui.ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-                  child: const SizedBox.expand(),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _movingBlob({
-    required double size,
-    required Color color,
-    required Alignment alignment,
-  }) {
-    return AnimatedAlign(
-      duration: const Duration(milliseconds: 600),
-      curve: Curves.easeInOut,
-      alignment: alignment,
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: color,
-        ),
-      ),
-    );
-  }
-}
-
-class _GradientPainter extends CustomPainter {
-  final List<Color> base;
-  final double t;
-  _GradientPainter({required this.base, required this.t});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-    final gradient = LinearGradient(
-      begin: Alignment(0, -1 + .2 * math.sin(t * 2 * math.pi)),
-      end: Alignment(0, 1),
-      colors: base,
-    );
-    final paint = Paint()..shader = gradient.createShader(rect);
-    canvas.drawRect(rect, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _GradientPainter oldDelegate) {
-    return oldDelegate.t != t || oldDelegate.base != base;
-  }
-}
-
-// ------------------------
-// Gemeinsamer Scaffold-Wrapper mit animiertem Hintergrund
-// ------------------------
-class _ScaffoldWithAnimatedBackground extends StatelessWidget {
-  final PreferredSizeWidget? appBar;
-  final Widget body;
-  final Widget footer;
-
-  const _ScaffoldWithAnimatedBackground({
-    this.appBar,
-    required this.body,
-    required this.footer,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: appBar,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          const _AuroraBackground(dense: true),
-          // leichter Randabstand für Inhalte
-          Positioned.fill(
-            child: SafeArea(
-              child: body,
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: footer,
-    );
-  }
-}
-
-// ------------------------
-// Landing mit Login + dezentem „Hero“-Header
-// ------------------------
-class _LoginLanding extends StatelessWidget {
-  final AppPrefs prefs;
-  final ApiClient api;
-  final VoidCallback onOpenRegister;
-  final VoidCallback onOpenAdmin;
-  final VoidCallback onOpenRep;
-  final VoidCallback onLoggedIn;
-  final VoidCallback onOpenResetPassword;
-
-  const _LoginLanding({
-    required this.prefs,
-    required this.api,
-    required this.onOpenRegister,
-    required this.onOpenAdmin,
-    required this.onOpenRep,
-    required this.onLoggedIn,
-    required this.onOpenResetPassword,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final t = AppLocalizations.of(context)!;
-
-    return Scaffold(
-      // WICHTIG: damit bei Tastatur nichts überläuft
-      resizeToAvoidBottomInset: true,
-      appBar: AppBar(
-        title: Text(t.appTitle),
-        actions: [
-          LangAction(onLocaleChanged: (l) => prefs.setLang(l.languageCode)),
-          w.ThemeAction(),
-        ],
-      ),
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          const _AuroraBackground(),
-          // Scrollbare Fläche (verhindert Overflow, auch mit Tastatur)
-          Positioned.fill(
-            child: SafeArea(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-                  return SingleChildScrollView(
-                    padding: EdgeInsets.fromLTRB(22, 22, 22, 22 + bottomInset),
-                    physics: const BouncingScrollPhysics(),
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 980),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // (Überschrift/Claim entfernt!)
-                            // Abstand oben für Luft
-                            const SizedBox(height: 4),
-
-                            // Login-Karte (Logik unverändert)
-                            _LoginScreen(
-                              api: api,
-                              onLoggedIn: onLoggedIn,
-                              onOpenRegister: onOpenRegister,
-                              onOpenAdmin: onOpenAdmin,
-                              onOpenRep: onOpenRep,
-                              onOpenResetPassword: onOpenResetPassword,
-                            ),
-
-                            const SizedBox(height: 16),
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                t.more_areas,
-                                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                  color: Theme.of(context).colorScheme.primary,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-
-                            // Buttons bleiben wie gehabt – jetzt aber sicher in der ScrollView
-                            LayoutBuilder(
-                              builder: (context, c) {
-                                final isNarrow = c.maxWidth < 560;
-                                if (isNarrow) {
-                                  return Column(
-                                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                                    children: [
-                                      FilledButton.tonalIcon(
-                                        icon: const Icon(Icons.handshake),
-                                        label: Text(t.rep_area ?? t.rep_area),
-                                        onPressed: onOpenRep,
-                                        style: FilledButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(vertical: 14),
-                                          shape: const StadiumBorder(),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 10),
-                                      OutlinedButton.icon(
-                                        icon: const Icon(Icons.admin_panel_settings),
-                                        label: Text(t.admin_area),
-                                        onPressed: onOpenAdmin,
-                                        style: OutlinedButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(vertical: 14),
-                                          shape: const StadiumBorder(),
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                } else {
-                                  return Row(
-                                    children: [
-                                      Expanded(
-                                        child: FilledButton.tonalIcon(
-                                          icon: const Icon(Icons.handshake),
-                                          label: Text(t.rep_area ?? 'Vertreterbereich'),
-                                          onPressed: onOpenRep,
-                                          style: FilledButton.styleFrom(
-                                            padding: const EdgeInsets.symmetric(vertical: 14),
-                                            shape: const StadiumBorder(),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: OutlinedButton.icon(
-                                          icon: const Icon(Icons.admin_panel_settings),
-                                          label: Text(t.admin_area),
-                                          onPressed: onOpenAdmin,
-                                          style: OutlinedButton.styleFrom(
-                                            padding: const EdgeInsets.symmetric(vertical: 14),
-                                            shape: const StadiumBorder(),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                }
-                              },
-                            ),
-
-                            // etwas Extra-Platz unten
-                            const SizedBox(height: 8),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: LegalFooter(api: api),
-    );
-  }
-}
-
-class _HeaderHero extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 900),
-      curve: Curves.easeOutCubic,
-      builder: (_, v, child) {
-        return Opacity(
-          opacity: v,
-          child: Transform.translate(
-            offset: Offset(0, (1 - v) * 12),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: scheme.outlineVariant.withOpacity(.6)),
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    scheme.surface.withOpacity(.55),
-                    scheme.surfaceContainerHigh.withOpacity(.65),
-                  ],
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.shield_moon_rounded, size: 28, color: scheme.primary),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      // kurzer Claim – neutral, seriös
-                      'Quality & Compliance — Dental Medical Devices',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
+} // <<< _MyAppState SAUBER geschlossen
 
 // =======================
-// Interner Login-Screen (Kundenbereich) – Logik unverändert
+// Interner Login-Screen (Kundenbereich)
 // =======================
 class _LoginScreen extends StatefulWidget {
   final ApiClient api;
@@ -992,10 +647,10 @@ class _LoginScreenState extends State<_LoginScreen> {
     final canLogin = !_busy && _email.text.trim().isNotEmpty && _pw.text.isNotEmpty;
 
     return Card(
-      elevation: 10,
+      elevation: 8,
       clipBehavior: Clip.antiAlias,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(22, 20, 22, 22),
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 700),
           child: Column(
@@ -1004,16 +659,16 @@ class _LoginScreenState extends State<_LoginScreen> {
               Row(
                 children: [
                   SizedBox(
-                    height: 42,
+                    height: 40,
                     child: FutureBuilder<bool>(
                       future: _assetExists('assets/dfs_logo.svg'),
                       builder: (context, snap) {
                         if (snap.connectionState == ConnectionState.done && (snap.data ?? false)) {
-                          return SvgPicture.asset('assets/dfs_logo.svg', height: 42);
+                          return SvgPicture.asset('assets/dfs_logo.svg', height: 40);
                         }
                         return Image.asset(
                           'assets/dfs_logo.png',
-                          height: 42,
+                          height: 40,
                           filterQuality: FilterQuality.high,
                           isAntiAlias: true,
                           errorBuilder: (_, __, ___) => const Text('DFS'),
@@ -1030,7 +685,7 @@ class _LoginScreenState extends State<_LoginScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Divider(height: 1, color: Theme.of(context).dividerColor.withOpacity(0.6)),
               const SizedBox(height: 14),
 
@@ -1038,6 +693,7 @@ class _LoginScreenState extends State<_LoginScreen> {
                 controller: _email,
                 decoration: InputDecoration(
                   labelText: t.email,
+                  border: const OutlineInputBorder(),
                 ),
                 enabled: !_busy,
                 onChanged: (_) => setState(() {}),
@@ -1048,6 +704,7 @@ class _LoginScreenState extends State<_LoginScreen> {
                 obscureText: true,
                 decoration: InputDecoration(
                   labelText: t.password,
+                  border: const OutlineInputBorder(),
                 ),
                 onSubmitted: (_) => canLogin ? _doLogin() : null,
                 enabled: !_busy,
@@ -1062,7 +719,7 @@ class _LoginScreenState extends State<_LoginScreen> {
                 ),
               ],
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
 
               SizedBox(
                 width: double.infinity,
