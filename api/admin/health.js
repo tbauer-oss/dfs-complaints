@@ -13,8 +13,8 @@ import { redis } from '../_lib/redis.js';
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 const hasRedisUrl = !!process.env.UPSTASH_REDIS_REST_URL;
 const hasRedisToken = !!process.env.UPSTASH_REDIS_REST_TOKEN;
-const MAIL_REQUIRED = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM'];
-const MAIL_OPTIONAL = ['MAIL_FROM', 'MAIL_REPLY_TO', 'MAIL_QM'];
+const MAIL_REQUIRED = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'];
+const MAIL_OPTIONAL = ['SMTP_PORT', 'SMTP_FROM', 'MAIL_FROM', 'MAIL_REPLY_TO', 'MAIL_QM'];
 
 function isAdmin(req) {
   const hdr = req.headers?.['x-admin-secret'];
@@ -23,6 +23,27 @@ function isAdmin(req) {
 
 function randomId() {
   return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+}
+
+function deriveOrigin(req) {
+  const protoHeader =
+    req.headers?.['x-forwarded-proto'] ||
+    req.headers?.['x-forwarded-protocol'] ||
+    req.headers?.['x-vercel-forwarded-proto'];
+  const hostHeader = req.headers?.['x-forwarded-host'] || req.headers?.host;
+  const proto = Array.isArray(protoHeader)
+    ? protoHeader[0]
+    : typeof protoHeader === 'string'
+      ? protoHeader.split(',')[0]
+      : undefined;
+  const host = Array.isArray(hostHeader)
+    ? hostHeader[0]
+    : typeof hostHeader === 'string'
+      ? hostHeader.split(',')[0]
+      : undefined;
+  if (!host) return null;
+  const protocol = (proto || 'https').trim();
+  return `${protocol}://${host.trim()}`;
 }
 
 async function checkRedis() {
@@ -75,16 +96,27 @@ async function checkRedis() {
   }
 }
 
-function checkApiBase() {
+function checkApiBase(req) {
   const label = 'API-Konfiguration';
   const base = (process.env.API_BASE || '').trim();
+  const derived = deriveOrigin(req);
+  if (!base && derived) {
+    return {
+      ok: true,
+      label,
+      message: 'API_BASE nicht gesetzt – verwende Request-Host',
+      details: `Verwendete Basis: ${derived}`,
+      meta: { value: derived, source: 'derived', notes: ['Flutter & Mobile nutzen automatisch diesen Host, sofern kein API_BASE-Dart-Define gesetzt wurde.'] },
+      order: 2,
+    };
+  }
   if (!base) {
     return {
       ok: false,
       label,
       message: 'API_BASE fehlt',
-      details: 'Bitte API_BASE (z. B. https://example.com) setzen.',
-      meta: { value: '' },
+      details: 'Keine ENV gesetzt und Host konnte nicht bestimmt werden.',
+      meta: { value: '', notes: ['Bitte API_BASE setzen oder den Check vom Client mit gültigem Host aufrufen.'] },
       order: 2,
     };
   }
@@ -125,6 +157,30 @@ function checkMailConfig() {
   });
 
   const okResult = missingRequired.length === 0;
+  const notes = [];
+  const senderSource =
+    process.env.SMTP_FROM?.trim()
+      ? 'SMTP_FROM'
+      : process.env.MAIL_FROM?.trim()
+        ? 'MAIL_FROM'
+        : process.env.SMTP_USER?.trim()
+          ? 'SMTP_USER'
+          : null;
+  if (senderSource) {
+    notes.push(`Absender wird über ${senderSource} bereitgestellt.`);
+  } else {
+    notes.push('Kein Absender konfiguriert – bitte SMTP_FROM oder MAIL_FROM setzen.');
+  }
+  notes.push(
+    okResult
+      ? 'Mailversand (Registrierung, QM, Support) einsatzbereit.'
+      : 'Registrierungs-, QM- und Support-Mails können ohne vollständige SMTP-Konfiguration nicht versendet werden.'
+  );
+
+  if (!process.env.SMTP_PORT) {
+    notes.push('SMTP_PORT nicht gesetzt – Standard 587 wird genutzt.');
+  }
+
   return {
     ok: okResult,
     label,
@@ -134,7 +190,7 @@ function checkMailConfig() {
     details: missingOptional.length
       ? `Optionale Variablen fehlen: ${missingOptional.join(', ')}`
       : undefined,
-    meta: { missingRequired, missingOptional },
+    meta: { missingRequired, missingOptional, notes },
     order: 3,
   };
 }
@@ -148,7 +204,7 @@ export default async function handler(req, res) {
 
   try {
     const redisCheck = await checkRedis();
-    const apiCheck = checkApiBase();
+    const apiCheck = checkApiBase(req);
     const mailCheck = checkMailConfig();
     const checks = { redis: redisCheck, apiBase: apiCheck, mail: mailCheck };
     const okOverall = Object.values(checks).every((entry) => entry.ok);
