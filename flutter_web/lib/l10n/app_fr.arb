@@ -25,15 +25,68 @@
   "attachments_existing": "Pièces jointes déjà envoyées",
   "attachments_file_unknown": "Pièce jointe",
 
+  "we_are_here_for_you": "Nous sommes là pour vous.",
+  "rep_contact_form": "Envoyer un message",
+  "rep_not_assigned": "Actuellement aucun représentant n’est attribué.",
+  "rep_overview_open": "Ouvertes",
+  "rep_overview_all": "Toutes",
+  "rep_overview_rejected": "Rejetées",
+  "rep_overview_finished": "Terminées",
+  "rep_menu_open_title": "Réclamations ouvertes",
+  "rep_menu_open_subtitle": "Examiner et décider",
+  "rep_menu_all_title": "Toutes les réclamations",
+  "rep_menu_all_subtitle": "Filtrer et rechercher",
+  "rep_menu_customers_title": "Base clients",
+  "rep_menu_customers_subtitle": "Sociétés et contacts",
+  "rep_menu_account_title": "Mon compte",
+  "rep_menu_account_subtitle": "Profil et mot de passe",
+  "rep_menu_support_title": "Contacter le QM / Support",
+  "rep_menu_support_subtitle": "Contact direct avec le Quality Management",
+  "rep_filter_company_label": "Filtrer par société",
+  "rep_filter_show_closed": "Afficher les terminées",
+  "rep_filter_only_rejected": "Uniquement rejetées",
+  "badge_new": "NOUVEAU",
+  "complaint_ticket_missing": "(sans numéro de ticket)",
+  "rep_contact_title": "Contacter le représentant",
+  "rep_contact_intro": "Vous écrivez à {firstName} {lastName}. Veuillez remplir les champs ci-dessous.",
+  "@rep_contact_intro": {
+    "placeholders": {
+      "firstName": { "type": "String" },
+      "lastName": { "type": "String" }
+    }
+  },
+  "rep_contact_company_label": "Entreprise",
+  "rep_contact_company_email_label": "E-mail de l'entreprise",
+  "rep_contact_subject_label": "Objet",
+  "rep_contact_message_label": "Message",
+
+  "rep_support_contact_title": "Contacter le QM / Support",
+  "rep_support_contact_intro": "Votre message sera envoyé directement à {email}. Veuillez décrire votre demande.",
+  "@rep_support_contact_intro": {
+    "placeholders": {
+      "email": { "type": "String" }
+    }
+  },
+  "rep_support_contact_from_hint": "Le message sera envoyé avec votre adresse e-mail enregistrée ({email}).",
+  "@rep_support_contact_from_hint": {
+    "placeholders": {
+      "email": { "type": "String" }
+    }
+  },
+  "rep_support_contact_no_email": "Aucune adresse e-mail valide n'est enregistrée pour votre profil.",
+
+  "rep_contact_validation": "Veuillez renseigner l'objet et le message.",
+  "rep_contact_no_rep_email": "Aucune adresse e-mail n'est disponible pour ce représentant.",
+  "rep_contact_sent": "Message envoyé avec succès.",
+  "rep_contact_error": "Erreur lors de l'envoi du message.",
+
+  "rep_contact_discard_title": "Annuler les modifications ?",
+  "rep_contact_discard_text": "Vous avez déjà saisi du texte. Voulez-vous vraiment quitter la page ?",
+
   "firstName": "Prénom",
   "lastName": "Nom",
 
-  "versioninfo": "Version de l'application",
-  "addAnother_title": "Ajouter un autre élément ?",
-  "addAnother_body": "Souhaitez-vous ajouter un autre produit/lot à cette réclamation avant l’envoi ?",
-  "addAnother_no": "Non, continuer",
-  "addAnother_yes": "Oui, ajouter",
-
+  "complaint_sub": "Merci de nous aider à améliorer continuellement notre qualité.",
   "hideDetails": "Masquer les détails",
   "showDetails": "Afficher les détails",
   "product_type": "Type de produit",
@@ -115,43 +168,6 @@
   "allCompanies": "Toutes les entreprises",
   "@allCompanies": { "description": "Option de filtre pour afficher toutes les entreprises" },
   "yourCompany": "Votre entreprise",
-  "we_are_here_for_you": "Nous sommes là pour vous.",
-  "rep_contact_form": "Envoyer un message",
-  "rep_not_assigned": "Actuellement aucun représentant n’est attribué.",
-  "rep_contact_title": "Contacter le représentant",
-  "rep_contact_intro": "Vous écrivez à {firstName} {lastName}. Veuillez remplir les champs suivants.",
-  "@rep_contact_intro": {
-    "placeholders": {
-      "firstName": { "type": "String" },
-      "lastName": { "type": "String" }
-    }
-  },
-  "rep_contact_company_label": "Entreprise",
-  "rep_contact_company_email_label": "E-mail de l’entreprise",
-  "rep_menu_support_title": "Contacter le QM / Support",
-  "rep_menu_support_subtitle": "Contact direct avec le Quality Management",
-  "rep_support_contact_title": "Contacter le QM / Support",
-  "rep_support_contact_intro": "Votre message sera envoyé directement à {email}. Veuillez décrire votre demande.",
-  "@rep_support_contact_intro": {
-    "placeholders": {
-      "email": { "type": "String" }
-    }
-  },
-  "rep_support_contact_from_hint": "Le message sera envoyé avec votre adresse e-mail enregistrée ({email}).",
-  "@rep_support_contact_from_hint": {
-    "placeholders": {
-      "email": { "type": "String" }
-    }
-  },
-  "rep_support_contact_no_email": "Aucune adresse e-mail valide n'est enregistrée pour votre profil.",
-  "rep_contact_subject_label": "Objet",
-  "rep_contact_message_label": "Message",
-  "rep_contact_validation": "Veuillez indiquer l’objet et le message.",
-  "rep_contact_no_rep_email": "Aucune adresse e-mail n’est disponible pour ce représentant.",
-  "rep_contact_sent": "Message envoyé avec succès.",
-  "rep_contact_error": "Erreur lors de l’envoi du message.",
-  "rep_contact_discard_title": "Abandonner les modifications ?",
-  "rep_contact_discard_text": "Vous avez déjà saisi du texte. Voulez-vous vraiment quitter la page ?",
 
   "logout": "Déconnexion",
   "loggedOut": "Déconnecté.",
@@ -239,6 +255,21 @@
   "password_min_length": "Le mot de passe doit contenir au moins 8 caractères.",
   "password_set_failed": "Échec de la définition du mot de passe : {error}",
   "@password_set_failed": { "placeholders": { "error": { "type": "String" } } },
+  "forgot_password_button": "Mot de passe oublié",
+  "forgot_password_instructions": "Entrez votre adresse e-mail et nous vous enverrons un mot de passe temporaire.",
+  "forgot_password_invalid_email": "Veuillez saisir une adresse e-mail valide.",
+  "forgot_password_success": "Un mot de passe temporaire a été envoyé à {email}.",
+  "@forgot_password_success": { "placeholders": { "email": { "type": "String" } } },
+  "forgot_password_unknown_account": "Compte inconnu.",
+  "reset_password_page_title": "Réinitialiser le mot de passe",
+  "reset_password_request_title": "Réinitialiser le mot de passe",
+  "reset_password_request_action": "Réinitialiser le mot de passe",
+  "reset_password_unlock_title": "Activer le mot de passe temporaire",
+  "reset_password_unlock_info": "Utilisez le mot de passe temporaire reçu pour définir un nouveau mot de passe.",
+  "reset_password_temp_label": "Mot de passe temporaire",
+  "reset_password_submit": "Enregistrer le nouveau mot de passe",
+  "reset_password_success": "Le nouveau mot de passe a été enregistré.",
+  "reset_password_temp_error": "Mot de passe temporaire invalide ou expiré.",
   "passwordsDontMatch": "Les mots de passe ne correspondent pas.",
   "password_mismatch": "Les mots de passe ne correspondent pas.",
   "password_changed": "Le mot de passe a été changé.",
@@ -298,7 +329,7 @@
   "rep_banner_title": "Votre représentant : {name}",
   "@rep_banner_title": { "placeholders": { "name": { "type": "String" } } },
   "rep_email_button": "E-mail",
-  "rep_email_tooltip": "Envoyer un e-mail au représentant",
+  "rep_email_tooltip": "Message au représentant",
   "mail_subject_rep": "Demande concernant une réclamation",
   "mail_body_rep": "Bonjour {name},\n\nje vous contacte via le portail DFS Customer Complaint.\n\nCordialement",
   "@mail_body_rep": { "placeholders": { "name": { "type": "String" } } },
@@ -330,7 +361,7 @@
   "segment_dentist": "Dentisterie",
   "segment_lab": "Laboratoire dentaire",
   "product_area_label": "Domaine du produit",
-  "product_area_medical": "Produit médical",
+  "product_area_medical": "Dispositif médical",
   "product_area_lab": "Produit de laboratoire",
   "article": "Numéro d’article*",
   "articleNo": "Article",
@@ -349,7 +380,7 @@
   "add_images": "Ajouter une ou plusieurs images",
   "images_selected": "{count} fichier(s) sélectionné(s)",
   "@images_selected": { "placeholders": { "count": { "type": "int" } } },
-  "images_too_large": "Max. 8 Mo au total",
+  "images_too_large": "Taille totale maximale des fichiers: 10 Mo",
   "returned_question": "Produits déjà retournés ?*",
   "handling": "Traitement souhaité*",
   "handling_replacement": "Remplacement",
@@ -359,6 +390,14 @@
   "send_failed": "Échec de l’envoi",
   "sent_ticket": "Envoyé. Ticket : {ticket}",
   "@sent_ticket": { "placeholders": { "ticket": { "type": "String" } } },
+  "addAnother_title": "Ajouter une autre réclamation ?",
+  "@addAnother_title": { "description": "Titre de la boîte de dialogue après l'envoi d'une réclamation" },
+  "addAnother_body": "Souhaitez-vous saisir une autre réclamation maintenant ?",
+  "@addAnother_body": { "description": "Texte de la boîte de dialogue après l'envoi d'une réclamation" },
+  "addAnother_no": "Non, aller au tableau de bord",
+  "@addAnother_no": { "description": "Action de dialogue : ne pas ajouter d'autre réclamation" },
+  "addAnother_yes": "Oui, en ajouter une autre",
+  "@addAnother_yes": { "description": "Action de dialogue : ajouter une autre réclamation" },
   "description": "Description",
 
   "reportComplaint": "Déclarer une réclamation",
