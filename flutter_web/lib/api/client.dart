@@ -1,9 +1,13 @@
 // lib/api/client.dart
 import 'dart:convert';
-import 'dart:html' as html;
+import 'package:flutter/foundation.dart' show kIsWeb;
+
+// EIN einziger bedingter Import – nur für window.localStorage (Stub auf Mobile)
+import 'package:dfs_mobile/web_compat/html_stub.dart'
+  if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
+
 import 'package:http/http.dart' as http;
 import '../models/complaint.dart';
-import '../models/catalog_link.dart';
 
 class ApiError implements Exception {
   final int status;
@@ -41,6 +45,22 @@ class LoginResult {
       );
 }
 
+class SimpleResult {
+  final bool ok;
+  final String? message;
+  final int statusCode;
+
+  const SimpleResult({
+    required this.ok,
+    this.message,
+    required this.statusCode,
+  });
+
+  factory SimpleResult.success() => const SimpleResult(ok: true, statusCode: 200);
+  factory SimpleResult.failure(int statusCode, String? message) =>
+      SimpleResult(ok: false, statusCode: statusCode, message: message);
+}
+
 String _extractMessage(String body) {
   try {
     final j = jsonDecode(body);
@@ -54,6 +74,14 @@ String _extractMessage(String body) {
 
 bool _ok2xx(int s) => s >= 200 && s < 300;
 
+String _formatDateOnly(DateTime date) {
+  final normalized = DateTime(date.year, date.month, date.day);
+  final y = normalized.year.toString().padLeft(4, '0');
+  final m = normalized.month.toString().padLeft(2, '0');
+  final d = normalized.day.toString().padLeft(2, '0');
+  return '$y-$m-$d';
+}
+
 class ApiClient {
   // ---------- Konfiguration ----------
   static const String _apiBase =
@@ -63,13 +91,14 @@ class ApiClient {
   String? gate;         // optionales Gate-Token
   String? adminSecret;  // für X-Admin-Secret
   String? repToken;     // JWT für Vertreter-Login
+  String? pushDeviceToken; // letzter registrierter Push-Token
 
   // Merker für Vertreter-Login-Flow
   String? _repEmail;    // zuletzt geprüfte/benutzte Vertreter-E-Mail
 
   // ---------- Session persistieren ----------
   void _saveSession() {
-    final ls = html.window.localStorage;
+    final ls = kIsWeb ? html.window.localStorage : <String, String>{};
 
     // Token
     if (token != null) {
@@ -99,7 +128,13 @@ class ApiClient {
       ls.remove('dfs_rep_token');
     }
 
-    // Vertreter-E-Mail (nur als Hilfe für Secret-Login, kein Sicherheitskritikum)
+    if (pushDeviceToken != null && pushDeviceToken!.isNotEmpty) {
+      ls['dfs_push_token'] = pushDeviceToken!;
+    } else {
+      ls.remove('dfs_push_token');
+    }
+
+    // Vertreter-E-Mail (nur als Hilfe für Secret-Login)
     if (_repEmail != null && _repEmail!.isNotEmpty) {
       ls['dfs_rep_email'] = _repEmail!;
     } else {
@@ -108,31 +143,56 @@ class ApiClient {
   }
 
   Future<void> restoreSession() async {
-    final ls = html.window.localStorage;
+    final ls = kIsWeb ? html.window.localStorage : <String, String>{};
     token       = ls['dfs_token'];
     adminSecret = ls['dfs_admin'];
     gate        = ls['dfs_gate'];
     repToken    = ls['dfs_rep_token'];
     _repEmail   = ls['dfs_rep_email'];
+    pushDeviceToken = ls['dfs_push_token'];
   }
 
   Future<void> logout() async {
+    final tok = pushDeviceToken;
+    if (tok != null && tok.isNotEmpty) {
+      await unregisterPushToken(tok, silent: true);
+    }
     token = null;
     adminSecret = null;
     gate = null;
+    pushDeviceToken = null;
     _saveSession();
   }
-  
+
   void setAdminSecret(String? s) {
     adminSecret = (s ?? '').trim().isEmpty ? null : s!.trim();
     _saveSession();
+  }
+
+  Map<String, String> _pushAuthHeaders() {
+    final h = <String, String>{
+      'Content-Type': 'application/json; charset=utf-8',
+    };
+    if (gate != null && gate!.isNotEmpty) {
+      h['X-Gate'] = gate!;
+    }
+    if (token != null && token!.isNotEmpty) {
+      h['Authorization'] = 'Bearer $token';
+    } else if (repToken != null && repToken!.isNotEmpty) {
+      h['Authorization'] = 'Bearer $repToken';
+      h.putIfAbsent('X-Gate', () => 'rep');
+    }
+    if (adminSecret != null && adminSecret!.isNotEmpty) {
+      h['X-Admin-Secret'] = adminSecret!;
+    }
+    return h;
   }
 
   void clearAdminSecret() {
     adminSecret = null;
     _saveSession();
   }
-
+  
   void clearGate() {
     gate = null;
     _saveSession();
@@ -148,7 +208,11 @@ class ApiClient {
     if (extra != null) h.addAll(extra);
     return h;
   }
-  
+
+  Map<String, String> _headersJson() => {
+        'Content-Type': 'application/json; charset=utf-8',
+      };
+
   Map<String, dynamic>? _appMeta;
   DateTime? _appMetaLoadedAt;
 
@@ -161,13 +225,6 @@ class ApiClient {
       h['X-Admin-Secret'] = adminSecret!;
     }
     return h;
-  }
-
-  String _formatDateOnly(DateTime date) {
-    final d = DateTime.utc(date.year, date.month, date.day);
-    final mm = d.month.toString().padLeft(2, '0');
-    final dd = d.day.toString().padLeft(2, '0');
-    return '${d.year}-$mm-$dd';
   }
 
   // Header für Vertreter-Endpunkte (erzwingt X-Gate: rep)
@@ -202,28 +259,6 @@ class ApiClient {
       }
     } catch (_) {}
     return false;
-  }
-
-  Future<Map<String, String>> fetchCatalogConfig() async {
-    final res = await get('/api/catalogs/config'); // Pfad anpassen falls nötig
-    final m = <String, String>{};
-    if (res is Map) {
-      for (final k in ['lab_default', 'lab_esfr', 'dent_default', 'dent_esfr']) {
-        final v = res[k];
-        if (v is String && v.trim().isNotEmpty) m[k] = v.trim();
-      }
-    }
-    return m;
-  }
-
-  Future<void> updateCatalogConfig(Map<String, String> cfg) async {
-    // nur erlaubte Keys schicken
-    final body = <String, String>{};
-    for (final k in ['lab_default', 'lab_esfr', 'dent_default', 'dent_esfr']) {
-      final v = cfg[k];
-      if (v != null) body[k] = v;
-    }
-    await put('/api/catalogs/config', body: body);
   }
 
   // Zentrales Fetch für Rep-Endpunkte mit 1x 401-Retry nach Refresh
@@ -282,7 +317,7 @@ class ApiClient {
   }
 
   Uri _u(String path) {
-    final base = _apiBase.isNotEmpty ? _apiBase : html.window.location.origin;
+    final base = baseUrl; // nutzt den sauberen Getter inkl. Mobile-Fallback
     return Uri.parse('$base$path');
   }
 
@@ -293,12 +328,13 @@ class ApiClient {
 
   Future<Map<String, dynamic>?> getAppMeta({bool refresh = false}) async {
     final cacheValid = _appMeta != null && _appMetaLoadedAt != null &&
-                     DateTime.now().difference(_appMetaLoadedAt!).inMinutes < 5;
+        DateTime.now().difference(_appMetaLoadedAt!).inMinutes < 5;
     if (!refresh && cacheValid) return _appMeta;
 
-    final base = _apiBase.isEmpty ? '' : _apiBase;
-    final uri = Uri.parse('$base/api/meta');
-    final r = await http.get(uri, headers: {'Content-Type': 'application/json'});
+    final r = await http.get(
+      _u('/api/meta'),
+      headers: {'Content-Type': 'application/json'},
+    );
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
@@ -314,98 +350,36 @@ class ApiClient {
   String get baseUrl {
     const b = String.fromEnvironment('API_BASE', defaultValue: '');
     if (b.isNotEmpty) return b;
-    return html.window.location.origin;
-  }
 
-  Map<String, String> _headersJson() => {
-    'Content-Type': 'application/json; charset=utf-8',
-  };
-
-  Future<html.HttpRequest> _request(
-    String method,
-    String path, {
-    Object? body,
-  }) async {
-    try {
-      final res = await html.HttpRequest.request(
-        _u(path).toString(),
-        method: method,
-        requestHeaders: _headersJson(),
-        sendData: body == null ? null : jsonEncode(body),
-        withCredentials: true,
-      );
-      return res;
-    } catch (e) {
-      if (e is html.ProgressEvent) {
-        final t = e.target;
-        if (t is html.HttpRequest) {
-          final st = t.status;
-          final txt = t.responseText ?? '';
-          final stx = t.statusText ?? '';
-          throw 'HTTP $st $stx — ${txt.isEmpty ? "Request fehlgeschlagen" : txt}';
-        }
-      }
-      throw e.toString();
+    if (kIsWeb) {
+      // Erst localStorage, dann origin
+      try {
+        final ls = html.window.localStorage['API_BASE'] ?? '';
+        if (ls.trim().isNotEmpty) return ls.trim();
+      } catch (_) {}
+      try {
+        return html.window.location.origin;
+      } catch (_) {}
     }
+
+    // Mobile/Desktop-Fallback (ohne dart:html)
+    if (_apiBase.isNotEmpty) return _apiBase;
+    return 'https://dfs-complaints-backend.vercel.app';
   }
 
-  // ---- Generic POST JSON ----
+  // ---- Generic POST JSON (nur noch über package:http) ----
   Future<Map<String, dynamic>> postJson(String path, Map<String, dynamic> body) async {
-    final r = await _request('POST', path, body: body);
-    if (r.status != 200 && r.status != 201) {
-      throw 'HTTP ${r.status} ${r.statusText} — ${r.responseText ?? ''}';
+    final url = _u(path);
+    final r = await http.post(url, headers: _headersJson(), body: jsonEncode(body));
+
+    final status = r.statusCode;
+    final text   = r.body;
+
+    if (status != 200 && status != 201) {
+      throw 'HTTP $status — $text';
     }
-    final txt = r.responseText ?? '{}';
-    return txt.trim().isEmpty ? <String, dynamic>{} : jsonDecode(txt);
-  }
-
-  // --- NEU: generische JSON-Wrapper passend zu postJson(...) ---
-  Future<T> getJson<T>(String path) async {
-    // Falls du bereits eine private Helper-Methode wie _json(method, path, body)
-    // verwendest, kannst du hier darauf delegieren:
-    try {
-      // bevorzugt: gleiche Pipeline wie bei postJson (Auth-Header, Gate, Retry etc.)
-      final dyn = this as dynamic;
-      if (dyn._json != null) {
-        return await dyn._json('GET', path, null) as T;
-      }
-    } catch (_) {}
-    // Fallback: vorhandene low-level GET-Funktion nutzen (falls vorhanden)
-    try {
-      final dyn = this as dynamic;
-      if (dyn.get != null) {
-      final res = await dyn.get(path);
-        return res as T;
-      }
-    } catch (_) {}
-    throw StateError('getJson($path) ist nicht implementiert.');
-  }
-
-  Future<T> putJson<T>(String path, Object? body) async {
-    // bevorzugt: gleiche Pipeline wie bei postJson
-    try {
-      final dyn = this as dynamic;
-      if (dyn._json != null) {
-        return await dyn._json('PUT', path, body) as T;
-      }
-    } catch (_) {}
-    // Fallback: vorhandene low-level PUT-Funktion nutzen (falls vorhanden)
-    try {
-      final dyn = this as dynamic;
-      if (dyn.put != null) {
-        final res = await dyn.put(path, body: body);
-        return res as T;
-      }
-    } catch (_) {}
-    // Letzter Fallback: wenn postJson existiert UND Server PUT=POST akzeptiert (nicht schön, aber stabil)
-    try {
-      final dyn = this as dynamic;
-      if (dyn.postJson != null) {
-        final res = await dyn.postJson(path, body);
-        return res as T;
-      }
-    } catch (_) {}
-    throw StateError('putJson($path, ...) ist nicht implementiert.');
+    final t = text.trim();
+    return t.isEmpty ? <String, dynamic>{} : (jsonDecode(t) as Map<String, dynamic>);
   }
 
   // ---- Reps: Entscheidung zu Complaint (mit Bearer-Token) ----
@@ -430,8 +404,12 @@ class ApiClient {
   Future<void> repDecisionReset({required String ticket}) async {
     // Falls repToken leer ist: defensiv aus LocalStorage ziehen
     if (repToken == null || repToken!.isEmpty) {
-      final lsTok = html.window.localStorage['dfs_rep_token'];
-      if (lsTok != null && lsTok.isNotEmpty) repToken = lsTok;
+      if (kIsWeb) {
+        try {
+          final lsTok = html.window.localStorage['dfs_rep_token'];
+          if (lsTok != null && lsTok.isNotEmpty) repToken = lsTok;
+        } catch (_) {}
+      }
     }
 
     final r = await http.post(
@@ -447,7 +425,7 @@ class ApiClient {
 
   // Alternative: Entscheidung leeren (falls /api/rep/decision/reset nicht greift)
   Future<void> repDecisionClear(String ticket) async {
-  // sorgt für Bearer + X-Gate: rep und 401->Refresh via _repFetch
+    // sorgt für Bearer + X-Gate: rep und 401->Refresh via _repFetch
     final r = await _repFetch(
       '/api/rep/decision',
       method: 'POST',
@@ -463,8 +441,6 @@ class ApiClient {
     String? build,
     String? notes,
   }) async {
-    final base = _apiBase.isEmpty ? '' : _apiBase;
-    final uri = Uri.parse('$base/api/admin/meta');
     final body = jsonEncode({
       'version': version,
       if (build != null) 'build': build,
@@ -476,7 +452,11 @@ class ApiClient {
       if (adminSecret != null && adminSecret!.isNotEmpty) 'X-Admin-Secret': adminSecret!,
     };
 
-    final r = await http.post(uri, headers: headers, body: body);
+    final r = await http.post(
+      _u('/api/admin/meta'),
+      headers: headers,
+      body: body,
+    );
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
@@ -490,41 +470,6 @@ class ApiClient {
     }
     final j = jsonDecode(r.body);
     return (j is Map) ? j.cast<String, dynamic>() : <String, dynamic>{};
-  }
-
-  Future<RepMe> repUpdateProfile({
-    String? firstName,
-    String? lastName,
-    String? region,
-    String? lang,
-  }) async {
-    final body = <String, dynamic>{};
-    if (firstName != null) body['firstName'] = firstName;
-    if (lastName != null) body['lastName'] = lastName;
-    if (region != null) body['region'] = region;
-    if (lang != null) body['lang'] = lang;
-
-    final r = await _repFetch(
-      '/api/rep/update',
-      method: 'PUT',
-      body: body,
-    );
-    if (!_ok2xx(r.statusCode)) {
-      throw Exception('PUT /api/rep/update failed: ${r.statusCode} ${r.body}');
-    }
-
-    final raw = r.body.trim().isEmpty ? '{}' : r.body;
-    final decoded = jsonDecode(raw);
-    if (decoded is Map<String, dynamic>) {
-      if (decoded['rep'] is Map) {
-        return RepMe.fromJson((decoded['rep'] as Map).cast<String, dynamic>());
-      }
-      return RepMe.fromJson(decoded);
-    }
-    if (decoded is Map) {
-      return RepMe.fromJson(decoded.cast<String, dynamic>());
-    }
-    throw Exception('invalid response for /api/rep/update');
   }
 
   Future<List<String>> repCustomers() async {
@@ -593,63 +538,10 @@ class ApiClient {
     return const [];
   }
 
-  Future<String> repUpdateCustomerNote({
-    required String email,
-    required String note,
-  }) async {
-    final target = Uri.encodeComponent(email.trim().toLowerCase());
-    final r = await _repFetch(
-      '/api/customers/$target',
-      method: 'PATCH',
-      body: {'repNote': note},
-    );
-    if (!_ok2xx(r.statusCode)) {
-      throw Exception('PATCH /api/customers/$target failed: ${r.statusCode} ${r.body}');
-    }
-    final body = r.body.trim();
-    if (body.isEmpty) return note;
-    final decoded = jsonDecode(body);
-    if (decoded is Map) {
-      final map = decoded.cast<String, dynamic>();
-      final value = map['repNote'];
-      if (value is String) return value;
-    }
-    return note;
-  }
-
-  Future<dynamic> get(String path, {bool auth = false, Map<String, String>? extra}) async {
-    final r = await _get(path, auth: auth, extra: extra);
-    if (!_ok2xx(r.statusCode)) {
-      throw ApiError(r.statusCode, _extractMessage(r.body));
-    }
-    final body = r.body.trim();
-    if (body.isEmpty) return null;
-    return jsonDecode(body);
-  }
-
-  Future<dynamic> put(
-    String path, {
-    Map<String, dynamic>? body,
-    bool auth = false,
-    Map<String, String>? extra,
-  }) async {
-    final r = await http.put(
-      _u(path),
-      headers: _headers(auth: auth, extra: extra),
-      body: jsonEncode(body ?? const <String, dynamic>{}),
-    );
-    if (!_ok2xx(r.statusCode)) {
-      throw ApiError(r.statusCode, _extractMessage(r.body));
-    }
-    final text = r.body.trim();
-    if (text.isEmpty) return null;
-    return jsonDecode(text);
-  }
-
-  // ---------- Low-level HTTP ----------
+  // ---------- Low-level HTTP (nur package:http) ----------
   Future<http.Response> _get(String path, {bool auth = false, Map<String,String>? extra}) {
     return http.get(_u(path), headers: _headers(auth: auth, extra: extra));
-  }
+    }
 
   Future<http.Response> _post(String path, Map body,
       {bool auth = false, Map<String, String>? extraHeaders}) {
@@ -682,6 +574,73 @@ class ApiClient {
       headers: _headers(auth: auth),
       body: body == null ? null : jsonEncode(body),
     );
+  }
+
+  Future<void> registerPushToken(String token, {String? platform, String? locale, String? lang}) async {
+    final trimmed = token.trim();
+    if (trimmed.isEmpty) return;
+    final headers = _pushAuthHeaders();
+    final hasAuth = headers.containsKey('Authorization') || headers.containsKey('X-Admin-Secret');
+    if (!hasAuth) {
+      pushDeviceToken = trimmed;
+      _saveSession();
+      return;
+    }
+
+    final body = <String, String>{'token': trimmed};
+    if (platform != null && platform.trim().isNotEmpty) body['platform'] = platform.trim();
+    if (locale != null && locale.trim().isNotEmpty) body['locale'] = locale.trim();
+    if (lang != null && lang.trim().isNotEmpty) body['lang'] = lang.trim();
+
+    final res = await http.post(
+      _u('/api/push/register'),
+      headers: headers,
+      body: jsonEncode(body),
+    );
+    if (!_ok2xx(res.statusCode)) {
+      final msg = _extractMessage(res.body);
+      throw ApiError(res.statusCode, msg);
+    }
+    pushDeviceToken = trimmed;
+    _saveSession();
+  }
+
+  Future<void> unregisterPushToken(String token, {bool silent = false}) async {
+    final trimmed = token.trim();
+    if (trimmed.isEmpty) {
+      if (pushDeviceToken != null) {
+        pushDeviceToken = null;
+        _saveSession();
+      }
+      return;
+    }
+
+    final headers = _pushAuthHeaders();
+    final hasAuth = headers.containsKey('Authorization') || headers.containsKey('X-Admin-Secret');
+    if (hasAuth) {
+      try {
+        final res = await http.delete(
+          _u('/api/push/register?token=${Uri.encodeComponent(trimmed)}'),
+          headers: headers,
+        );
+        if (!_ok2xx(res.statusCode) && res.statusCode != 204 && res.statusCode != 404) {
+          if (!silent) {
+            final msg = _extractMessage(res.body);
+            throw ApiError(res.statusCode, msg);
+          }
+        }
+      } catch (e) {
+        if (!silent) {
+          if (e is ApiError) rethrow;
+          throw ApiError(0, e.toString());
+        }
+      }
+    }
+
+    if (pushDeviceToken == trimmed) {
+      pushDeviceToken = null;
+      _saveSession();
+    }
   }
 
   // ---------- Gate ----------
@@ -742,6 +701,38 @@ class ApiClient {
     }
   }
 
+  Future<SimpleResult> requestPasswordReset(String email) async {
+    try {
+      final r = await _post('/api/auth/reset-request', {'email': email.trim()});
+      if (_ok2xx(r.statusCode)) {
+        return SimpleResult(ok: true, statusCode: r.statusCode);
+      }
+      return SimpleResult.failure(r.statusCode, _extractMessage(r.body));
+    } catch (e) {
+      return SimpleResult.failure(500, e.toString());
+    }
+  }
+
+  Future<SimpleResult> completePasswordReset(
+    String email,
+    String tempPassword,
+    String newPassword,
+  ) async {
+    try {
+      final r = await _post('/api/auth/reset-complete', {
+        'email': email.trim(),
+        'tempPassword': tempPassword,
+        'newPassword': newPassword,
+      });
+      if (_ok2xx(r.statusCode)) {
+        return SimpleResult(ok: true, statusCode: r.statusCode);
+      }
+      return SimpleResult.failure(r.statusCode, _extractMessage(r.body));
+    } catch (e) {
+      return SimpleResult.failure(500, e.toString());
+    }
+  }
+
   /// Registrierung: `null` = Erfolg, sonst Fehlermeldung
   Future<String?> register(Map<String, dynamic> data) async {
     final r = await _post('/api/auth/register', data);
@@ -792,9 +783,9 @@ class ApiClient {
         final msg = _extractMessage(r.body);
         throw ApiError(r.statusCode, msg);
       }
-      final body = r.body.trim();
-      if (body.isEmpty) return const <String, dynamic>{};
-      final j = jsonDecode(body);
+      final txt = r.body.trim();
+      if (txt.isEmpty) return const <String, dynamic>{};
+      final j = jsonDecode(txt);
       if (j is Map<String, dynamic>) return j;
       if (j is Map) return j.cast<String, dynamic>();
       return const <String, dynamic>{};
@@ -869,9 +860,12 @@ class ApiClient {
     }
   }
 
+    // ---------- Kontakt zum Vertreter (Mail über Backend) ----------
   Future<void> sendRepContact(Map<String, dynamic> data) async {
+    // Kunde ist eingeloggt -> Auth: true, damit Bearer-Token mitgesendet wird
     final r = await _post('/api/rep/contact', data, auth: true);
     if (!_ok2xx(r.statusCode)) {
+      // Versuch, saubere Fehlermeldung aus dem Body zu ziehen
       final msg = _extractMessage(r.body);
       throw ApiError(r.statusCode, msg);
     }
@@ -1023,28 +1017,24 @@ class ApiClient {
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
-    final txt = r.body.trim();
-    if (txt.isEmpty) return const <String, dynamic>{};
-    final decoded = jsonDecode(txt);
+    final body = r.body.trim();
+    if (body.isEmpty) return const <String, dynamic>{};
+    final decoded = jsonDecode(body);
     if (decoded is Map) return decoded.cast<String, dynamic>();
     return const <String, dynamic>{};
   }
 
   // ---------- Vertreter (Kundenbereich) ----------
   Future<MyRep?> getMyRep() async {
-    final base = _apiBase.isEmpty
-        ? (html.window.localStorage['API_BASE'] ?? '')
-        : _apiBase;
+    final uri = _u('/api/rep/of-customer');
 
-    // NEU: Kunden-Endpoint
-    final url = '$base/api/rep/of-customer';
-
-    final headers = <String, String>{ 'Content-Type': 'application/json' };
-    if (token != null && token!.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $token'; // Kunden-JWT!
+    final headers = <String, String>{'Content-Type': 'application/json'};
+    final tok = token ?? '';
+    if (tok.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $tok'; // Kunden-JWT!
     }
 
-    final r = await http.get(Uri.parse(url), headers: headers);
+    final r = await http.get(uri, headers: headers);
     if (r.statusCode == 204) return null;
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
@@ -1221,21 +1211,6 @@ class ApiClient {
     repToken = null;
     _saveSession();
   }
-  
-  // === Kataloge: GET ===
-  Future<List<CatalogLink>> fetchCatalogLinks() async {
-    final res = await get('/api/catalogs'); // passe Pfad ggf. an
-    // Erwartet: { "items": [ {label, url, locales:[...]} ] }
-    final items = (res['items'] as List?) ?? const [];
-    return items.map((e) => CatalogLink.fromJson((e as Map).cast<String, dynamic>())).toList();
-  }
-
-  // === Kataloge: PUT (ersetzt Liste vollständig) ===
-  Future<void> updateCatalogLinks(List<CatalogLink> links) async {
-    await put('/api/catalogs', body: {
-      'items': links.map((e) => e.toJson()).toList(),
-    });
-  }
 
   // Ende ApiClient
 }
@@ -1333,7 +1308,6 @@ class RepMe {
   final String lastName;
   final String email;
   final String region;
-  final String lang;
   final List<String> customers;
   const RepMe({
     required this.id,
@@ -1341,7 +1315,6 @@ class RepMe {
     required this.lastName,
     required this.email,
     required this.region,
-    required this.lang,
     required this.customers,
   });
 
@@ -1351,7 +1324,6 @@ class RepMe {
     lastName: (j['lastName']  ?? '').toString(),
     email:    (j['email']     ?? '').toString(),
     region:   (j['region']    ?? '').toString(),
-    lang:     (j['lang']      ?? '').toString(),
     customers: (j['customers'] as List? ?? const []).cast<String>(),
   );
 }
