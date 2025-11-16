@@ -243,7 +243,7 @@
   "i_have_temp_password": "Ich habe ein temporäres Passwort",
 
   "oldPassword": "Altes Passwort",
-  "newPassword": "Neues Passwort",
+  "newPassword": "Neues Passwort (mind. 8 Zeichen mit Buchstaben, Zahlen & Sonderzeichen)",
   "newPasswordRepeat": "Neues Passwort (Wiederholung)",
   "confirmPassword": "Passwort bestätigen",
   "password": "Passwort*",
