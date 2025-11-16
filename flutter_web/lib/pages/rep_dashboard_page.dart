@@ -195,6 +195,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             'phone': phone,
             'customerNo': customerNo,
             'vatId': vatId,
+            'repNote': s(c['repNote']),
           });
         } else if (c is String) {
           customers.add(<String, Object?>{
@@ -208,6 +209,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             'phone': '',
             'customerNo': '',
             'vatId': '',
+            'repNote': '',
           });
         }
       }
@@ -1479,18 +1481,19 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
       if (filtered.isEmpty) {
         return Text(t.noDataFound ?? 'Keine Daten gefunden.');
       }
-      return ListView.separated(
-        shrinkWrap: true,
-        physics: const BouncingScrollPhysics(),
-        itemBuilder: (_, i) {
-          final c = filtered[i];
-          final email = (c['email'] ?? '').toString();
-          final isNew = !_seenCustomers.contains(email.toLowerCase());
+          return ListView.separated(
+            shrinkWrap: true,
+            physics: const BouncingScrollPhysics(),
+            itemBuilder: (_, i) {
+              final c = filtered[i];
+              final email = (c['email'] ?? '').toString();
+              final isNew = !_seenCustomers.contains(email.toLowerCase());
+              final hasNote = ((c['repNote'] ?? '').toString().trim().isNotEmpty);
 
-          final tile = InkWell(
-            onTap: () {
-              _markCustomerSeen(email);
-              _showCustomerDetails(c);
+              final tile = InkWell(
+                onTap: () {
+                  _markCustomerSeen(email);
+                  _showCustomerDetails(c);
             },
             child: ListTile(
               dense: true,
@@ -1528,10 +1531,23 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.1),
               ),
-              trailing: IconButton(
-                icon: const Icon(Icons.link_off),
-                tooltip: t.deleteAdd,
-                onPressed: () => _unassignCustomer(email),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (hasNote)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: Icon(
+                        Icons.sticky_note_2_outlined,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                  IconButton(
+                    icon: const Icon(Icons.link_off),
+                    tooltip: t.deleteAdd,
+                    onPressed: () => _unassignCustomer(email),
+                  ),
+                ],
               ),
             ),
           );
@@ -1823,34 +1839,116 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     final phone      = s(c['phone']);
     final customerNo = s(c['customerNo']);
     final vatId      = s(c['vatId']);
+    final currentNote = s(c['repNote']);
+
+    final noteCtrl = TextEditingController(text: currentNote);
+    bool saving = false;
+    String? feedback;
+    bool feedbackError = false;
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(company.isNotEmpty ? company : (name.isNotEmpty ? name : email)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (name.isNotEmpty)    Text(name),
-            if (email.isNotEmpty)   SelectableText(email),
-            const SizedBox(height: 8),
-            if (address.isNotEmpty) Text(address),
-            if (zip.isNotEmpty || city.isNotEmpty) Text('${zip.isNotEmpty ? '$zip ' : ''}$city'.trim()),
-            if (country.isNotEmpty) Text(country),
-            if (phone.isNotEmpty)   ...[
-              const SizedBox(height: 8),
-              Text('Tel.: $phone'),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          Future<void> saveNote() async {
+            if (saving) return;
+            setDialogState(() {
+              saving = true;
+              feedback = null;
+            });
+            try {
+              final saved = await widget.api.repUpdateCustomerNote(
+                email: email,
+                note: noteCtrl.text,
+              );
+              if (!mounted) return;
+              setState(() => c['repNote'] = saved);
+              setDialogState(() {
+                saving = false;
+                feedback = context.t.rep_note_saved;
+                feedbackError = false;
+              });
+              if (mounted) {
+                ScaffoldMessenger.of(context)
+                    .showSnackBar(SnackBar(content: Text(context.t.rep_note_saved)));
+              }
+            } catch (_) {
+              if (!mounted) return;
+              setDialogState(() {
+                saving = false;
+                feedback = context.t.rep_note_error;
+                feedbackError = true;
+              });
+            }
+          }
+
+          return AlertDialog(
+            title: Text(company.isNotEmpty ? company : (name.isNotEmpty ? name : email)),
+            content: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (name.isNotEmpty) Text(name),
+                    if (email.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      SelectableText(email),
+                    ],
+                    const SizedBox(height: 8),
+                    if (address.isNotEmpty) Text(address),
+                    if (zip.isNotEmpty || city.isNotEmpty)
+                      Text('${zip.isNotEmpty ? '$zip ' : ''}$city'.trim()),
+                    if (country.isNotEmpty) Text(country),
+                    if (phone.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text('Tel.: $phone'),
+                    ],
+                    if (customerNo.isNotEmpty) Text('Kundennr.: $customerNo'),
+                    if (vatId.isNotEmpty) Text('USt-Id.: $vatId'),
+                    const Divider(height: 24),
+                    Text(context.t.rep_note_label, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: noteCtrl,
+                      maxLines: 5,
+                      minLines: 3,
+                      maxLength: 2000,
+                      decoration: InputDecoration(
+                        hintText: context.t.rep_note_placeholder,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                    if (feedback != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(
+                          feedback!,
+                          style: TextStyle(
+                            color: feedbackError ? Colors.red : Colors.green,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text(context.t.close)),
+              FilledButton.icon(
+                onPressed: saving ? null : saveNote,
+                icon: saving
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.save_outlined),
+                label: Text(context.t.rep_note_save),
+              ),
             ],
-            if (customerNo.isNotEmpty) Text('Kundennr.: $customerNo'),
-            if (vatId.isNotEmpty)      Text('USt-Id.: $vatId'),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Schließen')),
-        ],
+          );
+        },
       ),
-    );
+    ).whenComplete(() => noteCtrl.dispose());
   }
 }
 

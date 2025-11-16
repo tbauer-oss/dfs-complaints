@@ -593,6 +593,30 @@ class ApiClient {
     return const [];
   }
 
+  Future<String> repUpdateCustomerNote({
+    required String email,
+    required String note,
+  }) async {
+    final target = Uri.encodeComponent(email.trim().toLowerCase());
+    final r = await _repFetch(
+      '/api/customers/$target',
+      method: 'PATCH',
+      body: {'repNote': note},
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw Exception('PATCH /api/customers/$target failed: ${r.statusCode} ${r.body}');
+    }
+    final body = r.body.trim();
+    if (body.isEmpty) return note;
+    final decoded = jsonDecode(body);
+    if (decoded is Map) {
+      final map = decoded.cast<String, dynamic>();
+      final value = map['repNote'];
+      if (value is String) return value;
+    }
+    return note;
+  }
+
   Future<dynamic> get(String path, {bool auth = false, Map<String, String>? extra}) async {
     final r = await _get(path, auth: auth, extra: extra);
     if (!_ok2xx(r.statusCode)) {
