@@ -140,6 +140,8 @@
   "copy": "Copier",
   "copied": "Copié dans le presse-papiers.",
   "dataExportButton": "Exportation des données (RGPD)",
+  "dataExportDownloadTxt": "Télécharger en TXT",
+  "dataExportDownloaded": "Fichier TXT téléchargé.",
   "accountAnonymizeTitle": "Anonymiser le compte",
   "accountAnonymizeDescription": "Cela anonymisera les données de votre compte et vous déconnectera. Les réclamations restent pour la documentation mais ne contiendront plus vos données personnelles. Continuer ?",
   "accountAnonymizeButton": "Anonymiser le compte",

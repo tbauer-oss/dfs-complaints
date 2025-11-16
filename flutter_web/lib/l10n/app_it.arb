@@ -88,6 +88,8 @@
   "copy": "Copia",
   "copied": "Copiato negli appunti.",
   "dataExportButton": "Esportazione dati (GDPR)",
+  "dataExportDownloadTxt": "Scarica come TXT",
+  "dataExportDownloaded": "File TXT scaricato.",
   "accountAnonymizeTitle": "Anonimizza account",
   "accountAnonymizeDescription": "Questo renderà anonimi i dati del tuo account e ti disconnetterà. I reclami restano per la documentazione ma non conterranno più i tuoi dati personali. Continuare?",
   "accountAnonymizeButton": "Anonimizza account",

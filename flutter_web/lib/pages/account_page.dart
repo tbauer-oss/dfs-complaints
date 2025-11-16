@@ -1,8 +1,11 @@
 // lib/pages/account_page.dart
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:file_saver/file_saver.dart';
+import 'package:intl/intl.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 import '../services/app_prefs_scope.dart';
@@ -91,6 +94,10 @@ class _AccountPageState extends State<AccountPage> {
           ),
           actions: [
             TextButton(
+              onPressed: () => _downloadExportFile(pretty, rootContext),
+              child: Text(dialogCtx.t.dataExportDownloadTxt ?? 'Als TXT herunterladen'),
+            ),
+            TextButton(
               onPressed: () async {
                 await Clipboard.setData(ClipboardData(text: pretty));
                 if (!mounted) return;
@@ -114,6 +121,36 @@ class _AccountPageState extends State<AccountPage> {
       );
     } finally {
       if (mounted) setState(() => _exportBusy = false);
+    }
+  }
+
+  String _exportFileName() {
+    final ts = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+    return 'dfs_datenexport_$ts';
+  }
+
+  Future<void> _downloadExportFile(String pretty, BuildContext rootContext) async {
+    try {
+      final bytes = Uint8List.fromList(utf8.encode(pretty));
+      await FileSaver.instance.saveFile(
+        name: _exportFileName(),
+        bytes: bytes,
+        ext: 'txt',
+        mimeType: MimeType.text,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(rootContext).showSnackBar(
+        SnackBar(
+          content: Text(
+            rootContext.t.dataExportDownloaded ?? 'TXT-Datei wurde heruntergeladen.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(rootContext).showSnackBar(
+        SnackBar(content: Text('${rootContext.t.error ?? 'Fehler'}: $e')),
+      );
     }
   }
 
