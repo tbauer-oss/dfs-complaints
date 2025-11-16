@@ -203,6 +203,13 @@ class ApiClient {
     return h;
   }
 
+  String _formatDateOnly(DateTime date) {
+    final d = DateTime.utc(date.year, date.month, date.day);
+    final mm = d.month.toString().padLeft(2, '0');
+    final dd = d.day.toString().padLeft(2, '0');
+    return '${d.year}-$mm-$dd';
+  }
+
   // Header für Vertreter-Endpunkte (erzwingt X-Gate: rep)
   Map<String, String> _repHeaders({Map<String, String>? extra}) {
     final h = <String, String>{
