@@ -2228,24 +2228,46 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     return s.isEmpty ? null : s;
   }
 
+  String? _normalizeProductAreaValue(AppLocalizations t, String? raw) {
+    final value = (raw ?? '').trim().toLowerCase();
+    if (value.isEmpty) return null;
+
+    String dentistLabel() => t.segment_dentist ?? 'Zahnmedizin';
+    String labLabel() => t.segment_lab ?? 'Dentallabor';
+
+    final dentistToken = (t.segment_dentist ?? '').toLowerCase();
+    final labToken = (t.segment_lab ?? '').toLowerCase();
+    final medicalToken = (t.product_area_medical ?? '').toLowerCase();
+    final labProductToken = (t.product_area_lab ?? '').toLowerCase();
+
+    final isDentist =
+        value.contains('zahnarzt') ||
+        value.contains('zahnmedizin') ||
+        value.contains('dentist') ||
+        value.contains('medizinprodukt') ||
+        value == dentistToken ||
+        (medicalToken.isNotEmpty && value == medicalToken);
+
+    if (isDentist) return dentistLabel();
+
+    final isLab =
+        value.contains('zahntechnik') ||
+        value.contains('dentallabor') ||
+        value.contains('laborprodukt') ||
+        value.contains('lab') ||
+        value == labToken ||
+        (labProductToken.isNotEmpty && value == labProductToken);
+
+    if (isLab) return labLabel();
+
+    return null;
+  }
+
   String? _resolveProductArea(AppLocalizations t, String? segment, String? productType) {
     final candidates = <String?>[segment, productType];
     for (final raw in candidates) {
-      final value = (raw ?? '').trim().toLowerCase();
-      if (value.isEmpty) continue;
-
-      if (value.contains('zahnarzt') || value.contains('zahnmedizin')) {
-        return t.product_area_medical ?? 'Medizinprodukt';
-      }
-      if (value.contains('dentist') || value == (t.segment_dentist ?? '').toLowerCase()) {
-        return t.product_area_medical ?? 'Medizinprodukt';
-      }
-      if (value.contains('dentallabor') || value.contains('zahntechnik')) {
-        return t.product_area_lab ?? 'Laborprodukt';
-      }
-      if (value.contains('lab') || value == (t.segment_lab ?? '').toLowerCase()) {
-        return t.product_area_lab ?? 'Laborprodukt';
-      }
+      final normalized = _normalizeProductAreaValue(t, raw);
+      if (normalized != null) return normalized;
     }
     return null;
   }
