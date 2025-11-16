@@ -1,5 +1,10 @@
 // api/complaint/create.js
-export const config = { runtime: 'nodejs' };
+export const config = {
+  runtime: 'nodejs',
+  api: {
+    bodyParser: { sizeLimit: '15mb' },
+  },
+};
 
 import jwt from 'jsonwebtoken';
 import { setCors, noContent, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
