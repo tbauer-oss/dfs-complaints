@@ -132,6 +132,8 @@
   "copy": "Kopieren",
   "copied": "In Zwischenablage kopiert.",
   "dataExportButton": "Datenexport (DSGVO)",
+  "dataExportDownloadTxt": "Als TXT herunterladen",
+  "dataExportDownloaded": "TXT-Datei wurde heruntergeladen.",
   "accountAnonymizeTitle": "Konto anonymisieren",
   "accountAnonymizeDescription": "Damit werden Ihre Kontodaten anonymisiert und Sie werden abgemeldet. Beschwerden bleiben zur Dokumentation erhalten, enthalten aber keine personenbezogenen Angaben mehr. Fortfahren?",
   "accountAnonymizeButton": "Konto anonymisieren",
