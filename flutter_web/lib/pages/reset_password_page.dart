@@ -114,7 +114,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
     }
     if (new1 != new2) {
       setState(() {
-        _completeError = t.password_no_match;
+        _completeError = t.password_not_match;
         _completeMessage = null;
       });
       return;
