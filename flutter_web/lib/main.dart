@@ -20,6 +20,7 @@ import 'pages/rep_dashboard_page.dart' hide ThemeAction;
 import 'pages/legal_privacy_page.dart';
 import 'pages/legal_imprint_page.dart';
 import 'widgets/legal_footer.dart';
+import 'pages/reset_password_page.dart';
 
 // Widgets
 import 'widgets/lang_action.dart';
@@ -289,6 +290,10 @@ class _MyAppState extends State<MyApp> {
     Navigator.of(ctx).pushNamed('/repLogin');
   }
 
+  void _openResetPassword(BuildContext ctx) {
+    Navigator.of(ctx).pushNamed('/reset-password');
+  }
+
   void _onLoggedIn() => setState(() => _loggedIn = true);   // Kundenlogin
   void _onLoggedOut() => setState(() => _loggedIn = false); // Kundenlogout
 
@@ -435,6 +440,7 @@ class _MyAppState extends State<MyApp> {
                                               onOpenRegister: () => _openRegister(ctx),
                                               onOpenAdmin: () => _openAdmin(ctx),
                                               onOpenRep: () => _openRepArea(ctx), // -> /repLogin
+                                              onOpenResetPassword: () => _openResetPassword(ctx),
                                             ),
                                             const SizedBox(height: 18),
                                             Align(
@@ -528,6 +534,7 @@ class _MyAppState extends State<MyApp> {
               '/repLogin': (_) => RepLoginPage(api: api),
               // Vertreter-Dashboard
               '/rep': (_) => RepDashboardPage(api: api),
+              '/reset-password': (_) => ResetPasswordPage(api: api),
               // Datenschutz-Seite
               '/legal/privacy': (_) => const LegalPrivacyPage(),
               // Impressum-Seite
@@ -570,6 +577,7 @@ class _LoginScreen extends StatefulWidget {
   final VoidCallback onOpenRegister;
   final VoidCallback onOpenAdmin;
   final VoidCallback onOpenRep;
+  final VoidCallback onOpenResetPassword;
 
   const _LoginScreen({
     required this.api,
@@ -577,6 +585,7 @@ class _LoginScreen extends StatefulWidget {
     required this.onOpenRegister,
     required this.onOpenAdmin,
     required this.onOpenRep,
+    required this.onOpenResetPassword,
   });
 
   @override
@@ -719,6 +728,13 @@ class _LoginScreenState extends State<_LoginScreen> {
                   child: _busy
                       ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
                       : Text(t.login),
+                ),
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: _busy ? null : widget.onOpenResetPassword,
+                  child: Text(t.forgot_password_button),
                 ),
               ),
               const SizedBox(height: 10),

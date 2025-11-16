@@ -41,6 +41,22 @@ class LoginResult {
       );
 }
 
+class SimpleResult {
+  final bool ok;
+  final String? message;
+  final int statusCode;
+
+  const SimpleResult({
+    required this.ok,
+    this.message,
+    required this.statusCode,
+  });
+
+  factory SimpleResult.success() => const SimpleResult(ok: true, statusCode: 200);
+  factory SimpleResult.failure(int statusCode, String? message) =>
+      SimpleResult(ok: false, statusCode: statusCode, message: message);
+}
+
 String _extractMessage(String body) {
   try {
     final j = jsonDecode(body);
@@ -739,6 +755,38 @@ class ApiClient {
       return LoginResult.failure(revoked: revoked, message: msg, statusCode: status);
     } catch (e) {
       return LoginResult.failure(message: e.toString());
+    }
+  }
+
+  Future<SimpleResult> requestPasswordReset(String email) async {
+    try {
+      final r = await _post('/api/auth/reset-request', {'email': email.trim()});
+      if (_ok2xx(r.statusCode)) {
+        return SimpleResult(ok: true, statusCode: r.statusCode);
+      }
+      return SimpleResult.failure(r.statusCode, _extractMessage(r.body));
+    } catch (e) {
+      return SimpleResult.failure(500, e.toString());
+    }
+  }
+
+  Future<SimpleResult> completePasswordReset(
+    String email,
+    String tempPassword,
+    String newPassword,
+  ) async {
+    try {
+      final r = await _post('/api/auth/reset-complete', {
+        'email': email.trim(),
+        'tempPassword': tempPassword,
+        'newPassword': newPassword,
+      });
+      if (_ok2xx(r.statusCode)) {
+        return SimpleResult(ok: true, statusCode: r.statusCode);
+      }
+      return SimpleResult.failure(r.statusCode, _extractMessage(r.body));
+    } catch (e) {
+      return SimpleResult.failure(500, e.toString());
     }
   }
 
