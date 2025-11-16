@@ -1,9 +1,16 @@
 // lib/pages/complaint_form_page.dart
-import 'package:flutter/material.dart';
+import 'dart:typed_data';
+
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
+import '../models/complaint_attachment.dart';
 import '../widgets/dialog_content_scroll.dart';
+import 'complaint_summary_page.dart';
 
 // KEIN dart:html mehr nötig
 
@@ -19,6 +26,7 @@ class ComplaintFormPage extends StatefulWidget {
 }
 
 class _ComplaintFormPageState extends State<ComplaintFormPage> with TickerProviderStateMixin {
+  static const _helpPrefKey = 'dfs_complaint_help_collapsed';
   // --- State ---
   String segment = 'Zahnarzt';
   final article = TextEditingController();
@@ -39,6 +47,9 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> with TickerProvid
   String? info;
   String? err;
   bool busy = false;
+
+  Map<String, dynamic>? _account;
+  bool _helpCollapsed = false;
 
   bool _dirty = false;
   final List<TextEditingController> _ctrls = [];
@@ -76,6 +87,8 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> with TickerProvid
     super.initState();
     _ctrls.addAll([article, batch, qty, expiry, desc, injuryDesc]);
     for (final c in _ctrls) { c.addListener(_markDirty); }
+    _loadAccount();
+    _loadHelpPref();
   }
 
   @override
@@ -144,6 +157,84 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> with TickerProvid
     });
   }
 
+  Future<void> _loadAccount() async {
+    try {
+      final data = await widget.api.accountGet();
+      if (!mounted) return;
+      setState(() => _account = data);
+    } catch (_) {}
+  }
+
+  Future<void> _loadHelpPref() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final collapsed = prefs.getBool(_helpPrefKey) ?? false;
+      if (!mounted) return;
+      setState(() => _helpCollapsed = collapsed);
+    } catch (_) {}
+  }
+
+  Future<void> _persistHelpPref(bool value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_helpPrefKey, value);
+    } catch (_) {}
+  }
+
+  void _toggleHelpBox() {
+    final next = !_helpCollapsed;
+    setState(() => _helpCollapsed = next);
+    _persistHelpPref(next);
+  }
+
+  Future<void> _openHelpLink() async {
+    final raw = context.t.complaint_help_url;
+    final uri = Uri.tryParse(raw);
+    if (uri == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(context.t.complaint_help_error)));
+      return;
+    }
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(context.t.complaint_help_error)));
+    }
+  }
+
+  List<ComplaintAttachment> _currentAttachments() {
+    return files
+        .map((f) => ComplaintAttachment(
+              name: f.name,
+              bytes: Uint8List.fromList(f.bytes),
+              mime: f.mime,
+            ))
+        .toList(growable: false);
+  }
+
+  Future<void> _showSummary(String ticket, Map<String, dynamic> payload) async {
+    final accountSnapshot = _account == null ? null : Map<String, dynamic>.from(_account!);
+    final result = await Navigator.of(context).push<ComplaintSummaryResult>(
+      MaterialPageRoute(
+        builder: (_) => ComplaintSummaryPage(
+          ticket: ticket,
+          createdAt: DateTime.now(),
+          payload: Map<String, dynamic>.from(payload),
+          account: accountSnapshot,
+          attachments: _currentAttachments(),
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+    if (result == ComplaintSummaryResult.newComplaint) {
+      _resetForm();
+    } else {
+      await _navigateToDashboard();
+    }
+  }
+
   Future<void> _navigateToDashboard() async {
     if (!mounted) return;
     try {
@@ -151,46 +242,6 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> with TickerProvid
     } catch (_) {
       Navigator.of(context).popUntil((r) => r.isFirst);
     }
-  }
-
-  Future<bool> _askAddAnother(String ticket) async {
-    final t = context.t;
-    final theme = Theme.of(context);
-    return await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-        title: Text(t.addAnother_title),
-        content: DialogContentScroll(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Align(alignment: Alignment.centerLeft, child: Text(t.addAnother_body)),
-              const SizedBox(height: 12),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.confirmation_number_outlined, size: 20),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      t.sent_ticket(ticket),
-                      style: theme.textTheme.bodyMedium,
-                      softWrap: true,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(t.addAnother_no)),
-          FilledButton.tonal(onPressed: () => Navigator.pop(context, true), child: Text(t.addAnother_yes)),
-        ],
-      ),
-    ).then((v) => v ?? false);
   }
 
   // ---------- UI Helpers ----------
@@ -326,6 +377,51 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> with TickerProvid
     );
   }
 
+  Widget _buildHelpBox() {
+    final t = context.t;
+    final theme = Theme.of(context);
+    return Card(
+      elevation: 1,
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(_radius)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.info_outline, color: theme.colorScheme.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    t.complaint_help_title,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                IconButton(
+                  tooltip: _helpCollapsed ? t.complaint_help_expand : t.complaint_help_collapse,
+                  onPressed: _toggleHelpBox,
+                  icon: Icon(_helpCollapsed ? Icons.expand_more : Icons.expand_less),
+                ),
+              ],
+            ),
+            if (!_helpCollapsed) ...[
+              const SizedBox(height: 8),
+              Text(t.complaint_help_body),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: _openHelpLink,
+                icon: const Icon(Icons.open_in_new),
+                label: Text(t.complaint_help_link),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.t;
@@ -354,6 +450,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> with TickerProvid
               children: [
                 // Header (Gradient)
                 _header(),
+                _buildHelpBox(),
 
                 // Sektion: Allgemein
                 _sectionCard(
@@ -584,14 +681,9 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> with TickerProvid
                             if (ticket.isEmpty) {
                               setState(() { busy = false; err = t.send_failed; });
                             } else {
+                              final payloadCopy = Map<String, dynamic>.from(payload);
                               setState(() { busy = false; _dirty = false; info = null; });
-                              final again = await _askAddAnother(ticket);
-                              if (!mounted) return;
-                              if (again) {
-                                _resetForm();
-                              } else {
-                                await _navigateToDashboard();
-                              }
+                              await _showSummary(ticket, payloadCopy);
                             }
                           } catch (e) {
                             setState(() {
