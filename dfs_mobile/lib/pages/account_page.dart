@@ -144,9 +144,9 @@ class _AccountPageState extends State<AccountPage> {
     try {
       final bytes = Uint8List.fromList(utf8.encode(pretty));
       await FileSaver.instance.saveFile(
-        name: _exportFileName(),
-        bytes: bytes,
-        ext: 'txt',
+        _exportFileName(),
+        bytes,
+        'txt',
         mimeType: MimeType.text,
       );
       if (!mounted) return;
