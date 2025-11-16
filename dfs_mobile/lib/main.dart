@@ -1034,46 +1034,6 @@ class _LoginScreenState extends State<_LoginScreen> {
               Divider(height: 1, color: Theme.of(context).dividerColor.withOpacity(0.6)),
               const SizedBox(height: 14),
 
-              TextField(
-                controller: _email,
-                decoration: InputDecoration(
-                  labelText: t.email,
-                ),
-                enabled: !_busy,
-                onChanged: (_) => setState(() {}),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _pw,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: t.password,
-                ),
-                onSubmitted: (_) => canLogin ? _doLogin() : null,
-                enabled: !_busy,
-                onChanged: (_) => setState(() {}),
-              ),
-
-              if (_err != null) ...[
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(_err!, style: const TextStyle(color: Colors.red)),
-                ),
-              ],
-
-              const SizedBox(height: 16),
-
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: canLogin ? _doLogin : null,
-                  child: _busy
-                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                      : Text(t.login),
-                ),
-              ),
-              const SizedBox(height: 12),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
@@ -1111,6 +1071,47 @@ class _LoginScreenState extends State<_LoginScreen> {
                       label: Text(t.reset_password_request_action),
                     ),
                   ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              TextField(
+                controller: _email,
+                decoration: InputDecoration(
+                  labelText: t.email,
+                ),
+                enabled: !_busy,
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _pw,
+                obscureText: true,
+                decoration: InputDecoration(
+                  labelText: t.password,
+                ),
+                onSubmitted: (_) => canLogin ? _doLogin() : null,
+                enabled: !_busy,
+                onChanged: (_) => setState(() {}),
+              ),
+
+              if (_err != null) ...[
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(_err!, style: const TextStyle(color: Colors.red)),
+                ),
+              ],
+
+              const SizedBox(height: 16),
+
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: canLogin ? _doLogin : null,
+                  child: _busy
+                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : Text(t.login),
                 ),
               ),
               const SizedBox(height: 10),
