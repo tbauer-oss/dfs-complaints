@@ -27,6 +27,7 @@
   "attachments_file_unknown": "Adjunto",
 
   "rep_contact_form": "Enviar mensaje",
+  "rep_not_assigned": "Actualmente no hay ningún representante asignado.",
   "rep_overview_open": "Abiertas",
   "rep_overview_all": "Todas",
   "rep_overview_rejected": "Rechazadas",
@@ -88,6 +89,8 @@
   "complaint_sub": "Gracias por ayudarnos a mejorar continuamente nuestra calidad.",
   "hideDetails": "Ocultar detalles",
   "showDetails": "Mostrar detalles",
+  "product_type": "Tipo de producto",
+  "timestamps": "Marcas de tiempo",
   "catalogs_title": "Catálogos",
   "catalog_open": "Ver",
   "catalog_lab_title": "Catálogo de laboratorio dental",

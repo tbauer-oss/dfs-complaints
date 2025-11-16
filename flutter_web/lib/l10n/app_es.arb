@@ -36,6 +36,8 @@
   "versioninfo": "Versión de la aplicación",
   "hideDetails": "Ocultar detalles",
   "showDetails": "Mostrar detalles",
+  "product_type": "Tipo de producto",
+  "timestamps": "Marcas de tiempo",
   "catalogs_title": "Catálogos",
   "catalog_open": "Ver",
   "catalog_lab_title": "Catálogo de laboratorio dental",
@@ -114,6 +116,7 @@
   "yourCompany": "Su empresa",
   "we_are_here_for_you": "Estamos aquí para usted.",
   "rep_contact_form": "Enviar mensaje",
+  "rep_not_assigned": "Actualmente no hay ningún representante asignado.",
   "rep_contact_title": "Contacto con el representante",
   "rep_contact_intro": "Está escribiendo a {firstName} {lastName}. Complete los siguientes campos.",
   "@rep_contact_intro": {

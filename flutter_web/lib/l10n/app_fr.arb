@@ -36,6 +36,8 @@
 
   "hideDetails": "Masquer les détails",
   "showDetails": "Afficher les détails",
+  "product_type": "Type de produit",
+  "timestamps": "Horodatages",
   "catalogs_title": "Catalogues",
   "catalog_open": "Voir",
   "catalog_lab_title": "Catalogue de laboratoire dentaire",
@@ -115,6 +117,7 @@
   "yourCompany": "Votre entreprise",
   "we_are_here_for_you": "Nous sommes là pour vous.",
   "rep_contact_form": "Envoyer un message",
+  "rep_not_assigned": "Actuellement aucun représentant n’est attribué.",
   "rep_contact_title": "Contacter le représentant",
   "rep_contact_intro": "Vous écrivez à {firstName} {lastName}. Veuillez remplir les champs suivants.",
   "@rep_contact_intro": {

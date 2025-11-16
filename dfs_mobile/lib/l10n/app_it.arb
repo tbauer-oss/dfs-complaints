@@ -27,6 +27,7 @@
 
   "we_are_here_for_you": "Siamo qui per voi.",
   "rep_contact_form": "Inviare messaggio",
+  "rep_not_assigned": "Attualmente non è assegnato alcun referente.",
   "rep_overview_open": "Aperte",
   "rep_overview_all": "Tutte",
   "rep_overview_rejected": "Rifiutate",
@@ -88,6 +89,8 @@
   "complaint_sub": "Grazie per aiutarci a migliorare continuamente la nostra qualità.",
   "hideDetails": "Nascondi dettagli",
   "showDetails": "Mostra dettagli",
+  "product_type": "Tipo di prodotto",
+  "timestamps": "Timestamp",
   "catalogs_title": "Cataloghi",
   "catalog_open": "Visualizza",
   "catalog_lab_title": "Catalogo per laboratorio odontotecnico",

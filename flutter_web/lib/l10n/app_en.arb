@@ -36,6 +36,8 @@
 
   "hideDetails": "Hide details",
   "showDetails": "Show details",
+  "product_type": "Product type",
+  "timestamps": "Timestamps",
   "catalogs_title": "Catalogs",
   "catalog_open": "View",
   "catalog_lab_title": "Dental Laboratory Catalog",
@@ -118,6 +120,7 @@
   "yourCompany": "Your company",
   "we_are_here_for_you": "We are here for you.",
   "rep_contact_form": "Send message",
+  "rep_not_assigned": "Currently no representative is assigned.",
   "rep_contact_title": "Contact representative",
   "rep_contact_intro": "You are writing to {firstName} {lastName}. Please fill out the fields below.",
   "@rep_contact_intro": {

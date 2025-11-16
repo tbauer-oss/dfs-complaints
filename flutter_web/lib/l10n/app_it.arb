@@ -36,6 +36,8 @@
 
   "hideDetails": "Nascondi dettagli",
   "showDetails": "Mostra dettagli",
+  "product_type": "Tipo di prodotto",
+  "timestamps": "Timestamp",
   "catalogs_title": "Cataloghi",
   "catalog_open": "Visualizza",
   "catalog_lab_title": "Catalogo per laboratorio odontotecnico",
@@ -115,6 +117,7 @@
   "yourCompany": "La vostra azienda",
   "we_are_here_for_you": "Siamo qui per voi.",
   "rep_contact_form": "Inviare messaggio",
+  "rep_not_assigned": "Attualmente non è assegnato alcun referente.",
   "rep_contact_title": "Contatta il rappresentante",
   "rep_contact_intro": "Stai scrivendo a {firstName} {lastName}. Compila i seguenti campi.",
   "@rep_contact_intro": {
