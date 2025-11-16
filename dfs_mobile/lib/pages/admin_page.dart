@@ -25,7 +25,7 @@ class AdminPage extends StatefulWidget {
   State<AdminPage> createState() => _AdminPageState();
 }
 
-enum _AdminView { menu, pending, users, open, reps, createCustomer }
+enum _AdminView { menu, pending, users, open, reps, systemHealth, createCustomer }
 
 class _AdminPageState extends State<AdminPage> {
   late final AdminApi _api;
@@ -37,6 +37,9 @@ class _AdminPageState extends State<AdminPage> {
   bool _loadReps = false;
   String? _fatalErr;
   String? _err;
+  bool _systemHealthBusy = false;
+  String? _systemHealthErr;
+  SystemHealthResult? _systemHealth;
   String? _userFilterRepId;
   String _userFilterCompany = 'Alle Firmen';
   String _userFilterCountry = 'Alle Länder';
@@ -84,6 +87,13 @@ class _AdminPageState extends State<AdminPage> {
         (c) => c.code == 'DE',
         orElse: () => kCountries.first,
       );
+
+  String _formatTimestamp(DateTime dt) {
+    final local = dt.toLocal();
+    final iso = local.toIso8601String();
+    final trimmed = iso.contains('.') ? iso.split('.').first : iso;
+    return trimmed.replaceFirst('T', ' ');
+  }
 
   @override
   void initState() {
@@ -249,6 +259,24 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  Future<void> _loadSystemHealth({bool force = false}) async {
+    if (_systemHealthBusy) return;
+    if (!force && _systemHealth != null) return;
+    setState(() {
+      _systemHealthErr = null;
+      _systemHealthBusy = true;
+    });
+    try {
+      final status = await _api.fetchSystemHealth();
+      if (!mounted) return;
+      setState(() => _systemHealth = status);
+    } catch (e) {
+      if (mounted) setState(() => _systemHealthErr = '$e');
+    } finally {
+      if (mounted) setState(() => _systemHealthBusy = false);
+    }
+  }
+
   Future<void> _loadComplaintsDetailed(String email) async {
     final cur = _complaints[email];
     if (cur?.loading == true) return;
@@ -376,6 +404,7 @@ class _AdminPageState extends State<AdminPage> {
       _AdminView.users          => 'Aktive Nutzer',
       _AdminView.open           => 'Offene Reklamationen',
       _AdminView.reps           => 'Vertreterverwaltung',
+      _AdminView.systemHealth   => 'Systemstatus & Checks',
       _AdminView.createCustomer => 'Neuen Kunden anlegen',
     };
 
@@ -534,6 +563,18 @@ class _AdminPageState extends State<AdminPage> {
         subtitle: 'Versionen und Hinweise pflegen',
         tiles: [
           AdminTilePro(
+            label: 'Systemstatus',
+            subtitle: 'Health & Konfiguration',
+            icon: Icons.health_and_safety_outlined,
+            colorA: AdminPalette.tealA,
+            colorB: AdminPalette.tealB,
+            compact: compact,
+            onTap: () {
+              setState(() => _view = _AdminView.systemHealth);
+              _loadSystemHealth(force: true);
+            },
+          ),
+          AdminTilePro(
             label: 'App-Version',
             subtitle: 'Version, Build, Hinweise',
             icon: Icons.app_settings_alt_outlined,
@@ -636,6 +677,8 @@ class _AdminPageState extends State<AdminPage> {
         return const SizedBox.shrink();
       case _AdminView.reps:
         return _buildRepsPanel();
+      case _AdminView.systemHealth:
+        return _buildSystemHealthPanel();
       case _AdminView.createCustomer:
         return _buildCreateCustomerPanel();
     }
@@ -954,6 +997,128 @@ class _AdminPageState extends State<AdminPage> {
       _custLang = 'de';
       _custCountry = _defaultCountry;
     });
+  }
+
+  Widget _buildSystemHealthPanel() {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final status = _systemHealth;
+    final checks = status?.checks ?? const <SystemHealthCheck>[];
+    final overallOk = status?.ok;
+    final tsLabel = status != null ? _formatTimestamp(status.timestamp) : null;
+
+    Color summaryBg;
+    Color summaryFg;
+    IconData summaryIcon;
+    String summaryText;
+
+    if (overallOk == true) {
+      summaryBg = cs.primaryContainer;
+      summaryFg = cs.onPrimaryContainer;
+      summaryIcon = Icons.check_circle_outline;
+      summaryText = 'Alle Checks erfolgreich.';
+    } else if (overallOk == false) {
+      summaryBg = cs.errorContainer;
+      summaryFg = cs.onErrorContainer;
+      summaryIcon = Icons.error_outline;
+      summaryText = 'Mindestens ein Check benötigt Aufmerksamkeit.';
+    } else {
+      summaryBg = cs.surfaceVariant.withOpacity(0.7);
+      summaryFg = cs.onSurfaceVariant;
+      summaryIcon = Icons.health_and_safety_outlined;
+      summaryText = _systemHealthBusy
+          ? 'Prüfung läuft …'
+          : 'Noch kein Ergebnis – bitte Check starten.';
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.health_and_safety_outlined),
+                const SizedBox(width: 8),
+                const Text(
+                  'Systemstatus & Validierung',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                const Spacer(),
+                IconButton(
+                  tooltip: 'Neu laden',
+                  onPressed: _systemHealthBusy ? null : () => _loadSystemHealth(force: true),
+                  icon: const Icon(Icons.refresh),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (_systemHealthBusy) const LinearProgressIndicator(),
+            if (_systemHealthErr != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: cs.errorContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  _systemHealthErr!,
+                  style: TextStyle(color: cs.onErrorContainer),
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: summaryBg,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(summaryIcon, color: summaryFg),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(summaryText, style: TextStyle(color: summaryFg, fontWeight: FontWeight.w600)),
+                        if (tsLabel != null) ...[
+                          const SizedBox(height: 4),
+                          Text('Stand: $tsLabel (lokal)', style: TextStyle(color: summaryFg.withOpacity(0.9))),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: checks.isEmpty
+                  ? Center(
+                      child: Text(
+                        status == null
+                            ? (_systemHealthBusy ? 'Prüfung läuft …' : 'Noch kein System-Check gestartet.')
+                            : 'Keine Check-Daten verfügbar.',
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: EdgeInsets.zero,
+                      itemBuilder: (_, index) => _SystemHealthCheckCard(check: checks[index]),
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemCount: checks.length,
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildPendingPanel() {
@@ -2261,6 +2426,101 @@ class _AdminMenuSectionData {
   final List<Widget> tiles;
 }
 
+class _SystemHealthCheckCard extends StatelessWidget {
+  final SystemHealthCheck check;
+  const _SystemHealthCheckCard({required this.check});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final icon = check.ok ? Icons.check_circle_outline : Icons.error_outline;
+    final iconColor = check.ok ? cs.primary : cs.error;
+    final chips = _buildChips(theme);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cs.surfaceVariant.withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.5 : 0.3),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: iconColor, size: 28),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(check.label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 2),
+                    Text(check.message, style: theme.textTheme.bodyMedium),
+                    if (check.details != null && check.details!.trim().isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        check.details!,
+                        style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (chips.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: chips,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildChips(ThemeData theme) {
+    final cs = theme.colorScheme;
+    final chips = <Widget>[];
+    final duration = check.durationMs;
+    if (duration != null) {
+      final label = duration >= 100
+          ? '${duration.round()} ms'
+          : '${duration.toStringAsFixed(1)} ms';
+      chips.add(_metaChip(cs.primaryContainer, cs.onPrimaryContainer, Icons.speed, label));
+    }
+    final value = check.value;
+    if (value != null) {
+      chips.add(_metaChip(cs.secondaryContainer, cs.onSecondaryContainer, Icons.link, value));
+    }
+    for (final miss in check.missingRequired) {
+      chips.add(_metaChip(cs.errorContainer, cs.onErrorContainer, Icons.report_problem, 'Fehlt: $miss'));
+    }
+    for (final miss in check.missingOptional) {
+      chips.add(_metaChip(cs.surfaceVariant, cs.onSurfaceVariant, Icons.info_outline, 'Optional: $miss'));
+    }
+    for (final note in check.notes) {
+      chips.add(_metaChip(cs.tertiaryContainer, cs.onTertiaryContainer, Icons.sticky_note_2_outlined, note));
+    }
+    return chips;
+  }
+
+  Widget _metaChip(Color bg, Color fg, IconData icon, String label) {
+    return Chip(
+      backgroundColor: bg,
+      avatar: Icon(icon, size: 16, color: fg),
+      label: Text(label, style: TextStyle(color: fg)),
+      visualDensity: VisualDensity.compact,
+    );
+  }
+}
+
 class _AdminTile extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -3338,6 +3598,103 @@ class AdminComplaint {
         if (repOpinion != null) 'repOpinion': repOpinion,
         if (repId != null) 'repId': repId,
       };
+}
+
+class SystemHealthResult {
+  final bool ok;
+  final DateTime timestamp;
+  final List<SystemHealthCheck> checks;
+
+  SystemHealthResult({
+    required this.ok,
+    required this.timestamp,
+    required List<SystemHealthCheck> checks,
+  }) : checks = List.unmodifiable(checks);
+
+  factory SystemHealthResult.fromJson(Map<String, dynamic> json) {
+    final rawTs = json['timestamp']?.toString();
+    final ts = (rawTs != null && rawTs.isNotEmpty)
+        ? (DateTime.tryParse(rawTs) ?? DateTime.now())
+        : DateTime.now();
+    final rawChecks = json['checks'];
+    final list = <SystemHealthCheck>[];
+    if (rawChecks is Map) {
+      rawChecks.forEach((key, value) {
+        if (value is Map) {
+          list.add(SystemHealthCheck.fromJson(key.toString(), Map<String, dynamic>.from(value)));
+        }
+      });
+    }
+    list.sort((a, b) => a.order.compareTo(b.order));
+    final overall = json['ok'] == true ? true : list.every((c) => c.ok);
+    return SystemHealthResult(ok: overall, timestamp: ts, checks: list);
+  }
+}
+
+class SystemHealthCheck {
+  final String key;
+  final String label;
+  final bool ok;
+  final String message;
+  final String? details;
+  final Map<String, dynamic> meta;
+  final int order;
+
+  SystemHealthCheck({
+    required this.key,
+    required this.label,
+    required this.ok,
+    required this.message,
+    this.details,
+    Map<String, dynamic>? meta,
+    required this.order,
+  }) : meta = Map.unmodifiable(meta ?? const {});
+
+  factory SystemHealthCheck.fromJson(String key, Map<String, dynamic> json) {
+    final meta = json['meta'];
+    final metaMap = meta is Map
+        ? Map<String, dynamic>.from(meta as Map)
+        : <String, dynamic>{};
+    final order = json['order'] is num
+        ? (json['order'] as num).toInt()
+        : int.tryParse('${json['order'] ?? ''}') ?? 100;
+    return SystemHealthCheck(
+      key: key,
+      label: (json['label'] ?? key).toString(),
+      ok: json['ok'] == true,
+      message: (json['message'] ?? '').toString(),
+      details: json['details']?.toString(),
+      meta: metaMap,
+      order: order,
+    );
+  }
+
+  List<String> _metaList(String key) {
+    final raw = meta[key];
+    if (raw is List) {
+      return raw
+          .map((e) => e?.toString() ?? '')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+    }
+    return const [];
+  }
+
+  List<String> get missingRequired => _metaList('missingRequired');
+  List<String> get missingOptional => _metaList('missingOptional');
+  List<String> get notes => _metaList('notes');
+
+  double? get durationMs => meta['durationMs'] is num
+      ? (meta['durationMs'] as num).toDouble()
+      : null;
+
+  String? get value {
+    final raw = meta['value'];
+    if (raw == null) return null;
+    final s = raw.toString().trim();
+    return s.isEmpty ? null : s;
+  }
 }
 
 class Rep {
@@ -5041,6 +5398,19 @@ class AdminApi {
     final Map<String, dynamic> j = (res.body.trim().isEmpty) ? <String, dynamic>{} : jsonDecode(res.body);
     final list = (j['customers'] is List) ? (j['customers'] as List) : const [];
     return List<String>.from(list.map((e) => e.toString()));
+  }
+
+  Future<SystemHealthResult> fetchSystemHealth() async {
+    final res = await _request('GET', '/api/admin/health');
+    if (res.status != 200) {
+      throw 'admin health GET: HTTP ${res.status} ${res.body}';
+    }
+    final txt = res.body.trim();
+    final raw = txt.isEmpty ? <String, dynamic>{} : jsonDecode(txt);
+    final map = raw is Map
+        ? Map<String, dynamic>.from(raw)
+        : <String, dynamic>{};
+    return SystemHealthResult.fromJson(map);
   }
 }
 
