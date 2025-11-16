@@ -302,6 +302,7 @@ export default async function handler(req, res) {
           let name = mail;
           let company = '', address = '', zip = '', city = '', country = '';
           let phone = '', customerNo = '', vatId = '';
+          let repNote = '';
 
           try {
             const u = await userByEmail(mail);
@@ -319,12 +320,13 @@ export default async function handler(req, res) {
               phone      = S(u.phone || u.tel || u.phoneNumber || u.telephone);
               customerNo = S(u.customerNo || u.customerId || u.kundennummer || u.kundenNr);
               vatId      = S(u.vat || u.vatId || u.vatid || u.ustId || u.ustid);
+              repNote    = S(u.repNote);
             }
           } catch (e) {
             console.warn('[rep/customers] userByEmail failed for', mail, e?.message || e);
           }
 
-          out.push({ email: mail, name, company, address, zip, city, country, phone, customerNo, vatId });
+          out.push({ email: mail, name, company, address, zip, city, country, phone, customerNo, vatId, repNote });
         }
 
         return res.status(200).end(JSON.stringify(out));
