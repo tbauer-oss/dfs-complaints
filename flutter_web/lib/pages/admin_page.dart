@@ -1287,100 +1287,157 @@ class _AdminPageState extends State<AdminPage> {
     final isPhone = w < 640;
     final compact = isPhone;
 
-    final tiles = <Widget>[
-      AdminTilePro(
-        label: 'Offene Reklamationen',
-        subtitle: 'Bearbeiten & Entscheiden',
-        icon: Icons.assignment_late_outlined,
-        colorA: AdminPalette.redA,
-        colorB: AdminPalette.redB,
-        count: _openComplaints.length,
-        compact: compact,
-        onTap: () => setState(() => _view = _AdminView.open),
+    final sections = <_AdminMenuSectionData>[
+      _AdminMenuSectionData(
+        title: 'Reklamationen',
+        subtitle: 'Offene Fälle und Kennzahlen im Blick',
+        tiles: [
+          AdminTilePro(
+            label: 'Offene Reklamationen',
+            subtitle: 'Bearbeiten & Entscheiden',
+            icon: Icons.assignment_late_outlined,
+            colorA: AdminPalette.redA,
+            colorB: AdminPalette.redB,
+            count: _openComplaints.length,
+            compact: compact,
+            onTap: () => setState(() => _view = _AdminView.open),
+          ),
+          AdminTilePro(
+            label: 'Statistik & KPIs',
+            subtitle: 'Reklamationsübersicht',
+            icon: Icons.query_stats_outlined,
+            colorA: AdminPalette.blueA,
+            colorB: AdminPalette.blueB,
+            compact: compact,
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => AdminStatsPage(api: widget.api)),
+              );
+            },
+          ),
+        ],
       ),
-      AdminTilePro(
-        label: 'Statistik & KPIs',
-        subtitle: 'Reklamationsübersicht',
-        icon: Icons.query_stats_outlined,
-        colorA: AdminPalette.blueA,
-        colorB: AdminPalette.blueB,
-        compact: compact,
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => AdminStatsPage(api: widget.api)),
-          );
-        },
+      _AdminMenuSectionData(
+        title: 'Kunden',
+        subtitle: 'Anträge prüfen und Accounts verwalten',
+        tiles: [
+          AdminTilePro(
+            label: 'Anträge / Pending',
+            subtitle: 'Registrierungen prüfen',
+            icon: Icons.verified_user_outlined,
+            colorA: AdminPalette.amberA,
+            colorB: AdminPalette.amberB,
+            count: _pending.length,
+            compact: compact,
+            onTap: () => setState(() => _view = _AdminView.pending),
+          ),
+          AdminTilePro(
+            label: 'Aktive Nutzer',
+            subtitle: 'Firmen & Kontakte',
+            icon: Icons.group_outlined,
+            colorA: AdminPalette.tealA,
+            colorB: AdminPalette.tealB,
+            count: _users.length,
+            compact: compact,
+            onTap: () => setState(() => _view = _AdminView.users),
+          ),
+          AdminTilePro(
+            label: 'Neuen Kunden anlegen',
+            subtitle: 'Account direkt erstellen',
+            icon: Icons.person_add_alt_1_outlined,
+            colorA: AdminPalette.tealA,
+            colorB: AdminPalette.tealB,
+            compact: compact,
+            onTap: () => setState(() => _view = _AdminView.createCustomer),
+          ),
+        ],
       ),
-      AdminTilePro(
-        label: 'Anträge / Pending',
-        subtitle: 'Registrierungen prüfen',
-        icon: Icons.verified_user_outlined,
-        colorA: AdminPalette.amberA,
-        colorB: AdminPalette.amberB,
-        count: _pending.length,
-        compact: compact,
-        onTap: () => setState(() => _view = _AdminView.pending),
+      _AdminMenuSectionData(
+        title: 'Vertreterverwaltung',
+        subtitle: 'Zuordnungen & Regionen steuern',
+        tiles: [
+          AdminTilePro(
+            label: 'Vertreterverwaltung',
+            subtitle: 'Zuordnen & Regionen',
+            icon: Icons.badge_outlined,
+            colorA: AdminPalette.blueA,
+            colorB: AdminPalette.blueB,
+            compact: compact,
+            onTap: () {
+              setState(() => _view = _AdminView.reps);
+              if (_reps.isEmpty) _refreshReps();
+            },
+          ),
+        ],
       ),
-      AdminTilePro(
-        label: 'Aktive Nutzer',
-        subtitle: 'Firmen & Kontakte',
-        icon: Icons.group_outlined,
-        colorA: AdminPalette.tealA,
-        colorB: AdminPalette.tealB,
-        count: _users.length,
-        compact: compact,
-        onTap: () => setState(() => _view = _AdminView.users),
-      ),
-      AdminTilePro(
-        label: 'Neuen Kunden anlegen',
-        subtitle: 'Account direkt erstellen',
-        icon: Icons.person_add_alt_1_outlined,
-        colorA: AdminPalette.tealA,   // Design bleibt, Farben wie bei den anderen
-        colorB: AdminPalette.tealB,
-        compact: compact,
-        onTap: () => setState(() => _view = _AdminView.createCustomer),
-      ),
-      AdminTilePro(
-        label: 'Vertreterverwaltung',
-        subtitle: 'Zuordnen & Regionen',
-        icon: Icons.badge_outlined,
-        colorA: AdminPalette.blueA,
-        colorB: AdminPalette.blueB,
-        compact: compact,
-        onTap: () {
-          setState(() => _view = _AdminView.reps);
-          if (_reps.isEmpty) _refreshReps();
-        },
-      ),
-      AdminTilePro(
-        label: 'Kataloge',
-        subtitle: 'Links & Sprachen',
-        icon: Icons.menu_book_outlined,
-        colorA: AdminPalette.blueA,
-        colorB: AdminPalette.blueB,
-        compact: compact,
-        onTap: () => setState(() => _view = _AdminView.catalogs),
-      ),     
-      AdminTilePro(
-        label: 'App-Version',
-        subtitle: 'Version, Build, Hinweise',
-        icon: Icons.app_settings_alt_outlined,
-        colorA: AdminPalette.blueA,
-        colorB: AdminPalette.blueB,
-        compact: compact,
-        onTap: () => _editAppMeta(context),
+      _AdminMenuSectionData(
+        title: 'Technischer Bereich',
+        subtitle: 'Kataloge, Versionen & Hinweise pflegen',
+        tiles: [
+          AdminTilePro(
+            label: 'Kataloge',
+            subtitle: 'Links & Sprachen',
+            icon: Icons.menu_book_outlined,
+            colorA: AdminPalette.blueA,
+            colorB: AdminPalette.blueB,
+            compact: compact,
+            onTap: () => setState(() => _view = _AdminView.catalogs),
+          ),
+          AdminTilePro(
+            label: 'App-Version',
+            subtitle: 'Version, Build, Hinweise',
+            icon: Icons.app_settings_alt_outlined,
+            colorA: AdminPalette.blueA,
+            colorB: AdminPalette.blueB,
+            compact: compact,
+            onTap: () => _editAppMeta(context),
+          ),
+        ],
       ),
     ];
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: isPhone ? 220 : 260,
-        mainAxisSpacing: 60,
-        crossAxisSpacing: 60,
-        childAspectRatio: isPhone ? 0.92 : 1.0,
+
+    SliverGridDelegateWithMaxCrossAxisExtent _gridDelegate() => SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: isPhone ? 220 : 260,
+          mainAxisSpacing: isPhone ? 28 : 60,
+          crossAxisSpacing: isPhone ? 20 : 60,
+          childAspectRatio: isPhone ? 0.92 : 1.0,
+        );
+
+    return CustomScrollView(
+      slivers: [
+        for (var i = 0; i < sections.length; i++) ...[
+          SliverToBoxAdapter(
+            child: _buildMenuSectionHeader(sections[i], isFirst: i == 0),
+          ),
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(16, 8, 16, i == sections.length - 1 ? 28 : 12),
+            sliver: SliverGrid(
+              delegate: SliverChildBuilderDelegate(
+                (_, index) => sections[i].tiles[index],
+                childCount: sections[i].tiles.length,
+              ),
+              gridDelegate: _gridDelegate(),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildMenuSectionHeader(_AdminMenuSectionData section, {required bool isFirst}) {
+    final theme = Theme.of(context);
+    final titleStyle = theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700);
+    final subtitleStyle = theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, isFirst ? 16 : 8, 16, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(section.title, style: titleStyle),
+          const SizedBox(height: 4),
+          Text(section.subtitle, style: subtitleStyle),
+        ],
       ),
-      itemCount: tiles.length,
-      itemBuilder: (_, i) => tiles[i],
     );
   }
   
@@ -2511,6 +2568,18 @@ class _Field extends StatelessWidget {
 // ===================================================================
 // Admin-Menü-Kachel + Busy-Dot (Top-Level Widgets, nicht verschachteln)
 // ===================================================================
+class _AdminMenuSectionData {
+  const _AdminMenuSectionData({
+    required this.title,
+    required this.subtitle,
+    required this.tiles,
+  });
+
+  final String title;
+  final String subtitle;
+  final List<Widget> tiles;
+}
+
 class _AdminTile extends StatelessWidget {
   final IconData icon;
   final String label;

@@ -946,6 +946,28 @@ class ApiClient {
     }
   }
 
+  Future<Map<String, dynamic>> adminStats({DateTime? from, DateTime? to}) async {
+    final params = <String, String>{};
+    if (from != null) params['from'] = _formatDateOnly(from);
+    if (to != null) params['to'] = _formatDateOnly(to);
+    var path = '/api/admin/stats';
+    if (params.isNotEmpty) {
+      final query = params.entries
+          .map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
+          .join('&');
+      path = '$path?$query';
+    }
+    final r = await http.get(_u(path), headers: _adminHeaders());
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final body = r.body.trim();
+    if (body.isEmpty) return const <String, dynamic>{};
+    final decoded = jsonDecode(body);
+    if (decoded is Map) return decoded.cast<String, dynamic>();
+    return const <String, dynamic>{};
+  }
+
   // ---------- Vertreter (Kundenbereich) ----------
   Future<MyRep?> getMyRep() async {
     final uri = _u('/api/rep/of-customer');
