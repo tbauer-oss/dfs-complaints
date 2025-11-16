@@ -27,6 +27,7 @@
 
   "we_are_here_for_you": "Nous sommes là pour vous.",
   "rep_contact_form": "Envoyer un message",
+  "rep_not_assigned": "Actuellement aucun représentant n’est attribué.",
   "rep_overview_open": "Ouvertes",
   "rep_overview_all": "Toutes",
   "rep_overview_rejected": "Rejetées",
@@ -88,6 +89,8 @@
   "complaint_sub": "Merci de nous aider à améliorer continuellement notre qualité.",
   "hideDetails": "Masquer les détails",
   "showDetails": "Afficher les détails",
+  "product_type": "Type de produit",
+  "timestamps": "Horodatages",
   "catalogs_title": "Catalogues",
   "catalog_open": "Voir",
   "catalog_lab_title": "Catalogue de laboratoire dentaire",
