@@ -143,6 +143,8 @@
   "copy": "Copy",
   "copied": "Copied to clipboard.",
   "dataExportButton": "Data export (GDPR)",
+  "dataExportDownloadTxt": "Download as TXT",
+  "dataExportDownloaded": "TXT file downloaded.",
   "accountAnonymizeTitle": "Anonymize account",
   "accountAnonymizeDescription": "This will anonymize your account data and sign you out. Complaints remain for documentation but will no longer contain your personal details. Continue?",
   "accountAnonymizeButton": "Anonymize account",
