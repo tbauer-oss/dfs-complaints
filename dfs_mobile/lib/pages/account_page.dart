@@ -143,12 +143,14 @@ class _AccountPageState extends State<AccountPage> {
   Future<void> _downloadExportFile(String pretty, BuildContext rootContext) async {
     try {
       final bytes = Uint8List.fromList(utf8.encode(pretty));
+
       await FileSaver.instance.saveFile(
-        _exportFileName(),
-        bytes,
-        'txt',
+        name: _exportFileName(),
+        bytes: bytes,
+        fileExtension: 'txt',       // statt ext: und statt positional 'txt'
         mimeType: MimeType.text,
       );
+
       if (!mounted) return;
       ScaffoldMessenger.of(rootContext).showSnackBar(
         SnackBar(
