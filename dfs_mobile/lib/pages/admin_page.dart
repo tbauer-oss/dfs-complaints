@@ -1006,6 +1006,7 @@ class _AdminPageState extends State<AdminPage> {
     final checks = status?.checks ?? const <SystemHealthCheck>[];
     final overallOk = status?.ok;
     final tsLabel = status != null ? _formatTimestamp(status.timestamp) : null;
+    final failingLabels = checks.where((c) => !c.ok).map((c) => c.label).toList();
 
     Color summaryBg;
     Color summaryFg;
@@ -1021,7 +1022,9 @@ class _AdminPageState extends State<AdminPage> {
       summaryBg = cs.errorContainer;
       summaryFg = cs.onErrorContainer;
       summaryIcon = Icons.error_outline;
-      summaryText = 'Mindestens ein Check benötigt Aufmerksamkeit.';
+      summaryText = failingLabels.isNotEmpty
+          ? 'Aufmerksamkeit benötigt für: ${failingLabels.join(', ')}'
+          : 'Mindestens ein Check benötigt Aufmerksamkeit.';
     } else {
       summaryBg = cs.surfaceVariant.withOpacity(0.7);
       summaryFg = cs.onSurfaceVariant;
@@ -1090,7 +1093,7 @@ class _AdminPageState extends State<AdminPage> {
                         Text(summaryText, style: TextStyle(color: summaryFg, fontWeight: FontWeight.w600)),
                         if (tsLabel != null) ...[
                           const SizedBox(height: 4),
-                          Text('Stand: $tsLabel (lokal)', style: TextStyle(color: summaryFg.withOpacity(0.9))),
+                          Text('Stand: $tsLabel', style: TextStyle(color: summaryFg.withOpacity(0.9))),
                         ],
                       ],
                     ),
