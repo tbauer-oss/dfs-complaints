@@ -58,6 +58,14 @@ String _extractMessage(String body) {
 
 bool _ok2xx(int s) => s >= 200 && s < 300;
 
+String _formatDateOnly(DateTime date) {
+  final normalized = DateTime(date.year, date.month, date.day);
+  final y = normalized.year.toString().padLeft(4, '0');
+  final m = normalized.month.toString().padLeft(2, '0');
+  final d = normalized.day.toString().padLeft(2, '0');
+  return '$y-$m-$d';
+}
+
 class ApiClient {
   // ---------- Konfiguration ----------
   static const String _apiBase =
