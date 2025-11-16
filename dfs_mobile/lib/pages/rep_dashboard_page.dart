@@ -2588,43 +2588,16 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     return raw;
   }
 
-  String? _normalizeProductAreaValue(AppLocalizations t, String? raw) {
-    final value = (raw ?? '').trim().toLowerCase();
-    if (value.isEmpty) return null;
-
-    final dentistToken = t.segment_dentist.toLowerCase();
-    final labToken = t.segment_lab.toLowerCase();
-    final medicalToken = t.product_area_medical.toLowerCase();
-    final labProductToken = t.product_area_lab.toLowerCase();
-
-    final isDentist =
-        value.contains('zahnarzt') ||
-        value.contains('zahnmedizin') ||
-        value.contains('dentist') ||
-        value.contains('medizinprodukt') ||
-        value == dentistToken ||
-        value == medicalToken;
-
-    if (isDentist) return t.segment_dentist;
-
-    final isLab =
-        value.contains('zahntechnik') ||
-        value.contains('dentallabor') ||
-        value.contains('laborprodukt') ||
-        value.contains('lab') ||
-        value == labToken ||
-        value == labProductToken;
-
-    if (isLab) return t.segment_lab;
-
-    return null;
-  }
-
   String? _resolveProductArea(AppLocalizations t, String? segment, String? productType) {
     final values = <String?>[segment, productType];
+    final t = context.t;
     for (final raw in values) {
-      final normalized = _normalizeProductAreaValue(t, raw);
-      if (normalized != null) return normalized;
+      final v = (raw ?? '').trim().toLowerCase();
+      if (v.isEmpty) continue;
+      if (v.contains('zahnarzt') || v.contains('zahnmedizin')) return t.product_area_medical;
+      if (v.contains('dentist') || v == t.segment_dentist.toLowerCase()) return t.product_area_medical;
+      if (v.contains('dentallabor') || v.contains('zahntechnik')) return t.product_area_lab;
+      if (v.contains('lab') || v == t.segment_lab.toLowerCase()) return t.product_area_lab;
     }
     return null;
   }
