@@ -397,14 +397,16 @@ class _MonthlyChart extends StatelessWidget {
                   showTitles: true,
                   reservedSize: 36,
                   interval: interval,
-                  getTitlesWidget: (value, meta) => SideTitleWidget(
-                    axisSide: meta.axisSide,
-                    space: 6,
-                    child: Text(
-                      value.toInt().toString(),
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ),
+                  getTitlesWidget: (value, meta) {
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: Text(
+                        value.toInt().toString(),
+                        textAlign: TextAlign.right,
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    );
+                  },
                 ),
               ),
               bottomTitles: AxisTitles(
@@ -415,9 +417,8 @@ class _MonthlyChart extends StatelessWidget {
                     if (index < 0 || index >= data.length) {
                       return const SizedBox.shrink();
                     }
-                    return SideTitleWidget(
-                      axisSide: meta.axisSide,
-                      space: 8,
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 8),
                       child: Text(
                         data[index].label,
                         style: theme.textTheme.bodySmall,
