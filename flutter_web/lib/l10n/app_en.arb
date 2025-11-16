@@ -7,6 +7,7 @@
   "langFR": "FR",
   "langIT": "IT",
 
+  "we_are_here_for_you": "We are here for you.",
   "langMenuTooltip": "Language",
   "langNameDE": "German",
   "langNameEN": "English",
@@ -25,15 +26,67 @@
   "attachments_existing": "Previously sent attachments",
   "attachments_file_unknown": "Attachment",
 
+  "rep_contact_form": "Send message",
+  "rep_not_assigned": "Currently no representative is assigned.",
+  "rep_overview_open": "Open",
+  "rep_overview_all": "All",
+  "rep_overview_rejected": "Rejected",
+  "rep_overview_finished": "Completed",
+  "rep_menu_open_title": "Open Complaints",
+  "rep_menu_open_subtitle": "Review & Decide",
+  "rep_menu_all_title": "All Complaints",
+  "rep_menu_all_subtitle": "Filter & Search",
+  "rep_menu_customers_title": "Customer Database",
+  "rep_menu_customers_subtitle": "Companies & Contacts",
+  "rep_menu_account_title": "My Account",
+  "rep_menu_account_subtitle": "Profile & Password",
+  "rep_menu_support_title": "Contact QM / Support",
+  "rep_menu_support_subtitle": "Reach DFS Quality Management directly",
+  "rep_filter_company_label": "Filter by company name",
+  "rep_filter_show_closed": "Show completed",
+  "rep_filter_only_rejected": "Only rejected",
+  "badge_new": "NEW",
+  "complaint_ticket_missing": "(no ticket)",
+  "rep_contact_title": "Contact representative",
+  "rep_contact_intro": "You are writing to {firstName} {lastName}. Please fill out the fields below.",
+  "@rep_contact_intro": {
+    "placeholders": {
+      "firstName": { "type": "String" },
+      "lastName": { "type": "String" }
+    }
+  },
+  "rep_contact_company_label": "Company",
+  "rep_contact_company_email_label": "Company email",
+  "rep_contact_subject_label": "Subject",
+  "rep_contact_message_label": "Message",
+
+  "rep_support_contact_title": "Contact QM / Support",
+  "rep_support_contact_intro": "Your message will be sent directly to {email}. Please describe your request.",
+  "@rep_support_contact_intro": {
+    "placeholders": {
+      "email": { "type": "String" }
+    }
+  },
+  "rep_support_contact_from_hint": "The message will be sent using your registered email address ({email}).",
+  "@rep_support_contact_from_hint": {
+    "placeholders": {
+      "email": { "type": "String" }
+    }
+  },
+  "rep_support_contact_no_email": "No valid email address is stored for your profile.",
+
+  "rep_contact_validation": "Please fill in subject and message.",
+  "rep_contact_no_rep_email": "No email address is available for this representative.",
+  "rep_contact_sent": "Message sent successfully.",
+  "rep_contact_error": "Error while sending the message.",
+
+  "rep_contact_discard_title": "Discard changes?",
+  "rep_contact_discard_text": "You have already entered text. Do you really want to leave the page?",
+
   "firstName": "First name",
   "lastName": "Last name",
 
-  "versioninfo": "App version",
-  "addAnother_title": "Add another item?",
-  "addAnother_body": "Do you want to add another product/lot to this complaint before you submit?",
-  "addAnother_no": "No, continue",
-  "addAnother_yes": "Yes, add another",
-
+  "complaint_sub": "Thank you for helping us continuously improve our quality.",
   "hideDetails": "Hide details",
   "showDetails": "Show details",
   "product_type": "Product type",
@@ -118,43 +171,6 @@
   "allCompanies": "All companies",
   "@allCompanies": { "description": "Filter option to show all companies" },
   "yourCompany": "Your company",
-  "we_are_here_for_you": "We are here for you.",
-  "rep_contact_form": "Send message",
-  "rep_not_assigned": "Currently no representative is assigned.",
-  "rep_contact_title": "Contact representative",
-  "rep_contact_intro": "You are writing to {firstName} {lastName}. Please fill out the fields below.",
-  "@rep_contact_intro": {
-    "placeholders": {
-      "firstName": { "type": "String" },
-      "lastName": { "type": "String" }
-    }
-  },
-  "rep_contact_company_label": "Company",
-  "rep_contact_company_email_label": "Company email",
-  "rep_menu_support_title": "Contact QM / Support",
-  "rep_menu_support_subtitle": "Reach DFS Quality Management directly",
-  "rep_support_contact_title": "Contact QM / Support",
-  "rep_support_contact_intro": "Your message will be sent directly to {email}. Please describe your request.",
-  "@rep_support_contact_intro": {
-    "placeholders": {
-      "email": { "type": "String" }
-    }
-  },
-  "rep_support_contact_from_hint": "The message will be sent using your registered email address ({email}).",
-  "@rep_support_contact_from_hint": {
-    "placeholders": {
-      "email": { "type": "String" }
-    }
-  },
-  "rep_support_contact_no_email": "No valid email address is stored for your profile.",
-  "rep_contact_subject_label": "Subject",
-  "rep_contact_message_label": "Message",
-  "rep_contact_validation": "Please fill in subject and message.",
-  "rep_contact_no_rep_email": "No email address is available for this representative.",
-  "rep_contact_sent": "Message sent successfully.",
-  "rep_contact_error": "Error while sending the message.",
-  "rep_contact_discard_title": "Discard changes?",
-  "rep_contact_discard_text": "You have already entered text. Do you really want to leave the page?",
 
   "logout": "Logout",
   "loggedOut": "Logged out.",
@@ -242,6 +258,21 @@
   "password_min_length": "Password must be at least 8 characters long.",
   "password_set_failed": "Failed to set password: {error}",
   "@password_set_failed": { "placeholders": { "error": { "type": "String" } } },
+  "forgot_password_button": "Forgot password",
+  "forgot_password_instructions": "Enter your email address and we'll send you a temporary password by email.",
+  "forgot_password_invalid_email": "Please enter a valid email address.",
+  "forgot_password_success": "A temporary password was sent to {email}.",
+  "@forgot_password_success": { "placeholders": { "email": { "type": "String" } } },
+  "forgot_password_unknown_account": "Account not found.",
+  "reset_password_page_title": "Reset password",
+  "reset_password_request_title": "Reset password",
+  "reset_password_request_action": "Reset password",
+  "reset_password_unlock_title": "Activate temporary password",
+  "reset_password_unlock_info": "Use the temporary password you received to choose a new password.",
+  "reset_password_temp_label": "Temporary password",
+  "reset_password_submit": "Save new password",
+  "reset_password_success": "The new password was saved.",
+  "reset_password_temp_error": "Temporary password invalid or expired.",
   "passwordsDontMatch": "Passwords do not match.",
   "password_mismatch": "Passwords do not match.",
   "password_changed": "Password has been changed.",
@@ -301,7 +332,7 @@
   "rep_banner_title": "Your representative: {name}",
   "@rep_banner_title": { "placeholders": { "name": { "type": "String" } } },
   "rep_email_button": "Email",
-  "rep_email_tooltip": "Send email to representative",
+  "rep_email_tooltip": "message to representative",
   "mail_subject_rep": "Inquiry about complaint",
   "mail_body_rep": "Hello {name},\n\nI am contacting you via the DFS Customer Complaint portal.\n\nBest regards",
   "@mail_body_rep": { "placeholders": { "name": { "type": "String" } } },
@@ -333,7 +364,7 @@
   "segment_dentist": "Dentistry",
   "segment_lab": "Dental Lab",
   "product_area_label": "Product category",
-  "product_area_medical": "Medical product",
+  "product_area_medical": "Medical device",
   "product_area_lab": "Lab product",
   "article": "Article number*",
   "articleNo": "Article",
@@ -352,7 +383,7 @@
   "add_images": "Add image(s)",
   "images_selected": "{count} file(s) selected",
   "@images_selected": { "placeholders": { "count": { "type": "int" } } },
-  "images_too_large": "Max. 8MB total",
+  "images_too_large": "Max. total upload size: 10 MB",
   "returned_question": "Products already returned?*",
   "handling": "Requested handling*",
   "handling_replacement": "Replacement",
@@ -362,6 +393,14 @@
   "send_failed": "Sending failed",
   "sent_ticket": "Sent. Ticket: {ticket}",
   "@sent_ticket": { "placeholders": { "ticket": { "type": "String" } } },
+  "addAnother_title": "Add another complaint?",
+  "@addAnother_title": { "description": "Dialog title shown after submitting a complaint" },
+  "addAnother_body": "Would you like to submit another complaint right away?",
+  "@addAnother_body": { "description": "Dialog body shown after submitting a complaint" },
+  "addAnother_no": "No, go to dashboard",
+  "@addAnother_no": { "description": "Dialog action: do not add another complaint" },
+  "addAnother_yes": "Yes, add another",
+  "@addAnother_yes": { "description": "Dialog action: add another complaint" },
   "description": "Description",
 
   "reportComplaint": "Report complaint",
