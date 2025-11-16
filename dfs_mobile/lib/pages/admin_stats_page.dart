@@ -372,65 +372,101 @@ class _MonthlyChart extends StatelessWidget {
       );
     }).toList();
 
+    final yLabels = _buildYAxisLabels(maxY, interval, theme.textTheme.bodySmall);
+    final bottomLabels = _buildBottomLabels(data, theme.textTheme.bodySmall);
+
     return _SectionCard(
       title: 'Reklamationen pro Monat',
       icon: Icons.bar_chart_outlined,
       child: SizedBox(
-        height: 260,
-        child: BarChart(
-          BarChartData(
-            barTouchData: BarTouchData(enabled: true),
-            barGroups: groups,
-            gridData: FlGridData(
-              show: true,
-              horizontalInterval: interval,
-              getDrawingHorizontalLine: (value) => FlLine(
-                color: theme.dividerColor.withOpacity(0.2),
-                strokeWidth: 1,
-              ),
-            ),
-            titlesData: FlTitlesData(
-              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              leftTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  reservedSize: 36,
-                  interval: interval,
-                  getTitlesWidget: (value, meta) => SideTitleWidget(
-                    axisSide: meta.axisSide,
-                    space: 6,
-                    child: Text(
-                      value.toInt().toString(),
-                      style: theme.textTheme.bodySmall,
+        height: 280,
+        child: Column(
+          children: [
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  yLabels,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: BarChart(
+                      BarChartData(
+                        barTouchData: BarTouchData(enabled: true),
+                        barGroups: groups,
+                        gridData: FlGridData(
+                          show: true,
+                          horizontalInterval: interval,
+                          getDrawingHorizontalLine: (value) => FlLine(
+                            color: theme.dividerColor.withOpacity(0.2),
+                            strokeWidth: 1,
+                          ),
+                        ),
+                        titlesData: const FlTitlesData(
+                          topTitles:
+                              AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          rightTitles:
+                              AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          leftTitles:
+                              AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          bottomTitles:
+                              AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        ),
+                        borderData: FlBorderData(show: false),
+                      ),
                     ),
                   ),
-                ),
-              ),
-              bottomTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  getTitlesWidget: (value, meta) {
-                    final index = value.toInt();
-                    if (index < 0 || index >= data.length) {
-                      return const SizedBox.shrink();
-                    }
-                    return SideTitleWidget(
-                      axisSide: meta.axisSide,
-                      space: 8,
-                      child: Text(
-                        data[index].label,
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    );
-                  },
-                ),
+                ],
               ),
             ),
-            borderData: FlBorderData(show: false),
-          ),
+            const SizedBox(height: 12),
+            bottomLabels,
+          ],
         ),
       ),
+    );
+  }
+
+  Widget _buildYAxisLabels(double maxY, double interval, TextStyle? style) {
+    final ticks = <int>[];
+    double current = 0;
+    while (current <= maxY) {
+      ticks.add(current.round());
+      current += interval;
+    }
+    if (ticks.isEmpty || ticks.last != maxY.round()) {
+      ticks.add(maxY.round());
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: ticks.reversed
+          .map(
+            (value) => Text(
+              value.toString(),
+              style: style,
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  Widget _buildBottomLabels(
+    List<_MonthlyBucket> data,
+    TextStyle? style,
+  ) {
+    return Row(
+      children: data
+          .map(
+            (bucket) => Expanded(
+              child: Text(
+                bucket.label,
+                textAlign: TextAlign.center,
+                style: style,
+              ),
+            ),
+          )
+          .toList(),
     );
   }
 }
