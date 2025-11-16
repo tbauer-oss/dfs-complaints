@@ -452,12 +452,12 @@ class _MonthlyChart extends StatelessWidget {
   }
 
   Widget _buildBottomLabels(
-    List<_MonthlyBucket> data,
+    List<_MonthBucket> data,
     TextStyle? style,
   ) {
     return Row(
       children: data
-          .map(
+          .map<Widget>(
             (bucket) => Expanded(
               child: Text(
                 bucket.label,
