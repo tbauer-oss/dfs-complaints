@@ -428,6 +428,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                               itemBuilder: (_, i) {
                                 final c = _items[i];
                                 final ticket = (c.ticket).toString();
+                                final internalNo = (c.internalNo ?? '').trim();
                                 final statusText = _statusTextLocalized(t, c.status, c.decision);
                                 final statusColor = _statusColor(c.status, c.decision);
                                 final reportLink = (c.reportLink ?? '').trim();
@@ -525,6 +526,10 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                               style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
                                             ),
                                           ),
+                                          if (internalNo.isNotEmpty) ...[
+                                            const SizedBox(width: 10),
+                                            _InternalNoTag(label: '${t.internal_no_label}: $internalNo'),
+                                          ],
                                         ],
                                       ),
                                       subtitle: Padding(
@@ -718,6 +723,38 @@ class _StatusPill extends StatelessWidget {
       child: Text(
         safe,
         style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12.5),
+      ),
+    );
+  }
+}
+
+class _InternalNoTag extends StatelessWidget {
+  final String label;
+  const _InternalNoTag({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: cs.surfaceVariant,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.tag, size: 14),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+        ],
       ),
     );
   }
