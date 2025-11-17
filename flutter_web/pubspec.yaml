@@ -27,6 +27,7 @@ flutter:
   assets:
     - assets/dfs_logo.png
     - assets/dfs_logo.svg
+    - assets/world_map_silhouette.svg
   generate: true
 
 flutter_intl:
