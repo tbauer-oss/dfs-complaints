@@ -99,7 +99,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
       );
     } catch (e) {
       // falls t.network_error_generic ein Formatter ist – ansonsten einfach '$e'
-      setState(() => _err = t.network_error_generic('$e'));
+      setState(() => _err = '${t.network_error_generic} $e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -127,7 +127,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
             return;
           }
           if (a != b) {
-            localErr = t.passwords_no_match;
+            localErr = t.passwordsDontMatch;
             (ctx as Element).markNeedsBuild();
             return;
           }
@@ -156,14 +156,14 @@ class _RepLoginPageState extends State<RepLoginPage> {
                 TextField(
                   controller: _new1,
                   obscureText: true,
-                  decoration: InputDecoration(labelText: t.new_password),
+                  decoration: InputDecoration(labelText: t.newPassword),
                   textInputAction: TextInputAction.next,
                   onSubmitted: (_) => (ctx as Element).markNeedsBuild(),
                 ),
                 TextField(
                   controller: _new2,
                   obscureText: true,
-                  decoration: InputDecoration(labelText: t.new_password_repeat),
+                  decoration: InputDecoration(labelText: t.newPasswordRepeat),
                   onSubmitted: (_) => save(),
                 ),
                 if (localErr != null) ...[
@@ -251,7 +251,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
                                   ? const SizedBox(
                                       width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                                   : const Icon(Icons.login),
-                              label: Text(t.login_action ?? 'Anmelden'),
+                              label: Text(t.login),
                               onPressed: canLogin ? _login : null,
                             ),
                             const SizedBox(height: 12),
