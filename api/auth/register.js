@@ -27,14 +27,29 @@ function normLang(x) {
 }
 
 function getGatePayload(req) {
+  const tokens = [];
   const auth = req.headers?.authorization || '';
   const match = auth.match(/^Bearer\s+(.+)$/i);
-  if (!match) return null;
-  try {
-    return jwt.verify(match[1], JWT_SECRET);
-  } catch {
-    return null;
+  if (match && match[1]) tokens.push(match[1].trim());
+
+  const legacy = req.headers?.['x-gate'] || req.headers?.['x_gate'];
+  if (Array.isArray(legacy)) {
+    for (const entry of legacy) {
+      if (entry) tokens.push(String(entry).trim());
+    }
+  } else if (legacy) {
+    tokens.push(String(legacy).trim());
   }
+
+  for (const token of tokens) {
+    if (!token) continue;
+    try {
+      return jwt.verify(token, JWT_SECRET);
+    } catch (err) {
+      continue;
+    }
+  }
+  return null;
 }
 
 export default async function handler(req, res) {
