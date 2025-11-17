@@ -5,7 +5,8 @@ import bcrypt from 'bcryptjs';
 
 import { setCors } from '../_lib/cors.js';
 import { userSave } from '../_lib/store.js';
-import { isStrongPassword } from '../_lib/passwords.js';
+import { generateStrongPassword, isStrongPassword } from '../_lib/passwords.js';
+import { send, tpl } from '../_lib/mail.js';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 
@@ -62,9 +63,20 @@ export default async function handler(req, res) {
   const countryCode = String(body.countryCode || '').trim().toUpperCase().slice(0, 2);
   const phone       = String(body.phone       || '').trim();
   const lang        = String(body.lang        || 'de').trim() || 'de';
-  
-  // Wenn kein Passwort angegeben wurde, ADMIN_SECRET als Startpasswort
-  const pwRaw = String(body.password || '').trim() || ADMIN_SECRET;
+
+  const passwordModeRaw = String(body.passwordMode || '').trim().toLowerCase();
+  const passwordMode = passwordModeRaw === 'generated' || passwordModeRaw === 'generate' ? 'generated' : 'admin';
+  const customPassword = String(body.password || '').trim();
+  const shouldGeneratePassword = passwordMode === 'generated';
+
+  let pwRaw = customPassword || ADMIN_SECRET;
+  let generatedPassword = null;
+  if (shouldGeneratePassword) {
+    generatedPassword = generateStrongPassword(8);
+    pwRaw = generatedPassword;
+  } else if (customPassword) {
+    pwRaw = customPassword;
+  }
 
   if (!email || !company) {
     return res
@@ -118,6 +130,25 @@ export default async function handler(req, res) {
     };
 
     await userSave(user);
+
+    if (generatedPassword) {
+      const composedName = [firstName, lastName].filter((v) => (v || '').trim().length > 0).join(' ').trim();
+      const displayName = (contact || composedName || company || '').trim();
+      try {
+        await send(
+          email,
+          tpl.adminWelcomePassword(
+            {
+              name: displayName || undefined,
+              password: generatedPassword,
+            },
+            lang,
+          ),
+        );
+      } catch (mailErr) {
+        console.error('[admin/customers] welcome mail failed:', mailErr);
+      }
+    }
 
     // Antwort im gleichen Stil wie deine anderen Admin-Endpoints
     return res.status(200).end(
