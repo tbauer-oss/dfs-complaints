@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:html' as html;
+import 'dart:js_util' as js_util;
 import 'dart:typed_data';
 
 Future<void> printPdfImpl(Uint8List bytes) async {
@@ -14,8 +15,11 @@ Future<void> printPdfImpl(Uint8List bytes) async {
   html.document.body?.append(iframe);
   try {
     await iframe.onLoad.first.timeout(const Duration(seconds: 5));
-    iframe.contentWindow?.focus();
-    iframe.contentWindow?.print();
+    final windowBase = iframe.contentWindow;
+    if (windowBase != null) {
+      js_util.callMethod<void>(windowBase, 'focus', const <Object?>[]);
+      js_util.callMethod<void>(windowBase, 'print', const <Object?>[]);
+    }
   } finally {
     await Future<void>.delayed(const Duration(milliseconds: 500));
     iframe.remove();
