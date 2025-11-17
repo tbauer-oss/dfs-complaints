@@ -4588,22 +4588,29 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
         final headerLeft = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            Wrap(
+              spacing: 10,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Text(
-                  'Ticket: ${c.ticket}',
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                ),
-                if (hasNote)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 6),
-                    child: Icon(
-                      Icons.sticky_note_2,
-                      size: 16,
-                      color: Colors.amber.shade800,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Ticket: ${c.ticket}',
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
                     ),
-                  ),
-                const SizedBox(width: 10),
+                    if (hasNote)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 6),
+                        child: Icon(
+                          Icons.sticky_note_2,
+                          size: 16,
+                          color: Colors.amber.shade800,
+                        ),
+                      ),
+                  ],
+                ),
                 if ((c.internalNo ?? '').trim().isNotEmpty)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
