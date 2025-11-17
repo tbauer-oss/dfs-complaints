@@ -902,11 +902,11 @@ class _WorldMapWithPins extends StatelessWidget {
                 Positioned.fill(
                   child: CustomPaint(
                     painter: _WorldMapPainter(
-                      oceanStart: theme.colorScheme.primary.withOpacity(0.25),
-                      oceanEnd: theme.colorScheme.primary.withOpacity(0.05),
-                      landColor: theme.colorScheme.surface,
-                      strokeColor: theme.colorScheme.outline.withOpacity(0.6),
-                      gridColor: theme.colorScheme.onSurface.withOpacity(0.08),
+                      backgroundStart: theme.colorScheme.surface,
+                      backgroundEnd: theme.colorScheme.surfaceVariant.withOpacity(0.85),
+                      landColor: theme.colorScheme.onSurface.withOpacity(0.9),
+                      outlineColor: theme.colorScheme.surfaceTint.withOpacity(0.4),
+                      shadowColor: Colors.black.withOpacity(0.25),
                     ),
                   ),
                 ),
@@ -1017,103 +1017,57 @@ class _MapPin extends StatelessWidget {
 }
 
 class _WorldMapPainter extends CustomPainter {
-  final Color oceanStart;
-  final Color oceanEnd;
+  final Color backgroundStart;
+  final Color backgroundEnd;
   final Color landColor;
-  final Color strokeColor;
-  final Color gridColor;
+  final Color outlineColor;
+  final Color shadowColor;
   const _WorldMapPainter({
-    required this.oceanStart,
-    required this.oceanEnd,
+    required this.backgroundStart,
+    required this.backgroundEnd,
     required this.landColor,
-    required this.strokeColor,
-    required this.gridColor,
+    required this.outlineColor,
+    required this.shadowColor,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
-    final oceanPaint = Paint()
+    final backgroundPaint = Paint()
       ..shader = LinearGradient(
-        colors: [oceanStart, oceanEnd],
+        colors: [backgroundStart, backgroundEnd],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ).createShader(rect);
-    canvas.drawRect(rect, oceanPaint);
+    canvas.drawRect(rect, backgroundPaint);
 
-    final gridPaint = Paint()
-      ..color = gridColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    const lines = 6;
-    for (var i = 1; i < lines; i++) {
-      final dx = rect.left + rect.width * i / lines;
-      final dy = rect.top + rect.height * i / lines;
-      canvas.drawLine(Offset(dx, rect.top), Offset(dx, rect.bottom), gridPaint);
-      canvas.drawLine(Offset(rect.left, dy), Offset(rect.right, dy), gridPaint);
-    }
-
-    final glowPaint = Paint()
-      ..color = landColor.withOpacity(0.35)
-      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 18);
-    final fillPaint = Paint()
-      ..shader = LinearGradient(
-        colors: [
-          landColor.withOpacity(0.95),
-          landColor.withOpacity(0.75),
-        ],
-        begin: Alignment.topCenter,
-        end: Alignment.bottomRight,
-      ).createShader(rect);
+    final landPaint = Paint()
+      ..color = landColor
+      ..style = PaintingStyle.fill;
     final strokePaint = Paint()
+      ..color = outlineColor
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2
-      ..color = strokeColor;
+      ..strokeWidth = size.shortestSide * 0.0025;
 
     for (final polygon in _kWorldMapPolygons) {
-      if (polygon.isEmpty) continue;
-      final path = _buildSmoothPath(polygon, size);
-      canvas.drawPath(path, glowPaint);
-      canvas.drawShadow(path, Colors.black.withOpacity(0.15), 12, false);
-      canvas.drawPath(path, fillPaint);
+      if (polygon.length < 3) continue;
+      final scaled = polygon
+          .map((point) => Offset(point.dx * size.width, point.dy * size.height))
+          .toList();
+      final path = Path()..addPolygon(scaled, true);
+      canvas.drawShadow(path, shadowColor, 18, false);
+      canvas.drawPath(path, landPaint);
       canvas.drawPath(path, strokePaint);
     }
   }
 
-  Path _buildSmoothPath(List<Offset> polygon, Size size) {
-    if (polygon.length == 1) {
-      final point = Offset(polygon.first.dx * size.width, polygon.first.dy * size.height);
-      return Path()..addOval(Rect.fromCircle(center: point, radius: size.shortestSide * 0.01));
-    }
-    final scaled = [
-      for (final point in polygon)
-        Offset(point.dx * size.width, point.dy * size.height),
-    ];
-    final path = Path();
-    final start = _midPoint(scaled.last, scaled.first);
-    path.moveTo(start.dx, start.dy);
-    for (var i = 0; i < scaled.length; i++) {
-      final current = scaled[i];
-      final next = scaled[(i + 1) % scaled.length];
-      final mid = _midPoint(current, next);
-      path.quadraticBezierTo(current.dx, current.dy, mid.dx, mid.dy);
-    }
-    path.close();
-    return path;
-  }
-
-  Offset _midPoint(Offset a, Offset b) => Offset(
-        (a.dx + b.dx) / 2,
-        (a.dy + b.dy) / 2,
-      );
-
   @override
   bool shouldRepaint(covariant _WorldMapPainter oldDelegate) {
-    return oldDelegate.oceanStart != oceanStart ||
-        oldDelegate.oceanEnd != oceanEnd ||
+    return oldDelegate.backgroundStart != backgroundStart ||
+        oldDelegate.backgroundEnd != backgroundEnd ||
         oldDelegate.landColor != landColor ||
-        oldDelegate.strokeColor != strokeColor ||
-        oldDelegate.gridColor != gridColor;
+        oldDelegate.outlineColor != outlineColor ||
+        oldDelegate.shadowColor != shadowColor;
   }
 }
 
@@ -1130,149 +1084,328 @@ class _CountryPinData {
   });
 }
 
-const List<List<Offset>> _kWorldMapPolygons = [
+final List<List<Offset>> _kWorldMapPolygons = _buildWorldMapPolygons();
+
+List<List<Offset>> _buildWorldMapPolygons() {
+  return _kRawWorldMapPolygons
+      .map((ring) => ring
+          .map((point) => Offset(
+                _normalizeLongitude(point[0]),
+                _normalizeLatitude(point[1]),
+              ))
+          .toList())
+      .toList();
+}
+
+double _normalizeLongitude(double lon) => (lon + 180.0) / 360.0;
+
+double _normalizeLatitude(double lat) => (90.0 - lat) / 180.0;
+
+const List<List<List<double>>> _kRawWorldMapPolygons = [
   [
-    Offset(0.015, 0.34),
-    Offset(0.04, 0.24),
-    Offset(0.07, 0.16),
-    Offset(0.12, 0.12),
-    Offset(0.2, 0.11),
-    Offset(0.27, 0.16),
-    Offset(0.31, 0.23),
-    Offset(0.34, 0.32),
-    Offset(0.33, 0.4),
-    Offset(0.29, 0.46),
-    Offset(0.24, 0.48),
-    Offset(0.18, 0.52),
-    Offset(0.13, 0.48),
-    Offset(0.09, 0.41),
-    Offset(0.06, 0.37),
+    [-168, 72],
+    [-160, 70],
+    [-150, 69],
+    [-140, 69],
+    [-130, 68],
+    [-125, 65],
+    [-122, 60],
+    [-126, 56],
+    [-132, 52],
+    [-136, 48],
+    [-134, 44],
+    [-130, 40],
+    [-125, 36],
+    [-120, 34],
+    [-116, 32],
+    [-112, 30],
+    [-108, 28],
+    [-104, 26],
+    [-100, 24],
+    [-96, 23],
+    [-92, 22],
+    [-88, 21],
+    [-84, 22],
+    [-80, 25],
+    [-78, 28],
+    [-76, 32],
+    [-74, 36],
+    [-72, 40],
+    [-70, 44],
+    [-68, 48],
+    [-66, 52],
+    [-68, 56],
+    [-72, 59],
+    [-78, 62],
+    [-84, 64],
+    [-90, 66],
+    [-100, 68],
+    [-110, 70],
+    [-120, 71],
+    [-130, 72],
+    [-140, 73],
+    [-150, 74],
+    [-160, 74],
   ],
   [
-    Offset(0.32, 0.07),
-    Offset(0.35, 0.03),
-    Offset(0.4, 0.02),
-    Offset(0.45, 0.05),
-    Offset(0.44, 0.1),
-    Offset(0.4, 0.13),
-    Offset(0.35, 0.11),
+    [-54, 82],
+    [-48, 81],
+    [-42, 78],
+    [-38, 74],
+    [-40, 70],
+    [-46, 68],
+    [-52, 69],
+    [-58, 72],
+    [-60, 78],
+    [-58, 81],
   ],
   [
-    Offset(0.31, 0.39),
-    Offset(0.35, 0.47),
-    Offset(0.38, 0.6),
-    Offset(0.35, 0.74),
-    Offset(0.31, 0.86),
-    Offset(0.27, 0.78),
-    Offset(0.27, 0.58),
+    [-81, 12],
+    [-78, 8],
+    [-75, 4],
+    [-73, 0],
+    [-72, -4],
+    [-70, -10],
+    [-68, -16],
+    [-66, -22],
+    [-64, -28],
+    [-62, -34],
+    [-60, -40],
+    [-58, -46],
+    [-56, -52],
+    [-52, -55],
+    [-48, -54],
+    [-46, -48],
+    [-44, -42],
+    [-44, -36],
+    [-46, -28],
+    [-48, -20],
+    [-52, -12],
+    [-56, -4],
+    [-60, 2],
+    [-66, 6],
+    [-72, 10],
+    [-78, 12],
   ],
   [
-    Offset(0.37, 0.2),
-    Offset(0.42, 0.12),
-    Offset(0.5, 0.1),
-    Offset(0.58, 0.12),
-    Offset(0.64, 0.16),
-    Offset(0.71, 0.16),
-    Offset(0.77, 0.19),
-    Offset(0.84, 0.23),
-    Offset(0.92, 0.3),
-    Offset(0.95, 0.36),
-    Offset(0.92, 0.44),
-    Offset(0.86, 0.48),
-    Offset(0.81, 0.52),
-    Offset(0.74, 0.51),
-    Offset(0.67, 0.46),
-    Offset(0.6, 0.42),
-    Offset(0.54, 0.36),
-    Offset(0.48, 0.32),
-    Offset(0.42, 0.3),
-    Offset(0.38, 0.26),
+    [-17, 37],
+    [-8, 34],
+    [-2, 30],
+    [4, 26],
+    [10, 20],
+    [16, 14],
+    [20, 10],
+    [26, 6],
+    [32, 2],
+    [36, -4],
+    [40, -10],
+    [44, -16],
+    [46, -22],
+    [48, -28],
+    [46, -34],
+    [42, -38],
+    [38, -42],
+    [34, -46],
+    [28, -50],
+    [22, -44],
+    [18, -36],
+    [14, -28],
+    [10, -18],
+    [6, -8],
+    [2, 2],
+    [-2, 12],
+    [-6, 22],
+    [-10, 30],
+    [-15, 34],
   ],
   [
-    Offset(0.46, 0.28),
-    Offset(0.5, 0.36),
-    Offset(0.54, 0.46),
-    Offset(0.56, 0.6),
-    Offset(0.53, 0.7),
-    Offset(0.48, 0.78),
-    Offset(0.42, 0.64),
-    Offset(0.4, 0.5),
+    [-25, 72],
+    [-10, 70],
+    [0, 68],
+    [10, 66],
+    [20, 65],
+    [30, 64],
+    [40, 62],
+    [50, 60],
+    [60, 58],
+    [70, 57],
+    [80, 56],
+    [90, 55],
+    [100, 55],
+    [110, 56],
+    [120, 58],
+    [130, 60],
+    [140, 62],
+    [150, 62],
+    [160, 60],
+    [170, 58],
+    [178, 54],
+    [178, 48],
+    [170, 46],
+    [160, 44],
+    [150, 42],
+    [140, 40],
+    [130, 38],
+    [120, 36],
+    [110, 34],
+    [100, 32],
+    [92, 28],
+    [86, 24],
+    [80, 20],
+    [74, 18],
+    [68, 16],
+    [62, 15],
+    [56, 14],
+    [50, 14],
+    [44, 14],
+    [38, 15],
+    [32, 18],
+    [28, 20],
+    [24, 24],
+    [20, 28],
+    [16, 32],
+    [12, 36],
+    [8, 40],
+    [4, 44],
+    [0, 48],
+    [-4, 52],
+    [-10, 56],
+    [-16, 60],
+    [-22, 64],
   ],
   [
-    Offset(0.57, 0.34),
-    Offset(0.61, 0.37),
-    Offset(0.65, 0.4),
-    Offset(0.63, 0.48),
-    Offset(0.59, 0.46),
-    Offset(0.56, 0.4),
+    [42, 12],
+    [46, 18],
+    [50, 22],
+    [56, 24],
+    [62, 26],
+    [68, 28],
+    [72, 30],
+    [78, 32],
+    [84, 34],
+    [90, 36],
+    [96, 38],
+    [100, 42],
+    [104, 46],
+    [110, 50],
+    [118, 52],
+    [126, 54],
+    [134, 56],
+    [140, 58],
+    [146, 60],
+    [152, 62],
+    [158, 64],
+    [164, 64],
+    [170, 62],
+    [168, 58],
+    [162, 54],
+    [156, 50],
+    [150, 46],
+    [144, 42],
+    [138, 38],
+    [132, 34],
+    [126, 30],
+    [120, 26],
+    [114, 24],
+    [108, 22],
+    [102, 20],
+    [96, 18],
+    [90, 16],
+    [84, 14],
+    [78, 12],
+    [72, 10],
+    [66, 8],
+    [60, 8],
+    [54, 10],
+    [48, 12],
   ],
   [
-    Offset(0.62, 0.44),
-    Offset(0.68, 0.46),
-    Offset(0.7, 0.5),
-    Offset(0.66, 0.55),
-    Offset(0.61, 0.53),
+    [110, -10],
+    [114, -16],
+    [120, -20],
+    [128, -24],
+    [134, -28],
+    [140, -32],
+    [148, -34],
+    [152, -30],
+    [154, -24],
+    [154, -18],
+    [150, -12],
+    [146, -10],
+    [140, -8],
+    [134, -8],
+    [128, -10],
+    [122, -12],
+    [116, -12],
+    [112, -10],
   ],
   [
-    Offset(0.69, 0.54),
-    Offset(0.76, 0.52),
-    Offset(0.83, 0.54),
-    Offset(0.84, 0.58),
-    Offset(0.79, 0.61),
-    Offset(0.73, 0.6),
+    [46, -12],
+    [50, -16],
+    [54, -20],
+    [58, -24],
+    [60, -28],
+    [58, -32],
+    [54, -36],
+    [50, -32],
+    [48, -28],
+    [46, -22],
   ],
   [
-    Offset(0.73, 0.62),
-    Offset(0.78, 0.59),
-    Offset(0.86, 0.62),
-    Offset(0.9, 0.7),
-    Offset(0.84, 0.8),
-    Offset(0.75, 0.74),
+    [138, 46],
+    [142, 44],
+    [146, 40],
+    [146, 36],
+    [142, 34],
+    [136, 36],
+    [134, 40],
+    [136, 44],
   ],
   [
-    Offset(0.84, 0.3),
-    Offset(0.88, 0.34),
-    Offset(0.86, 0.4),
-    Offset(0.82, 0.36),
+    [94, 6],
+    [100, 4],
+    [108, 2],
+    [116, 0],
+    [122, -2],
+    [128, -2],
+    [134, 0],
+    [132, 4],
+    [126, 6],
+    [118, 6],
+    [110, 6],
+    [102, 6],
   ],
   [
-    Offset(0.79, 0.44),
-    Offset(0.82, 0.46),
-    Offset(0.8, 0.51),
-    Offset(0.77, 0.5),
+    [118, 18],
+    [122, 16],
+    [124, 12],
+    [122, 8],
+    [118, 8],
+    [116, 12],
   ],
   [
-    Offset(0.43, 0.21),
-    Offset(0.45, 0.17),
-    Offset(0.47, 0.21),
-    Offset(0.45, 0.24),
+    [165, -36],
+    [170, -38],
+    [175, -40],
+    [178, -44],
+    [174, -46],
+    [168, -44],
+    [164, -40],
   ],
   [
-    Offset(0.37, 0.16),
-    Offset(0.39, 0.14),
-    Offset(0.41, 0.16),
-    Offset(0.39, 0.18),
-  ],
-  [
-    Offset(0.84, 0.7),
-    Offset(0.88, 0.74),
-    Offset(0.86, 0.82),
-    Offset(0.82, 0.78),
-  ],
-  [
-    Offset(0.12, 0.9),
-    Offset(0.3, 0.94),
-    Offset(0.5, 0.96),
-    Offset(0.7, 0.94),
-    Offset(0.88, 0.9),
-    Offset(0.86, 0.98),
-    Offset(0.14, 0.98),
-  ],
-  [
-    Offset(0.63, 0.56),
-    Offset(0.66, 0.58),
-    Offset(0.64, 0.62),
-    Offset(0.61, 0.6),
+    [-180, -70],
+    [-150, -72],
+    [-120, -74],
+    [-90, -76],
+    [-60, -78],
+    [-30, -80],
+    [0, -82],
+    [30, -80],
+    [60, -78],
+    [90, -76],
+    [120, -74],
+    [150, -72],
+    [180, -70],
   ],
 ];
 
