@@ -37,6 +37,7 @@ class _RepProfilePageState extends State<RepProfilePage> {
   String _lang = 'de';
 
   // Passwort ändern
+  final _pwOld = TextEditingController();
   final _pw1 = TextEditingController();
   final _pw2 = TextEditingController();
   bool _busyPw = false;
@@ -114,8 +115,16 @@ class _RepProfilePageState extends State<RepProfilePage> {
 
   Future<void> _changePassword() async {
     final t = context.t;
+    final old = _pwOld.text;
     final a = _pw1.text;
     final b = _pw2.text;
+
+    if (old.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.old_password_required ?? t.oldPassword)),
+      );
+      return;
+    }
 
     if (a.isEmpty || b.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -139,8 +148,9 @@ class _RepProfilePageState extends State<RepProfilePage> {
 
     setState(() => _busyPw = true);
     try {
-      await widget.api.repChangePassword(a); // setzt ggf. neues Token
+      await widget.api.repChangePassword(a, oldPw: old); // setzt ggf. neues Token
       if (!mounted) return;
+      _pwOld.clear();
       _pw1.clear();
       _pw2.clear();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -161,6 +171,7 @@ class _RepProfilePageState extends State<RepProfilePage> {
     _first.dispose();
     _last.dispose();
     _region.dispose();
+    _pwOld.dispose();
     _pw1.dispose();
     _pw2.dispose();
     super.dispose();
@@ -284,6 +295,15 @@ class _RepProfilePageState extends State<RepProfilePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(t.changePassword, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _pwOld,
+                        obscureText: true,
+                        decoration: InputDecoration(
+                          labelText: t.oldPassword,
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       TextField(
                         controller: _pw1,
