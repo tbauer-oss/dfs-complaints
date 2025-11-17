@@ -7,7 +7,8 @@ import { setCors } from '../_lib/cors.js';
 import { getRepFromAuthHeader } from '../_lib/repAuth.js';
 import { repCustomers as storeRepCustomers } from '../_lib/repsStore.js';
 import { userSave, userByEmail } from '../_lib/store.js';
-import { isStrongPassword } from '../_lib/passwords.js';
+import { generateStrongPassword, isStrongPassword } from '../_lib/passwords.js';
+import { send, tpl } from '../_lib/mail.js';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 
@@ -155,9 +156,20 @@ export default async function handler(req, res) {
             const countryCode = S(body.countryCode).toUpperCase().slice(0, 2);
             const phone = S(body.phone);
             const lang = (S(body.lang) || 'de').toLowerCase();
-            const password = S(body.password);
+            const passwordModeRaw = S(body.passwordMode || body.password_mode).toLowerCase();
+            const shouldGeneratePassword = passwordModeRaw === 'generated' || passwordModeRaw === 'generate';
+            let generatedPassword = null;
+            let password = S(body.password);
+            if (shouldGeneratePassword) {
+              generatedPassword = generateStrongPassword(8);
+              password = generatedPassword;
+            }
             const customerNo = S(body.customerNo);
             const vatId = S(body.vatId);
+
+            if (!password) {
+              return res.status(400).end(JSON.stringify({ error: 'password required' }));
+            }
 
             if (!email || !email.includes('@')) {
               return res.status(400).end(JSON.stringify({ error: 'invalid email' }));
@@ -219,6 +231,25 @@ export default async function handler(req, res) {
             }
 
             await userSave(user);
+
+            if (generatedPassword) {
+              const composedName = `${firstName} ${lastName}`.trim();
+              const displayName = (contact || composedName || company || email).trim();
+              try {
+                await send(
+                  email,
+                  tpl.adminWelcomePassword(
+                    {
+                      name: displayName || undefined,
+                      password: generatedPassword,
+                    },
+                    lang,
+                  ),
+                );
+              } catch (mailErr) {
+                console.error('[rep/customers] welcome mail failed:', mailErr);
+              }
+            }
 
             let assigned = false;
             try {
