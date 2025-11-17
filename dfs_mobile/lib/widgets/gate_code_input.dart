@@ -6,6 +6,7 @@ class GateCodeInput extends StatefulWidget {
   const GateCodeInput({
     super.key,
     this.onCompleted,
+    this.onChanged,
     this.fieldWidth = 48,
     this.fieldSpacing = 12,
     this.decoration,
@@ -14,6 +15,10 @@ class GateCodeInput extends StatefulWidget {
 
   /// Triggered when all eight characters have been entered.
   final ValueChanged<String>? onCompleted;
+
+  /// Called whenever the code changes. Emits `null` until all characters
+  /// are filled.
+  final ValueChanged<String?>? onChanged;
 
   /// Width of each individual input field.
   final double fieldWidth;
@@ -74,7 +79,7 @@ class _GateCodeInputState extends State<GateCodeInput> {
       );
     }
 
-    _notifyIfComplete();
+    _notifyProgress();
   }
 
   void _fillFromIndex(int startIndex, String value) {
@@ -95,20 +100,29 @@ class _GateCodeInputState extends State<GateCodeInput> {
     } else {
       _focusNodes.last.unfocus();
     }
-    _notifyIfComplete();
+    _notifyProgress();
   }
 
-  void _notifyIfComplete() {
-    if (_controllers.every((c) => c.text.length == 1)) {
-      final buffer = StringBuffer();
-      for (var i = 0; i < _controllers.length; i++) {
-        if (i == 4) {
-          buffer.write('-');
-        }
-        buffer.write(_controllers[i].text);
-      }
-      widget.onCompleted?.call(buffer.toString());
+  void _notifyProgress() {
+    final isComplete = _controllers.every((c) => c.text.length == 1);
+    final code = _formattedCode();
+
+    widget.onChanged?.call(isComplete ? code : null);
+
+    if (isComplete) {
+      widget.onCompleted?.call(code);
     }
+  }
+
+  String _formattedCode() {
+    final buffer = StringBuffer();
+    for (var i = 0; i < _controllers.length; i++) {
+      if (i == 4) {
+        buffer.write('-');
+      }
+      buffer.write(_controllers[i].text);
+    }
+    return buffer.toString();
   }
 
   KeyEventResult _handleKey(int index, RawKeyEvent event) {
