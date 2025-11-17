@@ -76,6 +76,8 @@
   "@password_change": { "description": "Menu item: change password" },
   "password_change_hint": "Update your password securely",
   "@password_change_hint": { "description": "Subtitle under change password in account menu" },
+  "old_password_required": "Please enter your current password.",
+  "@old_password_required": { "description": "Validation error shown when the current password field is empty" },
 
   "cancel": "Cancel",
   "open": "Open",

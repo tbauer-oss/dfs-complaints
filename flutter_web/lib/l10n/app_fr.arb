@@ -68,6 +68,8 @@
   "@password_change": { "description": "Élément de menu : changer le mot de passe" },
   "password_change_hint": "Mettre à jour le mot de passe en toute sécurité",
   "@password_change_hint": { "description": "Sous-titre sous changer le mot de passe dans le menu du compte" },
+  "old_password_required": "Veuillez saisir votre mot de passe actuel.",
+  "@old_password_required": { "description": "Message d'erreur lorsque le mot de passe actuel est manquant" },
 
   "approve": "Approuver",
   "reject": "Refuser",

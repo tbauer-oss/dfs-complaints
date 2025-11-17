@@ -107,6 +107,8 @@
   "@password_change": { "description": "Menüpunkt: Passwort ändern" },
   "password_change_hint": "Passwort sicher aktualisieren",
   "@password_change_hint": { "description": "Untertitel unter 'Passwort ändern' im Account-Menü" },
+  "old_password_required": "Bitte aktuelles Passwort eingeben.",
+  "@old_password_required": { "description": "Validierungsfehler, wenn das Feld für das aktuelle Passwort leer ist" },
   "selectCustomer": "Bitte Kunden auswählen",
   "@selectCustomer": { "description": "Hinweis/Fehlermeldung, wenn noch kein Kunde ausgewählt wurde" },
   "customer_already_assigned": "Kunde bereits zugewiesen",

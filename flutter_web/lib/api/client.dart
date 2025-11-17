@@ -1199,11 +1199,14 @@ class ApiClient {
     }
   }
 
-  Future<void> repChangePassword(String newPw) async {
+  Future<void> repChangePassword(String newPw, {String? oldPw}) async {
     final r = await http.post(
       _u('/api/rep/password'),
       headers: _repHeaders(),
-      body: jsonEncode({'new': newPw}),
+      body: jsonEncode({
+        'new': newPw,
+        if (oldPw != null && oldPw.isNotEmpty) 'old': oldPw,
+      }),
     );
 
     if (r.statusCode == 204) {

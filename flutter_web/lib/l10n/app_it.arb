@@ -73,6 +73,8 @@
   "@password_change": { "description": "Voce di menu: cambia password" },
   "password_change_hint": "Aggiorna la password in modo sicuro",
   "@password_change_hint": { "description": "Sottotitolo sotto cambia password nel menu account" },
+  "old_password_required": "Inserisci la password attuale.",
+  "@old_password_required": { "description": "Messaggio di errore quando manca la password attuale" },
 
   "cancel": "Annulla",
   "open": "Apri",
