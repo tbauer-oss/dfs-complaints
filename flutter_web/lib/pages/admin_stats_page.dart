@@ -867,33 +867,46 @@ class _WorldMapWithPins extends StatelessWidget {
       return const Center(child: Text('Keine lokalisierbaren Daten verfügbar.'));
     }
     final maxCount = pins.fold<int>(0, (value, pin) => math.max(value, pin.count));
+    final baseColor = theme.colorScheme.primary;
+    final accent = theme.colorScheme.secondary;
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         final height = constraints.maxHeight;
-        final baseColor = theme.colorScheme.primary;
-        final accent = theme.colorScheme.tertiary;
+        final radius = math.min(32.0, math.max(16.0, width * 0.04));
+        final borderColor = theme.colorScheme.onSurface.withOpacity(0.05);
         return Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(radius),
             gradient: LinearGradient(
               colors: [
-                baseColor.withOpacity(0.07),
-                accent.withOpacity(0.12),
+                theme.colorScheme.surfaceVariant.withOpacity(0.75),
+                theme.colorScheme.surface.withOpacity(0.95),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
+            border: Border.all(color: borderColor, width: 1.2),
+            boxShadow: [
+              BoxShadow(
+                color: theme.colorScheme.shadow.withOpacity(0.08),
+                blurRadius: 32,
+                offset: const Offset(0, 18),
+              ),
+            ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(radius),
             child: Stack(
               children: [
                 Positioned.fill(
                   child: CustomPaint(
                     painter: _WorldMapPainter(
+                      oceanStart: theme.colorScheme.primary.withOpacity(0.25),
+                      oceanEnd: theme.colorScheme.primary.withOpacity(0.05),
                       landColor: theme.colorScheme.surface,
-                      strokeColor: theme.colorScheme.outline.withOpacity(0.4),
+                      strokeColor: theme.colorScheme.outline.withOpacity(0.6),
+                      gridColor: theme.colorScheme.onSurface.withOpacity(0.08),
                     ),
                   ),
                 ),
@@ -934,26 +947,64 @@ class _MapPin extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ratio = maxCount == 0 ? 0.0 : pin.count / maxCount;
-    final size = (ui.lerpDouble(10, 26, ratio.clamp(0.0, 1.0)) ?? 12).toDouble();
+    final headSize = (ui.lerpDouble(12, 30, ratio.clamp(0.0, 1.0)) ?? 16).toDouble();
     final color = Color.lerp(baseColor, accent, ratio.clamp(0.0, 1.0)) ?? baseColor;
     final x = (pin.normalized.dx.clamp(0.0, 1.0)) * width;
     final y = (pin.normalized.dy.clamp(0.0, 1.0)) * height;
+    final markerHeight = headSize * 1.45;
+    final tailHeight = headSize * 0.45;
+    final left = (x - headSize / 2).clamp(0.0, math.max(width - headSize, 0));
+    final top = (y - markerHeight).clamp(0.0, math.max(height - markerHeight, 0));
     return Positioned(
-      left: (x - size / 2).clamp(0.0, math.max(width - size, 0)),
-      top: (y - size).clamp(0.0, math.max(height - size, 0)),
+      left: left,
+      top: top,
       child: Tooltip(
         message: '${pin.label}: ${pin.count}',
-        child: Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: color.withOpacity(0.45),
-                blurRadius: 8,
-                spreadRadius: 1,
+        child: SizedBox(
+          width: headSize,
+          height: markerHeight,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: headSize,
+                height: headSize,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      Colors.white.withOpacity(0.95),
+                      color,
+                    ],
+                  ),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.7),
+                    width: 1.2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withOpacity(0.45),
+                      blurRadius: 12,
+                      spreadRadius: 0.5,
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: math.max(4, headSize * 0.12)),
+              Container(
+                width: math.max(2, headSize * 0.2),
+                height: tailHeight,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(999),
+                  gradient: LinearGradient(
+                    colors: [
+                      color,
+                      color.withOpacity(0.0),
+                    ],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
+                ),
               ),
             ],
           ),
@@ -964,39 +1015,103 @@ class _MapPin extends StatelessWidget {
 }
 
 class _WorldMapPainter extends CustomPainter {
+  final Color oceanStart;
+  final Color oceanEnd;
   final Color landColor;
   final Color strokeColor;
-  const _WorldMapPainter({required this.landColor, required this.strokeColor});
+  final Color gridColor;
+  const _WorldMapPainter({
+    required this.oceanStart,
+    required this.oceanEnd,
+    required this.landColor,
+    required this.strokeColor,
+    required this.gridColor,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final oceanPaint = Paint()
+      ..shader = LinearGradient(
+        colors: [oceanStart, oceanEnd],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ).createShader(rect);
+    canvas.drawRect(rect, oceanPaint);
+
+    final gridPaint = Paint()
+      ..color = gridColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    const lines = 6;
+    for (var i = 1; i < lines; i++) {
+      final dx = rect.left + rect.width * i / lines;
+      final dy = rect.top + rect.height * i / lines;
+      canvas.drawLine(Offset(dx, rect.top), Offset(dx, rect.bottom), gridPaint);
+      canvas.drawLine(Offset(rect.left, dy), Offset(rect.right, dy), gridPaint);
+    }
+
+    final glowPaint = Paint()
+      ..color = landColor.withOpacity(0.35)
+      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 18);
     final fillPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = landColor.withOpacity(0.95);
+      ..shader = LinearGradient(
+        colors: [
+          landColor.withOpacity(0.95),
+          landColor.withOpacity(0.75),
+        ],
+        begin: Alignment.topCenter,
+        end: Alignment.bottomRight,
+      ).createShader(rect);
     final strokePaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2
       ..color = strokeColor;
-    for (final shape in _kWorldMapShapes) {
-      if (shape.isEmpty) continue;
-      final path = Path();
-      for (var i = 0; i < shape.length; i++) {
-        final point = Offset(shape[i].dx * size.width, shape[i].dy * size.height);
-        if (i == 0) {
-          path.moveTo(point.dx, point.dy);
-        } else {
-          path.lineTo(point.dx, point.dy);
-        }
-      }
-      path.close();
+
+    for (final polygon in _kWorldMapPolygons) {
+      if (polygon.isEmpty) continue;
+      final path = _buildSmoothPath(polygon, size);
+      canvas.drawPath(path, glowPaint);
+      canvas.drawShadow(path, Colors.black.withOpacity(0.15), 12, false);
       canvas.drawPath(path, fillPaint);
       canvas.drawPath(path, strokePaint);
     }
   }
 
+  Path _buildSmoothPath(List<Offset> polygon, Size size) {
+    if (polygon.length == 1) {
+      final point = Offset(polygon.first.dx * size.width, polygon.first.dy * size.height);
+      return Path()..addOval(Rect.fromCircle(center: point, radius: size.shortestSide * 0.01));
+    }
+    final scaled = [
+      for (final point in polygon)
+        Offset(point.dx * size.width, point.dy * size.height),
+    ];
+    final path = Path();
+    final start = _midPoint(scaled.last, scaled.first);
+    path.moveTo(start.dx, start.dy);
+    for (var i = 0; i < scaled.length; i++) {
+      final current = scaled[i];
+      final next = scaled[(i + 1) % scaled.length];
+      final mid = _midPoint(current, next);
+      path.quadraticBezierTo(current.dx, current.dy, mid.dx, mid.dy);
+    }
+    path.close();
+    return path;
+  }
+
+  Offset _midPoint(Offset a, Offset b) => Offset(
+        (a.dx + b.dx) / 2,
+        (a.dy + b.dy) / 2,
+      );
+
   @override
   bool shouldRepaint(covariant _WorldMapPainter oldDelegate) {
-    return oldDelegate.landColor != landColor || oldDelegate.strokeColor != strokeColor;
+    return oldDelegate.oceanStart != oceanStart ||
+        oldDelegate.oceanEnd != oceanEnd ||
+        oldDelegate.landColor != landColor ||
+        oldDelegate.strokeColor != strokeColor ||
+        oldDelegate.gridColor != gridColor;
   }
 }
 
@@ -1013,63 +1128,149 @@ class _CountryPinData {
   });
 }
 
-const List<List<Offset>> _kWorldMapShapes = [
+const List<List<Offset>> _kWorldMapPolygons = [
   [
-    Offset(0.02, 0.2),
-    Offset(0.14, 0.08),
-    Offset(0.26, 0.05),
-    Offset(0.36, 0.18),
-    Offset(0.34, 0.26),
-    Offset(0.28, 0.32),
-    Offset(0.18, 0.34),
-    Offset(0.08, 0.28),
+    Offset(0.015, 0.34),
+    Offset(0.04, 0.24),
+    Offset(0.07, 0.16),
+    Offset(0.12, 0.12),
+    Offset(0.2, 0.11),
+    Offset(0.27, 0.16),
+    Offset(0.31, 0.23),
+    Offset(0.34, 0.32),
+    Offset(0.33, 0.4),
+    Offset(0.29, 0.46),
+    Offset(0.24, 0.48),
+    Offset(0.18, 0.52),
+    Offset(0.13, 0.48),
+    Offset(0.09, 0.41),
+    Offset(0.06, 0.37),
   ],
   [
-    Offset(0.32, 0.36),
-    Offset(0.38, 0.48),
-    Offset(0.42, 0.66),
-    Offset(0.36, 0.88),
-    Offset(0.28, 0.72),
-    Offset(0.28, 0.52),
+    Offset(0.32, 0.07),
+    Offset(0.35, 0.03),
+    Offset(0.4, 0.02),
+    Offset(0.45, 0.05),
+    Offset(0.44, 0.1),
+    Offset(0.4, 0.13),
+    Offset(0.35, 0.11),
   ],
   [
-    Offset(0.42, 0.16),
-    Offset(0.56, 0.1),
-    Offset(0.65, 0.12),
-    Offset(0.7, 0.2),
-    Offset(0.66, 0.26),
-    Offset(0.56, 0.28),
-    Offset(0.48, 0.24),
+    Offset(0.31, 0.39),
+    Offset(0.35, 0.47),
+    Offset(0.38, 0.6),
+    Offset(0.35, 0.74),
+    Offset(0.31, 0.86),
+    Offset(0.27, 0.78),
+    Offset(0.27, 0.58),
   ],
   [
-    Offset(0.62, 0.18),
-    Offset(0.86, 0.14),
-    Offset(0.97, 0.26),
-    Offset(0.94, 0.38),
-    Offset(0.78, 0.4),
-    Offset(0.68, 0.3),
-  ],
-  [
+    Offset(0.37, 0.2),
+    Offset(0.42, 0.12),
+    Offset(0.5, 0.1),
+    Offset(0.58, 0.12),
+    Offset(0.64, 0.16),
+    Offset(0.71, 0.16),
+    Offset(0.77, 0.19),
+    Offset(0.84, 0.23),
+    Offset(0.92, 0.3),
+    Offset(0.95, 0.36),
+    Offset(0.92, 0.44),
+    Offset(0.86, 0.48),
+    Offset(0.81, 0.52),
+    Offset(0.74, 0.51),
+    Offset(0.67, 0.46),
+    Offset(0.6, 0.42),
+    Offset(0.54, 0.36),
     Offset(0.48, 0.32),
-    Offset(0.6, 0.34),
-    Offset(0.66, 0.52),
-    Offset(0.6, 0.78),
-    Offset(0.48, 0.64),
-    Offset(0.44, 0.44),
+    Offset(0.42, 0.3),
+    Offset(0.38, 0.26),
   ],
   [
-    Offset(0.76, 0.56),
-    Offset(0.92, 0.6),
-    Offset(0.94, 0.76),
-    Offset(0.84, 0.84),
-    Offset(0.74, 0.7),
+    Offset(0.46, 0.28),
+    Offset(0.5, 0.36),
+    Offset(0.54, 0.46),
+    Offset(0.56, 0.6),
+    Offset(0.53, 0.7),
+    Offset(0.48, 0.78),
+    Offset(0.42, 0.64),
+    Offset(0.4, 0.5),
   ],
   [
-    Offset(0.22, 0.04),
-    Offset(0.28, 0.02),
-    Offset(0.34, 0.05),
-    Offset(0.3, 0.12),
-    Offset(0.22, 0.1),
+    Offset(0.57, 0.34),
+    Offset(0.61, 0.37),
+    Offset(0.65, 0.4),
+    Offset(0.63, 0.48),
+    Offset(0.59, 0.46),
+    Offset(0.56, 0.4),
+  ],
+  [
+    Offset(0.62, 0.44),
+    Offset(0.68, 0.46),
+    Offset(0.7, 0.5),
+    Offset(0.66, 0.55),
+    Offset(0.61, 0.53),
+  ],
+  [
+    Offset(0.69, 0.54),
+    Offset(0.76, 0.52),
+    Offset(0.83, 0.54),
+    Offset(0.84, 0.58),
+    Offset(0.79, 0.61),
+    Offset(0.73, 0.6),
+  ],
+  [
+    Offset(0.73, 0.62),
+    Offset(0.78, 0.59),
+    Offset(0.86, 0.62),
+    Offset(0.9, 0.7),
+    Offset(0.84, 0.8),
+    Offset(0.75, 0.74),
+  ],
+  [
+    Offset(0.84, 0.3),
+    Offset(0.88, 0.34),
+    Offset(0.86, 0.4),
+    Offset(0.82, 0.36),
+  ],
+  [
+    Offset(0.79, 0.44),
+    Offset(0.82, 0.46),
+    Offset(0.8, 0.51),
+    Offset(0.77, 0.5),
+  ],
+  [
+    Offset(0.43, 0.21),
+    Offset(0.45, 0.17),
+    Offset(0.47, 0.21),
+    Offset(0.45, 0.24),
+  ],
+  [
+    Offset(0.37, 0.16),
+    Offset(0.39, 0.14),
+    Offset(0.41, 0.16),
+    Offset(0.39, 0.18),
+  ],
+  [
+    Offset(0.84, 0.7),
+    Offset(0.88, 0.74),
+    Offset(0.86, 0.82),
+    Offset(0.82, 0.78),
+  ],
+  [
+    Offset(0.12, 0.9),
+    Offset(0.3, 0.94),
+    Offset(0.5, 0.96),
+    Offset(0.7, 0.94),
+    Offset(0.88, 0.9),
+    Offset(0.86, 0.98),
+    Offset(0.14, 0.98),
+  ],
+  [
+    Offset(0.63, 0.56),
+    Offset(0.66, 0.58),
+    Offset(0.64, 0.62),
+    Offset(0.61, 0.6),
   ],
 ];
 
