@@ -11,7 +11,7 @@ import 'package:dfs_mobile/data/country_geography.dart';
 import 'package:dfs_mobile/widgets/legal_footer.dart';
 
 class AdminStatsPage extends StatefulWidget {
-  final Ap5iClient api;
+  final ApiClient api;
   const AdminStatsPage({super.key, required this.api});
 
   @override
