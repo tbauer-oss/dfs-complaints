@@ -40,6 +40,7 @@ const mem = {
   repPushTokens: new Map(),
   adminPushTokens: [],
   gateCodes: new Map(),
+  customerNews: [],
 };
 
 const SUPPORTED_LANGS = new Set(['de', 'en', 'fr', 'it', 'es']);
@@ -84,6 +85,17 @@ const DEFAULT_GATE_TTL_SECONDS = Math.max(
   0,
   Number(process.env.GATE_CODE_TTL || 60 * 60 * 24 * 7)
 );
+const KEY_CUSTOMER_NEWS = `${P}news:customer`;
+const NEWS_CATEGORY_CODES = [
+  'catalogs',
+  'technical',
+  'regulatory',
+  'product',
+  'shortage',
+  'app',
+  'general',
+];
+export const CUSTOMER_NEWS_CATEGORY_CODES = [...NEWS_CATEGORY_CODES];
 
 function _normalizeCatalogConfig(input) {
   const src = input && typeof input === 'object' ? input : {};
@@ -163,6 +175,177 @@ export async function catalogConfigSet(updates = {}) {
   mem.catalogConfig = { ...next };
 
   return next;
+}
+
+/* ============== Customer News (Infoscreen) ============== */
+function _text(value, max = 400) {
+  if (value === undefined || value === null) return '';
+  let s = String(value);
+  s = s.replace(/\r\n/g, '\n').trim();
+  if (max > 0 && s.length > max) {
+    s = `${s.slice(0, max - 1).trim()}…`;
+  }
+  return s;
+}
+
+function _safeUrl(value) {
+  const raw = (value ?? '').toString().trim();
+  if (!raw) return '';
+  if (!/^https?:\/\//i.test(raw)) return '';
+  return raw;
+}
+
+function _newsCategory(value) {
+  const raw = (value ?? '').toString().trim().toLowerCase();
+  if (NEWS_CATEGORY_CODES.includes(raw)) return raw;
+  return 'general';
+}
+
+function _parseTs(value, fallback) {
+  if (typeof value === 'number' && Number.isFinite(value)) return Number(value);
+  if (typeof value === 'string' && value.trim()) {
+    const n = Date.parse(value);
+    if (!Number.isNaN(n)) return n;
+  }
+  return fallback;
+}
+
+function _normalizeStoredNews(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const now = Date.now();
+  const id = (raw.id ?? '').toString().trim();
+  if (!id) return null;
+  const title = _text(raw.title ?? '', 220);
+  const summary = _text(raw.summary ?? raw.text ?? '', 4000);
+  if (!title || !summary) return null;
+  const createdAt = _parseTs(raw.createdAt, now) ?? now;
+  const updatedAt = _parseTs(raw.updatedAt, createdAt) ?? createdAt;
+  const publishedAt = _parseTs(raw.publishedAt, createdAt) ?? createdAt;
+  const linkUrl = _safeUrl(raw.linkUrl ?? '');
+  const linkLabel = _text(raw.linkLabel ?? '', 160);
+  return {
+    id,
+    title,
+    summary,
+    category: _newsCategory(raw.category),
+    linkLabel: linkLabel || null,
+    linkUrl: linkUrl || null,
+    pinned: Boolean(raw.pinned),
+    draft: Boolean(raw.draft),
+    createdAt,
+    updatedAt,
+    publishedAt,
+  };
+}
+
+function _sortNews(list = []) {
+  return [...list].sort((a, b) => {
+    if (a.pinned && !b.pinned) return -1;
+    if (!a.pinned && b.pinned) return 1;
+    return (b.publishedAt || 0) - (a.publishedAt || 0);
+  });
+}
+
+async function _loadCustomerNews() {
+  let list = null;
+  const r = getRedis();
+  if (r) {
+    const raw = await rget(KEY_CUSTOMER_NEWS);
+    if (Array.isArray(raw)) {
+      list = raw;
+    } else if (typeof raw === 'string' && raw.trim()) {
+      try { list = JSON.parse(raw); }
+      catch { list = []; }
+    } else if (raw && typeof raw === 'object') {
+      list = raw.items || raw.list || [];
+    }
+  }
+  if (!Array.isArray(list)) {
+    list = Array.isArray(mem.customerNews) ? mem.customerNews : [];
+  }
+  const normalized = [];
+  for (const entry of list) {
+    const norm = _normalizeStoredNews(entry);
+    if (norm) normalized.push(norm);
+  }
+  mem.customerNews = normalized.map((item) => ({ ...item }));
+  return normalized;
+}
+
+async function _persistCustomerNews(list) {
+  const safeList = _sortNews(list).map((item) => ({ ...item }));
+  mem.customerNews = safeList.map((item) => ({ ...item }));
+  const r = getRedis();
+  if (r) {
+    await rset(KEY_CUSTOMER_NEWS, safeList);
+  } else {
+    global.__DFS_CUSTOMER_NEWS__ = safeList;
+  }
+  return safeList;
+}
+
+function _normalizeNewsPayload(input = {}, existing = null) {
+  const now = Date.now();
+  const base = existing ? { ...existing } : {};
+  const title = _text(input.title ?? base.title ?? '', 220);
+  const summary = _text(input.summary ?? base.summary ?? '', 4000);
+  if (!title) throw new Error('title required');
+  if (!summary) throw new Error('summary required');
+  const published = _parseTs(input.publishedAt, base.publishedAt ?? now) ?? now;
+  const created = base.createdAt ?? now;
+  const linkLabel = _text(input.linkLabel ?? '', 160);
+  const linkUrl = _safeUrl((input.linkUrl ?? base.linkUrl) ?? '');
+  return {
+    id: (input.id ?? base.id ?? '').toString().trim() || `news_${now}_${Math.random().toString(36).slice(2, 8)}`,
+    title,
+    summary,
+    category: _newsCategory(input.category ?? base.category ?? ''),
+    linkLabel: linkLabel || null,
+    linkUrl: linkUrl || null,
+    pinned: input.pinned !== undefined ? Boolean(input.pinned) : Boolean(base.pinned),
+    draft: input.draft !== undefined ? Boolean(input.draft) : Boolean(base.draft),
+    createdAt: created,
+    updatedAt: now,
+    publishedAt: published,
+  };
+}
+
+export async function customerNewsList({ limit = 0, includeDrafts = false } = {}) {
+  const list = await _loadCustomerNews();
+  const now = Date.now();
+  const filtered = includeDrafts
+      ? list
+      : list.filter((item) => !item.draft && (item.publishedAt ?? now) <= now);
+  const sorted = _sortNews(filtered);
+  if (limit && limit > 0) {
+    const max = Math.min(Number(limit) || 0, 200);
+    return sorted.slice(0, max || sorted.length);
+  }
+  return sorted;
+}
+
+export async function customerNewsUpsert(data) {
+  const list = await _loadCustomerNews();
+  const targetId = (data?.id ?? '').toString().trim();
+  const idx = targetId ? list.findIndex((item) => item.id === targetId) : -1;
+  const existing = idx >= 0 ? list[idx] : null;
+  const normalized = _normalizeNewsPayload(data, existing);
+  if (idx >= 0) {
+    list[idx] = normalized;
+  } else {
+    list.push(normalized);
+  }
+  await _persistCustomerNews(list);
+  return normalized;
+}
+
+export async function customerNewsDelete(id) {
+  const list = await _loadCustomerNews();
+  const target = (id ?? '').toString().trim();
+  if (!target) return false;
+  const next = list.filter((item) => item.id !== target);
+  await _persistCustomerNews(next);
+  return next.length !== list.length;
 }
 
 /* ============== Diagnose /api/diag/kv ============== */

@@ -8,6 +8,7 @@ import 'package:dfs_mobile/web_compat/html_stub.dart'
 
 import 'package:http/http.dart' as http;
 import '../models/complaint.dart';
+import '../models/customer_news_entry.dart';
 
 class ApiError implements Exception {
   final int status;
@@ -215,6 +216,8 @@ class ApiClient {
 
   Map<String, dynamic>? _appMeta;
   DateTime? _appMetaLoadedAt;
+  List<CustomerNewsEntry>? _newsCache;
+  DateTime? _newsLoadedAt;
 
   Map<String, dynamic>? get appMeta => _appMeta;
   String get appVersion => _appMeta?['version']?.toString() ?? '';
@@ -344,6 +347,36 @@ class ApiClient {
       _appMetaLoadedAt = DateTime.now();
     }
     return _appMeta;
+  }
+
+  Future<List<CustomerNewsEntry>> fetchCustomerNews({bool refresh = false}) async {
+    final cacheValid =
+        _newsCache != null && _newsLoadedAt != null &&
+        DateTime.now().difference(_newsLoadedAt!).inMinutes < 5;
+    if (!refresh && cacheValid) return _newsCache!;
+
+    final r = await http.get(
+      _u('/api/news'),
+      headers: {'Content-Type': 'application/json'},
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    final List<CustomerNewsEntry> items = [];
+    if (decoded is Map<String, dynamic>) {
+      final rawList = decoded['items'];
+      if (rawList is List) {
+        for (final entry in rawList) {
+          if (entry is Map<String, dynamic>) {
+            items.add(CustomerNewsEntry.fromJson(entry));
+          }
+        }
+      }
+    }
+    _newsCache = items;
+    _newsLoadedAt = DateTime.now();
+    return items;
   }
 
   // ---- Basis ----
