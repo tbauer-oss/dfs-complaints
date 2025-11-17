@@ -8,6 +8,7 @@ import 'package:printing/printing.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/complaint_attachment.dart';
+import '../utils/pdf_print.dart';
 
 enum ComplaintSummaryResult { dashboard, newComplaint }
 
@@ -174,7 +175,8 @@ class _ComplaintSummaryPageState extends State<ComplaintSummaryPage> {
   Future<void> _handlePrint() async {
     setState(() => _printing = true);
     try {
-      await Printing.layoutPdf(onLayout: (_) => _buildPdfBytes());
+      final bytes = await _buildPdfBytes();
+      await printPdf(bytes);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
