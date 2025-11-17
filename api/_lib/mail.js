@@ -429,6 +429,74 @@ Le informaremos si cambia el estado.` }),
     it: (data)=>buildMessageConfirmation('it', data),
     es: (data)=>buildMessageConfirmation('es', data),
   },
+
+  adminWelcomePassword: {
+    de: ({ name, password }) => ({
+      subject: 'Willkommen im DFS Kundenportal',
+      text: `Guten Tag${name ? ` ${name}` : ''},
+
+Ihr Zugang zum DFS Kundenportal wurde soeben aktiviert.
+Für den ersten Login wurde automatisch folgendes Passwort vergeben (systemgeneriert):
+${password}
+
+Bitte ändern Sie dieses Passwort nach dem ersten Login in Ihrem Profilbereich.
+
+Mit freundlichen Grüßen
+DFS-DIAMON GmbH – Quality Management`,
+    }),
+    en: ({ name, password }) => ({
+      subject: 'Welcome to the DFS customer portal',
+      text: `Dear ${name || 'customer'},
+
+Your access to the DFS customer portal has been created.
+For your first login we generated the following temporary password:
+${password}
+
+This password was generated automatically by the system. Please change it after your first login via the profile section.
+
+Kind regards
+DFS-DIAMON GmbH – Quality Management`,
+    }),
+    fr: ({ name, password }) => ({
+      subject: 'Bienvenue sur le portail client DFS',
+      text: `Bonjour${name ? ` ${name}` : ''},
+
+votre accès au portail client DFS-DIAMON vient d'être créé.
+Pour votre première connexion, le mot de passe temporaire suivant a été généré automatiquement :
+${password}
+
+Il s'agit d'un mot de passe généré par le système. Merci de le modifier après votre première connexion dans votre profil.
+
+Cordialement
+DFS-DIAMON GmbH – Quality Management`,
+    }),
+    it: ({ name, password }) => ({
+      subject: 'Accesso al portale clienti DFS',
+      text: `Gentile${name ? ` ${name}` : ''},
+
+abbiamo appena creato il suo accesso al portale clienti DFS-DIAMON.
+Per il primo login è stata generata automaticamente la seguente password temporanea:
+${password}
+
+Si tratta di una password generata dal sistema. La preghiamo di cambiarla dopo il primo accesso tramite il profilo.
+
+Cordiali saluti
+DFS-DIAMON GmbH – Quality Management`,
+    }),
+    es: ({ name, password }) => ({
+      subject: 'Bienvenido al portal de clientes de DFS',
+      text: `Hola${name ? ` ${name}` : ''},
+
+acabamos de crear su acceso al portal de clientes de DFS-DIAMON.
+Para el primer inicio de sesión hemos generado automáticamente la siguiente contraseña temporal:
+${password}
+
+Se trata de una contraseña generada por el sistema. Cámbiela después de su primer inicio de sesión en el apartado del perfil.
+
+Saludos cordiales
+DFS-DIAMON GmbH – Quality Management`,
+    }),
+  },
 };
 
 export const tpl = {
@@ -438,6 +506,7 @@ export const tpl = {
   approved:                (name, lang='de')   => TEXTS.approved[L(lang)](name),
   complaintCustomer:       (ticket, lang='de') => TEXTS.complaintCustomer[L(lang)](ticket),
   messageConfirmation:     (data, lang='de')   => TEXTS.messageConfirmation[L(lang)](data),
+  adminWelcomePassword:    (data, lang='de')   => TEXTS.adminWelcomePassword[L(lang)](data),
 };
 
 // ---- Senden: nimmt {subject,text}, baut HTML+Logo, nutzt lazy Transport ----
