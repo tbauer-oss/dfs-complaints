@@ -2,8 +2,19 @@
 export const config = { runtime: 'nodejs' };
 
 import {
-  handlePreflight, ok, bad, methodNotAllowed, readJson
+  handlePreflight,
+  ok,
+  bad,
+  methodNotAllowed,
+  readJson,
 } from './_lib/http.js';
+import {
+  consumeGateCodeOnce,
+  issueGateToken,
+  GateError,
+} from './_lib/gate-auth.js';
+
+const isPreview = process.env.VERCEL_ENV !== 'production';
 
 export default async function handler(req, res) {
   // CORS-Header setzen + OPTIONS sofort beantworten
@@ -16,19 +27,29 @@ export default async function handler(req, res) {
     return methodNotAllowed(res);
   }
 
-  const PASS = process.env.AUTH_PASSWORD || '';
-  if (!PASS) return bad(res, 'AUTH_PASSWORD missing', 500);
-
   try {
     const body = readJson(req);
-    const pwd  = String(body?.password || '').trim();
+    const emailInput = body.email || body.mail || body.user;
+    const codeInput = body.password || body.code || body.pass || body.token;
 
-    if (!pwd)         return bad(res, 'password required', 400);
-    if (pwd !== PASS) return bad(res, 'invalid', 401);
+    const { email } = await consumeGateCodeOnce(emailInput, codeInput);
+    const { token, expiresIn } = issueGateToken(email);
 
     // Antwort kompatibel zu deinem Client (ok ODER gate-String)
-    return ok(res, { ok: true, gate: 'open' });
-  } catch {
-    return bad(res, 'bad request', 400);
+    return ok(res, {
+      ok: true,
+      gate: token,
+      token,
+      type: 'gate',
+      email,
+      expiresIn,
+    });
+  } catch (err) {
+    if (err instanceof GateError) {
+      return bad(res, err.message, err.statusCode || 400);
+    }
+    console.error('gate.js fatal:', err);
+    const msg = isPreview ? err?.message || String(err) : 'internal error';
+    return bad(res, msg, 500);
   }
 }
