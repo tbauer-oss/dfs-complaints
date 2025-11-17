@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 import '../models/complaint_attachment.dart';
+import '../utils/attachment_preview.dart';
 import '../widgets/dialog_content_scroll.dart';
 import 'complaint_summary_page.dart';
 
@@ -42,7 +43,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> with TickerProvid
   bool privacy = false;
 
   // Wichtig: exakt dieser Record-Typ (Name, Bytes, Mime)
-  List<({String name, List<int> bytes, String mime})> files = [];
+  List<({String name, List<int> bytes, String mime, String? preview})> files = [];
 
   String? info;
   String? err;
@@ -123,7 +124,8 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> with TickerProvid
         final name = f.name;
         final bytes = List<int>.from(f.bytes ?? const []);
         final mime = _guessMime(name);
-        return (name: name, bytes: bytes, mime: mime);
+        final preview = createAttachmentPreview(bytes, mime);
+        return (name: name, bytes: bytes, mime: mime, preview: preview);
       }).toList();
       _dirty = true;
     });
