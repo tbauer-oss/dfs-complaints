@@ -445,9 +445,15 @@ function cleanAddress(v) {
   return (typeof v === 'string' ? v : '').trim();
 }
 
+function normalizeAddressList(value) {
+  if (!value) return [];
+  const arr = Array.isArray(value) ? value : [value];
+  return arr.map(cleanAddress).filter((addr) => addr.length > 0);
+}
+
 export async function send(
   to,
-  { subject, text, lang = 'de', from, replyTo },
+  { subject, text, lang = 'de', from, replyTo, cc },
   attachments = [],
 ) {
   const html = htmlShell({ title: subject, bodyHtml: textToParagraphs(text), lang });
@@ -458,6 +464,8 @@ export async function send(
     replyTo !== undefined
       ? cleanAddress(replyTo)
       : (fromAddress === SMTP_USER ? REPLY_TO : fromAddress);
+
+  const ccList = normalizeAddressList(cc);
 
   const mailOptions = {
     from: fromAddress,
@@ -474,6 +482,12 @@ export async function send(
 
   if (replyToAddress) {
     mailOptions.replyTo = replyToAddress;
+  }
+
+  if (ccList.length === 1) {
+    mailOptions.cc = ccList[0];
+  } else if (ccList.length > 1) {
+    mailOptions.cc = ccList;
   }
 
   const info = await getTransport().sendMail(mailOptions);
