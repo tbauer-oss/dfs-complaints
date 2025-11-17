@@ -23,6 +23,7 @@ enum _AdminView { menu, pending, users, open, reps, catalogs, systemHealth, crea
 enum _CustPasswordMode { adminSecret, generated }
 
 class _AdminPageState extends State<AdminPage> {
+  static const int _repReminderDefaultDelayDays = 4;
   late final AdminApi _api;
 
   // Ladeflags / Fehler
@@ -35,6 +36,10 @@ class _AdminPageState extends State<AdminPage> {
   bool _systemHealthBusy = false;
   String? _systemHealthErr;
   SystemHealthResult? _systemHealth;
+  bool _repRemindersBusy = false;
+  String? _repRemindersErr;
+  RepReminderReport? _repReminderReport;
+  DateTime? _repReminderLastRun;
   String _userFilterQuery = '';
   String? _userFilterRepId;
   String _userFilterCompany = 'Alle Firmen';
@@ -379,6 +384,36 @@ class _AdminPageState extends State<AdminPage> {
       if (mounted) setState(() => _systemHealthErr = '$e');
     } finally {
       if (mounted) setState(() => _systemHealthBusy = false);
+    }
+  }
+
+  Future<void> _runRepReminders() async {
+    if (_repRemindersBusy) return;
+    setState(() {
+      _repRemindersBusy = true;
+      _repRemindersErr = null;
+    });
+    try {
+      final result = await _api.triggerRepReminders();
+      if (!mounted) return;
+      setState(() {
+        _repReminderReport = result;
+        _repReminderLastRun = DateTime.now();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.remindersSent > 0
+                ? 'Es wurden ${result.remindersSent} Erinnerungen verschickt.'
+                : 'Keine Erinnerungen notwendig – alle Vertreter sind aktuell.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _repRemindersErr = '$e');
+    } finally {
+      if (mounted) setState(() => _repRemindersBusy = false);
     }
   }
 
@@ -875,6 +910,128 @@ class _AdminPageState extends State<AdminPage> {
           : 'Noch kein Ergebnis – bitte Check starten.';
     }
 
+    Widget buildRepReminderCard() {
+      final report = _repReminderReport;
+      final entries = report?.reminders ?? const <RepReminderEntry>[];
+      final delayDays = report?.delayDays ?? _repReminderDefaultDelayDays.toDouble();
+      final delayLabel = delayDays % 1 == 0 ? delayDays.toInt().toString() : delayDays.toStringAsFixed(1);
+      final lastRunLabel = _repReminderLastRun != null ? _formatTimestamp(_repReminderLastRun!) : null;
+      final infoStyle = theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant);
+
+      String summaryLine() {
+        if (report == null) {
+          return 'Hier können Erinnerungsmails an Vertreter ausgelöst werden.';
+        }
+        final count = report.remindersSent;
+        final eligible = report.eligible;
+        final suffix = count == 1 ? 'Erinnerung' : 'Erinnerungen';
+        final eligibleLabel = eligible == 1 ? 'Fall' : 'Fälle';
+        return count > 0
+            ? 'Zuletzt wurden $count $suffix verschickt ($eligible überfällige $eligibleLabel).'
+            : 'Zuletzt waren keine Erinnerungen notwendig ($eligible überfällige $eligibleLabel).';
+      }
+
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: cs.surfaceVariant.withOpacity(0.5),
+          border: Border.all(color: cs.outlineVariant.withOpacity(0.7)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.mark_email_unread_outlined, color: cs.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Vertreter erinnern',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Sendet eine Erinnerungsmail an Vertreter, wenn nach $delayLabel Tagen noch keine Entscheidung '
+                        'erfolgt ist (CC an complaint@dfs-diamon.de).',
+                        style: infoStyle,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                FilledButton.icon(
+                  onPressed: _repRemindersBusy ? null : _runRepReminders,
+                  icon: _repRemindersBusy
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.send_outlined),
+                  label: Text(_repRemindersBusy ? 'Läuft …' : 'Erinnerungen senden'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(summaryLine(), style: theme.textTheme.bodyMedium),
+            if (lastRunLabel != null) ...[
+              const SizedBox(height: 4),
+              Text('Letzter Lauf: $lastRunLabel', style: infoStyle),
+            ],
+            if (_repRemindersErr != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: cs.errorContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(_repRemindersErr!, style: TextStyle(color: cs.onErrorContainer)),
+              ),
+            ],
+            if (report != null && entries.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Divider(height: 20),
+              ...entries.map(
+                (entry) {
+                  final langLabel = entry.lang.isEmpty ? '' : entry.lang.toUpperCase();
+                  final repLabel = entry.repEmail.isEmpty ? entry.repId ?? '-' : entry.repEmail;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.chevron_right, size: 18),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            '${entry.ticket} – $repLabel${langLabel.isEmpty ? '' : ' ($langLabel)'}',
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ] else if (!_repRemindersBusy && report == null) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Noch kein Erinnerungsdurchlauf gestartet.',
+                style: infoStyle,
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -942,6 +1099,8 @@ class _AdminPageState extends State<AdminPage> {
                 ],
               ),
             ),
+            const SizedBox(height: 16),
+            buildRepReminderCard(),
             const SizedBox(height: 16),
             Expanded(
               child: checks.isEmpty
@@ -5767,6 +5926,17 @@ class AdminApi {
     return SystemHealthResult.fromJson(map);
   }
 
+  Future<RepReminderReport> triggerRepReminders() async {
+    final res = await _request('POST', '/api/admin/rep-reminders');
+    if (res.status != 200) {
+      throw 'rep-reminders POST: HTTP ${res.status} ${res.responseText}';
+    }
+    final txt = res.responseText ?? '{}';
+    final raw = txt.trim().isEmpty ? <String, dynamic>{} : jsonDecode(txt);
+    final map = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+    return RepReminderReport.fromJson(map);
+  }
+
 
 
 }
@@ -5780,6 +5950,64 @@ Color _blend(Color base, Color top, double t) {
 Color _bestOnColor(Color c) {
   final b = ThemeData.estimateBrightnessForColor(c);
   return (b == Brightness.dark) ? Colors.white : Colors.black;
+}
+
+class RepReminderReport {
+  final bool ok;
+  final int remindersSent;
+  final int eligible;
+  final double delayDays;
+  final List<RepReminderEntry> reminders;
+
+  RepReminderReport({
+    required this.ok,
+    required this.remindersSent,
+    required this.eligible,
+    required this.delayDays,
+    required this.reminders,
+  });
+
+  factory RepReminderReport.fromJson(Map<String, dynamic> json) {
+    final rawList = json['reminders'];
+    final entries = <RepReminderEntry>[];
+    if (rawList is List) {
+      for (final item in rawList) {
+        if (item is Map) {
+          entries.add(RepReminderEntry.fromJson(item.cast<String, dynamic>()));
+        }
+      }
+    }
+    return RepReminderReport(
+      ok: json['ok'] == true,
+      remindersSent: (json['remindersSent'] is num) ? (json['remindersSent'] as num).toInt() : 0,
+      eligible: (json['eligible'] is num) ? (json['eligible'] as num).toInt() : 0,
+      delayDays: (json['delayDays'] is num) ? (json['delayDays'] as num).toDouble() : 0,
+      reminders: entries,
+    );
+  }
+}
+
+class RepReminderEntry {
+  final String ticket;
+  final String? repId;
+  final String repEmail;
+  final String lang;
+
+  RepReminderEntry({
+    required this.ticket,
+    required this.repId,
+    required this.repEmail,
+    required this.lang,
+  });
+
+  factory RepReminderEntry.fromJson(Map<String, dynamic> json) {
+    return RepReminderEntry(
+      ticket: json['ticket']?.toString() ?? '',
+      repId: json['repId']?.toString(),
+      repEmail: json['repEmail']?.toString() ?? '',
+      lang: json['lang']?.toString() ?? '',
+    );
+  }
 }
 
 // ===================================================================
