@@ -1133,93 +1133,159 @@ class _AdminPageState extends State<AdminPage> {
           : 'Noch kein Ergebnis – bitte Check starten.';
     }
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.health_and_safety_outlined),
-                const SizedBox(width: 8),
-                const Text(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double maxWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : MediaQuery.of(context).size.width;
+        final bool compact = maxWidth < 640;
+        final double horizontalPadding = compact ? 12 : 20;
+        final EdgeInsets cardPadding = EdgeInsets.symmetric(
+          horizontal: compact ? 16 : 20,
+          vertical: compact ? 16 : 24,
+        );
+
+        final refreshButton = IconButton(
+          tooltip: 'Neu laden',
+          onPressed: _systemHealthBusy ? null : () => _loadSystemHealth(force: true),
+          icon: const Icon(Icons.refresh),
+        );
+
+        Widget buildHeader() {
+          final title = Row(
+            children: const [
+              Icon(Icons.health_and_safety_outlined),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
                   'Systemstatus & Validierung',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
-                const Spacer(),
-                IconButton(
-                  tooltip: 'Neu laden',
-                  onPressed: _systemHealthBusy ? null : () => _loadSystemHealth(force: true),
-                  icon: const Icon(Icons.refresh),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            if (_systemHealthBusy) const LinearProgressIndicator(),
-            if (_systemHealthErr != null) ...[
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: cs.errorContainer,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  _systemHealthErr!,
-                  style: TextStyle(color: cs.onErrorContainer),
-                ),
               ),
             ],
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: summaryBg,
-                borderRadius: BorderRadius.circular(16),
+          );
+
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                title,
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: refreshButton,
+                ),
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(child: title),
+              const SizedBox(width: 12),
+              refreshButton,
+            ],
+          );
+        }
+
+        Widget buildChecks() {
+          if (checks.isEmpty) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: Text(
+                  status == null
+                      ? (_systemHealthBusy ? 'Prüfung läuft …' : 'Noch kein System-Check gestartet.')
+                      : 'Keine Check-Daten verfügbar.',
+                ),
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(summaryIcon, color: summaryFg),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(summaryText, style: TextStyle(color: summaryFg, fontWeight: FontWeight.w600)),
-                        if (tsLabel != null) ...[
-                          const SizedBox(height: 4),
-                          Text('Stand: $tsLabel', style: TextStyle(color: summaryFg.withOpacity(0.9))),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: checks.isEmpty
-                  ? Center(
-                      child: Text(
-                        status == null
-                            ? (_systemHealthBusy ? 'Prüfung läuft …' : 'Noch kein System-Check gestartet.')
-                            : 'Keine Check-Daten verfügbar.',
+            );
+          }
+
+          return ListView.separated(
+            padding: EdgeInsets.zero,
+            physics: const NeverScrollableScrollPhysics(),
+            shrinkWrap: true,
+            itemBuilder: (_, index) => _SystemHealthCheckCard(check: checks[index]),
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemCount: checks.length,
+          );
+        }
+
+        return Align(
+          alignment: Alignment.topCenter,
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+            padding: EdgeInsets.fromLTRB(horizontalPadding, 12, horizontalPadding, 28),
+            child: Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+              elevation: 1,
+              child: Padding(
+                padding: cardPadding,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    buildHeader(),
+                    const SizedBox(height: 8),
+                    if (_systemHealthBusy) const LinearProgressIndicator(),
+                    if (_systemHealthErr != null) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: cs.errorContainer,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          _systemHealthErr!,
+                          style: TextStyle(color: cs.onErrorContainer),
+                        ),
                       ),
-                    )
-                  : ListView.separated(
-                      padding: EdgeInsets.zero,
-                      itemBuilder: (_, index) => _SystemHealthCheckCard(check: checks[index]),
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      itemCount: checks.length,
+                    ],
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: summaryBg,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(summaryIcon, color: summaryFg),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  summaryText,
+                                  style: TextStyle(color: summaryFg, fontWeight: FontWeight.w600),
+                                ),
+                                if (tsLabel != null) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Stand: $tsLabel',
+                                    style: TextStyle(color: summaryFg.withOpacity(0.9)),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
+                    const SizedBox(height: 16),
+                    buildChecks(),
+                  ],
+                ),
+              ),
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
