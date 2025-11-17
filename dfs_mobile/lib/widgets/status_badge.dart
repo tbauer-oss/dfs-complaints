@@ -7,12 +7,8 @@ Color _statusColor(int s, {String? decision}) {
     case 1: return Colors.blue;            // submitted
     case 2: return Colors.yellow.shade700; // in progress
     case 3: return Colors.orange;          // inquiry
-    case 4:
-      if (decision == 'rejected') return Colors.red;
-      if (decision == 'accepted') return Colors.lightGreen;
-      return Colors.grey;
-    case 5: return Colors.amber;           // rework
-    case 6: return Colors.green;           // done
+    case 4: return Colors.amber;           // rework
+    case 5: return Colors.green;           // done
     default: return Colors.grey;
   }
 }
@@ -29,12 +25,8 @@ class StatusBadge extends StatelessWidget {
       case 1: return t.statusSubmitted;                 // gesendet
       case 2: return t.statusInProgress;                // in Bearbeitung
       case 3: return t.statusInquiryRequired;           // Rückfrage erforderlich
-      case 4:
-        if (decision == 'rejected') return t.statusRejected;   // abgelehnt
-        if (decision == 'accepted') return t.statusAccepted;   // angenommen
-        return t.statusDecision;                        // Entscheidung
-      case 5: return t.statusRework;                    // in Nacharbeit
-      case 6: return t.statusClosed;                    // abgeschlossen
+      case 4: return t.statusRework;                    // in Nacharbeit
+      case 5: return t.statusClosed;                    // abgeschlossen
       default: return t.statusUnknown;                  // unbekannt
     }
   }
