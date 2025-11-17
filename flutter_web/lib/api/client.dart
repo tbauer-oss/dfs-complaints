@@ -1009,6 +1009,21 @@ class ApiClient {
     return const <String, dynamic>{};
   }
 
+  Future<void> complaintContact({
+    required String ticket,
+    required String subject,
+    required String message,
+  }) async {
+    final r = await _post(
+      '/api/complaint/contact',
+      {'ticket': ticket, 'subject': subject, 'message': message},
+      auth: true,
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+  }
+
   Future<List<Map<String, dynamic>>> complaintListRaw() async {
     final r = await _get('/api/complaint/mine', auth: true);
     if (!_ok2xx(r.statusCode)) {
