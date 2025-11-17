@@ -275,6 +275,7 @@
   "password_mismatch": "Passwörter stimmen nicht überein.",
   "password_changed": "Passwort wurde geändert.",
   "password_not_match": "Passwörter stimmen nicht überein.",
+  "password_no_match": "Passwörter stimmen nicht überein.",
   "pwChanged": "Passwort geändert.",
   "savePassword": "Passwort speichern",
   "wrongPassword": "Falsches Passwort.",
