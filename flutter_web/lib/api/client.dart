@@ -1205,7 +1205,10 @@ class ApiClient {
       headers: _repHeaders(),
       body: jsonEncode({
         'new': newPw,
-        if (oldPw != null && oldPw.isNotEmpty) 'old': oldPw,
+        if (oldPw != null && oldPw.isNotEmpty) ...{
+          'old': oldPw,
+          'current_password': oldPw,
+        },
       }),
     );
 
