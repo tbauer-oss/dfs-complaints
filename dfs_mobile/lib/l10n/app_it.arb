@@ -194,6 +194,12 @@
   "allCompanies": "Tutte le aziende",
   "@allCompanies": { "description": "Opzione di filtro per mostrare tutte le aziende" },
   "yourCompany": "La vostra azienda",
+  "allDecisions": "Tutte le decisioni",
+  "@allDecisions": { "description": "Opzione di filtro per le decisioni" },
+  "allStatus": "Tutti gli stati",
+  "@allStatus": { "description": "Opzione di filtro per gli stati" },
+  "rep_filter_decision_label": "Filtrare decisione",
+  "rep_filter_status_label": "Filtrare stato",
 
   "logout": "Disconnetti",
   "loggedOut": "Disconnesso.",
