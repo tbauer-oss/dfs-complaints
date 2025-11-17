@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:country_flags/country_flags.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 
 import '../api/client.dart';
@@ -869,61 +870,62 @@ class _WorldMapWithPins extends StatelessWidget {
     final maxCount = pins.fold<int>(0, (value, pin) => math.max(value, pin.count));
     final baseColor = theme.colorScheme.primary;
     final accent = theme.colorScheme.secondary;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final height = constraints.maxHeight;
-        final radius = math.min(32.0, math.max(16.0, width * 0.04));
-        final borderColor = theme.colorScheme.onSurface.withOpacity(0.05);
-        return Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(radius),
-            gradient: LinearGradient(
-              colors: [
-                theme.colorScheme.surfaceVariant.withOpacity(0.75),
-                theme.colorScheme.surface.withOpacity(0.95),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            border: Border.all(color: borderColor, width: 1.2),
-            boxShadow: [
-              BoxShadow(
-                color: theme.colorScheme.shadow.withOpacity(0.08),
-                blurRadius: 32,
-                offset: const Offset(0, 18),
+    return AspectRatio(
+      aspectRatio: 2,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+          final height = constraints.maxHeight;
+          final radius = math.min(32.0, math.max(16.0, width * 0.04));
+          final borderColor = theme.colorScheme.onSurface.withOpacity(0.05);
+          return Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(radius),
+              gradient: LinearGradient(
+                colors: [
+                  theme.colorScheme.surfaceVariant.withOpacity(0.75),
+                  theme.colorScheme.surface.withOpacity(0.95),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(radius),
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: CustomPaint(
-                    painter: _WorldMapPainter(
-                      backgroundStart: theme.colorScheme.surface,
-                      backgroundEnd: theme.colorScheme.surfaceVariant.withOpacity(0.85),
-                      landColor: theme.colorScheme.onSurface.withOpacity(0.9),
-                      outlineColor: theme.colorScheme.surfaceTint.withOpacity(0.4),
-                      shadowColor: Colors.black.withOpacity(0.25),
+              border: Border.all(color: borderColor, width: 1.2),
+              boxShadow: [
+                BoxShadow(
+                  color: theme.colorScheme.shadow.withOpacity(0.08),
+                  blurRadius: 32,
+                  offset: const Offset(0, 18),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(radius),
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: const BoxDecoration(color: Colors.white),
+                      child: SvgPicture.asset(
+                        'assets/world_map_silhouette.svg',
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
-                ),
-                for (final pin in pins)
-                  _MapPin(
-                    pin: pin,
-                    maxCount: maxCount,
-                    width: width,
-                    height: height,
-                    baseColor: baseColor,
-                    accent: accent,
-                  ),
-              ],
+                  for (final pin in pins)
+                    _MapPin(
+                      pin: pin,
+                      maxCount: maxCount,
+                      width: width,
+                      height: height,
+                      baseColor: baseColor,
+                      accent: accent,
+                    ),
+                ],
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }
@@ -1016,61 +1018,6 @@ class _MapPin extends StatelessWidget {
   }
 }
 
-class _WorldMapPainter extends CustomPainter {
-  final Color backgroundStart;
-  final Color backgroundEnd;
-  final Color landColor;
-  final Color outlineColor;
-  final Color shadowColor;
-  const _WorldMapPainter({
-    required this.backgroundStart,
-    required this.backgroundEnd,
-    required this.landColor,
-    required this.outlineColor,
-    required this.shadowColor,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-    final backgroundPaint = Paint()
-      ..shader = LinearGradient(
-        colors: [backgroundStart, backgroundEnd],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ).createShader(rect);
-    canvas.drawRect(rect, backgroundPaint);
-
-    final landPaint = Paint()
-      ..color = landColor
-      ..style = PaintingStyle.fill;
-    final strokePaint = Paint()
-      ..color = outlineColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = size.shortestSide * 0.0025;
-
-    for (final polygon in _kWorldMapPolygons) {
-      if (polygon.length < 3) continue;
-      final scaled = polygon
-          .map((point) => Offset(point.dx * size.width, point.dy * size.height))
-          .toList();
-      final path = Path()..addPolygon(scaled, true);
-      canvas.drawShadow(path, shadowColor, 18, false);
-      canvas.drawPath(path, landPaint);
-      canvas.drawPath(path, strokePaint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _WorldMapPainter oldDelegate) {
-    return oldDelegate.backgroundStart != backgroundStart ||
-        oldDelegate.backgroundEnd != backgroundEnd ||
-        oldDelegate.landColor != landColor ||
-        oldDelegate.outlineColor != outlineColor ||
-        oldDelegate.shadowColor != shadowColor;
-  }
-}
-
 class _CountryPinData {
   final String code;
   final String label;
@@ -1084,330 +1031,6 @@ class _CountryPinData {
   });
 }
 
-final List<List<Offset>> _kWorldMapPolygons = _buildWorldMapPolygons();
-
-List<List<Offset>> _buildWorldMapPolygons() {
-  return _kRawWorldMapPolygons
-      .map((ring) => ring
-          .map((point) => Offset(
-                _normalizeLongitude(point[0]),
-                _normalizeLatitude(point[1]),
-              ))
-          .toList())
-      .toList();
-}
-
-double _normalizeLongitude(double lon) => (lon + 180.0) / 360.0;
-
-double _normalizeLatitude(double lat) => (90.0 - lat) / 180.0;
-
-const List<List<List<double>>> _kRawWorldMapPolygons = [
-  [
-    [-168, 72],
-    [-160, 70],
-    [-150, 69],
-    [-140, 69],
-    [-130, 68],
-    [-125, 65],
-    [-122, 60],
-    [-126, 56],
-    [-132, 52],
-    [-136, 48],
-    [-134, 44],
-    [-130, 40],
-    [-125, 36],
-    [-120, 34],
-    [-116, 32],
-    [-112, 30],
-    [-108, 28],
-    [-104, 26],
-    [-100, 24],
-    [-96, 23],
-    [-92, 22],
-    [-88, 21],
-    [-84, 22],
-    [-80, 25],
-    [-78, 28],
-    [-76, 32],
-    [-74, 36],
-    [-72, 40],
-    [-70, 44],
-    [-68, 48],
-    [-66, 52],
-    [-68, 56],
-    [-72, 59],
-    [-78, 62],
-    [-84, 64],
-    [-90, 66],
-    [-100, 68],
-    [-110, 70],
-    [-120, 71],
-    [-130, 72],
-    [-140, 73],
-    [-150, 74],
-    [-160, 74],
-  ],
-  [
-    [-54, 82],
-    [-48, 81],
-    [-42, 78],
-    [-38, 74],
-    [-40, 70],
-    [-46, 68],
-    [-52, 69],
-    [-58, 72],
-    [-60, 78],
-    [-58, 81],
-  ],
-  [
-    [-81, 12],
-    [-78, 8],
-    [-75, 4],
-    [-73, 0],
-    [-72, -4],
-    [-70, -10],
-    [-68, -16],
-    [-66, -22],
-    [-64, -28],
-    [-62, -34],
-    [-60, -40],
-    [-58, -46],
-    [-56, -52],
-    [-52, -55],
-    [-48, -54],
-    [-46, -48],
-    [-44, -42],
-    [-44, -36],
-    [-46, -28],
-    [-48, -20],
-    [-52, -12],
-    [-56, -4],
-    [-60, 2],
-    [-66, 6],
-    [-72, 10],
-    [-78, 12],
-  ],
-  [
-    [-17, 37],
-    [-8, 34],
-    [-2, 30],
-    [4, 26],
-    [10, 20],
-    [16, 14],
-    [20, 10],
-    [26, 6],
-    [32, 2],
-    [36, -4],
-    [40, -10],
-    [44, -16],
-    [46, -22],
-    [48, -28],
-    [46, -34],
-    [42, -38],
-    [38, -42],
-    [34, -46],
-    [28, -50],
-    [22, -44],
-    [18, -36],
-    [14, -28],
-    [10, -18],
-    [6, -8],
-    [2, 2],
-    [-2, 12],
-    [-6, 22],
-    [-10, 30],
-    [-15, 34],
-  ],
-  [
-    [-25, 72],
-    [-10, 70],
-    [0, 68],
-    [10, 66],
-    [20, 65],
-    [30, 64],
-    [40, 62],
-    [50, 60],
-    [60, 58],
-    [70, 57],
-    [80, 56],
-    [90, 55],
-    [100, 55],
-    [110, 56],
-    [120, 58],
-    [130, 60],
-    [140, 62],
-    [150, 62],
-    [160, 60],
-    [170, 58],
-    [178, 54],
-    [178, 48],
-    [170, 46],
-    [160, 44],
-    [150, 42],
-    [140, 40],
-    [130, 38],
-    [120, 36],
-    [110, 34],
-    [100, 32],
-    [92, 28],
-    [86, 24],
-    [80, 20],
-    [74, 18],
-    [68, 16],
-    [62, 15],
-    [56, 14],
-    [50, 14],
-    [44, 14],
-    [38, 15],
-    [32, 18],
-    [28, 20],
-    [24, 24],
-    [20, 28],
-    [16, 32],
-    [12, 36],
-    [8, 40],
-    [4, 44],
-    [0, 48],
-    [-4, 52],
-    [-10, 56],
-    [-16, 60],
-    [-22, 64],
-  ],
-  [
-    [42, 12],
-    [46, 18],
-    [50, 22],
-    [56, 24],
-    [62, 26],
-    [68, 28],
-    [72, 30],
-    [78, 32],
-    [84, 34],
-    [90, 36],
-    [96, 38],
-    [100, 42],
-    [104, 46],
-    [110, 50],
-    [118, 52],
-    [126, 54],
-    [134, 56],
-    [140, 58],
-    [146, 60],
-    [152, 62],
-    [158, 64],
-    [164, 64],
-    [170, 62],
-    [168, 58],
-    [162, 54],
-    [156, 50],
-    [150, 46],
-    [144, 42],
-    [138, 38],
-    [132, 34],
-    [126, 30],
-    [120, 26],
-    [114, 24],
-    [108, 22],
-    [102, 20],
-    [96, 18],
-    [90, 16],
-    [84, 14],
-    [78, 12],
-    [72, 10],
-    [66, 8],
-    [60, 8],
-    [54, 10],
-    [48, 12],
-  ],
-  [
-    [110, -10],
-    [114, -16],
-    [120, -20],
-    [128, -24],
-    [134, -28],
-    [140, -32],
-    [148, -34],
-    [152, -30],
-    [154, -24],
-    [154, -18],
-    [150, -12],
-    [146, -10],
-    [140, -8],
-    [134, -8],
-    [128, -10],
-    [122, -12],
-    [116, -12],
-    [112, -10],
-  ],
-  [
-    [46, -12],
-    [50, -16],
-    [54, -20],
-    [58, -24],
-    [60, -28],
-    [58, -32],
-    [54, -36],
-    [50, -32],
-    [48, -28],
-    [46, -22],
-  ],
-  [
-    [138, 46],
-    [142, 44],
-    [146, 40],
-    [146, 36],
-    [142, 34],
-    [136, 36],
-    [134, 40],
-    [136, 44],
-  ],
-  [
-    [94, 6],
-    [100, 4],
-    [108, 2],
-    [116, 0],
-    [122, -2],
-    [128, -2],
-    [134, 0],
-    [132, 4],
-    [126, 6],
-    [118, 6],
-    [110, 6],
-    [102, 6],
-  ],
-  [
-    [118, 18],
-    [122, 16],
-    [124, 12],
-    [122, 8],
-    [118, 8],
-    [116, 12],
-  ],
-  [
-    [165, -36],
-    [170, -38],
-    [175, -40],
-    [178, -44],
-    [174, -46],
-    [168, -44],
-    [164, -40],
-  ],
-  [
-    [-180, -70],
-    [-150, -72],
-    [-120, -74],
-    [-90, -76],
-    [-60, -78],
-    [-30, -80],
-    [0, -82],
-    [30, -80],
-    [60, -78],
-    [90, -76],
-    [120, -74],
-    [150, -72],
-    [180, -70],
-  ],
-];
 
 class _RepSection extends StatelessWidget {
   final List<_RepBucket> reps;
