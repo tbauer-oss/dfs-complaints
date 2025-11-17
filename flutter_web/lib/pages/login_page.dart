@@ -255,45 +255,48 @@ class _RepLoginPageState extends State<RepLoginPage> {
                               onPressed: canLogin ? _login : null,
                             ),
                             const SizedBox(height: 12),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(.3),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: Theme.of(context).colorScheme.outlineVariant.withOpacity(.6),
-                                ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(Icons.lock_reset, color: Theme.of(context).colorScheme.primary),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          t.forgot_password_button,
-                                          style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                                        ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Text(
+                                  t.forgot_password_button,
+                                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                        color: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.color
+                                            ?.withOpacity(.9),
                                       ),
-                                    ],
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  t.forgot_password_instructions,
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.color
+                                            ?.withOpacity(.8),
+                                      ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 6),
+                                TextButton(
+                                  onPressed: _busy
+                                      ? null
+                                      : () => Navigator.of(context).push(
+                                            MaterialPageRoute(builder: (_) => ResetPasswordPage(api: widget.api)),
+                                          ),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor:
+                                        Theme.of(context).colorScheme.primary.withOpacity(_busy ? .4 : .9),
+                                    textStyle: Theme.of(context).textTheme.bodyMedium,
                                   ),
-                                  const SizedBox(height: 6),
-                                  Text(t.forgot_password_instructions),
-                                  const SizedBox(height: 8),
-                                  TextButton.icon(
-                                    onPressed: _busy
-                                        ? null
-                                        : () => Navigator.of(context).push(
-                                              MaterialPageRoute(builder: (_) => ResetPasswordPage(api: widget.api)),
-                                            ),
-                                    icon: const Icon(Icons.mail_outline),
-                                    label: Text(t.reset_password_request_action),
-                                  ),
-                                ],
-                              ),
+                                  child: Text(t.reset_password_request_action),
+                                ),
+                              ],
                             ),
                             const SizedBox(height: 8),
                             TextButton.icon(
