@@ -9,12 +9,15 @@ import {
   methodNotAllowed,
 } from '../_lib/http.js';
 import { redis } from '../_lib/redis.js';
+import { verifyTransport } from '../_lib/mail.js';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 const hasRedisUrl = !!process.env.UPSTASH_REDIS_REST_URL;
 const hasRedisToken = !!process.env.UPSTASH_REDIS_REST_TOKEN;
 const MAIL_REQUIRED = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'];
 const MAIL_OPTIONAL = ['SMTP_PORT', 'SMTP_FROM', 'MAIL_FROM', 'MAIL_REPLY_TO', 'MAIL_QM'];
+const JWT_SECRET = process.env.JWT_SECRET?.trim();
+const GATE_JWT_TTL = process.env.GATE_JWT_TTL?.trim();
 
 function isAdmin(req) {
   const hdr = req.headers?.['x-admin-secret'];
@@ -145,7 +148,69 @@ function checkApiBase(req) {
   }
 }
 
-function checkMailConfig() {
+function checkAdminSecret(req) {
+  const label = 'Admin-Secret';
+  const providedHeader = typeof req.headers?.['x-admin-secret'] === 'string';
+
+  if (!ADMIN_SECRET) {
+    return {
+      ok: false,
+      label,
+      message: 'ADMIN_SECRET fehlt',
+      details: 'Bitte eine geheime Zeichenkette setzen, um den Admin-Endpunkt zu schützen.',
+      meta: { headerReceived: providedHeader },
+      order: 0,
+    };
+  }
+
+  return {
+    ok: true,
+    label,
+    message: 'ADMIN_SECRET gesetzt',
+    details: providedHeader
+      ? 'Anfrage enthielt den Admin-Header.'
+      : 'Kein X-Admin-Secret-Header vorhanden.',
+    meta: { headerReceived: providedHeader },
+    order: 0,
+  };
+}
+
+function checkGateJwtConfig() {
+  const label = 'Gate / JWT';
+  if (!JWT_SECRET) {
+    return {
+      ok: false,
+      label,
+      message: 'JWT_SECRET fehlt',
+      details: 'Gate-Tokens können ohne Signatur-Secret nicht ausgestellt werden.',
+      meta: { hasSecret: false, ttl: GATE_JWT_TTL || null },
+      order: 4,
+    };
+  }
+
+  const ttlNumber = GATE_JWT_TTL ? Number(GATE_JWT_TTL) : null;
+  if (GATE_JWT_TTL && (!Number.isFinite(ttlNumber) || ttlNumber <= 0)) {
+    return {
+      ok: false,
+      label,
+      message: 'Ungültiger Wert in GATE_JWT_TTL',
+      details: 'Bitte eine positive Zahl in Sekunden konfigurieren.',
+      meta: { hasSecret: true, ttl: GATE_JWT_TTL },
+      order: 4,
+    };
+  }
+
+  return {
+    ok: true,
+    label,
+    message: 'JWT_SECRET gültig',
+    details: ttlNumber ? `Token-Lebensdauer: ${ttlNumber} Sekunden.` : 'Standard-TTL (15 Minuten) wird genutzt.',
+    meta: { hasSecret: true, ttl: ttlNumber || 900 },
+    order: 4,
+  };
+}
+
+async function checkMailConfig() {
   const label = 'Mail-Konfiguration';
   const missingRequired = MAIL_REQUIRED.filter((key) => {
     const raw = process.env[key];
@@ -181,16 +246,48 @@ function checkMailConfig() {
     notes.push('SMTP_PORT nicht gesetzt – Standard 587 wird genutzt.');
   }
 
+  let transportVerified = null;
+  let transportDurationMs = null;
+  let transportError = null;
+
+  if (okResult) {
+    const started = Date.now();
+    try {
+      await verifyTransport();
+      transportVerified = true;
+      transportDurationMs = Date.now() - started;
+      notes.push('SMTP-Transport erfolgreich via verifyTransport() geprüft.');
+    } catch (err) {
+      transportVerified = false;
+      transportDurationMs = Date.now() - started;
+      transportError = err?.message || String(err);
+      notes.push(`SMTP-Transport konnte nicht aufgebaut werden: ${transportError}`);
+    }
+  }
+
+  const okFinal = okResult && transportVerified !== false;
+
   return {
-    ok: okResult,
+    ok: okFinal,
     label,
-    message: okResult
-      ? 'SMTP-Einstellungen vollständig'
-      : `Fehlende Pflicht-Variablen: ${missingRequired.join(', ')}`,
-    details: missingOptional.length
-      ? `Optionale Variablen fehlen: ${missingOptional.join(', ')}`
-      : undefined,
-    meta: { missingRequired, missingOptional, notes },
+    message: okFinal
+      ? 'SMTP-Einstellungen vollständig (Verbindung getestet)'
+      : okResult
+        ? 'SMTP-Server nicht erreichbar'
+        : `Fehlende Pflicht-Variablen: ${missingRequired.join(', ')}`,
+    details: transportError
+      ? transportError
+      : missingOptional.length
+        ? `Optionale Variablen fehlen: ${missingOptional.join(', ')}`
+        : undefined,
+    meta: {
+      missingRequired,
+      missingOptional,
+      notes,
+      transportVerified,
+      transportDurationMs,
+      transportError,
+    },
     order: 3,
   };
 }
@@ -199,14 +296,22 @@ export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
 
-  if (!isAdmin(req)) return bad(res, 'admin unauthorized', 401);
+  const adminSecretCheck = checkAdminSecret(req);
+  if (ADMIN_SECRET && !isAdmin(req)) return bad(res, 'admin unauthorized', 401);
   if (req.method !== 'GET') return methodNotAllowed(res);
 
   try {
     const redisCheck = await checkRedis();
     const apiCheck = checkApiBase(req);
-    const mailCheck = checkMailConfig();
-    const checks = { redis: redisCheck, apiBase: apiCheck, mail: mailCheck };
+    const mailCheck = await checkMailConfig();
+    const gateJwtCheck = checkGateJwtConfig();
+    const checks = {
+      adminSecret: adminSecretCheck,
+      redis: redisCheck,
+      apiBase: apiCheck,
+      mail: mailCheck,
+      gateJwt: gateJwtCheck,
+    };
     const okOverall = Object.values(checks).every((entry) => entry.ok);
     return ok(res, {
       ok: okOverall,
