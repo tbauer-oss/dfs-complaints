@@ -84,27 +84,79 @@ function iterateMonths(range) {
 const norm = (v) => (v ?? '').toString().trim();
 const normLower = (v) => norm(v).toLowerCase();
 
+const COUNTRY_VALUE_KEYS = [
+  'countryCode',
+  'country',
+  'countryName',
+  'country_name',
+  'customerCountry',
+  'name',
+  'label',
+  'value',
+  'title',
+  'text',
+  'land',
+];
+
+function collectCountryCandidates(value) {
+  if (value === null || value === undefined) return [];
+  if (typeof value === 'string' || typeof value === 'number') {
+    const v = norm(value);
+    return v ? [v] : [];
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => collectCountryCandidates(entry));
+  }
+  if (typeof value === 'object') {
+    return COUNTRY_VALUE_KEYS.flatMap((key) => collectCountryCandidates(value[key]));
+  }
+  return [];
+}
+
+function detectIsoCode(candidate) {
+  if (!candidate || typeof candidate !== 'string') return null;
+  const tokens = candidate.split(/[^A-Za-z]/).filter(Boolean);
+  for (const token of tokens) {
+    if (token.length === 2) {
+      return token.toUpperCase();
+    }
+  }
+  return null;
+}
+
 function pickCountry(complaint) {
   const payload = complaint?.payload || {};
   const sources = [
     complaint?.countryCode,
     complaint?.country,
+    complaint?.land,
+    complaint?.customer,
     payload.countryCode,
     payload.country,
     payload.customerCountry,
     payload.countryName,
+    payload.land,
+    payload?.customer,
     payload?.customer?.countryCode,
     payload?.customer?.country,
+    payload?.customer?.land,
+    complaint?.account,
     complaint?.account?.countryCode,
     complaint?.account?.country,
+    complaint?.account?.land,
+    complaint?.user,
     complaint?.user?.countryCode,
     complaint?.user?.country,
+    complaint?.user?.land,
   ];
   for (const raw of sources) {
-    const value = norm(raw);
-    if (!value) continue;
-    if (value.length === 2) return value.toUpperCase();
-    return value;
+    const candidates = collectCountryCandidates(raw);
+    for (const candidate of candidates) {
+      if (candidate.length === 2) return candidate.toUpperCase();
+      const detected = detectIsoCode(candidate);
+      if (detected) return detected;
+      return candidate;
+    }
   }
   return 'Unbekannt';
 }
