@@ -20,6 +20,8 @@ class AdminPage extends StatefulWidget {
 
 enum _AdminView { menu, pending, users, open, reps, catalogs, systemHealth, createCustomer }
 
+enum _CustPasswordMode { adminSecret, generated }
+
 class _AdminPageState extends State<AdminPage> {
   late final AdminApi _api;
 
@@ -55,11 +57,11 @@ class _AdminPageState extends State<AdminPage> {
   final _custZipCtrl       = TextEditingController();
   final _custCityCtrl      = TextEditingController();
   final _custPhoneCtrl     = TextEditingController();
-  final _custPasswordCtrl  = TextEditingController(); // optional
   String _custLang        = 'de';
   late Country _custCountry;
   bool _custBusy          = false;
   String? _custErr;
+  _CustPasswordMode _custPasswordMode = _CustPasswordMode.adminSecret;
   final _createCustomerFormKey = GlobalKey<FormState>();
 
   // Daten
@@ -119,13 +121,13 @@ class _AdminPageState extends State<AdminPage> {
     _custZipCtrl.clear();
     _custCityCtrl.clear();
     _custPhoneCtrl.clear();
-    _custPasswordCtrl.clear();
     _createCustomerFormKey.currentState?.reset();
 
     if (!mounted) {
       _custLang = 'de';
       _custCountry = _defaultCountry;
       _custErr = null;
+      _custPasswordMode = _CustPasswordMode.adminSecret;
       return;
     }
 
@@ -133,6 +135,7 @@ class _AdminPageState extends State<AdminPage> {
       _custLang = 'de';
       _custCountry = _defaultCountry;
       _custErr = null;
+      _custPasswordMode = _CustPasswordMode.adminSecret;
     });
   }
 
@@ -1218,20 +1221,67 @@ class _AdminPageState extends State<AdminPage> {
 
                             _AdminFormSection(
                               icon: Icons.lock_outline,
-                              title: 'Zugangsdaten',
-                              description: 'Optionales Startpasswort für den Login.',
+                              title: 'Startpasswort',
+                              description: 'Steuert, ob das Admin-Passwort genutzt oder ein Systempasswort generiert wird.',
                               fields: [
                                 _FieldConfig(
-                                  preferredWidth: 320,
-                                  child: TextFormField(
-                                    controller: _custPasswordCtrl,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Startpasswort (optional)',
-                                      helperText: 'Leer lassen = Admin-Passwort wird verwendet',
-                                      border: OutlineInputBorder(),
-                                      isDense: true,
-                                    ),
-                                    obscureText: true,
+                                  preferredWidth: 420,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .outline
+                                                .withOpacity(0.5),
+                                          ),
+                                        ),
+                                        child: Column(
+                                          children: [
+                                            RadioListTile<_CustPasswordMode>(
+                                              value: _CustPasswordMode.adminSecret,
+                                              groupValue: _custPasswordMode,
+                                              dense: true,
+                                              title: const Text('Admin-Passwort verwenden'),
+                                              subtitle: const Text(
+                                                  'Keine Begrüßungsnachricht – Zugang nutzt das Admin-Passwort.'),
+                                              onChanged: _custBusy
+                                                  ? null
+                                                  : (mode) {
+                                                      if (mode == null) return;
+                                                      setState(() => _custPasswordMode = mode);
+                                                    },
+                                            ),
+                                            const Divider(height: 0),
+                                            RadioListTile<_CustPasswordMode>(
+                                              value: _CustPasswordMode.generated,
+                                              groupValue: _custPasswordMode,
+                                              dense: true,
+                                              title: const Text('Passwort generieren'),
+                                              subtitle: const Text(
+                                                  'System erstellt ein 8-stelliges Passwort und verschickt es per E-Mail.'),
+                                              onChanged: _custBusy
+                                                  ? null
+                                                  : (mode) {
+                                                      if (mode == null) return;
+                                                      setState(() => _custPasswordMode = mode);
+                                                    },
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      if (_custPasswordMode == _CustPasswordMode.generated) ...[
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Hinweis: Das Passwort wird automatisch generiert und dem Kunden als systemgeneriertes Passwort in einer '
+                                          'Begrüßungsnachricht mitgeteilt. Es muss nach dem ersten Login im Kundenportal geändert werden.',
+                                          style: Theme.of(context).textTheme.bodySmall,
+                                        ),
+                                      ],
+                                    ],
                                   ),
                                 ),
                               ],
@@ -1285,9 +1335,10 @@ class _AdminPageState extends State<AdminPage> {
                                               lastName: last,
                                               phone: _custPhoneCtrl.text.trim(),
                                               lang: _custLang,
-                                              password: _custPasswordCtrl.text.trim().isEmpty
-                                                  ? null
-                                                  : _custPasswordCtrl.text.trim(),
+                                              passwordMode:
+                                                  _custPasswordMode == _CustPasswordMode.generated
+                                                      ? 'generated'
+                                                      : 'admin',
                                             );
 
                                             _resetCustomerForm();
@@ -5372,6 +5423,7 @@ class AdminApi {
     String? lastName,
     String? phone,
     String? password,
+    String? passwordMode,
   }) async {
     final body = <String, dynamic>{
       'company': company,
@@ -5389,6 +5441,9 @@ class AdminApi {
     };
     if (password != null && password.isNotEmpty) {
       body['password'] = password;
+    }
+    if (passwordMode != null && passwordMode.isNotEmpty) {
+      body['passwordMode'] = passwordMode;
     }
 
     final res = await _request('POST', '/api/admin/customers', body: body);
