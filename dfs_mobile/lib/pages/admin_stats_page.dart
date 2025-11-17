@@ -847,9 +847,11 @@ class _CountryAvatar extends StatelessWidget {
     }
     return CountryFlag.fromCountryCode(
       code!.toLowerCase(),
-      height: 28,
-      width: 38,
-      borderRadius: 6,
+      theme: const ImageTheme(
+        height: 28,
+        width: 38,
+        shape: RoundedRectangle(6),
+      ),
     );
   }
 }
