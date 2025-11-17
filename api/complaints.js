@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken';
 import {
   handlePreflight, ok, bad, methodNotAllowed, readJson
 } from './_lib/http.js';
-import { complaintsAll, complaintSave, nextTicket } from './_lib/store.js';
+import { complaintsAll, complaintSave, nextTicket, Status } from './_lib/store.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || process.env.JWT || '';
 
@@ -128,7 +128,7 @@ export default async function handler(req, res) {
           applied, injury, injuryDesc, returned, handling
         },
         uploads,
-        status: 1,
+        status: Status.RECEIVED,
         decision: null,
         reportLink: null,
         createdAt: now,

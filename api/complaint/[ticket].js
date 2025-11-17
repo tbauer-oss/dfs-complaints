@@ -179,7 +179,7 @@ export default async function handler(req, res) {
     const patch = {};
     if (body.status != null) {
       const s = Number(body.status);
-      if (![1, 2, 3, 4, 5, 6].includes(s))
+      if (![1, 2, 3, 4, 5].includes(s))
         return bad(res, "invalid status", 400);
       patch.status = s;
     }

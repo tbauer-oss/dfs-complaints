@@ -168,35 +168,40 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     );
   }
 
-  // Lokalisierte Status-Texte
-  String _statusTextLocalized(AppLocalizations t, int s, String? decision) {
+  String _statusTextLocalized(AppLocalizations t, int s) {
     switch (s) {
       case 1: return t.status_sent;
       case 2: return t.status_in_progress;
-      case 3: return t.status_question;        // deine Keys
-      case 4:
-        if (decision == 'rejected') return t.status_rejected;
-        if (decision == 'accepted') return t.status_accepted;
-        return t.status_decision;
-      case 5: return t.status_rework;
-      case 6: return t.status_closed;
+      case 3: return t.status_question;
+      case 4: return t.status_rework;
+      case 5: return t.status_closed;
       default: return t.status_unknown;
     }
   }
 
-  Color _statusColor(int s, String? decision) {
+  Color _statusColor(int s) {
     switch (s) {
       case 1: return Colors.blue;
       case 2: return Colors.amber.shade800;
       case 3: return Colors.orange;
-      case 4:
-        return decision == 'rejected'
-            ? Colors.red
-            : (decision == 'accepted' ? Colors.lightGreen : Colors.grey);
-      case 5: return Colors.amber;
-      case 6: return Colors.green;
+      case 4: return Colors.amber.shade600;
+      case 5: return Colors.green;
       default: return Colors.grey;
     }
+  }
+
+  String _decisionText(AppLocalizations t, String? decision) {
+    final normalized = (decision ?? '').trim();
+    if (normalized == 'accepted') return t.decision_accepted;
+    if (normalized == 'rejected') return t.decision_rejected;
+    return t.decision_pending ?? 'Entscheidung offen';
+  }
+
+  Color _decisionColor(String? decision) {
+    final normalized = (decision ?? '').trim();
+    if (normalized == 'accepted') return Colors.green.shade600;
+    if (normalized == 'rejected') return Colors.red.shade600;
+    return Colors.grey.shade600;
   }
 
   bool _canOpenReportLink(Complaint c) {
@@ -454,8 +459,10 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                               itemBuilder: (_, i) {
                                 final c = _items[i];
                                 final ticket = (c.ticket).toString();
-                                final statusText = _statusTextLocalized(t, c.status, c.decision);
-                                final statusColor = _statusColor(c.status, c.decision);
+                                final statusText = _statusTextLocalized(t, c.status);
+                                final statusColor = _statusColor(c.status);
+                                final decisionText = _decisionText(t, c.decision);
+                                final decisionColor = _decisionColor(c.decision);
                                 final reportLink = (c.reportLink ?? '').trim();
                                 final canOpenReport = _canOpenReportLink(c);
 
@@ -497,6 +504,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                   runSpacing: 8,
                                   crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
+                                    _StatusPill(text: decisionText, color: decisionColor),
                                     _StatusPill(text: statusText, color: statusColor),
                                     if (articleNo.isNotEmpty)
                                       _KeyValuePill(
@@ -508,13 +516,6 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                           icon: Icons.category_outlined,
                                           label: t.product_type ?? 'Produkttyp',
                                           value: productType),
-                                    if ((c.decision ?? '').isNotEmpty)
-                                      _StatusPill(
-                                        text: (c.decision == 'accepted')
-                                            ? t.decision_accepted
-                                            : t.decision_rejected,
-                                        color: (c.decision == 'accepted') ? Colors.green : Colors.red,
-                                      ),
                                   ],
                                 );
 

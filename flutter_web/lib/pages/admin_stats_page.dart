@@ -144,8 +144,8 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
   Widget _buildContent(ThemeData theme, double maxWidth) {
     final total = (_stats?['total'] as num?)?.toInt() ?? 0;
     final open = (_stats?['open'] as num?)?.toInt();
-    final statuses = _parseStatusBuckets();
-    final resolvedOpen = open ?? _calcOpenFallback(statuses, total);
+    final decisions = _parseDecisionBuckets();
+    final resolvedOpen = open ?? _calcOpenFallback(decisions, total);
     final months = _parseMonthBuckets();
     final countries = _parseCountryBuckets();
     final reps = _parseRepBuckets();
@@ -193,13 +193,13 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
             children: [
               Expanded(child: _MonthlyChart(data: months)),
               const SizedBox(width: 24),
-              Expanded(child: _StatusSection(statuses: statuses, total: total)),
+              Expanded(child: _DecisionSection(decisions: decisions, total: total)),
             ],
           ),
         ] else ...[
           _MonthlyChart(data: months),
           const SizedBox(height: 24),
-          _StatusSection(statuses: statuses, total: total),
+          _DecisionSection(decisions: decisions, total: total),
         ],
         const SizedBox(height: 24),
         if (isWide) ...[
@@ -250,19 +250,34 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
     );
   }
 
-  List<_StatusBucket> _parseStatusBuckets() {
-    final raw = (_stats?['byStatus'] as List?) ?? const [];
-    final out = <_StatusBucket>[];
+  List<_DecisionBucket> _parseDecisionBuckets() {
+    final raw = (_stats?['byDecision'] as List?) ?? const [];
+    final out = <_DecisionBucket>[];
     for (final entry in raw) {
       if (entry is Map) {
-        final status = (entry['status'] as num?)?.toInt();
+        final decision = (entry['decision'] ?? '').toString();
         final count = (entry['count'] as num?)?.toInt() ?? 0;
-        if (status != null) {
-          out.add(_StatusBucket(status: status, count: count));
-        }
+        out.add(_DecisionBucket(decision: decision, count: count));
       }
     }
-    out.sort((a, b) => a.status.compareTo(b.status));
+    int rank(String decision) {
+      switch (decision) {
+        case 'pending':
+        case '':
+          return 0;
+        case 'accepted':
+          return 1;
+        case 'rejected':
+          return 2;
+        default:
+          return 3;
+      }
+    }
+    out.sort((a, b) {
+      final r = rank(a.decision) - rank(b.decision);
+      if (r != 0) return r;
+      return a.decision.compareTo(b.decision);
+    });
     return out;
   }
 
@@ -316,11 +331,16 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
     return out;
   }
 
-  int _calcOpenFallback(List<_StatusBucket> statuses, int total) {
-    final closed = statuses
-        .firstWhere((s) => s.status == 6, orElse: () => const _StatusBucket(status: 6, count: 0))
+  int _calcOpenFallback(List<_DecisionBucket> decisions, int total) {
+    final pending = decisions
+        .firstWhere((d) => d.decision == 'pending', orElse: () => const _DecisionBucket(decision: 'pending', count: 0))
         .count;
-    return math.max(total - closed, 0);
+    if (pending > 0) return pending;
+    final decided = decisions.fold<int>(0, (sum, bucket) {
+      if (bucket.decision == 'pending') return sum;
+      return sum + bucket.count;
+    });
+    return math.max(total - decided, 0);
   }
 
   String _formatNumber(int value) {
@@ -435,59 +455,63 @@ class _MonthlyChart extends StatelessWidget {
   }
 }
 
-class _StatusSection extends StatelessWidget {
-  final List<_StatusBucket> statuses;
+class _DecisionSection extends StatelessWidget {
+  final List<_DecisionBucket> decisions;
   final int total;
-  const _StatusSection({required this.statuses, required this.total});
+  const _DecisionSection({required this.decisions, required this.total});
 
-  Color _colorForStatus(ThemeData theme, int index) {
-    final palette = [
-      theme.colorScheme.primary,
-      theme.colorScheme.secondary,
-      Colors.orange,
-      Colors.teal,
-      Colors.indigo,
-      Colors.pink,
-    ];
-    return palette[index % palette.length];
+  String _label(String decision) {
+    switch (decision) {
+      case 'accepted':
+        return 'Angenommen';
+      case 'rejected':
+        return 'Abgelehnt';
+      case 'pending':
+      case '':
+        return 'Entscheidung offen';
+      default:
+        return decision;
+    }
   }
 
-  String _label(int status) {
-    const labels = {
-      1: 'Eingegangen',
-      2: 'In Bearbeitung',
-      3: 'Rückfrage',
-      4: 'Entscheidung',
-      5: 'In Nacharbeit',
-      6: 'Abgeschlossen',
-    };
-    return labels[status] ?? 'Status $status';
+  Color _color(ThemeData theme, String decision) {
+    switch (decision) {
+      case 'accepted':
+        return Colors.green.shade700;
+      case 'rejected':
+        return Colors.red.shade700;
+      case 'pending':
+      case '':
+        return theme.colorScheme.primary;
+      default:
+        return theme.colorScheme.secondary;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (statuses.isEmpty) {
+    if (decisions.isEmpty) {
       return const _SectionCard(
-        title: 'Statusverteilung',
-        icon: Icons.donut_large_outlined,
-        child: _EmptyPlaceholder(message: 'Keine Statusdaten vorhanden'),
+        title: 'Entscheidungen',
+        icon: Icons.rule_folder_outlined,
+        child: _EmptyPlaceholder(message: 'Keine Entscheidungsdaten vorhanden'),
       );
     }
     final theme = Theme.of(context);
     return _SectionCard(
-      title: 'Statusverteilung',
-      icon: Icons.donut_large_outlined,
+      title: 'Entscheidungen',
+      icon: Icons.rule_folder_outlined,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (var i = 0; i < statuses.length; i++) ...[
-            _StatusRow(
-              bucket: statuses[i],
+          for (var i = 0; i < decisions.length; i++) ...[
+            _DecisionRow(
+              bucket: decisions[i],
               total: total,
-              color: _colorForStatus(theme, i),
-              label: _label(statuses[i].status),
+              color: _color(theme, decisions[i].decision),
+              label: _label(decisions[i].decision),
             ),
-            if (i != statuses.length - 1) const SizedBox(height: 14),
+            if (i != decisions.length - 1) const SizedBox(height: 14),
           ],
         ],
       ),
@@ -495,12 +519,12 @@ class _StatusSection extends StatelessWidget {
   }
 }
 
-class _StatusRow extends StatelessWidget {
-  final _StatusBucket bucket;
+class _DecisionRow extends StatelessWidget {
+  final _DecisionBucket bucket;
   final int total;
   final Color color;
   final String label;
-  const _StatusRow({
+  const _DecisionRow({
     required this.bucket,
     required this.total,
     required this.color,
@@ -771,10 +795,10 @@ class _ErrorState extends StatelessWidget {
   }
 }
 
-class _StatusBucket {
-  final int status;
+class _DecisionBucket {
+  final String decision;
   final int count;
-  const _StatusBucket({required this.status, required this.count});
+  const _DecisionBucket({required this.decision, required this.count});
 }
 
 class _MonthBucket {

@@ -192,6 +192,12 @@
   "@chooseCustomer": { "description": "Etiqueta/placeholder para el desplegable de cliente" },
   "allCompanies": "Todas las empresas",
   "@allCompanies": { "description": "Opción de filtro para mostrar todas las empresas" },
+  "allDecisions": "Todas las decisiones",
+  "@allDecisions": { "description": "Opción de filtro para decisiones" },
+  "allStatus": "Todos los estados",
+  "@allStatus": { "description": "Opción de filtro para estados" },
+  "rep_filter_decision_label": "Filtrar decisión",
+  "rep_filter_status_label": "Filtrar estado",
   "yourCompany": "Su empresa",
 
   "logout": "Cerrar sesión",

@@ -115,7 +115,7 @@ export default async function handler(req, res) {
 
     // "Löschen" hier: auf CLOSED setzen? Oder wirklich entfernen?
     // Falls du echtes Löschen willst, ersetze diese Zeilen durch complaintDelete(ticket).
-    c.status = typeof Status?.CLOSED === 'number' ? Status.CLOSED : 6;
+    c.status = typeof Status?.CLOSED === 'number' ? Status.CLOSED : 5;
     c.updatedAt = Date.now();
     await complaintSave(c);
 

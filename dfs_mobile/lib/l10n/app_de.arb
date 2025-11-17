@@ -189,6 +189,12 @@
   "@chooseCustomer": { "description": "Label/Platzhalter für Dropdown bzw. Auswahlfeld zum Kunden" },
   "allCompanies": "Alle Firmen",
   "@allCompanies": { "description": "Filteroption, um alle Unternehmen anzuzeigen" },
+  "allDecisions": "Alle Entscheidungen",
+  "@allDecisions": { "description": "Filteroption für Entscheidungen" },
+  "allStatus": "Alle Stati",
+  "@allStatus": { "description": "Filteroption für Stati" },
+  "rep_filter_decision_label": "Entscheidung filtern",
+  "rep_filter_status_label": "Status filtern",
   "yourCompany": "Ihr Unternehmen",
 
   "logout": "Abmelden",

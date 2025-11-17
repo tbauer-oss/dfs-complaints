@@ -193,6 +193,12 @@
   "@chooseCustomer": { "description": "Libellé/placeholder pour la liste déroulante du client" },
   "allCompanies": "Toutes les entreprises",
   "@allCompanies": { "description": "Option de filtre pour afficher toutes les entreprises" },
+  "allDecisions": "Toutes les décisions",
+  "@allDecisions": { "description": "Option de filtre pour les décisions" },
+  "allStatus": "Tous les statuts",
+  "@allStatus": { "description": "Option de filtre pour les statuts" },
+  "rep_filter_decision_label": "Filtrer la décision",
+  "rep_filter_status_label": "Filtrer le statut",
   "yourCompany": "Votre entreprise",
 
   "logout": "Déconnexion",
