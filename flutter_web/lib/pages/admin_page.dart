@@ -1,9 +1,11 @@
 // lib/pages/admin_page.dart
 import 'dart:convert';
 import 'dart:html' as html;
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../models/country.dart';
+import '../models/complaint.dart' show ComplaintUpload;
 import '../widgets/legal_footer.dart';
 import 'admin_stats_page.dart';
 
@@ -3997,6 +3999,7 @@ class AdminComplaint {
   String? internalNo;
   String? adminNotes;
   final Map<String, dynamic>? payload;
+  final List<ComplaintUpload> uploads;
 
   // Vertreter-Daten
   String? repOpinion; // 'accepted' | 'rejected' | 'pending'
@@ -4026,7 +4029,30 @@ class AdminComplaint {
     this.payload,
     this.repOpinion,
     this.repId,
-  });
+    List<ComplaintUpload>? uploads,
+  }) : uploads = List.unmodifiable(uploads ?? const <ComplaintUpload>[]);
+
+  static Map<String, dynamic> _coerceMap(dynamic value) {
+    if (value is Map) {
+      return value.map((key, v) => MapEntry('$key', v));
+    }
+    return <String, dynamic>{};
+  }
+
+  static List<ComplaintUpload> _parseUploads(dynamic value) {
+    if (value is List) {
+      final out = <ComplaintUpload>[];
+      for (final entry in value) {
+        if (entry is Map<String, dynamic>) {
+          out.add(ComplaintUpload.fromJson(entry));
+        } else if (entry is Map) {
+          out.add(ComplaintUpload.fromJson(_coerceMap(entry)));
+        }
+      }
+      return out;
+    }
+    return const <ComplaintUpload>[];
+  }
 
   factory AdminComplaint.fromJson(Map<String, dynamic> j) {
     DateTime _dt(v) {
@@ -4080,6 +4106,8 @@ class AdminComplaint {
 
     final repIdLocal = _pickRepId(j, payload);
 
+    final uploads = _parseUploads(j['uploads'] ?? j['files']);
+
     return AdminComplaint(
       ticket: (j['ticket'] ?? '').toString(),
       email: (j['email'] ?? '').toString(),
@@ -4099,6 +4127,7 @@ class AdminComplaint {
       payload: payload,
       repOpinion: _norm(repRaw),
       repId: repIdLocal,
+      uploads: uploads,
     );
   }
 
@@ -4293,8 +4322,29 @@ class _ComplaintDetailsDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final payload = (data['payload'] as Map?)?.cast<String, dynamic>() ?? const {};
-    final files = (data['files'] as List?)?.cast<Map>() ?? const [];
+    final uploads = AdminComplaint._parseUploads(data['uploads'] ?? data['files']);
     final ticket = (data['ticket'] ?? '').toString();
+
+    String _formatBytes(int size) {
+      if (size <= 0) return '0 B';
+      const kb = 1024;
+      const mb = kb * 1024;
+      if (size >= mb) {
+        final value = size / mb;
+        return value >= 10 ? '${value.toStringAsFixed(0)} MB' : '${value.toStringAsFixed(1)} MB';
+      }
+      if (size >= kb) {
+        final value = size / kb;
+        return value >= 10 ? '${value.toStringAsFixed(0)} KB' : '${value.toStringAsFixed(1)} KB';
+      }
+      return '$size B';
+    }
+
+    String _formatDate(DateTime date) {
+      final l = date.toLocal();
+      String two(int x) => x < 10 ? '0$x' : '$x';
+      return '${l.year}-${two(l.month)}-${two(l.day)} ${two(l.hour)}:${two(l.minute)}';
+    }
 
     Widget row(String l, String v) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 2),
@@ -4334,9 +4384,19 @@ class _ComplaintDetailsDialog extends StatelessWidget {
                   row('Verletzungsbeschreibung', (payload['injuryDesc'] ?? '').toString()),
               ],
               const SizedBox(height: 10),
-              if (files.isNotEmpty) const Text('Dateien:', style: TextStyle(fontWeight: FontWeight.w600)),
-              if (files.isNotEmpty)
-                ...files.map((f) => Text('- ${f['name'] ?? 'Datei'} (${f['mime'] ?? 'mime'})')).toList(),
+              if (uploads.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                const Text('Anhänge:', style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 4),
+                ...uploads.map(
+                  (upload) => _AdminAttachmentPreviewTile(
+                    upload: upload,
+                    formatBytes: _formatBytes,
+                    formatDate: _formatDate,
+                    fallbackName: 'Unbenannte Datei',
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -4791,6 +4851,27 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     return '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
   }
 
+  String _fmtDateTime(DateTime d) {
+    final local = d.toLocal();
+    String two(int v) => v < 10 ? '0$v' : '$v';
+    return '${local.year}-${two(local.month)}-${two(local.day)} ${two(local.hour)}:${two(local.minute)}';
+  }
+
+  String _formatBytes(int size) {
+    if (size <= 0) return '0 B';
+    const kb = 1024;
+    const mb = kb * 1024;
+    if (size >= mb) {
+      final value = size / mb;
+      return value >= 10 ? '${value.toStringAsFixed(0)} MB' : '${value.toStringAsFixed(1)} MB';
+    }
+    if (size >= kb) {
+      final value = size / kb;
+      return value >= 10 ? '${value.toStringAsFixed(0)} KB' : '${value.toStringAsFixed(1)} KB';
+    }
+    return '$size B';
+  }
+
   void _composeMailToCustomer() {
     final to = widget.c.email.trim();
     if (to.isEmpty) return;
@@ -4827,6 +4908,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     final injury      = _detPickOrNull(p, ['injury']);           // 'Ja' | 'Nein' | ''
     final injuryDesc  = _detPickOrNull(p, ['injuryDesc']);       // Freitext
     final returned    = _detPickOrNull(p, ['returned']);         // 'Ja' | 'Nein'
+    final attachments = c.uploads;
 
     Color _statusColor(int s) {
       // gleiche Logik/Farben wie im Kundenbereich
@@ -5373,6 +5455,23 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                                 ...spaced(secondaryColumn),
                               ],
                             ),
+                          if (attachments.isNotEmpty) ...[
+                            const SizedBox(height: 18),
+                            Text(
+                              'Anhänge',
+                              style: textTheme.titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 8),
+                            ...attachments.map(
+                              (upload) => _AdminAttachmentPreviewTile(
+                                upload: upload,
+                                formatBytes: _formatBytes,
+                                formatDate: (dt) => _fmtDateTime(dt),
+                                fallbackName: 'Unbenannte Datei',
+                              ),
+                            ),
+                          ],
                         ],
                       );
                     },
@@ -5660,6 +5759,132 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _AdminAttachmentPreviewTile extends StatefulWidget {
+  final ComplaintUpload upload;
+  final String Function(int size) formatBytes;
+  final String Function(DateTime date) formatDate;
+  final String fallbackName;
+
+  const _AdminAttachmentPreviewTile({
+    required this.upload,
+    required this.formatBytes,
+    required this.formatDate,
+    required this.fallbackName,
+  });
+
+  @override
+  State<_AdminAttachmentPreviewTile> createState() => _AdminAttachmentPreviewTileState();
+}
+
+class _AdminAttachmentPreviewTileState extends State<_AdminAttachmentPreviewTile> {
+  bool _expanded = false;
+  Uint8List? _previewBytes;
+
+  bool get _hasPreview => _previewBytes != null;
+
+  @override
+  void initState() {
+    super.initState();
+    _previewBytes = _decodePreview(widget.upload);
+  }
+
+  @override
+  void didUpdateWidget(covariant _AdminAttachmentPreviewTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.upload.preview != widget.upload.preview) {
+      final decoded = _decodePreview(widget.upload);
+      setState(() {
+        _previewBytes = decoded;
+        if (!_hasPreview) _expanded = false;
+      });
+    }
+  }
+
+  Uint8List? _decodePreview(ComplaintUpload upload) {
+    final preview = upload.preview;
+    if (preview == null || preview.isEmpty || !upload.isImage) return null;
+    try {
+      return base64Decode(preview);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _toggle() {
+    if (!_hasPreview) return;
+    setState(() => _expanded = !_expanded);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final upload = widget.upload;
+    final theme = Theme.of(context);
+    final name = upload.name.trim().isEmpty ? widget.fallbackName : upload.name.trim();
+    final meta = <String>[];
+    if (upload.size > 0) meta.add(widget.formatBytes(upload.size));
+    if (upload.uploadedAt != null) meta.add(widget.formatDate(upload.uploadedAt!.toLocal()));
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _hasPreview ? _toggle : null,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  upload.isImage ? Icons.image_outlined : Icons.attachment_outlined,
+                  size: 18,
+                  color: _hasPreview ? theme.colorScheme.primary : null,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      if (meta.isNotEmpty)
+                        Text(
+                          meta.join(' • '),
+                          style: theme.textTheme.bodySmall,
+                        ),
+                    ],
+                  ),
+                ),
+                if (_hasPreview)
+                  Icon(
+                    _expanded ? Icons.expand_less : Icons.visibility_outlined,
+                    size: 18,
+                    color: theme.colorScheme.primary,
+                  ),
+              ],
+            ),
+          ),
+          if (_hasPreview && _expanded)
+            Padding(
+              padding: const EdgeInsets.only(left: 26, top: 6),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: theme.colorScheme.outlineVariant),
+                    color: theme.colorScheme.surfaceVariant,
+                  ),
+                  width: 160,
+                  height: 120,
+                  child: Image.memory(_previewBytes!, fit: BoxFit.cover),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
