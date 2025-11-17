@@ -196,6 +196,7 @@
   "invalid": "Invalide",
   "gateUnlockHint": "Veuillez saisir votre adresse e-mail et le mot de passe d’autorisation pour ouvrir la zone d’inscription.",
   "gateEmailRequired": "Veuillez saisir votre adresse e-mail.",
+  "gateCompanyRequired": "Veuillez saisir le nom de votre entreprise.",
   "gateInvalidEmail": "Veuillez saisir une adresse e-mail valide.",
   "gatePasswordRequired": "Veuillez saisir le mot de passe d’autorisation.",
   "gateRequestPassword": "Demander le mot de passe",

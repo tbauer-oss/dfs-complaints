@@ -195,6 +195,7 @@
   "invalid": "No válido",
   "gateUnlockHint": "Introduzca su dirección de correo electrónico y la contraseña de desbloqueo para acceder al área de registro.",
   "gateEmailRequired": "Introduzca su dirección de correo electrónico.",
+  "gateCompanyRequired": "Introduzca el nombre de su empresa.",
   "gateInvalidEmail": "Introduzca una dirección de correo electrónico válida.",
   "gatePasswordRequired": "Introduzca la contraseña de desbloqueo.",
   "gateRequestPassword": "Solicitar contraseña",

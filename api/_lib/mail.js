@@ -304,46 +304,51 @@ DFS-DIAMON GmbH – Quality Management` }),
   },
 
   gateRequest: {
-    de: (email)=>({ subject:'Freigabe-Passwort anfordern', text:
+    de: (email, company)=>({ subject:'Freigabe-Passwort anfordern', text:
 `Guten Tag Quality Management,
 
 ${email} hat soeben im DFS-DIAMON Kundenportal um Zusendung des temporären Registrierungs-Passworts gebeten.
+Firma: ${company}
 
 Bitte senden Sie dem Kunden das Freigabe-Passwort zu und unterstützen Sie bei Rückfragen.
 
 Vielen Dank und freundliche Grüße
 DFS-DIAMON Kundenportal` }),
-    en: (email)=>({ subject:'Temporary password requested', text:
+    en: (email, company)=>({ subject:'Temporary password requested', text:
 `Hello Quality Management,
 
 ${email} just requested the temporary registration password via the DFS-DIAMON customer portal.
+Company: ${company}
 
 Please provide the release password to the customer and assist with any questions.
 
 Thank you and kind regards
 DFS-DIAMON Customer Portal` }),
-    fr: (email)=>({ subject:'Demande de mot de passe de déblocage', text:
+    fr: (email, company)=>({ subject:'Demande de mot de passe de déblocage', text:
 `Bonjour Quality Management,
 
 ${email} vient de demander l’envoi du mot de passe d’inscription temporaire via le portail client DFS-DIAMON.
+Entreprise : ${company}
 
 Merci de transmettre au client le mot de passe de déblocage et de l’assister en cas de questions.
 
 Merci et salutations distinguées
 Portail client DFS-DIAMON` }),
-    it: (email)=>({ subject:'Richiesta password di sblocco', text:
+    it: (email, company)=>({ subject:'Richiesta password di sblocco', text:
 `Buongiorno Quality Management,
 
 ${email} ha appena richiesto tramite il portale clienti DFS-DIAMON l’invio della password di registrazione temporanea.
+Azienda: ${company}
 
 Si prega di inviare al cliente la password di sblocco e di offrirgli supporto per eventuali domande.
 
 Grazie e cordiali saluti
 Portale clienti DFS-DIAMON` }),
-    es: (email)=>({ subject:'Solicitud de contraseña de desbloqueo', text:
+    es: (email, company)=>({ subject:'Solicitud de contraseña de desbloqueo', text:
 `Hola Quality Management,
 
 ${email} acaba de solicitar a través del portal de clientes de DFS-DIAMON el envío de la contraseña de registro temporal.
+Empresa: ${company}
 
 Por favor, envíe al cliente la contraseña de desbloqueo y bríndele apoyo ante cualquier consulta.
 

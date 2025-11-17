@@ -199,6 +199,7 @@
   "invalid": "Invalid",
   "gateUnlockHint": "Please enter your email address and the release password to open the registration area.",
   "gateEmailRequired": "Please enter your email address.",
+  "gateCompanyRequired": "Please enter your company name.",
   "gateInvalidEmail": "Please enter a valid email address.",
   "gatePasswordRequired": "Please enter the release password.",
   "gateRequestPassword": "Request password",
