@@ -24,6 +24,8 @@ enum _RepFilter { all, open, rejected, finished }
 // Menü-Views
 enum _RepView { menu, open, all, customers, support, account }
 
+enum _RepPasswordMode { manual, generated }
+
 class RepDashboardPage extends StatefulWidget {
   final ApiClient api;
   const RepDashboardPage({super.key, required this.api});
@@ -325,8 +327,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     final zipCtrl        = TextEditingController();
     final cityCtrl       = TextEditingController();
     final phoneCtrl      = TextEditingController();
-    final customerNoCtrl = TextEditingController();
-    final vatIdCtrl      = TextEditingController();
     final passwordCtrl   = TextEditingController();
     final password2Ctrl  = TextEditingController();
 
@@ -338,6 +338,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     String lang = 'de';
     String? locErr;
     bool saving = false;
+    var passwordMode = _RepPasswordMode.manual;
 
     String mapError(String code) {
       switch (code) {
@@ -378,6 +379,8 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                 saving = true;
               });
 
+              final bool useGeneratedPassword = passwordMode == _RepPasswordMode.generated;
+
               final Map<String, dynamic> payload = {
                 'company'    : companyCtrl.text.trim(),
                 'contact'    : '${firstNameCtrl.text.trim()} ${lastNameCtrl.text.trim()}'.trim(),
@@ -390,11 +393,13 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                 'country'    : selectedCountry?.label(ctx) ?? '',
                 'countryCode': selectedCountry?.code ?? '',
                 'phone'      : phoneCtrl.text.trim(),
-                'customerNo' : customerNoCtrl.text.trim(),
-                'vatId'      : vatIdCtrl.text.trim(),
-                'password'   : passwordCtrl.text,
                 'lang'       : lang,
+                'passwordMode': useGeneratedPassword ? 'generated' : 'manual',
               };
+
+              if (!useGeneratedPassword) {
+                payload['password'] = passwordCtrl.text;
+              }
 
               payload.removeWhere((key, value) => value is String && value.trim().isEmpty);
 
@@ -530,49 +535,67 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                           textInputAction: TextInputAction.next,
                         ),
                         const SizedBox(height: 12),
-                        TextFormField(
-                          controller: customerNoCtrl,
-                          decoration: InputDecoration(labelText: t.customer_number_label ?? 'Kundennr.'),
-                          textInputAction: TextInputAction.next,
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: vatIdCtrl,
-                          decoration: InputDecoration(labelText: t.vat_id_label ?? 'USt-Id.'),
-                          textInputAction: TextInputAction.next,
-                        ),
-                        const SizedBox(height: 12),
                         DropdownButtonFormField<String>(
                           value: lang,
                           decoration: InputDecoration(labelText: t.langMenuTooltip),
                           items: langItems(),
                           onChanged: (v) => setLocal(() => lang = v ?? 'de'),
                         ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: passwordCtrl,
-                          decoration: InputDecoration(labelText: t.password),
-                          obscureText: true,
-                          textInputAction: TextInputAction.next,
-                          validator: (value) {
-                            final v = value ?? '';
-                            if (v.trim().isEmpty) return t.password_required;
-                            if (v.length < 8) return t.password_min_length;
-                            return null;
-                          },
+                        const SizedBox(height: 16),
+                        Text(
+                          t.rep_create_customer_password_mode_label ?? t.password,
+                          style: Theme.of(ctx).textTheme.titleMedium,
                         ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: password2Ctrl,
-                          decoration: InputDecoration(labelText: t.password_repeat),
-                          obscureText: true,
-                          textInputAction: TextInputAction.done,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) return t.password_required;
-                            if (value != passwordCtrl.text) return t.password_mismatch;
-                            return null;
-                          },
+                        const SizedBox(height: 6),
+                        RadioListTile<_RepPasswordMode>(
+                          value: _RepPasswordMode.manual,
+                          groupValue: passwordMode,
+                          onChanged: saving
+                              ? null
+                              : (value) => setLocal(() => passwordMode = value ?? _RepPasswordMode.manual),
+                          title: Text(t.rep_create_customer_password_mode_manual ?? t.password),
+                          subtitle: Text(t.rep_create_customer_password_mode_manual_hint ?? ''),
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
                         ),
+                        RadioListTile<_RepPasswordMode>(
+                          value: _RepPasswordMode.generated,
+                          groupValue: passwordMode,
+                          onChanged: saving
+                              ? null
+                              : (value) => setLocal(() => passwordMode = value ?? _RepPasswordMode.manual),
+                          title: Text(t.rep_create_customer_password_mode_generated ?? ''),
+                          subtitle: Text(t.rep_create_customer_password_mode_generated_hint ?? ''),
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                        ),
+                        if (passwordMode == _RepPasswordMode.manual) ...[
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: passwordCtrl,
+                            decoration: InputDecoration(labelText: t.password),
+                            obscureText: true,
+                            textInputAction: TextInputAction.next,
+                            validator: (value) {
+                              final v = value ?? '';
+                              if (v.trim().isEmpty) return t.password_required;
+                              if (v.length < 8) return t.password_min_length;
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: password2Ctrl,
+                            decoration: InputDecoration(labelText: t.password_repeat),
+                            obscureText: true,
+                            textInputAction: TextInputAction.done,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) return t.password_required;
+                              if (value != passwordCtrl.text) return t.password_mismatch;
+                              return null;
+                            },
+                          ),
+                        ],
                         if (locErr != null) ...[
                           const SizedBox(height: 12),
                           Text(locErr!, style: const TextStyle(color: Colors.red)),
@@ -611,8 +634,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
       zipCtrl.dispose();
       cityCtrl.dispose();
       phoneCtrl.dispose();
-      customerNoCtrl.dispose();
-      vatIdCtrl.dispose();
       passwordCtrl.dispose();
       password2Ctrl.dispose();
     }
