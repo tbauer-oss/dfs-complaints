@@ -4,7 +4,7 @@ import { getRepFromAuthHeader } from '../_lib/repAuth.js';
 import { loadRepById, upsertRep } from '../_lib/repsStore.js';
 
 export default async function handler(req, res) {
-  setCors(req, res, 'Content-Type, Authorization');
+  setCors(req, res, 'Content-Type, Authorization, X-Gate');
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'PUT' && req.method !== 'PATCH')
     return res.status(405).json({ error: 'method not allowed' });
