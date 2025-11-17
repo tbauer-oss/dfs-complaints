@@ -20,7 +20,14 @@ export default async function handler(req, res) {
   try {
     const body = readJson(req);
     const email = normalizeString(body.email).toLowerCase();
-    const company = normalizeString(body.company);
+    const company = normalizeString(
+      body.company ||
+      body.companyName ||
+      body.company_name ||
+      body.organization ||
+      body.firma ||
+      body.business
+    );
     const contact = normalizeString(body.contact || `${body.firstName || ''} ${body.lastName || ''}`);
     const note = normalizeString(body.note || body.message || '');
 
@@ -51,11 +58,25 @@ export default async function handler(req, res) {
         <p><strong>Gate-Passwort:</strong> ${gateCode}</p>
         <p>Bitte prüfen und dem Kunden manuell mitteilen.</p>
       `;
+      const text = [
+        'Neue Gate-Code Anfrage:',
+        `Email: ${email}`,
+        `Firma: ${company}`,
+        contact ? `Kontakt: ${contact}` : null,
+        note ? '',
+        note ? note : null,
+        '',
+        `Gate-Passwort: ${gateCode}`,
+        'Bitte prüfen und dem Kunden manuell mitteilen.',
+      ]
+        .filter((line) => line !== null)
+        .join('\n');
       const subject = `[Gate-Code] ${company || email}`;
       const result = await sendMail({
         to: INTERNAL_GATE_EMAIL,
         subject,
         html,
+        text,
       });
       mailSent = !!result?.ok;
       if (!mailSent) mailError = result?.reason || 'send failed';
