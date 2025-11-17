@@ -15,6 +15,32 @@
   "langNameES": "Español",
 
   "we_are_here_for_you": "Estamos aquí para usted.",
+  "complaint_contact_button": "Contactar",
+  "complaint_contact_title": "Mensaje sobre el ticket {ticket}",
+  "@complaint_contact_title": {
+    "placeholders": {
+      "ticket": { "type": "String" }
+    }
+  },
+  "complaint_contact_intro_rep": "Su mensaje se enviará a {repName} ({repEmail}). complaint@dfs-diamon.de recibirá una copia.",
+  "@complaint_contact_intro_rep": {
+    "placeholders": {
+      "repName": { "type": "String" },
+      "repEmail": { "type": "String" }
+    }
+  },
+  "complaint_contact_intro_qm": "No hay ningún representante asignado. Su mensaje se enviará directamente a {email}.",
+  "@complaint_contact_intro_qm": {
+    "placeholders": {
+      "email": { "type": "String" }
+    }
+  },
+  "complaint_contact_subject_prefill": "Consulta sobre el ticket {ticket}",
+  "@complaint_contact_subject_prefill": {
+    "placeholders": {
+      "ticket": { "type": "String" }
+    }
+  },
   "theme_system": "Sistema",
   "theme_light": "Claro",
   "theme_dark": "Oscuro",
