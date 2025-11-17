@@ -28,6 +28,8 @@ enum _RepFilter { all, open, rejected, finished }
 // Menü-Views
 enum _RepView { menu, open, all, customers, support, account }
 
+enum _RepPasswordMode { manual, generated }
+
 class RepDashboardPage extends StatefulWidget {
   final ApiClient api;
   const RepDashboardPage({super.key, required this.api});
@@ -3930,13 +3932,12 @@ class _RepCreateCustomerDialogState extends State<_RepCreateCustomerDialog> {
   late final TextEditingController _zipCtrl;
   late final TextEditingController _cityCtrl;
   late final TextEditingController _phoneCtrl;
-  late final TextEditingController _customerNoCtrl;
-  late final TextEditingController _vatIdCtrl;
   late final TextEditingController _passwordCtrl;
   late final TextEditingController _password2Ctrl;
 
   Country? _selectedCountry;
   String _lang = 'de';
+  _RepPasswordMode _passwordMode = _RepPasswordMode.manual;
   String? _locErr;
   bool _saving = false;
 
@@ -3951,8 +3952,6 @@ class _RepCreateCustomerDialogState extends State<_RepCreateCustomerDialog> {
     _zipCtrl        = TextEditingController();
     _cityCtrl       = TextEditingController();
     _phoneCtrl      = TextEditingController();
-    _customerNoCtrl = TextEditingController();
-    _vatIdCtrl      = TextEditingController();
     _passwordCtrl   = TextEditingController();
     _password2Ctrl  = TextEditingController();
 
@@ -3972,8 +3971,6 @@ class _RepCreateCustomerDialogState extends State<_RepCreateCustomerDialog> {
     _zipCtrl.dispose();
     _cityCtrl.dispose();
     _phoneCtrl.dispose();
-    _customerNoCtrl.dispose();
-    _vatIdCtrl.dispose();
     _passwordCtrl.dispose();
     _password2Ctrl.dispose();
     super.dispose();
@@ -4032,11 +4029,13 @@ class _RepCreateCustomerDialogState extends State<_RepCreateCustomerDialog> {
       'country'    : _selectedCountry?.label(context) ?? '',
       'countryCode': _selectedCountry?.code ?? '',
       'phone'      : _phoneCtrl.text.trim(),
-      'customerNo' : _customerNoCtrl.text.trim(),
-      'vatId'      : _vatIdCtrl.text.trim(),
-      'password'   : _passwordCtrl.text,
       'lang'       : _lang,
+      'passwordMode': _passwordMode == _RepPasswordMode.generated ? 'generated' : 'manual',
     };
+
+    if (_passwordMode == _RepPasswordMode.manual) {
+      payload['password'] = _passwordCtrl.text;
+    }
 
     payload.removeWhere((key, value) => value is String && value.trim().isEmpty);
 
@@ -4168,49 +4167,63 @@ class _RepCreateCustomerDialogState extends State<_RepCreateCustomerDialog> {
                 textInputAction: TextInputAction.next,
               ),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: _customerNoCtrl,
-                decoration: InputDecoration(labelText: t.customer_number_label ?? 'Kundennr.'),
-                textInputAction: TextInputAction.next,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _vatIdCtrl,
-                decoration: InputDecoration(labelText: t.vat_id_label ?? 'USt-Id.'),
-                textInputAction: TextInputAction.next,
-              ),
-              const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 value: _lang,
                 decoration: InputDecoration(labelText: t.langMenuTooltip),
                 items: _langItems(t),
                 onChanged: (v) => setState(() => _lang = v ?? 'de'),
               ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _passwordCtrl,
-                decoration: InputDecoration(labelText: t.password),
-                obscureText: true,
-                textInputAction: TextInputAction.next,
-                validator: (value) {
-                  final v = value ?? '';
-                  if (v.trim().isEmpty) return t.password_required;
-                  if (v.length < 8) return t.password_min_length;
-                  return null;
-                },
+              const SizedBox(height: 16),
+              Text(
+                t.rep_create_customer_password_mode_label ?? t.password,
+                style: Theme.of(context).textTheme.titleMedium,
               ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _password2Ctrl,
-                decoration: InputDecoration(labelText: t.password_repeat),
-                obscureText: true,
-                textInputAction: TextInputAction.done,
-                validator: (value) {
-                  if (value == null || value.isEmpty) return t.password_required;
-                  if (value != _passwordCtrl.text) return t.password_mismatch;
-                  return null;
-                },
+              const SizedBox(height: 6),
+              RadioListTile<_RepPasswordMode>(
+                value: _RepPasswordMode.manual,
+                groupValue: _passwordMode,
+                onChanged: _saving ? null : (value) => setState(() => _passwordMode = value ?? _RepPasswordMode.manual),
+                title: Text(t.rep_create_customer_password_mode_manual ?? t.password),
+                subtitle: Text(t.rep_create_customer_password_mode_manual_hint ?? ''),
+                contentPadding: EdgeInsets.zero,
+                dense: true,
               ),
+              RadioListTile<_RepPasswordMode>(
+                value: _RepPasswordMode.generated,
+                groupValue: _passwordMode,
+                onChanged: _saving ? null : (value) => setState(() => _passwordMode = value ?? _RepPasswordMode.manual),
+                title: Text(t.rep_create_customer_password_mode_generated ?? ''),
+                subtitle: Text(t.rep_create_customer_password_mode_generated_hint ?? ''),
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+              ),
+              if (_passwordMode == _RepPasswordMode.manual) ...[
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _passwordCtrl,
+                  decoration: InputDecoration(labelText: t.password),
+                  obscureText: true,
+                  textInputAction: TextInputAction.next,
+                  validator: (value) {
+                    final v = value ?? '';
+                    if (v.trim().isEmpty) return t.password_required;
+                    if (v.length < 8) return t.password_min_length;
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _password2Ctrl,
+                  decoration: InputDecoration(labelText: t.password_repeat),
+                  obscureText: true,
+                  textInputAction: TextInputAction.done,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) return t.password_required;
+                    if (value != _passwordCtrl.text) return t.password_mismatch;
+                    return null;
+                  },
+                ),
+              ],
               const SizedBox(height: 12),
               if (_locErr != null) ...[
                 Align(
