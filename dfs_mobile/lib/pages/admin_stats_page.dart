@@ -1,11 +1,9 @@
 // lib/pages/admin_stats_page.dart
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:country_flags/country_flags.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 
 import 'package:dfs_mobile/api/client.dart';
@@ -705,30 +703,7 @@ class _CountryDetailsDialog extends StatelessWidget {
             ),
             const Divider(height: 1),
             Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final isWide = constraints.maxWidth > 860;
-                  final mapPanel = _CountryMapPanel(countries: sorted);
-                  final listPanel = _CountryListPanel(total: total, countries: sorted);
-                  if (isWide) {
-                    return Row(
-                      children: [
-                        Expanded(flex: 5, child: listPanel),
-                        const SizedBox(width: 20),
-                        Expanded(flex: 6, child: mapPanel),
-                      ],
-                    );
-                  }
-                  final mapHeight = math.max(constraints.maxHeight * 0.45, 260.0);
-                  return Column(
-                    children: [
-                      SizedBox(height: mapHeight, child: mapPanel),
-                      const SizedBox(height: 16),
-                      Expanded(child: listPanel),
-                    ],
-                  );
-                },
-              ),
+              child: _CountryListPanel(total: total, countries: sorted),
             ),
           ],
         ),
@@ -796,39 +771,6 @@ class _CountryListPanel extends StatelessWidget {
   }
 }
 
-class _CountryMapPanel extends StatelessWidget {
-  final List<_CountryBucket> countries;
-  const _CountryMapPanel({required this.countries});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      margin: EdgeInsets.zero,
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Globale Übersicht',
-              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Pins markieren Länder mit eingegangenen Reklamationen.',
-              style: theme.textTheme.bodySmall,
-            ),
-            const SizedBox(height: 16),
-            Expanded(child: _WorldMapWithPins(countries: countries)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _CountryAvatar extends StatelessWidget {
   final String? code;
   final String fallback;
@@ -854,194 +796,6 @@ class _CountryAvatar extends StatelessWidget {
   }
 }
 
-class _WorldMapWithPins extends StatelessWidget {
-  final List<_CountryBucket> countries;
-  const _WorldMapWithPins({required this.countries});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final pins = countries
-        .map((bucket) {
-          final code = CountryGeography.resolveCode(bucket.country);
-          if (code == null) return null;
-          final position = CountryGeography.normalizedPositionFor(code);
-          if (position == null) return null;
-          return _CountryPinData(
-            code: code,
-            label: CountryGeography.labelForCode(code),
-            count: bucket.count,
-            normalized: position,
-          );
-        })
-        .whereType<_CountryPinData>()
-        .toList();
-    if (pins.isEmpty) {
-      return const Center(child: Text('Keine lokalisierbaren Daten verfügbar.'));
-    }
-    final maxCount = pins.fold<int>(0, (value, pin) => math.max(value, pin.count));
-    final baseColor = theme.colorScheme.primary;
-    final accent = theme.colorScheme.secondary;
-    return AspectRatio(
-      aspectRatio: 2,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final width = constraints.maxWidth;
-          final height = constraints.maxHeight;
-          final radius = math.min(32.0, math.max(16.0, width * 0.04));
-          final borderColor = theme.colorScheme.onSurface.withOpacity(0.05);
-          return Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(radius),
-              gradient: LinearGradient(
-                colors: [
-                  theme.colorScheme.surfaceVariant.withOpacity(0.75),
-                  theme.colorScheme.surface.withOpacity(0.95),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              border: Border.all(color: borderColor, width: 1.2),
-              boxShadow: [
-                BoxShadow(
-                  color: theme.colorScheme.shadow.withOpacity(0.08),
-                  blurRadius: 32,
-                  offset: const Offset(0, 18),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(radius),
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: DecoratedBox(
-                      decoration: const BoxDecoration(color: Colors.white),
-                      child: SvgPicture.asset(
-                        'assets/world_map_silhouette.svg',
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                  for (final pin in pins)
-                    _MapPin(
-                      pin: pin,
-                      maxCount: maxCount,
-                      width: width,
-                      height: height,
-                      baseColor: baseColor,
-                      accent: accent,
-                    ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _MapPin extends StatelessWidget {
-  final _CountryPinData pin;
-  final int maxCount;
-  final double width;
-  final double height;
-  final Color baseColor;
-  final Color accent;
-  const _MapPin({
-    required this.pin,
-    required this.maxCount,
-    required this.width,
-    required this.height,
-    required this.baseColor,
-    required this.accent,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final ratio = maxCount == 0 ? 0.0 : pin.count / maxCount;
-    final headSize = (ui.lerpDouble(12, 30, ratio.clamp(0.0, 1.0)) ?? 16).toDouble();
-    final color = Color.lerp(baseColor, accent, ratio.clamp(0.0, 1.0)) ?? baseColor;
-    final x = (pin.normalized.dx.clamp(0.0, 1.0)) * width;
-    final y = (pin.normalized.dy.clamp(0.0, 1.0)) * height;
-    final markerHeight = headSize * 1.45;
-    final tailHeight = headSize * 0.45;
-    final left =
-        (x - headSize / 2).clamp(0.0, math.max(width - headSize, 0)).toDouble();
-    final top =
-        (y - markerHeight).clamp(0.0, math.max(height - markerHeight, 0)).toDouble();
-    return Positioned(
-      left: left,
-      top: top,
-      child: Tooltip(
-        message: '${pin.label}: ${pin.count}',
-        child: SizedBox(
-          width: headSize,
-          height: markerHeight,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: headSize,
-                height: headSize,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      Colors.white.withOpacity(0.95),
-                      color,
-                    ],
-                  ),
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.7),
-                    width: 1.2,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: color.withOpacity(0.45),
-                      blurRadius: 12,
-                      spreadRadius: 0.5,
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(height: math.max(4, headSize * 0.12)),
-              Container(
-                width: math.max(2, headSize * 0.2),
-                height: tailHeight,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(999),
-                  gradient: LinearGradient(
-                    colors: [
-                      color,
-                      color.withOpacity(0.0),
-                    ],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CountryPinData {
-  final String code;
-  final String label;
-  final int count;
-  final Offset normalized;
-  const _CountryPinData({
-    required this.code,
-    required this.label,
-    required this.count,
-    required this.normalized,
-  });
-}
 class _RepSection extends StatelessWidget {
   final List<_RepBucket> reps;
   const _RepSection({required this.reps});
