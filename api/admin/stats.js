@@ -159,7 +159,7 @@ function countBy(list, keyFn) {
   return map;
 }
 
-function buildStats(list, range, Status) {
+function buildStats(list, range, Status, repInfo = new Map()) {
   const total = list.length;
   const statusCounts = countBy(list, (c) => {
     const s = Number(c?.status || 0);
@@ -188,6 +188,11 @@ function buildStats(list, range, Status) {
     current.count += 1;
     if (!current.repName && meta.repName) current.repName = meta.repName;
     if (!current.repEmail && meta.repEmail) current.repEmail = meta.repEmail;
+    const enriched = repInfo.get(key);
+    if (enriched) {
+      if (enriched.name) current.repName = enriched.name;
+      if (enriched.email) current.repEmail = enriched.email;
+    }
     repMap.set(key, current);
   }
   const byRep = Array.from(repMap.values()).sort((a, b) => b.count - a.count || a.repId.localeCompare(b.repId));
@@ -206,6 +211,40 @@ function buildStats(list, range, Status) {
     byCountry,
     byRep,
   };
+}
+
+function formatRepStoreEntry(rep) {
+  if (!rep || typeof rep !== 'object') return null;
+  const first = norm(rep.firstName);
+  const last = norm(rep.lastName);
+  const full = `${first} ${last}`.trim();
+  const name = full || norm(rep.name) || undefined;
+  const email = normLower(rep.email) || undefined;
+  if (!name && !email) return null;
+  return { name, email };
+}
+
+async function loadRepInfoMap(repIds) {
+  if (!repIds?.length) return new Map();
+  try {
+    const store = await import('../_lib/repsStore.js');
+    const { loadRepById } = store || {};
+    if (typeof loadRepById !== 'function') return new Map();
+    const map = new Map();
+    await Promise.all(repIds.map(async (id) => {
+      try {
+        const rep = await loadRepById(id);
+        const normalized = formatRepStoreEntry(rep);
+        if (normalized) map.set(id, normalized);
+      } catch (err) {
+        console.warn(`[admin/stats] failed to load rep ${id}`, err?.message || err);
+      }
+    }));
+    return map;
+  } catch (err) {
+    console.warn('[admin/stats] rep store unavailable', err?.message || err);
+    return new Map();
+  }
 }
 
 export default async function handler(req, res) {
@@ -236,7 +275,10 @@ export default async function handler(req, res) {
       return ts >= range.from.getTime() && ts <= range.to.getTime();
     });
 
-    const payload = buildStats(filtered, range, Status);
+    const repIds = Array.from(new Set(filtered.map((c) => pickRepMeta(c)?.repId).filter(Boolean)));
+    const repInfo = await loadRepInfoMap(repIds);
+
+    const payload = buildStats(filtered, range, Status, repInfo);
     return ok(res, payload);
   } catch (err) {
     console.error('[admin/stats] failed', err);
