@@ -7,6 +7,7 @@ import '../widgets/lang_action.dart';
 import '../utils/lang_utils.dart';
 import '../services/app_prefs.dart';
 import '../services/app_prefs_scope.dart';
+import '../widgets/gate_code_input.dart';
 import '../widgets/theme_action.dart' as w;
 import '../widgets/legal_footer.dart';
 
@@ -162,7 +163,7 @@ class _RegisterPageState extends State<RegisterPage> {
   // Gate (AUTH_PASSWORD) – vor Betreten der Registrierung
   final _gateCompany = TextEditingController();
   final _gateEmail = TextEditingController();
-  final _gatePw = TextEditingController();
+  String _gateCode = '';
   bool _gateBusy = false;
   bool _gateRequestBusy = false;
   String? _gateErr;
@@ -227,7 +228,6 @@ class _RegisterPageState extends State<RegisterPage> {
   void dispose() {
     _gateCompany.dispose();
     _gateEmail.dispose();
-    _gatePw.dispose();
     _email.dispose();
     _pw.dispose();
     _pw2.dispose();
@@ -261,7 +261,7 @@ class _RegisterPageState extends State<RegisterPage> {
     final t = context.t;
     final email = _gateEmail.text.trim();
     final company = _gateCompany.text.trim();
-    final password = _gatePw.text.trim();
+    final password = _gateCode.trim();
 
     setState(() {
       _gateErr = null;
@@ -459,16 +459,24 @@ class _RegisterPageState extends State<RegisterPage> {
         },
       ),
       const SizedBox(height: 12),
-      TextField(
-        controller: _gatePw,
-        obscureText: true,
-        decoration: InputDecoration(
-          labelText: t.gate_password,
-          border: const OutlineInputBorder(),
-        ),
-        onSubmitted: (_) {
-          if (!_gateBusy && !_gateRequestBusy) _unlockGate();
-        },
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            t.gate_password,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 8),
+          Center(
+            child: GateCodeInput(
+              onChanged: (value) {
+                if (_gateCode != (value ?? '')) {
+                  setState(() => _gateCode = value ?? '');
+                }
+              },
+            ),
+          ),
+        ],
       ),
       const SizedBox(height: 12),
       FilledButton(
