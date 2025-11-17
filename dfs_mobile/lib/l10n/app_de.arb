@@ -197,6 +197,7 @@
   "invalid": "Ungültig",
   "gateUnlockHint": "Bitte geben Sie Ihre E-Mail-Adresse und das Freigabe-Passwort ein, um den Registrierungsbereich zu öffnen.",
   "gateEmailRequired": "Bitte geben Sie Ihre E-Mail-Adresse ein.",
+  "gateCompanyRequired": "Bitte geben Sie Ihre Firma ein.",
   "gateInvalidEmail": "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
   "gatePasswordRequired": "Bitte geben Sie das Freigabe-Passwort ein.",
   "gateRequestPassword": "Passwort anfordern",
