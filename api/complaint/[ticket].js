@@ -19,10 +19,17 @@ import {
 import { sendMail } from "../_lib/mailer.js";
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "";
+const MAX_PREVIEW_CHARS = 200000;
 
 function adminAuthorized(req) {
   const hdr = req.headers?.["x-admin-secret"];
   return !!(hdr && ADMIN_SECRET && hdr === ADMIN_SECRET);
+}
+
+function normalizePreview(value) {
+  const str = (value ?? "").toString().trim();
+  if (!str) return undefined;
+  return str.length > MAX_PREVIEW_CHARS ? str.slice(0, MAX_PREVIEW_CHARS) : str;
 }
 
 function firstNonEmpty(...values) {
@@ -75,6 +82,7 @@ export default async function handler(req, res) {
       const raw = files[i] || {};
       const name = (raw.name || `attachment_${i + 1}`).toString();
       const mime = (raw.mime || "application/octet-stream").toString();
+      const preview = normalizePreview(raw.preview);
       const base64 = ((raw.bytes || raw.data || "") + "").trim();
       if (!base64) continue;
 
@@ -93,12 +101,14 @@ export default async function handler(req, res) {
       totalBytes += buffer.length;
       if (totalBytes > MAX_BYTES) return bad(res, "files too large", 400);
 
-      meta.push({
+      const entry = {
         name,
         mime,
         size: buffer.length,
         uploadedAt: Date.now(),
-      });
+      };
+      if (preview) entry.preview = preview;
+      meta.push(entry);
       mailAttachments.push({
         filename: name || `attachment_${i + 1}.bin`,
         content: buffer,
