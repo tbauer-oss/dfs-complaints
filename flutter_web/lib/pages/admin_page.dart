@@ -910,7 +910,7 @@ class _AdminPageState extends State<AdminPage> {
           : 'Noch kein Ergebnis – bitte Check starten.';
     }
 
-    Widget buildRepReminderCard() {
+    Widget buildRepReminderCard(bool compact) {
       final report = _repReminderReport;
       final entries = report?.reminders ?? const <RepReminderEntry>[];
       final delayDays = report?.delayDays ?? _repReminderDefaultDelayDays.toDouble();
@@ -931,6 +931,45 @@ class _AdminPageState extends State<AdminPage> {
             : 'Zuletzt waren keine Erinnerungen notwendig ($eligible überfällige $eligibleLabel).';
       }
 
+      Widget header() {
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.mark_email_unread_outlined, color: cs.primary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Vertreter erinnern',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Sendet eine Erinnerungsmail an Vertreter, wenn nach $delayLabel Tagen noch keine Entscheidung '
+                    'erfolgt ist (CC an complaint@dfs-diamon.de).',
+                    style: infoStyle,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      }
+
+      final reminderButton = FilledButton.icon(
+        onPressed: _repRemindersBusy ? null : _runRepReminders,
+        icon: _repRemindersBusy
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.send_outlined),
+        label: Text(_repRemindersBusy ? 'Läuft …' : 'Erinnerungen senden'),
+      );
+
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(16),
@@ -942,42 +981,23 @@ class _AdminPageState extends State<AdminPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.mark_email_unread_outlined, color: cs.primary),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Vertreter erinnern',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Sendet eine Erinnerungsmail an Vertreter, wenn nach $delayLabel Tagen noch keine Entscheidung '
-                        'erfolgt ist (CC an complaint@dfs-diamon.de).',
-                        style: infoStyle,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                FilledButton.icon(
-                  onPressed: _repRemindersBusy ? null : _runRepReminders,
-                  icon: _repRemindersBusy
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.send_outlined),
-                  label: Text(_repRemindersBusy ? 'Läuft …' : 'Erinnerungen senden'),
-                ),
-              ],
-            ),
+            if (compact) ...[
+              header(),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: reminderButton,
+              ),
+            ] else ...[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: header()),
+                  const SizedBox(width: 12),
+                  reminderButton,
+                ],
+              ),
+            ],
             const SizedBox(height: 12),
             Text(summaryLine(), style: theme.textTheme.bodyMedium),
             if (lastRunLabel != null) ...[
@@ -1032,95 +1052,160 @@ class _AdminPageState extends State<AdminPage> {
       );
     }
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.health_and_safety_outlined),
-                const SizedBox(width: 8),
-                const Text(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double maxWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : MediaQuery.of(context).size.width;
+        final bool compact = maxWidth < 720;
+        final double horizontalPadding = compact ? 12 : 24;
+        final double maxContentWidth = maxWidth > 1100 ? 1020 : maxWidth;
+        final EdgeInsets cardPadding = EdgeInsets.symmetric(
+          horizontal: compact ? 16 : 24,
+          vertical: compact ? 18 : 24,
+        );
+
+        final refreshButton = IconButton(
+          tooltip: 'Neu laden',
+          onPressed: _systemHealthBusy ? null : () => _loadSystemHealth(force: true),
+          icon: const Icon(Icons.refresh),
+        );
+
+        Widget buildHeader() {
+          final title = Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: const [
+              Icon(Icons.health_and_safety_outlined),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
                   'Systemstatus & Validierung',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
-                const Spacer(),
-                IconButton(
-                  tooltip: 'Neu laden',
-                  onPressed: _systemHealthBusy ? null : () => _loadSystemHealth(force: true),
-                  icon: const Icon(Icons.refresh),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            if (_systemHealthBusy) const LinearProgressIndicator(),
-            if (_systemHealthErr != null) ...[
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: cs.errorContainer,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  _systemHealthErr!,
-                  style: TextStyle(color: cs.onErrorContainer),
-                ),
               ),
             ],
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: summaryBg,
-                borderRadius: BorderRadius.circular(16),
+          );
+
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                title,
+                const SizedBox(height: 12),
+                Align(alignment: Alignment.centerLeft, child: refreshButton),
+              ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(child: title),
+              const SizedBox(width: 12),
+              refreshButton,
+            ],
+          );
+        }
+
+        Widget buildChecks() {
+          if (checks.isEmpty) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: Text(
+                  status == null
+                      ? (_systemHealthBusy ? 'Prüfung läuft …' : 'Noch kein System-Check gestartet.')
+                      : 'Keine Check-Daten verfügbar.',
+                ),
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(summaryIcon, color: summaryFg),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(summaryText, style: TextStyle(color: summaryFg, fontWeight: FontWeight.w600)),
-                        if (tsLabel != null) ...[
-                          const SizedBox(height: 4),
-                          Text('Stand: $tsLabel', style: TextStyle(color: summaryFg.withOpacity(0.9))),
-                        ],
+            );
+          }
+
+          return ListView.separated(
+            padding: EdgeInsets.zero,
+            physics: const NeverScrollableScrollPhysics(),
+            shrinkWrap: true,
+            itemBuilder: (_, index) => _SystemHealthCheckCard(check: checks[index]),
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemCount: checks.length,
+          );
+        }
+
+        return Align(
+          alignment: Alignment.topCenter,
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+            padding: EdgeInsets.fromLTRB(horizontalPadding, 16, horizontalPadding, 32),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxContentWidth),
+              child: Card(
+                elevation: 1,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                child: Padding(
+                  padding: cardPadding,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      buildHeader(),
+                      const SizedBox(height: 8),
+                      if (_systemHealthBusy) const LinearProgressIndicator(),
+                      if (_systemHealthErr != null) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: cs.errorContainer,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            _systemHealthErr!,
+                            style: TextStyle(color: cs.onErrorContainer),
+                          ),
+                        ),
                       ],
-                    ),
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: summaryBg,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(summaryIcon, color: summaryFg),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(summaryText,
+                                      style: TextStyle(color: summaryFg, fontWeight: FontWeight.w600)),
+                                  if (tsLabel != null) ...[
+                                    const SizedBox(height: 4),
+                                    Text('Stand: $tsLabel',
+                                        style: TextStyle(color: summaryFg.withOpacity(0.9))),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      buildRepReminderCard(compact),
+                      const SizedBox(height: 16),
+                      buildChecks(),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
-            const SizedBox(height: 16),
-            buildRepReminderCard(),
-            const SizedBox(height: 16),
-            Expanded(
-              child: checks.isEmpty
-                  ? Center(
-                      child: Text(
-                        status == null
-                            ? (_systemHealthBusy ? 'Prüfung läuft …' : 'Noch kein System-Check gestartet.')
-                            : 'Keine Check-Daten verfügbar.',
-                      ),
-                    )
-                  : ListView.separated(
-                      padding: EdgeInsets.zero,
-                      itemBuilder: (_, index) => _SystemHealthCheckCard(check: checks[index]),
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      itemCount: checks.length,
-                    ),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
