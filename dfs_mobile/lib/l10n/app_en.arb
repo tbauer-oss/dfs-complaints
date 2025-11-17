@@ -197,6 +197,12 @@
   "allCompanies": "All companies",
   "@allCompanies": { "description": "Filter option to show all companies" },
   "yourCompany": "Your company",
+  "allDecisions": "All decisions",
+  "@allDecisions": { "description": "Filter option for decisions" },
+  "allStatus": "All statuses",
+  "@allStatus": { "description": "Filter option for statuses" },
+  "rep_filter_decision_label": "Filter decision",
+  "rep_filter_status_label": "Filter status",
 
   "logout": "Logout",
   "loggedOut": "Logged out.",
