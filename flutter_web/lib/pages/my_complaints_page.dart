@@ -8,6 +8,8 @@ import '../models/complaint.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/legal_footer.dart';
 
+const _kComplaintMail = 'complaint@dfs-diamon.de';
+
 class MyComplaintsPage extends StatefulWidget {
   final ApiClient api;
   const MyComplaintsPage({super.key, required this.api});
@@ -317,6 +319,27 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     }
   }
 
+  Future<void> _openComplaintContactForm(Complaint c) async {
+    final t = AppLocalizations.of(context)!;
+    final initialSubject = t.complaint_contact_subject_prefill(c.ticket);
+
+    final sent = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => _ComplaintContactDialog(
+        api: widget.api,
+        complaint: c,
+        rep: _myRep,
+        initialSubject: initialSubject,
+      ),
+    );
+
+    if (sent == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.rep_contact_sent)),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
@@ -449,6 +472,24 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                   label: Text(t.attachments_add),
                                 );
 
+                                final contactButton = TextButton.icon(
+                                  onPressed:
+                                      _busy ? null : () => _openComplaintContactForm(c),
+                                  icon: const Icon(Icons.mail_outline),
+                                  label: Text(t.complaint_contact_button),
+                                );
+
+                                final actionButtons = Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  alignment: WrapAlignment.end,
+                                  children: [
+                                    attachmentsButton,
+                                    contactButton,
+                                  ],
+                                );
+
                                 final infoWrap = Wrap(
                                   spacing: 8,
                                   runSpacing: 8,
@@ -485,7 +526,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                           const SizedBox(height: 8),
                                           Align(
                                             alignment: Alignment.centerRight,
-                                            child: attachmentsButton,
+                                            child: actionButtons,
                                           ),
                                         ],
                                       );
@@ -496,7 +537,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                       children: [
                                         Expanded(child: infoWrap),
                                         const SizedBox(width: 12),
-                                        attachmentsButton,
+                                        actionButtons,
                                       ],
                                     );
                                   },
@@ -849,6 +890,148 @@ class _StatusPill extends StatelessWidget {
         safe,
         style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12.5),
       ),
+    );
+  }
+}
+
+class _ComplaintContactDialog extends StatefulWidget {
+  final ApiClient api;
+  final Complaint complaint;
+  final MyRep? rep;
+  final String initialSubject;
+
+  const _ComplaintContactDialog({
+    required this.api,
+    required this.complaint,
+    required this.initialSubject,
+    this.rep,
+  });
+
+  @override
+  State<_ComplaintContactDialog> createState() => _ComplaintContactDialogState();
+}
+
+class _ComplaintContactDialogState extends State<_ComplaintContactDialog> {
+  late final TextEditingController _subjectCtrl;
+  final TextEditingController _messageCtrl = TextEditingController();
+  bool _sending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _subjectCtrl = TextEditingController(text: widget.initialSubject);
+  }
+
+  @override
+  void dispose() {
+    _subjectCtrl.dispose();
+    _messageCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    final t = AppLocalizations.of(context)!;
+    final subject = _subjectCtrl.text.trim();
+    final message = _messageCtrl.text.trim();
+
+    if (subject.isEmpty || message.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.rep_contact_validation)),
+      );
+      return;
+    }
+
+    setState(() => _sending = true);
+    try {
+      await widget.api.complaintContact(
+        ticket: widget.complaint.ticket,
+        subject: subject,
+        message: message,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      final errText = (e is ApiError && e.message.isNotEmpty)
+          ? '${t.rep_contact_error} (${e.message})'
+          : t.rep_contact_error;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(errText)),
+      );
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    final rep = widget.rep;
+    final repEmail = (rep?.email ?? '').trim();
+    final hasRep = repEmail.isNotEmpty;
+    final displayName = (rep?.displayName ?? '').trim();
+    final repName = displayName.isNotEmpty ? displayName : repEmail;
+
+    final infoText = hasRep
+        ? t.complaint_contact_intro_rep(repName, repEmail)
+        : t.complaint_contact_intro_qm(_kComplaintMail);
+
+    return AlertDialog(
+      title: Text(t.complaint_contact_title(widget.complaint.ticket)),
+      content: SizedBox(
+        width: 520,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                infoText,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(color: Theme.of(context).colorScheme.onSurface.withOpacity(.8)),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _subjectCtrl,
+                decoration: InputDecoration(
+                  labelText: t.rep_contact_subject_label,
+                  prefixIcon: const Icon(Icons.subject),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _messageCtrl,
+                minLines: 5,
+                maxLines: 10,
+                decoration: InputDecoration(
+                  labelText: t.rep_contact_message_label,
+                  alignLabelWithHint: true,
+                  prefixIcon: const Icon(Icons.message_outlined),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _sending ? null : () => Navigator.of(context).pop(false),
+          child: Text(t.cancel),
+        ),
+        ElevatedButton.icon(
+          onPressed: _sending ? null : _send,
+          icon: _sending
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.send_outlined),
+          label: Text(t.send),
+        ),
+      ],
     );
   }
 }
