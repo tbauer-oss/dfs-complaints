@@ -1612,8 +1612,11 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
   Widget _buildAccountCard() {
     final t = context.t;
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final labelProfile   = t.profile_edit ?? 'Profil bearbeiten';
     final labelPassword  = t.password_change ?? 'Passwort ändern';
+    final profileHint    = t.profile_edit_hint ?? labelProfile;
+    final passwordHint   = t.password_change_hint ?? labelPassword;
 
     String s(Object? v) => (v ?? '').toString().trim();
 
@@ -1629,6 +1632,76 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
 
     final displayName = [firstName, lastName].where((e) => e.isNotEmpty).join(' ').trim();
     final headline = displayName.isEmpty ? (email.isNotEmpty ? email : t.profile_edit ?? 'Profil') : displayName;
+
+    Widget _actionTile({
+      required IconData icon,
+      required String label,
+      required String description,
+      required Color color,
+      required VoidCallback onTap,
+    }) {
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: onTap,
+          child: Ink(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [color.withOpacity(0.16), cs.surfaceVariant.withOpacity(.45)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: color.withOpacity(.35)),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withOpacity(0.18),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(.22),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: color, size: 24),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        label,
+                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      if (description.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          description,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: cs.onSurface.withOpacity(.7),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: cs.onSurface.withOpacity(.65)),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     Future<void> _openProfile() async {
       await Navigator.of(context).push(
@@ -1734,28 +1807,28 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
 
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 760),
+        constraints: const BoxConstraints(maxWidth: 820),
         child: Card(
           elevation: 6,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 28),
+            padding: const EdgeInsets.fromLTRB(28, 28, 28, 32),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     CircleAvatar(
-                      radius: 32,
-                      backgroundColor: theme.colorScheme.primaryContainer,
+                      radius: 34,
+                      backgroundColor: cs.primaryContainer,
                       child: Icon(
                         Icons.person_outline,
-                        size: 32,
-                        color: theme.colorScheme.onPrimaryContainer,
+                        size: 34,
+                        color: cs.onPrimaryContainer,
                       ),
                     ),
-                    const SizedBox(width: 18),
+                    const SizedBox(width: 20),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1769,7 +1842,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                             Text(
                               email,
                               style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
+                                color: cs.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -1778,7 +1851,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                     ),
                   ],
                 ),
-                const SizedBox(height: 22),
+                const SizedBox(height: 20),
                 Wrap(
                   spacing: 12,
                   runSpacing: 10,
@@ -1801,22 +1874,21 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                     ),
                   ],
                 ),
-                const SizedBox(height: 26),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    FilledButton.icon(
-                      onPressed: _openProfile,
-                      icon: const Icon(Icons.manage_accounts_outlined),
-                      label: Text(labelProfile),
-                    ),
-                    FilledButton.tonalIcon(
-                      onPressed: _openPasswordChange,
-                      icon: const Icon(Icons.lock_reset_outlined),
-                      label: Text(labelPassword),
-                    ),
-                  ],
+                const SizedBox(height: 28),
+                _actionTile(
+                  icon: Icons.manage_accounts_outlined,
+                  label: labelProfile,
+                  description: profileHint,
+                  color: cs.primary,
+                  onTap: _openProfile,
+                ),
+                const SizedBox(height: 16),
+                _actionTile(
+                  icon: Icons.lock_reset_outlined,
+                  label: labelPassword,
+                  description: passwordHint,
+                  color: cs.tertiary,
+                  onTap: _openPasswordChange,
                 ),
               ],
             ),
