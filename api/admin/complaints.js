@@ -16,12 +16,11 @@ const isAdmin = (req) => ADMIN_SECRET && req.headers?.['x-admin-secret'] === ADM
 
 // -------- Status-Mapping ----------
 const STATUS_LABEL = {
-  1: 'Eingegegangen',
+  1: 'Eingegangen',
   2: 'In Bearbeitung',
   3: 'Rückfrage erforderlich',
-  4: 'Entscheidung',
-  5: 'In Nacharbeit',
-  6: 'Abgeschlossen',
+  4: 'In Nacharbeit',
+  5: 'Abgeschlossen',
 };
 const STATUS_CODE = Object.fromEntries(Object.entries(STATUS_LABEL).map(([k, v]) => [v, Number(k)]));
 
@@ -30,41 +29,36 @@ const STATUS_I18N = {
     1: 'Eingegangen',
     2: 'In Bearbeitung',
     3: 'Rückfrage erforderlich',
-    4: 'Entscheidung',
-    5: 'In Nacharbeit',
-    6: 'Abgeschlossen',
+    4: 'In Nacharbeit',
+    5: 'Abgeschlossen',
   },
   en: {
     1: 'Received',
     2: 'In progress',
     3: 'Needs info',
-    4: 'Final decision',
-    5: 'Rework',
-    6: 'Closed',
+    4: 'Rework',
+    5: 'Closed',
   },
   fr: {
     1: 'Reçu',
     2: 'En cours',
     3: 'Informations requises',
-    4: 'Décision finale',
-    5: 'Reprise',
-    6: 'Clôturé',
+    4: 'Reprise',
+    5: 'Clôturé',
   },
   it: {
     1: 'Ricevuto',
     2: 'In lavorazione',
     3: 'Informazioni necessarie',
-    4: 'Decisione finale',
-    5: 'Revisione',
-    6: 'Chiuso',
+    4: 'Revisione',
+    5: 'Chiuso',
   },
   es: {
     1: 'Recibido',
     2: 'En curso',
     3: 'Se requiere información',
-    4: 'Decisión final',
-    5: 'Revisión',
-    6: 'Cerrado',
+    4: 'Revisión',
+    5: 'Cerrado',
   },
 };
 
@@ -114,12 +108,12 @@ function buildPushMessage(lang, ticket, status) {
 
 function parseStatus(input) {
   if (input == null) return null;
-  if (typeof input === 'number') return (input >= 1 && input <= 6) ? input : null;
+  if (typeof input === 'number') return (input >= 1 && input <= 5) ? input : null;
   if (typeof input === 'string') {
     const s = input.trim();
     if (/^\d+$/.test(s)) {
       const n = Number(s);
-      return (n >= 1 && n <= 6) ? n : null;
+      return (n >= 1 && n <= 5) ? n : null;
     }
     return STATUS_CODE[s] ?? null;
   }
@@ -163,6 +157,7 @@ export default async function handler(req, res) {
     repPushTokenRemove,
     adminPushTokens,
     adminPushTokenRemove,
+    Status,
   } = await import('../_lib/store.js');
   const { sendPushNotification } = await import('../_lib/push.js');
   let getRepOf = null;
@@ -254,8 +249,8 @@ export default async function handler(req, res) {
         if (c.decision === 'rejected') {
           c.closed = true;
           c.closedAt = Date.now();
-          if (c.status !== 4) {
-            c.status = 4;
+          if (c.status !== Status.CLOSED) {
+            c.status = Status.CLOSED;
             statusChanged = true;
           }
         }
