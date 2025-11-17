@@ -159,15 +159,19 @@ function countBy(list, keyFn) {
   return map;
 }
 
-function buildStats(list, range, Status, repInfo = new Map()) {
+function buildStats(list, range, repInfo = new Map()) {
   const total = list.length;
   const statusCounts = countBy(list, (c) => {
     const s = Number(c?.status || 0);
-    if (!Number.isFinite(s) || s < 1 || s > 6) return null;
+    if (!Number.isFinite(s) || s < 1 || s > 5) return null;
     return s;
   });
-  const closed = statusCounts.get(Status.CLOSED) || 0;
-  const open = Math.max(total - closed, 0);
+  const decisionCounts = countBy(list, (c) => {
+    const raw = (c?.decision || '').toString().trim();
+    return raw || 'pending';
+  });
+  const pending = decisionCounts.get('pending') || 0;
+  const open = Math.max(pending, 0);
 
   const monthsRaw = countBy(list, (c) => monthKey(createdAtMs(c)));
   const monthsSeries = iterateMonths(range).map((month) => ({
@@ -201,12 +205,17 @@ function buildStats(list, range, Status, repInfo = new Map()) {
     .map(([status, count]) => ({ status: Number(status), count }))
     .sort((a, b) => a.status - b.status);
 
+  const byDecision = Array.from(decisionCounts.entries())
+    .map(([decision, count]) => ({ decision, count }))
+    .sort((a, b) => a.decision.localeCompare(b.decision));
+
   return {
     from: formatDateOnly(range.from),
     to: formatDateOnly(range.to),
     total,
     open,
     byStatus,
+    byDecision,
     byMonth: monthsSeries,
     byCountry,
     byRep,
@@ -254,7 +263,7 @@ export default async function handler(req, res) {
   if (!isAdmin(req)) return bad(res, 'admin unauthorized', 401);
 
   try {
-    const { complaintsAll, Status } = await import('../_lib/store.js');
+    const { complaintsAll } = await import('../_lib/store.js');
 
     const q = req.query || {};
     const defaults = defaultRange();
@@ -278,7 +287,7 @@ export default async function handler(req, res) {
     const repIds = Array.from(new Set(filtered.map((c) => pickRepMeta(c)?.repId).filter(Boolean)));
     const repInfo = await loadRepInfoMap(repIds);
 
-    const payload = buildStats(filtered, range, Status, repInfo);
+    const payload = buildStats(filtered, range, repInfo);
     return ok(res, payload);
   } catch (err) {
     console.error('[admin/stats] failed', err);
