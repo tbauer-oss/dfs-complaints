@@ -63,7 +63,7 @@ export default async function handler(req, res) {
         `Email: ${email}`,
         `Firma: ${company}`,
         contact ? `Kontakt: ${contact}` : null,
-        note ? '',
+        note ? '' : null,
         note ? note : null,
         '',
         `Gate-Passwort: ${gateCode}`,
