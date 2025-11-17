@@ -72,6 +72,8 @@
   "@password_change": { "description": "Elemento de menú: cambiar la contraseña" },
   "password_change_hint": "Actualiza tu contraseña de forma segura",
   "@password_change_hint": { "description": "Subtítulo bajo cambiar contraseña en el menú de cuenta" },
+  "old_password_required": "Introduce tu contraseña actual.",
+  "@old_password_required": { "description": "Mensaje de validación cuando falta la contraseña actual" },
 
   "cancel": "Cancelar",
   "open": "Abrir",
