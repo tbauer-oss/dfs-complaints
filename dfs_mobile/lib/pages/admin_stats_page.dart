@@ -965,8 +965,10 @@ class _MapPin extends StatelessWidget {
     final y = (pin.normalized.dy.clamp(0.0, 1.0)) * height;
     final markerHeight = headSize * 1.45;
     final tailHeight = headSize * 0.45;
-    final left = (x - headSize / 2).clamp(0.0, math.max(width - headSize, 0));
-    final top = (y - markerHeight).clamp(0.0, math.max(height - markerHeight, 0));
+    final left =
+        (x - headSize / 2).clamp(0.0, math.max(width - headSize, 0)).toDouble();
+    final top =
+        (y - markerHeight).clamp(0.0, math.max(height - markerHeight, 0)).toDouble();
     return Positioned(
       left: left,
       top: top,
