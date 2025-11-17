@@ -51,6 +51,7 @@ class _AdminPageState extends State<AdminPage> {
   final _repLastCtrl  = TextEditingController();
   final _repMailCtrl  = TextEditingController();
   String _repRegion   = kRepRegions.first;
+  List<String> _repRegionOptions = List<String>.from(kRepRegions);
   bool _repBusy       = false;
 
   // Admin-Kundenanlage (persistente Felder)
@@ -247,17 +248,68 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  List<String> _composeRepRegionOptions(Iterable<Rep> reps) {
+    final options = <String>[...kRepRegions];
+    final lower = options.map((e) => e.toLowerCase()).toSet();
+    for (final r in reps) {
+      final region = r.region.trim();
+      if (region.isEmpty) continue;
+      final key = region.toLowerCase();
+      if (lower.add(key)) options.add(region);
+    }
+    return options;
+  }
+
   Future<void> _refreshReps() async {
     setState(() { _err = null; _loadReps = true; });
     try {
       final list = await _api.fetchReps();
       if (!mounted) return;
-      setState(() => _reps = list);
+      setState(() {
+        _reps = list;
+        _repRegionOptions = _composeRepRegionOptions(list);
+        if (!_repRegionOptions.contains(_repRegion)) {
+          _repRegion = _repRegionOptions.first;
+        }
+      });
     } catch (e) {
       if (mounted) setState(() => _err = '$e');
     } finally {
       if (mounted) setState(() => _loadReps = false);
     }
+  }
+
+  Future<void> _promptCustomRegion() async {
+    final ctrl = TextEditingController(text: _repRegion);
+    final value = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Eigenen Länderbereich hinzufügen'),
+        content: TextField(
+          controller: ctrl,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(
+            labelText: 'Länderbereich',
+            hintText: 'z. B. DACH, Südeuropa …',
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: const Text('Übernehmen')),
+        ],
+      ),
+    );
+    if (value == null) return;
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return;
+    if (!mounted) return;
+    setState(() {
+      if (!_repRegionOptions.contains(trimmed)) {
+        _repRegionOptions = [..._repRegionOptions, trimmed];
+      }
+      _repRegion = trimmed;
+    });
   }
 
   Future<void> _loadSystemHealth({bool force = false}) async {
@@ -1708,7 +1760,7 @@ Widget _buildUsersPanel() {
         _repFirstCtrl.clear();
         _repLastCtrl.clear();
         _repMailCtrl.clear();
-        _repRegion = kRepRegions.first;
+        _repRegion = _repRegionOptions.first;
 
         await _refreshReps();
         if (!mounted) return true;
@@ -1730,7 +1782,7 @@ Widget _buildUsersPanel() {
       _repFirstCtrl.text = r.firstName;
       _repLastCtrl.text = r.lastName;
       _repMailCtrl.text = r.email;
-      _repRegion = r.region.isNotEmpty ? r.region : kRepRegions.first;
+      _repRegion = r.region.isNotEmpty ? r.region : _repRegionOptions.first;
 
       await showDialog<void>(
         context: context,
@@ -1748,11 +1800,27 @@ Widget _buildUsersPanel() {
                   const SizedBox(height: 8),
                   TextField(controller: _repMailCtrl, decoration: const InputDecoration(labelText: 'E-Mail')),
                   const SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
-                    value: _repRegion,
-                    decoration: const InputDecoration(labelText: 'Länderbereich'),
-                    items: kRepRegions.map((s) => DropdownMenuItem<String>(value: s, child: Text(s))).toList(),
-                    onChanged: (v) => _repRegion = v ?? kRepRegions.first,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: _repRegion,
+                          decoration: const InputDecoration(labelText: 'Länderbereich'),
+                          items: _repRegionOptions
+                              .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
+                              .toList(),
+                          onChanged: (v) => _repRegion = v ?? _repRegionOptions.first,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Tooltip(
+                        message: 'Eigenen Bereich hinzufügen',
+                        child: IconButton(
+                          onPressed: _promptCustomRegion,
+                          icon: const Icon(Icons.add),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -1803,7 +1871,7 @@ Widget _buildUsersPanel() {
       _repFirstCtrl.clear();
       _repLastCtrl.clear();
       _repMailCtrl.clear();
-      setState(() => _repRegion = kRepRegions.first);
+      setState(() => _repRegion = _repRegionOptions.first);
 
       await showModalBottomSheet<void>(
         context: context,
@@ -1865,16 +1933,30 @@ Widget _buildUsersPanel() {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: _repRegion,
-                      decoration: const InputDecoration(
-                        labelText: 'Länderbereich',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: kRepRegions
-                          .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
-                          .toList(),
-                      onChanged: (v) => setState(() => _repRegion = v ?? kRepRegions.first),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: _repRegion,
+                            decoration: const InputDecoration(
+                              labelText: 'Länderbereich',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: _repRegionOptions
+                                .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
+                                .toList(),
+                            onChanged: (v) => setState(() => _repRegion = v ?? _repRegionOptions.first),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Tooltip(
+                          message: 'Eigenen Bereich hinzufügen',
+                          child: IconButton(
+                            onPressed: _repBusy ? null : _promptCustomRegion,
+                            icon: const Icon(Icons.add),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     SizedBox(
