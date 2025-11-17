@@ -63,7 +63,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   // Firmenfilter (Dropdown) – gilt für „Alle Reklamationen“ und „Offene Reklamationen“
   String? _selectedCompany;
   bool _showClosedAll = false;
-  bool _showRejectedAll = false;
+  String _decisionFilter = '';
+  String _statusFilter = '';
 
   // "NEU"-Badges: lokal gemerkte "schon gesehen" Kunden (E-Mails als Key)
   Set<String> _seenCustomers = <String>{};
@@ -826,12 +827,49 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   bool _isClosed(Map<String, dynamic> c) {
     final s = int.tryParse((c['status'] ?? '').toString()) ?? 0;
     final dec = (c['decision'] ?? '').toString();
-    return s == 6 || (s == 4 && dec == 'rejected');
+    return s == 5 || dec == 'rejected';
   }
 
   bool _isRejected(Map<String, dynamic> c) {
     final dec = (c['decision'] ?? '').toString();
     return dec == 'rejected';
+  }
+
+  bool _matchesDecisionFilter(Map<String, dynamic> c) {
+    final dec = (c['decision'] ?? '').toString().trim();
+    final filter = _decisionFilter.trim();
+    if (filter.isEmpty) return true;
+    if (filter == 'pending') return dec.isEmpty;
+    return dec == filter;
+  }
+
+  bool _matchesStatusFilter(Map<String, dynamic> c) {
+    final filter = _statusFilter.trim();
+    if (filter.isEmpty) return true;
+    final code = int.tryParse(filter);
+    if (code == null) return true;
+    final status = int.tryParse((c['status'] ?? '').toString()) ?? 0;
+    return status == code;
+  }
+
+  List<DropdownMenuItem<String>> _decisionFilterItems(AppLocalizations t) {
+    return [
+      DropdownMenuItem(value: '', child: Text(t.allDecisions ?? 'Alle Entscheidungen')),
+      DropdownMenuItem(value: 'pending', child: Text(t.decision_pending ?? 'Entscheidung offen')),
+      DropdownMenuItem(value: 'accepted', child: Text(t.decision_accepted)),
+      DropdownMenuItem(value: 'rejected', child: Text(t.decision_rejected)),
+    ];
+  }
+
+  List<DropdownMenuItem<String>> _statusFilterItems(AppLocalizations t) {
+    return [
+      DropdownMenuItem(value: '', child: Text(t.allStatus ?? 'Alle Stati')),
+      DropdownMenuItem(value: '1', child: Text(t.status_sent)),
+      DropdownMenuItem(value: '2', child: Text(t.status_in_progress)),
+      DropdownMenuItem(value: '3', child: Text(t.status_question)),
+      DropdownMenuItem(value: '4', child: Text(t.status_rework)),
+      DropdownMenuItem(value: '5', child: Text(t.status_closed)),
+    ];
   }
 
   List<Map<String, dynamic>> get _filteredComplaints {
@@ -844,7 +882,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         return _complaints.where(_isRejected).toList(growable: false);
       case _RepFilter.finished:
         return _complaints
-            .where((c) => (int.tryParse((c['status'] ?? '').toString()) ?? 0) == 6)
+            .where((c) => (int.tryParse((c['status'] ?? '').toString()) ?? 0) == 5)
             .toList(growable: false);
     }
   }
@@ -917,7 +955,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     final allCount      = _complaints.length;
     final openCount     = _complaints.where((c) => !_isClosed(c)).length;
     final rejectedCount = _complaints.where(_isRejected).length;
-    final finishedCount = _complaints.where((c) => (int.tryParse((c['status'] ?? '').toString()) ?? 0) == 6).length;
+    final finishedCount = _complaints.where((c) => (int.tryParse((c['status'] ?? '').toString()) ?? 0) == 5).length;
     final title = switch (_view) {
       _RepView.menu      => t.rep_dashboard,
       _RepView.open      => t.complaintsMyCustomer,
@@ -1157,6 +1195,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       }).toList(growable: false);
     }
 
+    items = items.where(_matchesDecisionFilter).toList(growable: false);
+    items = items.where(_matchesStatusFilter).toList(growable: false);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1167,24 +1208,48 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
             child: SizedBox(
               width: 320,
-              child: DropdownButtonFormField<String>(
-                isExpanded: true,
-                value: selectedCompany,
-                items: <DropdownMenuItem<String>>[
-                  DropdownMenuItem<String>(
-                    value: '',
-                    child: Text(t.allCompanies ?? t.allCompanies),
+              child: Column(
+                children: [
+                  DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    value: selectedCompany,
+                    items: <DropdownMenuItem<String>>[
+                      DropdownMenuItem<String>(
+                        value: '',
+                        child: Text(t.allCompanies ?? t.allCompanies),
+                      ),
+                      ...companies.map((co) => DropdownMenuItem<String>(
+                            value: co,
+                            child: Text(co),
+                          )),
+                    ],
+                    onChanged: (v) => setState(() => _selectedCompany = (v ?? '')),
+                    decoration: InputDecoration(
+                      labelText: t.rep_filter_company_label,
+                      prefixIcon: const Icon(Icons.apartment_outlined),
+                    ),
                   ),
-                  ...companies.map((co) => DropdownMenuItem<String>(
-                        value: co,
-                        child: Text(co),
-                      )),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: _decisionFilter,
+                    items: _decisionFilterItems(t),
+                    onChanged: (v) => setState(() => _decisionFilter = v ?? ''),
+                    decoration: InputDecoration(
+                      labelText: t.rep_filter_decision_label ?? 'Entscheidung filtern',
+                      prefixIcon: const Icon(Icons.how_to_vote_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: _statusFilter,
+                    items: _statusFilterItems(t),
+                    onChanged: (v) => setState(() => _statusFilter = v ?? ''),
+                    decoration: InputDecoration(
+                      labelText: t.rep_filter_status_label ?? 'Status filtern',
+                      prefixIcon: const Icon(Icons.flag_outlined),
+                    ),
+                  ),
                 ],
-                onChanged: (v) => setState(() => _selectedCompany = (v ?? '')),
-                decoration: InputDecoration(
-                  labelText: t.rep_filter_company_label,
-                  prefixIcon: const Icon(Icons.apartment_outlined),
-                ),
               ),
             ),
           ),
@@ -1233,12 +1298,10 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     final selectedCompany = _validSelectedCompany(companies);
 
     List<Map<String, dynamic>> list = List<Map<String, dynamic>>.from(_complaints);
+    final hasStatusFilter = _statusFilter.trim().isNotEmpty;
 
-    if (!_showClosedAll) {
+    if (!_showClosedAll && !hasStatusFilter) {
       list = list.where((c) => !_isClosed(c)).toList();
-    }
-    if (_showRejectedAll) {
-      list = list.where(_isRejected).toList();
     }
     if (selectedCompany.isNotEmpty) {
       list = list.where((c) {
@@ -1247,6 +1310,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         return co == selectedCompany;
       }).toList();
     }
+
+    list = list.where(_matchesDecisionFilter).toList();
+    list = list.where(_matchesStatusFilter).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1288,10 +1354,29 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                   selected: _showClosedAll,
                   onSelected: (v) => setState(() => _showClosedAll = v),
                 ),
-                FilterChip(
-                  label: Text(t.rep_filter_only_rejected),
-                  selected: _showRejectedAll,
-                  onSelected: (v) => setState(() => _showRejectedAll = v),
+                SizedBox(
+                  width: 220,
+                  child: DropdownButtonFormField<String>(
+                    value: _decisionFilter,
+                    items: _decisionFilterItems(t),
+                    onChanged: (v) => setState(() => _decisionFilter = v ?? ''),
+                    decoration: InputDecoration(
+                      labelText: t.rep_filter_decision_label ?? 'Entscheidung filtern',
+                      prefixIcon: const Icon(Icons.how_to_vote_outlined),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: 220,
+                  child: DropdownButtonFormField<String>(
+                    value: _statusFilter,
+                    items: _statusFilterItems(t),
+                    onChanged: (v) => setState(() => _statusFilter = v ?? ''),
+                    decoration: InputDecoration(
+                      labelText: t.rep_filter_status_label ?? 'Status filtern',
+                      prefixIcon: const Icon(Icons.flag_outlined),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -3382,46 +3467,52 @@ class _StatusChip extends StatelessWidget {
   }
 
   String _statusLabel(AppLocalizations t, int? value) {
-    final decisionLower = decision.trim().toLowerCase();
     switch (value) {
       case 1: return t.status_sent;
       case 2: return t.status_in_progress;
       case 3: return t.status_question;
-      case 4:
-        if (decisionLower == 'rejected') return t.status_rejected;
-        if (decisionLower == 'accepted') return t.status_accepted;
-        return t.status_decision;
-      case 5: return t.status_rework;
-      case 6: return t.status_closed;
+      case 4: return t.status_rework;
+      case 5: return t.status_closed;
       default:
         final raw = status.trim();
         return raw.isEmpty ? t.status_unknown : raw;
     }
   }
 
+  String _decisionLabel(AppLocalizations t) {
+    final d = decision.trim().toLowerCase();
+    if (d == 'accepted') return t.decision_accepted;
+    if (d == 'rejected') return t.decision_rejected;
+    return t.decision_pending ?? 'Entscheidung offen';
+  }
+
   Color _statusColor(BuildContext context, int? value) {
-    final decisionLower = decision.trim().toLowerCase();
     if (closed) return Colors.grey;
     switch (value) {
       case 1: return Colors.blue;
       case 2: return Colors.amber.shade800;
       case 3: return Colors.orange;
-      case 4:
-        if (decisionLower == 'rejected') return Colors.red;
-        if (decisionLower == 'accepted') return Colors.green;
-        return Colors.grey;
-      case 5: return Colors.amber;
-      case 6: return Colors.green;
+      case 4: return Colors.amber.shade600;
+      case 5: return Colors.green;
       default: return Theme.of(context).colorScheme.primary;
     }
+  }
+
+  Color _decisionColor() {
+    final d = decision.trim().toLowerCase();
+    if (d == 'accepted') return Colors.green;
+    if (d == 'rejected') return Colors.red;
+    return Colors.grey;
   }
 
   @override
   Widget build(BuildContext context) {
     final t = context.t;
     final number = _statusNumber();
-    final label = _statusLabel(t, number);
-    final color = _statusColor(context, number);
+    final statusLabel = _statusLabel(t, number);
+    final statusColor = _statusColor(context, number);
+    final decisionLabel = _decisionLabel(t);
+    final decisionColor = _decisionColor();
 
     final padV = compact ? 4.0  : 6.0;
     final padH = compact ? 8.0  : 10.0;
@@ -3429,23 +3520,65 @@ class _StatusChip extends StatelessWidget {
     final fs   = compact ? 12.0 : 13.0;
     final rad  = compact ? 16.0 : 20.0;
     final borderOpacity = compact ? .55 : .70;
-    final chipColor = color.withOpacity(compact ? .10 : .14);
+    final statusChip = _buildChip(
+      icon: Icons.flag_rounded,
+      label: '${t.status ?? "Status"}: $statusLabel',
+      color: statusColor,
+      iconSize: icon,
+      padH: padH,
+      padV: padV,
+      fs: fs,
+      radius: rad,
+      borderOpacity: borderOpacity,
+    );
+    final decisionChip = _buildChip(
+      icon: Icons.how_to_vote,
+      label: '${t.decision ?? "Entscheidung"}: $decisionLabel',
+      color: decisionColor,
+      iconSize: icon,
+      padH: padH,
+      padV: padV,
+      fs: fs,
+      radius: rad,
+      borderOpacity: borderOpacity,
+    );
 
+    return Wrap(
+      spacing: 8,
+      runSpacing: 6,
+      children: [decisionChip, statusChip],
+    );
+  }
+
+  Widget _buildChip({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required double iconSize,
+    required double padH,
+    required double padV,
+    required double fs,
+    required double radius,
+    required double borderOpacity,
+  }) {
+    final chipColor = color.withOpacity(compact ? .08 : .12);
     return Container(
       padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
       decoration: BoxDecoration(
         color: chipColor,
-        borderRadius: BorderRadius.circular(rad),
+        borderRadius: BorderRadius.circular(radius),
         border: Border.all(color: color.withOpacity(borderOpacity)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.flag_rounded, size: icon, color: color),
+          Icon(icon, size: iconSize, color: color),
           const SizedBox(width: 6),
-          Text(
-            '${t.status ?? "Status"}: $label',
-            style: TextStyle(color: color, fontSize: fs, fontWeight: FontWeight.w600),
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(color: color, fontSize: fs, fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
