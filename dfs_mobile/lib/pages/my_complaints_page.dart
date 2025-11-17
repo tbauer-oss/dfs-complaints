@@ -536,8 +536,9 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                           const SizedBox(width: 8),
                                           Expanded(
                                             child: Row(
+                                              crossAxisAlignment: CrossAxisAlignment.center,
                                               children: [
-                                                Expanded(
+                                                Flexible(
                                                   child: Text(
                                                     ticket.isEmpty ? '—' : ticket,
                                                     maxLines: 1,
@@ -548,10 +549,13 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                                 ),
                                                 if (hasInternalNo)
                                                   Flexible(
-                                                    flex: 0,
+                                                    fit: FlexFit.loose,
                                                     child: Padding(
                                                       padding: const EdgeInsets.only(left: 8),
-                                                      child: _internalNoPill(t, internalNo),
+                                                      child: Align(
+                                                        alignment: Alignment.centerRight,
+                                                        child: _internalNoPill(t, internalNo),
+                                                      ),
                                                     ),
                                                   ),
                                               ],
