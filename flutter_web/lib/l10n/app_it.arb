@@ -118,6 +118,32 @@
   "@allCompanies": { "description": "Opzione di filtro per mostrare tutte le aziende" },
   "yourCompany": "La vostra azienda",
   "we_are_here_for_you": "Siamo qui per voi.",
+  "complaint_contact_button": "Contattare",
+  "complaint_contact_title": "Messaggio sul ticket {ticket}",
+  "@complaint_contact_title": {
+    "placeholders": {
+      "ticket": { "type": "String" }
+    }
+  },
+  "complaint_contact_intro_rep": "Il suo messaggio verrà inviato a {repName} ({repEmail}). complaint@dfs-diamon.de riceverà una copia.",
+  "@complaint_contact_intro_rep": {
+    "placeholders": {
+      "repName": { "type": "String" },
+      "repEmail": { "type": "String" }
+    }
+  },
+  "complaint_contact_intro_qm": "Non è assegnato alcun referente. Il messaggio verrà inviato direttamente a {email}.",
+  "@complaint_contact_intro_qm": {
+    "placeholders": {
+      "email": { "type": "String" }
+    }
+  },
+  "complaint_contact_subject_prefill": "Richiesta sul ticket {ticket}",
+  "@complaint_contact_subject_prefill": {
+    "placeholders": {
+      "ticket": { "type": "String" }
+    }
+  },
   "rep_contact_form": "Inviare messaggio",
   "rep_not_assigned": "Attualmente non è assegnato alcun referente.",
   "rep_contact_title": "Contatta il rappresentante",
