@@ -44,7 +44,12 @@ class _GateCodeInputState extends State<GateCodeInput> {
   void initState() {
     super.initState();
     _controllers = List.generate(8, (_) => TextEditingController());
-    _focusNodes = List.generate(8, (_) => FocusNode());
+    _focusNodes = List.generate(
+      8,
+      (index) => FocusNode(
+        onKey: (node, event) => _handleKey(index, event),
+      ),
+    );
   }
 
   @override
@@ -59,6 +64,7 @@ class _GateCodeInputState extends State<GateCodeInput> {
   }
 
   void _handleChanged(int index, String value) {
+    final previousValue = _controllers[index].text;
     final sanitized = value.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
     if (sanitized.length > 1) {
       _fillFromIndex(index, sanitized);
@@ -76,6 +82,11 @@ class _GateCodeInputState extends State<GateCodeInput> {
       _focusNodes[index + 1].requestFocus();
       _controllers[index + 1].selection = TextSelection.collapsed(
         offset: _controllers[index + 1].text.length,
+      );
+    } else if (sanitized.isEmpty && previousValue.isNotEmpty && index > 0) {
+      _focusNodes[index - 1].requestFocus();
+      _controllers[index - 1].selection = TextSelection.collapsed(
+        offset: _controllers[index - 1].text.length,
       );
     }
 
@@ -141,24 +152,21 @@ class _GateCodeInputState extends State<GateCodeInput> {
   Widget _buildField(int index) {
     return SizedBox(
       width: widget.fieldWidth,
-      child: Focus(
+      child: TextField(
+        controller: _controllers[index],
         focusNode: _focusNodes[index],
-        onKey: (_, event) => _handleKey(index, event),
-        child: TextField(
-          controller: _controllers[index],
-          autofocus: index == 0,
-          maxLength: 1,
-          textAlign: TextAlign.center,
-          textInputAction: index == _controllers.length - 1
-              ? TextInputAction.done
-              : TextInputAction.next,
-          keyboardType: TextInputType.text,
-          textCapitalization: TextCapitalization.characters,
-          style: widget.textStyle ?? const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          decoration: widget.decoration ?? const InputDecoration(counterText: '', border: OutlineInputBorder()),
-          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]'))],
-          onChanged: (value) => _handleChanged(index, value),
-        ),
+        autofocus: index == 0,
+        maxLength: 1,
+        textAlign: TextAlign.center,
+        textInputAction: index == _controllers.length - 1
+            ? TextInputAction.done
+            : TextInputAction.next,
+        keyboardType: TextInputType.text,
+        textCapitalization: TextCapitalization.characters,
+        style: widget.textStyle ?? const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        decoration: widget.decoration ?? const InputDecoration(counterText: '', border: OutlineInputBorder()),
+        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]'))],
+        onChanged: (value) => _handleChanged(index, value),
       ),
     );
   }
