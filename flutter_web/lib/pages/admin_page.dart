@@ -3890,8 +3890,8 @@ const kStatusItems = <Map<String, dynamic>>[
   {'label': 'Eingegegangen', 'value': 1},
   {'label': 'In Bearbeitung', 'value': 2},
   {'label': 'Rückfrage erforderlich', 'value': 3},
-  {'label': 'In Nacharbeit', 'value': 5},
-  {'label': 'Abgeschlossen', 'value': 6},
+  {'label': 'In Nacharbeit', 'value': 4},
+  {'label': 'Abgeschlossen', 'value': 5},
 ];
 
 const kDecisionItems = <Map<String, String>>[
@@ -4094,7 +4094,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       widget.c.status = updated.status;
       widget.c.decision = updated.decision;
 
-      if (updated.status == 6 || updated.decision == 'rejected') {
+      if (updated.status == 5 || updated.decision == 'rejected') {
         widget.onClosed();
       }
 
@@ -4131,7 +4131,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
        widget.c.internalNo = updated.internalNo ?? newVal;
       });
 
-      if (updated.status == 6 || updated.decision == 'rejected') {
+      if (updated.status == 5 || updated.decision == 'rejected') {
         widget.onClosed();
       }
       if (mounted) {
@@ -4282,7 +4282,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       widget.c.status = updated.status;
       widget.c.decision = updated.decision;
 
-      if (updated.status == 6 || updated.decision == 'rejected') {
+      if (updated.status == 5 || updated.decision == 'rejected') {
         widget.onClosed();
       }
 
@@ -4388,8 +4388,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       case 1: return 'Eingegangen';
       case 2: return 'In Bearbeitung';
       case 3: return 'Rückfrage erforderlich';
-      case 5: return 'In Nacharbeit';
-      case 6: return 'Abgeschlossen';
+      case 4: return 'In Nacharbeit';
+      case 5: return 'Abgeschlossen';
       default: return 'Unbekannt';
     }
   }
