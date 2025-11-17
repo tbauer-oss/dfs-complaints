@@ -552,7 +552,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
 
                         // Payload
                         final payload = <String, dynamic>{
-                          'segment': segment == optDentist ? 'Zahnarzt' : 'Zahntechnik',
+                          'segment': segment == optDentist ? 'Zahnmedizin': 'Dentallabor',
                           'article': article.text.trim(),
                           'batch': batch.text.trim(),
                           'qty': qty.text.trim(),
