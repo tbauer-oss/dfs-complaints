@@ -156,13 +156,18 @@ class ComplaintUpload {
   final String mime;
   final int size;
   final DateTime? uploadedAt;
+  final String? preview;
 
   ComplaintUpload({
     required this.name,
     required this.mime,
     required this.size,
     required this.uploadedAt,
+    this.preview,
   });
+
+  bool get isImage => mime.toLowerCase().startsWith('image/');
+  bool get hasPreview => isImage && (preview ?? '').isNotEmpty;
 
   static int _parseSize(dynamic value) {
     if (value is int) return value;
@@ -203,11 +208,17 @@ class ComplaintUpload {
   }
 
   factory ComplaintUpload.fromJson(Map<String, dynamic> json) {
+    String? _preview(dynamic value) {
+      if (value == null) return null;
+      final s = value.toString().trim();
+      return s.isEmpty ? null : s;
+    }
     return ComplaintUpload(
       name: (json['name'] ?? '').toString(),
       mime: (json['mime'] ?? 'application/octet-stream').toString(),
       size: _parseSize(json['size']),
       uploadedAt: _parseUploadedAt(json['uploadedAt']),
+      preview: _preview(json['preview']),
     );
   }
 }
