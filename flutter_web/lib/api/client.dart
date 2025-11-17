@@ -952,13 +952,14 @@ class ApiClient {
   // ---------- Complaints ----------
   Future<Map<String, dynamic>?> complaintCreate(
     Map<String, dynamic> data, [
-    List<({String name, List<int> bytes, String mime})> files = const [],
+    List<({String name, List<int> bytes, String mime, String? preview})> files = const [],
   ]) async {
     final encFiles = files
         .map((f) => {
               'name': f.name,
               'mime': f.mime,
               'bytes': base64Encode(f.bytes),
+              if ((f.preview ?? '').isNotEmpty) 'preview': f.preview,
             })
         .toList();
 
@@ -976,7 +977,7 @@ class ApiClient {
 
   Future<Map<String, dynamic>> complaintUploadFiles(
     String ticket,
-    List<({String name, List<int> bytes, String mime})> files,
+    List<({String name, List<int> bytes, String mime, String? preview})> files,
   ) async {
     if (ticket.trim().isEmpty) {
       throw ArgumentError('ticket required');
@@ -990,6 +991,7 @@ class ApiClient {
               'name': f.name,
               'mime': f.mime,
               'bytes': base64Encode(f.bytes),
+              if ((f.preview ?? '').isNotEmpty) 'preview': f.preview,
             })
         .toList(growable: false);
 
