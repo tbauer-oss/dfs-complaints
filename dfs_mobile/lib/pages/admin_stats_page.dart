@@ -11,7 +11,7 @@ import 'package:dfs_mobile/data/country_geography.dart';
 import 'package:dfs_mobile/widgets/legal_footer.dart';
 
 class AdminStatsPage extends StatefulWidget {
-  final ApiClient api;
+  final Ap5iClient api;
   const AdminStatsPage({super.key, required this.api});
 
   @override
@@ -789,9 +789,11 @@ class _CountryAvatar extends StatelessWidget {
     }
     return CountryFlag.fromCountryCode(
       code!.toLowerCase(),
-      height: 28,
-      width: 38,
-      borderRadius: 6,
+      theme: const ImageTheme(
+        width: 38,
+        height: 28,
+        shape: RoundedRectangle(6),
+      ),
     );
   }
 }
