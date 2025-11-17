@@ -644,10 +644,12 @@ class ApiClient {
   }
 
   // ---------- Gate ----------
-  Future<bool> gateUnlock(String password, {String? email}) async {
+  Future<bool> gateUnlock(String password, {String? email, String? company}) async {
     final body = <String, String>{'password': password};
     final em = email?.trim();
     if (em != null && em.isNotEmpty) body['email'] = em;
+    final co = company?.trim();
+    if (co != null && co.isNotEmpty) body['company'] = co;
     final r = await _post('/api/gate', body);
     if (!_ok2xx(r.statusCode)) return false;
     try {
@@ -668,8 +670,11 @@ class ApiClient {
     }
   }
 
-  Future<String?> gateRequestPassword(String email) async {
-    final r = await _post('/api/gate/request', {'email': email.trim()});
+  Future<String?> gateRequestPassword(String email, {String? company}) async {
+    final body = <String, String>{'email': email.trim()};
+    final co = company?.trim();
+    if (co != null && co.isNotEmpty) body['company'] = co;
+    final r = await _post('/api/gate/request', body);
     if (_ok2xx(r.statusCode)) return null;
     try {
       final body = r.body;
