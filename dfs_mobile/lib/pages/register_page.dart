@@ -160,6 +160,7 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   // Gate (AUTH_PASSWORD) – vor Betreten der Registrierung
+  final _gateCompany = TextEditingController();
   final _gateEmail = TextEditingController();
   final _gatePw = TextEditingController();
   bool _gateBusy = false;
@@ -224,6 +225,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   void dispose() {
+    _gateCompany.dispose();
     _gateEmail.dispose();
     _gatePw.dispose();
     _email.dispose();
@@ -258,6 +260,7 @@ class _RegisterPageState extends State<RegisterPage> {
   Future<void> _unlockGate() async {
     final t = context.t;
     final email = _gateEmail.text.trim();
+    final company = _gateCompany.text.trim();
     final password = _gatePw.text.trim();
 
     setState(() {
@@ -265,6 +268,10 @@ class _RegisterPageState extends State<RegisterPage> {
       _gateInfo = null;
     });
 
+    if (company.isEmpty) {
+      setState(() => _gateErr = t.gateCompanyRequired);
+      return;
+    }
     if (email.isEmpty) {
       setState(() => _gateErr = t.gateEmailRequired);
       return;
@@ -282,7 +289,11 @@ class _RegisterPageState extends State<RegisterPage> {
       _gateBusy = true;
     });
     try {
-      final ok = await widget.api.gateUnlock(password, email: email);
+      final ok = await widget.api.gateUnlock(
+        password,
+        email: email,
+        company: company,
+      );
       if (!mounted) return;
       if (!ok) {
         setState(() => _gateErr = t.wrongPassword);
@@ -290,6 +301,9 @@ class _RegisterPageState extends State<RegisterPage> {
       }
       if (_email.text.trim().isEmpty) {
         _email.text = email;
+      }
+      if (_company.text.trim().isEmpty) {
+        _company.text = company;
       }
     } catch (e) {
       if (!mounted) return;
@@ -302,12 +316,17 @@ class _RegisterPageState extends State<RegisterPage> {
   Future<void> _requestGatePassword() async {
     final t = context.t;
     final email = _gateEmail.text.trim();
+    final company = _gateCompany.text.trim();
 
     setState(() {
       _gateErr = null;
       _gateInfo = null;
     });
 
+    if (company.isEmpty) {
+      setState(() => _gateErr = t.gateCompanyRequired);
+      return;
+    }
     if (email.isEmpty) {
       setState(() => _gateErr = t.gateEmailRequired);
       return;
@@ -319,7 +338,10 @@ class _RegisterPageState extends State<RegisterPage> {
 
     setState(() => _gateRequestBusy = true);
     try {
-      final err = await widget.api.gateRequestPassword(email);
+      final err = await widget.api.gateRequestPassword(
+        email,
+        company: company,
+      );
       if (!mounted) return;
       if (err == null) {
         setState(() => _gateInfo = t.gateRequestInfo);
@@ -410,6 +432,18 @@ class _RegisterPageState extends State<RegisterPage> {
       Text(
         t.gateUnlockHint,
         style: const TextStyle(fontWeight: FontWeight.w500),
+      ),
+      const SizedBox(height: 12),
+      TextField(
+        controller: _gateCompany,
+        textCapitalization: TextCapitalization.words,
+        decoration: InputDecoration(
+          labelText: t.company,
+          border: const OutlineInputBorder(),
+        ),
+        onSubmitted: (_) {
+          if (!_gateBusy && !_gateRequestBusy) _unlockGate();
+        },
       ),
       const SizedBox(height: 12),
       TextField(
