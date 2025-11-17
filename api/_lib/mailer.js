@@ -27,14 +27,15 @@ if (SMTP_HOST && (SMTP_USER ? SMTP_PASS : true)) {
   });
 }
 
-export async function sendMail({ to, subject, html, cc }) {
+export async function sendMail({ to, subject, html, text, cc }) {
   if (!transporter) return { ok: false, reason: 'no-transporter' };
   const info = await transporter.sendMail({
     from: FALLBACK_FROM,
     to,
     cc,
     subject,
-    html
+    html,
+    text,
   });
   return { ok: true, id: info.messageId };
 }
