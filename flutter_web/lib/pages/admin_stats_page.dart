@@ -1,11 +1,14 @@
 // lib/pages/admin_stats_page.dart
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
+import 'package:country_flags/country_flags.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../api/client.dart';
+import '../data/country_geography.dart';
 import '../widgets/legal_footer.dart';
 
 class AdminStatsPage extends StatefulWidget {
@@ -98,6 +101,17 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
     if (picked != null) {
       await _loadStats(from: picked.start, to: picked.end);
     }
+  }
+
+  void _showCountryDetails(List<_CountryBucket> countries, int total) {
+    if (countries.isEmpty || !mounted) return;
+    showDialog<void>(
+      context: context,
+      builder: (context) => _CountryDetailsDialog(
+        countries: countries,
+        total: total,
+      ),
+    );
   }
 
   @override
@@ -206,13 +220,23 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: _CountrySection(total: total, countries: countries)),
+              Expanded(
+                child: _CountrySection(
+                  total: total,
+                  countries: countries,
+                  onViewDetails: () => _showCountryDetails(countries, total),
+                ),
+              ),
               const SizedBox(width: 24),
               Expanded(child: _RepSection(reps: reps)),
             ],
           ),
         ] else ...[
-          _CountrySection(total: total, countries: countries),
+          _CountrySection(
+            total: total,
+            countries: countries,
+            onViewDetails: () => _showCountryDetails(countries, total),
+          ),
           const SizedBox(height: 24),
           _RepSection(reps: reps),
         ],
@@ -570,7 +594,12 @@ class _DecisionRow extends StatelessWidget {
 class _CountrySection extends StatelessWidget {
   final int total;
   final List<_CountryBucket> countries;
-  const _CountrySection({required this.total, required this.countries});
+  final VoidCallback? onViewDetails;
+  const _CountrySection({
+    required this.total,
+    required this.countries,
+    this.onViewDetails,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -586,6 +615,13 @@ class _CountrySection extends StatelessWidget {
     return _SectionCard(
       title: 'Länder',
       icon: Icons.public_outlined,
+      trailing: onViewDetails == null
+          ? null
+          : TextButton.icon(
+              onPressed: onViewDetails,
+              icon: const Icon(Icons.open_in_new_outlined),
+              label: const Text('Alle anzeigen'),
+            ),
       child: Column(
         children: [
           for (final bucket in countries.take(8))
@@ -611,6 +647,431 @@ class _CountrySection extends StatelessWidget {
     );
   }
 }
+
+class _CountryDetailsDialog extends StatelessWidget {
+  final int total;
+  final List<_CountryBucket> countries;
+  const _CountryDetailsDialog({required this.total, required this.countries});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final sorted = List<_CountryBucket>.from(countries)
+      ..sort((a, b) {
+        final diff = b.count - a.count;
+        if (diff != 0) return diff;
+        return a.country.compareTo(b.country);
+      });
+    return Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1100, maxHeight: 760),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+              child: Row(
+                children: [
+                  Icon(Icons.public_outlined, color: theme.colorScheme.primary),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Länder mit Reklamationen',
+                      style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Schließen',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final isWide = constraints.maxWidth > 860;
+                  final mapPanel = _CountryMapPanel(countries: sorted);
+                  final listPanel = _CountryListPanel(total: total, countries: sorted);
+                  if (isWide) {
+                    return Row(
+                      children: [
+                        Expanded(flex: 5, child: listPanel),
+                        const SizedBox(width: 20),
+                        Expanded(flex: 6, child: mapPanel),
+                      ],
+                    );
+                  }
+                  final mapHeight = math.max(constraints.maxHeight * 0.45, 260.0);
+                  return Column(
+                    children: [
+                      SizedBox(height: mapHeight, child: mapPanel),
+                      const SizedBox(height: 16),
+                      Expanded(child: listPanel),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CountryListPanel extends StatelessWidget {
+  final int total;
+  final List<_CountryBucket> countries;
+  const _CountryListPanel({required this.total, required this.countries});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final formatter = NumberFormat.decimalPercentPattern(locale: 'de', decimalDigits: 1);
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+            child: Text(
+              'Alle Länder',
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: Scrollbar(
+              thumbVisibility: true,
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                itemBuilder: (context, index) {
+                  final bucket = countries[index];
+                  final code = CountryGeography.resolveCode(bucket.country);
+                  final label = code == null
+                      ? bucket.country
+                      : CountryGeography.labelForCode(code);
+                  final share = total == 0 ? null : formatter.format(bucket.count / total);
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    leading: _CountryAvatar(code: code, fallback: bucket.abbreviation),
+                    title: Text(label),
+                    subtitle: share == null ? null : Text(share),
+                    trailing: Text(_formatNumber(bucket.count)),
+                  );
+                },
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemCount: countries.length,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatNumber(int value) {
+    final formatter = NumberFormat.decimalPattern('de');
+    return formatter.format(value);
+  }
+}
+
+class _CountryMapPanel extends StatelessWidget {
+  final List<_CountryBucket> countries;
+  const _CountryMapPanel({required this.countries});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Globale Übersicht',
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Pins markieren Länder mit eingegangenen Reklamationen.',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 16),
+            Expanded(child: _WorldMapWithPins(countries: countries)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CountryAvatar extends StatelessWidget {
+  final String? code;
+  final String fallback;
+  const _CountryAvatar({required this.code, required this.fallback});
+
+  @override
+  Widget build(BuildContext context) {
+    if (code == null) {
+      return CircleAvatar(
+        backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+        child: Text(
+          fallback,
+          style: Theme.of(context).textTheme.labelMedium,
+        ),
+      );
+    }
+    return CountryFlag.fromCountryCode(
+      code!.toLowerCase(),
+      height: 28,
+      width: 38,
+      borderRadius: 6,
+    );
+  }
+}
+
+class _WorldMapWithPins extends StatelessWidget {
+  final List<_CountryBucket> countries;
+  const _WorldMapWithPins({required this.countries});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final pins = countries
+        .map((bucket) {
+          final code = CountryGeography.resolveCode(bucket.country);
+          if (code == null) return null;
+          final position = CountryGeography.normalizedPositionFor(code);
+          if (position == null) return null;
+          return _CountryPinData(
+            code: code,
+            label: CountryGeography.labelForCode(code),
+            count: bucket.count,
+            normalized: position,
+          );
+        })
+        .whereType<_CountryPinData>()
+        .toList();
+    if (pins.isEmpty) {
+      return const Center(child: Text('Keine lokalisierbaren Daten verfügbar.'));
+    }
+    final maxCount = pins.fold<int>(0, (value, pin) => math.max(value, pin.count));
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final height = constraints.maxHeight;
+        final baseColor = theme.colorScheme.primary;
+        final accent = theme.colorScheme.tertiary;
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            gradient: LinearGradient(
+              colors: [
+                baseColor.withOpacity(0.07),
+                accent.withOpacity(0.12),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: CustomPaint(
+                    painter: _WorldMapPainter(
+                      landColor: theme.colorScheme.surface,
+                      strokeColor: theme.colorScheme.outline.withOpacity(0.4),
+                    ),
+                  ),
+                ),
+                for (final pin in pins)
+                  _MapPin(
+                    pin: pin,
+                    maxCount: maxCount,
+                    width: width,
+                    height: height,
+                    baseColor: baseColor,
+                    accent: accent,
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _MapPin extends StatelessWidget {
+  final _CountryPinData pin;
+  final int maxCount;
+  final double width;
+  final double height;
+  final Color baseColor;
+  final Color accent;
+  const _MapPin({
+    required this.pin,
+    required this.maxCount,
+    required this.width,
+    required this.height,
+    required this.baseColor,
+    required this.accent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ratio = maxCount == 0 ? 0.0 : pin.count / maxCount;
+    final size = (ui.lerpDouble(10, 26, ratio.clamp(0.0, 1.0)) ?? 12).toDouble();
+    final color = Color.lerp(baseColor, accent, ratio.clamp(0.0, 1.0)) ?? baseColor;
+    final x = (pin.normalized.dx.clamp(0.0, 1.0)) * width;
+    final y = (pin.normalized.dy.clamp(0.0, 1.0)) * height;
+    return Positioned(
+      left: (x - size / 2).clamp(0.0, math.max(width - size, 0)),
+      top: (y - size).clamp(0.0, math.max(height - size, 0)),
+      child: Tooltip(
+        message: '${pin.label}: ${pin.count}',
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.45),
+                blurRadius: 8,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WorldMapPainter extends CustomPainter {
+  final Color landColor;
+  final Color strokeColor;
+  const _WorldMapPainter({required this.landColor, required this.strokeColor});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final fillPaint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = landColor.withOpacity(0.95);
+    final strokePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2
+      ..color = strokeColor;
+    for (final shape in _kWorldMapShapes) {
+      if (shape.isEmpty) continue;
+      final path = Path();
+      for (var i = 0; i < shape.length; i++) {
+        final point = Offset(shape[i].dx * size.width, shape[i].dy * size.height);
+        if (i == 0) {
+          path.moveTo(point.dx, point.dy);
+        } else {
+          path.lineTo(point.dx, point.dy);
+        }
+      }
+      path.close();
+      canvas.drawPath(path, fillPaint);
+      canvas.drawPath(path, strokePaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _WorldMapPainter oldDelegate) {
+    return oldDelegate.landColor != landColor || oldDelegate.strokeColor != strokeColor;
+  }
+}
+
+class _CountryPinData {
+  final String code;
+  final String label;
+  final int count;
+  final Offset normalized;
+  const _CountryPinData({
+    required this.code,
+    required this.label,
+    required this.count,
+    required this.normalized,
+  });
+}
+
+const List<List<Offset>> _kWorldMapShapes = [
+  [
+    Offset(0.02, 0.2),
+    Offset(0.14, 0.08),
+    Offset(0.26, 0.05),
+    Offset(0.36, 0.18),
+    Offset(0.34, 0.26),
+    Offset(0.28, 0.32),
+    Offset(0.18, 0.34),
+    Offset(0.08, 0.28),
+  ],
+  [
+    Offset(0.32, 0.36),
+    Offset(0.38, 0.48),
+    Offset(0.42, 0.66),
+    Offset(0.36, 0.88),
+    Offset(0.28, 0.72),
+    Offset(0.28, 0.52),
+  ],
+  [
+    Offset(0.42, 0.16),
+    Offset(0.56, 0.1),
+    Offset(0.65, 0.12),
+    Offset(0.7, 0.2),
+    Offset(0.66, 0.26),
+    Offset(0.56, 0.28),
+    Offset(0.48, 0.24),
+  ],
+  [
+    Offset(0.62, 0.18),
+    Offset(0.86, 0.14),
+    Offset(0.97, 0.26),
+    Offset(0.94, 0.38),
+    Offset(0.78, 0.4),
+    Offset(0.68, 0.3),
+  ],
+  [
+    Offset(0.48, 0.32),
+    Offset(0.6, 0.34),
+    Offset(0.66, 0.52),
+    Offset(0.6, 0.78),
+    Offset(0.48, 0.64),
+    Offset(0.44, 0.44),
+  ],
+  [
+    Offset(0.76, 0.56),
+    Offset(0.92, 0.6),
+    Offset(0.94, 0.76),
+    Offset(0.84, 0.84),
+    Offset(0.74, 0.7),
+  ],
+  [
+    Offset(0.22, 0.04),
+    Offset(0.28, 0.02),
+    Offset(0.34, 0.05),
+    Offset(0.3, 0.12),
+    Offset(0.22, 0.1),
+  ],
+];
 
 class _RepSection extends StatelessWidget {
   final List<_RepBucket> reps;
@@ -652,7 +1113,13 @@ class _SectionCard extends StatelessWidget {
   final String title;
   final IconData icon;
   final Widget child;
-  const _SectionCard({required this.title, required this.icon, required this.child});
+  final Widget? trailing;
+  const _SectionCard({
+    required this.title,
+    required this.icon,
+    required this.child,
+    this.trailing,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -668,10 +1135,16 @@ class _SectionCard extends StatelessWidget {
               children: [
                 Icon(icon, color: theme.colorScheme.primary),
                 const SizedBox(width: 12),
-                Text(
-                  title,
-                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                  ),
                 ),
+                if (trailing != null) ...[
+                  const SizedBox(width: 12),
+                  trailing!,
+                ],
               ],
             ),
             const SizedBox(height: 16),
