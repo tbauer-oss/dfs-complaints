@@ -464,6 +464,8 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                 final seg = segRaw.isNotEmpty ? _segmentLabel(t, segRaw) : '';
                                 final articleNo = (p['article'] ?? '').toString().trim();
                                 final productType = _productTypeFromPayload(p);
+                                final internalNo = (c.internalNo ?? '').trim();
+                                final hasInternalNo = internalNo.isNotEmpty;
 
                                 // HEADER: Status, Artikelnummer, Produkttyp sofort sichtbar
                                 final attachmentsButton = TextButton.icon(
@@ -557,11 +559,26 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                           const Icon(Icons.description_outlined, size: 20),
                                           const SizedBox(width: 8),
                                           Expanded(
-                                            child: Text(
-                                              ticket.isEmpty ? '—' : ticket,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                                            child: Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    ticket.isEmpty ? '—' : ticket,
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style:
+                                                        const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                                                  ),
+                                                ),
+                                                if (hasInternalNo)
+                                                  Flexible(
+                                                    flex: 0,
+                                                    child: Padding(
+                                                      padding: const EdgeInsets.only(left: 8),
+                                                      child: _internalNoPill(t, internalNo),
+                                                    ),
+                                                  ),
+                                              ],
                                             ),
                                           ),
                                         ],
@@ -699,6 +716,32 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
         children: [
           SizedBox(width: 180, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
           Expanded(child: Text(value.isEmpty ? '—' : value)),
+        ],
+      ),
+    );
+  }
+
+  Widget _internalNoPill(AppLocalizations t, String value) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceVariant,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.tag, size: 14),
+          const SizedBox(width: 4),
+          Text(
+            '${t.internal_no_label}: $value',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
         ],
       ),
     );
