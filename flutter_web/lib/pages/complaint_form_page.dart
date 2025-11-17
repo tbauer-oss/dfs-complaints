@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 import '../models/complaint_attachment.dart';
+import '../utils/attachment_preview.dart';
 import 'complaint_summary_page.dart';
 
 // KEIN dart:html mehr nötig
@@ -40,7 +41,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   bool privacy = false;
 
   // Wichtig: exakt dieser Record-Typ (Name, Bytes, Mime)
-  List<({String name, List<int> bytes, String mime})> files = [];
+  List<({String name, List<int> bytes, String mime, String? preview})> files = [];
 
   String? info;
   String? err;
@@ -114,7 +115,8 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
         final name = f.name;
         final bytes = List<int>.from(f.bytes ?? const []);
         final mime = _guessMime(name);
-        return (name: name, bytes: bytes, mime: mime); // Record, kein Map!
+        final preview = createAttachmentPreview(bytes, mime);
+        return (name: name, bytes: bytes, mime: mime, preview: preview); // Record, kein Map!
       }).toList();
       _dirty = true;
     });

@@ -1,11 +1,14 @@
 // lib/pages/my_complaints_page.dart
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 import 'dart:html' as html; // nur Web – für Link-Öffnen & mailto
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../models/complaint.dart';
 import '../l10n/app_localizations.dart';
+import '../utils/attachment_preview.dart';
 import '../widgets/legal_footer.dart';
 
 const _kComplaintMail = 'complaint@dfs-diamon.de';
@@ -135,39 +138,6 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     return '$size B';
   }
 
-  Widget _attachmentRow(AppLocalizations t, ComplaintUpload upload) {
-    final name = upload.name.trim().isEmpty ? t.attachments_file_unknown : upload.name.trim();
-    final meta = <String>[];
-    if (upload.size > 0) meta.add(_formatBytes(upload.size));
-    if (upload.uploadedAt != null) meta.add(_fmt(upload.uploadedAt!.toLocal()));
-
-    final theme = Theme.of(context);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.attachment_outlined, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                if (meta.isNotEmpty)
-                  Text(
-                    meta.join(' • '),
-                    style: theme.textTheme.bodySmall,
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   String _statusTextLocalized(AppLocalizations t, int s) {
     switch (s) {
       case 1: return t.status_sent;
@@ -275,7 +245,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
 
     const limit = 8 * 1024 * 1024; // 8 MB
     int totalBytes = 0;
-    final selected = <({String name, List<int> bytes, String mime})>[];
+    final selected = <({String name, List<int> bytes, String mime, String? preview})>[];
 
     for (final file in res.files) {
       final data = file.bytes;
@@ -288,10 +258,12 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
         );
         return;
       }
+      final mime = _guessMime(file.name);
       selected.add((
         name: file.name,
         bytes: List<int>.from(data),
-        mime: _guessMime(file.name),
+        mime: mime,
+        preview: createAttachmentPreview(data, mime),
       ));
     }
 
@@ -667,7 +639,12 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                             title: t.attachments_existing,
                                             children: [
                                               for (final upload in c.uploads)
-                                                _attachmentRow(t, upload),
+                                                _AttachmentPreviewTile(
+                                                  upload: upload,
+                                                  formatBytes: _formatBytes,
+                                                  formatDate: _fmt,
+                                                  fallbackName: t.attachments_file_unknown,
+                                                ),
                                             ],
                                           ),
 
@@ -854,26 +831,12 @@ class _MyComplaintDetailsDialog extends StatelessWidget {
               const SizedBox(height: 12),
               Text(t.attachments_existing, style: const TextStyle(fontWeight: FontWeight.w600)),
               const SizedBox(height: 4),
-              ...c.uploads.map((upload) {
-                final details = <String>[];
-                if (upload.size > 0) details.add(_formatBytes(upload.size));
-                if (upload.uploadedAt != null) details.add(_fmtLocal(upload.uploadedAt!));
-                final subtitle = details.join(' • ');
-                final name = upload.name.trim().isEmpty
-                    ? t.attachments_file_unknown
-                    : upload.name.trim();
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 3),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                      if (subtitle.isNotEmpty)
-                        Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
-                    ],
-                  ),
-                );
-              }),
+              ...c.uploads.map((upload) => _AttachmentPreviewTile(
+                    upload: upload,
+                    formatBytes: _formatBytes,
+                    formatDate: _fmtLocal,
+                    fallbackName: t.attachments_file_unknown,
+                  )),
             ],
             const SizedBox(height: 8),
             row(t.created, _fmtLocal(c.createdAt)),
@@ -1131,6 +1094,132 @@ class _DetailGroup extends StatelessWidget {
           Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 6),
           ...children,
+        ],
+      ),
+    );
+  }
+}
+
+class _AttachmentPreviewTile extends StatefulWidget {
+  final ComplaintUpload upload;
+  final String Function(int size) formatBytes;
+  final String Function(DateTime date) formatDate;
+  final String fallbackName;
+
+  const _AttachmentPreviewTile({
+    required this.upload,
+    required this.formatBytes,
+    required this.formatDate,
+    required this.fallbackName,
+  });
+
+  @override
+  State<_AttachmentPreviewTile> createState() => _AttachmentPreviewTileState();
+}
+
+class _AttachmentPreviewTileState extends State<_AttachmentPreviewTile> {
+  bool _expanded = false;
+  Uint8List? _previewBytes;
+
+  bool get _hasPreview => _previewBytes != null;
+
+  @override
+  void initState() {
+    super.initState();
+    _previewBytes = _decodePreview(widget.upload);
+  }
+
+  @override
+  void didUpdateWidget(covariant _AttachmentPreviewTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.upload.preview != widget.upload.preview) {
+      final decoded = _decodePreview(widget.upload);
+      setState(() {
+        _previewBytes = decoded;
+        if (!_hasPreview) _expanded = false;
+      });
+    }
+  }
+
+  Uint8List? _decodePreview(ComplaintUpload upload) {
+    final preview = upload.preview;
+    if (preview == null || preview.isEmpty || !upload.isImage) return null;
+    try {
+      return base64Decode(preview);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _toggle() {
+    if (!_hasPreview) return;
+    setState(() => _expanded = !_expanded);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final upload = widget.upload;
+    final theme = Theme.of(context);
+    final name = upload.name.trim().isEmpty ? widget.fallbackName : upload.name.trim();
+    final meta = <String>[];
+    if (upload.size > 0) meta.add(widget.formatBytes(upload.size));
+    if (upload.uploadedAt != null) meta.add(widget.formatDate(upload.uploadedAt!.toLocal()));
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _hasPreview ? _toggle : null,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  _hasPreview && _expanded ? Icons.image_outlined : Icons.attachment_outlined,
+                  size: 18,
+                  color: _hasPreview ? theme.colorScheme.primary : null,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      if (meta.isNotEmpty)
+                        Text(
+                          meta.join(' • '),
+                          style: theme.textTheme.bodySmall,
+                        ),
+                    ],
+                  ),
+                ),
+                if (_hasPreview)
+                  Icon(
+                    _expanded ? Icons.expand_less : Icons.visibility_outlined,
+                    size: 18,
+                    color: theme.colorScheme.primary,
+                  ),
+              ],
+            ),
+          ),
+          if (_hasPreview && _expanded)
+            Padding(
+              padding: const EdgeInsets.only(left: 26, top: 6),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: theme.colorScheme.outlineVariant),
+                    color: theme.colorScheme.surfaceVariant,
+                  ),
+                  width: 160,
+                  height: 120,
+                  child: Image.memory(_previewBytes!, fit: BoxFit.cover),
+                ),
+              ),
+            ),
         ],
       ),
     );
