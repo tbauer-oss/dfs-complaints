@@ -39,6 +39,7 @@ const mem = {
   catalogConfig: {},
   repPushTokens: new Map(),
   adminPushTokens: [],
+  gateCodes: new Map(),
 };
 
 const SUPPORTED_LANGS = new Set(['de', 'en', 'fr', 'it', 'es']);
@@ -77,7 +78,12 @@ function normalizePushTokens(list) {
 
 const KEY_REP_PUSH = (repId) => `${P}rep:${repId}:pushTokens`;
 const KEY_ADMIN_PUSH = `${P}admin:pushTokens`;
+const KEY_GATE = (email) => `${P}gate:${email}`;
 const CATALOG_KEYS = ['lab_default', 'lab_esfr', 'dent_default', 'dent_esfr'];
+const DEFAULT_GATE_TTL_SECONDS = Math.max(
+  0,
+  Number(process.env.GATE_CODE_TTL || 60 * 60 * 24 * 7)
+);
 
 function _normalizeCatalogConfig(input) {
   const src = input && typeof input === 'object' ? input : {};
@@ -831,4 +837,74 @@ export async function anonymizeUserAndComplaints(email) {
   }
 
   return { user: anonymizedUser, complaints: updated, placeholderEmail };
+}
+
+/* ============== Gate Codes ============== */
+function _gateEmail(email) {
+  return String(email || '').trim().toLowerCase();
+}
+
+export async function gateStoreSet(email, entry = {}, options = {}) {
+  const mail = _gateEmail(email);
+  const codeHash = String(entry?.codeHash || '').trim();
+  if (!mail || !codeHash) return false;
+
+  const record = {
+    email: mail,
+    codeHash,
+    used: Boolean(entry?.used),
+    createdAt: Number.isFinite(entry?.createdAt) ? entry.createdAt : Date.now(),
+  };
+
+  if (entry?.meta && typeof entry.meta === 'object') {
+    record.meta = { ...entry.meta };
+  }
+
+  const ttlRaw = options?.ttlSeconds ?? DEFAULT_GATE_TTL_SECONDS;
+  const ttlSeconds = Number.isFinite(ttlRaw) && ttlRaw > 0 ? Math.round(ttlRaw) : null;
+
+  const r = getRedis();
+  if (r) {
+    try {
+      if (ttlSeconds) await r.set(KEY_GATE(mail), record, { ex: ttlSeconds });
+      else await r.set(KEY_GATE(mail), record);
+    } catch (e) {
+      console.error('[store] gateStoreSet failed:', e);
+      throw e;
+    }
+  }
+
+  // Immer auch im Memory-Cache aktualisieren (hilft für lokale Tests)
+  mem.gateCodes.set(mail, record);
+
+  return record;
+}
+
+export async function gateStoreGet(email) {
+  const mail = _gateEmail(email);
+  if (!mail) return null;
+  const r = getRedis();
+  if (r) {
+    const raw = await rget(KEY_GATE(mail));
+    if (!raw) return mem.gateCodes.get(mail) ?? null;
+    if (typeof raw === 'string') {
+      try { return JSON.parse(raw); }
+      catch { return null; }
+    }
+    if (typeof raw === 'object') return raw;
+    return null;
+  }
+  return mem.gateCodes.get(mail) ?? null;
+}
+
+export async function gateStoreDelete(email) {
+  const mail = _gateEmail(email);
+  if (!mail) return true;
+  const r = getRedis();
+  if (r) {
+    try { await rdel(KEY_GATE(mail)); }
+    catch (e) { console.error('[store] gateStoreDelete failed:', e); }
+  }
+  mem.gateCodes.delete(mail);
+  return true;
 }

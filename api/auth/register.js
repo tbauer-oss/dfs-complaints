@@ -2,6 +2,7 @@
 export const config = { runtime: 'nodejs' };
 
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import {
   handlePreflight, ok, bad, methodNotAllowed, readJson
 } from '../_lib/http.js';
@@ -9,6 +10,7 @@ import { isStrongPassword } from '../_lib/passwords.js';
 
 const isPreview  = process.env.VERCEL_ENV !== 'production';
 const validEmail = s => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || ''));
+const JWT_SECRET = process.env.JWT_SECRET || '';
 
 function toBool(v) {
   if (typeof v === 'boolean') return v;
@@ -24,22 +26,51 @@ function normLang(x) {
   return LANGS.has(two) ? two : 'de';
 }
 
+function getGatePayload(req) {
+  const auth = req.headers?.authorization || '';
+  const match = auth.match(/^Bearer\s+(.+)$/i);
+  if (!match) return null;
+  try {
+    return jwt.verify(match[1], JWT_SECRET);
+  } catch {
+    return null;
+  }
+}
+
 export default async function handler(req, res) {
   // --- CORS zuerst: setzt Header & beantwortet OPTIONS (204) ---
   if (handlePreflight(req, res)) return;
 
   if (req.method !== 'POST') return methodNotAllowed(res);
 
+  if (!JWT_SECRET) return bad(res, 'server misconfigured', 500);
+
   try {
     const b = readJson(req);
 
+    const gatePayload = getGatePayload(req);
+    if (!gatePayload || gatePayload.type !== 'gate') {
+      return bad(res, 'missing gate token', 401);
+    }
+
+    const gateEmail = String(gatePayload.sub || '').trim().toLowerCase();
+    if (!validEmail(gateEmail)) {
+      return bad(res, 'invalid gate token', 401);
+    }
+
+    const bodyEmail = String(b.email || '').trim().toLowerCase();
+    if (bodyEmail && bodyEmail !== gateEmail) {
+      return bad(res, 'email mismatch with gate token', 400);
+    }
+
     // Pflichtfelder (ohne 'contact'; erlaubt: contact ODER first+last)
-    const required = ['email','password','password2','company','street','zip','city','country'];
+    const required = ['password','password2','company','street','zip','city','country'];
     for (const k of required) {
       if (!b[k]) return bad(res, `missing ${k}`, 400);
     }
 
-    if (!validEmail(b.email))                return bad(res, 'invalid email', 400);
+    const email = gateEmail;
+    if (!validEmail(email))                return bad(res, 'invalid email', 400);
     if (String(b.password) !== String(b.password2))
                                             return bad(res, 'password mismatch', 400);
     if (!isStrongPassword(b.password))
@@ -59,7 +90,6 @@ export default async function handler(req, res) {
     if (!pendingGet || !pendingSave) throw new Error('store not ready (pendingGet/pendingSave missing)');
 
     // Normalisieren/Trimmen
-    const email       = String(b.email).trim().toLowerCase();
     const lang        = normLang(b.lang || req.headers['accept-language']);
     const firstName   = String(b.firstName || '').trim();
     const lastName    = String(b.lastName  || '').trim();
