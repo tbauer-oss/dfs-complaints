@@ -8,6 +8,13 @@ import {
 import { complaintsAll, complaintSave, nextTicket, Status } from './_lib/store.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || process.env.JWT || '';
+const MAX_PREVIEW_CHARS = 200000;
+
+const normalizePreview = (value) => {
+  const str = (value ?? '').toString().trim();
+  if (!str) return undefined;
+  return str.length > MAX_PREVIEW_CHARS ? str.slice(0, MAX_PREVIEW_CHARS) : str;
+};
 
 /* ---- JWT prüfen ---- */
 function requireUser(req) {
@@ -41,22 +48,28 @@ function parseUploads(body) {
   const out = [];
   if (Array.isArray(body?.uploads)) {
     for (const u of body.uploads) {
-      out.push({
+      const entry = {
         name: String(u?.name || ''),
         mime: String(u?.mime || 'application/octet-stream'),
         size: Number(u?.size || 0),
-      });
+      };
+      const preview = normalizePreview(u?.preview);
+      if (preview) entry.preview = preview;
+      out.push(entry);
     }
   }
   if (Array.isArray(body?.files)) {
     for (const f of body.files) {
       const b64 = String(f?.bytes || '');
       const approxSize = Math.floor(b64.length * 3 / 4);
-      out.push({
+      const entry = {
         name: String(f?.name || ''),
         mime: String(f?.mime || 'application/octet-stream'),
         size: approxSize > 0 ? approxSize : 0,
-      });
+      };
+      const preview = normalizePreview(f?.preview);
+      if (preview) entry.preview = preview;
+      out.push(entry);
     }
   }
   return out;
