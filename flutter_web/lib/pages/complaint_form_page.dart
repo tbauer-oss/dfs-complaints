@@ -26,7 +26,7 @@ class ComplaintFormPage extends StatefulWidget {
 
 class _ComplaintFormPageState extends State<ComplaintFormPage> {
   static const _helpPrefKey = 'dfs_complaint_help_collapsed';
-  String segment = 'Zahnarzt';
+  String segment = 'Zahnmedizin';
   final article = TextEditingController();
   final batch = TextEditingController();
   final qty = TextEditingController();
