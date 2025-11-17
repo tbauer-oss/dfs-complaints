@@ -573,12 +573,11 @@ export async function pendingList() {
 /* ============== Complaints Core ============== */
 
 export const Status = {
-  SENT: 1,
+  RECEIVED: 1,
   IN_PROGRESS: 2,
   NEEDS_INFO: 3,
-  FINAL_DECISION: 4,
-  REWORK: 5,
-  CLOSED: 6,
+  REWORK: 4,
+  CLOSED: 5,
 };
 
 const PII_EMAIL_KEYS = new Set([
@@ -710,9 +709,8 @@ export async function complaintsOpen() {
   const open = all.filter(c => {
     const s = Number(c?.status || 0);
     const dec = (c?.decision || '').toString();
-    const closedByStatus = (s === Status.CLOSED);
-    const closedByRej = (s === Status.FINAL_DECISION && dec === 'rejected');
-    return !(closedByStatus || closedByRej);
+    if (dec === 'rejected') return false;
+    return s !== Status.CLOSED;
   });
   open.sort((a, b) => (b?.createdAt || 0) - (a?.createdAt || 0));
   return open;
