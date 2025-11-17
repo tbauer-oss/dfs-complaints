@@ -49,6 +49,12 @@ export default async function handler(req, res) {
     const ticket = await nextTicket();
     const nowMs  = Date.now();
 
+    const normalizePreview = (value) => {
+      const str = (value ?? '').toString().trim();
+      if (!str) return undefined;
+      return str.length > 200000 ? str.slice(0, 200000) : str;
+    };
+
     const complaint = {
       ticket,
       email: u.email,
@@ -61,7 +67,8 @@ export default async function handler(req, res) {
       uploads: files.map(f => ({
         name: (f?.name || '').toString(),
         mime: (f?.mime || 'application/octet-stream').toString(),
-        size: Math.floor(((f?.bytes || '') + '').length * 3 / 4) || 0
+        size: Math.floor(((f?.bytes || '') + '').length * 3 / 4) || 0,
+        preview: normalizePreview(f?.preview)
       }))
     };
 
