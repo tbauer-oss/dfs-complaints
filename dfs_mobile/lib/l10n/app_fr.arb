@@ -26,6 +26,32 @@
   "attachments_file_unknown": "Pièce jointe",
 
   "we_are_here_for_you": "Nous sommes là pour vous.",
+  "complaint_contact_button": "Contacter",
+  "complaint_contact_title": "Message concernant le ticket {ticket}",
+  "@complaint_contact_title": {
+    "placeholders": {
+      "ticket": { "type": "String" }
+    }
+  },
+  "complaint_contact_intro_rep": "Votre message sera envoyé à {repName} ({repEmail}). complaint@dfs-diamon.de recevra une copie.",
+  "@complaint_contact_intro_rep": {
+    "placeholders": {
+      "repName": { "type": "String" },
+      "repEmail": { "type": "String" }
+    }
+  },
+  "complaint_contact_intro_qm": "Aucun interlocuteur n’est attribué. Votre message sera envoyé directement à {email}.",
+  "@complaint_contact_intro_qm": {
+    "placeholders": {
+      "email": { "type": "String" }
+    }
+  },
+  "complaint_contact_subject_prefill": "Question concernant le ticket {ticket}",
+  "@complaint_contact_subject_prefill": {
+    "placeholders": {
+      "ticket": { "type": "String" }
+    }
+  },
   "rep_contact_form": "Envoyer un message",
   "rep_not_assigned": "Actuellement aucun représentant n’est attribué.",
   "rep_overview_open": "Ouvertes",

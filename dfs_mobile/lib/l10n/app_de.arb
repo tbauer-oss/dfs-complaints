@@ -27,6 +27,32 @@
   "attachments_file_unknown": "Anhang",
 
   "we_are_here_for_you": "Wir sind für Sie da.",
+  "complaint_contact_button": "Kontakt aufnehmen",
+  "complaint_contact_title": "Nachricht zu Ticket {ticket}",
+  "@complaint_contact_title": {
+    "placeholders": {
+      "ticket": { "type": "String" }
+    }
+  },
+  "complaint_contact_intro_rep": "Ihre Nachricht wird an {repName} ({repEmail}) gesendet. complaint@dfs-diamon.de erhält eine Kopie.",
+  "@complaint_contact_intro_rep": {
+    "placeholders": {
+      "repName": { "type": "String" },
+      "repEmail": { "type": "String" }
+    }
+  },
+  "complaint_contact_intro_qm": "Es ist kein Ansprechpartner zugeordnet. Ihre Nachricht wird direkt an {email} gesendet.",
+  "@complaint_contact_intro_qm": {
+    "placeholders": {
+      "email": { "type": "String" }
+    }
+  },
+  "complaint_contact_subject_prefill": "Rückfrage zu Ticket {ticket}",
+  "@complaint_contact_subject_prefill": {
+    "placeholders": {
+      "ticket": { "type": "String" }
+    }
+  },
   "rep_overview_open": "Offen",
   "rep_overview_all": "Alle",
   "rep_overview_rejected": "Abgelehnt",
