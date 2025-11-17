@@ -8,6 +8,7 @@ import {
   noContent,
   methodNotAllowed,
 } from '../_lib/http.js';
+import { resolveCountryCode } from '../_lib/countryNames.js';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 const isAdmin = (req) => ADMIN_SECRET && req.headers?.['x-admin-secret'] === ADMIN_SECRET;
@@ -97,31 +98,37 @@ const COUNTRY_VALUE_KEYS = [
   'text',
   'land',
 ];
+const COUNTRY_VALUE_KEY_SET = new Set(COUNTRY_VALUE_KEYS);
+const MAX_COUNTRY_DEPTH = 5;
 
-function collectCountryCandidates(value) {
+function collectCountryCandidates(value, depth = 0, visited = new Set()) {
   if (value === null || value === undefined) return [];
   if (typeof value === 'string' || typeof value === 'number') {
     const v = norm(value);
     return v ? [v] : [];
   }
   if (Array.isArray(value)) {
-    return value.flatMap((entry) => collectCountryCandidates(entry));
+    return value.flatMap((entry) => collectCountryCandidates(entry, depth + 1, visited));
   }
   if (typeof value === 'object') {
-    return COUNTRY_VALUE_KEYS.flatMap((key) => collectCountryCandidates(value[key]));
+    if (visited.has(value) || depth >= MAX_COUNTRY_DEPTH) return [];
+    visited.add(value);
+    const prioritized = COUNTRY_VALUE_KEYS
+      .filter((key) => Object.prototype.hasOwnProperty.call(value, key))
+      .map((key) => value[key]);
+    const others = [];
+    if (depth + 1 < MAX_COUNTRY_DEPTH) {
+      for (const [key, entry] of Object.entries(value)) {
+        if (COUNTRY_VALUE_KEY_SET.has(key)) continue;
+        others.push(entry);
+      }
+    }
+    const nested = [...prioritized, ...others]
+      .flatMap((entry) => collectCountryCandidates(entry, depth + 1, visited));
+    visited.delete(value);
+    return nested;
   }
   return [];
-}
-
-function detectIsoCode(candidate) {
-  if (!candidate || typeof candidate !== 'string') return null;
-  const tokens = candidate.split(/[^A-Za-z]/).filter(Boolean);
-  for (const token of tokens) {
-    if (token.length === 2) {
-      return token.toUpperCase();
-    }
-  }
-  return null;
 }
 
 function pickCountry(complaint) {
@@ -148,17 +155,25 @@ function pickCountry(complaint) {
     complaint?.user?.countryCode,
     complaint?.user?.country,
     complaint?.user?.land,
+    complaint,
+    payload,
   ];
+  const seen = new Set();
+  let fallback = null;
   for (const raw of sources) {
     const candidates = collectCountryCandidates(raw);
     for (const candidate of candidates) {
-      if (candidate.length === 2) return candidate.toUpperCase();
-      const detected = detectIsoCode(candidate);
-      if (detected) return detected;
-      return candidate;
+      const normalized = norm(candidate);
+      if (!normalized) continue;
+      const key = normalized.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const resolved = resolveCountryCode(normalized);
+      if (resolved) return resolved;
+      if (!fallback) fallback = normalized;
     }
   }
-  return 'Unbekannt';
+  return fallback || 'Unbekannt';
 }
 
 function pickRepMeta(complaint) {
