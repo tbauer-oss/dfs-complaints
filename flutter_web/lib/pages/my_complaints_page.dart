@@ -1,11 +1,15 @@
 // lib/pages/my_complaints_page.dart
 import 'dart:async';
-import 'dart:html' as html; // nur Web – für Link-Öffnen & mailto
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:dfs_mobile/web_compat/html_stub.dart'
+  if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../models/complaint.dart';
 import '../l10n/app_localizations.dart';
+import '../utils/attachment_preview.dart';
 import '../widgets/legal_footer.dart';
 
 const _kComplaintMail = 'complaint@dfs-diamon.de';
@@ -135,39 +139,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     return '$size B';
   }
 
-  Widget _attachmentRow(AppLocalizations t, ComplaintUpload upload) {
-    final name = upload.name.trim().isEmpty ? t.attachments_file_unknown : upload.name.trim();
-    final meta = <String>[];
-    if (upload.size > 0) meta.add(_formatBytes(upload.size));
-    if (upload.uploadedAt != null) meta.add(_fmt(upload.uploadedAt!.toLocal()));
-
-    final theme = Theme.of(context);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.attachment_outlined, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                if (meta.isNotEmpty)
-                  Text(
-                    meta.join(' • '),
-                    style: theme.textTheme.bodySmall,
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
+  // Lokalisierte Status-Texte
   String _statusTextLocalized(AppLocalizations t, int s) {
     switch (s) {
       case 1: return t.status_sent;
@@ -273,9 +245,9 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     final res = await FilePicker.platform.pickFiles(allowMultiple: true, withData: true);
     if (res == null || res.files.isEmpty) return;
 
-    const limit = 8 * 1024 * 1024; // 8 MB
+    const limit = 8 * 1024 * 1024;
     int totalBytes = 0;
-    final selected = <({String name, List<int> bytes, String mime})>[];
+    final selected = <({String name, List<int> bytes, String mime, String? preview})>[];
 
     for (final file in res.files) {
       final data = file.bytes;
@@ -288,10 +260,12 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
         );
         return;
       }
+      final mime = _guessMime(file.name);
       selected.add((
         name: file.name,
         bytes: List<int>.from(data),
-        mime: _guessMime(file.name),
+        mime: mime,
+        preview: createAttachmentPreview(data, mime),
       ));
     }
 
@@ -415,10 +389,6 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                           Text(t.rep_banner_title(repName.isEmpty ? '—' : repName),
                               style: const TextStyle(fontWeight: FontWeight.w600)),
                           const SizedBox(height: 2),
-                          Text([
-                            if (repEmail.isNotEmpty) repEmail,
-                            if (repRegion.isNotEmpty) repRegion,
-                          ].join(' • ')),
                         ],
                       ),
                     ),
@@ -508,14 +478,16 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                     _StatusPill(text: statusText, color: statusColor),
                                     if (articleNo.isNotEmpty)
                                       _KeyValuePill(
-                                          icon: Icons.handyman_outlined,
-                                          label: (t.articleNo ?? t.article),
-                                          value: articleNo),
+                                        icon: Icons.handyman_outlined,
+                                        label: (t.articleNo ?? t.article),
+                                        value: articleNo,
+                                      ),
                                     if (productType.isNotEmpty)
                                       _KeyValuePill(
-                                          icon: Icons.category_outlined,
-                                          label: t.product_type ?? 'Produkttyp',
-                                          value: productType),
+                                        icon: Icons.category_outlined,
+                                        label: t.product_type ?? 'Produkttyp',
+                                        value: productType,
+                                      ),
                                   ],
                                 );
 
@@ -529,7 +501,10 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                           const SizedBox(height: 8),
                                           Align(
                                             alignment: Alignment.centerRight,
-                                            child: actionButtons,
+                                            child: ConstrainedBox(
+                                              constraints: const BoxConstraints(maxWidth: 360),
+                                              child: actionButtons,
+                                            ),
                                           ),
                                         ],
                                       );
@@ -667,34 +642,26 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                             title: t.attachments_existing,
                                             children: [
                                               for (final upload in c.uploads)
-                                                _attachmentRow(t, upload),
+                                                _AttachmentPreviewTile(
+                                                  upload: upload,
+                                                  formatBytes: _formatBytes,
+                                                  formatDate: _fmt,
+                                                  fallbackName: t.attachments_file_unknown,
+                                                ),
                                             ],
                                           ),
 
                                         // Aktionen
-                                        Row(
-                                          children: [
-                                            if (canOpenReport)
+                                        if (canOpenReport)
+                                          Row(
+                                            children: [
                                               TextButton.icon(
                                                 onPressed: () => html.window.open(reportLink, '_blank'),
                                                 icon: const Icon(Icons.open_in_new),
                                                 label: Text(t.report_open),
                                               ),
-                                            if (canOpenReport)
-                                              const SizedBox(width: 8),
-                                            const Spacer(),
-                                            TextButton.icon(
-                                              onPressed: () async {
-                                                await showDialog(
-                                                  context: context,
-                                                  builder: (_) => _MyComplaintDetailsDialog(c: c),
-                                                );
-                                              },
-                                              icon: const Icon(Icons.info_outline),
-                                              label: Text(t.details),
-                                            ),
-                                          ],
-                                        ),
+                                            ],
+                                          ),
                                       ],
                                     ),
                                   ),
@@ -715,7 +682,14 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 180, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
+          Flexible(
+            flex: 0,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 180),
+              child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+            ),
+          ),
+          const SizedBox(width: 8),
           Expanded(child: Text(value.isEmpty ? '—' : value)),
         ],
       ),
@@ -787,132 +761,6 @@ class _SortControls extends StatelessWidget {
   }
 }
 
-// ---- Details-Dialog (optionaler Deep-Dive, unverändert in der Logik) ----
-class _MyComplaintDetailsDialog extends StatelessWidget {
-  final Complaint c;
-  const _MyComplaintDetailsDialog({required this.c});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = AppLocalizations.of(context)!;
-    final Map<String, dynamic> payload = c.payload ?? const <String, dynamic>{};
-
-    String _segLabel(String raw) {
-      final v = raw.trim().toLowerCase();
-      if (v == 'zahnarzt' || v == t.segment_dentist.toLowerCase()) return t.segment_dentist;
-      if (v == 'zahntechnik' || v == t.segment_lab.toLowerCase()) return t.segment_lab;
-      return raw;
-    }
-
-    String _safeStr(dynamic v) => (v ?? '').toString();
-
-    Widget row(String l, String v) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 3),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(width: 170, child: Text(l, style: const TextStyle(fontWeight: FontWeight.w600))),
-              Expanded(child: Text(v.isEmpty ? '—' : v)),
-            ],
-          ),
-        );
-
-    return AlertDialog(
-      title: Text('${t.details} – ${c.ticket}'),
-      content: SizedBox(
-        width: 600,
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (payload.isEmpty) ...[
-                Text(t.no_details),
-              ] else ...[
-                if (_safeStr(payload['segment']).isNotEmpty)
-                  row(t.segment, _segLabel(_safeStr(payload['segment']))),
-                row(t.article, _safeStr(payload['article'])),
-                row(t.batch, _safeStr(payload['batch'])),
-                row(t.quantity, _safeStr(payload['qty'])),
-                row(t.expiry, _safeStr(payload['expiry'])),
-                row(t.description, _safeStr(payload['desc'])),
-                if (_safeStr(payload['returned']).isNotEmpty)
-                  row((t.returned ?? t.returned_question), _safeStr(payload['returned'])),
-                if (_safeStr(payload['handling']).isNotEmpty)
-                  row(t.handling, _safeStr(payload['handling'])),
-                if (_safeStr(payload['applied']).isNotEmpty)
-                  row(t.applied, _safeStr(payload['applied'])),
-                if (_safeStr(payload['injury']).isNotEmpty)
-                  row(t.injury, _safeStr(payload['injury'])),
-                if (_safeStr(payload['injuryDesc']).trim().isNotEmpty)
-                  row(t.injury_desc, _safeStr(payload['injuryDesc'])),
-                if (_safeStr(payload['customerName']).isNotEmpty)
-                  row(t.customer_label, _safeStr(payload['customerName'])),
-                if (_safeStr(payload['country']).isNotEmpty)
-                  row(t.country_label, _safeStr(payload['country'])),
-              ],
-            if (c.uploads.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(t.attachments_existing, style: const TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 4),
-              ...c.uploads.map((upload) {
-                final details = <String>[];
-                if (upload.size > 0) details.add(_formatBytes(upload.size));
-                if (upload.uploadedAt != null) details.add(_fmtLocal(upload.uploadedAt!));
-                final subtitle = details.join(' • ');
-                final name = upload.name.trim().isEmpty
-                    ? t.attachments_file_unknown
-                    : upload.name.trim();
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 3),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                      if (subtitle.isNotEmpty)
-                        Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
-                    ],
-                  ),
-                );
-              }),
-            ],
-            const SizedBox(height: 8),
-            row(t.created, _fmtLocal(c.createdAt)),
-            if (c.updatedAt.millisecondsSinceEpoch > 0)
-              row(t.updated, _fmtLocal(c.updatedAt)),
-            if ((c.internalNo ?? '').toString().isNotEmpty)
-              row(t.internal_no_label, c.internalNo!),
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: Text(t.close)),
-      ],
-    );
-  }
-
-  String _fmtLocal(DateTime dt) {
-    final l = dt.toLocal();
-    String two(int x) => x < 10 ? '0$x' : '$x';
-    return '${l.year}-${two(l.month)}-${two(l.day)} ${two(l.hour)}:${two(l.minute)}';
-  }
-
-  String _formatBytes(int size) {
-    if (size <= 0) return '0 B';
-    const kb = 1024;
-    const mb = kb * 1024;
-    if (size >= mb) {
-      final value = size / mb;
-      return value >= 10 ? '${value.toStringAsFixed(0)} MB' : '${value.toStringAsFixed(1)} MB';
-    }
-    if (size >= kb) {
-      final value = size / kb;
-      return value >= 10 ? '${value.toStringAsFixed(0)} KB' : '${value.toStringAsFixed(1)} KB';
-    }
-    return '$size B';
-  }
-}
-
 // ------------------- kleine UI-Helfer (darstellungs-only) -------------------
 
 class _StatusPill extends StatelessWidget {
@@ -938,17 +786,199 @@ class _StatusPill extends StatelessWidget {
   }
 }
 
+class _KeyValuePill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  const _KeyValuePill({required this.icon, required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: cs.surfaceVariant.withOpacity(.55),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16),
+          const SizedBox(width: 6),
+          Text('$label: ', style: const TextStyle(fontWeight: FontWeight.w600)),
+          Flexible(child: Text(value, overflow: TextOverflow.ellipsis, maxLines: 1)),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailGroup extends StatelessWidget {
+  final String title;
+  final List<Widget> children;
+  const _DetailGroup({required this.title, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: cs.surfaceVariant.withOpacity(.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 6),
+          ...children,
+        ],
+      ),
+    );
+  }
+}
+
+class _AttachmentPreviewTile extends StatefulWidget {
+  final ComplaintUpload upload;
+  final String Function(int size) formatBytes;
+  final String Function(DateTime date) formatDate;
+  final String fallbackName;
+
+  const _AttachmentPreviewTile({
+    required this.upload,
+    required this.formatBytes,
+    required this.formatDate,
+    required this.fallbackName,
+  });
+
+  @override
+  State<_AttachmentPreviewTile> createState() => _AttachmentPreviewTileState();
+}
+
+class _AttachmentPreviewTileState extends State<_AttachmentPreviewTile> {
+  bool _expanded = false;
+  Uint8List? _previewBytes;
+
+  bool get _hasPreview => _previewBytes != null;
+
+  @override
+  void initState() {
+    super.initState();
+    _previewBytes = _decodePreview(widget.upload);
+  }
+
+  @override
+  void didUpdateWidget(covariant _AttachmentPreviewTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.upload.preview != widget.upload.preview) {
+      final decoded = _decodePreview(widget.upload);
+      setState(() {
+        _previewBytes = decoded;
+        if (!_hasPreview) _expanded = false;
+      });
+    }
+  }
+
+  Uint8List? _decodePreview(ComplaintUpload upload) {
+    final preview = upload.preview;
+    if (preview == null || preview.isEmpty || !upload.isImage) return null;
+    try {
+      return base64Decode(preview);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _toggle() {
+    if (!_hasPreview) return;
+    setState(() => _expanded = !_expanded);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final upload = widget.upload;
+    final theme = Theme.of(context);
+    final name = upload.name.trim().isEmpty ? widget.fallbackName : upload.name.trim();
+    final meta = <String>[];
+    if (upload.size > 0) meta.add(widget.formatBytes(upload.size));
+    if (upload.uploadedAt != null) meta.add(widget.formatDate(upload.uploadedAt!.toLocal()));
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _hasPreview ? _toggle : null,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  _hasPreview && _expanded ? Icons.image_outlined : Icons.attachment_outlined,
+                  size: 18,
+                  color: _hasPreview ? theme.colorScheme.primary : null,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      if (meta.isNotEmpty)
+                        Text(
+                          meta.join(' • '),
+                          style: theme.textTheme.bodySmall,
+                        ),
+                    ],
+                  ),
+                ),
+                if (_hasPreview)
+                  Icon(
+                    _expanded ? Icons.expand_less : Icons.visibility_outlined,
+                    size: 18,
+                    color: theme.colorScheme.primary,
+                  ),
+              ],
+            ),
+          ),
+          if (_hasPreview && _expanded)
+            Padding(
+              padding: const EdgeInsets.only(left: 26, top: 6),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: theme.colorScheme.outlineVariant),
+                    color: theme.colorScheme.surfaceVariant,
+                  ),
+                  width: 160,
+                  height: 120,
+                  child: Image.memory(_previewBytes!, fit: BoxFit.cover),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ComplaintContactDialog extends StatefulWidget {
   final ApiClient api;
   final Complaint complaint;
   final MyRep? rep;
   final String initialSubject;
-
   const _ComplaintContactDialog({
     required this.api,
     required this.complaint,
+    required this.rep,
     required this.initialSubject,
-    this.rep,
   });
 
   @override
@@ -1022,8 +1052,8 @@ class _ComplaintContactDialogState extends State<_ComplaintContactDialog> {
 
     return AlertDialog(
       title: Text(t.complaint_contact_title(widget.complaint.ticket)),
-      content: SizedBox(
-        width: 520,
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1039,6 +1069,7 @@ class _ComplaintContactDialogState extends State<_ComplaintContactDialog> {
               const SizedBox(height: 16),
               TextField(
                 controller: _subjectCtrl,
+                textInputAction: TextInputAction.next,
                 decoration: InputDecoration(
                   labelText: t.rep_contact_subject_label,
                   prefixIcon: const Icon(Icons.subject),
@@ -1076,63 +1107,6 @@ class _ComplaintContactDialogState extends State<_ComplaintContactDialog> {
           label: Text(t.send),
         ),
       ],
-    );
-  }
-}
-
-class _KeyValuePill extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  const _KeyValuePill({required this.icon, required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: cs.surfaceVariant.withOpacity(.55),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: cs.outlineVariant),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16),
-          const SizedBox(width: 6),
-          Text('$label: ', style: const TextStyle(fontWeight: FontWeight.w600)),
-          Flexible(child: Text(value, overflow: TextOverflow.ellipsis, maxLines: 1)),
-        ],
-      ),
-    );
-  }
-}
-
-class _DetailGroup extends StatelessWidget {
-  final String title;
-  final List<Widget> children;
-  const _DetailGroup({required this.title, required this.children});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      decoration: BoxDecoration(
-        color: cs.surfaceVariant.withOpacity(.4),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: cs.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 6),
-          ...children,
-        ],
-      ),
     );
   }
 }
