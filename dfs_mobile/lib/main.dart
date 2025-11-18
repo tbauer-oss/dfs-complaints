@@ -13,6 +13,7 @@ import 'l10n/app_localizations.dart';
 import 'services/app_prefs.dart';
 import 'services/app_prefs_scope.dart';
 import 'services/push_notifications.dart';
+import 'services/geo_locale_service.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:dfs_mobile/web_compat/html_stub.dart'
   if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
@@ -260,6 +261,7 @@ class _MyAppState extends State<MyApp> {
   final push = PushNotifications.instance;
   final GlobalKey<NavigatorState> _navKey = GlobalKey<NavigatorState>();
   final _prefs = AppPrefs(); // zentrale Quelle für Theme & Locale
+  final _geoLocale = GeoLocaleService();
 
   bool _bootDone = false;
   bool _loggedIn = false; // Kundenlogin (token) steuert den Kunden-Flow
@@ -271,8 +273,16 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    _prefs.load();        // Theme & Sprache laden (triggert Rebuild)
+    _prefs.load().then((_) => _autoDetectLocale());        // Theme & Sprache laden (triggert Rebuild)
     _boot();              // Session-Logik
+  }
+
+  Future<void> _autoDetectLocale() async {
+    if (_prefs.locale != null) return; // user already decided
+    final detected = await _geoLocale.detectLangCode();
+    if (detected == null) return;
+    if (_prefs.locale != null) return; // user changed while we were detecting
+    await _prefs.setLang(detected);
   }
 
   Future<void> _boot() async {
@@ -378,6 +388,12 @@ class _MyAppState extends State<MyApp> {
     });
   }
   void _onLoggedOut() => setState(() => _loggedIn = false); // Kundenlogout
+
+  @override
+  void dispose() {
+    _geoLocale.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
