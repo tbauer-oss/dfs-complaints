@@ -423,10 +423,49 @@ function statusLabel(status) {
   return STATUS_LABEL[Number(status) || 0] || STATUS_LABEL[1];
 }
 
-function buildCustomerBuckets(list) {
+function buildActiveUserDirectory(list) {
+  const map = new Map();
+  if (!Array.isArray(list)) return map;
+  for (const user of list) {
+    const email = normLower(user?.email);
+    if (!email) continue;
+    const company = norm(user?.company);
+    const contact = norm(user?.contact);
+    const label = company || contact || norm(user?.name) || norm(user?.customer) || norm(user?.customerName);
+    const customerNumber = norm(
+      user?.customerNumber ||
+      user?.customer_number ||
+      user?.customer_no ||
+      user?.customerNo ||
+      user?.kundennummer
+    );
+    map.set(email, {
+      label: label || user?.email || email,
+      company: company || contact || null,
+      customerNumber: customerNumber || null,
+    });
+  }
+  return map;
+}
+
+function mergeCustomerMetaWithDirectory(meta, directory = new Map()) {
+  if (!meta) return meta;
+  const email = normLower(meta.email);
+  if (!email) return meta;
+  const enriched = directory.get(email);
+  if (!enriched) return meta;
+  return {
+    ...meta,
+    label: enriched.label || meta.label,
+    company: meta.company || enriched.company || meta.company,
+    customerNumber: meta.customerNumber || enriched.customerNumber || meta.customerNumber,
+  };
+}
+
+function buildCustomerBuckets(list, activeDirectory = new Map()) {
   const map = new Map();
   for (const c of list) {
-    const meta = pickCustomerMeta(c);
+    const meta = mergeCustomerMetaWithDirectory(pickCustomerMeta(c), activeDirectory);
     if (!meta?.key) continue;
     const current = map.get(meta.key) || { ...meta, count: 0 };
     current.count += 1;
@@ -515,9 +554,9 @@ function buildTemporalLoad(list) {
   return { weekdays, hours };
 }
 
-function buildAuditEntries(list, repInfo = new Map()) {
+function buildAuditEntries(list, repInfo = new Map(), activeDirectory = new Map()) {
   return list.map((c) => {
-    const meta = pickCustomerMeta(c);
+    const meta = mergeCustomerMetaWithDirectory(pickCustomerMeta(c), activeDirectory);
     const rep = pickRepMeta(c);
     const enriched = rep?.repId ? repInfo.get(rep.repId) : null;
     const repName = enriched?.name || rep?.repName || null;
@@ -531,7 +570,7 @@ function buildAuditEntries(list, repInfo = new Map()) {
       decision: (c?.decision || 'pending') || 'pending',
       decisionLabel: decisionLabel(c?.decision),
       country: pickCountry(c),
-      customer: meta?.label || '',
+      customer: meta?.label || meta?.email || '',
       customerEmail: meta?.email || '',
       customerNumber: meta?.customerNumber || '',
       article: pickArticle(c),
@@ -542,7 +581,7 @@ function buildAuditEntries(list, repInfo = new Map()) {
   });
 }
 
-function buildStats(list, range, repInfo = new Map()) {
+function buildStats(list, range, repInfo = new Map(), activeDirectory = new Map()) {
   const total = list.length;
   const statusCounts = countBy(list, (c) => {
     const s = Number(c?.status || 0);
@@ -592,10 +631,10 @@ function buildStats(list, range, repInfo = new Map()) {
     .map(([decision, count]) => ({ decision, count }))
     .sort((a, b) => a.decision.localeCompare(b.decision));
 
-  const byCustomer = buildCustomerBuckets(list);
+  const byCustomer = buildCustomerBuckets(list, activeDirectory);
   const timeToClose = buildTimeToCloseStats(list);
   const temporalLoad = buildTemporalLoad(list);
-  const audit = buildAuditEntries(list, repInfo);
+  const audit = buildAuditEntries(list, repInfo, activeDirectory);
 
   return {
     from: formatDateOnly(range.from),
@@ -656,7 +695,7 @@ export default async function handler(req, res) {
   if (!isAdmin(req)) return bad(res, 'admin unauthorized', 401);
 
   try {
-    const { complaintsAll } = await import('../_lib/store.js');
+    const { complaintsAll, usersList } = await import('../_lib/store.js');
 
     const q = req.query || {};
     const defaults = defaultRange();
@@ -671,7 +710,19 @@ export default async function handler(req, res) {
     }
     const range = { from, to };
 
-    const allComplaints = await complaintsAll();
+    const [allComplaints, activeUsers] = await Promise.all([
+      complaintsAll(),
+      (async () => {
+        try {
+          return await usersList();
+        } catch (err) {
+          console.warn('[admin/stats] users list unavailable', err?.message || err);
+          return [];
+        }
+      })(),
+    ]);
+    const activeDirectory = buildActiveUserDirectory(activeUsers);
+
     const filtered = (allComplaints || []).filter((c) => {
       const ts = createdAtMs(c);
       return ts >= range.from.getTime() && ts <= range.to.getTime();
@@ -680,7 +731,7 @@ export default async function handler(req, res) {
     const repIds = Array.from(new Set(filtered.map((c) => pickRepMeta(c)?.repId).filter(Boolean)));
     const repInfo = await loadRepInfoMap(repIds);
 
-    const payload = buildStats(filtered, range, repInfo);
+    const payload = buildStats(filtered, range, repInfo, activeDirectory);
     return ok(res, payload);
   } catch (err) {
     console.error('[admin/stats] failed', err);

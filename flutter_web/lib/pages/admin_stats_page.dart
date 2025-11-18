@@ -177,6 +177,15 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
       return '${value.toStringAsFixed(1)} Tage';
     }
 
+    String customerLabel(_AuditEntry entry) {
+      final base = entry.customer.isNotEmpty ? entry.customer : (entry.customerEmail ?? '—');
+      final number = entry.customerNumber;
+      if (number != null && number.isNotEmpty) {
+        return '$base (Kundennr. $number)';
+      }
+      return base;
+    }
+
     doc.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
@@ -225,14 +234,14 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
             pw.SizedBox(height: 6),
             pw.Table.fromTextArray(
               headers: ['Ticket', 'Datum', 'Kunde', 'Land', 'Artikel', 'Segment', 'Status', 'Entscheid', 'Vertreter'],
-              data: [
-                for (final entry in audit)
-                  [
-                    entry.ticket,
-                    df.format(entry.createdAt),
-                    entry.customer.isNotEmpty ? entry.customer : (entry.customerEmail ?? '—'),
-                    entry.country,
-                    entry.article?.isNotEmpty == true ? entry.article! : '—',
+                data: [
+                  for (final entry in audit)
+                    [
+                      entry.ticket,
+                      df.format(entry.createdAt),
+                      customerLabel(entry),
+                      entry.country,
+                      entry.article?.isNotEmpty == true ? entry.article! : '—',
                     entry.segment?.isNotEmpty == true ? entry.segment! : '—',
                     entry.statusLabel,
                     entry.decisionLabel,
