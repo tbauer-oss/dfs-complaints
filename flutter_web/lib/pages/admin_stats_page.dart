@@ -1,10 +1,14 @@
 // lib/pages/admin_stats_page.dart
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:country_flags/country_flags.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:file_saver/file_saver.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 
 import '../api/client.dart';
 import '../data/country_geography.dart';
@@ -25,6 +29,7 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
   DateTimeRange? _range;
   DateTime? _manualFrom;
   DateTime? _manualTo;
+  bool _exporting = false;
 
   @override
   void initState() {
@@ -102,6 +107,163 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
     }
   }
 
+  Future<void> _exportAuditReport(List<_AuditEntry> audit) async {
+    if (_stats == null || audit.isEmpty || _exporting) return;
+    setState(() => _exporting = true);
+    try {
+      final pdfBytes = await _buildAuditPdf(
+        audit: audit,
+        customers: _parseCustomerBuckets(),
+        timeStats: _parseTimeToCloseStats(),
+      );
+      final fileName = _auditFileName();
+      await FileSaver.instance.saveFile(
+        name: fileName,
+        bytes: pdfBytes,
+        ext: 'pdf',
+        mimeType: MimeType.pdf,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Audit-PDF wurde heruntergeladen.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Export fehlgeschlagen: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  String _auditFileName() {
+    final ts = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+    return 'dfs_audit_$ts';
+  }
+
+  Future<Uint8List> _buildAuditPdf({
+    required List<_AuditEntry> audit,
+    required List<_CustomerBucket> customers,
+    required _TimeToCloseStats? timeStats,
+  }) async {
+    final df = DateFormat('dd.MM.yyyy HH:mm');
+    final doc = pw.Document();
+    final total = (_stats?['total'] as num?)?.toInt() ?? 0;
+    final open = (_stats?['open'] as num?)?.toInt() ?? 0;
+    final rangeLabel = _rangeLabelText();
+    final topCustomers = customers.take(5).toList();
+
+    pw.Widget buildKpi(String label, String value) {
+      return pw.Container(
+        padding: const pw.EdgeInsets.all(8),
+        decoration: pw.BoxDecoration(
+          borderRadius: pw.BorderRadius.circular(6),
+          border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+        ),
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text(label, style: pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
+            pw.SizedBox(height: 4),
+            pw.Text(value, style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+          ],
+        ),
+      );
+    }
+
+    String formatDays(double? value) {
+      if (value == null) return '—';
+      return '${value.toStringAsFixed(1)} Tage';
+    }
+
+    doc.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        build: (context) {
+          return [
+            pw.Text('Statistik- & Audit-Report', style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 4),
+            pw.Text('Zeitraum: $rangeLabel'),
+            pw.SizedBox(height: 16),
+            pw.Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                buildKpi('Reklamationen', NumberFormat.decimalPattern('de').format(total)),
+                buildKpi('Offen', NumberFormat.decimalPattern('de').format(open)),
+                buildKpi('Durchschnittliche Laufzeit', formatDays(timeStats?.averageDays)),
+                buildKpi('Median', formatDays(timeStats?.medianDays)),
+                buildKpi('90%-Perzentil', formatDays(timeStats?.p90Days)),
+              ],
+            ),
+            pw.SizedBox(height: 16),
+            pw.Text('Top-Kunden (nach Anzahl Reklamationen)', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 6),
+            if (topCustomers.isEmpty)
+              pw.Text('Keine Kundendaten verfügbar.')
+            else
+              pw.Table.fromTextArray(
+                headers: ['Rang', 'Kunde', 'Tickets', 'Quote'],
+                data: [
+                  for (var i = 0; i < topCustomers.length; i++)
+                    [
+                      '${i + 1}',
+                      topCustomers[i].label,
+                      '${topCustomers[i].count}',
+                      total == 0
+                          ? '—'
+                          : NumberFormat.decimalPercentPattern(locale: 'de', decimalDigits: 1)
+                              .format(topCustomers[i].count / total),
+                    ],
+                ],
+                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                cellStyle: const pw.TextStyle(fontSize: 9),
+              ),
+            pw.SizedBox(height: 18),
+            pw.Text('Tickets', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 6),
+            pw.Table.fromTextArray(
+              headers: ['Ticket', 'Datum', 'Kunde', 'Land', 'Artikel', 'Segment', 'Status', 'Entscheid', 'Vertreter'],
+              data: [
+                for (final entry in audit)
+                  [
+                    entry.ticket,
+                    df.format(entry.createdAt),
+                    entry.customer.isNotEmpty ? entry.customer : (entry.customerEmail ?? '—'),
+                    entry.country,
+                    entry.article?.isNotEmpty == true ? entry.article! : '—',
+                    entry.segment?.isNotEmpty == true ? entry.segment! : '—',
+                    entry.statusLabel,
+                    entry.decisionLabel,
+                    entry.repName?.isNotEmpty == true
+                        ? entry.repName!
+                        : (entry.repEmail?.isNotEmpty == true ? entry.repEmail! : '—'),
+                  ],
+              ],
+              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
+              cellStyle: const pw.TextStyle(fontSize: 8),
+              columnWidths: {
+                0: const pw.FlexColumnWidth(1.1),
+                1: const pw.FlexColumnWidth(1.4),
+                2: const pw.FlexColumnWidth(2.0),
+                3: const pw.FlexColumnWidth(1.1),
+                4: const pw.FlexColumnWidth(1.5),
+                5: const pw.FlexColumnWidth(1.2),
+                6: const pw.FlexColumnWidth(1.2),
+                7: const pw.FlexColumnWidth(1.2),
+                8: const pw.FlexColumnWidth(1.4),
+              },
+            ),
+          ];
+        },
+      ),
+    );
+
+    return doc.save();
+  }
+
+
   void _showCountryDetails(List<_CountryBucket> countries, int total) {
     if (countries.isEmpty || !mounted) return;
     showDialog<void>(
@@ -162,13 +324,18 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
     final months = _parseMonthBuckets();
     final countries = _parseCountryBuckets();
     final reps = _parseRepBuckets();
+    final customers = _parseCustomerBuckets();
+    final timeStats = _parseTimeToCloseStats();
+    final weekdays = _parseWeekdayBuckets();
+    final hours = _parseHourBuckets();
+    final audit = _parseAuditEntries();
 
     final isWide = maxWidth > 900;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildRangeHeader(theme),
+        _buildRangeHeader(theme, audit),
         const SizedBox(height: 20),
         _KpiWrap(
           children: [
@@ -239,16 +406,38 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
           const SizedBox(height: 24),
           _RepSection(reps: reps),
         ],
+        const SizedBox(height: 24),
+        if (isWide) ...[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: _CustomerRankingSection(customers: customers, total: total)),
+              const SizedBox(width: 24),
+              Expanded(child: _TimeToCloseSection(stats: timeStats)),
+            ],
+          ),
+        ] else ...[
+          _CustomerRankingSection(customers: customers, total: total),
+          const SizedBox(height: 24),
+          _TimeToCloseSection(stats: timeStats),
+        ],
+        const SizedBox(height: 24),
+        _LoadPatternSection(weekdays: weekdays, hours: hours),
       ],
     );
   }
 
-  Widget _buildRangeHeader(ThemeData theme) {
+  String _rangeLabelText() {
     final df = DateFormat('dd.MM.yyyy');
-    final rangeLabel = _range == null
-        ? 'Letzte 12 Monate'
-        : '${df.format(_range!.start)} – ${df.format(_range!.end)}';
-    return Row(
+    if (_range == null) {
+      return 'Letzte 12 Monate';
+    }
+    return '${df.format(_range!.start)} – ${df.format(_range!.end)}';
+  }
+
+  Widget _buildRangeHeader(ThemeData theme, List<_AuditEntry> audit) {
+    final rangeLabel = _rangeLabelText();
+    final infoRow = Row(
       children: [
         Icon(Icons.calendar_month_outlined, color: theme.colorScheme.primary),
         const SizedBox(width: 12),
@@ -264,12 +453,55 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
             ],
           ),
         ),
+      ],
+    );
+
+    final actions = Wrap(
+      spacing: 12,
+      runSpacing: 8,
+      alignment: WrapAlignment.end,
+      children: [
         FilledButton.tonalIcon(
           onPressed: _loading ? null : _pickRange,
           icon: const Icon(Icons.filter_list_outlined),
           label: const Text('Zeitraum wählen'),
         ),
+        FilledButton.icon(
+          onPressed: (_loading || _exporting || audit.isEmpty) ? null : () => _exportAuditReport(audit),
+          icon: _exporting
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.picture_as_pdf_outlined),
+          label: Text(_exporting ? 'Export läuft…' : 'Audit-PDF'),
+        ),
       ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 720;
+        if (compact) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              infoRow,
+              const SizedBox(height: 12),
+              actions,
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: infoRow),
+            const SizedBox(width: 12),
+            actions,
+          ],
+        );
+      },
     );
   }
 
@@ -349,6 +581,73 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
           repEmail: repEmail.isEmpty ? null : repEmail,
           count: count,
         ));
+      }
+    }
+    return out;
+  }
+
+  List<_CustomerBucket> _parseCustomerBuckets() {
+    final raw = (_stats?['byCustomer'] as List?) ?? const [];
+    final out = <_CustomerBucket>[];
+    for (final entry in raw) {
+      if (entry is Map) {
+        final label = (entry['label'] ?? entry['customer'] ?? '').toString().trim();
+        if (label.isEmpty) continue;
+        final count = (entry['count'] as num?)?.toInt() ?? 0;
+        final email = (entry['email'] ?? '').toString().trim();
+        final customerNumber = (entry['customerNumber'] ?? '').toString().trim();
+        out.add(_CustomerBucket(
+          label: label,
+          count: count,
+          email: email.isEmpty ? null : email,
+          customerNumber: customerNumber.isEmpty ? null : customerNumber,
+        ));
+      }
+    }
+    out.sort((a, b) => b.count - a.count || a.label.compareTo(b.label));
+    return out;
+  }
+
+  _TimeToCloseStats? _parseTimeToCloseStats() {
+    final map = (_stats?['timeToClose'] as Map?)?.cast<String, dynamic>();
+    if (map == null || map.isEmpty) return null;
+    return _TimeToCloseStats.fromJson(map);
+  }
+
+  List<_WeekdayBucket> _parseWeekdayBuckets() {
+    final raw = (_stats?['loadByWeekday'] as List?) ?? const [];
+    final out = <_WeekdayBucket>[];
+    for (final entry in raw) {
+      if (entry is Map) {
+        final weekday = (entry['weekday'] as num?)?.toInt();
+        if (weekday == null) continue;
+        final count = (entry['count'] as num?)?.toInt() ?? 0;
+        out.add(_WeekdayBucket(weekday: weekday, count: count));
+      }
+    }
+    return out;
+  }
+
+  List<_HourBucket> _parseHourBuckets() {
+    final raw = (_stats?['loadByHour'] as List?) ?? const [];
+    final out = <_HourBucket>[];
+    for (final entry in raw) {
+      if (entry is Map) {
+        final hour = (entry['hour'] as num?)?.toInt();
+        if (hour == null) continue;
+        final count = (entry['count'] as num?)?.toInt() ?? 0;
+        out.add(_HourBucket(hour: hour, count: count));
+      }
+    }
+    return out;
+  }
+
+  List<_AuditEntry> _parseAuditEntries() {
+    final raw = (_stats?['audit'] as List?) ?? const [];
+    final out = <_AuditEntry>[];
+    for (final entry in raw) {
+      if (entry is Map) {
+        out.add(_AuditEntry.fromJson(entry.cast<String, dynamic>()));
       }
     }
     return out;
@@ -821,6 +1120,392 @@ class _RepSection extends StatelessWidget {
   }
 }
 
+class _CustomerRankingSection extends StatelessWidget {
+  final List<_CustomerBucket> customers;
+  final int total;
+  const _CustomerRankingSection({required this.customers, required this.total});
+
+  @override
+  Widget build(BuildContext context) {
+    if (customers.isEmpty) {
+      return const _SectionCard(
+        title: 'Reklamationsquote pro Kunde',
+        icon: Icons.workspace_premium_outlined,
+        child: _EmptyPlaceholder(message: 'Keine Kundendaten verfügbar'),
+      );
+    }
+    final top = customers.take(10).toList(growable: false);
+    return _SectionCard(
+      title: 'Reklamationsquote pro Kunde',
+      icon: Icons.workspace_premium_outlined,
+      child: Column(
+        children: [
+          for (var i = 0; i < top.length; i++) ...[
+            _CustomerRankTile(
+              rank: i + 1,
+              bucket: top[i],
+              share: total == 0 ? null : (top[i].count / total),
+            ),
+            if (i != top.length - 1) const SizedBox(height: 12),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _CustomerRankTile extends StatelessWidget {
+  final int rank;
+  final _CustomerBucket bucket;
+  final double? share;
+  const _CustomerRankTile({required this.rank, required this.bucket, this.share});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasContact = bucket.email != null && bucket.email!.isNotEmpty;
+    final shareLabel = (share == null)
+        ? null
+        : NumberFormat.decimalPercentPattern(locale: 'de', decimalDigits: 1).format(share);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: theme.colorScheme.primary.withOpacity(0.08),
+              child: Text('$rank', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.primary)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    bucket.label,
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  if (bucket.customerNumber != null)
+                    Text('Kundennr.: ${bucket.customerNumber}', style: theme.textTheme.bodySmall),
+                  if (hasContact)
+                    Text(bucket.email!, style: theme.textTheme.bodySmall),
+                  const SizedBox(height: 8),
+                  LinearProgressIndicator(
+                    value: share?.clamp(0.0, 1.0) ?? 0,
+                    minHeight: 6,
+                    backgroundColor: theme.colorScheme.surfaceVariant,
+                    valueColor: AlwaysStoppedAnimation(theme.colorScheme.primary),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('${bucket.count}', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+                if (shareLabel != null)
+                  Text(shareLabel, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline)),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _TimeToCloseSection extends StatelessWidget {
+  final _TimeToCloseStats? stats;
+  const _TimeToCloseSection({required this.stats});
+
+  String _format(double? value) {
+    if (value == null) return '—';
+    return '${value.toStringAsFixed(1)} Tage';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (stats == null || stats!.sampleSize == 0) {
+      return const _SectionCard(
+        title: 'Laufzeitstatistik',
+        icon: Icons.schedule_outlined,
+        child: _EmptyPlaceholder(message: 'Noch keine abgeschlossenen Tickets im Zeitraum'),
+      );
+    }
+    final stat = stats!;
+    return _SectionCard(
+      title: 'Laufzeitstatistik',
+      icon: Icons.schedule_outlined,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _TimeMetric(label: 'Durchschnitt', value: _format(stat.averageDays)),
+              _TimeMetric(label: 'Median', value: _format(stat.medianDays)),
+              _TimeMetric(label: '90%-Perzentil', value: _format(stat.p90Days)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Icon(Icons.timelapse, color: Theme.of(context).colorScheme.error),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Long Runner > ${stat.thresholdDays} Tagen: ${stat.longRunnerOpen}',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text('Stichprobe: ${stat.sampleSize} Tickets', style: Theme.of(context).textTheme.bodySmall),
+        ],
+      ),
+    );
+  }
+}
+
+class _TimeMetric extends StatelessWidget {
+  final String label;
+  final String value;
+  const _TimeMetric({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: 180,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        color: theme.colorScheme.surfaceVariant,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: theme.textTheme.labelMedium),
+          const SizedBox(height: 4),
+          Text(value, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+}
+
+class _LoadPatternSection extends StatelessWidget {
+  final List<_WeekdayBucket> weekdays;
+  final List<_HourBucket> hours;
+  const _LoadPatternSection({required this.weekdays, required this.hours});
+
+  bool get _hasData =>
+      weekdays.any((b) => b.count > 0) ||
+      hours.any((b) => b.count > 0);
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_hasData) {
+      return const _SectionCard(
+        title: 'Reklamationslast nach Zeitpunkt',
+        icon: Icons.access_time,
+        child: _EmptyPlaceholder(message: 'Keine zeitlichen Muster verfügbar'),
+      );
+    }
+    return _SectionCard(
+      title: 'Reklamationslast nach Zeitpunkt',
+      icon: Icons.access_time,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(height: 220, child: _WeekdayChart(data: weekdays)),
+          const SizedBox(height: 24),
+          SizedBox(height: 220, child: _HourChart(data: hours)),
+        ],
+      ),
+    );
+  }
+}
+
+class _WeekdayChart extends StatelessWidget {
+  final List<_WeekdayBucket> data;
+  const _WeekdayChart({required this.data});
+
+  static const _order = [1, 2, 3, 4, 5, 6, 0];
+  static const _labels = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+
+  List<_WeekdayBucket> _normalized() {
+    final map = {for (final bucket in data) bucket.weekday: bucket.count};
+    return List.generate(_order.length, (index) {
+      final weekday = _order[index];
+      return _WeekdayBucket(weekday: weekday, count: map[weekday] ?? 0);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final normalized = _normalized();
+    final maxY = normalized.fold<int>(0, (prev, e) => math.max(prev, e.count)).toDouble();
+    final normalizedMax = math.max(maxY, 1);
+    final interval = maxY <= 5 ? 1 : (maxY / 4).ceilToDouble();
+    final groups = normalized.asMap().entries.map((entry) {
+      final index = entry.key;
+      final bucket = entry.value;
+      return BarChartGroupData(
+        x: index,
+        barRods: [
+          BarChartRodData(
+            toY: bucket.count.toDouble(),
+            width: 16,
+            borderRadius: BorderRadius.circular(6),
+            color: theme.colorScheme.primary,
+            backDrawRodData: BackgroundBarChartRodData(
+              show: true,
+              toY: normalizedMax,
+              color: theme.colorScheme.primary.withOpacity(0.08),
+            ),
+          ),
+        ],
+      );
+    }).toList();
+
+    return BarChart(
+      BarChartData(
+        barTouchData: BarTouchData(enabled: true),
+        barGroups: groups,
+        gridData: FlGridData(
+          show: true,
+          horizontalInterval: interval,
+          getDrawingHorizontalLine: (value) => FlLine(
+            color: theme.dividerColor.withOpacity(0.2),
+            strokeWidth: 1,
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        titlesData: FlTitlesData(
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              interval: interval,
+              reservedSize: 32,
+              getTitlesWidget: (value, meta) => SideTitleWidget(
+                axisSide: meta.axisSide,
+                space: 6,
+                child: Text(value.toInt().toString(), style: theme.textTheme.bodySmall),
+              ),
+            ),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              getTitlesWidget: (value, meta) {
+                final index = value.toInt();
+                if (index < 0 || index >= _labels.length) return const SizedBox.shrink();
+                return SideTitleWidget(
+                  axisSide: meta.axisSide,
+                  space: 8,
+                  child: Text(_labels[index], style: theme.textTheme.bodySmall),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HourChart extends StatelessWidget {
+  final List<_HourBucket> data;
+  const _HourChart({required this.data});
+
+  List<_HourBucket> _normalized() {
+    final map = {for (final bucket in data) bucket.hour: bucket.count};
+    return List.generate(24, (index) => _HourBucket(hour: index, count: map[index] ?? 0));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final normalized = _normalized();
+    final maxY = normalized.fold<int>(0, (prev, e) => math.max(prev, e.count)).toDouble();
+    final normalizedMax = math.max(maxY, 1);
+    final interval = maxY <= 5 ? 1 : (maxY / 4).ceilToDouble();
+    final spots = normalized
+        .map((bucket) => FlSpot(bucket.hour.toDouble(), bucket.count.toDouble()))
+        .toList();
+    return LineChart(
+      LineChartData(
+        minX: 0,
+        maxX: 23,
+        minY: 0,
+        maxY: normalizedMax,
+        gridData: FlGridData(
+          show: true,
+          horizontalInterval: interval,
+          getDrawingHorizontalLine: (value) => FlLine(
+            color: theme.dividerColor.withOpacity(0.2),
+            strokeWidth: 1,
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        titlesData: FlTitlesData(
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              interval: interval,
+              reservedSize: 32,
+              getTitlesWidget: (value, meta) => SideTitleWidget(
+                axisSide: meta.axisSide,
+                space: 6,
+                child: Text(value.toInt().toString(), style: theme.textTheme.bodySmall),
+              ),
+            ),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              getTitlesWidget: (value, meta) {
+                final hour = value.toInt();
+                if (hour % 4 != 0) return const SizedBox.shrink();
+                final label = '${hour.toString().padLeft(2, '0')}h';
+                return SideTitleWidget(
+                  axisSide: meta.axisSide,
+                  space: 6,
+                  child: Text(label, style: theme.textTheme.bodySmall),
+                );
+              },
+            ),
+          ),
+        ),
+        lineBarsData: [
+          LineChartBarData(
+            spots: spots,
+            isCurved: true,
+            barWidth: 3,
+            color: theme.colorScheme.secondary,
+            belowBarData: BarAreaData(
+              show: true,
+              color: theme.colorScheme.secondary.withOpacity(0.2),
+            ),
+            dotData: const FlDotData(show: false),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SectionCard extends StatelessWidget {
   final String title;
   final IconData icon;
@@ -1007,6 +1692,19 @@ class _MonthBucket {
   }
 }
 
+class _CustomerBucket {
+  final String label;
+  final int count;
+  final String? email;
+  final String? customerNumber;
+  const _CustomerBucket({
+    required this.label,
+    required this.count,
+    this.email,
+    this.customerNumber,
+  });
+}
+
 class _CountryBucket {
   final String country;
   final int count;
@@ -1042,5 +1740,126 @@ class _RepBucket {
       return (parts.first[0] + parts.last[0]).toUpperCase();
     }
     return repId.substring(0, math.min(2, repId.length)).toUpperCase();
+  }
+}
+
+class _TimeToCloseStats {
+  final double? averageDays;
+  final double? medianDays;
+  final double? p90Days;
+  final int sampleSize;
+  final int longRunnerOpen;
+  final int thresholdDays;
+
+  const _TimeToCloseStats({
+    required this.averageDays,
+    required this.medianDays,
+    required this.p90Days,
+    required this.sampleSize,
+    required this.longRunnerOpen,
+    required this.thresholdDays,
+  });
+
+  factory _TimeToCloseStats.fromJson(Map<String, dynamic> json) {
+    double? _double(dynamic value) {
+      if (value is num) return value.toDouble();
+      if (value is String) return double.tryParse(value);
+      return null;
+    }
+
+    int _int(dynamic value) {
+      if (value is num) return value.toInt();
+      if (value is String) return int.tryParse(value) ?? 0;
+      return 0;
+    }
+
+    return _TimeToCloseStats(
+      averageDays: _double(json['averageDays']),
+      medianDays: _double(json['medianDays']),
+      p90Days: _double(json['p90Days']),
+      sampleSize: _int(json['sampleSize']),
+      longRunnerOpen: _int(json['longRunnerOpen']),
+      thresholdDays: _int(json['thresholdDays']),
+    );
+  }
+}
+
+class _WeekdayBucket {
+  final int weekday;
+  final int count;
+  const _WeekdayBucket({required this.weekday, required this.count});
+}
+
+class _HourBucket {
+  final int hour;
+  final int count;
+  const _HourBucket({required this.hour, required this.count});
+}
+
+class _AuditEntry {
+  final String ticket;
+  final DateTime createdAt;
+  final String customer;
+  final String? customerEmail;
+  final String? customerNumber;
+  final String country;
+  final String? article;
+  final String? segment;
+  final String statusLabel;
+  final String decisionLabel;
+  final String? repName;
+  final String? repEmail;
+
+  _AuditEntry({
+    required this.ticket,
+    required this.createdAt,
+    required this.customer,
+    required this.customerEmail,
+    required this.customerNumber,
+    required this.country,
+    required this.article,
+    required this.segment,
+    required this.statusLabel,
+    required this.decisionLabel,
+    required this.repName,
+    required this.repEmail,
+  });
+
+  factory _AuditEntry.fromJson(Map<String, dynamic> json) {
+    DateTime _ts(dynamic value) {
+      if (value is num) {
+        return DateTime.fromMillisecondsSinceEpoch(value.toInt(), isUtc: false);
+      }
+      if (value is String) {
+        final trimmed = value.trim();
+        final parsedInt = int.tryParse(trimmed);
+        if (parsedInt != null) {
+          return DateTime.fromMillisecondsSinceEpoch(parsedInt, isUtc: false);
+        }
+        final parsed = DateTime.tryParse(trimmed);
+        if (parsed != null) return parsed;
+      }
+      return DateTime.now();
+    }
+
+    String? _optional(dynamic value) {
+      final s = (value ?? '').toString().trim();
+      return s.isEmpty ? null : s;
+    }
+
+    return _AuditEntry(
+      ticket: (json['ticket'] ?? '').toString(),
+      createdAt: _ts(json['createdAt']),
+      customer: (json['customer'] ?? '').toString(),
+      customerEmail: _optional(json['customerEmail']),
+      customerNumber: _optional(json['customerNumber']),
+      country: (json['country'] ?? '').toString(),
+      article: _optional(json['article']),
+      segment: _optional(json['segment']),
+      statusLabel: (json['statusLabel'] ?? '').toString(),
+      decisionLabel: (json['decisionLabel'] ?? '').toString(),
+      repName: _optional(json['repName']),
+      repEmail: _optional(json['repEmail']),
+    );
   }
 }

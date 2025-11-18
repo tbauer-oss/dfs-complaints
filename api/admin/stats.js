@@ -46,22 +46,41 @@ function formatDateOnly(date) {
   return iso.slice(0, 10);
 }
 
+function parseTimestamp(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const num = Number(value);
+    if (Number.isFinite(num)) return num;
+    const ts = Date.parse(value);
+    if (!Number.isNaN(ts)) return ts;
+  }
+  return null;
+}
+
 function createdAtMs(complaint) {
-  const pick = (value) => {
-    if (typeof value === 'number' && Number.isFinite(value)) return value;
-    if (typeof value === 'string' && value.trim()) {
-      const num = Number(value);
-      if (Number.isFinite(num)) return num;
-      const ts = Date.parse(value);
-      if (!Number.isNaN(ts)) return ts;
-    }
-    return null;
-  };
   return (
-    pick(complaint?.createdAt) ??
-    pick(complaint?.payload?.createdAt) ??
-    pick(complaint?.updatedAt) ??
+    parseTimestamp(complaint?.createdAt) ??
+    parseTimestamp(complaint?.payload?.createdAt) ??
+    parseTimestamp(complaint?.updatedAt) ??
     0
+  );
+}
+
+function updatedAtMs(complaint) {
+  return (
+    parseTimestamp(complaint?.updatedAt) ??
+    parseTimestamp(complaint?.statusUpdatedAt) ??
+    createdAtMs(complaint)
+  );
+}
+
+function closedAtMs(complaint) {
+  return (
+    parseTimestamp(complaint?.closedAt) ??
+    parseTimestamp(complaint?.closed_at) ??
+    parseTimestamp(complaint?.payload?.closedAt) ??
+    parseTimestamp(complaint?.payload?.closed_at) ??
+    null
   );
 }
 
@@ -84,6 +103,103 @@ function iterateMonths(range) {
 
 const norm = (v) => (v ?? '').toString().trim();
 const normLower = (v) => norm(v).toLowerCase();
+
+const STATUS_LABEL = {
+  1: 'Eingegangen',
+  2: 'In Bearbeitung',
+  3: 'Rückfrage erforderlich',
+  4: 'In Nacharbeit',
+  5: 'Abgeschlossen',
+};
+
+const DECISION_LABEL = {
+  accepted: 'Angenommen',
+  rejected: 'Abgelehnt',
+  pending: 'Entscheidung offen',
+};
+
+const CUSTOMER_COMPANY_KEYS = [
+  'company',
+  'customerCompany',
+  'customer_company',
+  'customer',
+  'customerName',
+  'customer_name',
+  'accountCompany',
+  'account_company',
+  'organization',
+  'organisation',
+  'org',
+  'clinic',
+  'practice',
+  'praxis',
+  'firm',
+  'firma',
+  'betrieb',
+];
+
+const CUSTOMER_CONTACT_KEYS = [
+  'contact',
+  'contactName',
+  'contact_name',
+  'contactPerson',
+  'contact_person',
+  'customerContact',
+  'customer_contact',
+  'user',
+  'userName',
+  'user_name',
+];
+
+const CUSTOMER_EMAIL_KEYS = [
+  'email',
+  'customerEmail',
+  'customer_email',
+  'userEmail',
+  'user_email',
+  'contactEmail',
+  'contact_email',
+  'accountEmail',
+  'account_email',
+];
+
+const CUSTOMER_NUMBER_KEYS = [
+  'customerNumber',
+  'customer_number',
+  'customer_no',
+  'customerNo',
+  'customerId',
+  'customer_id',
+  'kundennummer',
+  'kundenNr',
+];
+
+const ARTICLE_KEYS = [
+  'article',
+  'article_no',
+  'articleNo',
+  'articleNumber',
+  'article_name',
+  'product',
+  'productName',
+  'artikel',
+  'artikelnummer',
+];
+
+const SEGMENT_KEYS = [
+  'segment',
+  'segment_code',
+  'customer_segment',
+  'businessUnit',
+  'unit',
+  'bereich',
+];
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const LONG_RUNNER_DAYS = Math.max(
+  1,
+  Number(process.env.ADMIN_LONG_RUNNER_DAYS || 30),
+);
 
 const COUNTRY_VALUE_KEYS = [
   'countryCode',
@@ -226,6 +342,206 @@ function countBy(list, keyFn) {
   return map;
 }
 
+function pickValue(source, keys) {
+  if (!source || typeof source !== 'object') return null;
+  for (const key of keys) {
+    if (!Object.prototype.hasOwnProperty.call(source, key)) continue;
+    const value = norm(source[key]);
+    if (value) return value;
+  }
+  return null;
+}
+
+function pickCustomerMeta(complaint) {
+  const payload = complaint?.payload || {};
+  const account = complaint?.account || {};
+  const customer = complaint?.customer || {};
+  const user = complaint?.user || {};
+
+  const emailSources = [
+    complaint,
+    payload,
+    account,
+    customer,
+    user,
+    payload?.customer,
+    payload?.account,
+  ];
+  let email = null;
+  for (const source of emailSources) {
+    if (!source || typeof source !== 'object') continue;
+    for (const key of CUSTOMER_EMAIL_KEYS) {
+      const value = normLower(source[key]);
+      if (value) { email = value; break; }
+    }
+    if (email) break;
+  }
+
+  const labelSources = [complaint, payload, account, customer, user, payload?.customer, payload?.account];
+  let company = null;
+  let contact = null;
+  let customerNumber = null;
+  for (const source of labelSources) {
+    if (!company) company = pickValue(source, CUSTOMER_COMPANY_KEYS);
+    if (!contact) contact = pickValue(source, CUSTOMER_CONTACT_KEYS);
+    if (!customerNumber) customerNumber = pickValue(source, CUSTOMER_NUMBER_KEYS);
+  }
+
+  const label = company || contact || email || `Ticket ${complaint?.ticket || ''}`.trim() || 'Unbekannter Kunde';
+  const key = email || (company ? company.toLowerCase() : (contact ? contact.toLowerCase() : label.toLowerCase()));
+  return {
+    key,
+    label,
+    company: company || undefined,
+    contact: contact || undefined,
+    email: email || undefined,
+    customerNumber: customerNumber || undefined,
+  };
+}
+
+function pickArticle(complaint) {
+  const payload = complaint?.payload || {};
+  const sources = [complaint, payload, payload?.product];
+  for (const source of sources) {
+    const value = pickValue(source, ARTICLE_KEYS);
+    if (value) return value;
+  }
+  return '';
+}
+
+function pickSegment(complaint) {
+  const payload = complaint?.payload || {};
+  return pickValue(payload, SEGMENT_KEYS) || pickValue(complaint, SEGMENT_KEYS) || '';
+}
+
+function decisionLabel(decision) {
+  const key = (decision || 'pending').toString().trim() || 'pending';
+  return DECISION_LABEL[key] || DECISION_LABEL.pending;
+}
+
+function statusLabel(status) {
+  return STATUS_LABEL[Number(status) || 0] || STATUS_LABEL[1];
+}
+
+function buildCustomerBuckets(list) {
+  const map = new Map();
+  for (const c of list) {
+    const meta = pickCustomerMeta(c);
+    if (!meta?.key) continue;
+    const current = map.get(meta.key) || { ...meta, count: 0 };
+    current.count += 1;
+    if (!current.company && meta.company) current.company = meta.company;
+    if (!current.contact && meta.contact) current.contact = meta.contact;
+    if (!current.email && meta.email) current.email = meta.email;
+    if (!current.customerNumber && meta.customerNumber) current.customerNumber = meta.customerNumber;
+    map.set(meta.key, current);
+  }
+  return Array.from(map.values()).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+}
+
+function resolvedAtMs(complaint) {
+  const explicit = closedAtMs(complaint);
+  if (explicit) return explicit;
+  const status = Number(complaint?.status || 0);
+  if (status === 5) {
+    return (
+      parseTimestamp(complaint?.statusUpdatedAt) ??
+      parseTimestamp(complaint?.updatedAt) ??
+      null
+    );
+  }
+  const decision = (complaint?.decision || '').toString().trim();
+  if (decision === 'rejected' || decision === 'accepted') {
+    return parseTimestamp(complaint?.decisionAt) ?? parseTimestamp(complaint?.statusUpdatedAt) ?? null;
+  }
+  return null;
+}
+
+function percentile(sorted, p) {
+  if (!sorted.length) return null;
+  const target = (sorted.length - 1) * p;
+  const lower = Math.floor(target);
+  const upper = Math.ceil(target);
+  if (lower === upper) return sorted[lower];
+  const weight = target - lower;
+  return sorted[lower] + (sorted[upper] - sorted[lower]) * weight;
+}
+
+function buildTimeToCloseStats(list) {
+  const durations = [];
+  let longRunnerOpen = 0;
+  const now = Date.now();
+  for (const c of list) {
+    const created = createdAtMs(c);
+    if (!created) continue;
+    const resolved = resolvedAtMs(c);
+    if (resolved && resolved > created) {
+      durations.push(Math.max(0, resolved - created));
+    }
+    const status = Number(c?.status || 0);
+    if (status !== 5) {
+      const age = now - created;
+      if (age >= LONG_RUNNER_DAYS * MS_PER_DAY) longRunnerOpen += 1;
+    }
+  }
+  durations.sort((a, b) => a - b);
+  const total = durations.length;
+  const avg = total ? durations.reduce((sum, value) => sum + value, 0) / total : null;
+  const median = percentile(durations, 0.5);
+  const p90 = percentile(durations, 0.9);
+  const toDays = (ms) => (ms == null ? null : ms / MS_PER_DAY);
+  return {
+    sampleSize: total,
+    averageDays: toDays(avg),
+    medianDays: toDays(median),
+    p90Days: toDays(p90),
+    longRunnerOpen,
+    thresholdDays: LONG_RUNNER_DAYS,
+  };
+}
+
+function buildTemporalLoad(list) {
+  const weekdays = Array.from({ length: 7 }, (_, idx) => ({ weekday: idx, count: 0 }));
+  const hours = Array.from({ length: 24 }, (_, idx) => ({ hour: idx, count: 0 }));
+  for (const c of list) {
+    const ts = createdAtMs(c);
+    if (!ts) continue;
+    const date = new Date(ts);
+    const weekday = date.getUTCDay();
+    const hour = date.getUTCHours();
+    weekdays[weekday].count += 1;
+    hours[hour].count += 1;
+  }
+  return { weekdays, hours };
+}
+
+function buildAuditEntries(list, repInfo = new Map()) {
+  return list.map((c) => {
+    const meta = pickCustomerMeta(c);
+    const rep = pickRepMeta(c);
+    const enriched = rep?.repId ? repInfo.get(rep.repId) : null;
+    const repName = enriched?.name || rep?.repName || null;
+    const repEmail = enriched?.email || rep?.repEmail || null;
+    return {
+      ticket: (c?.ticket || '').toString(),
+      createdAt: createdAtMs(c),
+      updatedAt: updatedAtMs(c),
+      status: Number(c?.status || 0) || 0,
+      statusLabel: statusLabel(c?.status),
+      decision: (c?.decision || 'pending') || 'pending',
+      decisionLabel: decisionLabel(c?.decision),
+      country: pickCountry(c),
+      customer: meta?.label || '',
+      customerEmail: meta?.email || '',
+      customerNumber: meta?.customerNumber || '',
+      article: pickArticle(c),
+      segment: pickSegment(c),
+      repName: repName || '',
+      repEmail: repEmail || '',
+    };
+  });
+}
+
 function buildStats(list, range, repInfo = new Map()) {
   const total = list.length;
   const statusCounts = countBy(list, (c) => {
@@ -276,6 +592,11 @@ function buildStats(list, range, repInfo = new Map()) {
     .map(([decision, count]) => ({ decision, count }))
     .sort((a, b) => a.decision.localeCompare(b.decision));
 
+  const byCustomer = buildCustomerBuckets(list);
+  const timeToClose = buildTimeToCloseStats(list);
+  const temporalLoad = buildTemporalLoad(list);
+  const audit = buildAuditEntries(list, repInfo);
+
   return {
     from: formatDateOnly(range.from),
     to: formatDateOnly(range.to),
@@ -286,6 +607,11 @@ function buildStats(list, range, repInfo = new Map()) {
     byMonth: monthsSeries,
     byCountry,
     byRep,
+    byCustomer,
+    timeToClose,
+    loadByWeekday: temporalLoad.weekdays,
+    loadByHour: temporalLoad.hours,
+    audit,
   };
 }
 
