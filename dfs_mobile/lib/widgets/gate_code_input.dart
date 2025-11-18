@@ -196,6 +196,19 @@ class _GateCodeInputState extends State<GateCodeInput> {
     );
   }
 
+  Widget _buildDash(Color color) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: const SizedBox(
+        width: 32,
+        height: 4,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -263,7 +276,36 @@ class _GateCodeInputState extends State<GateCodeInput> {
           }
         }
 
-        final row = Row(
+        final needsWrap = totalWidth() > maxWidth;
+        if (needsWrap) {
+          final compactFieldWidth = fieldWidth.clamp(
+            _minFieldWidth,
+            maxWidth,
+          );
+          return Wrap(
+            alignment: WrapAlignment.center,
+            runAlignment: WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: spacing,
+            runSpacing: spacing * 1.2,
+            children: [
+              for (var i = 0; i < 8; i++) ...[
+                _buildField(
+                  index: i,
+                  width: compactFieldWidth,
+                  textStyle: textStyle,
+                  decoration: defaultDecoration,
+                  baseFillColor: baseFillColor,
+                  focusedFillColor: focusedFillColor,
+                ),
+                if (i == 3)
+                  _buildDash(theme.colorScheme.primary),
+              ],
+            ],
+          );
+        }
+
+        return Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             for (var i = 0; i < 8; i++) ...[
@@ -278,30 +320,13 @@ class _GateCodeInputState extends State<GateCodeInput> {
               if (i == 3)
                 Padding(
                   padding: EdgeInsets.symmetric(horizontal: spacing),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primary,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: SizedBox(
-                      width: 32,
-                      height: 4,
-                    ),
-                  ),
+                  child: _buildDash(theme.colorScheme.primary),
                 )
               else if (i != 7)
                 SizedBox(width: spacing),
             ],
           ],
         );
-
-        if (totalWidth() > maxWidth) {
-          return SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: row,
-          );
-        }
-        return row;
       },
     );
   }
