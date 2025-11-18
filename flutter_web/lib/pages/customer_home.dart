@@ -127,12 +127,6 @@ class CustomerHomePage extends StatelessWidget {
             ),
             ElevatedButton.icon(
               style: btnStyle,
-              onPressed: openAssistant,
-              icon: const Icon(Icons.auto_awesome),
-              label: Text(t.customerAssistantCta),
-            ),
-            ElevatedButton.icon(
-              style: btnStyle,
               onPressed: () {
                 Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => CustomerNewsPage(api: api),

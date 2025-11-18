@@ -26,6 +26,12 @@ function buildSystemPrompt(lang = 'de') {
   ].join(' ');
 }
 
+function buildSearchQuery(question, history) {
+  const userTurns = history.filter((entry) => entry.role === 'user').map((entry) => entry.content);
+  const context = userTurns.slice(-3); // keep only the last few prompts to preserve context
+  return [...context, question].filter(Boolean).join(' ');
+}
+
 function buildUserPrompt(question, docs) {
   const contextBlock = docs
     .map((doc) => `Titel: ${doc.title}\nTags: ${doc.tags.join(', ')}\nText: ${doc.text}`)
@@ -82,7 +88,8 @@ export default async function handler(req, res) {
 
   if (!question) return bad(res, 'question required', 400);
 
-  const docs = retrieveDocuments(question, { limit: 4 });
+  const searchQuery = buildSearchQuery(question, history);
+  const docs = retrieveDocuments(searchQuery, { limit: 4 });
 
   let answer;
   let meta = { usedOpenAI: false };
