@@ -14,7 +14,6 @@ import 'my_complaints_page.dart';
 import 'account_page.dart';
 import 'support_page.dart';
 import 'customer_news_page.dart';
-import 'customer_assistant_page.dart';
 import '../widgets/pdf_view_stub.dart'
   if (dart.library.html) '../widgets/pdf_view_web.dart';
 
@@ -274,14 +273,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     }
   }
 
-  void _openAssistant(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => CustomerAssistantPage(api: widget.api),
-      ),
-    );
-  }
-
   Future<void> _openMail(String email, String subject, String body) async {
     final uri = Uri(
       scheme: 'mailto',
@@ -385,11 +376,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                 ),
               ),
               IconButton(
-                tooltip: t.customerAssistantTitle,
-                onPressed: () => _openAssistant(context),
-                icon: const Icon(Icons.auto_awesome_outlined),
-              ),
-              IconButton(
                 tooltip: AppLocalizations.of(context)!.refresh,
                 onPressed: () {
                   _initRep();
@@ -481,15 +467,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                   ),
                 const SizedBox(width: 6),
                 IconButton(
-                  tooltip: t.customerAssistantTitle,
-                  visualDensity: const VisualDensity(horizontal: -2, vertical: -3),
-                  padding: const EdgeInsets.all(6),
-                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                  onPressed: () => _openAssistant(context),
-                  icon: const Icon(Icons.auto_awesome_outlined, size: 20),
-                ),
-                const SizedBox(width: 6),
-                IconButton(
                   tooltip: t.refresh,
                   visualDensity: const VisualDensity(horizontal: -2, vertical: -3),
                   padding: const EdgeInsets.all(6),
@@ -561,11 +538,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                     ),
                   ],
                 ),
-              ),
-              IconButton(
-                tooltip: t.customerAssistantTitle,
-                onPressed: () => _openAssistant(context),
-                icon: const Icon(Icons.auto_awesome_outlined),
               ),
               IconButton(
                 tooltip: t.refresh,
@@ -644,11 +616,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                 ),
               ),
             IconButton(
-              tooltip: t.customerAssistantTitle,
-              onPressed: () => _openAssistant(context),
-              icon: const Icon(Icons.auto_awesome_outlined),
-            ),
-            IconButton(
               tooltip: t.refresh,
               onPressed: _initRep,
               icon: const Icon(Icons.refresh),
@@ -717,13 +684,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
         },
       ),
       _Entry(
-        label: t.customerAssistantTitle,
-        icon: Icons.auto_awesome_outlined,
-        colorA: const Color(0xFF283593),
-        colorB: const Color(0xFF7986CB),
-        onTap: () => _openAssistant(context),
-      ),
-      _Entry(
         label: t.customerNewsTile ?? 'Neuigkeiten & Updates',
         icon: Icons.campaign_outlined,
         colorA: const Color(0xFF006064),
@@ -766,17 +726,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
                     sliver: SliverToBoxAdapter(
                       child: _buildRepHeaderResponsive(context),
-                    ),
-                  ),
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-                    sliver: SliverToBoxAdapter(
-                      child: _AssistantHintCard(
-                        title: t.customerAssistantTitle,
-                        subtitle: t.customerAssistantSubtitle,
-                        cta: t.customerAssistantCta,
-                        onTap: () => _openAssistant(context),
-                      ),
                     ),
                   ),
                   SliverPadding(
@@ -837,116 +786,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
 }
 
 // ---------------- Komponenten ----------------
-
-class _AssistantHintCard extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final String cta;
-  final VoidCallback onTap;
-
-  const _AssistantHintCard({
-    required this.title,
-    required this.subtitle,
-    required this.cta,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final background = cs.surface.withOpacity(theme.brightness == Brightness.light ? 0.7 : 0.18);
-    final borderColor = cs.outline.withOpacity(theme.brightness == Brightness.light ? 0.3 : 0.45);
-    final radius = BorderRadius.circular(28);
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compactLayout = constraints.maxWidth < 520;
-        final icon = Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: cs.primary.withOpacity(0.12),
-          ),
-          alignment: Alignment.center,
-          child: Icon(Icons.auto_awesome_outlined, color: cs.primary, size: 18),
-        );
-
-        final text = Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              subtitle,
-              style: theme.textTheme.bodySmall?.copyWith(height: 1.25),
-            ),
-          ],
-        );
-
-        final button = OutlinedButton.icon(
-          onPressed: onTap,
-          style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            visualDensity: VisualDensity.compact,
-          ),
-          icon: const Icon(Icons.chat_bubble_outline, size: 16),
-          label: Text(cta),
-        );
-
-        final content = compactLayout
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      icon,
-                      const SizedBox(width: 12),
-                      Expanded(child: text),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Align(alignment: Alignment.centerLeft, child: button),
-                ],
-              )
-            : Row(
-                children: [
-                  icon,
-                  const SizedBox(width: 12),
-                  Expanded(child: text),
-                  const SizedBox(width: 12),
-                  button,
-                ],
-              );
-
-        return Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: radius,
-            onTap: onTap,
-            child: Ink(
-              decoration: BoxDecoration(
-                color: background,
-                borderRadius: radius,
-                border: Border.all(color: borderColor),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                child: content,
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
 
 // (Optional weiterhin vorhanden – falls du sie anderswo nutzt.
 // In dieser Datei wird _RepBanner jetzt nicht mehr verwendet.)

@@ -601,21 +601,5 @@
   "newsCatShortage": "Engpässe & Einschränkungen",
   "newsCatApp": "App-Versionen",
   "newsCatGeneral": "Allgemein",
-  "customerNewsHeroFreshLabel": "Neue Insights (30 Tage)",
-  "customerAssistantTitle": "Digitale Assistentin",
-  "customerAssistantSubtitle": "Unsere KI beantwortet Fragen rund um Beschwerden – diskret direkt im Kundenbereich.",
-  "customerAssistantCta": "KI-Assistentin",
-  "customerAssistantInputHint": "Frag mich etwas zur Plattform oder zum Beschwerdeablauf ...",
-  "customerAssistantSend": "Senden",
-  "customerAssistantEmptyState": "Noch keine Unterhaltung. Starte mit einer Frage oder nutze eine der Ideen.",
-  "customerAssistantAiBadge": "Antwort per KI",
-  "customerAssistantFallbackBadge": "Statische Wissensnotiz",
-  "customerAssistantSourcesTitle": "Verwendete Quellen",
-  "customerAssistantSourcesHint": "Die Assistentin nutzt interne Hilfetexte – hier siehst du, worauf sie sich bezieht.",
-  "customerAssistantIdeaStatus": "Wie prüfe ich den Status meiner Beschwerde?",
-  "customerAssistantIdeaEvidence": "Welche Unterlagen sollte ich hochladen?",
-  "customerAssistantIdeaTimeline": "Wie lange dauert die Prüfung?",
-  "customerAssistantIdeasTitle": "Beliebte Fragen",
-  "customerAssistantDisclaimer": "Hinweis: Die Antworten ersetzen keine Rechtsberatung, sondern erklären unsere Prozesse.",
-  "customerAssistantTyping": "Denkt nach ..."
+  "customerNewsHeroFreshLabel": "Neue Insights (30 Tage)"
 }

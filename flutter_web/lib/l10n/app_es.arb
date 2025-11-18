@@ -594,21 +594,5 @@
   "newsCatProduct": "Novedades de producto",
   "newsCatShortage": "Limitaciones temporales",
   "newsCatGeneral": "General",
-  "customerNewsHeroFreshLabel": "Nuevas ideas (30 días)",
-  "customerAssistantTitle": "Asistente digital",
-  "customerAssistantSubtitle": "Nuestra IA responde preguntas sobre reclamaciones directamente en tu área de cliente.",
-  "customerAssistantCta": "Asistente IA",
-  "customerAssistantInputHint": "Pregúntame algo sobre la plataforma o el proceso de quejas ...",
-  "customerAssistantSend": "Enviar",
-  "customerAssistantEmptyState": "Aún no hay conversación. Empieza con una pregunta o usa una de las ideas.",
-  "customerAssistantAiBadge": "Respuesta con IA",
-  "customerAssistantFallbackBadge": "Nota estática",
-  "customerAssistantSourcesTitle": "Fuentes utilizadas",
-  "customerAssistantSourcesHint": "La asistente usa artículos internos; aquí ves cuáles se han usado.",
-  "customerAssistantIdeaStatus": "¿Cómo consulto el estado de mi queja?",
-  "customerAssistantIdeaEvidence": "¿Qué documentos debo subir?",
-  "customerAssistantIdeaTimeline": "¿Cuánto dura la revisión?",
-  "customerAssistantIdeasTitle": "Preguntas populares",
-  "customerAssistantDisclaimer": "Aviso: Las respuestas describen nuestros procesos y no constituyen asesoramiento legal.",
-  "customerAssistantTyping": "Pensando ..."
+  "customerNewsHeroFreshLabel": "Nuevas ideas (30 días)"
 }

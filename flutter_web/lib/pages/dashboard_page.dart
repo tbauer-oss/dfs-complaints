@@ -14,7 +14,6 @@ import 'account_page.dart';
 import 'support_page.dart';
 import 'rep_contact_page.dart';
 import 'customer_news_page.dart';
-import 'customer_assistant_page.dart';
 
 // const _pdfLabUrl  = 'pdfs/DFS-Labor-DE-US-2025-26_1.pdf';
 // const _pdfDentUrl = 'pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf';
@@ -271,12 +270,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     }
   }
 
-  void _openAssistant(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => CustomerAssistantPage(api: widget.api)),
-    );
-  }
-
   // --- HILFSFUNKTION: mailto an Vertreter öffnen (mit Betreff + Body aus i18n) ---
   MyRep _repForContact() {
     final rep = _myRep;
@@ -375,11 +368,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                 ),
               ),
               IconButton(
-                tooltip: t.customerAssistantCta,
-                onPressed: () => _openAssistant(context),
-                icon: const Icon(Icons.auto_awesome),
-              ),
-              IconButton(
                 tooltip: AppLocalizations.of(context)!.refresh,
                 onPressed: () {
                   _initRep();
@@ -416,11 +404,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
         trailing: Wrap(
           spacing: 4,
           children: [
-            IconButton(
-              tooltip: t.customerAssistantCta,
-              icon: const Icon(Icons.auto_awesome),
-              onPressed: () => _openAssistant(context),
-            ),
             if (hasContact)
               IconButton(
                 tooltip: t.rep_contact_form,
@@ -509,11 +492,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                 ),
               ),
               IconButton(
-                tooltip: t.customerAssistantCta,
-                onPressed: () => _openAssistant(context),
-                icon: const Icon(Icons.auto_awesome),
-              ),
-              IconButton(
                 tooltip: t.refresh,
                 onPressed: () {
                   _initRep();
@@ -589,11 +567,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                 ),
               ),
             IconButton(
-              tooltip: t.customerAssistantCta,
-              onPressed: () => _openAssistant(context),
-              icon: const Icon(Icons.auto_awesome),
-            ),
-            IconButton(
               tooltip: t.refresh,
               onPressed: _initRep,
               icon: const Icon(Icons.refresh),
@@ -660,13 +633,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
             builder: (_) => SupportPage(api: widget.api),
           ));
         },
-      ),
-      _Entry(
-        label: t.customerAssistantCta,
-        icon: Icons.auto_awesome,
-        colorA: const Color(0xFF1D3557),
-        colorB: const Color(0xFF457B9D),
-        onTap: () => _openAssistant(context),
       ),
       _Entry(
         label: t.customerNewsTile,
