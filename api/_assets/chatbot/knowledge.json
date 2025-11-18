@@ -4,34 +4,48 @@
     "title": "Überblick über die DFS-Beschwerdeplattform",
     "tags": ["onboarding", "architektur"],
     "summary": "Die Plattform bündelt Gate-Management, Support und Beschwerdebearbeitung in einer Oberfläche.",
-    "details": "Das Web-Frontend (Flutter Web) dient dem Backoffice, während die Mobile-App für das Flughafenpersonal optimiert ist. Beide Clients sprechen ausschließlich mit den Serverless-Funktionen unter api/, weshalb Features wie Authentifizierung, Ticket-Status und Push-Benachrichtigungen immer synchron bleiben."
+    "details": "Das Web-Frontend (Flutter Web) dient dem Backoffice, während die Mobile-App für das Flughafenpersonal optimiert ist. Beide Clients sprechen ausschließlich mit den Serverless-Funktionen unter api/, weshalb Features wie Authentifizierung, Ticket-Status und Push-Benachrichtigungen immer synchron bleiben. Mandanten- und Rollenmodelle werden zentral verwaltet, sodass Dispatcher, Sachbearbeitung, Supervisors und Außendienst die jeweils passenden Module sehen. Widgets wie Gate-Auslastung, aktuelle Störungsmeldungen, Eskalationscenter, Complaint-Backlog, Push-Inbox sowie KPI-Dashboards greifen auf denselben Realtime-Datenstrom zurück, wodurch Antworten des KI-Assistenten den Live-Zustand der Applikation widerspiegeln."
   },
   {
     "id": "data-ingest",
     "title": "Welche Daten nutzt der Chatbot?",
     "tags": ["chatbot", "daten"],
     "summary": "Der Chatbot liest strukturierte Wissensartikel aus dem Verzeichnis api/_assets/chatbot.",
-    "details": "Um den Chatbot zu erweitern, lege zusätzliche JSON-Dateien mit Feldern wie title, summary und details ab oder erweitere knowledge.json. Beim nächsten Request werden sie automatisch geladen, vektorisiert und für die semantische Suche genutzt. So kann das Supportteam den Wissensstand ohne Code-Änderungen pflegen."
+    "details": "Um den Chatbot zu erweitern, lege zusätzliche JSON-Dateien mit Feldern wie title, summary und details ab oder erweitere knowledge.json. Beim nächsten Request werden sie automatisch geladen, vektorisiert und für die semantische Suche genutzt. So kann das Supportteam den Wissensstand ohne Code-Änderungen pflegen. Zusätzlich fließen Metadaten aus api/account (Rollen, Rechtegruppen), api/complaints.js (Status, SLA, Kategorien), api/gate.js (Gate-Besetzungen) und api/push (Geräteregistrierungen) in die Antwortgenerierung ein. Der Bot kennt daher verfügbare Funktionen wie Ticket-Weiterleitung, SLA-Reset, Dokumentenupload, Belegbeifügung und kommentiert Workflows kontextsensitiv."
   },
   {
     "id": "complaint-flow",
     "title": "Ablauf einer Beschwerde",
     "tags": ["prozesse", "complaints"],
     "summary": "Beschwerden entstehen entweder aus der Gate-App oder aus dem Kundenportal.",
-    "details": "Nach Eingang wird jedem Ticket automatisch ein SLA-Profil zugeordnet. Gate-Mitarbeitende erhalten Push-Nachrichten via api/push, wenn Eskalationsstufen ausgelöst werden. Sachbearbeitende verwenden das Flutter-Web-Frontend, um Statusupdates zu erfassen."
+    "details": "Der komplette Lifecycle besteht aus Intake (Erfassung durch Gate-App, Webportal oder manuelle Telefonnotiz), Validierung (automatische Dublettenerkennung über complaintId + Boardingpass), Klassifizierung (Kategorie, Schweregrad, Kundengruppe), Bearbeitung, Eskalation und Abschluss. Nach Eingang wird jedem Ticket automatisch ein SLA-Profil zugeordnet, das Response- und Resolution-Timer beinhaltet. Automatisierungen:\n1. Routing Engine: weist Beschwerden anhand Gate, Airline und Kategorie dem zuständigen Team zu.\n2. Benachrichtigungen: Gate-Mitarbeitende erhalten Push-Nachrichten via api/push, sobald SLA-Verletzungen drohen oder wenn Rückfragen beantwortet wurden.\n3. Timeline: Alle Schritte erscheinen als Audit-Log inklusive Uploads, Notizen, Formularanhängen und externer Kommunikation.\n4. Abschluss: Kund*innen erhalten automatisch generierte Abschlussmails aus api/_lib/mail.js, inkl. PDF-Anhang mit Maßnahmenprotokoll."
   },
   {
     "id": "reporting",
     "title": "Reporting und Auswertungen",
     "tags": ["reporting", "export"],
     "summary": "Berichte lassen sich über api/account_export.js als XML oder CSV erzeugen.",
-    "details": "Admins können Zeiträume und Filter für Airline, Gate oder Kategorie setzen. Die Daten werden aus dem gleichen Backend gelesen, das auch den Chatbot speist, sodass Antworten zu KPIs konsistent mit den Exporten bleiben."
+    "details": "Admins können Zeiträume, Gate-Bereiche, Airlines, Eskalationsstufen, Prioritäten und Produktlinien filtern. Zusätzlich existieren Standard-Reports: SLA-Pünktlichkeit, Ursachenbaum nach Kategorie, Compensation-Kosten, Touchpoints je Kanal sowie Nutzeraktivität (Logins, Bearbeitungszeit). Exportformate: XML, CSV, JSON Lines und signierte PDF-Dossiers für Audits. Das Backend stellt aggregierte KPIs über /api/admin/stats bereit, auf die das Flutter-Web-Dashboard für Heatmaps und Trenddiagramme zugreift."
   },
   {
     "id": "security",
     "title": "Sicherheit und Zugriffssteuerung",
     "tags": ["security", "auth"],
     "summary": "JWT-basierte Authentifizierung schützt sämtliche API-Endpunkte.",
-    "details": "Das Modul api/_lib/auth.js validiert Tokens und versieht Requests mit Benutzerrollen. Der Chatbot vererbt dieselbe Middleware und darf nur mit gültigen Support-Sitzungen angesprochen werden. Sensible Inhalte wie personenbezogene Daten werden nicht in die Wissensbasis aufgenommen."
+    "details": "Das Modul api/_lib/auth.js validiert Tokens, prüft Gerätezertifikate (für Mobile), erzwingt MFA für Adminrollen und versieht Requests mit Benutzerrollen (viewer, agent, supervisor, admin). Row-Level-Security: api/complaints.js filtert Tickets anhand von Station, Airline und Assigned Teams. Der Chatbot vererbt dieselbe Middleware, nutzt nur anonymisierte Felder und darf ausschließlich innerhalb gültiger Support-Sitzungen interagieren. Audit-Events werden in api/_lib/audit-log.js geschrieben, inklusive aller KI-Interaktionen, damit Compliance jederzeit nachvollziehen kann, welche Antworten gegeben wurden."
+  },
+  {
+    "id": "app-funktionen",
+    "title": "Funktionen von Web- und Mobile-App",
+    "tags": ["funktionen", "app", "ux"],
+    "summary": "Alle Kernmodule der DFS-App im Überblick.",
+    "details": "Web (Flutter Web):\n- Dashboard: KPI-Kacheln zu Beschwerden nach Status, SLA, Kategorie, Airline.\n- Complaint-Inbox: Kanban-Board mit Spalten Intake, In Bearbeitung, Warten auf Kunde, Eskaliert, Gelöst.\n- Detailansicht: Tabs für Timeline, Kund*innenprofil, Dokumente, Ausgleichszahlungen, Aufgabenliste.\n- Aufgaben: Zuweisung an Kolleg*innen, Checklisten mit automatischer Erinnerung.\n- Mass Actions: Mehrere Tickets markieren, Status oder Kategorie gebündelt ändern.\n- Self-Service-Vorlagen: Textbausteine für Rückmeldungen mit Platzhaltern (Flugnummer, Datum, Compensation).\nMobile (dfs_mobile):\n- Gate-Modus mit Offline-Queue; sobald Netz verfügbar, erfolgt Sync.\n- Schnellerfassung über QR/Barcode des Boardingpasses.\n- Fotoupload (z.B. beschädigtes Gepäck) inkl. Annotation.\n- Push-Inbox mit Swipe-Aktionen (Annehmen, Weiterleiten, Kommentar).\n- Live-Checklisten für Gate-Schließung und Sonderläufe (z.B. Unwetter).\nGemeinsame Funktionen: Rollenauswahl beim Login, Dunkelmodus, Mehrsprachigkeit (de/en), in-app Chat zwischen Agent*innen, Suche über alle Tickets, Gate-Assets (z.B. Infrastrukturmeldungen), sowie direkte Übergabe an Supporthotline via VoIP-Link."
+  },
+  {
+    "id": "reklamationsbearbeitung",
+    "title": "Reklamationsbearbeitung Schritt für Schritt",
+    "tags": ["complaints", "prozesse", "best-practices"],
+    "summary": "Best Practices für die vollständige Bearbeitung einer Reklamation in der App.",
+    "details": "1. Intake prüfen: Stammdaten (Kund*in, Flug, Gate, Buchung), Dokumente und Kanal (Portal, Mobile, E-Mail, Telefon) im Complaint-Detail validieren.\n2. Klassifizieren: Kategorie (z.B. Verspätung, Service, Barrierefreiheit), Schweregrad, Kompensationspflicht festlegen.\n3. Aufgaben erstellen: Follow-ups an technische Teams oder Partnerairlines per Aufgabenmodul definieren.\n4. Kommunikation: Antworten über integrierten Mail-Composer oder Chat; Templates nutzen, aber individuelle Notizen ergänzen.\n5. Wiedervorlagen: Nächste Schritte mit Datum und Verantwortlichen anlegen; Push-Reminder wird automatisch versendet.\n6. Eskalieren: Button \"Eskalation\" öffnet Auswahl Supervisor, Duty Manager oder Quality Lead; System dokumentiert Grund und neue SLA.\n7. Abschluss & Dokumentation: Lösung erfassen, ggf. Compensation (Voucher, Rückerstattung) über Finance-API anstoßen, Abschlussmail senden, Kategorie-Tagging finalisieren.\n8. Lernen & Reporting: Tags nutzen, um Ursachenanalysen zu ermöglichen; Kommentare im Lessons-Learned-Tab hinterlegen, wodurch der KI-Assistent spätere Antworten verbessern kann."
   }
 ]
