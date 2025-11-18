@@ -39,17 +39,35 @@ function buildUserPrompt(question, docs) {
   ].join('\n\n');
 }
 
-function fallbackAnswer(docs, lang = 'de') {
+function fallbackAnswer(question, docs, lang = 'de') {
+  const isEnglish = lang?.toLowerCase().startsWith('en');
   if (!docs.length) {
-    return lang.startsWith('en')
-      ? 'Aktuell sind keine Wissensartikel verfügbar. Bitte versuche es später erneut.'
+    return isEnglish
+      ? 'No knowledge articles are available right now. Please try again later.'
       : 'Aktuell sind keine Wissensartikel verfügbar. Bitte versuche es später erneut.';
   }
-  const top = docs[0];
-  if (lang.startsWith('en')) {
-    return `Ich kann dir gerade nur statische Informationen liefern. Hier ist die relevanteste Notiz: ${top.summary}`;
-  }
-  return `Ich kann dir gerade nur statische Informationen liefern. Wichtigster Treffer: ${top.summary}`;
+
+  const intro = isEnglish
+    ? 'The AI service was temporarily unavailable, so I searched the internal knowledge base for you.'
+    : 'Der KI-Dienst war gerade nicht erreichbar. Ich habe stattdessen die Wissensbasis durchsucht.';
+
+  const contextLine = question
+    ? isEnglish
+      ? `Regarding "${question}" I found the following hints:`
+      : `Zur Anfrage „${question}“ habe ich diese Hinweise gefunden:`
+    : isEnglish
+      ? 'Here are the most relevant hints:'
+      : 'Hier sind die relevantesten Hinweise:';
+
+  const bulletList = docs
+    .map((doc) => `• ${doc.title}: ${doc.summary}`)
+    .join('\n');
+
+  const closing = isEnglish
+    ? 'Let me know if you need more detail or have another question.'
+    : 'Melde dich, wenn du weitere Details brauchst oder eine andere Frage hast.';
+
+  return [intro, contextLine, bulletList, closing].filter(Boolean).join('\n\n');
 }
 
 export default async function handler(req, res) {
@@ -80,11 +98,11 @@ export default async function handler(req, res) {
       meta.usedOpenAI = true;
     } catch (err) {
       console.error('chatbot completion failed', err);
-      answer = fallbackAnswer(docs, lang);
+      answer = fallbackAnswer(question, docs, lang);
       meta.fallback = true;
     }
   } else {
-    answer = fallbackAnswer(docs, lang);
+    answer = fallbackAnswer(question, docs, lang);
     meta.fallback = true;
   }
 

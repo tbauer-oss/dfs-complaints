@@ -855,58 +855,95 @@ class _AssistantHintCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final background = cs.surfaceVariant.withOpacity(
-      theme.brightness == Brightness.light ? 0.6 : 0.25,
-    );
+    final background = cs.surface.withOpacity(theme.brightness == Brightness.light ? 0.7 : 0.18);
+    final borderColor = cs.outline.withOpacity(theme.brightness == Brightness.light ? 0.3 : 0.45);
+    final radius = BorderRadius.circular(28);
 
-    return Material(
-      color: background,
-      elevation: 0,
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: cs.primary.withOpacity(0.12),
-                ),
-                alignment: Alignment.center,
-                child: Icon(Icons.auto_awesome, color: cs.primary),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: theme.textTheme.bodySmall?.copyWith(height: 1.3),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              FilledButton.tonal(
-                onPressed: onTap,
-                style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 16)),
-                child: Text(cta),
-              ),
-            ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compactLayout = constraints.maxWidth < 520;
+        final icon = Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: cs.primary.withOpacity(0.12),
           ),
-        ),
-      ),
+          alignment: Alignment.center,
+          child: Icon(Icons.auto_awesome_outlined, color: cs.primary, size: 18),
+        );
+
+        final text = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              style: theme.textTheme.bodySmall?.copyWith(height: 1.25),
+            ),
+          ],
+        );
+
+        final button = OutlinedButton.icon(
+          onPressed: onTap,
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            visualDensity: VisualDensity.compact,
+          ),
+          icon: const Icon(Icons.chat_bubble_outline, size: 16),
+          label: Text(cta),
+        );
+
+        final content = compactLayout
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      icon,
+                      const SizedBox(width: 12),
+                      Expanded(child: text),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Align(alignment: Alignment.centerLeft, child: button),
+                ],
+              )
+            : Row(
+                children: [
+                  icon,
+                  const SizedBox(width: 12),
+                  Expanded(child: text),
+                  const SizedBox(width: 12),
+                  button,
+                ],
+              );
+
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: radius,
+            onTap: onTap,
+            child: Ink(
+              decoration: BoxDecoration(
+                color: background,
+                borderRadius: radius,
+                border: Border.all(color: borderColor),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                child: content,
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
