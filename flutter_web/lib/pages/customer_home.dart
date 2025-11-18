@@ -7,7 +7,6 @@ import 'complaint_form_page.dart';
 import 'my_complaints_page.dart';
 import 'account_page.dart';
 import 'support_page.dart';
-import 'customer_assistant_page.dart';
 import 'customer_news_page.dart';
 import 'dart:html' as html;
 
@@ -59,24 +58,9 @@ class CustomerHomePage extends StatelessWidget {
       textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
     );
 
-    void openAssistant() {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => CustomerAssistantPage(api: api),
-        ),
-      );
-    }
-
     return Scaffold(
       appBar: AppBar(
         title: Text(t.customer_area),
-        actions: [
-          IconButton(
-            tooltip: t.customerAssistantCta,
-            icon: const Icon(Icons.auto_awesome),
-            onPressed: openAssistant,
-          ),
-        ],
       ),
       body: Center(
         child: Wrap(

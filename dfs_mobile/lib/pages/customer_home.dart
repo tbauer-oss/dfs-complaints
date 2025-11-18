@@ -14,7 +14,6 @@ import 'my_complaints_page.dart';
 import 'account_page.dart';
 import 'support_page.dart';
 import 'customer_news_page.dart';
-import 'customer_assistant_page.dart';
 
 /// Dezenter, Web-only PWA-Install-Button (zeigt sich nur, wenn möglich).
 class InstallPwaButton extends StatefulWidget {
@@ -116,20 +115,6 @@ class CustomerHomePage extends StatelessWidget {
       appBar: AppBar(
         title: Text(t.customer_area),
         centerTitle: true,
-        actions: [
-          IconButton(
-            tooltip: t.customerAssistantTitle,
-            icon: const Icon(Icons.auto_awesome_outlined),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => CustomerAssistantPage(api: api),
-                ),
-              );
-            },
-          ),
-          const SizedBox(width: 4),
-        ],
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -284,20 +269,6 @@ class CustomerHomePage extends StatelessWidget {
                                 },
                               ),
 
-                              const SizedBox(height: 18),
-                              _AssistantTeaser(
-                                dfsBlue: dfsBlue,
-                                onTap: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => CustomerAssistantPage(api: api),
-                                    ),
-                                  );
-                                },
-                              ),
-
-                              const SizedBox(height: 12),
-
                               // dezente Fußzeile im Card – Vertrauen/Compliance, nicht aufdringlich
                               _ComplianceFooter(dfsBlue: dfsBlue),
                             ],
@@ -434,64 +405,6 @@ class _ComplianceFooter extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _AssistantTeaser extends StatelessWidget {
-  final VoidCallback onTap;
-  final Color dfsBlue;
-  const _AssistantTeaser({required this.onTap, required this.dfsBlue});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = AppLocalizations.of(context)!;
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        color: cs.surfaceVariant.withOpacity(theme.brightness == Brightness.light ? 0.6 : 0.25),
-        border: Border.all(color: cs.outlineVariant.withOpacity(0.35)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: dfsBlue.withOpacity(0.16),
-            ),
-            alignment: Alignment.center,
-            child: Icon(Icons.auto_awesome, color: dfsBlue),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  t.customerAssistantTitle,
-                  style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  t.customerAssistantSubtitle,
-                  style: theme.textTheme.bodySmall?.copyWith(height: 1.35),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          TextButton(
-            onPressed: onTap,
-            child: Text(t.customerAssistantCta),
-          ),
-        ],
-      ),
     );
   }
 }

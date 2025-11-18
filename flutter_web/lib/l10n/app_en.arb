@@ -599,21 +599,5 @@
   "newsCatShortage": "Temporary limitations",
   "newsCatApp": "App releases",
   "newsCatGeneral": "General",
-  "customerNewsHeroFreshLabel": "Fresh insights (30 days)",
-  "customerAssistantTitle": "Digital assistant",
-  "customerAssistantSubtitle": "Our AI helper answers complaint-related questions right inside your customer area.",
-  "customerAssistantCta": "AI assistant",
-  "customerAssistantInputHint": "Ask me something about the platform or complaint process ...",
-  "customerAssistantSend": "Send",
-  "customerAssistantEmptyState": "No conversation yet. Start with a question or tap one of the ideas.",
-  "customerAssistantAiBadge": "AI powered answer",
-  "customerAssistantFallbackBadge": "Static knowledge note",
-  "customerAssistantSourcesTitle": "Used sources",
-  "customerAssistantSourcesHint": "These are the internal articles the assistant relied on for this reply.",
-  "customerAssistantIdeaStatus": "How can I check my complaint status?",
-  "customerAssistantIdeaEvidence": "Which documents should I upload?",
-  "customerAssistantIdeaTimeline": "How long does the review take?",
-  "customerAssistantIdeasTitle": "Popular prompts",
-  "customerAssistantDisclaimer": "Note: The answers explain our process and are not legal advice.",
-  "customerAssistantTyping": "Thinking ..."
+  "customerNewsHeroFreshLabel": "Fresh insights (30 days)"
 }
