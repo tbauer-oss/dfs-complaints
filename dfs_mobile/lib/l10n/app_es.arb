@@ -388,6 +388,8 @@
 
   "customer_area": "Área de clientes",
   "customerNewsTitle": "Novedades y actualizaciones",
+  "customerNewsSubtitle": "Noticias, inspiración y momentos destacados de servicio para su día a día.",
+  "customerNewsHeroLead": "Historias de producto inspiradoras, consejos de servicio y casos de éxito directamente de nuestro equipo.",
   "customerNewsSubtitle": "Avisos importantes para clientes y la plataforma.",
   "customerNewsTile": "Novedades y actualizaciones",
   "customerNewsPinned": "Destacado",
@@ -401,6 +403,7 @@
   "newsCatProduct": "Novedades de producto",
   "newsCatShortage": "Limitaciones temporales",
   "newsCatApp": "Versiones de la app",
+  "customerNewsHeroFreshLabel": "Nuevas ideas (30 días)",
   "newsCatGeneral": "General",
   "customer_login": "Inicio de sesión de clientes",
   "customer_label": "Cliente",
