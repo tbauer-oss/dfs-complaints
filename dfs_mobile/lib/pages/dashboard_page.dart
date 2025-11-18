@@ -14,6 +14,7 @@ import 'my_complaints_page.dart';
 import 'account_page.dart';
 import 'support_page.dart';
 import 'customer_news_page.dart';
+import 'customer_assistant_page.dart';
 import '../widgets/pdf_view_stub.dart'
   if (dart.library.html) '../widgets/pdf_view_web.dart';
 
@@ -273,6 +274,14 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     }
   }
 
+  void _openAssistant(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CustomerAssistantPage(api: widget.api),
+      ),
+    );
+  }
+
   Future<void> _openMail(String email, String subject, String body) async {
     final uri = Uri(
       scheme: 'mailto',
@@ -376,6 +385,11 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                 ),
               ),
               IconButton(
+                tooltip: t.customerAssistantTitle,
+                onPressed: () => _openAssistant(context),
+                icon: const Icon(Icons.auto_awesome_outlined),
+              ),
+              IconButton(
                 tooltip: AppLocalizations.of(context)!.refresh,
                 onPressed: () {
                   _initRep();
@@ -467,6 +481,15 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                   ),
                 const SizedBox(width: 6),
                 IconButton(
+                  tooltip: t.customerAssistantTitle,
+                  visualDensity: const VisualDensity(horizontal: -2, vertical: -3),
+                  padding: const EdgeInsets.all(6),
+                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                  onPressed: () => _openAssistant(context),
+                  icon: const Icon(Icons.auto_awesome_outlined, size: 20),
+                ),
+                const SizedBox(width: 6),
+                IconButton(
                   tooltip: t.refresh,
                   visualDensity: const VisualDensity(horizontal: -2, vertical: -3),
                   padding: const EdgeInsets.all(6),
@@ -538,6 +561,11 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                     ),
                   ],
                 ),
+              ),
+              IconButton(
+                tooltip: t.customerAssistantTitle,
+                onPressed: () => _openAssistant(context),
+                icon: const Icon(Icons.auto_awesome_outlined),
               ),
               IconButton(
                 tooltip: t.refresh,
@@ -616,6 +644,11 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                 ),
               ),
             IconButton(
+              tooltip: t.customerAssistantTitle,
+              onPressed: () => _openAssistant(context),
+              icon: const Icon(Icons.auto_awesome_outlined),
+            ),
+            IconButton(
               tooltip: t.refresh,
               onPressed: _initRep,
               icon: const Icon(Icons.refresh),
@@ -684,6 +717,13 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
         },
       ),
       _Entry(
+        label: t.customerAssistantTitle,
+        icon: Icons.auto_awesome_outlined,
+        colorA: const Color(0xFF283593),
+        colorB: const Color(0xFF7986CB),
+        onTap: () => _openAssistant(context),
+      ),
+      _Entry(
         label: t.customerNewsTile ?? 'Neuigkeiten & Updates',
         icon: Icons.campaign_outlined,
         colorA: const Color(0xFF006064),
@@ -726,6 +766,17 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
                     sliver: SliverToBoxAdapter(
                       child: _buildRepHeaderResponsive(context),
+                    ),
+                  ),
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                    sliver: SliverToBoxAdapter(
+                      child: _AssistantHintCard(
+                        title: t.customerAssistantTitle,
+                        subtitle: t.customerAssistantSubtitle,
+                        cta: t.customerAssistantCta,
+                        onTap: () => _openAssistant(context),
+                      ),
                     ),
                   ),
                   SliverPadding(
@@ -786,6 +837,79 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
 }
 
 // ---------------- Komponenten ----------------
+
+class _AssistantHintCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final String cta;
+  final VoidCallback onTap;
+
+  const _AssistantHintCard({
+    required this.title,
+    required this.subtitle,
+    required this.cta,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final background = cs.surfaceVariant.withOpacity(
+      theme.brightness == Brightness.light ? 0.6 : 0.25,
+    );
+
+    return Material(
+      color: background,
+      elevation: 0,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: cs.primary.withOpacity(0.12),
+                ),
+                alignment: Alignment.center,
+                child: Icon(Icons.auto_awesome, color: cs.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: theme.textTheme.bodySmall?.copyWith(height: 1.3),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              FilledButton.tonal(
+                onPressed: onTap,
+                style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 16)),
+                child: Text(cta),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 // (Optional weiterhin vorhanden – falls du sie anderswo nutzt.
 // In dieser Datei wird _RepBanner jetzt nicht mehr verwendet.)
