@@ -1925,7 +1925,7 @@ class _AdminPageState extends State<AdminPage> {
     final title = switch (_view) {
       _AdminView.menu    => 'Adminbereich – DFS Customer Complaint',
       _AdminView.pending => 'Pending (Freigabe ausstehend)',
-      _AdminView.users   => 'Aktive Nutzer',
+      _AdminView.users   => 'Kundendatenbank',
       _AdminView.open    => 'Offene Reklamationen',
       _AdminView.reps    => 'Vertreterverwaltung',
       _AdminView.news    => 'Neuigkeiten & Infoscreen',
@@ -2047,7 +2047,7 @@ class _AdminPageState extends State<AdminPage> {
             onTap: () => setState(() => _view = _AdminView.pending),
           ),
           AdminTilePro(
-            label: 'Aktive Nutzer',
+            label: 'Kundendatenbank',
             subtitle: 'Firmen & Kontakte',
             icon: Icons.group_outlined,
             colorA: AdminPalette.tealA,
@@ -2411,7 +2411,7 @@ class _AdminPageState extends State<AdminPage> {
               const Icon(Icons.people),
               const SizedBox(width: 8),
               const Text(
-                'Aktive Nutzer',
+                'Kundendatenbank',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
               const Spacer(),
@@ -2563,8 +2563,8 @@ class _AdminPageState extends State<AdminPage> {
                             api: _api,
                             onDelete: () async {
                               final ok = await _confirm(
-                                'Nutzer löschen',
-                                'Soll der aktive Nutzer ${u.email} wirklich gelöscht werden?',
+                                'Kunde löschen',
+                                'Soll der Kunde ${u.company} wirklich gelöscht werden?',
                               );
                               if (ok != true) return;
                               try {
@@ -2573,7 +2573,7 @@ class _AdminPageState extends State<AdminPage> {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(
-                                          'Nutzer gelöscht: ${u.email}'),
+                                          'Kunde gelöscht: ${u.company}'),
                                     ),
                                   );
                                   await _refreshAll();
@@ -2594,18 +2594,18 @@ class _AdminPageState extends State<AdminPage> {
                             },
                             repName: repName,
                             onToggleRevoked: (revoked) async {
-                              final title = revoked ? 'Nutzer sperren' : 'Sperre aufheben';
+                              final title = revoked ? 'Kunde sperren' : 'Sperre aufheben';
                               final msg = revoked
-                                  ? 'Soll der Zugang für ${u.email} wirklich gesperrt werden?'
-                                  : 'Soll der Zugang für ${u.email} wieder freigeschaltet werden?';
+                                  ? 'Soll der Zugang für ${u.company} wirklich gesperrt werden?'
+                                  : 'Soll der Zugang für ${u.company} wieder freigeschaltet werden?';
                               final ok = await _confirm(title, msg);
                               if (ok != true) return;
                               try {
                                 await _api.setUserRevoked(u.email, revoked);
                                 if (!mounted) return;
                                 final info = revoked
-                                    ? 'Account gesperrt: ${u.email}'
-                                    : 'Account freigeschaltet: ${u.email}';
+                                    ? 'Account gesperrt: ${u.company}'
+                                    : 'Account freigeschaltet: ${u.company}';
                                 ScaffoldMessenger.of(context)
                                     .showSnackBar(SnackBar(content: Text(info)));
                                 await _refreshAll();
