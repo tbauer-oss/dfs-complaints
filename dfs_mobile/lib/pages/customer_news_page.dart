@@ -173,24 +173,52 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
               style: textTheme.bodyMedium?.copyWith(height: 1.35),
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Icon(Icons.calendar_today, size: 16, color: colorScheme.primary),
-                const SizedBox(width: 6),
-                Text(
-                  _formatDate(t, entry.publishedAt),
-                  style: textTheme.bodySmall,
-                ),
-                const Spacer(),
-                if (entry.linkUrl != null)
-                  TextButton.icon(
-                    onPressed: () => _openLink(entry.linkUrl!),
-                    icon: const Icon(Icons.open_in_new),
-                    label: Text(entry.linkLabel?.isNotEmpty == true
-                        ? entry.linkLabel!
-                        : t.customerNewsReadMore),
-                  ),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final dateRow = Row(
+                  children: [
+                    Icon(Icons.calendar_today, size: 16, color: colorScheme.primary),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        _formatDate(t, entry.publishedAt),
+                        style: textTheme.bodySmall,
+                      ),
+                    ),
+                  ],
+                );
+
+                final linkButton = entry.linkUrl != null
+                    ? TextButton.icon(
+                        onPressed: () => _openLink(entry.linkUrl!),
+                        icon: const Icon(Icons.open_in_new),
+                        label: Text(entry.linkLabel?.isNotEmpty == true
+                            ? entry.linkLabel!
+                            : t.customerNewsReadMore),
+                      )
+                    : null;
+
+                if (constraints.maxWidth < 420) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      dateRow,
+                      if (linkButton != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: linkButton,
+                        ),
+                    ],
+                  );
+                }
+
+                return Row(
+                  children: [
+                    Expanded(child: dateRow),
+                    if (linkButton != null) linkButton,
+                  ],
+                );
+              },
             ),
           ],
         ),
