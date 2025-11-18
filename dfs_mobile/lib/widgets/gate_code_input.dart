@@ -196,15 +196,18 @@ class _GateCodeInputState extends State<GateCodeInput> {
     );
   }
 
-  Widget _buildDash(Color color) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: const SizedBox(
-        width: 32,
-        height: 4,
+  Widget _buildDash(Color color, {EdgeInsetsGeometry padding = EdgeInsets.zero}) {
+    return Padding(
+      padding: padding,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: const SizedBox(
+          width: 32,
+          height: 4,
+        ),
       ),
     );
   }
@@ -220,14 +223,14 @@ class _GateCodeInputState extends State<GateCodeInput> {
           isDense: true,
           filled: true,
           fillColor: theme.colorScheme.surfaceVariant,
-          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(vertical: 10),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(8),
             borderSide:
                 BorderSide(color: theme.colorScheme.outline.withOpacity(0.4)),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(8),
             borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
           ),
         );
@@ -247,27 +250,36 @@ class _GateCodeInputState extends State<GateCodeInput> {
         final dashWidth = dashPainter.width;
 
         const fieldCount = 8;
-        const spacingCount = 8; // 3 + 3 + 2 (around the dash)
+        const separators = fieldCount - 1;
+        final dashPadding = widget.fieldSpacing;
+        const fieldsPerRow = fieldCount ~/ 2;
 
         var fieldWidth = widget.fieldWidth;
         var spacing = widget.fieldSpacing;
+        final media = MediaQuery.of(context);
+        final fallbackWidth =
+            media.size.width - media.padding.horizontal - (spacing * 2);
         final maxWidth = constraints.maxWidth.isFinite
             ? constraints.maxWidth
-            : MediaQuery.of(context).size.width;
+            : fallbackWidth.clamp(_minFieldWidth * 2, media.size.width);
 
-        double totalWidth() =>
-            (fieldCount * fieldWidth) + (spacingCount * spacing) + dashWidth;
+        double totalWidth() => (fieldCount * fieldWidth) +
+            (separators * spacing) +
+            dashWidth +
+            (dashPadding * 2);
 
         if (totalWidth() > maxWidth) {
           final maxSpacing =
-              (maxWidth - (fieldCount * _minFieldWidth) - dashWidth) / spacingCount;
+              (maxWidth - (fieldCount * _minFieldWidth) - dashWidth) /
+                  (separators + 2);
           if (maxSpacing.isFinite && maxSpacing >= _minSpacing) {
             spacing = spacing.clamp(_minSpacing, maxSpacing);
           } else {
             spacing = _minSpacing;
           }
 
-          final availableForFields = maxWidth - (spacingCount * spacing) - dashWidth;
+          final availableForFields =
+              maxWidth - ((separators + 2) * spacing) - dashWidth;
           final maxFieldWidth = availableForFields / fieldCount;
           if (maxFieldWidth.isFinite && maxFieldWidth >= _minFieldWidth) {
             fieldWidth = fieldWidth.clamp(_minFieldWidth, maxFieldWidth);
@@ -278,29 +290,39 @@ class _GateCodeInputState extends State<GateCodeInput> {
 
         final needsWrap = totalWidth() > maxWidth;
         if (needsWrap) {
-          final compactFieldWidth = fieldWidth.clamp(
-            _minFieldWidth,
-            maxWidth,
-          );
-          return Wrap(
-            alignment: WrapAlignment.center,
-            runAlignment: WrapAlignment.center,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: spacing,
-            runSpacing: spacing * 1.2,
-            children: [
-              for (var i = 0; i < 8; i++) ...[
-                _buildField(
-                  index: i,
-                  width: compactFieldWidth,
-                  textStyle: textStyle,
-                  decoration: defaultDecoration,
-                  baseFillColor: baseFillColor,
-                  focusedFillColor: focusedFillColor,
-                ),
-                if (i == 3)
-                  _buildDash(theme.colorScheme.primary),
+          final perRowSpacing = spacing * (fieldsPerRow - 1);
+          final compactFieldWidth =
+              ((maxWidth - perRowSpacing) / fieldsPerRow)
+                  .clamp(_minFieldWidth, fieldWidth);
+
+          Row buildRow(int startIndex) {
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (var i = startIndex; i < startIndex + 4; i++) ...[
+                  _buildField(
+                    index: i,
+                    width: compactFieldWidth,
+                    textStyle: textStyle,
+                    decoration: defaultDecoration,
+                    baseFillColor: baseFillColor,
+                    focusedFillColor: focusedFillColor,
+                  ),
+                  if (i != startIndex + 3) SizedBox(width: spacing),
+                ],
               ],
+            );
+          }
+
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              buildRow(0),
+              _buildDash(
+                theme.colorScheme.primary,
+                padding: EdgeInsets.symmetric(vertical: spacing),
+              ),
+              buildRow(4),
             ],
           );
         }
@@ -318,9 +340,9 @@ class _GateCodeInputState extends State<GateCodeInput> {
                 focusedFillColor: focusedFillColor,
               ),
               if (i == 3)
-                Padding(
+                _buildDash(
+                  theme.colorScheme.primary,
                   padding: EdgeInsets.symmetric(horizontal: spacing),
-                  child: _buildDash(theme.colorScheme.primary),
                 )
               else if (i != 7)
                 SizedBox(width: spacing),
