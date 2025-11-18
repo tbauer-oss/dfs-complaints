@@ -14,6 +14,7 @@ import 'account_page.dart';
 import 'support_page.dart';
 import 'rep_contact_page.dart';
 import 'customer_news_page.dart';
+import 'customer_assistant_page.dart';
 
 // const _pdfLabUrl  = 'pdfs/DFS-Labor-DE-US-2025-26_1.pdf';
 // const _pdfDentUrl = 'pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf';
@@ -270,6 +271,12 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     }
   }
 
+  void _openAssistant(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => CustomerAssistantPage(api: widget.api)),
+    );
+  }
+
   // --- HILFSFUNKTION: mailto an Vertreter öffnen (mit Betreff + Body aus i18n) ---
   MyRep _repForContact() {
     final rep = _myRep;
@@ -368,6 +375,11 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                 ),
               ),
               IconButton(
+                tooltip: t.customerAssistantCta,
+                onPressed: () => _openAssistant(context),
+                icon: const Icon(Icons.auto_awesome),
+              ),
+              IconButton(
                 tooltip: AppLocalizations.of(context)!.refresh,
                 onPressed: () {
                   _initRep();
@@ -404,6 +416,11 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
         trailing: Wrap(
           spacing: 4,
           children: [
+            IconButton(
+              tooltip: t.customerAssistantCta,
+              icon: const Icon(Icons.auto_awesome),
+              onPressed: () => _openAssistant(context),
+            ),
             if (hasContact)
               IconButton(
                 tooltip: t.rep_contact_form,
@@ -492,6 +509,11 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                 ),
               ),
               IconButton(
+                tooltip: t.customerAssistantCta,
+                onPressed: () => _openAssistant(context),
+                icon: const Icon(Icons.auto_awesome),
+              ),
+              IconButton(
                 tooltip: t.refresh,
                 onPressed: () {
                   _initRep();
@@ -511,9 +533,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     final name   = [first, last].where((s) => s.isNotEmpty).join(' ');
     final bannerTitle = name.isNotEmpty ? t.rep_banner_title(name)
                                        : t.rep_banner_title(email.isNotEmpty ? email : '—');
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final titleColor = isDark ? Colors.white : Colors.black.withOpacity(.87);
-    final detailColor = isDark ? Colors.white.withOpacity(.9) : Colors.grey[800];
 
     return Card(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -550,19 +569,12 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    bannerTitle,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
-                      color: titleColor,
-                    ),
-                  ),
+                  Text(bannerTitle, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
                   const SizedBox(height: 2),
                   if (email.isNotEmpty || region.isNotEmpty)
                     Text(
                       [if (email.isNotEmpty) email, if (region.isNotEmpty) region].join(' • '),
-                      style: TextStyle(color: detailColor, fontSize: 13),
+                      style: TextStyle(color: Colors.grey[800], fontSize: 13),
                     ),
                 ],
               ),
@@ -576,6 +588,11 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                   label: Text(t.rep_contact_form),
                 ),
               ),
+            IconButton(
+              tooltip: t.customerAssistantCta,
+              onPressed: () => _openAssistant(context),
+              icon: const Icon(Icons.auto_awesome),
+            ),
             IconButton(
               tooltip: t.refresh,
               onPressed: _initRep,
@@ -643,6 +660,13 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
             builder: (_) => SupportPage(api: widget.api),
           ));
         },
+      ),
+      _Entry(
+        label: t.customerAssistantCta,
+        icon: Icons.auto_awesome,
+        colorA: const Color(0xFF1D3557),
+        colorB: const Color(0xFF457B9D),
+        onTap: () => _openAssistant(context),
       ),
       _Entry(
         label: t.customerNewsTile,
