@@ -384,6 +384,27 @@
   "noComplaintsFound": "Keine Reklamationen gefunden.",
 
   "customer_area": "Kundenbereich",
+  "customerNewsTitle": "Neuigkeiten & Updates",
+  "customerNewsSubtitle": "Aktuelle Hinweise für Kunden, Technik und Regulatorik.",
+  "customerNewsTile": "Neuigkeiten & Updates",
+  "customerNewsPinned": "Hervorgehoben",
+  "customerNewsReadMore": "Mehr erfahren",
+  "customerNewsEmpty": "Aktuell liegen keine Neuigkeiten vor.",
+  "customerNewsError": "Neuigkeiten konnten nicht geladen werden: {msg}",
+  "@customerNewsError": {
+    "placeholders": {
+      "msg": {
+        "type": "String"
+      }
+    }
+  },
+  "newsCatCatalogs": "Kataloge",
+  "newsCatTechnical": "Technische Änderungen",
+  "newsCatRegulatory": "Regulatorik (MDR/PMCF)",
+  "newsCatProduct": "Produktneuheiten",
+  "newsCatShortage": "Engpässe & Einschränkungen",
+  "newsCatApp": "App-Versionen",
+  "newsCatGeneral": "Allgemein",
   "customer_login": "Kundenlogin",
   "customer_label": "Kunde",
   "more_areas": "Weitere Bereiche",

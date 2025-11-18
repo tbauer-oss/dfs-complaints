@@ -544,4 +544,25 @@
   "imprint_copyright_body": "Tutti i diritti riservati. Il contenuto e la struttura del sito web DFS-Diamon sono protetti dal diritto d’autore. Le informazioni o i dati (testi, immagini, grafica, file audio, video o animazioni) del nostro sito non possono essere utilizzati o riprodotti, neppure parzialmente, senza il previo consenso scritto di DFS-Diamon GmbH.",
   "imprint_odr_title": "Risoluzione alternativa delle controversie (ODR / VSBG)",
   "imprint_odr_body": "La Commissione europea mette a disposizione una piattaforma per la risoluzione online delle controversie (ODR): https://webgate.ec.europa.eu/odr/main/index.cfm?event=main.home.show&lng=IT\nSiamo disponibili a partecipare a una procedura di conciliazione extragiudiziale."
+  "customerNewsTitle": "Novità e aggiornamenti",
+  "customerNewsSubtitle": "Comunicazioni importanti per i clienti e la piattaforma.",
+  "customerNewsTile": "Novità e aggiornamenti",
+  "customerNewsPinned": "In evidenza",
+  "customerNewsReadMore": "Scopri di più",
+  "customerNewsEmpty": "Al momento non sono presenti novità.",
+  "customerNewsError": "Impossibile caricare le novità: {msg}",
+  "@customerNewsError": {
+    "placeholders": {
+      "msg": {
+        "type": "String"
+      }
+    }
+  },
+  "newsCatCatalogs": "Cataloghi",
+  "newsCatTechnical": "Aggiornamenti tecnici",
+  "newsCatRegulatory": "Aggiornamenti normativi",
+  "newsCatProduct": "Novità di prodotto",
+  "newsCatShortage": "Limitazioni temporanee",
+  "newsCatApp": "Versioni app",
+  "newsCatGeneral": "Generale"
 }
