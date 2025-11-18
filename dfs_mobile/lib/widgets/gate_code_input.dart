@@ -152,31 +152,79 @@ class _GateCodeInputState extends State<GateCodeInput> {
     return KeyEventResult.ignored;
   }
 
-  Widget _buildField(int index, double width) {
+  Widget _buildField({
+    required int index,
+    required double width,
+    required TextStyle textStyle,
+    required InputDecoration decoration,
+    required Color baseFillColor,
+    required Color focusedFillColor,
+  }) {
+    final focusNode = _focusNodes[index];
     return SizedBox(
       width: width,
-      child: TextField(
-        controller: _controllers[index],
-        focusNode: _focusNodes[index],
-        autofocus: index == 0,
-        maxLength: 1,
-        textAlign: TextAlign.center,
-        textInputAction: index == _controllers.length - 1
-            ? TextInputAction.done
-            : TextInputAction.next,
-        keyboardType: TextInputType.text,
-        textCapitalization: TextCapitalization.characters,
-        style: widget.textStyle ?? const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-        decoration: widget.decoration ?? const InputDecoration(counterText: '', border: OutlineInputBorder()),
-        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]'))],
-        onChanged: (value) => _handleChanged(index, value),
+      child: AnimatedBuilder(
+        animation: focusNode,
+        builder: (context, _) {
+          final isFocused = focusNode.hasFocus;
+          final fillColor = decoration.fillColor ??
+              (isFocused ? focusedFillColor : baseFillColor);
+          final effectiveDecoration = decoration.copyWith(
+            counterText: decoration.counterText ?? '',
+            fillColor: fillColor,
+          );
+          return TextField(
+            controller: _controllers[index],
+            focusNode: focusNode,
+            autofocus: index == 0,
+            maxLength: 1,
+            textAlign: TextAlign.center,
+            textInputAction: index == _controllers.length - 1
+                ? TextInputAction.done
+                : TextInputAction.next,
+            keyboardType: TextInputType.text,
+            textCapitalization: TextCapitalization.characters,
+            style: textStyle,
+            decoration: effectiveDecoration,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
+            ],
+            onChanged: (value) => _handleChanged(index, value),
+          );
+        },
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final dashStyle = widget.textStyle ?? Theme.of(context).textTheme.headlineSmall;
+    final theme = Theme.of(context);
+    final textStyle = widget.textStyle ??
+        theme.textTheme.titleMedium?.copyWith(letterSpacing: 2) ??
+        const TextStyle(fontSize: 18, fontWeight: FontWeight.w600);
+    final defaultDecoration = widget.decoration ??
+        InputDecoration(
+          isDense: true,
+          filled: true,
+          fillColor: theme.colorScheme.surfaceVariant,
+          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide:
+                BorderSide(color: theme.colorScheme.outline.withOpacity(0.4)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
+          ),
+        );
+    final dashStyle = textStyle.copyWith(
+      fontWeight: FontWeight.bold,
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    final baseFillColor = defaultDecoration.fillColor ??
+        theme.colorScheme.surfaceVariant;
+    final focusedFillColor = theme.colorScheme.primaryContainer;
     return LayoutBuilder(
       builder: (context, constraints) {
         final dashPainter = TextPainter(
@@ -190,12 +238,14 @@ class _GateCodeInputState extends State<GateCodeInput> {
 
         var fieldWidth = widget.fieldWidth;
         var spacing = widget.fieldSpacing;
-        final maxWidth = constraints.maxWidth.isFinite ? constraints.maxWidth : null;
+        final maxWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : MediaQuery.of(context).size.width;
 
         double totalWidth() =>
             (fieldCount * fieldWidth) + (spacingCount * spacing) + dashWidth;
 
-        if (maxWidth != null && totalWidth() > maxWidth) {
+        if (totalWidth() > maxWidth) {
           final maxSpacing =
               (maxWidth - (fieldCount * _minFieldWidth) - dashWidth) / spacingCount;
           if (maxSpacing.isFinite && maxSpacing >= _minSpacing) {
@@ -213,35 +263,39 @@ class _GateCodeInputState extends State<GateCodeInput> {
           }
         }
 
-        final inputs = <Widget>[];
-        for (var i = 0; i < 4; i++) {
-          inputs.add(_buildField(i, fieldWidth));
-          if (i != 3) {
-            inputs.add(SizedBox(width: spacing));
-          }
-        }
-
-        final tailInputs = <Widget>[];
-        for (var i = 4; i < 8; i++) {
-          tailInputs.add(_buildField(i, fieldWidth));
-          if (i != 7) {
-            tailInputs.add(SizedBox(width: spacing));
-          }
-        }
-
         final row = Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            ...inputs,
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: spacing),
-              child: Text('-', style: dashStyle),
-            ),
-            ...tailInputs,
+            for (var i = 0; i < 8; i++) ...[
+              _buildField(
+                index: i,
+                width: fieldWidth,
+                textStyle: textStyle,
+                decoration: defaultDecoration,
+                baseFillColor: baseFillColor,
+                focusedFillColor: focusedFillColor,
+              ),
+              if (i == 3)
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: spacing),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: SizedBox(
+                      width: 32,
+                      height: 4,
+                    ),
+                  ),
+                )
+              else if (i != 7)
+                SizedBox(width: spacing),
+            ],
           ],
         );
 
-        if (maxWidth != null && totalWidth() > maxWidth) {
+        if (totalWidth() > maxWidth) {
           return SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: row,
