@@ -8,7 +8,6 @@ import '../api/client.dart';
 import '../models/country.dart';
 import '../models/complaint.dart' show ComplaintUpload;
 import '../models/customer_news_entry.dart';
-import '../widgets/dialog_content_scroll.dart';
 import '../widgets/legal_footer.dart';
 import 'admin_stats_page.dart';
 
