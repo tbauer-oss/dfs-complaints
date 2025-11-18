@@ -7,6 +7,7 @@ import 'complaint_form_page.dart';
 import 'my_complaints_page.dart';
 import 'account_page.dart';
 import 'support_page.dart';
+import 'customer_assistant_page.dart';
 import 'customer_news_page.dart';
 import 'dart:html' as html;
 
@@ -106,6 +107,16 @@ class CustomerHomePage extends StatelessWidget {
               },
               icon: const Icon(Icons.support_agent),
               label: Text(t.supportTitle), // ← übersetzt
+            ),
+            ElevatedButton.icon(
+              style: btnStyle,
+              onPressed: () {
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => CustomerAssistantPage(api: api),
+                ));
+              },
+              icon: const Icon(Icons.auto_awesome),
+              label: Text(t.customerAssistantCta),
             ),
             ElevatedButton.icon(
               style: btnStyle,
