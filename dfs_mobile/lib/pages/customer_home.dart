@@ -13,6 +13,7 @@ import 'complaint_form_page.dart';
 import 'my_complaints_page.dart';
 import 'account_page.dart';
 import 'support_page.dart';
+import 'customer_news_page.dart';
 
 /// Dezenter, Web-only PWA-Install-Button (zeigt sich nur, wenn möglich).
 class InstallPwaButton extends StatefulWidget {
@@ -242,6 +243,21 @@ class CustomerHomePage extends StatelessWidget {
                                                 MaterialPageRoute(
                                                   builder: (_) =>
                                                       SupportPage(api: api),
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                        SizedBox(
+                                          width: targetWidth,
+                                          child: buildAction(
+                                            icon: Icons.campaign_outlined,
+                                            label: t.customerNewsTile ?? 'Neuigkeiten & Updates',
+                                            onTap: () {
+                                              Navigator.of(context).push(
+                                                MaterialPageRoute(
+                                                  builder: (_) =>
+                                                      CustomerNewsPage(api: api),
                                                 ),
                                               );
                                             },

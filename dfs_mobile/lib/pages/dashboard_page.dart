@@ -12,6 +12,7 @@ import 'complaint_form_page.dart';
 import 'my_complaints_page.dart';
 import 'account_page.dart';
 import 'support_page.dart';
+import 'customer_news_page.dart';
 import '../widgets/pdf_view_stub.dart'
   if (dart.library.html) '../widgets/pdf_view_web.dart';
 
@@ -603,6 +604,17 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
         onTap: () {
           Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => SupportPage(api: widget.api),
+          ));
+        },
+      ),
+      _Entry(
+        label: t.customerNewsTile ?? 'Neuigkeiten & Updates',
+        icon: Icons.campaign_outlined,
+        colorA: const Color(0xFF006064),
+        colorB: const Color(0xFF00ACC1),
+        onTap: () {
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => CustomerNewsPage(api: widget.api),
           ));
         },
       ),

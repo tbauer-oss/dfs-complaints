@@ -12,6 +12,7 @@ import 'my_complaints_page.dart';
 import 'account_page.dart';
 import 'support_page.dart';
 import 'rep_contact_page.dart';
+import 'customer_news_page.dart';
 
 // const _pdfLabUrl  = 'pdfs/DFS-Labor-DE-US-2025-26_1.pdf';
 // const _pdfDentUrl = 'pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf';
@@ -555,6 +556,17 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
         onTap: () {
           Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => SupportPage(api: widget.api),
+          ));
+        },
+      ),
+      _Entry(
+        label: t.customerNewsTile,
+        icon: Icons.campaign_outlined,
+        colorA: const Color(0xFF5D4037),
+        colorB: const Color(0xFF8D6E63),
+        onTap: () {
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => CustomerNewsPage(api: widget.api),
           ));
         },
       ),

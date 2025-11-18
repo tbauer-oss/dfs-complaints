@@ -7,6 +7,7 @@ import 'complaint_form_page.dart';
 import 'my_complaints_page.dart';
 import 'account_page.dart';
 import 'support_page.dart';
+import 'customer_news_page.dart';
 import 'dart:html' as html;
 
 class InstallPwaButton extends StatefulWidget {
@@ -105,6 +106,16 @@ class CustomerHomePage extends StatelessWidget {
               },
               icon: const Icon(Icons.support_agent),
               label: Text(t.supportTitle), // ← übersetzt
+            ),
+            ElevatedButton.icon(
+              style: btnStyle,
+              onPressed: () {
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => CustomerNewsPage(api: api),
+                ));
+              },
+              icon: const Icon(Icons.campaign_outlined),
+              label: Text(t.customerNewsTile),
             ),
           ],
         ),
