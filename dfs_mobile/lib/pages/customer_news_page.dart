@@ -91,14 +91,25 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
               colorScheme.surfaceVariant.withOpacity(0.9),
             ]
           : [
-              colorScheme.primaryContainer,
-              colorScheme.primary.withOpacity(0.85),
+              Color.lerp(colorScheme.primary, Colors.black, 0.25)!,
+              colorScheme.primary,
             ],
     );
     final borderColor = isDark
         ? colorScheme.outline.withOpacity(0.35)
-        : colorScheme.primary.withOpacity(0.25);
-    final textColor = isDark ? colorScheme.onSurface : colorScheme.onPrimary;
+        : Colors.white.withOpacity(0.35);
+    final textColor = isDark ? colorScheme.onSurface : Colors.white;
+    final secondaryTextColor =
+        isDark ? colorScheme.onSurfaceVariant : Colors.white.withOpacity(0.92);
+    final headerShadows = !isDark
+        ? [
+            Shadow(
+              color: Colors.black.withOpacity(0.45),
+              blurRadius: 12,
+              offset: const Offset(0, 3),
+            ),
+          ]
+        : null;
     final highlightLabels = [t.newsCatProduct, t.newsCatApp, t.newsCatRegulatory];
     final pinnedCount = entries.where((e) => e.pinned).length;
     final recentCount = entries
@@ -115,12 +126,16 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
             style: theme.textTheme.headlineSmall?.copyWith(
               color: textColor,
               fontWeight: FontWeight.w800,
+              shadows: headerShadows,
             ),
           ),
           const SizedBox(height: 2),
           Text(
             label,
-            style: theme.textTheme.bodySmall?.copyWith(color: textColor.withOpacity(0.9)),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: textColor.withOpacity(0.95),
+              shadows: headerShadows,
+            ),
           ),
         ],
       );
@@ -210,10 +225,17 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: textColor.withOpacity(isDark ? 0.12 : 0.16),
+                        color: isDark
+                            ? textColor.withOpacity(0.12)
+                            : Colors.black.withOpacity(0.2),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(Icons.campaign_outlined, color: textColor, size: 26),
+                      child: Icon(
+                        Icons.campaign_outlined,
+                        color: textColor,
+                        size: 26,
+                        shadows: headerShadows,
+                      ),
                     ),
                     const SizedBox(height: 10),
                     Text(
@@ -221,21 +243,24 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                       style: theme.textTheme.titleLarge?.copyWith(
                         color: textColor,
                         fontWeight: FontWeight.w800,
+                        shadows: headerShadows,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       t.customerNewsSubtitle,
                       style: theme.textTheme.titleMedium?.copyWith(
-                        color: textColor.withOpacity(0.95),
+                        color: secondaryTextColor,
+                        shadows: headerShadows,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       t.customerNewsHeroLead,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: textColor.withOpacity(0.9),
+                        color: secondaryTextColor,
                         height: 1.35,
+                        shadows: headerShadows,
                       ),
                     ),
                   ],
@@ -257,19 +282,29 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                       borderRadius: BorderRadius.circular(18),
                       color: isDark
                           ? colorScheme.surfaceVariant.withOpacity(0.5)
-                          : Colors.white.withOpacity(0.18),
-                      border: Border.all(color: textColor.withOpacity(0.18)),
+                          : Colors.white.withOpacity(0.2),
+                      border: Border.all(
+                        color: isDark
+                            ? textColor.withOpacity(0.2)
+                            : Colors.white.withOpacity(0.65),
+                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.auto_graph, size: 14, color: textColor.withOpacity(0.95)),
+                        Icon(
+                          Icons.auto_graph,
+                          size: 14,
+                          color: textColor.withOpacity(0.95),
+                          shadows: headerShadows,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           label,
                           style: theme.textTheme.labelLarge?.copyWith(
                             color: textColor,
                             fontWeight: FontWeight.w600,
+                            shadows: headerShadows,
                           ),
                         ),
                       ],
