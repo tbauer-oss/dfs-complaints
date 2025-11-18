@@ -564,6 +564,7 @@
   "legal_privacy_stand_prefix": "Last updated:",
 
   "imprint_title": "Legal Notice",
+  "imprint_subtitle": "Legal notice and provider identification for the DFS Complaint App.",
   "imprint_publisher_title": "Publisher",
   "imprint_publisher_body": "DFS-Diamon GmbH\nLändenstraße 1\nD - 93339 Riedenburg, Germany\n\nPhone +49 (0) 9442 91 89-0\nFax +49 (0) 9442 91 89-37\nE-mail info@dfs-diamon.de",
   "imprint_register_title": "Company Register",
