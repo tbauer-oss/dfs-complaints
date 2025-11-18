@@ -59,8 +59,25 @@ class CustomerHomePage extends StatelessWidget {
       textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
     );
 
+    void openAssistant() {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => CustomerAssistantPage(api: api),
+        ),
+      );
+    }
+
     return Scaffold(
-      appBar: AppBar(title: Text(t.customer_area)),
+      appBar: AppBar(
+        title: Text(t.customer_area),
+        actions: [
+          IconButton(
+            tooltip: t.customerAssistantCta,
+            icon: const Icon(Icons.auto_awesome),
+            onPressed: openAssistant,
+          ),
+        ],
+      ),
       body: Center(
         child: Wrap(
           alignment: WrapAlignment.center,
@@ -110,11 +127,7 @@ class CustomerHomePage extends StatelessWidget {
             ),
             ElevatedButton.icon(
               style: btnStyle,
-              onPressed: () {
-                Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => CustomerAssistantPage(api: api),
-                ));
-              },
+              onPressed: openAssistant,
               icon: const Icon(Icons.auto_awesome),
               label: Text(t.customerAssistantCta),
             ),
