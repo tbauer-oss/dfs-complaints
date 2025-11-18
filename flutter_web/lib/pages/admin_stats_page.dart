@@ -604,7 +604,11 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
         ));
       }
     }
-    out.sort((a, b) => b.count - a.count || a.label.compareTo(b.label));
+    out.sort((a, b) {
+      final primary = b.count.compareTo(a.count);
+      if (primary != 0) return primary;
+      return a.label.compareTo(b.label);
+    });
     return out;
   }
 
@@ -1352,8 +1356,8 @@ class _WeekdayChart extends StatelessWidget {
     final theme = Theme.of(context);
     final normalized = _normalized();
     final maxY = normalized.fold<int>(0, (prev, e) => math.max(prev, e.count)).toDouble();
-    final normalizedMax = math.max(maxY, 1);
-    final interval = maxY <= 5 ? 1 : (maxY / 4).ceilToDouble();
+    final normalizedMax = math.max(maxY, 1).toDouble();
+    final interval = maxY <= 5 ? 1.0 : (maxY / 4).ceilToDouble();
     final groups = normalized.asMap().entries.map((entry) {
       final index = entry.key;
       final bucket = entry.value;
@@ -1437,8 +1441,8 @@ class _HourChart extends StatelessWidget {
     final theme = Theme.of(context);
     final normalized = _normalized();
     final maxY = normalized.fold<int>(0, (prev, e) => math.max(prev, e.count)).toDouble();
-    final normalizedMax = math.max(maxY, 1);
-    final interval = maxY <= 5 ? 1 : (maxY / 4).ceilToDouble();
+    final normalizedMax = math.max(maxY, 1).toDouble();
+    final interval = maxY <= 5 ? 1.0 : (maxY / 4).ceilToDouble();
     final spots = normalized
         .map((bucket) => FlSpot(bucket.hour.toDouble(), bucket.count.toDouble()))
         .toList();
