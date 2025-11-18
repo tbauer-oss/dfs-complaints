@@ -87,14 +87,17 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
       end: Alignment.bottomRight,
       colors: isDark
           ? [
+              colorScheme.surface,
               colorScheme.surfaceVariant.withOpacity(0.9),
-              colorScheme.primary.withOpacity(0.35),
             ]
           : [
               colorScheme.primaryContainer,
-              colorScheme.primary,
+              colorScheme.primary.withOpacity(0.85),
             ],
     );
+    final borderColor = isDark
+        ? colorScheme.outline.withOpacity(0.35)
+        : colorScheme.primary.withOpacity(0.25);
     final textColor = isDark ? colorScheme.onSurface : colorScheme.onPrimary;
     final highlightLabels = [t.newsCatProduct, t.newsCatApp, t.newsCatRegulatory];
     final pinnedCount = entries.where((e) => e.pinned).length;
@@ -126,17 +129,22 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
       );
     }
 
-    Widget buildHeroVisual() {
-      final accent = textColor.withOpacity(isDark ? 0.2 : 0.15);
+    Widget buildHeroVisual(double height) {
+      final accent = isDark
+          ? colorScheme.primary.withOpacity(0.25)
+          : Colors.white.withOpacity(0.25);
+      final largeCircle = height * 0.75;
+      final mediumCircle = height * 0.6;
+      final smallCircle = height * 0.45;
       return SizedBox(
-        height: 160,
+        height: height,
         child: Stack(
           children: [
             Align(
               alignment: Alignment.center,
               child: Container(
-                width: 140,
-                height: 140,
+                width: largeCircle,
+                height: largeCircle,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: accent,
@@ -146,8 +154,8 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
             Align(
               alignment: Alignment.centerLeft,
               child: Container(
-                width: 110,
-                height: 110,
+                width: mediumCircle,
+                height: mediumCircle,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: accent.withOpacity(0.6),
@@ -157,11 +165,11 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
             Align(
               alignment: Alignment.centerRight,
               child: Container(
-                width: 80,
-                height: 80,
+                width: smallCircle,
+                height: smallCircle,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: textColor.withOpacity(0.4), width: 2),
+                  border: Border.all(color: textColor.withOpacity(0.35), width: 2),
                 ),
               ),
             ),
@@ -180,15 +188,19 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-      padding: const EdgeInsets.all(28),
+      padding: EdgeInsets.symmetric(
+        horizontal: 24,
+        vertical: isDark ? 20 : 22,
+      ),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(32),
+        borderRadius: BorderRadius.circular(28),
         gradient: gradient,
+        border: Border.all(color: borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.5 : 0.12),
-            blurRadius: 30,
-            offset: const Offset(0, 20),
+            color: Colors.black.withOpacity(isDark ? 0.35 : 0.1),
+            blurRadius: 24,
+            offset: const Offset(0, 14),
           ),
         ],
       ),
@@ -198,14 +210,14 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: textColor.withOpacity(0.1),
+                  color: textColor.withOpacity(isDark ? 0.12 : 0.16),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(Icons.campaign_outlined, color: textColor, size: 32),
+                child: Icon(Icons.campaign_outlined, color: textColor, size: 28),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               Text(
                 t.customerNewsTitle,
                 style: theme.textTheme.headlineMedium?.copyWith(
@@ -213,14 +225,14 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
                 t.customerNewsSubtitle,
                 style: theme.textTheme.titleMedium?.copyWith(
                   color: textColor.withOpacity(0.95),
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
                 t.customerNewsHeroLead,
                 style: theme.textTheme.bodyMedium?.copyWith(
@@ -228,7 +240,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                   height: 1.4,
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               Wrap(
                 spacing: 10,
                 runSpacing: 10,
@@ -238,13 +250,15 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(20),
-                          color: textColor.withOpacity(isDark ? 0.08 : 0.18),
-                          border: Border.all(color: textColor.withOpacity(0.15)),
+                          color: isDark
+                              ? colorScheme.surfaceVariant.withOpacity(0.55)
+                              : Colors.white.withOpacity(0.18),
+                          border: Border.all(color: textColor.withOpacity(0.2)),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.auto_graph, size: 16, color: textColor),
+                            Icon(Icons.auto_graph, size: 16, color: textColor.withOpacity(0.95)),
                             const SizedBox(width: 6),
                             Text(
                               label,
@@ -259,7 +273,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                     )
                     .toList(),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               Row(
                 children: [
                   Expanded(child: statTile('${totalCount.clamp(0, 999)}+', t.customerNewsTitle)),
@@ -277,8 +291,8 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 content,
-                const SizedBox(height: 24),
-                buildHeroVisual(),
+                const SizedBox(height: 20),
+                buildHeroVisual(120),
               ],
             );
           }
@@ -287,7 +301,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
             children: [
               Expanded(child: content),
               const SizedBox(width: 32),
-              Expanded(child: buildHeroVisual()),
+              Expanded(child: buildHeroVisual(140)),
             ],
           );
         },
