@@ -5389,6 +5389,80 @@ class _AdminAttachmentPreviewTileState extends State<_AdminAttachmentPreviewTile
     setState(() => _expanded = !_expanded);
   }
 
+  Future<void> _openFullPreview() async {
+    if (!_hasPreview) return;
+    final upload = widget.upload;
+    final bytes = _previewBytes!;
+    final theme = Theme.of(context);
+    final name = upload.name.trim().isEmpty ? widget.fallbackName : upload.name.trim();
+    final meta = <String>[];
+    if (upload.size > 0) meta.add(widget.formatBytes(upload.size));
+    if (upload.uploadedAt != null) meta.add(widget.formatDate(upload.uploadedAt!.toLocal()));
+
+    final size = MediaQuery.of(context).size;
+    final double width = size.width * 0.9;
+    final double height = size.height * 0.8;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        child: SizedBox(
+          width: width,
+          height: height,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                          if (meta.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                meta.join(' • '),
+                                style: theme.textTheme.bodySmall,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      icon: const Icon(Icons.close),
+                      tooltip: 'Schließen',
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(4)),
+                  child: Container(
+                    color: theme.colorScheme.surface,
+                    child: InteractiveViewer(
+                      maxScale: 5,
+                      child: Center(
+                        child: Image.memory(bytes, fit: BoxFit.contain),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final upload = widget.upload;
@@ -5440,17 +5514,36 @@ class _AdminAttachmentPreviewTileState extends State<_AdminAttachmentPreviewTile
           if (_hasPreview && _expanded)
             Padding(
               padding: const EdgeInsets.only(left: 26, top: 6),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(color: theme.colorScheme.outlineVariant),
-                    color: theme.colorScheme.surfaceVariant,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  GestureDetector(
+                    onTap: _openFullPreview,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(color: theme.colorScheme.outlineVariant),
+                          color: theme.colorScheme.surfaceVariant,
+                        ),
+                        width: 160,
+                        height: 120,
+                        child: Image.memory(_previewBytes!, fit: BoxFit.cover),
+                      ),
+                    ),
                   ),
-                  width: 160,
-                  height: 120,
-                  child: Image.memory(_previewBytes!, fit: BoxFit.cover),
-                ),
+                  const SizedBox(height: 6),
+                  TextButton.icon(
+                    onPressed: _openFullPreview,
+                    icon: const Icon(Icons.open_in_full),
+                    label: const Text('Größere Ansicht'),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      minimumSize: const Size(0, 32),
+                    ),
+                  ),
+                ],
               ),
             ),
         ],
