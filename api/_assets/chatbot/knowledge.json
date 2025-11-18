@@ -1,0 +1,37 @@
+[
+  {
+    "id": "overview",
+    "title": "Überblick über die DFS-Beschwerdeplattform",
+    "tags": ["onboarding", "architektur"],
+    "summary": "Die Plattform bündelt Gate-Management, Support und Beschwerdebearbeitung in einer Oberfläche.",
+    "details": "Das Web-Frontend (Flutter Web) dient dem Backoffice, während die Mobile-App für das Flughafenpersonal optimiert ist. Beide Clients sprechen ausschließlich mit den Serverless-Funktionen unter api/, weshalb Features wie Authentifizierung, Ticket-Status und Push-Benachrichtigungen immer synchron bleiben."
+  },
+  {
+    "id": "data-ingest",
+    "title": "Welche Daten nutzt der Chatbot?",
+    "tags": ["chatbot", "daten"],
+    "summary": "Der Chatbot liest strukturierte Wissensartikel aus dem Verzeichnis api/_assets/chatbot.",
+    "details": "Um den Chatbot zu erweitern, lege zusätzliche JSON-Dateien mit Feldern wie title, summary und details ab oder erweitere knowledge.json. Beim nächsten Request werden sie automatisch geladen, vektorisiert und für die semantische Suche genutzt. So kann das Supportteam den Wissensstand ohne Code-Änderungen pflegen."
+  },
+  {
+    "id": "complaint-flow",
+    "title": "Ablauf einer Beschwerde",
+    "tags": ["prozesse", "complaints"],
+    "summary": "Beschwerden entstehen entweder aus der Gate-App oder aus dem Kundenportal.",
+    "details": "Nach Eingang wird jedem Ticket automatisch ein SLA-Profil zugeordnet. Gate-Mitarbeitende erhalten Push-Nachrichten via api/push, wenn Eskalationsstufen ausgelöst werden. Sachbearbeitende verwenden das Flutter-Web-Frontend, um Statusupdates zu erfassen."
+  },
+  {
+    "id": "reporting",
+    "title": "Reporting und Auswertungen",
+    "tags": ["reporting", "export"],
+    "summary": "Berichte lassen sich über api/account_export.js als XML oder CSV erzeugen.",
+    "details": "Admins können Zeiträume und Filter für Airline, Gate oder Kategorie setzen. Die Daten werden aus dem gleichen Backend gelesen, das auch den Chatbot speist, sodass Antworten zu KPIs konsistent mit den Exporten bleiben."
+  },
+  {
+    "id": "security",
+    "title": "Sicherheit und Zugriffssteuerung",
+    "tags": ["security", "auth"],
+    "summary": "JWT-basierte Authentifizierung schützt sämtliche API-Endpunkte.",
+    "details": "Das Modul api/_lib/auth.js validiert Tokens und versieht Requests mit Benutzerrollen. Der Chatbot vererbt dieselbe Middleware und darf nur mit gültigen Support-Sitzungen angesprochen werden. Sensible Inhalte wie personenbezogene Daten werden nicht in die Wissensbasis aufgenommen."
+  }
+]
