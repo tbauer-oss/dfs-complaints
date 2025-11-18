@@ -1164,6 +1164,8 @@ class _AttachmentPreviewTileState extends State<_AttachmentPreviewTile> {
     final meta = <String>[];
     if (upload.size > 0) meta.add(widget.formatBytes(upload.size));
     if (upload.uploadedAt != null) meta.add(widget.formatDate(upload.uploadedAt!.toLocal()));
+    const double previewWidth = 220;
+    const double previewHeight = 165;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -1214,8 +1216,8 @@ class _AttachmentPreviewTileState extends State<_AttachmentPreviewTile> {
                     border: Border.all(color: theme.colorScheme.outlineVariant),
                     color: theme.colorScheme.surfaceVariant,
                   ),
-                  width: 160,
-                  height: 120,
+                  width: previewWidth,
+                  height: previewHeight,
                   child: Image.memory(_previewBytes!, fit: BoxFit.cover),
                 ),
               ),
