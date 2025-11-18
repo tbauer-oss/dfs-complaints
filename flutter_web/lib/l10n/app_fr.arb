@@ -498,6 +498,8 @@
   "supportCatFeedback": "Commentaires",
   "supportCatSuggestion": "Suggestion d’amélioration",
 
+  "legal_privacy_intro": "Vous trouverez ci-dessous les informations relatives à la protection des données pour l'utilisation de l'application DFS Complaint.",
+  "legal_privacy_0_text_prefix": "Les présentes informations s'appliquent à l'application DFS Complaint (application web et mobile pour l’enregistrement, le traitement et le suivi des réclamations). Elles remplacent les sections générales du site web dans la mesure où l’application est concernée. Pour le contenu en dehors de l’application, la politique de confidentialité publiée sur le site s’applique en complément : ",
   "legal_privacy_title": "Protection des données",
   "legal_privacy_heading": "Déclaration de confidentialité pour l'application DFS Complaint",
   "legal_privacy_0_title": "0. Préambule et champ d'application",
