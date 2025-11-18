@@ -79,55 +79,298 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
     return dateFmt.format(dt);
   }
 
-  Widget _buildHeader(AppLocalizations t, ThemeData theme) {
+  Widget _buildHeader(AppLocalizations t, ThemeData theme, List<CustomerNewsEntry> entries) {
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     final gradient = LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [
-        theme.colorScheme.primary.withOpacity(theme.brightness == Brightness.dark ? 0.2 : 0.1),
-        theme.colorScheme.surfaceVariant.withOpacity(0.05),
-      ],
+      colors: isDark
+          ? [
+              colorScheme.surface,
+              colorScheme.surfaceVariant.withOpacity(0.9),
+            ]
+          : [
+              Color.lerp(colorScheme.primary, Colors.black, 0.25)!,
+              colorScheme.primary,
+            ],
     );
+    final borderColor = isDark
+        ? colorScheme.outline.withOpacity(0.35)
+        : Colors.white.withOpacity(0.35);
+    final textColor = isDark ? colorScheme.onSurface : Colors.white;
+    final secondaryTextColor =
+        isDark ? colorScheme.onSurfaceVariant : Colors.white.withOpacity(0.92);
+    final headerShadows = !isDark
+        ? [
+            Shadow(
+              color: Colors.black.withOpacity(0.45),
+              blurRadius: 12,
+              offset: const Offset(0, 3),
+            ),
+          ]
+        : null;
+    final highlightLabels = [t.newsCatProduct, t.newsCatApp, t.newsCatRegulatory];
+    final pinnedCount = entries.where((e) => e.pinned).length;
+    final recentCount = entries
+        .where((e) => e.publishedAt.isAfter(DateTime.now().subtract(const Duration(days: 30))))
+        .length;
+    final totalCount = entries.length;
+
+    Widget statTile(String value, String label) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            value,
+            style: theme.textTheme.headlineSmall?.copyWith(
+              color: textColor,
+              fontWeight: FontWeight.w800,
+              shadows: headerShadows,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: textColor.withOpacity(0.95),
+              shadows: headerShadows,
+            ),
+          ),
+        ],
+      );
+    }
+
+    Widget buildHeroVisual(double height) {
+      final accent = isDark
+          ? colorScheme.primary.withOpacity(0.25)
+          : Colors.white.withOpacity(0.25);
+      final largeCircle = height * 0.75;
+      final mediumCircle = height * 0.6;
+      final smallCircle = height * 0.45;
+      return SizedBox(
+        height: height,
+        child: Stack(
+          children: [
+            Align(
+              alignment: Alignment.center,
+              child: Container(
+                width: largeCircle,
+                height: largeCircle,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: accent,
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                width: mediumCircle,
+                height: mediumCircle,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: accent.withOpacity(0.6),
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Container(
+                width: smallCircle,
+                height: smallCircle,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: textColor.withOpacity(0.35), width: 2),
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.center,
+              child: Icon(Icons.auto_awesome, color: textColor, size: 48),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.symmetric(
+        horizontal: 20,
+        vertical: isDark ? 18 : 20,
+      ),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         gradient: gradient,
-        border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.6)),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.35 : 0.12),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: theme.colorScheme.primary.withOpacity(0.15),
-                ),
-                child: const Icon(Icons.campaign_outlined),
-              ),
-              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? textColor.withOpacity(0.12)
+                            : Colors.black.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.campaign_outlined,
+                        color: textColor,
+                        size: 26,
+                        shadows: headerShadows,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
                     Text(
                       t.customerNewsTitle,
-                      style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        color: textColor,
+                        fontWeight: FontWeight.w800,
+                        shadows: headerShadows,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       t.customerNewsSubtitle,
-                      style: theme.textTheme.bodyMedium,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: secondaryTextColor,
+                        shadows: headerShadows,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      t.customerNewsHeroLead,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: secondaryTextColor,
+                        height: 1.35,
+                        shadows: headerShadows,
+                      ),
                     ),
                   ],
                 ),
               ),
+              const SizedBox(width: 16),
+              buildHeroVisual(110),
             ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            children: highlightLabels
+                .map(
+                  (label) => Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      color: isDark
+                          ? colorScheme.surfaceVariant.withOpacity(0.5)
+                          : Colors.white.withOpacity(0.2),
+                      border: Border.all(
+                        color: isDark
+                            ? textColor.withOpacity(0.2)
+                            : Colors.white.withOpacity(0.65),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.auto_graph,
+                          size: 14,
+                          color: textColor.withOpacity(0.95),
+                          shadows: headerShadows,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          label,
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: textColor,
+                            fontWeight: FontWeight.w600,
+                            shadows: headerShadows,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final stats = [
+                statTile('${totalCount.clamp(0, 999)}+', t.customerNewsTitle),
+                statTile('$pinnedCount', t.customerNewsPinned),
+                statTile('$recentCount', t.customerNewsHeroFreshLabel),
+              ];
+
+              if (constraints.maxWidth < 380) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final stat in stats) ...[stat, const SizedBox(height: 12)],
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  for (final stat in stats) ...[
+                    Expanded(child: stat),
+                    if (stat != stats.last) const SizedBox(width: 12),
+                  ],
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPill(
+    ThemeData theme,
+    String label,
+    Color color, {
+    IconData? icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: color.withOpacity(0.15),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
@@ -137,21 +380,30 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
   Widget _buildNewsCard(AppLocalizations t, ThemeData theme, CustomerNewsEntry entry) {
     final textTheme = theme.textTheme;
     final colorScheme = theme.colorScheme;
-    final chips = <Widget>[
-      Chip(
-        label: Text(_categoryLabel(t, entry.category)),
-        backgroundColor: colorScheme.secondaryContainer,
-      ),
-      if (entry.pinned)
-        Chip(
-          label: Text(t.customerNewsPinned),
-          backgroundColor: colorScheme.primaryContainer,
-        ),
-    ];
+    final accentColor = entry.pinned ? colorScheme.primary : colorScheme.secondary;
+    final backgroundGradient = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        accentColor.withOpacity(theme.brightness == Brightness.dark ? 0.35 : 0.1),
+        colorScheme.surface,
+      ],
+    );
 
-    return Card(
+    return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: backgroundGradient,
+        border: Border.all(color: accentColor.withOpacity(0.25)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(theme.brightness == Brightness.dark ? 0.35 : 0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -159,30 +411,60 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
           children: [
             Wrap(
               spacing: 8,
-              runSpacing: 4,
-              children: chips,
+              runSpacing: 6,
+              children: [
+                _buildPill(theme, _categoryLabel(t, entry.category), accentColor, icon: Icons.sell_outlined),
+                if (entry.pinned)
+                  _buildPill(theme, t.customerNewsPinned, colorScheme.primary, icon: Icons.push_pin_outlined),
+              ],
             ),
-            const SizedBox(height: 12),
-            Text(
-              entry.title,
-              style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            const SizedBox(height: 14),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: accentColor.withOpacity(0.18),
+                  ),
+                  child: Icon(Icons.auto_awesome_outlined, color: accentColor),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        entry.title,
+                        style: textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          height: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        entry.summary,
+                        style: textTheme.bodyMedium?.copyWith(height: 1.4),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              entry.summary,
-              style: textTheme.bodyMedium?.copyWith(height: 1.35),
-            ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
+            const Divider(height: 1, thickness: 1),
+            const SizedBox(height: 10),
             LayoutBuilder(
               builder: (context, constraints) {
                 final dateRow = Row(
                   children: [
-                    Icon(Icons.calendar_today, size: 16, color: colorScheme.primary),
+                    Icon(Icons.calendar_today, size: 16, color: accentColor),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         _formatDate(t, entry.publishedAt),
-                        style: textTheme.bodySmall,
+                        style: textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
                       ),
                     ),
                   ],
@@ -191,10 +473,12 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                 final linkButton = entry.linkUrl != null
                     ? TextButton.icon(
                         onPressed: () => _openLink(entry.linkUrl!),
-                        icon: const Icon(Icons.open_in_new),
-                        label: Text(entry.linkLabel?.isNotEmpty == true
-                            ? entry.linkLabel!
-                            : t.customerNewsReadMore),
+                        icon: const Icon(Icons.arrow_forward),
+                        label: Text(
+                          entry.linkLabel?.isNotEmpty == true
+                              ? entry.linkLabel!
+                              : t.customerNewsReadMore,
+                        ),
                       )
                     : null;
 
@@ -276,7 +560,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
-            SliverToBoxAdapter(child: _buildHeader(t, theme)),
+            SliverToBoxAdapter(child: _buildHeader(t, theme, _items)),
             if (_error != null && _items.isNotEmpty)
               SliverToBoxAdapter(
                 child: Padding(

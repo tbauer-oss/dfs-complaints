@@ -389,7 +389,8 @@
 
   "customer_area": "Espace client",
   "customerNewsTitle": "Actualités et mises à jour",
-  "customerNewsSubtitle": "Informations importantes pour les clients et la plateforme.",
+  "customerNewsSubtitle": "Actualités, inspirations et temps forts service pour votre quotidien.",
+  "customerNewsHeroLead": "Histoires produit inspirantes, conseils service et success stories directement de notre équipe.",
   "customerNewsTile": "Actualités et mises à jour",
   "customerNewsPinned": "Mise en avant",
   "customerNewsReadMore": "En savoir plus",
@@ -403,6 +404,7 @@
   "newsCatShortage": "Limitations temporaires",
   "newsCatApp": "Versions de l'app",
   "newsCatGeneral": "Général",
+  "customerNewsHeroFreshLabel": "Nouveaux insights (30 jours)",
   "customer_login": "Connexion client",
   "customer_label": "Client",
   "more_areas": "Autres zones",
