@@ -502,7 +502,9 @@
   "region": "Region / territory",
   "myCustomers": "My customers",
   "passwordChanged": "Password has been changed.",
-  
+
+  "legal_privacy_intro": "Nachfolgend finden Sie die Datenschutzhinweise zur Nutzung der DFS Complaint App.",
+  "legal_privacy_0_text_prefix": "Diese Hinweise gelten für die DFS Complaint App (Web-Applikation sowie mobile App zur Erfassung, Bearbeitung und Nachverfolgung von Reklamationen). Sie ersetzen die allgemeinen Website-Passagen, soweit die App betroffen ist. Für Inhalte außerhalb der App gilt ergänzend die dort veröffentlichte Datenschutzerklärung: ",
   "legal_privacy_title": "Datenschutz",
   "legal_privacy_heading": "Datenschutzerklärung für die DFS Complaint App",
   "legal_privacy_0_title": "0. Vorbemerkung und Geltungsbereich",
