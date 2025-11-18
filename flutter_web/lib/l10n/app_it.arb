@@ -575,7 +575,8 @@
   "imprint_odr_title": "Risoluzione alternativa delle controversie (ODR / VSBG)",
   "imprint_odr_body": "La Commissione europea mette a disposizione una piattaforma per la risoluzione online delle controversie (ODR): https://webgate.ec.europa.eu/odr/main/index.cfm?event=main.home.show&lng=IT\nSiamo disponibili a partecipare a una procedura di conciliazione extragiudiziale.",
   "customerNewsTitle": "Novità e aggiornamenti",
-  "customerNewsSubtitle": "Comunicazioni importanti per i clienti e la piattaforma.",
+  "customerNewsSubtitle": "Notizie, ispirazione e highlight di servizio per la tua giornata.",
+  "customerNewsHeroLead": "Storie di prodotto ispiranti, suggerimenti di servizio e success case direttamente dal nostro team.",
   "customerNewsTile": "Novità e aggiornamenti",
   "customerNewsPinned": "In evidenza",
   "customerNewsReadMore": "Scopri di più",
@@ -594,5 +595,6 @@
   "newsCatProduct": "Novità di prodotto",
   "newsCatShortage": "Limitazioni temporanee",
   "newsCatApp": "Versioni app",
-  "newsCatGeneral": "Generale"
+  "newsCatGeneral": "Generale",
+  "customerNewsHeroFreshLabel": "Nuovi insight (30 giorni)"
 }
