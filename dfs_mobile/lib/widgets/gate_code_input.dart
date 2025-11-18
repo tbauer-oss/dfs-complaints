@@ -37,6 +37,9 @@ class GateCodeInput extends StatefulWidget {
 }
 
 class _GateCodeInputState extends State<GateCodeInput> {
+  static const double _minFieldWidth = 32;
+  static const double _minSpacing = 4;
+
   late final List<TextEditingController> _controllers;
   late final List<FocusNode> _focusNodes;
 
@@ -149,56 +152,182 @@ class _GateCodeInputState extends State<GateCodeInput> {
     return KeyEventResult.ignored;
   }
 
-  Widget _buildField(int index) {
+  Widget _buildField({
+    required int index,
+    required double width,
+    required TextStyle textStyle,
+    required InputDecoration decoration,
+    required Color baseFillColor,
+    required Color focusedFillColor,
+  }) {
+    final focusNode = _focusNodes[index];
     return SizedBox(
-      width: widget.fieldWidth,
-      child: TextField(
-        controller: _controllers[index],
-        focusNode: _focusNodes[index],
-        autofocus: index == 0,
-        maxLength: 1,
-        textAlign: TextAlign.center,
-        textInputAction: index == _controllers.length - 1
-            ? TextInputAction.done
-            : TextInputAction.next,
-        keyboardType: TextInputType.text,
-        textCapitalization: TextCapitalization.characters,
-        style: widget.textStyle ?? const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-        decoration: widget.decoration ?? const InputDecoration(counterText: '', border: OutlineInputBorder()),
-        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]'))],
-        onChanged: (value) => _handleChanged(index, value),
+      width: width,
+      child: AnimatedBuilder(
+        animation: focusNode,
+        builder: (context, _) {
+          final isFocused = focusNode.hasFocus;
+          final fillColor = decoration.fillColor ??
+              (isFocused ? focusedFillColor : baseFillColor);
+          final effectiveDecoration = decoration.copyWith(
+            counterText: decoration.counterText ?? '',
+            fillColor: fillColor,
+          );
+          return TextField(
+            controller: _controllers[index],
+            focusNode: focusNode,
+            autofocus: index == 0,
+            maxLength: 1,
+            textAlign: TextAlign.center,
+            textInputAction: index == _controllers.length - 1
+                ? TextInputAction.done
+                : TextInputAction.next,
+            keyboardType: TextInputType.text,
+            textCapitalization: TextCapitalization.characters,
+            style: textStyle,
+            decoration: effectiveDecoration,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
+            ],
+            onChanged: (value) => _handleChanged(index, value),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildDash(Color color) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: const SizedBox(
+        width: 32,
+        height: 4,
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final inputs = <Widget>[];
-    for (var i = 0; i < 4; i++) {
-      inputs.add(_buildField(i));
-      if (i != 3) {
-        inputs.add(SizedBox(width: widget.fieldSpacing));
-      }
-    }
+    final theme = Theme.of(context);
+    final textStyle = widget.textStyle ??
+        theme.textTheme.titleMedium?.copyWith(letterSpacing: 2) ??
+        const TextStyle(fontSize: 18, fontWeight: FontWeight.w600);
+    final defaultDecoration = widget.decoration ??
+        InputDecoration(
+          isDense: true,
+          filled: true,
+          fillColor: theme.colorScheme.surfaceVariant,
+          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide:
+                BorderSide(color: theme.colorScheme.outline.withOpacity(0.4)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
+          ),
+        );
+    final dashStyle = textStyle.copyWith(
+      fontWeight: FontWeight.bold,
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    final baseFillColor = defaultDecoration.fillColor ??
+        theme.colorScheme.surfaceVariant;
+    final focusedFillColor = theme.colorScheme.primaryContainer;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final dashPainter = TextPainter(
+          text: TextSpan(text: '-', style: dashStyle),
+          textDirection: Directionality.of(context),
+        )..layout();
+        final dashWidth = dashPainter.width;
 
-    final tailInputs = <Widget>[];
-    for (var i = 4; i < 8; i++) {
-      tailInputs.add(_buildField(i));
-      if (i != 7) {
-        tailInputs.add(SizedBox(width: widget.fieldSpacing));
-      }
-    }
+        const fieldCount = 8;
+        const spacingCount = 8; // 3 + 3 + 2 (around the dash)
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        ...inputs,
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: widget.fieldSpacing),
-          child: Text('-', style: widget.textStyle ?? Theme.of(context).textTheme.headlineSmall),
-        ),
-        ...tailInputs,
-      ],
+        var fieldWidth = widget.fieldWidth;
+        var spacing = widget.fieldSpacing;
+        final maxWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : MediaQuery.of(context).size.width;
+
+        double totalWidth() =>
+            (fieldCount * fieldWidth) + (spacingCount * spacing) + dashWidth;
+
+        if (totalWidth() > maxWidth) {
+          final maxSpacing =
+              (maxWidth - (fieldCount * _minFieldWidth) - dashWidth) / spacingCount;
+          if (maxSpacing.isFinite && maxSpacing >= _minSpacing) {
+            spacing = spacing.clamp(_minSpacing, maxSpacing);
+          } else {
+            spacing = _minSpacing;
+          }
+
+          final availableForFields = maxWidth - (spacingCount * spacing) - dashWidth;
+          final maxFieldWidth = availableForFields / fieldCount;
+          if (maxFieldWidth.isFinite && maxFieldWidth >= _minFieldWidth) {
+            fieldWidth = fieldWidth.clamp(_minFieldWidth, maxFieldWidth);
+          } else {
+            fieldWidth = _minFieldWidth;
+          }
+        }
+
+        final needsWrap = totalWidth() > maxWidth;
+        if (needsWrap) {
+          final compactFieldWidth = fieldWidth.clamp(
+            _minFieldWidth,
+            maxWidth,
+          );
+          return Wrap(
+            alignment: WrapAlignment.center,
+            runAlignment: WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: spacing,
+            runSpacing: spacing * 1.2,
+            children: [
+              for (var i = 0; i < 8; i++) ...[
+                _buildField(
+                  index: i,
+                  width: compactFieldWidth,
+                  textStyle: textStyle,
+                  decoration: defaultDecoration,
+                  baseFillColor: baseFillColor,
+                  focusedFillColor: focusedFillColor,
+                ),
+                if (i == 3)
+                  _buildDash(theme.colorScheme.primary),
+              ],
+            ],
+          );
+        }
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            for (var i = 0; i < 8; i++) ...[
+              _buildField(
+                index: i,
+                width: fieldWidth,
+                textStyle: textStyle,
+                decoration: defaultDecoration,
+                baseFillColor: baseFillColor,
+                focusedFillColor: focusedFillColor,
+              ),
+              if (i == 3)
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: spacing),
+                  child: _buildDash(theme.colorScheme.primary),
+                )
+              else if (i != 7)
+                SizedBox(width: spacing),
+            ],
+          ],
+        );
+      },
     );
   }
 }
