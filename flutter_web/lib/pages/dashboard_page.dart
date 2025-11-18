@@ -511,6 +511,9 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     final name   = [first, last].where((s) => s.isNotEmpty).join(' ');
     final bannerTitle = name.isNotEmpty ? t.rep_banner_title(name)
                                        : t.rep_banner_title(email.isNotEmpty ? email : '—');
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : Colors.black.withOpacity(.87);
+    final detailColor = isDark ? Colors.white.withOpacity(.9) : Colors.grey[800];
 
     return Card(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -547,12 +550,19 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(bannerTitle, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                  Text(
+                    bannerTitle,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: titleColor,
+                    ),
+                  ),
                   const SizedBox(height: 2),
                   if (email.isNotEmpty || region.isNotEmpty)
                     Text(
                       [if (email.isNotEmpty) email, if (region.isNotEmpty) region].join(' • '),
-                      style: TextStyle(color: Colors.grey[800], fontSize: 13),
+                      style: TextStyle(color: detailColor, fontSize: 13),
                     ),
                 ],
               ),
