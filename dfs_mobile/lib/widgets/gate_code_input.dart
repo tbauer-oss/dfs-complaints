@@ -37,6 +37,9 @@ class GateCodeInput extends StatefulWidget {
 }
 
 class _GateCodeInputState extends State<GateCodeInput> {
+  static const double _minFieldWidth = 32;
+  static const double _minSpacing = 4;
+
   late final List<TextEditingController> _controllers;
   late final List<FocusNode> _focusNodes;
 
@@ -149,9 +152,9 @@ class _GateCodeInputState extends State<GateCodeInput> {
     return KeyEventResult.ignored;
   }
 
-  Widget _buildField(int index) {
+  Widget _buildField(int index, double width) {
     return SizedBox(
-      width: widget.fieldWidth,
+      width: width,
       child: TextField(
         controller: _controllers[index],
         focusNode: _focusNodes[index],
@@ -173,32 +176,79 @@ class _GateCodeInputState extends State<GateCodeInput> {
 
   @override
   Widget build(BuildContext context) {
-    final inputs = <Widget>[];
-    for (var i = 0; i < 4; i++) {
-      inputs.add(_buildField(i));
-      if (i != 3) {
-        inputs.add(SizedBox(width: widget.fieldSpacing));
-      }
-    }
+    final dashStyle = widget.textStyle ?? Theme.of(context).textTheme.headlineSmall;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final dashPainter = TextPainter(
+          text: TextSpan(text: '-', style: dashStyle),
+          textDirection: Directionality.of(context),
+        )..layout();
+        final dashWidth = dashPainter.width;
 
-    final tailInputs = <Widget>[];
-    for (var i = 4; i < 8; i++) {
-      tailInputs.add(_buildField(i));
-      if (i != 7) {
-        tailInputs.add(SizedBox(width: widget.fieldSpacing));
-      }
-    }
+        const fieldCount = 8;
+        const spacingCount = 8; // 3 + 3 + 2 (around the dash)
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        ...inputs,
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: widget.fieldSpacing),
-          child: Text('-', style: widget.textStyle ?? Theme.of(context).textTheme.headlineSmall),
-        ),
-        ...tailInputs,
-      ],
+        var fieldWidth = widget.fieldWidth;
+        var spacing = widget.fieldSpacing;
+        final maxWidth = constraints.maxWidth.isFinite ? constraints.maxWidth : null;
+
+        double totalWidth() =>
+            (fieldCount * fieldWidth) + (spacingCount * spacing) + dashWidth;
+
+        if (maxWidth != null && totalWidth() > maxWidth) {
+          final maxSpacing =
+              (maxWidth - (fieldCount * _minFieldWidth) - dashWidth) / spacingCount;
+          if (maxSpacing.isFinite && maxSpacing >= _minSpacing) {
+            spacing = spacing.clamp(_minSpacing, maxSpacing);
+          } else {
+            spacing = _minSpacing;
+          }
+
+          final availableForFields = maxWidth - (spacingCount * spacing) - dashWidth;
+          final maxFieldWidth = availableForFields / fieldCount;
+          if (maxFieldWidth.isFinite && maxFieldWidth >= _minFieldWidth) {
+            fieldWidth = fieldWidth.clamp(_minFieldWidth, maxFieldWidth);
+          } else {
+            fieldWidth = _minFieldWidth;
+          }
+        }
+
+        final inputs = <Widget>[];
+        for (var i = 0; i < 4; i++) {
+          inputs.add(_buildField(i, fieldWidth));
+          if (i != 3) {
+            inputs.add(SizedBox(width: spacing));
+          }
+        }
+
+        final tailInputs = <Widget>[];
+        for (var i = 4; i < 8; i++) {
+          tailInputs.add(_buildField(i, fieldWidth));
+          if (i != 7) {
+            tailInputs.add(SizedBox(width: spacing));
+          }
+        }
+
+        final row = Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ...inputs,
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: spacing),
+              child: Text('-', style: dashStyle),
+            ),
+            ...tailInputs,
+          ],
+        );
+
+        if (maxWidth != null && totalWidth() > maxWidth) {
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: row,
+          );
+        }
+        return row;
+      },
     );
   }
 }
