@@ -7,9 +7,11 @@ import 'package:dfs_mobile/web_compat/html_stub.dart'
   if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:dfs_mobile/api/client.dart';
 import 'package:dfs_mobile/models/complaint.dart' show ComplaintUpload;
 import 'package:dfs_mobile/models/country.dart';
+import 'package:dfs_mobile/models/customer_news_entry.dart';
 import 'package:dfs_mobile/widgets/dialog_content_scroll.dart';
 import 'package:dfs_mobile/widgets/legal_footer.dart';
 
@@ -26,7 +28,7 @@ class AdminPage extends StatefulWidget {
   State<AdminPage> createState() => _AdminPageState();
 }
 
-enum _AdminView { menu, pending, users, open, reps, systemHealth, createCustomer }
+enum _AdminView { menu, pending, users, open, reps, systemHealth, createCustomer, news }
 
 enum _CustPasswordMode { adminSecret, generated }
 
@@ -77,6 +79,19 @@ class _AdminPageState extends State<AdminPage> {
   List<ActiveUser> _users = [];
   List<AdminComplaint> _openComplaints = [];
   List<Rep> _reps = [];
+  List<CustomerNewsEntry> _newsEntries = [];
+  bool _newsLoading = false;
+  String? _newsErr;
+
+  static const Map<String, String> _newsCategoryLabels = {
+    'catalogs': 'Kataloge',
+    'technical': 'Technische Änderungen',
+    'regulatory': 'Regulatorik (MDR/PMCF)',
+    'product': 'Produktneuheiten',
+    'shortage': 'Engpässe & Einschränkungen',
+    'app': 'App-Versionen',
+    'general': 'Allgemein',
+  };
 
   // Email -> detaillierte Reklamationen (für Users/Pending)
   final Map<String, _ComplaintsResult> _complaints = {};
@@ -133,6 +148,11 @@ class _AdminPageState extends State<AdminPage> {
       }
     }
     return false;
+  }
+
+  String _newsCategoryLabel(String code) {
+    final key = code.trim().toLowerCase();
+    return _newsCategoryLabels[key] ?? _newsCategoryLabels['general']!;
   }
 
   // Hilfsfunktionen ---------------------------------------------------
@@ -332,6 +352,26 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  Future<void> _refreshNews() async {
+    if (_newsLoading) return;
+    setState(() {
+      _newsLoading = true;
+      _newsErr = null;
+    });
+    try {
+      final list = await _api.fetchCustomerNewsEntries();
+      if (!mounted) return;
+      setState(() {
+        _newsEntries = list;
+        _newsErr = null;
+      });
+    } catch (e) {
+      if (mounted) setState(() => _newsErr = '$e');
+    } finally {
+      if (mounted) setState(() => _newsLoading = false);
+    }
+  }
+
   Future<void> _loadComplaintsDetailed(String email) async {
     final cur = _complaints[email];
     if (cur?.loading == true) return;
@@ -419,6 +459,168 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  Future<void> _openNewsEditor({CustomerNewsEntry? entry}) async {
+    final titleCtrl = TextEditingController(text: entry?.title ?? '');
+    final summaryCtrl = TextEditingController(text: entry?.summary ?? '');
+    final linkLabelCtrl = TextEditingController(text: entry?.linkLabel ?? '');
+    final linkUrlCtrl = TextEditingController(text: entry?.linkUrl ?? '');
+    String category = entry?.category ?? 'general';
+    bool pinned = entry?.pinned ?? false;
+    bool draft = entry?.draft ?? false;
+    DateTime publishedAt = entry?.publishedAt ?? DateTime.now();
+    final fmt = DateFormat('dd.MM.yyyy HH:mm');
+
+    Future<void> pickDateTime(void Function(void Function()) setStateDialog) async {
+      final pickedDate = await showDatePicker(
+        context: context,
+        initialDate: publishedAt,
+        firstDate: DateTime(2020),
+        lastDate: DateTime(2100),
+      );
+      if (pickedDate == null) return;
+      final pickedTime = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.fromDateTime(publishedAt),
+      );
+      if (pickedTime == null) return;
+      setStateDialog(() {
+        publishedAt = DateTime(
+          pickedDate.year,
+          pickedDate.month,
+          pickedDate.day,
+          pickedTime.hour,
+          pickedTime.minute,
+        );
+      });
+    }
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return AlertDialog(
+              title: Text(entry == null ? 'Neuigkeit erstellen' : 'Neuigkeit bearbeiten'),
+              content: DialogContentScroll(
+                child: SizedBox(
+                  width: 520,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextField(
+                        controller: titleCtrl,
+                        decoration: const InputDecoration(labelText: 'Titel', border: OutlineInputBorder()),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: summaryCtrl,
+                        minLines: 4,
+                        maxLines: 8,
+                        decoration: const InputDecoration(labelText: 'Beschreibung', border: OutlineInputBorder()),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value: category,
+                        decoration: const InputDecoration(labelText: 'Kategorie'),
+                        items: _newsCategoryLabels.entries
+                            .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
+                            .toList(),
+                        onChanged: (v) => setModalState(() => category = v ?? 'general'),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: linkLabelCtrl,
+                        decoration: const InputDecoration(labelText: 'Link-Beschriftung (optional)', border: OutlineInputBorder()),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: linkUrlCtrl,
+                        decoration: const InputDecoration(labelText: 'Link-URL (https:// …)', border: OutlineInputBorder()),
+                      ),
+                      const SizedBox(height: 8),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Veröffentlicht am'),
+                        subtitle: Text(fmt.format(publishedAt.toLocal())),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.schedule),
+                          onPressed: () => pickDateTime(setModalState),
+                        ),
+                      ),
+                      SwitchListTile(
+                        value: pinned,
+                        onChanged: (v) => setModalState(() => pinned = v),
+                        title: const Text('Hervorheben'),
+                      ),
+                      SwitchListTile(
+                        value: draft,
+                        onChanged: (v) => setModalState(() => draft = v),
+                        title: const Text('Als Entwurf behalten (nicht sichtbar)'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+                FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Speichern')),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (saved != true) return;
+    final title = titleCtrl.text.trim();
+    final summary = summaryCtrl.text.trim();
+    if (title.isEmpty || summary.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Titel und Beschreibung werden benötigt.')),
+        );
+      }
+      return;
+    }
+
+    try {
+      await _api.saveCustomerNews(
+        id: entry?.id,
+        title: title,
+        summary: summary,
+        category: category,
+        pinned: pinned,
+        draft: draft,
+        publishedAt: publishedAt,
+        linkLabel: linkLabelCtrl.text.trim().isEmpty ? null : linkLabelCtrl.text.trim(),
+        linkUrl: linkUrlCtrl.text.trim().isEmpty ? null : linkUrlCtrl.text.trim(),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert.')));
+      _refreshNews();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+      }
+    }
+  }
+
+  Future<void> _deleteNewsEntry(CustomerNewsEntry entry) async {
+    final ok = await _confirm('Neuigkeit löschen?', 'Eintrag "${entry.title}" dauerhaft entfernen?');
+    if (ok != true) return;
+    try {
+      await _api.deleteCustomerNews(entry.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gelöscht.')));
+        _refreshNews();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+      }
+    }
+  }
+
   // UI ----------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
@@ -461,6 +663,7 @@ class _AdminPageState extends State<AdminPage> {
       _AdminView.reps           => 'Vertreterverwaltung',
       _AdminView.systemHealth   => 'Systemstatus & Checks',
       _AdminView.createCustomer => 'Neuen Kunden anlegen',
+      _AdminView.news           => 'Neuigkeiten & Infoscreen',
     };
 
     return WillPopScope(
@@ -638,6 +841,18 @@ class _AdminPageState extends State<AdminPage> {
             compact: compact,
             onTap: () => _editAppMeta(context),
           ),
+          AdminTilePro(
+            label: 'Neuigkeiten / Infoscreen',
+            subtitle: 'Updates für Kunden',
+            icon: Icons.campaign_outlined,
+            colorA: AdminPalette.amberA,
+            colorB: AdminPalette.amberB,
+            compact: compact,
+            onTap: () {
+              setState(() => _view = _AdminView.news);
+              if (_newsEntries.isEmpty) _refreshNews();
+            },
+          ),
         ],
       ),
     ];
@@ -736,6 +951,8 @@ class _AdminPageState extends State<AdminPage> {
         return _buildSystemHealthPanel();
       case _AdminView.createCustomer:
         return _buildCreateCustomerPanel();
+      case _AdminView.news:
+        return _buildNewsPanel();
     }
   }
 
@@ -1218,6 +1435,108 @@ class _AdminPageState extends State<AdminPage> {
                       separatorBuilder: (_, __) => const SizedBox(height: 12),
                       itemCount: checks.length,
                     ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNewsPanel() {
+    final dateFmt = DateFormat('dd.MM.yyyy HH:mm');
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text('Neuigkeiten & Infoscreen', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+                  SizedBox(height: 2),
+                  Text('Aktuelle Hinweise für Kunden pflegen'),
+                ],
+              ),
+            ),
+            IconButton(
+              tooltip: 'Neu laden',
+              onPressed: _newsLoading ? null : _refreshNews,
+              icon: const Icon(Icons.refresh),
+            ),
+            const SizedBox(width: 8),
+            FilledButton.icon(
+              onPressed: () => _openNewsEditor(),
+              icon: const Icon(Icons.add),
+              label: const Text('Neu anlegen'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (_newsLoading) const LinearProgressIndicator(),
+        if (_newsErr != null) ...[
+          const SizedBox(height: 8),
+          Text('Fehler beim Laden: $_newsErr', style: const TextStyle(color: Colors.red)),
+        ],
+        if (_newsEntries.isEmpty && !_newsLoading) ...[
+          const SizedBox(height: 12),
+          const Text('Noch keine Neuigkeiten hinterlegt.', style: TextStyle(fontStyle: FontStyle.italic)),
+        ],
+        for (final entry in _newsEntries) _buildNewsAdminCard(entry, dateFmt),
+      ],
+    );
+  }
+
+  Widget _buildNewsAdminCard(CustomerNewsEntry entry, DateFormat fmt) {
+    final theme = Theme.of(context);
+    final chips = <Widget>[
+      Chip(label: Text(_newsCategoryLabel(entry.category))),
+      if (entry.pinned) const Chip(label: Text('Hervorgehoben')), 
+      if (entry.draft) const Chip(label: Text('Entwurf')),
+    ];
+
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: chips,
+            ),
+            const SizedBox(height: 10),
+            Text(entry.title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            Text(entry.summary),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                const Icon(Icons.schedule, size: 16),
+                const SizedBox(width: 6),
+                Text('Veröffentlicht: ${fmt.format(entry.publishedAt.toLocal())}'),
+                const Spacer(),
+                if (entry.linkUrl != null && entry.linkUrl!.isNotEmpty)
+                  Text(entry.linkUrl!, style: TextStyle(color: theme.colorScheme.primary)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                TextButton.icon(
+                  onPressed: () => _openNewsEditor(entry: entry),
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('Bearbeiten'),
+                ),
+                const SizedBox(width: 12),
+                TextButton.icon(
+                  onPressed: () => _deleteNewsEntry(entry),
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Löschen'),
+                ),
+              ],
             ),
           ],
         ),
@@ -5389,80 +5708,6 @@ class _AdminAttachmentPreviewTileState extends State<_AdminAttachmentPreviewTile
     setState(() => _expanded = !_expanded);
   }
 
-  Future<void> _openFullPreview() async {
-    if (!_hasPreview) return;
-    final upload = widget.upload;
-    final bytes = _previewBytes!;
-    final theme = Theme.of(context);
-    final name = upload.name.trim().isEmpty ? widget.fallbackName : upload.name.trim();
-    final meta = <String>[];
-    if (upload.size > 0) meta.add(widget.formatBytes(upload.size));
-    if (upload.uploadedAt != null) meta.add(widget.formatDate(upload.uploadedAt!.toLocal()));
-
-    final size = MediaQuery.of(context).size;
-    final double width = size.width * 0.9;
-    final double height = size.height * 0.8;
-
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => Dialog(
-        insetPadding: const EdgeInsets.all(16),
-        child: SizedBox(
-          width: width,
-          height: height,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                          if (meta.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Text(
-                                meta.join(' • '),
-                                style: theme.textTheme.bodySmall,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.of(ctx).pop(),
-                      icon: const Icon(Icons.close),
-                      tooltip: 'Schließen',
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(4)),
-                  child: Container(
-                    color: theme.colorScheme.surface,
-                    child: InteractiveViewer(
-                      maxScale: 5,
-                      child: Center(
-                        child: Image.memory(bytes, fit: BoxFit.contain),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final upload = widget.upload;
@@ -5514,36 +5759,17 @@ class _AdminAttachmentPreviewTileState extends State<_AdminAttachmentPreviewTile
           if (_hasPreview && _expanded)
             Padding(
               padding: const EdgeInsets.only(left: 26, top: 6),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  GestureDetector(
-                    onTap: _openFullPreview,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          border: Border.all(color: theme.colorScheme.outlineVariant),
-                          color: theme.colorScheme.surfaceVariant,
-                        ),
-                        width: 160,
-                        height: 120,
-                        child: Image.memory(_previewBytes!, fit: BoxFit.cover),
-                      ),
-                    ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: theme.colorScheme.outlineVariant),
+                    color: theme.colorScheme.surfaceVariant,
                   ),
-                  const SizedBox(height: 6),
-                  TextButton.icon(
-                    onPressed: _openFullPreview,
-                    icon: const Icon(Icons.open_in_full),
-                    label: const Text('Größere Ansicht'),
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      minimumSize: const Size(0, 32),
-                    ),
-                  ),
-                ],
+                  width: 160,
+                  height: 120,
+                  child: Image.memory(_previewBytes!, fit: BoxFit.cover),
+                ),
               ),
             ),
         ],
@@ -5864,6 +6090,62 @@ class AdminApi {
         ? Map<String, dynamic>.from(raw)
         : <String, dynamic>{};
     return SystemHealthResult.fromJson(map);
+  }
+
+  Future<List<CustomerNewsEntry>> fetchCustomerNewsEntries() async {
+    final res = await _request('GET', '/api/admin/news');
+    if (res.status != 200) {
+      throw 'admin news GET: HTTP ${res.status} ${res.body}';
+    }
+    final txt = res.body.trim();
+    dynamic data = txt.isEmpty ? const {} : jsonDecode(txt);
+    if (data is Map && data['items'] is List) {
+      data = data['items'];
+    }
+    final List list = data is List ? data : const [];
+    return list
+        .whereType<Map>()
+        .map((e) => CustomerNewsEntry.fromJson(e.cast<String, dynamic>()))
+        .toList();
+  }
+
+  Future<CustomerNewsEntry> saveCustomerNews({
+    String? id,
+    required String title,
+    required String summary,
+    required String category,
+    required bool pinned,
+    required bool draft,
+    required DateTime publishedAt,
+    String? linkLabel,
+    String? linkUrl,
+  }) async {
+    final body = <String, dynamic>{
+      if (id != null && id.isNotEmpty) 'id': id,
+      'title': title,
+      'summary': summary,
+      'category': category,
+      'pinned': pinned,
+      'draft': draft,
+      'publishedAt': publishedAt.toUtc().toIso8601String(),
+      if (linkLabel != null) 'linkLabel': linkLabel,
+      if (linkUrl != null) 'linkUrl': linkUrl,
+    };
+    final res = await _request('POST', '/api/admin/news', body: body);
+    if (res.status != 200) {
+      throw 'admin news POST: HTTP ${res.status} ${res.body}';
+    }
+    final txt = res.body.trim();
+    final Map<String, dynamic> j = txt.isEmpty ? <String, dynamic>{} : jsonDecode(txt);
+    return CustomerNewsEntry.fromJson(j);
+  }
+
+  Future<void> deleteCustomerNews(String id) async {
+    final body = {'id': id};
+    final res = await _request('DELETE', '/api/admin/news', body: body);
+    if (res.status != 200 && res.status != 204) {
+      throw 'admin news DELETE: HTTP ${res.status} ${res.body}';
+    }
   }
 }
 
