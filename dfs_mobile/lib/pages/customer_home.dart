@@ -116,6 +116,20 @@ class CustomerHomePage extends StatelessWidget {
       appBar: AppBar(
         title: Text(t.customer_area),
         centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: t.customerAssistantTitle,
+            icon: const Icon(Icons.auto_awesome_outlined),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => CustomerAssistantPage(api: api),
+                ),
+              );
+            },
+          ),
+          const SizedBox(width: 4),
+        ],
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
