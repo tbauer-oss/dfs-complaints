@@ -4,6 +4,7 @@ import 'dart:html' as html;
 import 'package:http/http.dart' as http;
 import '../models/complaint.dart';
 import '../models/catalog_link.dart';
+import '../models/chatbot.dart';
 import '../models/customer_news_entry.dart';
 
 class ApiError implements Exception {
@@ -952,6 +953,36 @@ class ApiClient {
     }, auth: true);
     if (!_ok2xx(r.statusCode)) {
       throw Exception('POST /api/support failed: ${r.statusCode} ${r.body}');
+    }
+  }
+
+  Future<ChatbotAnswer> askChatbot({
+    required String question,
+    List<ChatbotMessage> history = const [],
+    String? lang,
+  }) async {
+    final payload = <String, dynamic>{'question': question};
+    if (history.isNotEmpty) {
+      payload['history'] = history.map((m) => m.toJson()).toList(growable: false);
+    }
+    if (lang != null && lang.trim().isNotEmpty) {
+      payload['lang'] = lang.trim();
+    }
+
+    try {
+      final r = await _post('/api/chatbot', payload, auth: true);
+      if (!_ok2xx(r.statusCode)) {
+        final msg = _extractMessage(r.body);
+        throw ApiError(r.statusCode, msg);
+      }
+      final decoded = jsonDecode(r.body);
+      if (decoded is! Map<String, dynamic>) {
+        throw ApiError(r.statusCode, 'invalid chatbot response');
+      }
+      return ChatbotAnswer.fromJson(decoded);
+    } catch (e) {
+      if (e is ApiError) rethrow;
+      throw ApiError(0, e.toString());
     }
   }
 
