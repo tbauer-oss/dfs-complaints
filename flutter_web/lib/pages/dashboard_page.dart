@@ -3,6 +3,7 @@ import 'dart:html' as html; // für mailto
 import 'dart:ui' as ui show platformViewRegistry; // nur für Web
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
@@ -52,6 +53,7 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserver {
+  static const _newsLastSeenKey = 'customer_news_last_seen';
   static const _fallbackRep = MyRep(
     firstName: 'DFS-Diamon',
     lastName: 'GmbH',
@@ -65,6 +67,9 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
   bool _repLoading = false;
   bool _repRequested = false;
   int _hoverIndex = -1;
+  bool _hasUnreadNews = false;
+  bool _newsIndicatorRefreshing = false;
+  DateTime? _latestNewsTimestamp;
 
   @override
   void initState() {
@@ -74,6 +79,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
       _initCustomerName();
     });
     _initRep();
+    _refreshNewsIndicator();
   }
 
   bool _isStandaloneWebApp() {
@@ -192,6 +198,75 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     if (_myRep == null && !_repRequested) {
       _repRequested = true;
       _initRep();
+    }
+  }
+
+  Future<void> _refreshNewsIndicator({bool forceRefresh = false}) async {
+    if (_newsIndicatorRefreshing) return;
+    _newsIndicatorRefreshing = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastSeenRaw = prefs.getString(_newsLastSeenKey);
+      final lastSeen = lastSeenRaw != null ? DateTime.tryParse(lastSeenRaw) : null;
+
+      final news = await widget.api.fetchCustomerNews(refresh: forceRefresh);
+      DateTime? latest;
+      for (final entry in news) {
+        if (latest == null || entry.updatedAt.isAfter(latest)) {
+          latest = entry.updatedAt;
+        }
+      }
+
+      final hasUnread = latest != null && (lastSeen == null || latest.isAfter(lastSeen));
+      if (mounted) {
+        setState(() {
+          _hasUnreadNews = hasUnread;
+          _latestNewsTimestamp = latest;
+        });
+      } else {
+        _hasUnreadNews = hasUnread;
+        _latestNewsTimestamp = latest;
+      }
+    } catch (_) {
+      // Indicator silently stays as-is when loading fails
+    } finally {
+      _newsIndicatorRefreshing = false;
+    }
+  }
+
+  Future<void> _markCustomerNewsSeen() async {
+    DateTime? ts = _latestNewsTimestamp;
+    if (ts == null) {
+      try {
+        final news = await widget.api.fetchCustomerNews(refresh: true);
+        for (final entry in news) {
+          if (ts == null || entry.updatedAt.isAfter(ts)) {
+            ts = entry.updatedAt;
+          }
+        }
+      } catch (_) {
+        // ignore
+      }
+    }
+    ts ??= DateTime.now();
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_newsLastSeenKey, ts.toIso8601String());
+    if (!mounted) return;
+    setState(() {
+      _hasUnreadNews = false;
+      _latestNewsTimestamp = ts;
+    });
+  }
+
+  Future<void> _openCustomerNews(BuildContext context) async {
+    await _markCustomerNewsSeen();
+    if (!mounted) return;
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => CustomerNewsPage(api: widget.api),
+    ));
+    if (mounted) {
+      await _refreshNewsIndicator(forceRefresh: true);
     }
   }
 
@@ -564,10 +639,9 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
         icon: Icons.campaign_outlined,
         colorA: const Color(0xFF5D4037),
         colorB: const Color(0xFF8D6E63),
-        onTap: () {
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => CustomerNewsPage(api: widget.api),
-          ));
+        showIndicator: _hasUnreadNews,
+        onTap: () async {
+          await _openCustomerNews(context);
         },
       ),
     ];
@@ -633,6 +707,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                               iconSize: iconSize,
                               fontSize: fontSize,
                               onTap: e.onTap,
+                              showIndicator: e.showIndicator,
                             ),
                           ),
                         );
@@ -1076,12 +1151,14 @@ class _Entry {
   final Color colorA;
   final Color colorB;
   final VoidCallback onTap;
+  final bool showIndicator;
   _Entry({
     required this.label,
     required this.icon,
     required this.colorA,
     required this.colorB,
     required this.onTap,
+    this.showIndicator = false,
   });
 }
 
@@ -1093,6 +1170,7 @@ class _FancyTile extends StatelessWidget {
   final VoidCallback onTap;
   final double iconSize;
   final double fontSize;
+  final bool showIndicator;
 
   const _FancyTile({
     required this.label,
@@ -1102,6 +1180,7 @@ class _FancyTile extends StatelessWidget {
     required this.onTap,
     required this.iconSize,
     required this.fontSize,
+    this.showIndicator = false,
     super.key,
   });
 
@@ -1141,6 +1220,12 @@ class _FancyTile extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (showIndicator)
+                  const Positioned(
+                    top: 12,
+                    right: 12,
+                    child: _BlinkingDot(),
+                  ),
                 Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -1172,6 +1257,50 @@ class _FancyTile extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BlinkingDot extends StatefulWidget {
+  const _BlinkingDot({super.key});
+
+  @override
+  State<_BlinkingDot> createState() => _BlinkingDotState();
+}
+
+class _BlinkingDotState extends State<_BlinkingDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1200),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+      child: Container(
+        width: 14,
+        height: 14,
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFEB3B),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.amber.withOpacity(0.6),
+              blurRadius: 8,
+              spreadRadius: 1,
+            ),
+          ],
         ),
       ),
     );
