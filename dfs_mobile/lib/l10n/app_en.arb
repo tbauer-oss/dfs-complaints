@@ -392,7 +392,8 @@
 
   "customer_area": "Customer area",
   "customerNewsTitle": "News & updates",
-  "customerNewsSubtitle": "Important customer notices and platform information.",
+  "customerNewsSubtitle": "News, inspiration and service highlights for your daily work.",
+  "customerNewsHeroLead": "Inspiring product stories, service tips and success cases straight from our team.",
   "customerNewsTile": "News & updates",
   "customerNewsPinned": "Highlighted",
   "customerNewsReadMore": "Learn more",
@@ -406,6 +407,7 @@
   "newsCatShortage": "Temporary limitations",
   "newsCatApp": "App releases",
   "newsCatGeneral": "General",
+  "customerNewsHeroFreshLabel": "Fresh insights (30 days)",
   "customer_login": "Customer login",
   "customer_label": "Customer",
   "more_areas": "More areas",

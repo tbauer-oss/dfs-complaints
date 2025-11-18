@@ -580,7 +580,8 @@
   "imprint_odr_title": "Alternative Streitbeilegung (ODR/ VSBG)",
   "imprint_odr_body": "Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit: https://webgate.ec.europa.eu/odr/main/index.cfm?event=main.home.show&lng=DE\nWir sind bereit, an einem außergerichtlichen Schlichtungsverfahren teilzunehmen.",
   "customerNewsTitle": "Neuigkeiten & Updates",
-  "customerNewsSubtitle": "Aktuelle Hinweise für Kunden, Technik und Regulatorik.",
+  "customerNewsSubtitle": "Neuigkeiten, Impulse und Service-Highlights für Ihre Praxis.",
+  "customerNewsHeroLead": "Inspirierende Produktstories, Service-Tipps und Erfolgsgeschichten direkt aus unserem Haus.",
   "customerNewsTile": "Neuigkeiten & Updates",
   "customerNewsPinned": "Hervorgehoben",
   "customerNewsReadMore": "Mehr erfahren",
@@ -599,5 +600,6 @@
   "newsCatProduct": "Produktneuheiten",
   "newsCatShortage": "Engpässe & Einschränkungen",
   "newsCatApp": "App-Versionen",
-  "newsCatGeneral": "Allgemein"
+  "newsCatGeneral": "Allgemein",
+  "customerNewsHeroFreshLabel": "Neue Insights (30 Tage)"
 }

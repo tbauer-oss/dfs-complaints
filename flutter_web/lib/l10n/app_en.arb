@@ -578,7 +578,8 @@
   "imprint_odr_title": "Alternative Dispute Resolution (ODR / VSBG)",
   "imprint_odr_body": "The European Commission provides a platform for Online Dispute Resolution (ODR): https://webgate.ec.europa.eu/odr/main/index.cfm?event=main.home.show&lng=EN\nWe are willing to participate in an out-of-court dispute resolution procedure.",
   "customerNewsTitle": "News & updates",
-  "customerNewsSubtitle": "Important customer notices and platform information.",
+  "customerNewsSubtitle": "News, inspiration and service highlights for your daily work.",
+  "customerNewsHeroLead": "Inspiring product stories, service tips and success cases straight from our team.",
   "customerNewsTile": "News & updates",
   "customerNewsPinned": "Highlighted",
   "customerNewsReadMore": "Learn more",
@@ -597,5 +598,6 @@
   "newsCatProduct": "Product news",
   "newsCatShortage": "Temporary limitations",
   "newsCatApp": "App releases",
-  "newsCatGeneral": "General"
+  "newsCatGeneral": "General",
+  "customerNewsHeroFreshLabel": "Fresh insights (30 days)"
 }
