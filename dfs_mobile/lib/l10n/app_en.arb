@@ -538,6 +538,8 @@
   "supportCatFeedback": "Feedback",
   "supportCatSuggestion": "Improvement suggestion",
 
+  "legal_privacy_intro": "Below you will find the privacy information for the use of the DFS Complaint App.",
+  "legal_privacy_0_text_prefix": "These notices apply to the DFS Complaint App (web application and mobile app for recording, processing and tracking complaints). They replace the general website sections where the app is concerned. For content outside the app, the privacy policy published there applies in addition: ",
   "legal_privacy_title": "Privacy",
   "legal_privacy_heading": "Privacy Policy for the DFS Complaint App",
   "legal_privacy_0_title": "0. Introduction and Scope",
