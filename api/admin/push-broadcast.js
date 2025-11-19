@@ -33,8 +33,8 @@ function normLang(value) {
 function describeSendFailure(result) {
   if (!result) return null;
   const reason = result.reason ? result.reason.toString() : '';
-  if (reason === 'missing-server-key') {
-    return 'Push-Dienst ist nicht konfiguriert (Firebase Server Key fehlt).';
+  if (reason === 'missing-server-key' || reason === 'missing-credentials' || reason === 'missing-service-account') {
+    return 'Push-Dienst ist nicht konfiguriert (Firebase Server Key oder Service Account fehlen).';
   }
   if (reason === 'no-tokens') {
     return 'Keine gültigen Geräte vorhanden.';
@@ -133,7 +133,7 @@ export default async function handler(req, res) {
           ok: false,
         })),
         invalidTokens: 0,
-        errors: ['Push-Versand ist nicht konfiguriert (Firebase Server Key fehlt).'],
+        errors: ['Push-Versand ist nicht konfiguriert (Firebase Server Key oder Service Account fehlen).'],
         timestamp: new Date().toISOString(),
       });
     }
