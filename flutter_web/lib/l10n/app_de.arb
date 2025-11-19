@@ -214,7 +214,7 @@
   "unsavedChangesText": "Es gibt nicht gespeicherte Änderungen. Wirklich verlassen?",
 
   "gate_prompt": "Zugangscode (einmalig für nicht registrierte Kunden)",
-  "gate_password": "Passwort",
+  "gate_password": "Freigabe-Passwort",
   "continueLabel": "Weiter",
   "invalid": "Ungültig",
   "gateUnlockHint": "Bitte geben Sie Ihre E-Mail-Adresse und das Freigabe-Passwort ein, um den Registrierungsbereich zu öffnen.",
