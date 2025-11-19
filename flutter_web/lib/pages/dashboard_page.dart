@@ -1186,69 +1186,129 @@ class _FancyTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final borderRadius = BorderRadius.circular(22);
+    final gradient = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Color.lerp(colorA, Colors.white, 0.04)!.withOpacity(.98),
+        Color.lerp(colorB, Colors.black, 0.02)!.withOpacity(.95),
+      ],
+    );
+
     return Material(
-      elevation: 8,
-      shadowColor: Colors.black.withOpacity(0.12),
-      borderRadius: BorderRadius.circular(18),
+      color: Colors.transparent,
+      borderRadius: borderRadius,
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: borderRadius,
         onTap: onTap,
         child: Ink(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [colorA.withOpacity(0.92), colorB.withOpacity(0.92)],
-            ),
+            borderRadius: borderRadius,
+            gradient: gradient,
+            border: Border.all(color: Colors.white.withOpacity(0.08), width: 1.2),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.16),
+                blurRadius: 22,
+                spreadRadius: -4,
+                offset: const Offset(0, 12),
+              ),
+            ],
           ),
-          child: Container(
-            padding: const EdgeInsets.all(14),
+          child: ClipRRect(
+            borderRadius: borderRadius,
             child: Stack(
               children: [
-                Positioned(
-                  top: 0, right: 0, left: 0, height: 46,
-                  child: IgnorePointer(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                          colors: [Colors.white.withOpacity(0.18), Colors.white.withOpacity(0.00)],
-                        ),
+                // Soft highlight at the top
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.white.withOpacity(.20),
+                          Colors.white.withOpacity(.02),
+                        ],
                       ),
+                    ),
+                  ),
+                ),
+                // Decorative orbs
+                Positioned(
+                  top: -26,
+                  right: -6,
+                  child: Container(
+                    width: 90,
+                    height: 90,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withOpacity(0.12),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: -36,
+                  left: -20,
+                  child: Container(
+                    width: 130,
+                    height: 130,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.black.withOpacity(0.08),
                     ),
                   ),
                 ),
                 if (showIndicator)
                   const Positioned(
-                    top: 12,
-                    right: 12,
+                    top: 14,
+                    right: 14,
                     child: _BlinkingDot(),
                   ),
-                Center(
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Container(
-                        width: iconSize + 20, height: iconSize + 20,
+                        width: iconSize + 30,
+                        height: iconSize + 30,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.16),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white.withOpacity(0.28), width: 1),
+                          borderRadius: BorderRadius.circular(18),
+                          color: Colors.white.withOpacity(0.18),
+                          border: Border.all(color: Colors.white.withOpacity(0.28)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.18),
+                              blurRadius: 18,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
                         ),
                         child: Icon(icon, size: iconSize, color: Colors.white),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
                       Text(
                         label,
                         textAlign: TextAlign.center,
-                        maxLines: 2, overflow: TextOverflow.ellipsis,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
-                          fontSize: fontSize,
-                          height: 1.15, letterSpacing: 0.2,
+                          fontSize: fontSize + 1,
+                          letterSpacing: .2,
+                          height: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        width: 36,
+                        height: 2,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.35),
+                          borderRadius: BorderRadius.circular(2),
                         ),
                       ),
                     ],
