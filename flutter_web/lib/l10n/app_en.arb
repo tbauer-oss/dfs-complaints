@@ -212,7 +212,7 @@
   "unsavedChangesText": "There are unsaved changes. Do you really want to leave?",
 
   "gate_prompt": "Access code (for unregistered customers)",
-  "gate_password": "Password",
+  "gate_password": "Gate-Password",
   "continueLabel": "Continue",
   "invalid": "Invalid",
   "gateUnlockHint": "Please enter your email address and the release password to open the registration area.",
