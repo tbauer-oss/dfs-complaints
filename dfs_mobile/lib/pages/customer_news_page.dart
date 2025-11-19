@@ -129,9 +129,10 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
         children: [
           Text(
             value,
-            style: theme.textTheme.headlineSmall?.copyWith(
+            style: theme.textTheme.titleLarge?.copyWith(
               color: textColor,
               fontWeight: FontWeight.w800,
+              fontSize: (theme.textTheme.titleLarge?.fontSize ?? 22) * 0.9,
               shadows: headerShadows,
             ),
           ),
@@ -203,25 +204,25 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isCompact = constraints.maxWidth < 420;
-        final double compactScale = isCompact ? 0.88 : 0.95;
+        final double compactScale = isCompact ? 0.74 : 0.82;
 
         return Container(
-          margin: EdgeInsets.fromLTRB(10, 10, 10, isCompact ? 6 : 10),
+          margin: EdgeInsets.fromLTRB(10, 8, 10, isCompact ? 4 : 8),
           padding: EdgeInsets.symmetric(
-            horizontal: isCompact ? 14 : 18,
+            horizontal: isCompact ? 12 : 14,
             vertical: isDark
-                ? (isCompact ? 10 : 14)
-                : (isCompact ? 12 : 16),
+                ? (isCompact ? 7 : 10)
+                : (isCompact ? 9 : 12),
           ),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(isCompact ? 14 : 18),
+            borderRadius: BorderRadius.circular(isCompact ? 12 : 16),
             gradient: gradient,
             border: Border.all(color: borderColor),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.35 : 0.12),
-                blurRadius: isCompact ? 10 : 16,
-                offset: Offset(0, isCompact ? 6 : 8),
+                color: Colors.black.withOpacity(isDark ? 0.3 : 0.1),
+                blurRadius: isCompact ? 6 : 10,
+                offset: Offset(0, isCompact ? 4 : 6),
               ),
             ],
           ),
@@ -237,21 +238,21 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Container(
-                                padding: const EdgeInsets.all(8),
+                                padding: const EdgeInsets.all(6),
                                 decoration: BoxDecoration(
                                   color: isDark
                                       ? textColor.withOpacity(0.12)
-                                      : Colors.black.withOpacity(0.2),
+                                      : Colors.black.withOpacity(0.18),
                                   shape: BoxShape.circle,
                                 ),
                                 child: Icon(
                                   Icons.campaign_outlined,
                                   color: textColor,
-                                  size: 18,
+                                  size: 14,
                                   shadows: headerShadows,
                                 ),
                               ),
-                              const SizedBox(height: 6),
+                              const SizedBox(height: 2),
                               Text(
                                 t.customerNewsTitle,
                                 style: theme.textTheme.titleMedium?.copyWith(
@@ -263,7 +264,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                                   shadows: headerShadows,
                                 ),
                               ),
-                              const SizedBox(height: 2),
+                              const SizedBox(height: 1),
                               Text(
                                 t.customerNewsSubtitle,
                                 style: theme.textTheme.bodyMedium?.copyWith(
@@ -274,7 +275,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                                   shadows: headerShadows,
                                 ),
                               ),
-                              const SizedBox(height: 2),
+                              const SizedBox(height: 1),
                               Text(
                                 t.customerNewsHeroLead,
                                 style: theme.textTheme.bodySmall?.copyWith(
@@ -288,8 +289,8 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                             ],
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        buildHeroVisual(68),
+                        const SizedBox(width: 8),
+                        buildHeroVisual(52),
                       ],
                     )
                   : Row(
@@ -300,69 +301,67 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Container(
-                                padding: const EdgeInsets.all(10),
+                                padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
                                   color: isDark
                                       ? textColor.withOpacity(0.12)
-                                      : Colors.black.withOpacity(0.2),
+                                      : Colors.black.withOpacity(0.18),
                                   shape: BoxShape.circle,
                                 ),
                                 child: Icon(
                                   Icons.campaign_outlined,
                                   color: textColor,
-                                  size: 22,
+                                  size: 18,
                                   shadows: headerShadows,
                                 ),
                               ),
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 4),
                               Text(
                                 t.customerNewsTitle,
                                 style: theme.textTheme.titleLarge?.copyWith(
                                   color: textColor,
                                   fontWeight: FontWeight.w800,
-                                  fontSize:
-                                      (theme.textTheme.titleLarge?.fontSize ?? 22) * 0.95,
+                                  fontSize: (theme.textTheme.titleLarge?.fontSize ?? 22) * 0.82,
                                   shadows: headerShadows,
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 3),
                               Text(
                                 t.customerNewsSubtitle,
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   color: secondaryTextColor,
                                   fontSize:
-                                      (theme.textTheme.titleMedium?.fontSize ?? 18) * 0.94,
+                                      (theme.textTheme.titleMedium?.fontSize ?? 18) * 0.84,
                                   shadows: headerShadows,
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 3),
                               Text(
                                 t.customerNewsHeroLead,
                                 style: theme.textTheme.bodyMedium?.copyWith(
                                   color: secondaryTextColor,
                                   height: 1.35,
-                                  fontSize:
-                                      (theme.textTheme.bodyMedium?.fontSize ?? 14) * 0.94,
+                                  fontSize: (theme.textTheme.bodyMedium?.fontSize ?? 14) * 0.84,
                                   shadows: headerShadows,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(width: 14),
-                        buildHeroVisual(86),
+                        const SizedBox(width: 12),
+                        buildHeroVisual(60),
                       ],
                     ),
-              SizedBox(height: isCompact ? 10 : 12),
+              SizedBox(height: isCompact ? 6 : 8),
               Wrap(
-                spacing: isCompact ? 8 : 10,
-                runSpacing: 8,
+                spacing: isCompact ? 6 : 8,
+                runSpacing: 4,
                 children: highlightLabels
                     .map(
                       (label) => Container(
                         padding: EdgeInsets.symmetric(
-                          horizontal: isCompact ? 10 : 12,
-                          vertical: 6,
+                          horizontal: isCompact ? 9 : 11,
+                          vertical: isCompact ? 5 : 6,
                         ),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(18),
@@ -390,6 +389,8 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                               style: theme.textTheme.labelLarge?.copyWith(
                                 color: textColor,
                                 fontWeight: FontWeight.w600,
+                                fontSize: (theme.textTheme.labelLarge?.fontSize ?? 14) *
+                                    compactScale,
                                 shadows: headerShadows,
                               ),
                             ),
@@ -399,7 +400,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                     )
                     .toList(),
               ),
-              SizedBox(height: isCompact ? 10 : 14),
+              SizedBox(height: isCompact ? 6 : 8),
               LayoutBuilder(
                 builder: (context, innerConstraints) {
                   final stats = [
@@ -412,7 +413,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        for (final stat in stats) ...[stat, const SizedBox(height: 10)],
+                        for (final stat in stats) ...[stat, const SizedBox(height: 6)],
                       ],
                     );
                   }
@@ -421,7 +422,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                     children: [
                       for (final stat in stats) ...[
                         Expanded(child: stat),
-                        if (stat != stats.last) SizedBox(width: isCompact ? 8 : 12),
+                        if (stat != stats.last) SizedBox(width: isCompact ? 6 : 10),
                       ],
                     ],
                   );
@@ -441,7 +442,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
     IconData? icon,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         color: color.withOpacity(0.15),
@@ -458,6 +459,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
             style: theme.textTheme.labelMedium?.copyWith(
               color: color,
               fontWeight: FontWeight.w600,
+              fontSize: (theme.textTheme.labelMedium?.fontSize ?? 12) * 0.94,
             ),
           ),
         ],
@@ -477,6 +479,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
     final colorScheme = theme.colorScheme;
     final isCompact = MediaQuery.of(context).size.width < 420;
     final accentColor = entry.pinned ? colorScheme.primary : colorScheme.secondary;
+    final listDate = DateFormat.yMMMd(t.localeName).format(entry.publishedAt);
     final backgroundGradient = LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
@@ -526,12 +529,25 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      entry.title,
-                      style: textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        height: 1.2,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          entry.title,
+                          style: textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            height: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          listDate,
+                          style: textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurface.withOpacity(0.7),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(width: 8),
