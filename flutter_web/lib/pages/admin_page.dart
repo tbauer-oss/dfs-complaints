@@ -23,7 +23,18 @@ class AdminPage extends StatefulWidget {
   State<AdminPage> createState() => _AdminPageState();
 }
 
-enum _AdminView { menu, pending, users, open, reps, news, catalogs, systemHealth, createCustomer }
+enum _AdminView {
+  menu,
+  pending,
+  users,
+  open,
+  reps,
+  news,
+  catalogs,
+  systemHealth,
+  createCustomer,
+  pushBroadcast,
+}
 
 enum _CustPasswordMode { adminSecret, generated }
 
@@ -121,6 +132,14 @@ class _AdminPageState extends State<AdminPage> {
 
   bool _catCfgBusy = false;
   String? _catCfgErr;
+
+  // Push-Broadcast
+  final _pushTitleCtrl = TextEditingController();
+  final _pushBodyCtrl = TextEditingController();
+  final _pushLinkCtrl = TextEditingController();
+  bool _pushBusy = false;
+  String? _pushErr;
+  AdminPushBroadcastResult? _pushResult;
 
   String _stripPdfsPrefix(String? v) {
     if (v == null) return '';
@@ -347,6 +366,50 @@ class _AdminPageState extends State<AdminPage> {
     } finally {
       if (!mounted) return;
       setState(() => _newsLoading = false);
+    }
+  }
+
+  Future<void> _sendPushBroadcast({bool dryRun = false}) async {
+    if (_pushBusy) return;
+    final title = _pushTitleCtrl.text.trim();
+    final message = _pushBodyCtrl.text.trim();
+    final actionUrl = _pushLinkCtrl.text.trim();
+
+    if (title.isEmpty || message.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bitte Titel und Nachricht ausfüllen.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _pushBusy = true;
+      _pushErr = null;
+    });
+
+    try {
+      final result = await _api.sendPushBroadcast(
+        title: title,
+        body: message,
+        actionUrl: actionUrl.isEmpty ? null : actionUrl,
+        dryRun: dryRun,
+      );
+      if (!mounted) return;
+      setState(() => _pushResult = result);
+      final text = dryRun
+          ? 'Testlauf erfolgreich: ${result.totalTokens} Geräte gefunden.'
+          : 'Push gesendet an ${result.totalTokens} Geräte.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(text)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _pushErr = e.toString());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fehler beim Push-Versand: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _pushBusy = false);
     }
   }
 
@@ -1082,6 +1145,203 @@ class _AdminPageState extends State<AdminPage> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPushBroadcastPanel() {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final result = _pushResult;
+    final dateFmt = DateFormat('dd.MM.yyyy HH:mm');
+
+    InputDecoration _dec(String label, {String? hint, Widget? prefix}) => InputDecoration(
+          labelText: label,
+          hintText: hint,
+          prefixIcon: prefix,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          alignLabelWithHint: true,
+        );
+
+    Widget _buildResult(AdminPushBroadcastResult res) {
+      final ts = dateFmt.format(res.timestamp.toLocal());
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            res.dryRun ? 'Letzter Testlauf ($ts)' : 'Letzter Versand ($ts)',
+            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          Text('${res.totalTokens} registrierte Geräte in ${res.languages.length} Sprachgruppen.'),
+          if (res.invalidTokens > 0) ...[
+            const SizedBox(height: 6),
+            Text('Ungültige Tokens bereinigt: ${res.invalidTokens}', style: TextStyle(color: cs.error)),
+          ],
+          if (res.languages.isEmpty) ...[
+            const SizedBox(height: 12),
+            const Text('Keine aktiven Push-Empfänger vorhanden.'),
+          ] else ...[
+            const SizedBox(height: 12),
+            Column(
+              children: res.languages
+                  .map(
+                    (entry) => Container(
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: cs.outlineVariant),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: cs.primary.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                            child: Text(entry.lang.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w600)),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Geräte: ${entry.tokens}'),
+                                if (!res.dryRun)
+                                  Text('Versendet: ${entry.sent}', style: theme.textTheme.bodySmall),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            entry.ok ? Icons.check_circle_outline : Icons.error_outline,
+                            color: entry.ok ? cs.primary : cs.error,
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ],
+          if (res.errors.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Hinweise / Fehler:', style: theme.textTheme.titleSmall),
+                const SizedBox(height: 4),
+                for (final err in res.errors)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Text('• $err', style: TextStyle(color: cs.error)),
+                  ),
+              ],
+            ),
+          ],
+        ],
+      );
+    }
+
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: LayoutBuilder(
+          builder: (ctx, constraints) {
+            final minHeight = constraints.maxHeight.isFinite ? constraints.maxHeight : 0;
+            return SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: minHeight),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      gradient: LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: [cs.secondaryContainer.withOpacity(0.5), cs.surfaceVariant],
+                      ),
+                    ),
+                    child: Row(
+                      children: const [
+                        Icon(Icons.notifications_active_outlined),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Push-Benachrichtigung versenden',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Sende eine einmalige Push-Nachricht an alle Kunden mit registrierten Geräten. '
+                    'Nutze den Testlauf, um zunächst nur die Empfängerzahl zu prüfen.',
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _pushTitleCtrl,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: _dec('Titel', hint: 'z. B. Geplante Wartung am 18.06.'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _pushBodyCtrl,
+                    minLines: 4,
+                    maxLines: 6,
+                    decoration: _dec('Nachricht', hint: 'Kurzer Text für die Push-Mitteilung'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _pushLinkCtrl,
+                    decoration: _dec('Optionale Link-URL', hint: 'https://…'),
+                  ),
+                  const SizedBox(height: 18),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
+                    children: [
+                      FilledButton.icon(
+                        onPressed: _pushBusy ? null : () => _sendPushBroadcast(dryRun: false),
+                        icon: _pushBusy
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Icon(Icons.send_outlined),
+                        label: const Text('Push senden'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _pushBusy ? null : () => _sendPushBroadcast(dryRun: true),
+                        icon: const Icon(Icons.calculate_outlined),
+                        label: const Text('Testlauf (nur zählen)'),
+                      ),
+                    ],
+                  ),
+                  if (_pushBusy) ...[
+                    const SizedBox(height: 12),
+                    const LinearProgressIndicator(),
+                  ],
+                  if (_pushErr != null) ...[
+                    const SizedBox(height: 12),
+                    Text('Fehler: $_pushErr', style: TextStyle(color: cs.error)),
+                  ],
+                  if (result != null) ...[
+                    const SizedBox(height: 20),
+                    const Divider(),
+                    const SizedBox(height: 12),
+                    _buildResult(result),
+                  ],
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
@@ -1923,15 +2183,16 @@ class _AdminPageState extends State<AdminPage> {
 
     final theme = Theme.of(context);
     final title = switch (_view) {
-      _AdminView.menu    => 'Adminbereich – DFS Customer Complaint',
-      _AdminView.pending => 'Pending (Freigabe ausstehend)',
-      _AdminView.users   => 'Kundendatenbank',
-      _AdminView.open    => 'Offene Reklamationen',
-      _AdminView.reps    => 'Vertreterverwaltung',
-      _AdminView.news    => 'Neuigkeiten & Infoscreen',
-      _AdminView.catalogs => 'Katalog-Konfiguration',
-      _AdminView.systemHealth => 'Systemstatus & Checks',
+      _AdminView.menu           => 'Adminbereich – DFS Customer Complaint',
+      _AdminView.pending        => 'Pending (Freigabe ausstehend)',
+      _AdminView.users          => 'Kundendatenbank',
+      _AdminView.open           => 'Offene Reklamationen',
+      _AdminView.reps           => 'Vertreterverwaltung',
+      _AdminView.news           => 'Neuigkeiten & Infoscreen',
+      _AdminView.catalogs       => 'Katalog-Konfiguration',
+      _AdminView.systemHealth   => 'Systemstatus & Checks',
       _AdminView.createCustomer => 'Neuen Kunden anlegen',
+      _AdminView.pushBroadcast  => 'Push-Benachrichtigungen',
     };
 
     return WillPopScope(
@@ -2132,6 +2393,16 @@ class _AdminPageState extends State<AdminPage> {
             compact: compact,
             onTap: () => _editAppMeta(context),
           ),
+          AdminTilePro(
+            label: 'Push-Mitteilungen',
+            subtitle: 'Broadcast an alle Kunden',
+            icon: Icons.notifications_active_outlined,
+            colorA: AdminPalette.amberA,
+            colorB: AdminPalette.amberB,
+            compact: compact,
+            count: _pushResult?.totalTokens,
+            onTap: () => setState(() => _view = _AdminView.pushBroadcast),
+          ),
         ],
       ),
     ];
@@ -2202,6 +2473,8 @@ class _AdminPageState extends State<AdminPage> {
         return _buildSystemHealthPanel();
       case _AdminView.createCustomer:
         return _buildCreateCustomerPanel();
+      case _AdminView.pushBroadcast:
+        return _buildPushBroadcastPanel();
     }
   }
 
@@ -4580,6 +4853,79 @@ class SystemHealthCheck {
   }
 }
 
+class AdminPushBroadcastResult {
+  final bool dryRun;
+  final int totalTokens;
+  final int invalidTokens;
+  final List<AdminPushBroadcastLanguage> languages;
+  final List<String> errors;
+  final DateTime timestamp;
+
+  AdminPushBroadcastResult({
+    required this.dryRun,
+    required this.totalTokens,
+    required this.invalidTokens,
+    required List<AdminPushBroadcastLanguage> languages,
+    required List<String> errors,
+    required this.timestamp,
+  })  : languages = List.unmodifiable(languages),
+        errors = List.unmodifiable(errors);
+
+  factory AdminPushBroadcastResult.fromJson(Map<String, dynamic> json) {
+    final langs = <AdminPushBroadcastLanguage>[];
+    final rawLangs = json['languages'];
+    if (rawLangs is List) {
+      for (final entry in rawLangs) {
+        if (entry is Map) {
+          langs.add(AdminPushBroadcastLanguage.fromJson(Map<String, dynamic>.from(entry)));
+        }
+      }
+    }
+    final rawErrors = json['errors'];
+    final errs = <String>[];
+    if (rawErrors is List) {
+      for (final e in rawErrors) {
+        if (e == null) continue;
+        final s = e.toString().trim();
+        if (s.isNotEmpty) errs.add(s);
+      }
+    }
+    final tsRaw = json['timestamp']?.toString();
+    final ts = (tsRaw != null && tsRaw.isNotEmpty) ? (DateTime.tryParse(tsRaw) ?? DateTime.now()) : DateTime.now();
+    return AdminPushBroadcastResult(
+      dryRun: json['dryRun'] == true,
+      totalTokens: json['totalTokens'] is num ? (json['totalTokens'] as num).toInt() : 0,
+      invalidTokens: json['invalidTokens'] is num ? (json['invalidTokens'] as num).toInt() : 0,
+      languages: langs,
+      errors: errs,
+      timestamp: ts,
+    );
+  }
+}
+
+class AdminPushBroadcastLanguage {
+  final String lang;
+  final int tokens;
+  final int sent;
+  final bool ok;
+
+  AdminPushBroadcastLanguage({
+    required this.lang,
+    required this.tokens,
+    required this.sent,
+    required this.ok,
+  });
+
+  factory AdminPushBroadcastLanguage.fromJson(Map<String, dynamic> json) {
+    return AdminPushBroadcastLanguage(
+      lang: (json['lang'] ?? 'de').toString(),
+      tokens: json['tokens'] is num ? (json['tokens'] as num).toInt() : 0,
+      sent: json['sent'] is num ? (json['sent'] as num).toInt() : 0,
+      ok: json['ok'] == true,
+    );
+  }
+}
+
 class Rep {
   final String id;
   final String firstName;
@@ -6726,6 +7072,27 @@ class AdminApi {
     if (res.status != 200 && res.status != 204) {
       throw 'admin news DELETE: HTTP ${res.status} ${res.responseText}';
     }
+  }
+
+  Future<AdminPushBroadcastResult> sendPushBroadcast({
+    required String title,
+    required String body,
+    String? actionUrl,
+    bool dryRun = false,
+  }) async {
+    final payload = <String, dynamic>{
+      'title': title,
+      'body': body,
+      if (actionUrl != null && actionUrl.trim().isNotEmpty) 'actionUrl': actionUrl.trim(),
+      if (dryRun) 'dryRun': true,
+    };
+    final res = await _request('POST', '/api/admin/push-broadcast', body: payload);
+    if (res.status != 200) {
+      throw 'push broadcast POST: HTTP ${res.status} ${res.responseText}';
+    }
+    final txt = res.responseText?.trim() ?? '';
+    final Map<String, dynamic> j = txt.isEmpty ? <String, dynamic>{} : jsonDecode(txt);
+    return AdminPushBroadcastResult.fromJson(j);
   }
 
   Future<SystemHealthResult> fetchSystemHealth() async {
