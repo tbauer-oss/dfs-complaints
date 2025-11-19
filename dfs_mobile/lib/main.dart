@@ -417,6 +417,7 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     if (!_bootDone) {
       return const MaterialApp(
+        debugShowCheckedModeBanner: false,
         home: Scaffold(body: Center(child: CircularProgressIndicator())),
       );
     }
