@@ -4,6 +4,7 @@ import '../api/client.dart';
 import 'rep_dashboard_page.dart';
 import '../l10n/app_localizations.dart';
 import 'reset_password_page.dart';
+import '../services/push_notifications.dart';
 
 // **KEIN direkter dart:html-Import mehr**
 import 'package:dfs_mobile/web_compat/html_stub.dart'
@@ -109,6 +110,27 @@ class _RepLoginPageState extends State<RepLoginPage> {
         return;
       }
       if (!mounted) return;
+      
+      // 🔔 HIER: Push-Benachrichtigungen nach erfolgreichem Login aktivieren
+      final locale = Localizations.localeOf(context);
+      try {
+        await PushNotifications.instance.setup(
+          widget.api,
+          languageCode: locale.languageCode,
+        );
+        // Optional – falls du replayLatestToken in push_notifications.dart hast:
+        try {
+          await PushNotifications.instance.replayLatestToken(
+            widget.api,
+            languageCode: locale.languageCode,
+          );
+        } catch (e) {
+          debugPrint('[push] replayLatestToken failed: $e');
+        }
+      } catch (e) {
+        debugPrint('[push] setup failed: $e');
+      }
+      
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => RepDashboardPage(api: widget.api)),
       );
