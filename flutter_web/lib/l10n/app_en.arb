@@ -599,5 +599,165 @@
   "newsCatShortage": "Temporary limitations",
   "newsCatApp": "App releases",
   "newsCatGeneral": "General",
-  "customerNewsHeroFreshLabel": "Fresh insights (30 days)"
+  "customerNewsHeroFreshLabel": "Fresh insights (30 days)",
+  "kb_title": "Knowledge Base – Complaints & Instruments",
+  "kb_intro": "Here you will find frequently asked questions and answers about complaints, typical instrument behaviour and the use of the DFS Complaint App.",
+  "kb_search_hint": "Search for question, keyword or term …",
+  "kb_filter_all": "All categories",
+  "kb_empty_message": "No entries found. Please adjust your search term or filters.",
+
+  "kb_cat_a_title": "A – General complaint questions",
+  "kb_cat_b_title": "B – Diamond instruments",
+  "kb_cat_c_title": "C – Carbide instruments",
+  "kb_cat_d_title": "D – Ceramic burs",
+  "kb_cat_e_title": "E – Polishers",
+  "kb_cat_f_title": "F – Reprocessing & sterilisation",
+  "kb_cat_g_title": "G – DFS Complaint App usage",
+  "kb_cat_h_title": "H – Decision & technical analysis",
+  "kb_cat_i_title": "I – Photos & returns",
+  "kb_cat_j_title": "J – Common misconceptions",
+
+  "kb_q1_question": "How do I create a complaint step by step?",
+  "kb_q1_answer": "Open the app and log in\nSelect “New complaint”\nSelect the product or enter it manually\nSelect the defect pattern (if available)\nDescribe the problem clearly (as precisely as possible)\nAdd photos (defect, overall view, shank)\nSubmit the ticket\nNote the ticket number (saved automatically)",
+
+  "kb_q2_question": "What should a good complaint description include?",
+  "kb_q2_answer": "When did the problem occur?\nHow many uses? (first use, fifth use, etc.)\nFor which treatment?\nWhich handpiece or drive?\nWhich speed (rpm)?\nWhich cooling (type and amount)?\nWere there vibrations?\nAny special events (e.g. jamming, high heat, noise)?",
+
+  "kb_q3_question": "How much time do I have to report a complaint?",
+  "kb_q3_answer": "In general, as soon as possible after the event\nFor wear or long-term use DFS cannot guarantee warranty\nThe earlier the complaint is reported, the better it can be analysed",
+
+  "kb_q4_question": "Why are photos so important?",
+  "kb_q4_answer": "Visual defects are often immediately recognisable\nBent or damaged shanks are visible at once\nClogging and surface condition can be assessed clearly\nWithout photos, follow-up questions are usually necessary and the process takes longer",
+
+  "kb_q5_question": "Is my complaint processed anonymously?",
+  "kb_q5_answer": "Internally we mainly use technical data for analysis\nPersonal data is processed strictly in line with data protection requirements",
+
+  "kb_q6_question": "Are my complaints evaluated statistically?",
+  "kb_q6_answer": "Yes, complaints are evaluated in anonymised form\nThis supports quality improvement, trend analysis and PMS obligations",
+
+  "kb_q7_question": "Why does a diamond bur become dull after only a few seconds?",
+  "kb_q7_answer": "Excessive pressure leads to clogging of the diamond layer\nInsufficient water cooling causes heat and higher abrasion\nWrong grit size chosen for the indication\nVery hard surfaces (e.g. ceramics) stress the diamond layer\nWorn turbine bearings create chatter marks and accelerate wear",
+
+  "kb_q8_question": "How can I recognise a clogged diamond instrument?",
+  "kb_q8_answer": "Surface looks shiny instead of rough\nDiamond particles are barely or no longer visible\nBrown, grey or black deposits are present\nLittle or no cutting performance despite high speed\nStandard cleaning agents no longer remove the layer completely",
+
+  "kb_q9_question": "Why does the instrument heat up so much?",
+  "kb_q9_answer": "Cooling water below approx. 50 ml/min\nSpray angle is wrong and does not hit the preparation area sufficiently\nExcessive pressure on the instrument\nBlocked or partially blocked water channel\nToo little distance or too long dwell time on one spot",
+
+  "kb_q10_question": "Can a diamond instrument bend?",
+  "kb_q10_answer": "Yes, especially long and slim instruments are sensitive\nEven a small drop can make the shank unusable\nConsequences are imbalance, strong heat build-up, material overload and loss of diamond layer",
+
+  "kb_q11_question": "Why does the diamond coating partially detach?",
+  "kb_q11_answer": "Mainly lateral forces instead of axial guidance\nJamming in tight cavities or undercuts\nDrop damage causing microcracks in the coating\nMaterial fatigue after many reprocessing and autoclave cycles",
+
+  "kb_q12_question": "How many treatments does a diamond instrument usually last?",
+  "kb_q12_answer": "Depending on application and material roughly between 1 and 10 treatments\nIn very hard materials (e.g. ceramics) the lifetime is shorter\nOverload, poor cooling or too much pressure drastically reduce the lifetime",
+
+  "kb_q13_question": "Why is the shank discoloured or corroded?",
+  "kb_q13_answer": "Instruments were not fully dried after cleaning\nAggressive or non-approved cleaning agents were used\nUnsuitable or non-approved disinfectant baths were used\nContact with other metals during reprocessing or storage caused contact corrosion",
+
+  "kb_q14_question": "Why does the instrument vibrate strongly at high speed?",
+  "kb_q14_answer": "Even tiny shank deviations cause significant imbalance at high rpm\nDefective or worn turbine bearings worsen the run-out\nContamination in the chuck or collet affects clamping\nDamage or asymmetry in the head area increase vibrations",
+
+  "kb_q15_question": "Why do carbide burs wear out faster than expected?",
+  "kb_q15_answer": "Working on extremely hard materials\nToo high feed force or lateral pressure\nOverheating of the cutting edges reduces hardness\nBent shank leads to uneven load distribution on the blades",
+
+  "kb_q16_question": "Why does a carbide bur sometimes break suddenly?",
+  "kb_q16_answer": "Microcracks from previous overload or misuse\nContact with metallic restorations or very hard materials\nWrong direction of rotation\nJamming in narrow or hard-to-access areas\nHigh radial forces due to uneven or jerky feed",
+
+  "kb_q17_question": "How can I recognise worn carbide cutting edges?",
+  "kb_q17_answer": "Material removal becomes clearly worse\nCutting edges appear dull or shiny\nChips become powder-like instead of well-defined\nNoise level becomes higher, sharper or more unpleasant\nHeat build-up on tooth or material increases noticeably",
+
+  "kb_q18_question": "Why do black-blue discolourations occur on the instrument or material?",
+  "kb_q18_answer": "Thermal damage due to excessive heat\nInsufficient or poorly directed cooling\nToo little pressure combined with too low speed causes friction heat\nDamaged or blunt cutting geometry increases heat generation",
+
+  "kb_q19_question": "How can I recognise improper use from the fracture surface?",
+  "kb_q19_answer": "Slanted, frayed fracture indicates high lateral forces\nSmooth, central fracture can point to material fatigue or pre-damage\nChipping at the shank end often indicates drop or impact damage",
+
+  "kb_q20_question": "Why are ceramic burs more sensitive than carbide instruments?",
+  "kb_q20_answer": "Ceramic is very hard but significantly more brittle than carbide\nLateral forces quickly lead to microcracks\nJamming or jerky movements are especially critical\nIncorrect angulation encourages chipping of the cutting edges",
+
+  "kb_q21_question": "Why does only a single blade often break on a ceramic bur?",
+  "kb_q21_answer": "Local overload on one specific blade\nDirect contact with metal or very hard materials\nUneven guidance or jamming movement\nUnsuitable speed can create resonance effects on individual blades",
+
+  "kb_q22_question": "What particularly worsens the smooth running of ceramic burs?",
+  "kb_q22_answer": "Even tiny shank deviations have a strong effect in ceramic\nImbalance or defects in turbine bearings\nMicroscopic chipping at the tip or on cutting edges",
+
+  "kb_q23_question": "Why does a polisher come apart?",
+  "kb_q23_answer": "Maximum operating speed of the polisher is exceeded\nStrong heat build-up due to too much pressure or long contact time\nPre-existing cracks or defects in the rubber or hybrid matrix\nContact with sharp edges or burrs on the workpiece",
+
+  "kb_q24_question": "Why is the polishing effect weak?",
+  "kb_q24_answer": "Wrong polishing step chosen for the desired gloss level\nSurface was not prepared sufficiently before polishing\nSpeed is too low for the polisher used\nPolisher is already heavily worn or consumed\nContact time or pressure are too low or too short",
+
+  "kb_q25_question": "Why do black deposits appear during polishing?",
+  "kb_q25_answer": "Polisher overheats and material melts onto the surface\nToo much pressure causes rubber particles to smear onto the workpiece\nWrong polisher used for the material being treated",
+
+  "kb_q26_question": "Why is immediate pre-cleaning important?",
+  "kb_q26_answer": "Prevents blood, composite or cement from sticking permanently\nReduces microbial load even before machine reprocessing\nProtects coating, cutting edges and surface structure\nPrevents corrosion points caused by residues",
+
+  "kb_q27_question": "Which errors occur frequently during reprocessing?",
+  "kb_q27_answer": "Instruments are not dried completely\nWrong or too aggressive chemicals (acids, alkalis) are used\nTemperature in cleaning or disinfection is too high\nInstruments hit each other during reprocessing\nAutoclave is loaded incorrectly or too densely",
+
+  "kb_q28_question": "Why does an instrument show brown spots after reprocessing?",
+  "kb_q28_answer": "Flash rust due to contact with corroding metal parts\nMoisture or condensate in the autoclave\nImproper or incomplete drying\nContact with foreign metallic instruments during reprocessing",
+
+  "kb_q29_question": "How can I recognise an instrument-related safety risk?",
+  "kb_q29_answer": "Cracks or notches on the shank\nChipping at the head or cutting edges\nBending or visible deformation of the instrument\nPartial or complete loss of coating\nCorrosion spots, especially on shank or clamping area",
+
+  "kb_q30_question": "How can I prevent corrosion on instruments?",
+  "kb_q30_answer": "Dry instruments completely after cleaning\nAvoid aggressive or non-approved cleaning solutions\nMinimise direct contact between different metal alloys\nMaintain the autoclave regularly and ensure proper water quality",
+
+  "kb_q31_question": "Ticket cannot be sent – what are common reasons?",
+  "kb_q31_answer": "Required fields in the complaint form are not fully completed\nInternet connection is interrupted or unstable\nPhotos or attachments are too large\nAccount has not been activated yet\nGate password is missing or invalid",
+
+  "kb_q32_question": "Why does my ticket not appear?",
+  "kb_q32_answer": "Filter settings hide certain tickets\nYou are logged in with a different account than the creator\nTicket has been archived or hidden\nApp or browser has not been updated or reloaded yet",
+
+  "kb_q33_question": "Why is a gate password sometimes required?",
+  "kb_q33_answer": "To ensure that only verified customers can create an account\nProtection against spam registrations and multiple sign-ups\nThe gate password is issued and checked manually by DFS",
+
+  "kb_q34_question": "Can I modify a ticket afterwards?",
+  "kb_q34_answer": "Yes, as long as the status is “Information required” or “Open”\nYou can add or refine photos and comments",
+
+  "kb_q35_question": "Why can I no longer open some tickets?",
+  "kb_q35_answer": "The associated user account has been deactivated\nThe ticket is fully completed and possibly archived\nAn archive or status filter hides the ticket",
+
+  "kb_q36_question": "When is a complaint accepted?",
+  "kb_q36_answer": "A material defect is plausible or cannot be excluded\nA production deviation seems possible\nThe instrument failed early despite correct use\nA technical defect can be demonstrated",
+
+  "kb_q37_question": "When is a complaint rejected?",
+  "kb_q37_answer": "Clear overload or incorrect use\nMissing or insufficient cooling\nWrong or clearly excessive speed\nObvious pre-damage or visible drop marks\nInstrument is heavily worn and beyond its normal lifetime",
+
+  "kb_q38_question": "Why can DFS sometimes not name a clear root cause?",
+  "kb_q38_answer": "Instrument is too severely damaged to identify the origin reliably\nThe exact application situation cannot be reconstructed\nNo or only insufficient photos were provided\nA long time has passed between event and analysis",
+
+  "kb_q39_question": "What happens to returned instruments in the lab?",
+  "kb_q39_answer": "Microscopic analysis of the affected areas\nComparison with reference and new samples\nInspection for cracks, deformation and coating damage\nShank run-out check and assessment of smooth running\nDocumentation of results for quality assurance and PMS",
+
+  "kb_q40_question": "Do I receive a report for my complaint?",
+  "kb_q40_answer": "Yes, the evaluation is documented in the ticket\nOn request, extended feedback can be provided via the sales representative",
+
+  "kb_q41_question": "How should I take photos of an instrument?",
+  "kb_q41_answer": "Use a bright, calm background (e.g. white)\nUse daylight or uniform LED lighting\nFocus on the head and avoid overexposure\nTake at least three views: head, shank and overall\nOptionally place a ruler or scale next to the instrument",
+
+  "kb_q42_question": "What should I avoid when taking photos?",
+  "kb_q42_answer": "Out-of-focus close-ups without recognisable detail\nHands or fingers covering the instrument\nVery busy or distracting backgrounds\nStrong reflections or overexposure from flash",
+
+  "kb_q43_question": "Why must the original instrument sometimes be sent in?",
+  "kb_q43_answer": "Photos are not sufficient for a reliable assessment\nThe defect pattern is conspicuous or safety-relevant\nA laboratory analysis is essential for root cause investigation\nTrend or batch checks require the original instrument",
+
+  "kb_q44_question": "How should I pack instruments correctly for return?",
+  "kb_q44_answer": "Pack each instrument separately where possible (e.g. blister or sleeve)\nUse sufficient padding to prevent breakage or bending\nClearly enclose the ticket number\nSend instruments cleaned and dry",
+
+  "kb_q45_question": "Are returned instruments sent back to me?",
+  "kb_q45_answer": "In general, instruments remain in the lab for documentation\nExceptions are possible after prior agreement",
+
+  "kb_q46_question": "Can I send several instruments in one parcel?",
+  "kb_q46_answer": "Yes, several instruments can be shipped together\nEach instrument should be packed individually\nEnclose all corresponding ticket numbers\nAvoid mix-ups by clear labelling",
+
+  "kb_q47_question": "“Diamond instruments are single-use products” – is that true?",
+  "kb_q47_answer": "No, diamond instruments are usually reusable\nActual lifetime strongly depends on the way they are used\nOverload, missing cooling and wrong indication lead to very rapid wear\nTypically only a few applications per instrument are realistic under optimal conditions",
+
+  "kb_q48_question": "“More pressure = more cutting performance” – is that correct?",
+  "kb_q48_answer": "No, high pressure causes clogging of the diamond layer\nHeat development increases significantly\nThe coating may detach or wear out faster\nThe instrument becomes dull more quickly\nLight, controlled pressure usually results in better cutting and gentler treatment"
 }
