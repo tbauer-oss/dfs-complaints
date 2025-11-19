@@ -367,6 +367,35 @@ class _AccountPageState extends State<AccountPage> {
                   }
                 },
               ),
+              const SizedBox(height: 24),
+
+              // DEBUG: FCM-Push-Token anzeigen (nur für Tests)
+              if (widget.api.pushDeviceToken != null &&
+                  widget.api.pushDeviceToken!.isNotEmpty)
+                Card(
+                  elevation: 0,
+                  color: Colors.black12,
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Push-Token (Debug)',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        SelectableText(
+                          widget.api.pushDeviceToken!,
+                          style: const TextStyle(fontSize: 10),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
