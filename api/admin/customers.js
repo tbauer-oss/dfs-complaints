@@ -7,6 +7,7 @@ import { setCors } from '../_lib/cors.js';
 import { userSave } from '../_lib/store.js';
 import { generateStrongPassword, isStrongPassword } from '../_lib/passwords.js';
 import { send, tpl } from '../_lib/mail.js';
+import { isRepEmail } from '../_lib/repEmailGuard.js';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 
@@ -82,6 +83,12 @@ export default async function handler(req, res) {
     return res
       .status(400)
       .end(JSON.stringify({ error: 'company and email required' }));
+  }
+
+  if (await isRepEmail(email)) {
+    return res
+      .status(400)
+      .end(JSON.stringify({ error: 'email belongs to representative' }));
   }
 
   if (!street || !zip || !city || !country) {
