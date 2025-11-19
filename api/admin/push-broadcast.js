@@ -10,7 +10,7 @@ import {
   readJson,
 } from '../_lib/http.js';
 import { usersList, pushTokenRemove } from '../_lib/store.js';
-import { sendPushNotification, isPushConfigured } from '../_lib/push.js';
+import { sendPushToTokens } from '../_lib/fcm.js'; // ⬅️ NEU: direkter Import aus fcm.js
 
 function requireAdmin(req, res) {
   const sec = (req.headers?.['x-admin-secret'] || '').toString().trim();
@@ -30,37 +30,10 @@ function normLang(value) {
   return SUPPORTED_LANGS.has(two) ? two : 'de';
 }
 
-function describeSendFailure(result) {
-  if (!result) return null;
-  const reason = result.reason ? result.reason.toString() : '';
-  if (reason === 'missing-server-key' || reason === 'missing-credentials' || reason === 'missing-service-account') {
-    return 'Push-Dienst ist nicht konfiguriert (Firebase Server Key oder Service Account fehlen).';
-  }
-  if (reason === 'no-tokens') {
-    return 'Keine gültigen Geräte vorhanden.';
-  }
-  if (reason && reason !== 'missing-server-key' && reason !== 'no-tokens') {
-    return reason;
-  }
-  if (Array.isArray(result.responses)) {
-    for (const resp of result.responses) {
-      if (!resp || resp.ok !== false) continue;
-      if (resp.error) return resp.error;
-      if (resp.status && resp.body) {
-        const snippet = typeof resp.body === 'string'
-          ? resp.body
-          : (() => {
-              try { return JSON.stringify(resp.body); }
-              catch { return String(resp.body); }
-            })();
-        return `FCM HTTP ${resp.status}: ${snippet.length > 240 ? `${snippet.slice(0, 237)}…` : snippet}`;
-      }
-      if (resp.status) {
-        return `FCM HTTP ${resp.status}`;
-      }
-    }
-  }
-  return null;
+// ⬅️ NEU: einfache Konfig-Check-Funktion nur für Service Account
+function isPushConfigured() {
+  const raw = (process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '').trim();
+  return raw.length > 0;
 }
 
 export default async function handler(req, res) {
@@ -83,9 +56,10 @@ export default async function handler(req, res) {
       return bad(res, 'title/body required', 400);
     }
 
+    // ---- Tokens aus allen Usern einsammeln ----
     const users = await usersList();
-    const tokenByLang = new Map();
-    const tokenOwners = new Map();
+    const tokenByLang = new Map(); // lang -> Set(tokens)
+    const tokenOwners = new Map(); // token -> email
 
     for (const user of users) {
       const owner = (user?.email || '').toString();
@@ -120,8 +94,10 @@ export default async function handler(req, res) {
 
     const invalidTokens = new Set();
     const errors = [];
-    const sortedLangEntries = Array.from(tokenByLang.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    const sortedLangEntries = Array.from(tokenByLang.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]));
 
+    // Konfigurationsprüfung (Service Account)
     if (!dryRun && !isPushConfigured()) {
       return ok(res, {
         dryRun,
@@ -133,58 +109,66 @@ export default async function handler(req, res) {
           ok: false,
         })),
         invalidTokens: 0,
-        errors: ['Push-Versand ist nicht konfiguriert (Firebase Server Key oder Service Account fehlen).'],
+        errors: [
+          'Push-Versand ist nicht konfiguriert (Service Account fehlt oder ist ungültig).',
+        ],
         timestamp: new Date().toISOString(),
       });
     }
 
+    // ---- Pro Sprache senden ----
     for (const [lang, set] of sortedLangEntries) {
       const tokens = Array.from(set);
       let sendResult = null;
+
       if (!dryRun) {
         try {
-          sendResult = await sendPushNotification({
+          // ⬅️ NEU: Versand über firebase-admin Helper
+          sendResult = await sendPushToTokens(
             tokens,
-            title,
-            body: message,
-            data: {
+            {
+              title,
+              body: message,
+            },
+            {
               type: 'admin-broadcast',
               lang,
               ...(actionUrl ? { actionUrl } : {}),
             },
-          });
+          );
+
+          // Optional: falls du später invalidTokens aus fcm.js zurückgibst
           if (Array.isArray(sendResult?.invalidTokens)) {
             sendResult.invalidTokens.forEach((t) => invalidTokens.add(t));
           }
-          if (!sendResult?.ok) {
-            const detail = describeSendFailure(sendResult);
-            errors.push(`Sprache ${lang}: ${detail || 'Versand teilweise fehlgeschlagen.'}`);
+
+          if (sendResult.failureCount > 0) {
+            const firstErr = (sendResult.responses || [])
+              .find((r) => !r.success && r.error)?.error;
+            errors.push(
+              `Sprache ${lang}: ${
+                firstErr ||
+                `Versand teilweise fehlgeschlagen (${sendResult.failureCount} Fehler).`
+              }`,
+            );
           }
         } catch (err) {
           errors.push(`Sprache ${lang}: ${err?.message || err}`);
         }
       }
 
+      const sentCount =
+        dryRun ? 0 : (sendResult?.successCount ?? 0);
+
       languages.push({
         lang,
         tokens: tokens.length,
-        sent: dryRun
-          ? 0
-          : Math.min(
-              tokens.length,
-              Math.max(
-                0,
-                sendResult && typeof sendResult.sent === 'number'
-                  ? Math.floor(sendResult.sent)
-                  : sendResult?.ok
-                      ? tokens.length
-                      : 0,
-              ),
-            ),
-        ok: dryRun ? true : !!sendResult?.ok,
+        sent: sentCount,
+        ok: dryRun ? true : sentCount > 0,
       });
     }
 
+    // ---- Aufräumen: ungültige Tokens löschen (falls vorhanden) ----
     if (!dryRun && invalidTokens.size > 0) {
       for (const badToken of invalidTokens) {
         const owner = tokenOwners.get(badToken);
