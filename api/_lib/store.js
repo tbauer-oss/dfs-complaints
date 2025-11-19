@@ -20,12 +20,28 @@ const REDIS_TOKEN =
   process.env.REDIS_TOKEN ||
   null;
 
+const REDIS_TIMEOUT_MS = Math.max(0, Number(process.env.REDIS_TIMEOUT_MS || 2500));
+
 let _redis = null;
 function getRedis() {
   if (_redis) return _redis;
   if (!REDIS_URL || !REDIS_TOKEN) return null;
   _redis = new Redis({ url: REDIS_URL, token: REDIS_TOKEN });
   return _redis;
+}
+
+async function withRedisTimeout(promise, label = 'redis op') {
+  if (!REDIS_TIMEOUT_MS) return await promise;
+  return await Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => {
+        const err = new Error(`${label} timed out after ${REDIS_TIMEOUT_MS}ms`);
+        err.code = 'REDIS_TIMEOUT';
+        reject(err);
+      }, REDIS_TIMEOUT_MS);
+    }),
+  ]);
 }
 
 const P = 'dfs:';
@@ -169,21 +185,51 @@ function _normalizeCatalogConfig(input) {
 }
 
 // ===== Helper (Redis IO) =====
-async function rget(k) { try { const r = getRedis(); return r ? await r.get(k) : null; } catch (e) { console.error('KV GET', k, e); return null; } }
-async function rset(k, v) { try { const r = getRedis(); return r ? await r.set(k, v) : null; } catch (e) { console.error('KV SET', k, e); return null; } }
-async function rdel(k) { try { const r = getRedis(); return r ? await r.del(k) : null; } catch (e) { console.error('KV DEL', k, e); return null; } }
+async function rget(k) {
+  try {
+    const r = getRedis();
+    if (!r) return null;
+    return await withRedisTimeout(r.get(k), `KV GET ${k}`);
+  } catch (e) {
+    console.error('KV GET', k, e);
+    return null;
+  }
+}
+async function rset(k, v) {
+  try {
+    const r = getRedis();
+    if (!r) return null;
+    return await withRedisTimeout(r.set(k, v), `KV SET ${k}`);
+  } catch (e) {
+    console.error('KV SET', k, e);
+    return null;
+  }
+}
+async function rdel(k) {
+  try {
+    const r = getRedis();
+    if (!r) return null;
+    return await withRedisTimeout(r.del(k), `KV DEL ${k}`);
+  } catch (e) {
+    console.error('KV DEL', k, e);
+    return null;
+  }
+}
 
 // ===== Key-Scan kompatibel zu Upstash =====
 async function rkeys(pattern) {
   const r = getRedis();
   if (!r) return [];
   if (typeof r.keys === 'function') {
-    try { return await r.keys(pattern); } catch { /* continue */ }
+    try { return await withRedisTimeout(r.keys(pattern), `KV KEYS ${pattern}`); } catch { /* continue */ }
   }
   if (typeof r.scan === 'function') {
     let cursor = 0, out = [];
     do {
-      const res = await r.scan(cursor, { match: pattern, count: 1000 });
+      const res = await withRedisTimeout(
+        r.scan(cursor, { match: pattern, count: 1000 }),
+        `KV SCAN ${pattern}`
+      );
       if (Array.isArray(res)) {
         cursor = Number(res[0]);
         out.push(...(res[1] || []));
