@@ -484,6 +484,12 @@
   "admin_area": "Área de administración",
 
   "supportTitle": "Soporte DFS",
+  "knowledgeBaseTile": "Base de conocimientos (FAQ)",
+  "knowledgeBaseSubtitle": "Instrucciones útiles, resolución de problemas y conocimientos de producto en un solo lugar.",
+  "knowledgeBaseHighlight1": "FAQ con búsqueda",
+  "knowledgeBaseHighlight2": "Consejos de producto y procesos",
+  "knowledgeBaseHighlight3": "Siempre actualizado",
+  "knowledgeBaseCta": "Abrir base de conocimientos",
   "category": "Categoría",
   "yourMessage": "Su mensaje",
   "supportConsentText": "Acepto el tratamiento según el aviso de privacidad.",

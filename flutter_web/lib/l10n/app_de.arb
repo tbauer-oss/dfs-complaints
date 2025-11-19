@@ -484,6 +484,12 @@
   "admin_area": "Adminbereich",
 
   "supportTitle": "DFS Support",
+  "knowledgeBaseTile": "Wissensdatenbank (FAQ)",
+  "knowledgeBaseSubtitle": "Hilfreiche Anleitungen, Troubleshooting und Produktwissen an einem Ort.",
+  "knowledgeBaseHighlight1": "Durchsuchbare FAQ",
+  "knowledgeBaseHighlight2": "Produkt- & Prozess-Tipps",
+  "knowledgeBaseHighlight3": "Stets aktualisiert",
+  "knowledgeBaseCta": "Wissensbasis öffnen",
   "category": "Kategorie",
   "yourMessage": "Ihre Nachricht",
   "supportConsentText": "Ich stimme der Verarbeitung gemäß Datenschutzhinweis zu.",

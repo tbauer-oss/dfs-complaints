@@ -488,6 +488,12 @@
   "admin_area": "Admin area",
 
   "supportTitle": "DFS Support",
+  "knowledgeBaseTile": "Knowledge base (FAQ)",
+  "knowledgeBaseSubtitle": "Helpful instructions, troubleshooting and product know-how in one place.",
+  "knowledgeBaseHighlight1": "Searchable FAQ",
+  "knowledgeBaseHighlight2": "Product & process tips",
+  "knowledgeBaseHighlight3": "Always up to date",
+  "knowledgeBaseCta": "Browse knowledge base",
   "category": "Category",
   "yourMessage": "Your message",
   "supportConsentText": "I agree to the processing according to the privacy notice.",
