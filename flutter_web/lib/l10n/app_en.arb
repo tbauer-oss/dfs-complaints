@@ -488,6 +488,7 @@
   "admin_area": "Admin area",
 
   "supportTitle": "DFS Support",
+  "knowledgeBaseTile": "Knowledge base (FAQ)",
   "category": "Category",
   "yourMessage": "Your message",
   "supportConsentText": "I agree to the processing according to the privacy notice.",
