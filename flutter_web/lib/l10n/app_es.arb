@@ -208,7 +208,7 @@
   "unsavedChangesText": "Hay cambios sin guardar. ¿Desea salir de todos modos?",
 
   "gate_prompt": "Código de acceso (para clientes no registrados)",
-  "gate_password": "Contraseña",
+  "gate_password": "Contraseña de autorización",
   "continueLabel": "Continuar",
   "invalid": "No válido",
   "gateUnlockHint": "Introduzca su dirección de correo electrónico y la contraseña de desbloqueo para acceder al área de registro.",
