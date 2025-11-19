@@ -16,33 +16,42 @@ const String _kIosBundleId = String.fromEnvironment('FIREBASE_IOS_BUNDLE_ID', de
 const String _kMeasurementId = String.fromEnvironment('FIREBASE_MEASUREMENT_ID', defaultValue: '');
 
 FirebaseOptions? _optionsCache;
-
 FirebaseOptions? _firebaseOptions() {
   if (_optionsCache != null) return _optionsCache;
-  if (_kApiKey.isEmpty || _kAppId.isEmpty || _kProjectId.isEmpty || _kSenderId.isEmpty) {
-    debugPrint('[push] Firebase options incomplete – skipping setup');
-    return null;
+
+  // WEB: braucht explizite Optionen aus --dart-define
+  if (kIsWeb) {
+    if (_kApiKey.isEmpty || _kAppId.isEmpty || _kProjectId.isEmpty || _kSenderId.isEmpty) {
+      debugPrint('[push] Firebase options incomplete (web) – skipping setup');
+      return null;
+    }
+    _optionsCache = FirebaseOptions(
+      apiKey: _kApiKey,
+      appId: _kAppId,
+      projectId: _kProjectId,
+      messagingSenderId: _kSenderId,
+      storageBucket: _kStorageBucket.isEmpty ? null : _kStorageBucket,
+      iosBundleId: _kIosBundleId.isEmpty ? null : _kIosBundleId,
+      measurementId: _kMeasurementId.isEmpty ? null : _kMeasurementId,
+    );
+    return _optionsCache;
   }
-  _optionsCache = FirebaseOptions(
-    apiKey: _kApiKey,
-    appId: _kAppId,
-    projectId: _kProjectId,
-    messagingSenderId: _kSenderId,
-    storageBucket: _kStorageBucket.isEmpty ? null : _kStorageBucket,
-    iosBundleId: _kIosBundleId.isEmpty ? null : _kIosBundleId,
-    measurementId: _kMeasurementId.isEmpty ? null : _kMeasurementId,
-  );
-  return _optionsCache;
+
+  // MOBILE (Android/iOS): nutzt native Konfiguration (google-services.json, Info.plist)
+  return null;
 }
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (kIsWeb) return;
   final options = _firebaseOptions();
-  if (options == null) return;
   try {
     if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp(options: options);
+      if (options != null) {
+        await Firebase.initializeApp(options: options);
+      } else {
+        await Firebase.initializeApp();
+      }
     }
   } catch (_) {}
 }
@@ -60,8 +69,6 @@ class PushNotifications {
   Future<void> setup(ApiClient api, {String? languageCode}) async {
     if (kIsWeb) return;
     final options = _firebaseOptions();
-    if (options == null) return;
-
     await _ensureFirebase(options);
 
     final messaging = FirebaseMessaging.instance;
@@ -144,15 +151,21 @@ class PushNotifications {
     _tokenSub = null;
   }
 
-  Future<void> _ensureFirebase(FirebaseOptions options) async {
+  Future<void> _ensureFirebase([FirebaseOptions? options]) async {
     if (!_initialized) {
       try {
         if (Firebase.apps.isEmpty) {
-          await Firebase.initializeApp(options: options);
+          if (options != null) {
+            await Firebase.initializeApp(options: options);
+          } else {
+            // Mobile: default Konfiguration aus native Files
+            await Firebase.initializeApp();
+          }
         }
       } catch (e) {
         if (Firebase.apps.isEmpty) rethrow;
       }
+
       await _configureLocalNotifications();
       FirebaseMessaging.onMessage.listen(_showNotification);
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
