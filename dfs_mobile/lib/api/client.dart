@@ -189,6 +189,13 @@ class ApiClient {
     return h;
   }
 
+  bool get hasPushAuth {
+    final hasToken = (token ?? '').isNotEmpty;
+    final hasRepToken = (repToken ?? '').isNotEmpty;
+    final hasAdminSecret = (adminSecret ?? '').isNotEmpty;
+    return hasToken || hasRepToken || hasAdminSecret;
+  }
+
   void clearAdminSecret() {
     adminSecret = null;
     _saveSession();
