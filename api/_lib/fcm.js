@@ -1,61 +1,77 @@
-// api/_lib/fcm.js
+// /api/_lib/fcm.js
+// Kleines Hilfsmodul zum Senden von FCM-Push-Nachrichten aus deinem Backend.
+//
+// Voraussetzungen:
+// - Env-Variable FIREBASE_SERVICE_ACCOUNT_JSON mit kompletter Service-Account-JSON
+// - "firebase-admin" als Dependency in package.json
+
 import admin from 'firebase-admin';
 
-let _initialized = false;
+let initialized = false;
 
+/**
+ * Initialisiert firebase-admin einmalig mit dem Servicekonto
+ */
 function ensureFirebaseAdmin() {
-  if (_initialized) return;
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '';
-  if (!raw) throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON not set');
+  if (initialized && admin.apps && admin.apps.length > 0) {
+    return;
+  }
 
-  const creds = JSON.parse(raw);
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  if (!raw) {
+    throw new Error(
+      'FIREBASE_SERVICE_ACCOUNT_JSON is not set. Please add your Firebase service account JSON to the Vercel environment variables.'
+    );
+  }
+
+  let serviceAccount;
+  try {
+    serviceAccount = JSON.parse(raw);
+  } catch (err) {
+    throw new Error('Invalid FIREBASE_SERVICE_ACCOUNT_JSON: ' + err);
+  }
+
+  // Nur initialisieren, wenn noch keine App existiert
   if (!admin.apps.length) {
     admin.initializeApp({
-      credential: admin.credential.cert(creds),
+      credential: admin.credential.cert(serviceAccount),
     });
   }
-  _initialized = true;
+
+  initialized = true;
 }
 
 /**
- * Schickt eine einfache Push-Nachricht an ein Gerät.
- * title / body -> werden als "notification" Payload gesendet
- * data         -> zusätzliche Daten als Strings
+ * Sendet eine Push-Nachricht an mehrere FCM-Tokens.
+ *
+ * @param {string[]} tokens - Array von FCM-Tokens
+ * @param {{ title: string, body: string }} notification - Titel und Text der Notification
+ * @param {Record<string, string>} [data] - optionale zusätzliche Daten (als String-Map)
+ * @returns {Promise<{successCount:number,failureCount:number,responses:any[]}>}
  */
-export async function sendToToken(token, { title, body, data } = {}) {
-  ensureFirebaseAdmin();
-
-  const cleanData = {};
-  if (data) {
-    for (const [k, v] of Object.entries(data)) {
-      if (v != null) cleanData[k] = String(v);
-    }
+export async function sendPushToTokens(tokens, notification, data = {}) {
+  if (!tokens || tokens.length === 0) {
+    return { successCount: 0, failureCount: 0, responses: [] };
   }
 
+  ensureFirebaseAdmin();
+
+  const messaging = admin.messaging();
+
   const message = {
-    token,
-    // 👉 WICHTIG: Notification-Payload, damit Android von sich aus was anzeigt
-    notification: {
-      title: title || 'DFS Complaint',
-      body: body || '',
-    },
-    data: cleanData,
-    android: {
-      priority: 'high',
-      notification: {
-        // KEIN channelId hier erzwingen – Android nimmt einen Default-Kanal
-        sound: 'default',
-      },
-    },
-    apns: {
-      payload: {
-        aps: {
-          sound: 'default',
-        },
-      },
-    },
+    tokens,
+    notification,
+    data,
   };
 
-  const messageId = await admin.messaging().send(message);
-  return { messageId };
+  const res = await messaging.sendEachForMulticast(message);
+
+  return {
+    successCount: res.successCount,
+    failureCount: res.failureCount,
+    responses: (res.responses || []).map((r) => ({
+      success: r.success,
+      error: r.error ? r.error.message : null,
+    })),
+  };
 }
