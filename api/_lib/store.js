@@ -52,10 +52,40 @@ function normLang(x) {
   return SUPPORTED_LANGS.has(two) ? two : 'de';
 }
 
+function _listifyPushTokens(list) {
+  if (Array.isArray(list)) return list;
+  if (list == null) return [];
+  if (typeof list === 'string') return [list];
+  if (typeof list === 'object') {
+    const hasDirectToken =
+      Object.prototype.hasOwnProperty.call(list, 'token') ||
+      Object.prototype.hasOwnProperty.call(list, 'deviceToken') ||
+      Object.prototype.hasOwnProperty.call(list, 'id');
+    if (hasDirectToken) return [list];
+    return Object.values(list);
+  }
+  return [];
+}
+
+function _rawPushTokenCount(list) {
+  if (Array.isArray(list)) return list.length;
+  if (list == null) return 0;
+  if (typeof list === 'string') return list.trim() ? 1 : 0;
+  if (typeof list === 'object') {
+    const hasDirectToken =
+      Object.prototype.hasOwnProperty.call(list, 'token') ||
+      Object.prototype.hasOwnProperty.call(list, 'deviceToken') ||
+      Object.prototype.hasOwnProperty.call(list, 'id');
+    if (hasDirectToken) return 1;
+    return Object.keys(list).length;
+  }
+  return 0;
+}
+
 function normalizePushTokens(list) {
   const out = [];
   const seen = new Set();
-  const arr = Array.isArray(list) ? list : [];
+  const arr = _listifyPushTokens(list);
   for (const entry of arr) {
     const hasMeta = entry && typeof entry === 'object';
     const rawToken = hasMeta ? (entry.token ?? entry.deviceToken ?? entry.id) : entry;
@@ -569,7 +599,7 @@ export async function repPushTokens(repId) {
       list = raw;
     }
     const normalized = normalizePushTokens(list);
-    if (Array.isArray(list) && normalized.length !== list.length) {
+    if (!Array.isArray(list) || normalized.length !== _rawPushTokenCount(list)) {
       try { await rset(key, normalized); }
       catch (e) { console.error('repPushTokens/normalize', e); }
     }
@@ -657,7 +687,7 @@ export async function adminPushTokens() {
       list = raw;
     }
     const normalized = normalizePushTokens(list);
-    if (Array.isArray(list) && normalized.length !== list.length) {
+    if (!Array.isArray(list) || normalized.length !== _rawPushTokenCount(list)) {
       try { await rset(key, normalized); }
       catch (e) { console.error('adminPushTokens/normalize', e); }
     }
