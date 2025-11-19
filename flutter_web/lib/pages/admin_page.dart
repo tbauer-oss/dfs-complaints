@@ -5395,12 +5395,36 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bitte Status auswählen.')));
       return;
     }
+
+    final originalStatus = widget.c.status;
+    final newStatus = _status!;
+    bool sendPush = false;
+
+    if (newStatus != originalStatus) {
+      final answer = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Push-Benachrichtigung senden?'),
+          content: const Text(
+            'Der Status der Reklamation wurde geändert. Möchten Sie eine Push-Benachrichtigung an den Kunden (und ggf. Vertreter) senden?',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Nein')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Ja')),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      sendPush = answer == true;
+    }
+
     setState(() => _busy = true);
     try {
       final updated = await widget.api.adminComplaintUpdate(
         ticket: widget.c.ticket,
-        status: _status,
+        status: newStatus,
         decision: _decision ?? '',
+        sendPush: sendPush,
       );
       widget.c.status = updated.status;
       widget.c.decision = updated.decision;
@@ -6885,6 +6909,7 @@ class AdminApi {
     String? reportLink,
     String? internalNo,
     String? notes,
+    bool? sendPush,
   }) async {
     final body = <String, dynamic>{'ticket': ticket};
     if (status != null) body['status'] = status;
@@ -6892,6 +6917,7 @@ class AdminApi {
     if (reportLink != null) body['reportLink'] = reportLink;
     if (internalNo != null) body['internalNo'] = internalNo;
     if (notes != null) body['notes'] = notes;
+    if (sendPush != null) body['sendPush'] = sendPush;
 
     final res = await _request('POST', '/api/admin/complaints', body: body);
     if (res.status != 200) {
