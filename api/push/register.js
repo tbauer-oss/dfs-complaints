@@ -61,6 +61,8 @@ export default async function handler(req, res) {
     const locale = (body?.locale || '').toString().trim();
     const lang = (body?.lang || '').toString().trim();
 
+    console.log('[push/register] token=', token, 'platform=', platform, 'locale=', locale, 'lang=', lang);
+
     if (email) {
       await pushTokenRegister(email, token, { platform, locale, lang });
     } else if (rep) {
