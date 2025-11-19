@@ -620,5 +620,285 @@
   "imprint_copyright_title": "Urheberrechte",
   "imprint_copyright_body": "Alle Rechte vorbehalten. Inhalt und Struktur der DFS-Diamon Website sind urheberrechtlich geschützt. Informationen oder Daten (Text-, Bild-, Grafik-, Ton-, Video- oder Animationsdateien) unserer Website dürfen ohne vorherige schriftliche Zustimmung der DFS-Diamon GmbH weder verwendet noch reproduziert werden – auch nicht auszugsweise.",
   "imprint_odr_title": "Alternative Streitbeilegung (ODR/ VSBG)",
-  "imprint_odr_body": "Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit: https://webgate.ec.europa.eu/odr/main/index.cfm?event=main.home.show&lng=DE\nWir sind bereit, an einem außergerichtlichen Schlichtungsverfahren teilzunehmen."
+  "imprint_odr_body": "Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit: https://webgate.ec.europa.eu/odr/main/index.cfm?event=main.home.show&lng=DE\nWir sind bereit, an einem außergerichtlichen Schlichtungsverfahren teilzunehmen.",
+
+  "knowledgeBaseTile": "Wissensdatenbank (FAQ)",
+  "category": "Kategorie",
+  "yourMessage": "Ihre Nachricht",
+  "supportConsentText": "Ich stimme der Verarbeitung gemäß Datenschutzhinweis zu.",
+  "message_required": "Bitte eine Nachricht eingeben.",
+  "message_sent": "Nachricht gesendet.",
+  "supportCatGeneral": "Allgemeine Anfrage",
+  "supportCatComplaintIssue": "Problem mit einer Reklamation",
+  "supportCatTechnical": "Technisches Problem",
+  "supportCatAccount": "Anfragen zum Account",
+  "supportCatPrivacy": "Datenschutz",
+  "supportCatFeedback": "Feedback",
+  "supportCatSuggestion": "Vorschlag zur Verbesserung",
+  "email_invalid": "Please enter a valid email address.",
+  "password_required": "Please enter a password.",
+  "correctMail": "Please enter a valid email!",
+  "region": "Region / territory",
+  "myCustomers": "My customers",
+  "passwordChanged": "Password has been changed.",
+
+  "legal_privacy_intro": "Nachfolgend finden Sie die Datenschutzhinweise zur Nutzung der DFS Complaint App.",
+  "legal_privacy_0_text_prefix": "Diese Hinweise gelten für die DFS Complaint App (Web-Applikation sowie mobile App zur Erfassung, Bearbeitung und Nachverfolgung von Reklamationen). Sie ersetzen die allgemeinen Website-Passagen, soweit die App betroffen ist. Für Inhalte außerhalb der App gilt ergänzend die dort veröffentlichte Datenschutzerklärung: ",
+  "legal_privacy_title": "Datenschutz",
+  "legal_privacy_heading": "Datenschutzerklärung für die DFS Complaint App",
+  "legal_privacy_0_title": "Vorbemerkung und Geltungsbereich",
+  "legal_privacy_0_text": "Diese Datenschutzerklärung gilt für die DFS Complaint App, eine Web- und Mobile-Applikation der DFS-Diamon GmbH zur Erfassung, Bearbeitung und Nachverfolgung von Reklamationen. Sie ersetzt die allgemeinen Datenschutzinformationen der Unternehmens-Website, soweit Funktionen der App betroffen sind. Für Inhalte außerhalb der App gilt ergänzend die dort veröffentlichte Datenschutzerklärung. Die App umfasst: ein Flutter Web-Frontend (Vercel, Region Frankfurt/EU), eine Flutter Mobile App, ein Node.js/Edge Backend (Vercel, Frankfurt/EU), eine Upstash Redis Datenbank (EU/Frankfurt), System-E-Mail-Funktionen, Upload-Funktionen sowie Rollen- und Benutzerverwaltung.",
+  "legal_privacy_1_title": "Verantwortlicher",
+  "legal_privacy_1_text": "DFS-Diamon GmbH, Ländenstraße 1, D-93339 Riedenburg, Telefon: +49 (0) 9442 91 89-0, E-Mail: info@dfs-diamon.de.",
+  "legal_privacy_2_title": "Kontaktdaten des Datenschutzbeauftragten",
+  "legal_privacy_2_text": "Michael Gruber, BSP-SECURITY, Thundorferstraße 10, D-93047 Regensburg, E-Mail: info@bsp-security.de.",
+  "legal_privacy_3_title": "Datenarten, die wir verarbeiten",
+  "legal_privacy_3_1_title": "Registrierungs- und Kontodaten",
+  "legal_privacy_3_1_text": "Vorname und Nachname, Unternehmen/Praxis/Labor, Land, E-Mail-Adresse, Passwort (gehasht), Gate-Passwort/Freigabestatus, Datum und Uhrzeit der Registrierung, IP-Adresse.",
+  "legal_privacy_3_2_title": "Login- und Authentifizierungsdaten",
+  "legal_privacy_3_2_text": "E-Mail-Adresse, Passwort-Hash, JWT-Token, Zeitpunkt des Logins, Geräte- und Browserinformationen.",
+  "legal_privacy_3_3_title": "Reklamationsdaten",
+  "legal_privacy_3_3_text": "Ticketnummer, Produkt- und Kundendaten, Beschreibung des Mangels, Anhänge (z. B. Fotos, PDFs), Historie und Statusverlauf, zugeordnete Vertreter, interne Bearbeitungsinformationen.",
+  "legal_privacy_3_4_title": "System- und Sicherheitsdaten",
+  "legal_privacy_3_4_text": "IP-Adressen, Zeitstempel, technische Logs, Fehlermeldungen, Browserinformationen.",
+  "legal_privacy_3_5_title": "Daten im Vertreter- oder Administratorenbereich",
+  "legal_privacy_3_5_text": "Name, E-Mail, Region, Kommunikations- und Bearbeitungsprotokolle, Rollen- und Berechtigungsdaten.",
+  "legal_privacy_4_title": "Zwecke der Datenverarbeitung",
+  "legal_privacy_4_text": "Bereitstellung und Nutzung der App; Durchführung des Registrierungs- und Gate-Passwort-Verfahrens; Nutzung des Reklamationsmanagements; Kommunikation im Rahmen von Reklamationen; Dokumentation und Nachvollziehbarkeit von Prozessen; Betrieb, Wartung und Sicherheit der Systeme; Missbrauchserkennung und Abwehr; Erfüllung gesetzlicher Pflichten.",
+  "legal_privacy_5_title": "Rechtsgrundlagen",
+  "legal_privacy_5_text": "Art. 6 Abs. 1 lit. b DSGVO (Erfüllung vertraglicher und vorvertraglicher Pflichten); Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse, insbesondere IT-Sicherheit und effiziente Prozessgestaltung); Art. 6 Abs. 1 lit. a DSGVO (Einwilligung, z. B. optionale Funktionen); Art. 6 Abs. 1 lit. c DSGVO (gesetzliche Verpflichtungen).",
+  "legal_privacy_6_title": "Hosting, Infrastruktur und Auftragsverarbeitung",
+  "legal_privacy_6_1_title": "Vercel (Hosting von Frontend und Backend)",
+  "legal_privacy_6_1_text": "Anbieter: Vercel Inc. Standort der Datenverarbeitung: Frankfurt (eu-fra1). Verarbeitete Daten: IP-Adresse, API-Aufrufe, technische Logs, Zeitstempel, User-Agent. AV-Vertrag nach Art. 28 DSGVO: https://vercel.com/legal/dpa. Alle Datenübertragungen erfolgen verschlüsselt via TLS.",
+  "legal_privacy_6_2_title": "Upstash Redis (Datenspeicherung)",
+  "legal_privacy_6_2_text": "Die App nutzt Upstash Redis zur Speicherung aller relevanten Daten, u. a. Benutzerkonten, Reklamationen, Anhänge, Tokens, Vertreterdaten. Region der Datenverarbeitung: Frankfurt/EU. AV-Vertrag: https://upstash.com/trust/dpa.pdf. Kommunikation erfolgt ausschließlich verschlüsselt (TLS).",
+  "legal_privacy_6_3_title": "E-Mail-Versand",
+  "legal_privacy_6_3_text": "System-E-Mails werden je nach Konfiguration über DFS-Mailserver oder EU-basierte SMTP-Dienstleister versendet. Bei externen Anbietern besteht ein AV-Vertrag nach Art. 28 DSGVO.",
+  "legal_privacy_6_4_title": "Flutter / Google",
+  "legal_privacy_6_4_text": "Flutter selbst verarbeitet keine personenbezogenen Daten. Es findet kein Tracking und keine Analyse (Google Analytics, Firebase Analytics) statt.",
+  "legal_privacy_7_title": "Verarbeitung innerhalb der EU",
+  "legal_privacy_7_text": "Alle personenbezogenen Daten werden ausschließlich innerhalb der Europäischen Union verarbeitet. Es erfolgt keine Übermittlung in Drittländer, sofern keine ausdrückliche Information erfolgt und geeignete Garantien bestehen. Alle Datenübertragungen erfolgen verschlüsselt (TLS).",
+  "legal_privacy_8_title": "Cookies, Local Storage & App-Speicher",
+  "legal_privacy_8_text": "Die App verwendet keine Tracking-Cookies. Gespeichert werden ausschließlich technisch notwendige Informationen wie JWT-Token, Spracheinstellungen, UI- und Sessiondaten sowie Eingabezwischenspeicher. Rechtsgrundlage: Art. 6 Abs. 1 lit. f DSGVO.",
+  "legal_privacy_9_title": "Uploads und Anhänge",
+  "legal_privacy_9_text": "Hochgeladene Dateien wie Fotos, PDFs oder ergänzende Dokumente werden in der Datenbank gespeichert und ausschließlich für die Bearbeitung der Reklamation verwendet. Eine Weitergabe an Dritte erfolgt nicht.",
+  "legal_privacy_10_title": "E-Mail-Kommunikation",
+  "legal_privacy_10_text": "Die App sendet Systemnachrichten, z. B. Registrierungsbestätigungen, Gate-Passwort-Mails, Freischaltungsinformationen, Statusänderungen zu Reklamationen, Rückfragen sowie Admin-Benachrichtigungen. Umfang und Inhalt richten sich nach der jeweiligen Funktion.",
+  "legal_privacy_11_title": "Löschfristen",
+  "legal_privacy_11_1_title": "Benutzerkonten",
+  "legal_privacy_11_1_text": "Löschung jederzeit auf Anfrage möglich. Deaktivierte Accounts werden innerhalb von 30 Tagen gelöscht, sofern keine Aufbewahrungspflichten bestehen.",
+  "legal_privacy_11_2_title": "Reklamationsdaten",
+  "legal_privacy_11_2_text": "Aufbewahrung gemäß handels- und steuerrechtlichen Vorgaben (6–10 Jahre) sowie gemäß MDR für Medizinprodukte der Klasse IIa (mindestens 10 Jahre).",
+  "legal_privacy_11_3_title": "System- und Sicherheitslogs",
+  "legal_privacy_11_3_text": "Automatische Löschung nach spätestens 90 Tagen.",
+  "legal_privacy_11_4_title": "Gate-Passwörter",
+  "legal_privacy_11_4_text": "Automatische Löschung nach Freigabe oder Ablauf.",
+  "legal_privacy_12_title": "Weitergabe von Daten an Dritte",
+  "legal_privacy_12_text": "Eine Weitergabe erfolgt nur, wenn sie zur Reklamationsbearbeitung erforderlich ist, eine gesetzliche Verpflichtung besteht oder eine Einwilligung vorliegt. Eine Weitergabe zu Werbe- oder Trackingzwecken findet nicht statt.",
+  "legal_privacy_13_title": "Automatisierte Entscheidungen / Profiling",
+  "legal_privacy_13_text": "Innerhalb der App finden keine automatisierten Entscheidungen gemäß Art. 22 DSGVO und kein Profiling statt.",
+  "legal_privacy_14_title": "Rechte der betroffenen Personen",
+  "legal_privacy_14_text": "Betroffene haben Rechte gemäß Art. 15–22 DSGVO: Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit, Widerspruch sowie Widerruf einer Einwilligung nach Art. 7 Abs. 3 DSGVO. Rechte können jederzeit über den Datenschutzbeauftragten geltend gemacht werden.",
+  "legal_privacy_15_title": "Beschwerderecht bei einer Aufsichtsbehörde",
+  "legal_privacy_15_text": "Zuständig ist insbesondere: Bayerisches Landesamt für Datenschutzaufsicht, Promenade 27, 91522 Ansbach, E-Mail: poststelle@lda.bayern.de.",
+  "legal_privacy_16_title": "Änderungen dieser Datenschutzerklärung",
+  "legal_privacy_16_text": "Wir behalten uns vor, diese Datenschutzerklärung anzupassen, wenn sich technische oder rechtliche Anforderungen ändern. Es gilt stets die aktuelle Version in der App.",
+  "legal_privacy_link_label": "Website-Datenschutzerklärung:",
+  "legal_privacy_stand_prefix": "Stand:",
+
+  "imprint_title": "Impressum",
+  "imprint_subtitle": "Impressum und Anbieterkennzeichnung für die DFS Complaint App.",
+  "imprint_publisher_title": "Herausgeber",
+  "imprint_publisher_body": "DFS-Diamon GmbH\nLändenstraße 1\nD - 93339 Riedenburg\n\nTelefon +49 (0) 9442 91 89-0\nTelefax +49 (0) 9442 91 89-37\nE-Mail info@dfs-diamon.de",
+  "imprint_register_title": "Registerdaten",
+  "imprint_register_body": "Amtsgericht Regensburg HRB 2966\nUSt-ID-Nummer DE 128580122\n\nVerantwortlich für die Inhalte: Herr Dr. Stefan Brand\nVertretungsberechtigter: Herr Dr. Stefan Brand",
+  "imprint_disclaimer_title": "Haftungsausschluss",
+  "imprint_disclaimer_body": "Wir bemühen uns, auf dieser Webseite richtige und vollständige Informationen zur Verfügung zu stellen, dennoch übernehmen wir keine Haftung oder Garantie für Aktualität, Richtigkeit und Vollständigkeit der auf dieser Webseite bereitgestellten Informationen. Dies gilt auch für alle weiterführenden Verbindungen (Links), auf die diese Webseite direkt oder indirekt verweist. Wir sind für Inhalte externer Webseiten, die über solche Verbindungen erreicht werden, nicht verantwortlich. Alle Angaben zu Preisen, Produkttexten und Produktbildern sind ohne Gewähr; Irrtümer und technische Änderungen vorbehalten.",
+  "imprint_copyright_title": "Urheberrechte",
+  "imprint_copyright_body": "Alle Rechte vorbehalten. Inhalt und Struktur der DFS-Diamon Website sind urheberrechtlich geschützt. Informationen oder Daten (Text-, Bild-, Grafik-, Ton-, Video- oder Animationsdateien) unserer Website dürfen ohne vorherige schriftliche Zustimmung der DFS-Diamon GmbH weder verwendet noch reproduziert werden – auch nicht auszugsweise.",
+  "imprint_odr_title": "Alternative Streitbeilegung (ODR/ VSBG)",
+  "imprint_odr_body": "Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit: https://webgate.ec.europa.eu/odr/main/index.cfm?event=main.home.show&lng=DE\nWir sind bereit, an einem außergerichtlichen Schlichtungsverfahren teilzunehmen.",
+  "customerNewsTitle": "Neuigkeiten & Updates",
+  "customerNewsSubtitle": "Neuigkeiten, Impulse und Service-Highlights für Ihre Praxis.",
+  "customerNewsHeroLead": "Inspirierende Produktstories, Service-Tipps und Erfolgsgeschichten direkt aus unserem Haus.",
+  "customerNewsTile": "Neuigkeiten & Updates",
+  "customerNewsPinned": "Hervorgehoben",
+  "customerNewsReadMore": "Mehr erfahren",
+  "customerNewsEmpty": "Aktuell liegen keine Neuigkeiten vor.",
+  "customerNewsError": "Neuigkeiten konnten nicht geladen werden: {msg}",
+  "@customerNewsError": {
+    "placeholders": {
+      "msg": {
+        "type": "String"
+      }
+    }
+  },
+  "newsCatCatalogs": "Kataloge",
+  "newsCatTechnical": "Technische Änderungen",
+  "newsCatRegulatory": "Regulatorik (MDR/PMCF)",
+  "newsCatProduct": "Produktneuheiten",
+  "newsCatShortage": "Engpässe & Einschränkungen",
+  "newsCatApp": "App-Versionen",
+  "newsCatGeneral": "Allgemein",
+  "customerNewsHeroFreshLabel": "Neue Insights (30 Tage)",
+  "kb_title": "Wissensdatenbank – Reklamationen & Instrumente",
+  "kb_intro": "Hier finden Sie häufige Fragen und Antworten zu Reklamationen, typischen Instrumentenreaktionen und zur Nutzung der DFS Complaint App.",
+  "kb_search_hint": "Frage, Stichwort oder Begriff suchen …",
+  "kb_filter_all": "Alle Kategorien",
+  "kb_empty_message": "Keine Einträge gefunden. Bitte Suchbegriff oder Filter anpassen.",
+
+  "kb_cat_a_title": "A – Allgemeine Reklamationsfragen",
+  "kb_cat_b_title": "B – Diamantinstrumente",
+  "kb_cat_c_title": "C – Hartmetallinstrumente",
+  "kb_cat_d_title": "D – Keramikfräser",
+  "kb_cat_e_title": "E – Polierer",
+  "kb_cat_f_title": "F – Aufbereitung & Sterilisation",
+  "kb_cat_g_title": "G – DFS Complaint App Nutzung",
+  "kb_cat_h_title": "H – Entscheidung & technische Analyse",
+  "kb_cat_i_title": "I – Fotos & Rücksendung",
+  "kb_cat_j_title": "J – Häufige Missverständnisse",
+
+  "kb_q1_question": "Wie erstelle ich eine Reklamation Schritt für Schritt?",
+  "kb_q1_answer": "App öffnen → Einloggen\n„Neue Reklamation“ auswählen\nProdukt auswählen oder manuell eingeben\nFehlerbild auswählen (falls vorhanden)\nProblem klar beschreiben (so präzise wie möglich)\nFotos hinzufügen (Defekt + Gesamtbild + Schaft)\nTicket absenden\nTicketnummer notieren (wird automatisch gespeichert)",
+
+  "kb_q2_question": "Was sollte eine gute Reklamationsbeschreibung enthalten?",
+  "kb_q2_answer": "Wann trat der Fehler auf?\nWie viele Anwendungen? (1. Einsatz? 5. Einsatz?)\nBei welcher Behandlung?\nMit welchem Antrieb?\nMit welcher Drehzahl?\nMit welcher Kühlung? (Art & Menge)\nGab es Vibrationen?\nGab es besondere Ereignisse? (z. B. Verkanten, starke Hitze, Geräusch)",
+
+  "kb_q3_question": "Wie lange habe ich Zeit, eine Reklamation zu melden?",
+  "kb_q3_answer": "Grundsätzlich zeitnah nach Auftreten\nBei Abnutzung oder längerer Nutzung kann DFS keine Gewährleistung mehr übernehmen\nJe früher gemeldet, desto besser ist der Fall nachvollziehbar",
+
+  "kb_q4_question": "Warum sind Fotos so wichtig?",
+  "kb_q4_answer": "Visuelle Defekte sind fast immer sofort erkennbar\nSchaftschäden oder Biegungen sind sofort sichtbar\nBelagzustand und Zuschmieren sind eindeutig erkennbar\nOhne Fotos sind Rückfragen unvermeidlich, was die Bearbeitung verlängert",
+
+  "kb_q5_question": "Wird meine Reklamation anonymisiert bearbeitet?",
+  "kb_q5_answer": "Ja, intern werden nur die relevanten technischen Daten genutzt\nPersonenbezogene Daten werden streng gemäß Datenschutz verarbeitet",
+
+  "kb_q6_question": "Werden meine Reklamationen statistisch ausgewertet?",
+  "kb_q6_answer": "Ja, Reklamationen werden anonymisiert ausgewertet\nDie Auswertung dient Qualitätsverbesserung, Trendanalysen und der Erfüllung von PMS-Pflichten",
+
+  "kb_q7_question": "Warum stumpft ein Diamantinstrument bereits nach wenigen Sekunden ab?",
+  "kb_q7_answer": "Zu hoher Anpressdruck führt zum Zuschmieren des Belags\nZu wenig Wasserkühlung verursacht Hitze und erhöhten Abrieb\nFalsche Körnung für die jeweilige Indikation gewählt\nSehr harte Oberflächen (z. B. Keramik) belasten den Belag stark\nSchlechte Turbinenlager verursachen Rattermarken und beschleunigten Verschleiß",
+
+  "kb_q8_question": "Woran erkenne ich ein „zugeschmiertes“ Diamantinstrument?",
+  "kb_q8_answer": "Oberfläche wirkt glänzend statt rau\nDiamantkörner sind kaum oder gar nicht mehr sichtbar\nBraune, graue oder schwarze Beläge auf dem Belag\nKein oder kaum Abtrag, obwohl mit hoher Drehzahl gearbeitet wird\nÜbliche Reinigungsmittel entfernen die Schicht nicht mehr vollständig",
+
+  "kb_q9_question": "Warum erhitzt sich das Instrument so stark?",
+  "kb_q9_answer": "Wasserkühlung unter 50 ml/min\nFalscher Sprühwinkel, der die Präparationsstelle nicht ausreichend trifft\nZu hoher Druck auf das Instrument\nVerstopfter oder teilweise blockierter Wasserkanal\nZu geringer Abstand oder zu lange Verweildauer auf derselben Stelle",
+
+  "kb_q10_question": "Kann ein Diamantinstrument verbiegen?",
+  "kb_q10_answer": "Ja, insbesondere lange und dünne Instrumente sind empfindlich\nSchon ein leichter Sturz kann den Schaft unbrauchbar machen\nFolgen sind Unwucht, starke Hitzeentwicklung, Materialüberlastung und Abplatzen des Belags",
+
+  "kb_q11_question": "Warum löst sich der Diamantbelag teilweise ab?",
+  "kb_q11_answer": "Überwiegender seitlicher Druck statt axialer Führung\nVerkanten in engen Kavitäten oder unter sich gehenden Bereichen\nSturzschäden führen zu Mikrorissen im Belag\nMaterialermüdung nach vielen Aufbereitungs- und Autoklavierzyklen",
+
+  "kb_q12_question": "Wie viele Behandlungen hält ein Diamantinstrument normalerweise?",
+  "kb_q12_answer": "Je nach Anwendung und Material zwischen etwa 1 und 10 Behandlungen\nBei sehr harten Werkstoffen (z. B. Keramik) ist die Lebensdauer kürzer\nÜberlastung, falsche Kühlung oder zu hoher Druck reduzieren die Lebensdauer drastisch",
+
+  "kb_q13_question": "Warum ist der Schaft verfärbt oder korrodiert?",
+  "kb_q13_answer": "Instrumente wurden nach der Reinigung nicht vollständig getrocknet\nAggressive oder nicht freigegebene Reinigungschemikalien wurden verwendet\nUngeeignete oder nicht freigegebene Desinfektionsbäder kamen zum Einsatz\nKontakt mit anderen Metallen während Aufbereitung oder Lagerung führt zu Kontaktkorrosion",
+
+  "kb_q14_question": "Warum vibriert das Instrument besonders stark bei hohen Drehzahlen?",
+  "kb_q14_answer": "Schon kleinste Schaftabweichungen verursachen bei hohen Drehzahlen eine starke Unwucht\nDefekte oder verschlissene Turbinenlager verschlechtern den Rundlauf\nVerschmutzungen im Spannzangenbereich beeinflussen die Einspannung\nBeschädigungen oder Asymmetrien im Kopfbereich verstärken die Vibrationen",
+
+  "kb_q15_question": "Warum verschleißen Hartmetallfräser schneller als erwartet?",
+  "kb_q15_answer": "Bearbeitung extrem harter Materialien\nZu hohe Vorschubkraft oder starker seitlicher Druck\nÜberhitzung der Schneiden, wodurch die Härte nachlässt\nVerbiegung des Schafts führt zu asymmetrischer Belastung der Schneiden",
+
+  "kb_q16_question": "Warum bricht ein Hartmetallbohrer manchmal plötzlich?",
+  "kb_q16_answer": "Mikrorisse durch frühere Überlastung oder falsche Anwendung\nKontakt mit metallischen Restaurationen oder sehr harten Werkstoffen\nFalsche Drehrichtung des Antriebs\nVerkanten in engen oder schlecht zugänglichen Bereichen\nHohe radiale Kräfte durch unsauberen oder ruckartigen Vorschub",
+
+  "kb_q17_question": "Woran erkenne ich verschlissene Hartmetallschneiden?",
+  "kb_q17_answer": "Materialabtrag wird deutlich schlechter\nSchneiden wirken stumpf oder glänzen stark\nDie entstehenden Späne wirken eher pulverig statt als definierte Späne\nGeräuschentwicklung wird höher, schriller oder unangenehm\nHitzeentwicklung an Zahn oder Werkstoff nimmt spürbar zu",
+
+  "kb_q18_question": "Warum treten schwarz-blaue Verfärbungen am Instrument oder am Werkstoff auf?",
+  "kb_q18_answer": "Wärmeverbrennungen durch starke Erwärmung\nUnzureichende oder falsch ausgerichtete Kühlung\nZu geringer Druck bei gleichzeitig zu niedriger Drehzahl erzeugt Reibwärme\nBeschädigte oder stumpfe Schnittgeometrie erhöht die Hitzeentwicklung",
+
+  "kb_q19_question": "Wie erkenne ich eine unsachgemäße Anwendung an der Bruchstelle?",
+  "kb_q19_answer": "Schräger, ausfransender Bruch deutet auf hohe seitliche Kräfte hin\nGlatter, zentraler Bruch kann auf Materialermüdung oder Vorschädigung hindeuten\nAbsplitterungen am Schaftende sprechen häufig für einen Sturz- oder Schlagvorschaden",
+
+  "kb_q20_question": "Warum sind Keramikfräser empfindlicher als Hartmetallinstrumente?",
+  "kb_q20_answer": "Keramik ist sehr hart, aber deutlich spröder als Hartmetall\nQuerkräfte führen schnell zu Mikrorissen\nVerkanten oder ruckartige Bewegungen sind besonders kritisch\nEin falscher Anstellwinkel begünstigt Ausbrüche an den Schneiden",
+
+  "kb_q21_question": "Warum bricht beim Keramikfräser oft nur eine einzelne Schneide?",
+  "kb_q21_answer": "Lokale Überlastung an einer bestimmten Schneide\nDirekter Kontakt mit Metall oder besonders harten Materialien\nUngleichmäßige Führung oder verkantete Bewegung\nUnpassende Drehzahl erzeugt Resonanzeffekte an einzelnen Schneiden",
+
+  "kb_q22_question": "Was verschlechtert die Laufruhe bei Keramikfräsern besonders stark?",
+  "kb_q22_answer": "Schon kleinste Schaftabweichungen wirken sich bei Keramik deutlich aus\nUnwucht oder Defekte im Turbinenlager\nMikroskopisch kleine Absplitterungen an der Spitze oder an den Schneiden",
+
+  "kb_q23_question": "Warum fliegt ein Polierer auseinander?",
+  "kb_q23_answer": "Maximaldrehzahl des Polierers wurde überschritten\nStarke Aufheizung durch zu hohen Druck oder lange Kontaktzeit\nVorschäden oder Risse in der Gummi- oder Hybridmatrix\nKontakt mit scharfen Kanten oder Graten am Werkstück",
+
+  "kb_q24_question": "Warum ist der Poliereffekt schwach?",
+  "kb_q24_answer": "Falsche Polierstufe für den gewünschten Glanzgrad gewählt\nOberfläche wurde vor dem Polieren nicht ausreichend vorbereitet\nDrehzahl ist zu gering für den verwendeten Polierer\nPolierer ist bereits stark abgenutzt oder verschlissen\nKontaktzeit oder Anpressdruck sind zu gering oder zu kurz",
+
+  "kb_q25_question": "Warum entstehen schwarze Ablagerungen beim Polieren?",
+  "kb_q25_answer": "Polierer überhitzt und Material verschmilzt mit der Oberfläche\nZu hoher Druck führt dazu, dass Gummipartikel abgerieben werden\nFalscher Polierer für das bearbeitete Material eingesetzt",
+
+  "kb_q26_question": "Warum ist eine sofortige Vorreinigung wichtig?",
+  "kb_q26_answer": "Verhindert dauerhaftes Anhaften von Blut, Komposit oder Zementresten\nReduziert die mikrobielle Belastung schon vor der maschinellen Aufbereitung\nSchont Belag, Schneiden und Oberflächenstruktur\nVerhindert Korrosionspunkte durch anhaftende Rückstände",
+
+  "kb_q27_question": "Welche Fehler passieren häufig bei der Aufbereitung?",
+  "kb_q27_answer": "Instrumente werden nicht vollständig getrocknet\nEs werden falsche oder zu aggressive Chemikalien (Basen, Säuren) verwendet\nZu hohe Temperatur in Reinigungs- oder Desinfektionsprozessen\nInstrumente schlagen bei der Aufbereitung gegeneinander\nAutoklav wird falsch oder zu dicht beladen",
+
+  "kb_q28_question": "Warum zeigt ein Instrument nach der Aufbereitung braune Flecken?",
+  "kb_q28_answer": "Flugrost durch Kontakt mit rostenden Metallteilen\nFeuchtigkeit oder Kondensat im Autoklav\nUnsachgemäße oder unvollständige Trocknung\nKontakt mit fremdmetallischen Instrumenten während der Aufbereitung",
+
+  "kb_q29_question": "Wie erkenne ich ein instrumentenbedingtes Sicherheitsrisiko?",
+  "kb_q29_answer": "Risse oder Kerben im Schaft\nAbsplitterungen am Kopf oder an Schneiden\nBiegungen oder sichtbare Verformungen des Instruments\nTeilweiser oder vollständiger Belagverlust\nKorrosionsstellen, insbesondere im Schaft- oder Spannbereich",
+
+  "kb_q30_question": "Wie verhindere ich Korrosion an Instrumenten?",
+  "kb_q30_answer": "Instrumente nach der Reinigung vollständig trocknen\nKeine aggressiven oder nicht freigegebenen Reinigungsbäder verwenden\nDirekten Metallkontakt unterschiedlicher Legierungen möglichst vermeiden\nAutoklav regelmäßig warten und Wasserqualität sicherstellen",
+
+  "kb_q31_question": "Ticket kann nicht gesendet werden – was sind häufige Ursachen?",
+  "kb_q31_answer": "Pflichtfelder in der Reklamation sind noch nicht vollständig ausgefüllt\nInternetverbindung ist unterbrochen oder instabil\nFotos oder Anhänge sind zu groß\nAccount ist noch nicht freigeschaltet\nGate-Passwort fehlt oder ist ungültig",
+
+  "kb_q32_question": "Ticket erscheint nicht – warum?",
+  "kb_q32_answer": "Filtereinstellungen blenden bestimmte Tickets aus\nMit einem anderen Account als dem Ersteller eingeloggt\nTicket wurde archiviert oder ausgeblendet\nApp oder Browser wurden noch nicht aktualisiert oder neu geladen",
+
+  "kb_q33_question": "Warum wird manchmal ein Gate-Passwort benötigt?",
+  "kb_q33_answer": "Damit nur verifizierte Kunden einen Account anlegen können\nSchutz vor Spam-Anmeldungen und Mehrfachregistrierungen\nDas Gate-Passwort wird manuell von DFS vergeben und geprüft",
+
+  "kb_q34_question": "Kann ich ein Ticket nachträglich ändern?",
+  "kb_q34_answer": "Ja, solange der Status „Rückfrage erforderlich“ oder „Offen“ ist\nFotos und Kommentare können ergänzt oder präzisiert werden",
+
+  "kb_q35_question": "Warum kann ich manche Tickets nicht mehr öffnen?",
+  "kb_q35_answer": "Der zugehörige Benutzer wurde deaktiviert\nDas Ticket ist vollständig abgeschlossen und ggf. archiviert\nEin Archiv- oder Statusfilter blendet das Ticket aus",
+
+  "kb_q36_question": "Wann wird eine Reklamation angenommen?",
+  "kb_q36_answer": "Ein Materialfehler ist plausibel oder nicht auszuschließen\nEine Produktionsabweichung erscheint möglich\nDas Instrument fällt frühzeitig aus, obwohl es korrekt angewendet wurde\nEs liegt ein nachweisbarer technischer Defekt vor",
+
+  "kb_q37_question": "Wann wird eine Reklamation abgelehnt?",
+  "kb_q37_answer": "Klare Überlastung oder unsachgemäße Anwendung\nFehlende oder unzureichende Kühlung\nFalsche oder deutlich überhöhte Drehzahl\nDeutliche Vorschäden oder sichtbare Sturzspuren am Instrument\nInstrument ist stark abgenutzt und außerhalb der üblichen Lebensdauer",
+
+  "kb_q38_question": "Warum kann DFS manchmal keine eindeutige Ursache nennen?",
+  "kb_q38_answer": "Instrument ist zu stark beschädigt, um den Ursprung sicher zu erkennen\nDie konkrete Anwendungssituation ist nicht mehr nachvollziehbar\nEs wurden keine oder nur unzureichende Fotos bereitgestellt\nZwischen Ereignis und Analyse liegt ein sehr langer Zeitraum",
+
+  "kb_q39_question": "Was passiert mit eingesandten Instrumenten im Labor?",
+  "kb_q39_answer": "Mikroskopische Analyse der betroffenen Bereiche\nVergleich mit Referenz- und Neumustern\nPrüfung auf Risse, Deformationen und Belagschäden\nSchaftrundlaufprüfung und Beurteilung der Laufruhe\nDokumentation der Ergebnisse für Qualitätssicherung und PMS",
+
+  "kb_q40_question": "Bekomme ich einen Prüfbericht zu meiner Reklamation?",
+  "kb_q40_answer": "Ja, die Bewertung wird im Ticket dokumentiert\nAuf Wunsch kann ein erweitertes Feedback über den Außendienst erfolgen",
+
+  "kb_q41_question": "Wie fotografiere ich ein Instrument richtig?",
+  "kb_q41_answer": "Heller, ruhiger Hintergrund (z. B. weiß)\nTageslicht oder homogene LED-Beleuchtung verwenden\nKopf scharf abbilden und Überbelichtung vermeiden\nMindestens drei Perspektiven: Kopf, Schaft und Gesamtaufnahme\nOptional ein Lineal oder Maßstab neben das Instrument legen",
+
+  "kb_q42_question": "Was sollte ich beim Fotografieren vermeiden?",
+  "kb_q42_answer": "Unscharfe Nahaufnahmen ohne erkennbares Detail\nHände oder Finger verdecken das Instrument\nSehr unruhiger oder ablenkender Hintergrund\nStarke Überblendung durch Blitz oder Reflexe",
+
+  "kb_q43_question": "Warum muss manchmal das Originalinstrument eingesendet werden?",
+  "kb_q43_answer": "Die Fotos reichen zur Bewertung nicht aus\nEs liegt ein auffälliges oder sicherheitsrelevantes Fehlerbild vor\nEine Laboranalyse ist für die Ursachenforschung zwingend nötig\nTrend- oder Chargenprüfungen erfordern das Originalinstrument",
+
+  "kb_q44_question": "Wie verpacke ich Instrumente korrekt für die Rücksendung?",
+  "kb_q44_answer": "Jedes Instrument möglichst einzeln verpacken (z. B. Blister oder Hülle)\nAusreichende Polsterung gegen Bruch und Biegung\nTicketnummer gut sichtbar beilegen\nInstrumente gereinigt und trocken versenden",
+
+  "kb_q45_question": "Werden eingesandte Instrumente zurückgeschickt?",
+  "kb_q45_answer": "In der Regel verbleiben die Instrumente zur Dokumentation im Labor\nAusnahmen sind nach vorheriger Absprache möglich",
+
+  "kb_q46_question": "Kann ich mehrere Instrumente in einem Paket senden?",
+  "kb_q46_answer": "Ja, mehrere Instrumente können zusammen versendet werden\nJedes Instrument sollte jedoch einzeln verpackt sein\nAlle zugehörigen Ticketnummern beilegen\nVerwechslungen durch klare Kennzeichnung vermeiden",
+
+  "kb_q47_question": "„Diamantinstrumente sind Einmalprodukte“ – stimmt das?",
+  "kb_q47_answer": "Nein, Diamantinstrumente sind in der Regel Mehrwegprodukte\nDie tatsächliche Lebensdauer hängt jedoch stark von der Anwendung ab\nÜberlastung, fehlende Kühlung und falsche Indikation führen zu sehr schnellem Verschleiß\nTypisch sind wenige Anwendungen pro Instrument bei optimalem Einsatz",
+
+  "kb_q48_question": "„Viel Druck = mehr Abtrag“ – stimmt das?",
+  "kb_q48_answer": "Nein, hoher Druck führt zum Zuschmieren des Belags\nDie Hitzeentwicklung steigt deutlich\nDer Belag kann sich lösen oder schneller verschleißen\nDas Instrument stumpft schneller ab\nLeichter, kontrollierter Druck führt meist zu besserem Abtrag und schonenderem Arbeiten"
 }

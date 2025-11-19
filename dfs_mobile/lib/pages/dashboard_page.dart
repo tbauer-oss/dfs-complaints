@@ -14,6 +14,7 @@ import 'my_complaints_page.dart';
 import 'account_page.dart';
 import 'support_page.dart';
 import 'customer_news_page.dart';
+import 'knowledge_base_page.dart';
 import '../widgets/pdf_view_stub.dart'
   if (dart.library.html) '../widgets/pdf_view_web.dart';
 
@@ -670,6 +671,19 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
           Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => SupportPage(api: widget.api),
           ));
+        },
+      ),
+      _Entry(
+        label: t.knowledgeBaseTile ?? 'Knowledge base (FAQ)',
+        icon: Icons.menu_book_outlined,
+        colorA: const Color(0xFF1E3A8A),
+        colorB: const Color(0xFF3B82F6),
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const KnowledgeBasePage(),
+            ),
+          );
         },
       ),
       _Entry(

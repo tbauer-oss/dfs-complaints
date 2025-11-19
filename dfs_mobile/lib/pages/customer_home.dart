@@ -14,6 +14,7 @@ import 'my_complaints_page.dart';
 import 'account_page.dart';
 import 'support_page.dart';
 import 'customer_news_page.dart';
+import 'knowledge_base_page.dart';
 
 /// Dezenter, Web-only PWA-Install-Button (zeigt sich nur, wenn möglich).
 class InstallPwaButton extends StatefulWidget {
@@ -243,6 +244,22 @@ class CustomerHomePage extends StatelessWidget {
                                                 MaterialPageRoute(
                                                   builder: (_) =>
                                                       SupportPage(api: api),
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                        SizedBox(
+                                          width: targetWidth,
+                                          child: buildAction(
+                                            icon: Icons.menu_book_outlined,
+                                            label: t.knowledgeBaseTile ??
+                                                'Knowledge base (FAQ)',
+                                            onTap: () {
+                                              Navigator.of(context).push(
+                                                MaterialPageRoute(
+                                                  builder: (_) =>
+                                                      const KnowledgeBasePage(),
                                                 ),
                                               );
                                             },

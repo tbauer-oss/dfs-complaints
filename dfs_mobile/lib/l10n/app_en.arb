@@ -615,5 +615,279 @@
   "imprint_copyright_title": "Copyright",
   "imprint_copyright_body": "All rights reserved. The content and structure of the DFS-Diamon website are protected by copyright. Information or data (text, images, graphics, audio, video or animation files) from our website may not be used or reproduced, in whole or in part, without prior written consent from DFS-Diamon GmbH.",
   "imprint_odr_title": "Alternative Dispute Resolution (ODR / VSBG)",
-  "imprint_odr_body": "The European Commission provides a platform for Online Dispute Resolution (ODR): https://webgate.ec.europa.eu/odr/main/index.cfm?event=main.home.show&lng=EN\nWe are willing to participate in an out-of-court dispute resolution procedure."
+  "imprint_odr_body": "The European Commission provides a platform for Online Dispute Resolution (ODR): https://webgate.ec.europa.eu/odr/main/index.cfm?event=main.home.show&lng=EN\nWe are willing to participate in an out-of-court dispute resolution procedure.",
+
+  "knowledgeBaseTile": "Knowledge base (FAQ)",
+  "category": "Category",
+  "yourMessage": "Your message",
+  "supportConsentText": "I agree to the processing according to the privacy notice.",
+  "message_required": "Please enter a message.",
+  "message_sent": "Message sent.",
+  "supportCatGeneral": "General inquiry",
+  "supportCatComplaintIssue": "Problem with a complaint",
+  "supportCatTechnical": "Technical issue",
+  "supportCatAccount": "Account inquiry",
+  "supportCatPrivacy": "Data privacy",
+  "supportCatFeedback": "Feedback",
+  "supportCatSuggestion": "Improvement suggestion",
+
+  "legal_privacy_intro": "Below you will find the privacy information for the use of the DFS Complaint App.",
+  "legal_privacy_0_text_prefix": "These notices apply to the DFS Complaint App (web application and mobile app for recording, processing and tracking complaints). They replace the general website sections where the app is concerned. For content outside the app, the privacy policy published there applies in addition: ",
+  "legal_privacy_title": "Privacy",
+  "legal_privacy_heading": "Privacy Policy for the DFS Complaint App",
+  "legal_privacy_0_title": "Introduction and Scope",
+  "legal_privacy_0_text": "This privacy policy applies to the DFS Complaint App, a web and mobile application of DFS-Diamon GmbH for recording, processing and tracking complaints. It replaces the general privacy information of the corporate website insofar as app functions are concerned. For all content outside the app, the privacy policy published on the website applies additionally. The app includes: a Flutter web frontend (Vercel, region Frankfurt/EU), a Flutter mobile app, a Node.js/Edge backend (Vercel, Frankfurt/EU), an Upstash Redis database (EU/Frankfurt), system email functions, upload functionality and role/user management.",
+  "legal_privacy_1_title": "Controller",
+  "legal_privacy_1_text": "DFS-Diamon GmbH, Ländenstraße 1, D-93339 Riedenburg, Phone: +49 (0) 9442 91 89-0, Email: info@dfs-diamon.de.",
+  "legal_privacy_2_title": "Data Protection Officer",
+  "legal_privacy_2_text": "Michael Gruber, BSP-SECURITY, Thundorferstraße 10, D-93047 Regensburg, Email: info@bsp-security.de.",
+  "legal_privacy_3_title": "Types of Data We Process",
+  "legal_privacy_3_1_title": "Registration and Account Data",
+  "legal_privacy_3_1_text": "First and last name, company/practice/laboratory, country, email address, password (hashed), gate password/approval status, date and time of registration, IP address.",
+  "legal_privacy_3_2_title": "Login and Authentication Data",
+  "legal_privacy_3_2_text": "Email address, password hash, JWT token, login timestamp, device and browser information.",
+  "legal_privacy_3_3_title": "Complaint Data",
+  "legal_privacy_3_3_text": "Ticket number, product and customer data, description of the defect, attachments (e.g., photos, PDFs), history and status timeline, assigned representatives, internal processing notes.",
+  "legal_privacy_3_4_title": "System and Security Data",
+  "legal_privacy_3_4_text": "IP addresses, timestamps, technical logs, error messages, browser information.",
+  "legal_privacy_3_5_title": "Representative and Administrator Data",
+  "legal_privacy_3_5_text": "Name, email, region, communication and processing logs, role and permission data.",
+  "legal_privacy_4_title": "Purposes of Processing",
+  "legal_privacy_4_text": "Provision and operation of the app; execution of the registration and gate-password approval process; use of complaint management functions; communication related to complaints; process documentation and traceability; operation, maintenance and security of systems; detection and prevention of misuse; compliance with legal obligations.",
+  "legal_privacy_5_title": "Legal Bases",
+  "legal_privacy_5_text": "Article 6(1)(b) GDPR (performance of contractual or pre-contractual obligations); Article 6(1)(f) GDPR (legitimate interest, including IT security and efficient process handling); Article 6(1)(a) GDPR (consent, e.g., optional features); Article 6(1)(c) GDPR (legal obligations).",
+  "legal_privacy_6_title": "Hosting, Infrastructure and Processors",
+  "legal_privacy_6_1_title": "Vercel (Hosting of Frontend and Backend)",
+  "legal_privacy_6_1_text": "Provider: Vercel Inc. Data processing location: Frankfurt (eu-fra1). Data processed: IP address, API calls, technical logs, timestamps, user agent. Data processing agreement under Article 28 GDPR: https://vercel.com/legal/dpa. All data transmissions are encrypted (TLS).",
+  "legal_privacy_6_2_title": "Upstash Redis (Data Storage)",
+  "legal_privacy_6_2_text": "The app uses Upstash Redis for storing all relevant data, including user accounts, complaints, attachments, tokens and representative data. Data region: Frankfurt/EU. Data processing agreement: https://upstash.com/trust/dpa.pdf. Communication is always encrypted (TLS).",
+  "legal_privacy_6_3_title": "Email Sending",
+  "legal_privacy_6_3_text": "System emails are sent via DFS mail servers or EU-based SMTP providers. When using external providers, a data processing agreement under Article 28 GDPR is in place.",
+  "legal_privacy_6_4_title": "Flutter / Google",
+  "legal_privacy_6_4_text": "Flutter itself does not process personal data. No tracking or analytics (Google Analytics, Firebase Analytics) is used.",
+  "legal_privacy_7_title": "Processing Within the EU",
+  "legal_privacy_7_text": "All personal data is processed exclusively within the European Union. No transfers to third countries take place unless explicitly stated and adequate safeguards are in place. All data transmissions are encrypted (TLS).",
+  "legal_privacy_8_title": "Cookies, Local Storage & App Storage",
+  "legal_privacy_8_text": "The app does not use tracking cookies. Only technically necessary information such as JWT tokens, language settings, UI and session data, and temporary input buffers are stored. Legal basis: Article 6(1)(f) GDPR.",
+  "legal_privacy_9_title": "Uploads and Attachments",
+  "legal_privacy_9_text": "Uploaded files such as photos, PDFs or supplementary documents are stored in the database and used exclusively for processing the complaint. No data is shared with third parties.",
+  "legal_privacy_10_title": "Email Communication",
+  "legal_privacy_10_text": "The app sends system messages such as registration confirmations, gate password emails, approval notifications, complaint status updates, follow-up questions and admin notifications. Content and scope depend on the respective function.",
+  "legal_privacy_11_title": "Deletion Periods",
+  "legal_privacy_11_1_title": "User Accounts",
+  "legal_privacy_11_1_text": "Deletion possible at any time upon request. Deactivated accounts are deleted within 30 days unless legal retention periods apply.",
+  "legal_privacy_11_2_title": "Complaint Data",
+  "legal_privacy_11_2_text": "Retention according to commercial and tax regulations (6–10 years) and MDR requirements for Class IIa medical devices (at least 10 years).",
+  "legal_privacy_11_3_title": "System and Security Logs",
+  "legal_privacy_11_3_text": "Automatic deletion after a maximum of 90 days.",
+  "legal_privacy_11_4_title": "Gate Passwords",
+  "legal_privacy_11_4_text": "Automatic deletion after approval or expiration.",
+  "legal_privacy_12_title": "Disclosure of Data to Third Parties",
+  "legal_privacy_12_text": "Data is only disclosed when necessary for complaint processing, when legally required, or when consent has been given. No transfer to advertising or tracking providers.",
+  "legal_privacy_13_title": "Automated Decision-Making / Profiling",
+  "legal_privacy_13_text": "No automated decision-making under Article 22 GDPR and no profiling takes place within the app.",
+  "legal_privacy_14_title": "Rights of Data Subjects",
+  "legal_privacy_14_text": "Data subjects have the rights set out in Articles 15–22 GDPR: access, rectification, erasure, restriction of processing, data portability, objection and withdrawal of consent according to Article 7(3) GDPR. Rights can be exercised at any time via the Data Protection Officer.",
+  "legal_privacy_15_title": "Right to Lodge a Complaint",
+  "legal_privacy_15_text": "The competent supervisory authority is: Bavarian State Office for Data Protection Supervision (BayLDA), Promenade 27, 91522 Ansbach, Email: poststelle@lda.bayern.de.",
+  "legal_privacy_16_title": "Changes to This Privacy Policy",
+  "legal_privacy_16_text": "We reserve the right to update this privacy policy if technical or legal requirements change. The current version is always available in the app.",
+  "legal_privacy_link_label": "Website Privacy Policy:",
+  "legal_privacy_stand_prefix": "Last updated:",
+
+  "imprint_title": "Legal Notice",
+  "imprint_subtitle": "Legal notice and provider identification for the DFS Complaint App.",
+  "imprint_publisher_title": "Publisher",
+  "imprint_publisher_body": "DFS-Diamon GmbH\nLändenstraße 1\nD - 93339 Riedenburg, Germany\n\nPhone +49 (0) 9442 91 89-0\nFax +49 (0) 9442 91 89-37\nE-mail info@dfs-diamon.de",
+  "imprint_register_title": "Company Register",
+  "imprint_register_body": "Local Court Regensburg HRB 2966\nVAT ID No. DE 128580122\n\nContent responsible: Dr. Stefan Brand\nAuthorized representative: Dr. Stefan Brand",
+  "imprint_disclaimer_title": "Disclaimer",
+  "imprint_disclaimer_body": "We make every effort to provide accurate and complete information on this website, but we assume no liability or guarantee for the timeliness, accuracy or completeness of the information provided. This also applies to all external links to which this website refers directly or indirectly. We are not responsible for the content of external websites accessed via such links. All information on prices, product texts and images is provided without warranty; errors and technical changes reserved.",
+  "imprint_copyright_title": "Copyright",
+  "imprint_copyright_body": "All rights reserved. The content and structure of the DFS-Diamon website are protected by copyright. Information or data (text, images, graphics, audio, video or animation files) from our website may not be used or reproduced, in whole or in part, without prior written consent from DFS-Diamon GmbH.",
+  "imprint_odr_title": "Alternative Dispute Resolution (ODR / VSBG)",
+  "imprint_odr_body": "The European Commission provides a platform for Online Dispute Resolution (ODR): https://webgate.ec.europa.eu/odr/main/index.cfm?event=main.home.show&lng=EN\nWe are willing to participate in an out-of-court dispute resolution procedure.",
+  "customerNewsTitle": "News & updates",
+  "customerNewsSubtitle": "News, inspiration and service highlights for your daily work.",
+  "customerNewsHeroLead": "Inspiring product stories, service tips and success cases straight from our team.",
+  "customerNewsTile": "News & updates",
+  "customerNewsPinned": "Highlighted",
+  "customerNewsReadMore": "Learn more",
+  "customerNewsEmpty": "There are no news items right now.",
+  "customerNewsError": "Could not load news: {msg}",
+  "@customerNewsError": {
+    "placeholders": {
+      "msg": {
+        "type": "String"
+      }
+    }
+  },
+  "newsCatCatalogs": "Catalogs",
+  "newsCatTechnical": "Technical updates",
+  "newsCatRegulatory": "Regulatory updates",
+  "newsCatProduct": "Product news",
+  "newsCatShortage": "Temporary limitations",
+  "newsCatApp": "App releases",
+  "newsCatGeneral": "General",
+  "customerNewsHeroFreshLabel": "Fresh insights (30 days)",
+  "kb_title": "Knowledge Base – Complaints & Instruments",
+  "kb_intro": "Here you will find frequently asked questions and answers about complaints, typical instrument behaviour and the use of the DFS Complaint App.",
+  "kb_search_hint": "Search for question, keyword or term …",
+  "kb_filter_all": "All categories",
+  "kb_empty_message": "No entries found. Please adjust your search term or filters.",
+
+  "kb_cat_a_title": "A – General complaint questions",
+  "kb_cat_b_title": "B – Diamond instruments",
+  "kb_cat_c_title": "C – Carbide instruments",
+  "kb_cat_d_title": "D – Ceramic burs",
+  "kb_cat_e_title": "E – Polishers",
+  "kb_cat_f_title": "F – Reprocessing & sterilisation",
+  "kb_cat_g_title": "G – DFS Complaint App usage",
+  "kb_cat_h_title": "H – Decision & technical analysis",
+  "kb_cat_i_title": "I – Photos & returns",
+  "kb_cat_j_title": "J – Common misconceptions",
+
+  "kb_q1_question": "How do I create a complaint step by step?",
+  "kb_q1_answer": "Open the app and log in\nSelect “New complaint”\nSelect the product or enter it manually\nSelect the defect pattern (if available)\nDescribe the problem clearly (as precisely as possible)\nAdd photos (defect, overall view, shank)\nSubmit the ticket\nNote the ticket number (saved automatically)",
+
+  "kb_q2_question": "What should a good complaint description include?",
+  "kb_q2_answer": "When did the problem occur?\nHow many uses? (first use, fifth use, etc.)\nFor which treatment?\nWhich handpiece or drive?\nWhich speed (rpm)?\nWhich cooling (type and amount)?\nWere there vibrations?\nAny special events (e.g. jamming, high heat, noise)?",
+
+  "kb_q3_question": "How much time do I have to report a complaint?",
+  "kb_q3_answer": "In general, as soon as possible after the event\nFor wear or long-term use DFS cannot guarantee warranty\nThe earlier the complaint is reported, the better it can be analysed",
+
+  "kb_q4_question": "Why are photos so important?",
+  "kb_q4_answer": "Visual defects are often immediately recognisable\nBent or damaged shanks are visible at once\nClogging and surface condition can be assessed clearly\nWithout photos, follow-up questions are usually necessary and the process takes longer",
+
+  "kb_q5_question": "Is my complaint processed anonymously?",
+  "kb_q5_answer": "Internally we mainly use technical data for analysis\nPersonal data is processed strictly in line with data protection requirements",
+
+  "kb_q6_question": "Are my complaints evaluated statistically?",
+  "kb_q6_answer": "Yes, complaints are evaluated in anonymised form\nThis supports quality improvement, trend analysis and PMS obligations",
+
+  "kb_q7_question": "Why does a diamond bur become dull after only a few seconds?",
+  "kb_q7_answer": "Excessive pressure leads to clogging of the diamond layer\nInsufficient water cooling causes heat and higher abrasion\nWrong grit size chosen for the indication\nVery hard surfaces (e.g. ceramics) stress the diamond layer\nWorn turbine bearings create chatter marks and accelerate wear",
+
+  "kb_q8_question": "How can I recognise a clogged diamond instrument?",
+  "kb_q8_answer": "Surface looks shiny instead of rough\nDiamond particles are barely or no longer visible\nBrown, grey or black deposits are present\nLittle or no cutting performance despite high speed\nStandard cleaning agents no longer remove the layer completely",
+
+  "kb_q9_question": "Why does the instrument heat up so much?",
+  "kb_q9_answer": "Cooling water below approx. 50 ml/min\nSpray angle is wrong and does not hit the preparation area sufficiently\nExcessive pressure on the instrument\nBlocked or partially blocked water channel\nToo little distance or too long dwell time on one spot",
+
+  "kb_q10_question": "Can a diamond instrument bend?",
+  "kb_q10_answer": "Yes, especially long and slim instruments are sensitive\nEven a small drop can make the shank unusable\nConsequences are imbalance, strong heat build-up, material overload and loss of diamond layer",
+
+  "kb_q11_question": "Why does the diamond coating partially detach?",
+  "kb_q11_answer": "Mainly lateral forces instead of axial guidance\nJamming in tight cavities or undercuts\nDrop damage causing microcracks in the coating\nMaterial fatigue after many reprocessing and autoclave cycles",
+
+  "kb_q12_question": "How many treatments does a diamond instrument usually last?",
+  "kb_q12_answer": "Depending on application and material roughly between 1 and 10 treatments\nIn very hard materials (e.g. ceramics) the lifetime is shorter\nOverload, poor cooling or too much pressure drastically reduce the lifetime",
+
+  "kb_q13_question": "Why is the shank discoloured or corroded?",
+  "kb_q13_answer": "Instruments were not fully dried after cleaning\nAggressive or non-approved cleaning agents were used\nUnsuitable or non-approved disinfectant baths were used\nContact with other metals during reprocessing or storage caused contact corrosion",
+
+  "kb_q14_question": "Why does the instrument vibrate strongly at high speed?",
+  "kb_q14_answer": "Even tiny shank deviations cause significant imbalance at high rpm\nDefective or worn turbine bearings worsen the run-out\nContamination in the chuck or collet affects clamping\nDamage or asymmetry in the head area increase vibrations",
+
+  "kb_q15_question": "Why do carbide burs wear out faster than expected?",
+  "kb_q15_answer": "Working on extremely hard materials\nToo high feed force or lateral pressure\nOverheating of the cutting edges reduces hardness\nBent shank leads to uneven load distribution on the blades",
+
+  "kb_q16_question": "Why does a carbide bur sometimes break suddenly?",
+  "kb_q16_answer": "Microcracks from previous overload or misuse\nContact with metallic restorations or very hard materials\nWrong direction of rotation\nJamming in narrow or hard-to-access areas\nHigh radial forces due to uneven or jerky feed",
+
+  "kb_q17_question": "How can I recognise worn carbide cutting edges?",
+  "kb_q17_answer": "Material removal becomes clearly worse\nCutting edges appear dull or shiny\nChips become powder-like instead of well-defined\nNoise level becomes higher, sharper or more unpleasant\nHeat build-up on tooth or material increases noticeably",
+
+  "kb_q18_question": "Why do black-blue discolourations occur on the instrument or material?",
+  "kb_q18_answer": "Thermal damage due to excessive heat\nInsufficient or poorly directed cooling\nToo little pressure combined with too low speed causes friction heat\nDamaged or blunt cutting geometry increases heat generation",
+
+  "kb_q19_question": "How can I recognise improper use from the fracture surface?",
+  "kb_q19_answer": "Slanted, frayed fracture indicates high lateral forces\nSmooth, central fracture can point to material fatigue or pre-damage\nChipping at the shank end often indicates drop or impact damage",
+
+  "kb_q20_question": "Why are ceramic burs more sensitive than carbide instruments?",
+  "kb_q20_answer": "Ceramic is very hard but significantly more brittle than carbide\nLateral forces quickly lead to microcracks\nJamming or jerky movements are especially critical\nIncorrect angulation encourages chipping of the cutting edges",
+
+  "kb_q21_question": "Why does only a single blade often break on a ceramic bur?",
+  "kb_q21_answer": "Local overload on one specific blade\nDirect contact with metal or very hard materials\nUneven guidance or jamming movement\nUnsuitable speed can create resonance effects on individual blades",
+
+  "kb_q22_question": "What particularly worsens the smooth running of ceramic burs?",
+  "kb_q22_answer": "Even tiny shank deviations have a strong effect in ceramic\nImbalance or defects in turbine bearings\nMicroscopic chipping at the tip or on cutting edges",
+
+  "kb_q23_question": "Why does a polisher come apart?",
+  "kb_q23_answer": "Maximum operating speed of the polisher is exceeded\nStrong heat build-up due to too much pressure or long contact time\nPre-existing cracks or defects in the rubber or hybrid matrix\nContact with sharp edges or burrs on the workpiece",
+
+  "kb_q24_question": "Why is the polishing effect weak?",
+  "kb_q24_answer": "Wrong polishing step chosen for the desired gloss level\nSurface was not prepared sufficiently before polishing\nSpeed is too low for the polisher used\nPolisher is already heavily worn or consumed\nContact time or pressure are too low or too short",
+
+  "kb_q25_question": "Why do black deposits appear during polishing?",
+  "kb_q25_answer": "Polisher overheats and material melts onto the surface\nToo much pressure causes rubber particles to smear onto the workpiece\nWrong polisher used for the material being treated",
+
+  "kb_q26_question": "Why is immediate pre-cleaning important?",
+  "kb_q26_answer": "Prevents blood, composite or cement from sticking permanently\nReduces microbial load even before machine reprocessing\nProtects coating, cutting edges and surface structure\nPrevents corrosion points caused by residues",
+
+  "kb_q27_question": "Which errors occur frequently during reprocessing?",
+  "kb_q27_answer": "Instruments are not dried completely\nWrong or too aggressive chemicals (acids, alkalis) are used\nTemperature in cleaning or disinfection is too high\nInstruments hit each other during reprocessing\nAutoclave is loaded incorrectly or too densely",
+
+  "kb_q28_question": "Why does an instrument show brown spots after reprocessing?",
+  "kb_q28_answer": "Flash rust due to contact with corroding metal parts\nMoisture or condensate in the autoclave\nImproper or incomplete drying\nContact with foreign metallic instruments during reprocessing",
+
+  "kb_q29_question": "How can I recognise an instrument-related safety risk?",
+  "kb_q29_answer": "Cracks or notches on the shank\nChipping at the head or cutting edges\nBending or visible deformation of the instrument\nPartial or complete loss of coating\nCorrosion spots, especially on shank or clamping area",
+
+  "kb_q30_question": "How can I prevent corrosion on instruments?",
+  "kb_q30_answer": "Dry instruments completely after cleaning\nAvoid aggressive or non-approved cleaning solutions\nMinimise direct contact between different metal alloys\nMaintain the autoclave regularly and ensure proper water quality",
+
+  "kb_q31_question": "Ticket cannot be sent – what are common reasons?",
+  "kb_q31_answer": "Required fields in the complaint form are not fully completed\nInternet connection is interrupted or unstable\nPhotos or attachments are too large\nAccount has not been activated yet\nGate password is missing or invalid",
+
+  "kb_q32_question": "Why does my ticket not appear?",
+  "kb_q32_answer": "Filter settings hide certain tickets\nYou are logged in with a different account than the creator\nTicket has been archived or hidden\nApp or browser has not been updated or reloaded yet",
+
+  "kb_q33_question": "Why is a gate password sometimes required?",
+  "kb_q33_answer": "To ensure that only verified customers can create an account\nProtection against spam registrations and multiple sign-ups\nThe gate password is issued and checked manually by DFS",
+
+  "kb_q34_question": "Can I modify a ticket afterwards?",
+  "kb_q34_answer": "Yes, as long as the status is “Information required” or “Open”\nYou can add or refine photos and comments",
+
+  "kb_q35_question": "Why can I no longer open some tickets?",
+  "kb_q35_answer": "The associated user account has been deactivated\nThe ticket is fully completed and possibly archived\nAn archive or status filter hides the ticket",
+
+  "kb_q36_question": "When is a complaint accepted?",
+  "kb_q36_answer": "A material defect is plausible or cannot be excluded\nA production deviation seems possible\nThe instrument failed early despite correct use\nA technical defect can be demonstrated",
+
+  "kb_q37_question": "When is a complaint rejected?",
+  "kb_q37_answer": "Clear overload or incorrect use\nMissing or insufficient cooling\nWrong or clearly excessive speed\nObvious pre-damage or visible drop marks\nInstrument is heavily worn and beyond its normal lifetime",
+
+  "kb_q38_question": "Why can DFS sometimes not name a clear root cause?",
+  "kb_q38_answer": "Instrument is too severely damaged to identify the origin reliably\nThe exact application situation cannot be reconstructed\nNo or only insufficient photos were provided\nA long time has passed between event and analysis",
+
+  "kb_q39_question": "What happens to returned instruments in the lab?",
+  "kb_q39_answer": "Microscopic analysis of the affected areas\nComparison with reference and new samples\nInspection for cracks, deformation and coating damage\nShank run-out check and assessment of smooth running\nDocumentation of results for quality assurance and PMS",
+
+  "kb_q40_question": "Do I receive a report for my complaint?",
+  "kb_q40_answer": "Yes, the evaluation is documented in the ticket\nOn request, extended feedback can be provided via the sales representative",
+
+  "kb_q41_question": "How should I take photos of an instrument?",
+  "kb_q41_answer": "Use a bright, calm background (e.g. white)\nUse daylight or uniform LED lighting\nFocus on the head and avoid overexposure\nTake at least three views: head, shank and overall\nOptionally place a ruler or scale next to the instrument",
+
+  "kb_q42_question": "What should I avoid when taking photos?",
+  "kb_q42_answer": "Out-of-focus close-ups without recognisable detail\nHands or fingers covering the instrument\nVery busy or distracting backgrounds\nStrong reflections or overexposure from flash",
+
+  "kb_q43_question": "Why must the original instrument sometimes be sent in?",
+  "kb_q43_answer": "Photos are not sufficient for a reliable assessment\nThe defect pattern is conspicuous or safety-relevant\nA laboratory analysis is essential for root cause investigation\nTrend or batch checks require the original instrument",
+
+  "kb_q44_question": "How should I pack instruments correctly for return?",
+  "kb_q44_answer": "Pack each instrument separately where possible (e.g. blister or sleeve)\nUse sufficient padding to prevent breakage or bending\nClearly enclose the ticket number\nSend instruments cleaned and dry",
+
+  "kb_q45_question": "Are returned instruments sent back to me?",
+  "kb_q45_answer": "In general, instruments remain in the lab for documentation\nExceptions are possible after prior agreement",
+
+  "kb_q46_question": "Can I send several instruments in one parcel?",
+  "kb_q46_answer": "Yes, several instruments can be shipped together\nEach instrument should be packed individually\nEnclose all corresponding ticket numbers\nAvoid mix-ups by clear labelling",
+
+  "kb_q47_question": "“Diamond instruments are single-use products” – is that true?",
+  "kb_q47_answer": "No, diamond instruments are usually reusable\nActual lifetime strongly depends on the way they are used\nOverload, missing cooling and wrong indication lead to very rapid wear\nTypically only a few applications per instrument are realistic under optimal conditions",
+
+  "kb_q48_question": "“More pressure = more cutting performance” – is that correct?",
+  "kb_q48_answer": "No, high pressure causes clogging of the diamond layer\nHeat development increases significantly\nThe coating may detach or wear out faster\nThe instrument becomes dull more quickly\nLight, controlled pressure usually results in better cutting and gentler treatment"
 }
