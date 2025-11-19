@@ -1252,42 +1252,45 @@ class _AdminPageState extends State<AdminPage> {
         padding: const EdgeInsets.all(18),
         child: LayoutBuilder(
           builder: (ctx, constraints) {
-            final minHeight = constraints.maxHeight.isFinite ? constraints.maxHeight : 0;
+            final minHeight = constraints.maxHeight.isFinite ? constraints.maxHeight : 0.0;
             return SingleChildScrollView(
               child: ConstrainedBox(
                 constraints: BoxConstraints(minHeight: minHeight),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(14),
-                      gradient: LinearGradient(
-                        begin: Alignment.centerLeft,
-                        end: Alignment.centerRight,
-                        colors: [cs.secondaryContainer.withOpacity(0.5), cs.surfaceVariant],
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(14),
+                        gradient: LinearGradient(
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                          colors: [
+                            cs.secondaryContainer.withOpacity(0.5),
+                            cs.surfaceVariant,
+                          ],
+                        ),
+                      ),
+                      child: Row(
+                        children: const [
+                          Icon(Icons.notifications_active_outlined),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Push-Benachrichtigung versenden',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    child: Row(
-                      children: const [
-                        Icon(Icons.notifications_active_outlined),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Push-Benachrichtigung versenden',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                      ],
+                    const SizedBox(height: 12),
+                    Text(
+                      'Sende eine einmalige Push-Nachricht an alle Kunden mit registrierten Geräten. '
+                      'Nutze den Testlauf, um zunächst nur die Empfängerzahl zu prüfen.',
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Sende eine einmalige Push-Nachricht an alle Kunden mit registrierten Geräten. '
-                    'Nutze den Testlauf, um zunächst nur die Empfängerzahl zu prüfen.',
-                  ),
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
                   TextField(
                     controller: _pushTitleCtrl,
                     textCapitalization: TextCapitalization.sentences,
