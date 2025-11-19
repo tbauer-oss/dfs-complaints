@@ -692,78 +692,81 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
           return Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 1080),
-              child: Column(
-                children: [
-                  // ---------- Vertreter-Header (responsiv) ----------
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-                    child: _buildRepHeaderResponsive(context),
-                  ),
-
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-                    child: _KnowledgeBaseSpotlight(
-                      title: t.knowledgeBaseTile,
-                      subtitle: t.knowledgeBaseSubtitle,
-                      highlights: [
-                        t.knowledgeBaseHighlight1,
-                        t.knowledgeBaseHighlight2,
-                        t.knowledgeBaseHighlight3,
-                      ],
-                      ctaLabel: t.knowledgeBaseCta,
-                      onTap: () {
-                        Navigator.of(context).push(MaterialPageRoute(
-                          builder: (_) => const KnowledgeBasePage(),
-                        ));
-                      },
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+                      child: _buildRepHeaderResponsive(context),
                     ),
                   ),
-
-                  // ---------- Kacheln ----------
-                  Expanded(
-                    child: GridView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                      child: _KnowledgeBaseSpotlight(
+                        title: t.knowledgeBaseTile,
+                        subtitle: t.knowledgeBaseSubtitle,
+                        highlights: [
+                          t.knowledgeBaseHighlight1,
+                          t.knowledgeBaseHighlight2,
+                          t.knowledgeBaseHighlight3,
+                        ],
+                        ctaLabel: t.knowledgeBaseCta,
+                        onTap: () {
+                          Navigator.of(context).push(MaterialPageRoute(
+                            builder: (_) => const KnowledgeBasePage(),
+                          ));
+                        },
+                      ),
+                    ),
+                  ),
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    sliver: SliverGrid(
                       gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                         maxCrossAxisExtent: maxExtent,
                         mainAxisSpacing: 16,
                         crossAxisSpacing: 16,
                         childAspectRatio: isAppView
-                            ? (isPhone ? 1.12 : 1.15)   // dezenter in App
-                            : (isPhone ? 1.06 : 1.10),  // wie vorher im Web
+                            ? (isPhone ? 1.12 : 1.15)
+                            : (isPhone ? 1.06 : 1.10),
                       ),
-                      itemCount: tiles.length,
-                      itemBuilder: (context, i) {
-                        final e = tiles[i];
-                        final hovered = _hoverIndex == i;
-                        return MouseRegion(
-                          onEnter: (_) => setState(() => _hoverIndex = i),
-                          onExit: (_) => setState(() => _hoverIndex = -1),
-                          child: AnimatedScale(
-                            duration: const Duration(milliseconds: 140),
-                            scale: hovered ? 1.02 : 1.0,
-                            child: _FancyTile(
-                              label: e.label,
-                              icon: e.icon,
-                              colorA: e.colorA,
-                              colorB: e.colorB,
-                              iconSize: iconSize,
-                              fontSize: fontSize,
-                              onTap: e.onTap,
-                              showIndicator: e.showIndicator,
+                      delegate: SliverChildBuilderDelegate(
+                        (context, i) {
+                          final e = tiles[i];
+                          final hovered = _hoverIndex == i;
+                          return MouseRegion(
+                            onEnter: (_) => setState(() => _hoverIndex = i),
+                            onExit: (_) => setState(() => _hoverIndex = -1),
+                            child: AnimatedScale(
+                              duration: const Duration(milliseconds: 140),
+                              scale: hovered ? 1.02 : 1.0,
+                              child: _FancyTile(
+                                label: e.label,
+                                icon: e.icon,
+                                colorA: e.colorA,
+                                colorB: e.colorB,
+                                iconSize: iconSize,
+                                fontSize: fontSize,
+                                onTap: e.onTap,
+                                showIndicator: e.showIndicator,
+                              ),
                             ),
-                          ),
-                        );
-                      },
+                          );
+                        },
+                        childCount: tiles.length,
+                      ),
                     ),
                   ),
-
-                  // ---------- Dezente Kataloge (unter den Kacheln) ----------
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                    child: isAppView
-                        ? const _CatalogChips()  // dezent in PWA (Appansicht)
-                        : _CatalogStrip(),       // wie zuvor im Browser/Web
-                   ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                      child: isAppView
+                          ? const _CatalogChips()
+                          : _CatalogStrip(),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -808,16 +811,16 @@ class _KnowledgeBaseSpotlight extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(22),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.12),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
           child: LayoutBuilder(
             builder: (context, constraints) {
               final isNarrow = constraints.maxWidth < 720;
@@ -825,7 +828,7 @@ class _KnowledgeBaseSpotlight extends StatelessWidget {
                   .where((text) => text.trim().isNotEmpty)
                   .map((text) => Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 8),
+                            horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.18),
                           borderRadius: BorderRadius.circular(999),
@@ -853,8 +856,8 @@ class _KnowledgeBaseSpotlight extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
-                        width: 60,
-                        height: 60,
+                        width: 52,
+                        height: 52,
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.18),
                           borderRadius: BorderRadius.circular(18),
@@ -862,7 +865,7 @@ class _KnowledgeBaseSpotlight extends StatelessWidget {
                         child: const Icon(
                           Icons.psychology_alt_outlined,
                           color: Colors.white,
-                          size: 34,
+                          size: 30,
                         ),
                       ),
                       const SizedBox(width: 18),
@@ -890,14 +893,14 @@ class _KnowledgeBaseSpotlight extends StatelessWidget {
                     ],
                   ),
                   if (pills.isNotEmpty) ...[
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 12),
                     Wrap(
-                      spacing: 10,
-                      runSpacing: 8,
+                      spacing: 8,
+                      runSpacing: 6,
                       children: pills,
                     ),
                   ],
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 14),
                   Align(
                     alignment: isNarrow
                         ? Alignment.centerLeft
@@ -909,14 +912,14 @@ class _KnowledgeBaseSpotlight extends StatelessWidget {
                         foregroundColor: const Color(0xFF0D47A1),
                         elevation: 0,
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 14,
+                          horizontal: 18,
+                          vertical: 12,
                         ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
                       ),
-                      icon: const Icon(Icons.arrow_outward_rounded),
+                      icon: const Icon(Icons.arrow_outward_rounded, size: 20),
                       label: Text(
                         ctaLabel,
                         style: const TextStyle(fontWeight: FontWeight.w600),
