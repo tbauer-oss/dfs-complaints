@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:file_saver/file_saver.dart';
 import 'package:intl/intl.dart';
 import '../api/client.dart';
@@ -369,32 +370,35 @@ class _AccountPageState extends State<AccountPage> {
               ),
               const SizedBox(height: 24),
 
-              // DEBUG: FCM-Push-Token anzeigen (nur für Tests)
-              if (widget.api.pushDeviceToken != null &&
-                  widget.api.pushDeviceToken!.isNotEmpty)
-                Card(
-                  elevation: 0,
-                  color: Colors.black12,
-                  child: Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Push-Token (Debug)',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
+              // DEBUG: manueller Push-Register-Test
+              if (kDebugMode) // optional: nur in Debug-Builds anzeigen
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.notifications_active),
+                  label: const Text('Push-Register (Debug)'),
+                  onPressed: () async {
+                    final token = 'DEBUG-${DateTime.now().millisecondsSinceEpoch}';
+                    try {
+                      await widget.api.registerPushToken(
+                        token,
+                        platform: 'debug',
+                        locale: '',
+                        lang: null,
+                      );
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Debug-Push-Token gesendet.'),
                         ),
-                        const SizedBox(height: 4),
-                        SelectableText(
-                          widget.api.pushDeviceToken!,
-                          style: const TextStyle(fontSize: 10),
+                      );
+                    } catch (e) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Fehler bei Debug-Register: $e'),
                         ),
-                      ],
-                    ),
-                  ),
+                      );
+                    }
+                  },
                 ),
             ],
           ),
