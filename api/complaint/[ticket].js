@@ -1,5 +1,10 @@
 // api/complaint/[ticket].js
-export const config = { runtime: "nodejs" };
+export const config = {
+  runtime: "nodejs",
+  api: {
+    bodyParser: { sizeLimit: "32mb" },
+  },
+};
 
 import {
   setCors,

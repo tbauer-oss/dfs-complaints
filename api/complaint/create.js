@@ -2,7 +2,8 @@
 export const config = {
   runtime: 'nodejs',
   api: {
-    bodyParser: { sizeLimit: '15mb' },
+    // Beschränkung für große JSON-Bodies (Anhänge werden base64-kodiert übermittelt)
+    bodyParser: { sizeLimit: '32mb' },
   },
 };
 
