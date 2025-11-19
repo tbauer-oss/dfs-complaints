@@ -19,7 +19,6 @@ import {
   adminPushTokenRemove,
 } from '../_lib/store.js';
 import { getRepFromAuthHeader } from '../_lib/repAuth.js';
-import { loadRepById } from '../_lib/repsStore.js';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 
@@ -71,16 +70,6 @@ export default async function handler(req, res) {
       await pushTokenRegister(email, token, { platform, locale, lang });
     } else if (rep) {
       await repPushTokenRegister(rep.repId, token, { platform, locale, lang });
-
-      try {
-        const repProfile = await loadRepById(rep.repId);
-        const repEmail = (repProfile?.email || '').toString().trim().toLowerCase();
-        if (repEmail) {
-          await pushTokenRegister(repEmail, token, { platform, locale, lang });
-        }
-      } catch (err) {
-        console.warn('[push/register] could not mirror rep token to email store', err?.message || err);
-      }
     } else if (admin) {
       await adminPushTokenRegister(token, { platform, locale, lang });
     }
@@ -105,16 +94,6 @@ export default async function handler(req, res) {
     if (email) await pushTokenRemove(email, token);
     else if (rep) {
       await repPushTokenRemove(rep.repId, token);
-
-      try {
-        const repProfile = await loadRepById(rep.repId);
-        const repEmail = (repProfile?.email || '').toString().trim().toLowerCase();
-        if (repEmail) {
-          await pushTokenRemove(repEmail, token);
-        }
-      } catch (err) {
-        console.warn('[push/register] could not remove mirrored rep token', err?.message || err);
-      }
     }
     else if (admin) await adminPushTokenRemove(token);
     return noContent(res);
