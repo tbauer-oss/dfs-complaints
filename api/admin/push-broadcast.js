@@ -104,7 +104,9 @@ export default async function handler(req, res) {
       for (const entry of pushTokens) {
         const tok = (entry?.token || '').toString().trim();
         if (!tok) continue;
-        const lang = normLang(entry?.lang || entry?.locale || defaultLang);
+        // Token-Sprache nur als Fallback nutzen – maßgeblich ist die
+        // Kundendatenbank (defaultLang), damit Sprachwechsel sofort greifen.
+        const lang = normLang(defaultLang || entry?.lang || entry?.locale || '');
         if (!tokenByLang.has(lang)) tokenByLang.set(lang, new Set());
         tokenByLang.get(lang).add(tok);
         if (!tokenOwners.has(tok)) tokenOwners.set(tok, owner);

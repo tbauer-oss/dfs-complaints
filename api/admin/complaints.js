@@ -336,7 +336,17 @@ export default async function handler(req, res) {
             for (const entry of customerTokens) {
               const tok = (entry?.token || '').toString().trim();
               if (!tok) continue;
-              const lang = resolveLang(entry?.lang || entry?.locale || accountLang || user?.lang || c.lang || '');
+              // Sprache immer aus der Kundendatenbank bevorzugen, da diese beim
+              // Sprachwechsel aktualisiert wird. Token-Metadaten dienen nur als
+              // Fallback falls es keinen Kundeneintrag gibt.
+              const lang = resolveLang(
+                accountLang ||
+                user?.lang ||
+                c.lang ||
+                entry?.lang ||
+                entry?.locale ||
+                '',
+              );
               if (!tokensByLang.has(lang)) tokensByLang.set(lang, []);
               tokensByLang.get(lang).push(tok);
             }
