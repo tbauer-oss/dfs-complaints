@@ -95,3 +95,45 @@ export function readJson(req) {
     return {};
   }
 }
+
+const DEFAULT_BODY_LIMIT = Number(process.env.API_BODY_LIMIT_BYTES || 64 * 1024 * 1024);
+
+export async function readJsonBody(req, { limitBytes = DEFAULT_BODY_LIMIT } = {}) {
+  if (req?.body && typeof req.body === 'object') return req.body;
+  const limit = typeof limitBytes === 'number' ? limitBytes : DEFAULT_BODY_LIMIT;
+  const chunks = [];
+  let total = 0;
+
+  if (!req || typeof req[Symbol.asyncIterator] !== 'function') {
+    const raw = req?.body ?? '{}';
+    if (typeof raw === 'string') {
+      return raw.trim() ? JSON.parse(raw) : {};
+    }
+    return raw ?? {};
+  }
+
+  for await (const chunk of req) {
+    const buf = Buffer.isBuffer(chunk)
+      ? chunk
+      : Buffer.from(chunk);
+    total += buf.length;
+    if (limit > 0 && total > limit) {
+      const err = new Error('body too large');
+      err.statusCode = 413;
+      throw err;
+    }
+    chunks.push(buf);
+  }
+
+  if (!chunks.length) return {};
+  const raw = Buffer.concat(chunks, total).toString('utf8');
+  if (!raw.trim()) return {};
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    const parseError = new Error('invalid json');
+    parseError.cause = err;
+    parseError.statusCode = 400;
+    throw parseError;
+  }
+}

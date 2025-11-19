@@ -157,6 +157,9 @@ class ComplaintUpload {
   final int size;
   final DateTime? uploadedAt;
   final String? preview;
+  final String? url;
+  final String? downloadUrl;
+  final String? blobPath;
 
   ComplaintUpload({
     required this.name,
@@ -164,10 +167,18 @@ class ComplaintUpload {
     required this.size,
     required this.uploadedAt,
     this.preview,
+    this.url,
+    this.downloadUrl,
+    this.blobPath,
   });
 
   bool get isImage => mime.toLowerCase().startsWith('image/');
-  bool get hasPreview => isImage && (preview ?? '').isNotEmpty;
+  bool get hasPreview => isImage && ((preview ?? '').isNotEmpty || (imageUrl ?? '').isNotEmpty);
+  String? get imageUrl {
+    if (!isImage) return null;
+    final candidate = (downloadUrl ?? url ?? '').trim();
+    return candidate.isEmpty ? null : candidate;
+  }
 
   static int _parseSize(dynamic value) {
     if (value is int) return value;
@@ -213,12 +224,25 @@ class ComplaintUpload {
       final s = value.toString().trim();
       return s.isEmpty ? null : s;
     }
+    String? _url(dynamic value) {
+      if (value == null) return null;
+      final s = value.toString().trim();
+      if (s.isEmpty) return null;
+      if (!s.startsWith('http://') && !s.startsWith('https://')) return null;
+      return s;
+    }
+
     return ComplaintUpload(
       name: (json['name'] ?? '').toString(),
       mime: (json['mime'] ?? 'application/octet-stream').toString(),
       size: _parseSize(json['size']),
       uploadedAt: _parseUploadedAt(json['uploadedAt']),
       preview: _preview(json['preview']),
+      url: _url(json['url'] ?? json['previewUrl']),
+      downloadUrl: _url(json['downloadUrl'] ?? json['downloadURL']),
+      blobPath: (json['blobPath'] ?? json['pathname'] ?? '').toString().trim().isEmpty
+          ? null
+          : (json['blobPath'] ?? json['pathname']).toString().trim(),
     );
   }
 }

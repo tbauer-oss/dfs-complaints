@@ -6120,35 +6120,46 @@ class _AdminAttachmentPreviewTile extends StatefulWidget {
 class _AdminAttachmentPreviewTileState extends State<_AdminAttachmentPreviewTile> {
   bool _expanded = false;
   Uint8List? _previewBytes;
+  ImageProvider<Object>? _previewProvider;
 
-  bool get _hasPreview => _previewBytes != null;
+  bool get _hasPreview => _previewProvider != null;
 
   @override
   void initState() {
     super.initState();
-    _previewBytes = _decodePreview(widget.upload);
+    _previewProvider = _createPreviewProvider(widget.upload);
   }
 
   @override
   void didUpdateWidget(covariant _AdminAttachmentPreviewTile oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.upload.preview != widget.upload.preview) {
-      final decoded = _decodePreview(widget.upload);
+    if (oldWidget.upload.preview != widget.upload.preview ||
+        oldWidget.upload.url != widget.upload.url ||
+        oldWidget.upload.downloadUrl != widget.upload.downloadUrl) {
+      final next = _createPreviewProvider(widget.upload);
       setState(() {
-        _previewBytes = decoded;
+        _previewProvider = next;
         if (!_hasPreview) _expanded = false;
       });
     }
   }
 
-  Uint8List? _decodePreview(ComplaintUpload upload) {
+  ImageProvider<Object>? _createPreviewProvider(ComplaintUpload upload) {
+    _previewBytes = null;
     final preview = upload.preview;
-    if (preview == null || preview.isEmpty || !upload.isImage) return null;
-    try {
-      return base64Decode(preview);
-    } catch (_) {
-      return null;
+    if (preview != null && preview.isNotEmpty && upload.isImage) {
+      try {
+        _previewBytes = base64Decode(preview);
+        return MemoryImage(_previewBytes!);
+      } catch (_) {
+        _previewBytes = null;
+      }
     }
+    final remote = upload.imageUrl;
+    if (remote != null && remote.isNotEmpty) {
+      return NetworkImage(remote);
+    }
+    return null;
   }
 
   void _toggle() {
@@ -6214,8 +6225,8 @@ class _AdminAttachmentPreviewTileState extends State<_AdminAttachmentPreviewTile
                         minScale: 0.5,
                         maxScale: 5,
                         child: Center(
-                          child: Image.memory(
-                            _previewBytes!,
+                          child: Image(
+                            image: _previewProvider!,
                             fit: BoxFit.contain,
                           ),
                         ),
@@ -6305,7 +6316,7 @@ class _AdminAttachmentPreviewTileState extends State<_AdminAttachmentPreviewTile
                     ),
                     width: previewWidth,
                     height: previewHeight,
-                    child: Image.memory(_previewBytes!, fit: BoxFit.cover),
+                    child: Image(image: _previewProvider!, fit: BoxFit.cover),
                   ),
                 ),
               ),

@@ -6,15 +6,13 @@ import {
   handlePreflight, ok, bad, methodNotAllowed, readJson
 } from './_lib/http.js';
 import { complaintsAll, complaintSave, nextTicket, Status } from './_lib/store.js';
+import {
+  blobUploadsEnabled,
+  normalizeProvidedUploads,
+  processIncomingFiles,
+} from './_lib/uploads.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || process.env.JWT || '';
-const MAX_PREVIEW_CHARS = 200000;
-
-const normalizePreview = (value) => {
-  const str = (value ?? '').toString().trim();
-  if (!str) return undefined;
-  return str.length > MAX_PREVIEW_CHARS ? str.slice(0, MAX_PREVIEW_CHARS) : str;
-};
 
 /* ---- JWT prüfen ---- */
 function requireUser(req) {
@@ -41,38 +39,6 @@ function toDto(c) {
     decision: c.decision ?? null,
     reportLink: c.reportLink ?? null,
   };
-}
-
-/* ---- Upload-Metadaten extrahieren ---- */
-function parseUploads(body) {
-  const out = [];
-  if (Array.isArray(body?.uploads)) {
-    for (const u of body.uploads) {
-      const entry = {
-        name: String(u?.name || ''),
-        mime: String(u?.mime || 'application/octet-stream'),
-        size: Number(u?.size || 0),
-      };
-      const preview = normalizePreview(u?.preview);
-      if (preview) entry.preview = preview;
-      out.push(entry);
-    }
-  }
-  if (Array.isArray(body?.files)) {
-    for (const f of body.files) {
-      const b64 = String(f?.bytes || '');
-      const approxSize = Math.floor(b64.length * 3 / 4);
-      const entry = {
-        name: String(f?.name || ''),
-        mime: String(f?.mime || 'application/octet-stream'),
-        size: approxSize > 0 ? approxSize : 0,
-      };
-      const preview = normalizePreview(f?.preview);
-      if (preview) entry.preview = preview;
-      out.push(entry);
-    }
-  }
-  return out;
 }
 
 /* ---- Sortierhilfe ---- */
@@ -111,6 +77,8 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const body = readJson(req);
       const p = body?.payload || {};
+      const files = Array.isArray(body?.files) ? body.files : [];
+      const providedUploads = normalizeProvidedUploads(body?.uploads);
 
       const segment    = String(p.segment || '');
       const article    = String(p.article || '');
@@ -129,7 +97,22 @@ export default async function handler(req, res) {
       if (segment === 'Zahnarzt' && !batch)
         return bad(res, 'batch required for dentist', 400);
 
-      const uploads = parseUploads(body);
+      let processedFiles;
+      try {
+        processedFiles = await processIncomingFiles(files, {
+          ticket,
+          allowPreviewFallback: !blobUploadsEnabled,
+        });
+      } catch (err) {
+        const msg = err?.message === 'files too large'
+          ? 'files too large'
+          : err?.message === 'invalid file encoding'
+            ? 'invalid file encoding'
+            : 'file upload failed';
+        return bad(res, msg, 400);
+      }
+
+      const uploads = [...providedUploads, ...processedFiles.uploads];
       const now = Date.now();
       const ticket = await nextTicket();
 
@@ -148,7 +131,7 @@ export default async function handler(req, res) {
         updatedAt: now,
       };
 
-      await complaintSave(c);
+      await complaintSave(complaint);
       return ok(res, { ok: true, ticket });
     }
 
