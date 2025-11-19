@@ -1,59 +1,20 @@
-// api/_lib/push.js – Push Notification helper (FCM)
+// api/_lib/push.js – Push Notification helper (FCM HTTP v1)
+import crypto from 'crypto';
+
 export const config = { runtime: 'nodejs' };
 
-import admin from 'firebase-admin';
+// Service-Account-basiertes FCM HTTP v1
+const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || '';
+const CLIENT_EMAIL = process.env.FIREBASE_CLIENT_EMAIL || '';
+const PRIVATE_KEY_RAW = process.env.FIREBASE_PRIVATE_KEY || '';
 
-const FCM_ENDPOINT = 'https://fcm.googleapis.com/fcm/send';
-const FCM_SERVER_KEY =
-  process.env.FCM_SERVER_KEY ||
-  process.env.FIREBASE_SERVER_KEY ||
-  process.env.FCM_LEGACY_SERVER_KEY ||
-  '';
-const FIREBASE_SERVICE_ACCOUNT_JSON = process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '';
+// Bei \n-Variante in Vercel wieder in echte Zeilenumbrüche umwandeln
+const PRIVATE_KEY = PRIVATE_KEY_RAW.replace(/\\n/g, '\n');
 
-let firebaseMessaging = null;
-let parsedServiceAccount = null;
-
-function getFcmServerKey() {
-  return (FCM_SERVER_KEY || '').trim();
-}
-
-function hasServiceAccountConfig() {
-  return (FIREBASE_SERVICE_ACCOUNT_JSON || '').trim().length > 0;
-}
-
-function ensureFirebaseMessaging() {
-  if (firebaseMessaging) {
-    return firebaseMessaging;
-  }
-  if (!hasServiceAccountConfig()) {
-    return null;
-  }
-
-  if (!parsedServiceAccount) {
-    try {
-      parsedServiceAccount = JSON.parse(FIREBASE_SERVICE_ACCOUNT_JSON);
-    } catch (err) {
-      console.error('[push] Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON', err);
-      return null;
-    }
-  }
-
-  try {
-    if (!admin.apps || admin.apps.length === 0) {
-      admin.initializeApp({ credential: admin.credential.cert(parsedServiceAccount) });
-    }
-    firebaseMessaging = admin.messaging();
-    return firebaseMessaging;
-  } catch (err) {
-    console.error('[push] Failed to initialize firebase-admin messaging', err);
-    return null;
-  }
-}
-
-export function isPushConfigured() {
-  return getFcmServerKey().length > 0 || hasServiceAccountConfig();
-}
+const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
+const FCM_V1_ENDPOINT = PROJECT_ID
+  ? `https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`
+  : '';
 
 function chunk(list, size) {
   const out = [];
@@ -63,85 +24,181 @@ function chunk(list, size) {
   return out;
 }
 
-function normalizeDataPayload(data = {}) {
-  const payload = { ...data, _ts: Date.now() };
-  const normalized = {};
-  for (const [key, value] of Object.entries(payload)) {
-    if (value === undefined) continue;
-    normalized[key] = typeof value === 'string' ? value : JSON.stringify(value);
+// Access-Token-Caching (damit wir nicht bei jedem Push neu zu Google rennen)
+let cachedAccessToken = null;
+let cachedAccessTokenExpiry = 0;
+
+async function getAccessToken() {
+  const now = Math.floor(Date.now() / 1000);
+
+  if (cachedAccessToken && now < cachedAccessTokenExpiry - 60) {
+    return cachedAccessToken;
   }
-  return normalized;
+
+  if (!CLIENT_EMAIL || !PRIVATE_KEY) {
+    throw new Error('[push] Missing FIREBASE_CLIENT_EMAIL or FIREBASE_PRIVATE_KEY');
+  }
+
+  const header = {
+    alg: 'RS256',
+    typ: 'JWT',
+  };
+
+  const payload = {
+    iss: CLIENT_EMAIL,
+    scope: 'https://www.googleapis.com/auth/firebase.messaging',
+    aud: GOOGLE_TOKEN_URL,
+    iat: now,
+    exp: now + 3600,
+  };
+
+  const base64url = obj =>
+    Buffer.from(JSON.stringify(obj))
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+
+  const headerB64 = base64url(header);
+  const payloadB64 = base64url(payload);
+  const toSign = `${headerB64}.${payloadB64}`;
+
+  const signer = crypto.createSign('RSA-SHA256');
+  signer.update(toSign);
+  const signature = signer
+    .sign(PRIVATE_KEY)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+
+  const jwt = `${toSign}.${signature}`;
+
+  const body = new URLSearchParams({
+    grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+    assertion: jwt,
+  });
+
+  const res = await fetch(GOOGLE_TOKEN_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body,
+  });
+
+  if (!res.ok) {
+    const txt = await res.text();
+    console.error('[push] Failed to fetch access token', res.status, txt);
+    throw new Error(`[push] Failed to get access token: ${res.status}`);
+  }
+
+  const json = await res.json();
+  cachedAccessToken = json.access_token;
+  cachedAccessTokenExpiry = now + (json.expires_in || 3600);
+
+  return cachedAccessToken;
 }
 
-async function sendWithLegacyHttp({ tokens, authKey, title, body, data }) {
+export function isPushConfigured() {
+  return Boolean(PROJECT_ID && CLIENT_EMAIL && PRIVATE_KEY);
+}
+
+export async function sendPushNotification({ tokens = [], title = '', body = '', data = {} }) {
+  const flat = Array.from(
+    new Set((tokens || []).map(t => (t || '').toString().trim())),
+  ).filter(Boolean);
+
+  if (!isPushConfigured()) {
+    console.warn('[push] Missing FCM service account config – skipping push send');
+    return {
+      ok: false,
+      reason: 'missing-service-account',
+      skipped: flat.length,
+      sent: 0,
+      failed: flat.length,
+    };
+  }
+
+  if (flat.length === 0) {
+    return { ok: false, reason: 'no-tokens', sent: 0, failed: 0 };
+  }
+
+  let accessToken;
+  try {
+    accessToken = await getAccessToken();
+  } catch (e) {
+    console.error('[push] Could not get access token', e);
+    return {
+      ok: false,
+      reason: 'auth-failed',
+      sent: 0,
+      failed: flat.length,
+    };
+  }
+
   const invalidTokens = new Set();
   const responses = [];
   let successCount = 0;
   let failureCount = 0;
 
-  for (const batch of chunk(tokens, 1000)) {
-    const payload = {
-      registration_ids: batch,
-      notification: {
-        title: String(title || ''),
-        body: String(body || ''),
-        android_channel_id: 'complaint-status',
-      },
-      data: {
-        ...data,
-        _ts: Date.now(),
-      },
-    };
-
-    try {
-      const res = await fetch(FCM_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json; charset=utf-8',
-          Authorization: `key=${authKey}`,
+  // Wir schicken jetzt pro Token eine HTTP v1-Nachricht
+  // (Broadcast bleibt möglich, nur mit mehr Requests – bei deiner Menge unkritisch)
+  for (const batch of chunk(flat, 100)) {
+    for (const token of batch) {
+      const payload = {
+        message: {
+          token,
+          notification: {
+            title: String(title || ''),
+            body: String(body || ''),
+          },
+          data: {
+            ...data,
+            _ts: Date.now().toString(),
+          },
         },
-        body: JSON.stringify(payload),
-      });
+      };
 
-      const txt = await res.text();
-      let json = null;
-      try { json = txt ? JSON.parse(txt) : null; } catch (_) {}
+      try {
+        const res = await fetch(FCM_V1_ENDPOINT, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify(payload),
+        });
 
-      if (!res.ok) {
-        console.error('[push] FCM send failed', res.status, txt);
-        responses.push({ ok: false, status: res.status, body: txt });
-        failureCount += batch.length;
-        continue;
-      }
-
-      const successRaw = typeof json?.success === 'number' ? json.success : null;
-      const failureRaw = typeof json?.failure === 'number' ? json.failure : null;
-      if (successRaw !== null) {
-        successCount += Math.max(0, successRaw);
-      } else if (failureRaw !== null) {
-        successCount += Math.max(0, batch.length - failureRaw);
-      } else {
-        successCount += batch.length;
-      }
-      if (failureRaw !== null) {
-        failureCount += Math.max(0, failureRaw);
-      }
-
-      const results = Array.isArray(json?.results) ? json.results : [];
-      results.forEach((r, idx) => {
-        const err = r?.error;
-        if (err === 'NotRegistered' || err === 'InvalidRegistration' || err === 'MismatchSenderId') {
-          invalidTokens.add(batch[idx]);
-        } else if (err) {
-          console.warn('[push] FCM token error', err, batch[idx]);
+        const txt = await res.text();
+        let json = null;
+        try {
+          json = txt ? JSON.parse(txt) : null;
+        } catch (_) {
+          // ignore parse error, txt bleibt als Fallback
         }
-      });
 
-      responses.push({ ok: true, status: res.status, body: json });
-    } catch (e) {
-      console.error('[push] Network error', e);
-      responses.push({ ok: false, error: e?.message || String(e) });
-      failureCount += batch.length;
+        if (!res.ok) {
+          failureCount += 1;
+
+          const status = json?.error?.status || '';
+          if (status === 'NOT_FOUND' || status === 'INVALID_ARGUMENT') {
+            invalidTokens.add(token);
+          } else {
+            console.warn('[push] FCM v1 send failed', status, token);
+          }
+
+          responses.push({ ok: false, status: res.status, body: json || txt });
+          continue;
+        }
+
+        successCount += 1;
+        responses.push({ ok: true, status: res.status, body: json });
+      } catch (e) {
+        failureCount += 1;
+        console.error('[push] Network error', e);
+        responses.push({ ok: false, error: e?.message || String(e) });
+      }
     }
   }
 
@@ -152,88 +209,4 @@ async function sendWithLegacyHttp({ tokens, authKey, title, body, data }) {
     sent: successCount,
     failed: failureCount,
   };
-}
-
-async function sendWithFirebaseAdmin({ tokens, title, body, data }) {
-  const messaging = ensureFirebaseMessaging();
-  if (!messaging) {
-    console.warn('[push] firebase-admin messaging not available');
-    return { ok: false, reason: 'missing-service-account', skipped: tokens.length, sent: 0, failed: tokens.length };
-  }
-
-  const invalidTokens = new Set();
-  const responses = [];
-  let successCount = 0;
-  let failureCount = 0;
-
-  const dataPayload = normalizeDataPayload(data);
-
-  for (const batch of chunk(tokens, 500)) {
-    try {
-      const res = await messaging.sendEachForMulticast({
-        tokens: batch,
-        notification: {
-          title: String(title || ''),
-          body: String(body || ''),
-        },
-        data: dataPayload,
-      });
-
-      successCount += Math.max(0, res?.successCount || 0);
-      failureCount += Math.max(0, res?.failureCount || 0);
-
-      responses.push({
-        ok: (res?.failureCount || 0) === 0,
-        transport: 'firebase-admin',
-        successCount: res?.successCount || 0,
-        failureCount: res?.failureCount || 0,
-      });
-
-      const perToken = Array.isArray(res?.responses) ? res.responses : [];
-      perToken.forEach((r, idx) => {
-        if (r?.success) return;
-        const code = r?.error?.code || '';
-        const message = r?.error?.message || '';
-        responses.push({ ok: false, code, error: message, transport: 'firebase-admin' });
-        if (
-          code === 'messaging/registration-token-not-registered' ||
-          code === 'messaging/invalid-registration-token' ||
-          code === 'messaging/mismatched-credential'
-        ) {
-          invalidTokens.add(batch[idx]);
-        }
-      });
-    } catch (err) {
-      console.error('[push] firebase-admin send failed', err);
-      responses.push({ ok: false, error: err?.message || String(err), transport: 'firebase-admin' });
-      failureCount += batch.length;
-    }
-  }
-
-  return {
-    ok: failureCount === 0,
-    invalidTokens: Array.from(invalidTokens),
-    responses,
-    sent: successCount,
-    failed: failureCount,
-  };
-}
-
-export async function sendPushNotification({ tokens = [], title = '', body = '', data = {} }) {
-  const authKey = getFcmServerKey();
-  const flat = Array.from(new Set((tokens || []).map(t => (t || '').toString().trim()))).filter(Boolean);
-  if (flat.length === 0) {
-    return { ok: false, reason: 'no-tokens', sent: 0, failed: 0 };
-  }
-
-  if (!authKey && !hasServiceAccountConfig()) {
-    console.warn('[push] Missing FCM credentials – skipping push send');
-    return { ok: false, reason: 'missing-credentials', skipped: flat.length, sent: 0, failed: flat.length };
-  }
-
-  if (authKey) {
-    return sendWithLegacyHttp({ tokens: flat, authKey, title, body, data });
-  }
-
-  return sendWithFirebaseAdmin({ tokens: flat, title, body, data });
 }
