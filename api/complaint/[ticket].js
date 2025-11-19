@@ -1,5 +1,10 @@
 // api/complaint/[ticket].js
-export const config = { runtime: "nodejs" };
+export const config = {
+  runtime: "nodejs",
+  api: {
+    bodyParser: { sizeLimit: "32mb" },
+  },
+};
 
 import {
   setCors,
@@ -17,19 +22,13 @@ import {
   userByEmail,
 } from "../_lib/store.js";
 import { sendMail } from "../_lib/mailer.js";
+import { blobUploadsEnabled, processIncomingFiles } from "../_lib/uploads.js";
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "";
-const MAX_PREVIEW_CHARS = 200000;
 
 function adminAuthorized(req) {
   const hdr = req.headers?.["x-admin-secret"];
   return !!(hdr && ADMIN_SECRET && hdr === ADMIN_SECRET);
-}
-
-function normalizePreview(value) {
-  const str = (value ?? "").toString().trim();
-  if (!str) return undefined;
-  return str.length > MAX_PREVIEW_CHARS ? str.slice(0, MAX_PREVIEW_CHARS) : str;
 }
 
 function firstNonEmpty(...values) {
@@ -71,56 +70,27 @@ export default async function handler(req, res) {
 
     const body = readJson(req);
     const files = Array.isArray(body?.files) ? body.files : [];
-    if (!files.length) return bad(res, "files required", 400);
-
-    const MAX_BYTES = 8 * 1024 * 1024; // 8 MB gesamt
-    let totalBytes = 0;
-    const meta = [];
-    const mailAttachments = [];
-
-    for (let i = 0; i < files.length; i += 1) {
-      const raw = files[i] || {};
-      const name = (raw.name || `attachment_${i + 1}`).toString();
-      const mime = (raw.mime || "application/octet-stream").toString();
-      const preview = normalizePreview(raw.preview);
-      const base64 = ((raw.bytes || raw.data || "") + "").trim();
-      if (!base64) continue;
-
-      let buffer;
-      try {
-        buffer = Buffer.from(base64, "base64");
-      } catch (err) {
-        console.warn(
-          "[complaint][attachments] invalid base64",
-          err?.message || err,
-        );
-        return bad(res, "invalid file encoding", 400);
-      }
-
-      if (!buffer.length) continue;
-      totalBytes += buffer.length;
-      if (totalBytes > MAX_BYTES) return bad(res, "files too large", 400);
-
-      const entry = {
-        name,
-        mime,
-        size: buffer.length,
-        uploadedAt: Date.now(),
-      };
-      if (preview) entry.preview = preview;
-      meta.push(entry);
-      mailAttachments.push({
-        filename: name || `attachment_${i + 1}.bin`,
-        content: buffer,
-        contentType: mime || "application/octet-stream",
+    let processed;
+    try {
+      processed = await processIncomingFiles(files, {
+        ticket,
+        includeMailAttachments: true,
+        allowPreviewFallback: !blobUploadsEnabled,
       });
+    } catch (err) {
+      const msg = err?.message === "files too large"
+        ? "files too large"
+        : err?.message === "invalid file encoding"
+          ? "invalid file encoding"
+          : "file upload failed";
+      return bad(res, msg, 400);
     }
 
-    if (!meta.length) return bad(res, "files required", 400);
+    if (!processed.uploads.length) return bad(res, "files required", 400);
 
     const existing = Array.isArray(comp.uploads) ? comp.uploads : [];
     const updated = await complaintUpdate(ticket, {
-      uploads: [...existing, ...meta],
+      uploads: [...existing, ...processed.uploads],
     });
 
     try {
@@ -149,7 +119,7 @@ export default async function handler(req, res) {
         account?.company,
       );
       const customerEmail = firstNonEmpty(comp?.email, user.email);
-      const summary = `Neue Anhänge für Ticket ${ticket}\nKunde: ${company || "(unbekannt)"}\nE-Mail: ${customerEmail}\nAnzahl: ${meta.length}\nGesamtgröße: ${Math.round(totalBytes / 1024)} KB`;
+      const summary = `Neue Anhänge für Ticket ${ticket}\nKunde: ${company || "(unbekannt)"}\nE-Mail: ${customerEmail}\nAnzahl: ${processed.uploads.length}\nGesamtgröße: ${Math.round((processed.totalBytes || 0) / 1024)} KB`;
       await send(
         "complaint@dfs-diamon.de",
         {
@@ -157,7 +127,7 @@ export default async function handler(req, res) {
           text: summary,
           lang: "de",
         },
-        mailAttachments,
+        processed.attachments,
       );
 
       await send(user.email, {
@@ -174,9 +144,9 @@ export default async function handler(req, res) {
 
     return ok(res, {
       ok: true,
-      uploaded: meta.length,
-      totalBytes,
-      uploads: updated?.uploads || meta,
+      uploaded: processed.uploads.length,
+      totalBytes: processed.totalBytes || 0,
+      uploads: updated?.uploads || processed.uploads,
     });
   }
 
