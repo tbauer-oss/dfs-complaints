@@ -485,6 +485,7 @@
   "admin_area": "Espace administrateur",
 
   "supportTitle": "Support DFS",
+  "knowledgeBaseTile": "Base de connaissances (FAQ)",
   "category": "Catégorie",
   "yourMessage": "Votre message",
   "supportConsentText": "J’accepte le traitement conformément à l’avis de confidentialité.",

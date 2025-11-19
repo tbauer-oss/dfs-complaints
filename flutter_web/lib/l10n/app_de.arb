@@ -484,6 +484,7 @@
   "admin_area": "Adminbereich",
 
   "supportTitle": "DFS Support",
+  "knowledgeBaseTile": "Wissensdatenbank (FAQ)",
   "category": "Kategorie",
   "yourMessage": "Ihre Nachricht",
   "supportConsentText": "Ich stimme der Verarbeitung gemäß Datenschutzhinweis zu.",
