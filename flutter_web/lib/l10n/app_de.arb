@@ -217,7 +217,7 @@
   "gate_password": "Autorisierungskennwort",
   "continueLabel": "Weiter",
   "invalid": "Ungültig",
-  "gateUnlockHint": "Bitte geben Sie Ihre E-Mail-Adresse und das Autorisierungskennwort ein, um den Registrierungsbereich zu öffnen.",
+  "gateUnlockHint": "Bitte geben Sie Ihre E-Mail-Adresse und das Autorisierungskennwort ein, um den Registrierungsbereich freizuschalten.",
   "gateEmailRequired": "Bitte geben Sie Ihre E-Mail-Adresse ein.",
   "gateCompanyRequired": "Bitte geben Sie Ihre Firma ein.",
   "gateInvalidEmail": "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
