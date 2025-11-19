@@ -97,6 +97,8 @@ export default async function handler(req, res) {
       if (segment === 'Zahnarzt' && !batch)
         return bad(res, 'batch required for dentist', 400);
 
+      const ticket = await nextTicket();
+
       let processedFiles;
       try {
         processedFiles = await processIncomingFiles(files, {
@@ -114,7 +116,6 @@ export default async function handler(req, res) {
 
       const uploads = [...providedUploads, ...processedFiles.uploads];
       const now = Date.now();
-      const ticket = await nextTicket();
 
       const complaint = {
         ticket,
