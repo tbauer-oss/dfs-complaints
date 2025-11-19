@@ -10,6 +10,7 @@ import '../models/complaint.dart' show ComplaintUpload;
 import '../models/customer_news_entry.dart';
 import '../widgets/dialog_content_scroll.dart';
 import '../widgets/legal_footer.dart';
+import '../utils/lang_utils.dart';
 import 'admin_stats_page.dart';
 
 // ===================================================================
@@ -67,6 +68,7 @@ class _AdminPageState extends State<AdminPage> {
   final _repLastCtrl  = TextEditingController();
   final _repMailCtrl  = TextEditingController();
   String _repRegion   = kRepRegions.first;
+  String _repLang     = 'de';
   List<String> _repRegionOptions = List<String>.from(kRepRegions);
   bool _repBusy       = false;
 
@@ -118,6 +120,16 @@ class _AdminPageState extends State<AdminPage> {
     'app': 'App-Versionen',
     'general': 'Allgemein',
   };
+
+  static const Map<String, String> _langLabels = {
+    'de': 'Deutsch',
+    'en': 'Englisch',
+    'fr': 'Französisch',
+    'it': 'Italienisch',
+    'es': 'Spanisch',
+  };
+
+  String _langLabel(String code) => _langLabels[code.toLowerCase()] ?? code.toUpperCase();
 
   String _newsCategoryLabel(String code) {
     final key = code.trim().toLowerCase();
@@ -269,7 +281,7 @@ class _AdminPageState extends State<AdminPage> {
       } else {
         final r = _reps.firstWhere(
           (x) => x.id == repId,
-          orElse: () => Rep(id: '', firstName: '', lastName: '', email: '', region: '', customers: const []),
+          orElse: () => Rep(id: '', firstName: '', lastName: '', email: '', region: '', lang: 'de', customers: const []),
         );
         final emails = r.customers.map((e) => e.trim().toLowerCase()).toSet();
         list = list.where((u) => emails.contains(u.email.trim().toLowerCase()));
@@ -2989,12 +3001,14 @@ class _AdminPageState extends State<AdminPage> {
         lastName:  _repLastCtrl.text.trim(),
         email:     _repMailCtrl.text.trim(),
         region:    _repRegion,
+        lang:      _repLang,
       );
 
       _repFirstCtrl.clear();
       _repLastCtrl.clear();
       _repMailCtrl.clear();
       _repRegion = _repRegionOptions.first;
+      _repLang = 'de';
 
       await _refreshReps();
       if (mounted) {
@@ -3021,6 +3035,7 @@ class _AdminPageState extends State<AdminPage> {
     _repLastCtrl.text  = r.lastName;
     _repMailCtrl.text  = r.email;
     _repRegion         = r.region.isNotEmpty ? r.region : _repRegionOptions.first;
+    _repLang           = r.lang.isNotEmpty ? r.lang : 'de';
 
     await showDialog<void>(
       context: context,
@@ -3046,7 +3061,7 @@ class _AdminPageState extends State<AdminPage> {
                       items: _repRegionOptions
                           .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
                           .toList(),
-                      onChanged: (v) => _repRegion = v ?? _repRegionOptions.first,
+                      onChanged: (v) => setState(() => _repRegion = v ?? _repRegionOptions.first),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -3058,6 +3073,18 @@ class _AdminPageState extends State<AdminPage> {
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: _repLang,
+                decoration: const InputDecoration(labelText: 'Korrespondenzsprache'),
+                items: supportedLangCodes
+                    .map((code) => DropdownMenuItem<String>(
+                          value: code,
+                          child: Text(_langLabel(code)),
+                        ))
+                    .toList(),
+                onChanged: (v) => setState(() => _repLang = v ?? 'de'),
               ),
             ],
           ),
@@ -3111,7 +3138,10 @@ class _AdminPageState extends State<AdminPage> {
     _repFirstCtrl.clear();
     _repLastCtrl.clear();
     _repMailCtrl.clear();
-    setState(() => _repRegion = _repRegionOptions.first);
+    setState(() {
+      _repRegion = _repRegionOptions.first;
+      _repLang   = 'de';
+    });
 
     await showModalBottomSheet<void>(
       context: context,
@@ -3198,6 +3228,21 @@ class _AdminPageState extends State<AdminPage> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: _repLang,
+                    decoration: const InputDecoration(
+                      labelText: 'Korrespondenzsprache',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: supportedLangCodes
+                        .map((code) => DropdownMenuItem<String>(
+                              value: code,
+                              child: Text(_langLabel(code)),
+                            ))
+                        .toList(),
+                    onChanged: (v) => setState(() => _repLang = v ?? 'de'),
+                  ),
                   const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
@@ -3281,6 +3326,7 @@ class _AdminPageState extends State<AdminPage> {
                     lastName: _reps[idx].lastName,
                     email: _reps[idx].email,
                     region: _reps[idx].region,
+                    lang: _reps[idx].lang,
                     customers: customers,
                   );
                 }
@@ -3322,6 +3368,7 @@ class _AdminPageState extends State<AdminPage> {
                     lastName: _reps[idx].lastName,
                     email: _reps[idx].email,
                     region: _reps[idx].region,
+                    lang: _reps[idx].lang,
                     customers: customers,
                   );
                 }
@@ -3509,7 +3556,7 @@ class _AdminPageState extends State<AdminPage> {
                         return ListTile(
                           leading: const CircleAvatar(child: Icon(Icons.person_outline)),
                           title: Text(r.displayName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                          subtitle: Text('${r.email} • ${r.region} • Kunden: ${r.customers.length}'),
+                          subtitle: Text('${r.email} • ${r.region} • ${_langLabel(r.lang)} • Kunden: ${r.customers.length}'),
                           trailing: Wrap(
                             spacing: 8,
                             children: [
@@ -4936,6 +4983,7 @@ class Rep {
   final String lastName;
   final String email;
   final String region;
+  final String lang;
   final List<String> customers;
 
   Rep({
@@ -4944,6 +4992,7 @@ class Rep {
     required this.lastName,
     required this.email,
     required this.region,
+    required this.lang,
     required this.customers,
   });
 
@@ -4953,6 +5002,7 @@ class Rep {
     lastName: (j['lastName'] ?? '').toString(),
     email: (j['email'] ?? '').toString(),
     region: (j['region'] ?? '').toString(),
+    lang: normalizeLangCode(j['lang']?.toString()),
     customers: (j['customers'] is List)
         ? List<String>.from((j['customers'] as List).map((e) => e.toString()))
         : const <String>[],
@@ -4964,6 +5014,7 @@ class Rep {
     'lastName': lastName,
     'email': email,
     'region': region,
+    'lang': lang,
     'customers': customers,
   };
 
@@ -6948,6 +6999,7 @@ class AdminApi {
     required String lastName,
     required String email,
     required String region,
+    required String lang,
   }) async {
     final body = {
       'action': 'upsert',                 // <-- NEU
@@ -6956,6 +7008,7 @@ class AdminApi {
       'lastName': lastName,
       'email': email,
       'region': region,
+      'lang': lang,
     };
     final res = await _request('POST', '/api/admin/reps', body: body);
     if (res.status != 200 && res.status != 201) {

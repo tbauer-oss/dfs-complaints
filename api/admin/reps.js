@@ -80,6 +80,7 @@ export default async function handler(req, res) {
           lastName:  r.lastName,
           email:     r.email,
           region:    r.region,
+          lang:      r.lang,
           createdAt: r.createdAt,
           updatedAt: r.updatedAt,
         }))));
@@ -133,6 +134,7 @@ export default async function handler(req, res) {
           lastName:  S(body.lastName),
           email:     S(body.email).toLowerCase(),
           region:    S(body.region),
+          lang:      S(body.lang),
         });
         // rep enthält bereits customers (siehe repsStore)
         res.status(200).end(JSON.stringify(rep));
