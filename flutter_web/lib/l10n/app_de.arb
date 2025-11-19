@@ -601,5 +601,166 @@
   "newsCatShortage": "Engpässe & Einschränkungen",
   "newsCatApp": "App-Versionen",
   "newsCatGeneral": "Allgemein",
-  "customerNewsHeroFreshLabel": "Neue Insights (30 Tage)"
+  "customerNewsHeroFreshLabel": "Neue Insights (30 Tage)",
+  "kb_title": "Wissensdatenbank – Reklamationen & Instrumente",
+  "kb_intro": "Hier finden Sie häufige Fragen und Antworten zu Reklamationen, typischen Instrumentenreaktionen und zur Nutzung der DFS Complaint App.",
+  "kb_search_hint": "Frage, Stichwort oder Begriff suchen …",
+  "kb_filter_all": "Alle Kategorien",
+  "kb_empty_message": "Keine Einträge gefunden. Bitte Suchbegriff oder Filter anpassen.",
+
+  "kb_cat_a_title": "A – Allgemeine Reklamationsfragen",
+  "kb_cat_b_title": "B – Diamantinstrumente",
+  "kb_cat_c_title": "C – Hartmetallinstrumente",
+  "kb_cat_d_title": "D – Keramikfräser",
+  "kb_cat_e_title": "E – Polierer",
+  "kb_cat_f_title": "F – Aufbereitung & Sterilisation",
+  "kb_cat_g_title": "G – DFS Complaint App Nutzung",
+  "kb_cat_h_title": "H – Entscheidung & technische Analyse",
+  "kb_cat_i_title": "I – Fotos & Rücksendung",
+  "kb_cat_j_title": "J – Häufige Missverständnisse",
+
+  "kb_q1_question": "Wie erstelle ich eine Reklamation Schritt für Schritt?",
+  "kb_q1_answer": "App öffnen → Einloggen\n„Neue Reklamation“ auswählen\nProdukt auswählen oder manuell eingeben\nFehlerbild auswählen (falls vorhanden)\nProblem klar beschreiben (so präzise wie möglich)\nFotos hinzufügen (Defekt + Gesamtbild + Schaft)\nTicket absenden\nTicketnummer notieren (wird automatisch gespeichert)",
+
+  "kb_q2_question": "Was sollte eine gute Reklamationsbeschreibung enthalten?",
+  "kb_q2_answer": "Wann trat der Fehler auf?\nWie viele Anwendungen? (1. Einsatz? 5. Einsatz?)\nBei welcher Behandlung?\nMit welchem Antrieb?\nMit welcher Drehzahl?\nMit welcher Kühlung? (Art & Menge)\nGab es Vibrationen?\nGab es besondere Ereignisse? (z. B. Verkanten, starke Hitze, Geräusch)",
+
+  "kb_q3_question": "Wie lange habe ich Zeit, eine Reklamation zu melden?",
+  "kb_q3_answer": "Grundsätzlich zeitnah nach Auftreten\nBei Abnutzung oder längerer Nutzung kann DFS keine Gewährleistung mehr übernehmen\nJe früher gemeldet, desto besser ist der Fall nachvollziehbar",
+
+  "kb_q4_question": "Warum sind Fotos so wichtig?",
+  "kb_q4_answer": "Visuelle Defekte sind fast immer sofort erkennbar\nSchaftschäden oder Biegungen sind sofort sichtbar\nBelagzustand und Zuschmieren sind eindeutig erkennbar\nOhne Fotos sind Rückfragen unvermeidlich, was die Bearbeitung verlängert",
+
+  "kb_q5_question": "Wird meine Reklamation anonymisiert bearbeitet?",
+  "kb_q5_answer": "Ja, intern werden nur die relevanten technischen Daten genutzt\nPersonenbezogene Daten werden streng gemäß Datenschutz verarbeitet",
+
+  "kb_q6_question": "Werden meine Reklamationen statistisch ausgewertet?",
+  "kb_q6_answer": "Ja, Reklamationen werden anonymisiert ausgewertet\nDie Auswertung dient Qualitätsverbesserung, Trendanalysen und der Erfüllung von PMS-Pflichten",
+
+  "kb_q7_question": "Warum stumpft ein Diamantinstrument bereits nach wenigen Sekunden ab?",
+  "kb_q7_answer": "Zu hoher Anpressdruck führt zum Zuschmieren des Belags\nZu wenig Wasserkühlung verursacht Hitze und erhöhten Abrieb\nFalsche Körnung für die jeweilige Indikation gewählt\nSehr harte Oberflächen (z. B. Keramik) belasten den Belag stark\nSchlechte Turbinenlager verursachen Rattermarken und beschleunigten Verschleiß",
+
+  "kb_q8_question": "Woran erkenne ich ein „zugeschmiertes“ Diamantinstrument?",
+  "kb_q8_answer": "Oberfläche wirkt glänzend statt rau\nDiamantkörner sind kaum oder gar nicht mehr sichtbar\nBraune, graue oder schwarze Beläge auf dem Belag\nKein oder kaum Abtrag, obwohl mit hoher Drehzahl gearbeitet wird\nÜbliche Reinigungsmittel entfernen die Schicht nicht mehr vollständig",
+
+  "kb_q9_question": "Warum erhitzt sich das Instrument so stark?",
+  "kb_q9_answer": "Wasserkühlung unter 50 ml/min\nFalscher Sprühwinkel, der die Präparationsstelle nicht ausreichend trifft\nZu hoher Druck auf das Instrument\nVerstopfter oder teilweise blockierter Wasserkanal\nZu geringer Abstand oder zu lange Verweildauer auf derselben Stelle",
+
+  "kb_q10_question": "Kann ein Diamantinstrument verbiegen?",
+  "kb_q10_answer": "Ja, insbesondere lange und dünne Instrumente sind empfindlich\nSchon ein leichter Sturz kann den Schaft unbrauchbar machen\nFolgen sind Unwucht, starke Hitzeentwicklung, Materialüberlastung und Abplatzen des Belags",
+
+  "kb_q11_question": "Warum löst sich der Diamantbelag teilweise ab?",
+  "kb_q11_answer": "Überwiegender seitlicher Druck statt axialer Führung\nVerkanten in engen Kavitäten oder unter sich gehenden Bereichen\nSturzschäden führen zu Mikrorissen im Belag\nMaterialermüdung nach vielen Aufbereitungs- und Autoklavierzyklen",
+
+  "kb_q12_question": "Wie viele Behandlungen hält ein Diamantinstrument normalerweise?",
+  "kb_q12_answer": "Je nach Anwendung und Material zwischen etwa 1 und 10 Behandlungen\nBei sehr harten Werkstoffen (z. B. Keramik) ist die Lebensdauer kürzer\nÜberlastung, falsche Kühlung oder zu hoher Druck reduzieren die Lebensdauer drastisch",
+
+  "kb_q13_question": "Warum ist der Schaft verfärbt oder korrodiert?",
+  "kb_q13_answer": "Instrumente wurden nach der Reinigung nicht vollständig getrocknet\nAggressive oder nicht freigegebene Reinigungschemikalien wurden verwendet\nUngeeignete oder nicht freigegebene Desinfektionsbäder kamen zum Einsatz\nKontakt mit anderen Metallen während Aufbereitung oder Lagerung führt zu Kontaktkorrosion",
+
+  "kb_q14_question": "Warum vibriert das Instrument besonders stark bei hohen Drehzahlen?",
+  "kb_q14_answer": "Schon kleinste Schaftabweichungen verursachen bei hohen Drehzahlen eine starke Unwucht\nDefekte oder verschlissene Turbinenlager verschlechtern den Rundlauf\nVerschmutzungen im Spannzangenbereich beeinflussen die Einspannung\nBeschädigungen oder Asymmetrien im Kopfbereich verstärken die Vibrationen",
+
+  "kb_q15_question": "Warum verschleißen Hartmetallfräser schneller als erwartet?",
+  "kb_q15_answer": "Bearbeitung extrem harter Materialien\nZu hohe Vorschubkraft oder starker seitlicher Druck\nÜberhitzung der Schneiden, wodurch die Härte nachlässt\nVerbiegung des Schafts führt zu asymmetrischer Belastung der Schneiden",
+
+  "kb_q16_question": "Warum bricht ein Hartmetallbohrer manchmal plötzlich?",
+  "kb_q16_answer": "Mikrorisse durch frühere Überlastung oder falsche Anwendung\nKontakt mit metallischen Restaurationen oder sehr harten Werkstoffen\nFalsche Drehrichtung des Antriebs\nVerkanten in engen oder schlecht zugänglichen Bereichen\nHohe radiale Kräfte durch unsauberen oder ruckartigen Vorschub",
+
+  "kb_q17_question": "Woran erkenne ich verschlissene Hartmetallschneiden?",
+  "kb_q17_answer": "Materialabtrag wird deutlich schlechter\nSchneiden wirken stumpf oder glänzen stark\nDie entstehenden Späne wirken eher pulverig statt als definierte Späne\nGeräuschentwicklung wird höher, schriller oder unangenehm\nHitzeentwicklung an Zahn oder Werkstoff nimmt spürbar zu",
+
+  "kb_q18_question": "Warum treten schwarz-blaue Verfärbungen am Instrument oder am Werkstoff auf?",
+  "kb_q18_answer": "Wärmeverbrennungen durch starke Erwärmung\nUnzureichende oder falsch ausgerichtete Kühlung\nZu geringer Druck bei gleichzeitig zu niedriger Drehzahl erzeugt Reibwärme\nBeschädigte oder stumpfe Schnittgeometrie erhöht die Hitzeentwicklung",
+
+  "kb_q19_question": "Wie erkenne ich eine unsachgemäße Anwendung an der Bruchstelle?",
+  "kb_q19_answer": "Schräger, ausfransender Bruch deutet auf hohe seitliche Kräfte hin\nGlatter, zentraler Bruch kann auf Materialermüdung oder Vorschädigung hindeuten\nAbsplitterungen am Schaftende sprechen häufig für einen Sturz- oder Schlagvorschaden",
+
+  "kb_q20_question": "Warum sind Keramikfräser empfindlicher als Hartmetallinstrumente?",
+  "kb_q20_answer": "Keramik ist sehr hart, aber deutlich spröder als Hartmetall\nQuerkräfte führen schnell zu Mikrorissen\nVerkanten oder ruckartige Bewegungen sind besonders kritisch\nEin falscher Anstellwinkel begünstigt Ausbrüche an den Schneiden",
+
+  "kb_q21_question": "Warum bricht beim Keramikfräser oft nur eine einzelne Schneide?",
+  "kb_q21_answer": "Lokale Überlastung an einer bestimmten Schneide\nDirekter Kontakt mit Metall oder besonders harten Materialien\nUngleichmäßige Führung oder verkantete Bewegung\nUnpassende Drehzahl erzeugt Resonanzeffekte an einzelnen Schneiden",
+
+  "kb_q22_question": "Was verschlechtert die Laufruhe bei Keramikfräsern besonders stark?",
+  "kb_q22_answer": "Schon kleinste Schaftabweichungen wirken sich bei Keramik deutlich aus\nUnwucht oder Defekte im Turbinenlager\nMikroskopisch kleine Absplitterungen an der Spitze oder an den Schneiden",
+
+  "kb_q23_question": "Warum fliegt ein Polierer auseinander?",
+  "kb_q23_answer": "Maximaldrehzahl des Polierers wurde überschritten\nStarke Aufheizung durch zu hohen Druck oder lange Kontaktzeit\nVorschäden oder Risse in der Gummi- oder Hybridmatrix\nKontakt mit scharfen Kanten oder Graten am Werkstück",
+
+  "kb_q24_question": "Warum ist der Poliereffekt schwach?",
+  "kb_q24_answer": "Falsche Polierstufe für den gewünschten Glanzgrad gewählt\nOberfläche wurde vor dem Polieren nicht ausreichend vorbereitet\nDrehzahl ist zu gering für den verwendeten Polierer\nPolierer ist bereits stark abgenutzt oder verschlissen\nKontaktzeit oder Anpressdruck sind zu gering oder zu kurz",
+
+  "kb_q25_question": "Warum entstehen schwarze Ablagerungen beim Polieren?",
+  "kb_q25_answer": "Polierer überhitzt und Material verschmilzt mit der Oberfläche\nZu hoher Druck führt dazu, dass Gummipartikel abgerieben werden\nFalscher Polierer für das bearbeitete Material eingesetzt",
+
+  "kb_q26_question": "Warum ist eine sofortige Vorreinigung wichtig?",
+  "kb_q26_answer": "Verhindert dauerhaftes Anhaften von Blut, Komposit oder Zementresten\nReduziert die mikrobielle Belastung schon vor der maschinellen Aufbereitung\nSchont Belag, Schneiden und Oberflächenstruktur\nVerhindert Korrosionspunkte durch anhaftende Rückstände",
+
+  "kb_q27_question": "Welche Fehler passieren häufig bei der Aufbereitung?",
+  "kb_q27_answer": "Instrumente werden nicht vollständig getrocknet\nEs werden falsche oder zu aggressive Chemikalien (Basen, Säuren) verwendet\nZu hohe Temperatur in Reinigungs- oder Desinfektionsprozessen\nInstrumente schlagen bei der Aufbereitung gegeneinander\nAutoklav wird falsch oder zu dicht beladen",
+
+  "kb_q28_question": "Warum zeigt ein Instrument nach der Aufbereitung braune Flecken?",
+  "kb_q28_answer": "Flugrost durch Kontakt mit rostenden Metallteilen\nFeuchtigkeit oder Kondensat im Autoklav\nUnsachgemäße oder unvollständige Trocknung\nKontakt mit fremdmetallischen Instrumenten während der Aufbereitung",
+
+  "kb_q29_question": "Wie erkenne ich ein instrumentenbedingtes Sicherheitsrisiko?",
+  "kb_q29_answer": "Risse oder Kerben im Schaft\nAbsplitterungen am Kopf oder an Schneiden\nBiegungen oder sichtbare Verformungen des Instruments\nTeilweiser oder vollständiger Belagverlust\nKorrosionsstellen, insbesondere im Schaft- oder Spannbereich",
+
+  "kb_q30_question": "Wie verhindere ich Korrosion an Instrumenten?",
+  "kb_q30_answer": "Instrumente nach der Reinigung vollständig trocknen\nKeine aggressiven oder nicht freigegebenen Reinigungsbäder verwenden\nDirekten Metallkontakt unterschiedlicher Legierungen möglichst vermeiden\nAutoklav regelmäßig warten und Wasserqualität sicherstellen",
+
+  "kb_q31_question": "Ticket kann nicht gesendet werden – was sind häufige Ursachen?",
+  "kb_q31_answer": "Pflichtfelder in der Reklamation sind noch nicht vollständig ausgefüllt\nInternetverbindung ist unterbrochen oder instabil\nFotos oder Anhänge sind zu groß\nAccount ist noch nicht freigeschaltet\nGate-Passwort fehlt oder ist ungültig",
+
+  "kb_q32_question": "Ticket erscheint nicht – warum?",
+  "kb_q32_answer": "Filtereinstellungen blenden bestimmte Tickets aus\nMit einem anderen Account als dem Ersteller eingeloggt\nTicket wurde archiviert oder ausgeblendet\nApp oder Browser wurden noch nicht aktualisiert oder neu geladen",
+
+  "kb_q33_question": "Warum wird manchmal ein Gate-Passwort benötigt?",
+  "kb_q33_answer": "Damit nur verifizierte Kunden einen Account anlegen können\nSchutz vor Spam-Anmeldungen und Mehrfachregistrierungen\nDas Gate-Passwort wird manuell von DFS vergeben und geprüft",
+
+  "kb_q34_question": "Kann ich ein Ticket nachträglich ändern?",
+  "kb_q34_answer": "Ja, solange der Status „Rückfrage erforderlich“ oder „Offen“ ist\nFotos und Kommentare können ergänzt oder präzisiert werden",
+
+  "kb_q35_question": "Warum kann ich manche Tickets nicht mehr öffnen?",
+  "kb_q35_answer": "Der zugehörige Benutzer wurde deaktiviert\nDas Ticket ist vollständig abgeschlossen und ggf. archiviert\nEin Archiv- oder Statusfilter blendet das Ticket aus",
+
+  "kb_q36_question": "Wann wird eine Reklamation angenommen?",
+  "kb_q36_answer": "Ein Materialfehler ist plausibel oder nicht auszuschließen\nEine Produktionsabweichung erscheint möglich\nDas Instrument fällt frühzeitig aus, obwohl es korrekt angewendet wurde\nEs liegt ein nachweisbarer technischer Defekt vor",
+
+  "kb_q37_question": "Wann wird eine Reklamation abgelehnt?",
+  "kb_q37_answer": "Klare Überlastung oder unsachgemäße Anwendung\nFehlende oder unzureichende Kühlung\nFalsche oder deutlich überhöhte Drehzahl\nDeutliche Vorschäden oder sichtbare Sturzspuren am Instrument\nInstrument ist stark abgenutzt und außerhalb der üblichen Lebensdauer",
+
+  "kb_q38_question": "Warum kann DFS manchmal keine eindeutige Ursache nennen?",
+  "kb_q38_answer": "Instrument ist zu stark beschädigt, um den Ursprung sicher zu erkennen\nDie konkrete Anwendungssituation ist nicht mehr nachvollziehbar\nEs wurden keine oder nur unzureichende Fotos bereitgestellt\nZwischen Ereignis und Analyse liegt ein sehr langer Zeitraum",
+
+  "kb_q39_question": "Was passiert mit eingesandten Instrumenten im Labor?",
+  "kb_q39_answer": "Mikroskopische Analyse der betroffenen Bereiche\nVergleich mit Referenz- und Neumustern\nPrüfung auf Risse, Deformationen und Belagschäden\nSchaftrundlaufprüfung und Beurteilung der Laufruhe\nDokumentation der Ergebnisse für Qualitätssicherung und PMS",
+
+  "kb_q40_question": "Bekomme ich einen Prüfbericht zu meiner Reklamation?",
+  "kb_q40_answer": "Ja, die Bewertung wird im Ticket dokumentiert\nAuf Wunsch kann ein erweitertes Feedback über den Außendienst erfolgen",
+
+  "kb_q41_question": "Wie fotografiere ich ein Instrument richtig?",
+  "kb_q41_answer": "Heller, ruhiger Hintergrund (z. B. weiß)\nTageslicht oder homogene LED-Beleuchtung verwenden\nKopf scharf abbilden und Überbelichtung vermeiden\nMindestens drei Perspektiven: Kopf, Schaft und Gesamtaufnahme\nOptional ein Lineal oder Maßstab neben das Instrument legen",
+
+  "kb_q42_question": "Was sollte ich beim Fotografieren vermeiden?",
+  "kb_q42_answer": "Unscharfe Nahaufnahmen ohne erkennbares Detail\nHände oder Finger verdecken das Instrument\nSehr unruhiger oder ablenkender Hintergrund\nStarke Überblendung durch Blitz oder Reflexe",
+
+  "kb_q43_question": "Warum muss manchmal das Originalinstrument eingesendet werden?",
+  "kb_q43_answer": "Die Fotos reichen zur Bewertung nicht aus\nEs liegt ein auffälliges oder sicherheitsrelevantes Fehlerbild vor\nEine Laboranalyse ist für die Ursachenforschung zwingend nötig\nTrend- oder Chargenprüfungen erfordern das Originalinstrument",
+
+  "kb_q44_question": "Wie verpacke ich Instrumente korrekt für die Rücksendung?",
+  "kb_q44_answer": "Jedes Instrument möglichst einzeln verpacken (z. B. Blister oder Hülle)\nAusreichende Polsterung gegen Bruch und Biegung\nTicketnummer gut sichtbar beilegen\nInstrumente gereinigt und trocken versenden",
+
+  "kb_q45_question": "Werden eingesandte Instrumente zurückgeschickt?",
+  "kb_q45_answer": "In der Regel verbleiben die Instrumente zur Dokumentation im Labor\nAusnahmen sind nach vorheriger Absprache möglich",
+
+  "kb_q46_question": "Kann ich mehrere Instrumente in einem Paket senden?",
+  "kb_q46_answer": "Ja, mehrere Instrumente können zusammen versendet werden\nJedes Instrument sollte jedoch einzeln verpackt sein\nAlle zugehörigen Ticketnummern beilegen\nVerwechslungen durch klare Kennzeichnung vermeiden",
+
+  "kb_q47_question": "„Diamantinstrumente sind Einmalprodukte“ – stimmt das?",
+  "kb_q47_answer": "Nein, Diamantinstrumente sind in der Regel Mehrwegprodukte\nDie tatsächliche Lebensdauer hängt jedoch stark von der Anwendung ab\nÜberlastung, fehlende Kühlung und falsche Indikation führen zu sehr schnellem Verschleiß\nTypisch sind wenige Anwendungen pro Instrument bei optimalem Einsatz",
+
+  "kb_q48_question": "„Viel Druck = mehr Abtrag“ – stimmt das?",
+  "kb_q48_answer": "Nein, hoher Druck führt zum Zuschmieren des Belags\nDie Hitzeentwicklung steigt deutlich\nDer Belag kann sich lösen oder schneller verschleißen\nDas Instrument stumpft schneller ab\nLeichter, kontrollierter Druck führt meist zu besserem Abtrag und schonenderem Arbeiten"
+
 }
