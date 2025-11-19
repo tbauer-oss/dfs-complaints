@@ -645,37 +645,32 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
                 const SizedBox(height: 10),
 
                 // Kategorie-Filter (Chips)
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      ChoiceChip(
-                        label: Text(t.kb_filter_all),
-                        selected: _selectedCategory == null,
-                        onSelected: (_) {
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    ChoiceChip(
+                      label: Text(t.kb_filter_all),
+                      selected: _selectedCategory == null,
+                      onSelected: (_) {
+                        setState(() {
+                          _selectedCategory = null;
+                        });
+                      },
+                    ),
+                    ...KnowledgeCategory.values.map((cat) {
+                      final label = _categoryLabel(cat, t);
+                      return ChoiceChip(
+                        label: Text(label),
+                        selected: _selectedCategory == cat,
+                        onSelected: (sel) {
                           setState(() {
-                            _selectedCategory = null;
+                            _selectedCategory = sel ? cat : null;
                           });
                         },
-                      ),
-                      const SizedBox(width: 8),
-                      ...KnowledgeCategory.values.map((cat) {
-                        final label = _categoryLabel(cat, t);
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ChoiceChip(
-                            label: Text(label),
-                            selected: _selectedCategory == cat,
-                            onSelected: (sel) {
-                              setState(() {
-                                _selectedCategory = sel ? cat : null;
-                              });
-                            },
-                          ),
-                        );
-                      }).toList(),
-                    ],
-                  ),
+                      );
+                    }).toList(),
+                  ],
                 ),
 
                 const SizedBox(height: 10),
