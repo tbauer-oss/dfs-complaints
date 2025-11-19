@@ -288,7 +288,7 @@ class _MyAppState extends State<MyApp> {
   Future<void> _boot() async {
     await api.restoreSession();
     await api.ensureRepSession(); // invalides repToken nach Deploys o.ä. wegräumen
-    await push.init();
+    await push.setup(api, languageCode: _prefs.locale?.languageCode);
     final wasLoggedIn = _customerLoggedIn;
     final hasRep = _repLoggedIn;
     final hasAdmin = (api.adminSecret ?? '').isNotEmpty;
