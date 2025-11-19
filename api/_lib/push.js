@@ -1,7 +1,7 @@
 // api/_lib/push.js – Push Notification helper (FCM HTTP v1)
 import crypto from 'crypto';
 import { usersList, repPushTokens } from './store.js';
-import { getRepOf } from './repsStore.js';
+import { getRepOf, loadRepById, loadRepByEmail } from './repsStore.js';
 
 export const config = { runtime: 'nodejs' };
 
@@ -371,7 +371,48 @@ export async function sendComplaintStatusPush(complaint) {
   }
 
   try {
-    const rep = await getRepOf(ownerEmail);
+    const repIdCandidates = [
+      complaint.repId,
+      complaint.rep_id,
+      complaint.rep?.id,
+      complaint.rep?.repId,
+    ].map((v) => (v ? v.toString().trim() : ''));
+
+    const repEmailCandidates = [
+      complaint.repEmail,
+      complaint.rep_email,
+      complaint.rep?.email,
+      complaint.rep?.mail,
+    ]
+      .map((v) => (v ? v.toString().trim().toLowerCase() : ''))
+      .filter(Boolean);
+
+    let rep = null;
+    for (const id of repIdCandidates) {
+      if (!id) continue;
+      try {
+        rep = await loadRepById(id);
+        if (rep) break;
+      } catch (e) {
+        console.warn('[push] sendComplaintStatusPush: loadRepById failed', e?.message || e);
+      }
+    }
+
+    if (!rep && repEmailCandidates.length > 0) {
+      for (const em of repEmailCandidates) {
+        try {
+          rep = await loadRepByEmail(em);
+          if (rep) break;
+        } catch (e) {
+          console.warn('[push] sendComplaintStatusPush: loadRepByEmail failed', e?.message || e);
+        }
+      }
+    }
+
+    if (!rep) {
+      rep = await getRepOf(ownerEmail);
+    }
+
     if (rep?.id) {
       const repTokens = await repPushTokens(rep.id);
       if (repTokens.length === 0) {
