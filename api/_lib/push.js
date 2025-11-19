@@ -210,3 +210,117 @@ export async function sendPushNotification({ tokens = [], title = '', body = '',
     failed: failureCount,
   };
 }
+
+import { usersList } from './store.js';
+
+// Helper: "de-DE" -> "de"
+function _normLang(value, fallback = 'de') {
+  const raw = (value || '').toString().trim().toLowerCase();
+  if (!raw) return fallback;
+  const two = raw.split(/[-_]/)[0];
+  return two || fallback;
+}
+
+/**
+ * Push bei Statusänderung einer Reklamation
+ *
+ * Erwartete Felder (wir versuchen mehrere Varianten):
+ *  - complaint.email / customerEmail / userEmail
+ *  - complaint.ticket / code / number
+ *  - complaint.status
+ *  - complaint.lang (optional)
+ */
+export async function sendComplaintStatusPush(complaint) {
+  if (!isPushConfigured()) {
+    console.warn('[push] sendComplaintStatusPush: push not configured, skipping');
+    return;
+  }
+  if (!complaint) return;
+
+  const ownerEmail = (
+    complaint.email ||
+    complaint.customerEmail ||
+    complaint.userEmail ||
+    ''
+  ).toString().toLowerCase();
+
+  if (!ownerEmail) {
+    console.warn('[push] sendComplaintStatusPush: no owner email on complaint');
+    return;
+  }
+
+  const ticket = (
+    complaint.ticket ||
+    complaint.code ||
+    complaint.number ||
+    ''
+  ).toString();
+
+  const statusVal = (complaint.status ?? '').toString();
+
+  const users = await usersList();
+  const user = users.find(
+    (u) => (u.email || '').toString().toLowerCase() === ownerEmail,
+  );
+
+  if (!user || !Array.isArray(user.pushTokens) || user.pushTokens.length === 0) {
+    console.warn('[push] sendComplaintStatusPush: no pushTokens for', ownerEmail);
+    return;
+  }
+
+  const lang = _normLang(complaint.lang || user.lang || 'de');
+
+  const titleMap = {
+    de: 'Status Ihrer Reklamation wurde aktualisiert',
+    en: 'Your complaint status has been updated',
+    fr: 'Le statut de votre réclamation a été mis à jour',
+    it: 'Lo stato del suo reclamo è stato aggiornato',
+    es: 'Se ha actualizado el estado de su reclamación',
+  };
+
+  const bodyMap = {
+    de: ticket
+      ? `Reklamationsnummer ${ticket}: Der Status wurde geändert.`
+      : 'Der Status Ihrer Reklamation wurde geändert.',
+    en: ticket
+      ? `Complaint ${ticket}: The status has been changed.`
+      : 'The status of your complaint has been changed.',
+    fr: ticket
+      ? `Réclamation ${ticket} : le statut a été modifié.`
+      : 'Le statut de votre réclamation a été modifié.',
+    it: ticket
+      ? `Reclamo ${ticket}: lo stato è stato modificato.`
+      : 'Lo stato del suo reclamo è stato modificato.',
+    es: ticket
+      ? `Reclamación ${ticket}: se ha cambiado el estado.`
+      : 'Se ha cambiado el estado de su reclamación.',
+  };
+
+  const title = titleMap[lang] || titleMap.de;
+  const body = bodyMap[lang] || bodyMap.de;
+
+  const tokens = user.pushTokens
+    .map((p) => (p && p.token ? p.token.toString().trim() : ''))
+    .filter((t) => t.length > 0);
+
+  if (tokens.length === 0) {
+    console.warn('[push] sendComplaintStatusPush: user has empty token list');
+    return;
+  }
+
+  const result = await sendPushNotification({
+    tokens,
+    title,
+    body,
+    data: {
+      type: 'complaint-status',
+      ticket,
+      status: statusVal,
+      lang,
+    },
+  });
+
+  if (!result?.ok) {
+    console.warn('[push] sendComplaintStatusPush: not ok', result);
+  }
+}
