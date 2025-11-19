@@ -1,6 +1,6 @@
 // api/_lib/push.js – Push Notification helper (FCM HTTP v1)
 import crypto from 'crypto';
-import { usersList, repPushTokens, pushTokensForEmail } from './store.js';
+import { usersList, pushTokensForEmail } from './store.js';
 import { getRepOf, loadRepById, loadRepByEmail } from './repsStore.js';
 
 export const config = { runtime: 'nodejs' };
@@ -419,14 +419,13 @@ export async function sendComplaintStatusPush(complaint) {
     const targetRep = assignedRep || rep;
 
     if (targetRep?.id) {
-      const repTokens = await repPushTokens(targetRep.id);
       const repEmailTokens = targetRep.email
         ? await pushTokensForEmail(targetRep.email)
         : [];
 
       const combinedTokens = Array.from(
         new Map(
-          [...repTokens, ...repEmailTokens]
+          repEmailTokens
             .map((entry) => [entry.token, entry])
             .filter(([token]) => Boolean(token)),
         ).values(),

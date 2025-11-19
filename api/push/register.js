@@ -69,6 +69,7 @@ export default async function handler(req, res) {
     if (email) {
       await pushTokenRegister(email, token, { platform, locale, lang });
     } else if (rep) {
+      console.warn('[push/register] rep push token registration disabled');
       await repPushTokenRegister(rep.repId, token, { platform, locale, lang });
     } else if (admin) {
       await adminPushTokenRegister(token, { platform, locale, lang });

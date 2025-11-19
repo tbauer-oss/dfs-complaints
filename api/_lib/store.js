@@ -655,90 +655,38 @@ export async function pushTokenRemove(email, token) {
 export async function repPushTokens(repId) {
   const id = (repId || '').toString().trim();
   if (!id) return [];
+
+  // Vertreter:innen erhalten keine separaten Push-Tokens mehr.
   const key = KEY_REP_PUSH(id);
   const r = getRedis();
   if (r) {
-    const raw = await rget(key);
-    let list = null;
-    if (Array.isArray(raw)) list = raw;
-    else if (typeof raw === 'string' && raw.trim()) {
-      try { list = JSON.parse(raw); }
-      catch { list = []; }
-    } else if (raw && typeof raw === 'object') {
-      list = raw;
-    }
-    const normalized = normalizePushTokens(list);
-    if (!Array.isArray(list) || normalized.length !== _rawPushTokenCount(list)) {
-      try { await rset(key, normalized); }
-      catch (e) { console.error('repPushTokens/normalize', e); }
-    }
-    return normalized;
+    try { await rdel(key); }
+    catch (e) { console.error('repPushTokens/cleanup', e); }
   }
-  const list = normalizePushTokens(mem.repPushTokens.get(id));
-  mem.repPushTokens.set(id, list);
-  return list;
+  mem.repPushTokens.delete(id);
+  return [];
 }
 
 export async function repPushTokenRegister(repId, token, meta = {}) {
   const id = (repId || '').toString().trim();
   const tok = (token || '').toString().trim();
   if (!id || !tok) return null;
-  const now = Date.now();
-  const platform = (meta?.platform || '').toString().trim();
-  const locale = (meta?.locale || '').toString().trim();
-  const lang = normLang(meta?.lang || '');
 
-  const existing = await repPushTokens(id);
-  const idx = existing.findIndex(t => t.token === tok);
-  if (idx >= 0) {
-    existing[idx] = {
-      ...existing[idx],
-      platform: platform || existing[idx].platform,
-      lang,
-      locale: locale || existing[idx].locale,
-      updatedAt: now,
-    };
-  } else {
-    existing.push({
-      token: tok,
-      platform: platform || undefined,
-      lang,
-      locale: locale || undefined,
-      createdAt: now,
-      updatedAt: now,
-    });
-  }
-
-  const r = getRedis();
-  if (r) {
-    try { await rset(KEY_REP_PUSH(id), existing); }
-    catch (e) { console.error('repPushTokenRegister/save', e); }
-  }
-
-  mem.repPushTokens.set(id, existing);
-
-  return existing[idx >= 0 ? idx : existing.length - 1];
+  console.warn('[store] repPushTokenRegister ignored – rep push tokens disabled');
+  await repPushTokenRemove(id, tok);
+  return null;
 }
 
 export async function repPushTokenRemove(repId, token) {
   const id = (repId || '').toString().trim();
   const tok = (token || '').toString().trim();
   if (!id || !tok) return false;
-  const list = (await repPushTokens(id)).filter(t => t.token !== tok);
   const r = getRedis();
-  if (list.length > 0) {
-    if (r) {
-      try { await rset(KEY_REP_PUSH(id), list); }
-      catch (e) { console.error('repPushTokenRemove/save', e); }
-    }
-    mem.repPushTokens.set(id, list);
-  } else {
-    if (r) {
-      try { await rdel(KEY_REP_PUSH(id)); }
-      catch (e) { console.error('repPushTokenRemove/del', e); }
-    }
-    mem.repPushTokens.delete(id);
+  if (r) {
+    try { await rdel(KEY_REP_PUSH(id)); }
+    catch (e) { console.error('repPushTokenRemove/del', e); }
   }
+  mem.repPushTokens.delete(id);
   return true;
 }
 
