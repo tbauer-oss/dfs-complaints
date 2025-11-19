@@ -5,6 +5,7 @@ import 'rep_dashboard_page.dart';
 import '../l10n/app_localizations.dart';
 import 'reset_password_page.dart';
 import '../services/push_notifications.dart';
+import 'dashboard_page.dart';
 
 // **KEIN direkter dart:html-Import mehr**
 import 'package:dfs_mobile/web_compat/html_stub.dart'
@@ -96,6 +97,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
   Future<void> _login() async {
     final t = context.t;
     setState(() { _busy = true; _err = null; });
+
     try {
       final result = await widget.api.login(_email.text.trim(), _pw.text);
       if (!result.ok) {
@@ -109,30 +111,65 @@ class _RepLoginPageState extends State<RepLoginPage> {
         setState(() => _err = err);
         return;
       }
+
       if (!mounted) return;
-      
-      // 🔔 HIER: Push-Benachrichtigungen nach erfolgreichem Login aktivieren
+
+      // 🔔 OPT-IN-DIALOG: Kunde fragt, ob er Pushs möchte
+      final wantsPush = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Push-Benachrichtigungen aktivieren?'),
+          content: const Text(
+            'Möchten Sie Push-Benachrichtigungen erhalten, wenn sich der '
+            'Status Ihrer Reklamationen ändert?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Nein, danke'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Ja, aktivieren'),
+            ),
+          ],
+        ),
+      ) ?? false;
+
       final locale = Localizations.localeOf(context);
-      try {
-        await PushNotifications.instance.setup(
-          widget.api,
-          languageCode: locale.languageCode,
-        );
-        // Optional – falls du replayLatestToken in push_notifications.dart hast:
+
+      if (wantsPush) {
+        // ✅ Push für diesen Kunden AKTIVIEREN
         try {
-          await PushNotifications.instance.replayLatestToken(
+          await PushNotifications.instance.setup(
             widget.api,
             languageCode: locale.languageCode,
           );
         } catch (e) {
-          debugPrint('[push] replayLatestToken failed: $e');
+          debugPrint('[push] customer setup failed: $e');
         }
-      } catch (e) {
-        debugPrint('[push] setup failed: $e');
+        // optional: falls du mal replayLatestToken auch für Kunden haben willst
+        // try {
+        //   await PushNotifications.instance.replayLatestToken(
+        //     widget.api,
+        //     languageCode: locale.languageCode,
+        //   );
+        // } catch (e) {
+        //   debugPrint('[push] customer token replay failed: $e');
+        // }
+      } else {
+        // ❌ Kunde will keine Pushs → ggf. alten Token deregistrieren
+        try {
+          await PushNotifications.instance.deactivate(widget.api);
+        } catch (e) {
+          debugPrint('[push] customer deactivate failed: $e');
+        }
       }
-      
+
+      // Danach ganz normal ins Kundendashboard
+      if (!mounted) return;
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => RepDashboardPage(api: widget.api)),
+        MaterialPageRoute(builder: (_) => DashboardPage(api: widget.api)),
       );
     } catch (e) {
       setState(() => _err = '${t.network_error_generic} $e');
