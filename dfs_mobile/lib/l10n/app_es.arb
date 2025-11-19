@@ -611,5 +611,278 @@
   "imprint_copyright_title": "Derechos de autor",
   "imprint_copyright_body": "Todos los derechos reservados. El contenido y la estructura del sitio web de DFS-Diamon están protegidos por derechos de autor. La información o los datos (texto, imágenes, gráficos, audio, vídeo o archivos de animación) de nuestro sitio web no podrán utilizarse ni reproducirse, ni siquiera parcialmente, sin el consentimiento previo por escrito de DFS-Diamon GmbH.",
   "imprint_odr_title": "Resolución alternativa de litigios (ODR / VSBG)",
-  "imprint_odr_body": "La Comisión Europea ofrece una plataforma de Resolución de Litigios en Línea (ODR): https://webgate.ec.europa.eu/odr/main/index.cfm?event=main.home.show&lng=ES\nEstamos dispuestos a participar en un procedimiento extrajudicial de resolución de conflictos."
+  "imprint_odr_body": "La Comisión Europea ofrece una plataforma de Resolución de Litigios en Línea (ODR): https://webgate.ec.europa.eu/odr/main/index.cfm?event=main.home.show&lng=ES\nEstamos dispuestos a participar en un procedimiento extrajudicial de resolución de conflictos.",
+
+  "knowledgeBaseTile": "Base de conocimientos (FAQ)",
+  "category": "Categoría",
+  "yourMessage": "Su mensaje",
+  "supportConsentText": "Acepto el tratamiento según el aviso de privacidad.",
+  "message_required": "Introduzca un mensaje.",
+  "message_sent": "Mensaje enviado.",
+  "supportCatGeneral": "Consulta general",
+  "supportCatComplaintIssue": "Problema con una reclamación",
+  "supportCatTechnical": "Problema técnico",
+  "supportCatAccount": "Consultas sobre la cuenta",
+  "supportCatPrivacy": "Privacidad de datos",
+  "supportCatFeedback": "Comentarios",
+  "supportCatSuggestion": "Sugerencia de mejora",
+
+  "legal_privacy_intro": "A continuación encontrará la información sobre protección de datos para el uso de la aplicación DFS Complaint.",
+  "legal_privacy_0_text_prefix": "La presente información se aplica a la aplicación DFS Complaint (aplicación web y móvil para el registro, la tramitación y el seguimiento de reclamaciones). Sustituye los apartados generales del sitio web en la medida en que afecten a la app. Para los contenidos fuera de la app se aplica además la política de privacidad publicada allí: ",
+  "legal_privacy_title": "Protección de datos",
+  "legal_privacy_heading": "Política de privacidad de la aplicación DFS Complaint",
+  "legal_privacy_0_title": "Introducción y ámbito de aplicación",
+  "legal_privacy_0_text": "La presente política de privacidad se aplica a la aplicación DFS Complaint, una aplicación web y móvil de DFS-Diamon GmbH para el registro, procesamiento y seguimiento de reclamaciones. Sustituye la información general de protección de datos publicada en el sitio web de la empresa en la medida en que se vean afectadas funciones de la aplicación. Para todo el contenido fuera de la aplicación, se aplica adicionalmente la política de privacidad publicada en el sitio web. La aplicación incluye: un frontend web en Flutter (Vercel, región Frankfurt/UE), una aplicación móvil Flutter, un backend Node.js/Edge (Vercel, Frankfurt/UE), una base de datos Upstash Redis (UE/Frankfurt), funciones de correo electrónico del sistema, funciones de carga y gestión de roles y usuarios.",
+  "legal_privacy_1_title": "Responsable del tratamiento",
+  "legal_privacy_1_text": "DFS-Diamon GmbH, Ländenstraße 1, D-93339 Riedenburg, Tel.: +49 (0) 9442 91 89-0, Correo electrónico: info@dfs-diamon.de.",
+  "legal_privacy_2_title": "Delegado de protección de datos",
+  "legal_privacy_2_text": "Michael Gruber, BSP-SECURITY, Thundorferstraße 10, D-93047 Regensburg, Correo electrónico: info@bsp-security.de.",
+  "legal_privacy_3_title": "Tipos de datos que tratamos",
+  "legal_privacy_3_1_title": "Datos de registro y cuenta",
+  "legal_privacy_3_1_text": "Nombre y apellidos, empresa/consulta/laboratorio, país, dirección de correo electrónico, contraseña (cifrada), contraseña de acceso (gate password)/estado de aprobación, fecha y hora del registro, dirección IP.",
+  "legal_privacy_3_2_title": "Datos de inicio de sesión y autenticación",
+  "legal_privacy_3_2_text": "Dirección de correo electrónico, hash de la contraseña, token JWT, fecha y hora de inicio de sesión, información del dispositivo y del navegador.",
+  "legal_privacy_3_3_title": "Datos de reclamaciones",
+  "legal_privacy_3_3_text": "Número de ticket, datos del producto y del cliente, descripción del defecto, archivos adjuntos (p. ej., fotos, PDFs), historial y evolución del estado, representantes asignados, información interna de tramitación.",
+  "legal_privacy_3_4_title": "Datos del sistema y de seguridad",
+  "legal_privacy_3_4_text": "Direcciones IP, marcas de tiempo, registros técnicos, mensajes de error, información del navegador.",
+  "legal_privacy_3_5_title": "Datos de representantes o administradores",
+  "legal_privacy_3_5_text": "Nombre, correo electrónico, región, registros de comunicación y tramitación, datos de roles y permisos.",
+  "legal_privacy_4_title": "Finalidades del tratamiento",
+  "legal_privacy_4_text": "Prestación y funcionamiento de la aplicación; ejecución del proceso de registro y aprobación de la contraseña de acceso; uso del sistema de gestión de reclamaciones; comunicación relacionada con las reclamaciones; documentación y trazabilidad de los procesos; funcionamiento, mantenimiento y seguridad de los sistemas; detección y prevención de abusos; cumplimiento de obligaciones legales.",
+  "legal_privacy_5_title": "Bases jurídicas",
+  "legal_privacy_5_text": "Art. 6(1)(b) RGPD (cumplimiento de obligaciones contractuales o precontractuales); Art. 6(1)(f) RGPD (interés legítimo, especialmente seguridad informática y eficiencia de los procesos); Art. 6(1)(a) RGPD (consentimiento, p. ej., para funciones opcionales); Art. 6(1)(c) RGPD (obligaciones legales).",
+  "legal_privacy_6_title": "Alojamiento, infraestructura y encargados del tratamiento",
+  "legal_privacy_6_1_title": "Vercel (alojamiento del frontend y backend)",
+  "legal_privacy_6_1_text": "Proveedor: Vercel Inc. Ubicación del tratamiento: Frankfurt (eu-fra1). Datos tratados: dirección IP, llamadas API, registros técnicos, marcas de tiempo, user agent. Contrato de encargo conforme al Art. 28 RGPD: https://vercel.com/legal/dpa. Todas las transmisiones se realizan encriptadas (TLS).",
+  "legal_privacy_6_2_title": "Upstash Redis (almacenamiento de datos)",
+  "legal_privacy_6_2_text": "La aplicación utiliza Upstash Redis para almacenar todos los datos relevantes, incluidos cuentas de usuario, reclamaciones, archivos adjuntos, tokens y datos de representantes. Región de datos: Frankfurt/UE. Contrato de encargo: https://upstash.com/trust/dpa.pdf. La comunicación está siempre cifrada (TLS).",
+  "legal_privacy_6_3_title": "Envío de correos electrónicos",
+  "legal_privacy_6_3_text": "Los correos electrónicos del sistema se envían mediante servidores de correo DFS o proveedores SMTP situados en la UE. Con los proveedores externos existe un contrato de encargo conforme al Art. 28 RGPD.",
+  "legal_privacy_6_4_title": "Flutter / Google",
+  "legal_privacy_6_4_text": "Flutter no trata datos personales. No se utiliza seguimiento ni análisis (Google Analytics, Firebase Analytics).",
+  "legal_privacy_7_title": "Tratamiento dentro de la UE",
+  "legal_privacy_7_text": "Todos los datos personales se tratan exclusivamente dentro de la Unión Europea. No se realizan transferencias a terceros países salvo que se informe expresamente y existan garantías adecuadas. Todas las transmisiones están cifradas (TLS).",
+  "legal_privacy_8_title": "Cookies, almacenamiento local y almacenamiento de la aplicación",
+  "legal_privacy_8_text": "La aplicación no utiliza cookies de seguimiento. Solo se almacenan datos técnicamente necesarios, como tokens JWT, configuración de idioma, datos de interfaz y sesión, y datos temporales de entrada. Base jurídica: Art. 6(1)(f) RGPD.",
+  "legal_privacy_9_title": "Cargas y archivos adjuntos",
+  "legal_privacy_9_text": "Los archivos cargados, como fotos, PDFs o documentos adicionales, se almacenan en la base de datos y se utilizan exclusivamente para la tramitación de la reclamación. No se transmiten a terceros.",
+  "legal_privacy_10_title": "Comunicación por correo electrónico",
+  "legal_privacy_10_text": "La aplicación envía mensajes del sistema, como confirmaciones de registro, correos de contraseña de acceso, notificaciones de aprobación, actualizaciones de estado de la reclamación, solicitudes de información y notificaciones para administradores. El contenido depende de la función correspondiente.",
+  "legal_privacy_11_title": "Plazos de conservación",
+  "legal_privacy_11_1_title": "Cuentas de usuario",
+  "legal_privacy_11_1_text": "La eliminación es posible en cualquier momento previa solicitud. Las cuentas desactivadas se eliminan en un plazo de 30 días, salvo que existan obligaciones de conservación.",
+  "legal_privacy_11_2_title": "Datos de reclamaciones",
+  "legal_privacy_11_2_text": "Conservación conforme a las normativas comerciales y fiscales (6–10 años) y a la MDR para productos sanitarios de clase IIa (mínimo 10 años).",
+  "legal_privacy_11_3_title": "Registros del sistema y de seguridad",
+  "legal_privacy_11_3_text": "Eliminación automática después de un máximo de 90 días.",
+  "legal_privacy_11_4_title": "Contraseñas de acceso",
+  "legal_privacy_11_4_text": "Eliminación automática tras la aprobación o el vencimiento.",
+  "legal_privacy_12_title": "Cesión de datos a terceros",
+  "legal_privacy_12_text": "Los datos solo se ceden cuando es necesario para la tramitación de la reclamación, cuando existe una obligación legal o cuando se ha otorgado consentimiento. No se transmiten a proveedores publicitarios o de seguimiento.",
+  "legal_privacy_13_title": "Toma de decisiones automatizada / elaboración de perfiles",
+  "legal_privacy_13_text": "No se toman decisiones automatizadas conforme al Art. 22 RGPD ni se lleva a cabo elaboración de perfiles dentro de la aplicación.",
+  "legal_privacy_14_title": "Derechos de los interesados",
+  "legal_privacy_14_text": "Los interesados tienen los derechos establecidos en los Artículos 15–22 RGPD: acceso, rectificación, supresión, limitación del tratamiento, portabilidad de los datos, oposición y retirada del consentimiento conforme al Art. 7(3) RGPD. Los derechos pueden ejercerse en cualquier momento a través del delegado de protección de datos.",
+  "legal_privacy_15_title": "Derecho a presentar una reclamación",
+  "legal_privacy_15_text": "La autoridad competente es: Oficina Estatal de Supervisión de Protección de Datos de Baviera (BayLDA), Promenade 27, 91522 Ansbach, Correo electrónico: poststelle@lda.bayern.de.",
+  "legal_privacy_16_title": "Cambios en esta política de privacidad",
+  "legal_privacy_16_text": "Nos reservamos el derecho de actualizar esta política de privacidad si cambian los requisitos legales o técnicos. La versión actual está siempre disponible en la aplicación.",
+  "legal_privacy_link_label": "Política de privacidad del sitio web:",
+  "legal_privacy_stand_prefix": "Actualizado:",
+
+  "imprint_title": "Aviso legal",
+  "imprint_subtitle": "Aviso legal e identificación del proveedor para la aplicación DFS Complaint.",
+  "imprint_publisher_title": "Editor",
+  "imprint_publisher_body": "DFS-Diamon GmbH\nLändenstraße 1\nD - 93339 Riedenburg, Alemania\n\nTeléfono +49 (0) 9442 91 89-0\nFax +49 (0) 9442 91 89-37\nCorreo info@dfs-diamon.de",
+  "imprint_register_title": "Datos registrales",
+  "imprint_register_body": "Juzgado de Registro de Regensburg HRB 2966\nN.º de IVA DE 128580122\n\nResponsable del contenido: Dr. Stefan Brand\nRepresentante autorizado: Dr. Stefan Brand",
+  "imprint_disclaimer_title": "Descargo de responsabilidad",
+  "imprint_disclaimer_body": "Nos esforzamos por ofrecer información correcta y completa en este sitio web, pero no asumimos responsabilidad ni garantía por la actualidad, exactitud o integridad de la información proporcionada. Esto también se aplica a todos los enlaces externos a los que este sitio web se refiere directa o indirectamente. No somos responsables del contenido de los sitios externos accesibles a través de dichos enlaces. Toda la información sobre precios, textos e imágenes de productos se facilita sin garantía; se reservan errores y cambios técnicos.",
+  "imprint_copyright_title": "Derechos de autor",
+  "imprint_copyright_body": "Todos los derechos reservados. El contenido y la estructura del sitio web de DFS-Diamon están protegidos por derechos de autor. La información o los datos (texto, imágenes, gráficos, audio, vídeo o archivos de animación) de nuestro sitio web no podrán utilizarse ni reproducirse, ni siquiera parcialmente, sin el consentimiento previo por escrito de DFS-Diamon GmbH.",
+  "imprint_odr_title": "Resolución alternativa de litigios (ODR / VSBG)",
+  "imprint_odr_body": "La Comisión Europea ofrece una plataforma de Resolución de Litigios en Línea (ODR): https://webgate.ec.europa.eu/odr/main/index.cfm?event=main.home.show&lng=ES\nEstamos dispuestos a participar en un procedimiento extrajudicial de resolución de conflictos.",
+  "customerNewsTitle": "Novedades y actualizaciones",
+  "customerNewsSubtitle": "Noticias, inspiración y momentos destacados de servicio para su día a día.",
+  "customerNewsHeroLead": "Historias de producto inspiradoras, consejos de servicio y casos de éxito directamente de nuestro equipo.",
+  "customerNewsTile": "Novedades y actualizaciones",
+  "customerNewsPinned": "Destacado",
+  "customerNewsReadMore": "Más información",
+  "customerNewsEmpty": "Por el momento no hay novedades.",
+  "customerNewsError": "No se pudieron cargar las novedades: {msg}",
+  "@customerNewsError": {
+    "placeholders": {
+      "msg": {
+        "type": "String"
+      }
+    }
+  },
+  "newsCatCatalogs": "Catálogos",
+  "newsCatTechnical": "Actualizaciones técnicas",
+  "newsCatRegulatory": "Actualizaciones regulatorias",
+  "newsCatProduct": "Novedades de producto",
+  "newsCatShortage": "Limitaciones temporales",
+  "newsCatGeneral": "General",
+  "customerNewsHeroFreshLabel": "Nuevas ideas (30 días)",
+  "kb_title": "Base de conocimientos – Reclamaciones e instrumentos",
+  "kb_intro": "Aquí encontrará preguntas y respuestas frecuentes sobre reclamaciones, comportamientos típicos de los instrumentos y el uso de la aplicación DFS Complaint.",
+  "kb_search_hint": "Buscar pregunta, palabra clave o término…",
+  "kb_filter_all": "Todas las categorías",
+  "kb_empty_message": "No se han encontrado entradas. Ajuste el término de búsqueda o los filtros.",
+
+  "kb_cat_a_title": "A – Preguntas generales sobre reclamaciones",
+  "kb_cat_b_title": "B – Instrumentos diamantados",
+  "kb_cat_c_title": "C – Instrumentos de carburo",
+  "kb_cat_d_title": "D – Fresas de cerámica",
+  "kb_cat_e_title": "E – Pulidores",
+  "kb_cat_f_title": "F – Limpieza y esterilización",
+  "kb_cat_g_title": "G – Uso de la aplicación DFS Complaint",
+  "kb_cat_h_title": "H – Decisión y análisis técnico",
+  "kb_cat_i_title": "I – Fotos y devoluciones",
+  "kb_cat_j_title": "J – Malentendidos frecuentes",
+
+  "kb_q1_question": "¿Cómo creo una reclamación paso a paso?",
+  "kb_q1_answer": "Abrir la aplicación e iniciar sesión\nSeleccionar “Nueva reclamación”\nSeleccionar el producto o introducirlo manualmente\nSeleccionar el tipo de fallo (si está disponible)\nDescribir el problema con claridad (lo más preciso posible)\nAñadir fotos (defecto, vista general, vástago)\nEnviar el ticket\nAnotar el número de ticket (se guarda automáticamente)",
+
+  "kb_q2_question": "¿Qué debe contener una buena descripción de la reclamación?",
+  "kb_q2_answer": "¿Cuándo apareció el problema?\n¿Cuántas utilizaciones? (¿primer uso, quinto uso, etc.?)\n¿Para qué tratamiento?\n¿Con qué pieza de mano o contraángulo?\n¿Con qué velocidad (rpm)?\n¿Qué tipo y cantidad de refrigeración?\n¿Hubo vibraciones?\n¿Se produjeron situaciones especiales (por ejemplo, bloqueo, calor intenso, ruido)?",
+
+  "kb_q3_question": "¿Cuánto tiempo tengo para presentar una reclamación?",
+  "kb_q3_answer": "En general, lo antes posible tras la aparición del problema\nEn casos de desgaste o uso prolongado DFS no puede asumir garantía\nCuanto antes se comunique la reclamación, mejor se puede analizar",
+
+  "kb_q4_question": "¿Por qué son tan importantes las fotos?",
+  "kb_q4_answer": "Los defectos visibles suelen reconocerse de inmediato\nLas curvaturas o daños en el vástago se ven claramente\nEl estado de la superficie y el embozamiento se pueden evaluar bien\nSin fotos normalmente son necesarias preguntas adicionales y el proceso es más lento",
+
+  "kb_q5_question": "¿Se trata mi reclamación de forma anonimizada?",
+  "kb_q5_answer": "Internamente se utilizan sobre todo los datos técnicos relevantes\nLos datos personales se tratan estrictamente conforme a la normativa de protección de datos",
+
+  "kb_q6_question": "¿Se evalúan estadísticamente mis reclamaciones?",
+  "kb_q6_answer": "Sí, las reclamaciones se evalúan de forma anonimizada\nEsto sirve para la mejora de la calidad, el análisis de tendencias y el cumplimiento de PMS",
+
+  "kb_q7_question": "¿Por qué se vuelve romo un instrumento diamantado tras pocos segundos?",
+  "kb_q7_answer": "Una presión excesiva provoca el embozamiento de la capa diamantada\nUna refrigeración con agua insuficiente provoca calor y mayor desgaste\nSe ha elegido una granulometría inadecuada para la indicación\nSuperficies muy duras (por ejemplo, cerámica) someten a gran esfuerzo el recubrimiento\nCojinetes desgastados de la turbina generan marcas y aceleran el desgaste",
+
+  "kb_q8_question": "¿Cómo puedo reconocer un instrumento diamantado embozado?",
+  "kb_q8_answer": "La superficie parece brillante en lugar de rugosa\nLas partículas de diamante apenas se ven\nHay depósitos marrones, grises o negros\nHay poco o ningún corte aunque la velocidad sea alta\nLos agentes de limpieza habituales ya no eliminan completamente la capa",
+
+  "kb_q9_question": "¿Por qué se calienta tanto el instrumento?",
+  "kb_q9_answer": "Caudal de refrigeración inferior a aprox. 50 ml/min\nEl ángulo del spray es incorrecto y no alcanza bien la zona de preparación\nDemasiada presión sobre el instrumento\nCanal de agua obstruido o parcialmente bloqueado\nDemasiado tiempo en el mismo punto o sin movimiento suficiente",
+
+  "kb_q10_question": "¿Se puede doblar un instrumento diamantado?",
+  "kb_q10_answer": "Sí, especialmente los instrumentos largos y delgados son sensibles\nIncluso una pequeña caída puede inutilizar el vástago\nLas consecuencias son desequilibrio, aumento de temperatura, sobrecarga del material y desprendimiento del recubrimiento",
+
+  "kb_q11_question": "¿Por qué se desprende parcialmente el recubrimiento diamantado?",
+  "kb_q11_answer": "Predominan fuerzas laterales en lugar de una guía axial\nBloqueo en cavidades estrechas o zonas retentivas\nDaños por caída con formación de microfisuras en el recubrimiento\nFatiga del material tras muchos ciclos de reprocesado y autoclave",
+
+  "kb_q12_question": "¿Cuántos tratamientos dura normalmente un instrumento diamantado?",
+  "kb_q12_answer": "Según la aplicación y el material, entre 1 y 10 tratamientos aproximadamente\nEn materiales muy duros (por ejemplo, cerámica) la vida útil es menor\nLa sobrecarga, la refrigeración insuficiente o la presión excesiva reducen drásticamente la vida útil",
+
+  "kb_q13_question": "¿Por qué está descolorido o corroído el vástago?",
+  "kb_q13_answer": "Los instrumentos no se secaron completamente tras la limpieza\nSe utilizaron productos de limpieza agresivos o no autorizados\nSe emplearon baños desinfectantes inadecuados o no aprobados\nEl contacto con otros metales durante el reprocesado o el almacenamiento produjo corrosión por contacto",
+
+  "kb_q14_question": "¿Por qué vibra fuertemente el instrumento a altas revoluciones?",
+  "kb_q14_answer": "Incluso pequeñas desviaciones del vástago provocan gran desequilibrio a alta velocidad\nCojinetes de turbina defectuosos o desgastados empeoran el giro\nSuciedad en la pinza o mandril influye en la sujeción\nDaños o asimetrías en la cabeza aumentan las vibraciones",
+
+  "kb_q15_question": "¿Por qué se desgastan las fresas de carburo más rápido de lo esperado?",
+  "kb_q15_answer": "Trabajos en materiales extremadamente duros\nFuerza de avance demasiado alta o presión lateral intensa\nSobrecalentamiento de los filos reduce la dureza\nUn vástago doblado distribuye de forma desigual las fuerzas en las hojas",
+
+  "kb_q16_question": "¿Por qué se rompe a veces de repente una fresa de carburo?",
+  "kb_q16_answer": "Microfisuras debidas a sobrecarga o uso incorrecto previo\nContacto con restauraciones metálicas o materiales muy duros\nSentido de giro incorrecto\nBloqueo en zonas estrechas o de difícil acceso\nFuerzas radiales elevadas por un avance irregular o brusco",
+
+  "kb_q17_question": "¿Cómo reconozco filos de carburo desgastados?",
+  "kb_q17_answer": "La eliminación de material empeora claramente\nLos filos parecen romos o brillan fuertemente\nLas virutas se vuelven más bien polvosas y no bien definidas\nEl ruido aumenta y se vuelve más agudo o desagradable\nEl calentamiento del diente o del material aumenta notablemente",
+
+  "kb_q18_question": "¿Por qué aparecen decoloraciones negro-azuladas en el instrumento o en el material?",
+  "kb_q18_answer": "Daños térmicos por calor excesivo\nRefrigeración insuficiente o mal dirigida\nPresión demasiado baja combinada con velocidad reducida provoca calor por fricción\nGeometría de corte dañada o roma aumenta la generación de calor",
+
+  "kb_q19_question": "¿Cómo reconozco un uso inadecuado en la superficie de fractura?",
+  "kb_q19_answer": "Una fractura inclinada y deshilachada indica fuerzas laterales elevadas\nUna fractura central lisa puede indicar fatiga del material o daño previo\nFragmentos en el extremo del vástago suelen apuntar a una caída o golpe",
+
+  "kb_q20_question": "¿Por qué son más sensibles las fresas de cerámica que los instrumentos de carburo?",
+  "kb_q20_answer": "La cerámica es muy dura pero mucho más frágil que el carburo\nLas fuerzas laterales provocan rápidamente microfisuras\nEl bloqueo o movimientos bruscos son especialmente críticos\nUn ángulo de trabajo incorrecto favorece el desconchado de los filos",
+
+  "kb_q21_question": "¿Por qué se rompe a menudo solo una hoja en una fresa de cerámica?",
+  "kb_q21_answer": "Sobrecarga local en una hoja concreta\nContacto directo con metal o materiales muy duros\nGuía irregular o movimiento con bloqueo\nUna velocidad inadecuada puede generar resonancias en una sola hoja",
+
+  "kb_q22_question": "¿Qué empeora especialmente la suavidad de marcha en fresas de cerámica?",
+  "kb_q22_answer": "Incluso pequeñas desviaciones del vástago tienen gran efecto en cerámica\nDesequilibrios o defectos en los cojinetes de la turbina\nMicroscópicos desconchados en la punta o en los filos",
+
+  "kb_q23_question": "¿Por qué se desintegra un pulidor?",
+  "kb_q23_answer": "Se ha superado la velocidad máxima permitida del pulidor\nSe genera mucho calor debido a demasiada presión o tiempo de contacto largo\nExisten fisuras o defectos previos en la matriz de goma o híbrida\nContacto con aristas vivas o rebabas en la superficie de trabajo",
+
+  "kb_q24_question": "¿Por qué es débil el efecto de pulido?",
+  "kb_q24_answer": "Se ha elegido un paso de pulido inadecuado para el brillo deseado\nLa superficie no se ha preparado suficientemente antes del pulido\nLa velocidad es demasiado baja para el pulidor utilizado\nEl pulidor está muy desgastado o consumido\nEl tiempo de contacto o la presión son insuficientes",
+
+  "kb_q25_question": "¿Por qué aparecen depósitos negros durante el pulido?",
+  "kb_q25_answer": "El pulidor se sobrecalienta y el material se funde sobre la superficie\nDemasiada presión hace que partículas de goma se embocen en el material\nSe ha utilizado un pulidor inadecuado para el material tratado",
+
+  "kb_q26_question": "¿Por qué es importante la limpieza previa inmediata?",
+  "kb_q26_answer": "Evita la adhesión permanente de sangre, composite o cemento\nReduce la carga microbiana antes del reprocesado mecánico\nProtege el recubrimiento, los filos y la estructura de la superficie\nPreviene puntos de corrosión causados por restos",
+
+  "kb_q27_question": "¿Qué errores son frecuentes durante el reprocesado?",
+  "kb_q27_answer": "Los instrumentos no se secan completamente\nSe utilizan productos químicos agresivos o no autorizados (ácidos, bases)\nLa temperatura de limpieza o desinfección es demasiado alta\nLos instrumentos chocan entre sí durante el proceso\nEl autoclave está mal cargado o demasiado lleno",
+
+  "kb_q28_question": "¿Por qué aparecen manchas marrones tras el reprocesado?",
+  "kb_q28_answer": "Oxidación superficial (óxido flash) por contacto con partes corroídas\nHumedad o condensación en el autoclave\nSecado insuficiente o inadecuado\nContacto con instrumentos metálicos de otros materiales",
+
+  "kb_q29_question": "¿Cómo reconozco un riesgo de seguridad relacionado con el instrumento?",
+  "kb_q29_answer": "Fisuras o mellas en el vástago\nDesconchados en la cabeza o en los filos\nFlexión o deformaciones visibles del instrumento\nPérdida parcial o total del recubrimiento\nPuntos de corrosión, especialmente en el vástago o zona de sujeción",
+
+  "kb_q30_question": "¿Cómo puedo evitar la corrosión en los instrumentos?",
+  "kb_q30_answer": "Secar completamente los instrumentos tras la limpieza\nNo utilizar baños de limpieza agresivos o no autorizados\nReducir al mínimo el contacto directo entre aleaciones diferentes\nRealizar mantenimiento regular del autoclave y controlar la calidad del agua",
+
+  "kb_q31_question": "El ticket no se puede enviar – ¿cuáles son las causas frecuentes?",
+  "kb_q31_answer": "Faltan campos obligatorios en el formulario de reclamación\nLa conexión a Internet está interrumpida o es inestable\nLas fotos o adjuntos son demasiado grandes\nLa cuenta todavía no ha sido activada\nFalta la contraseña de acceso (gate) o no es válida",
+
+  "kb_q32_question": "El ticket no aparece – ¿por qué?",
+  "kb_q32_answer": "La configuración de filtros oculta determinados tickets\nSe ha iniciado sesión con una cuenta distinta a la que creó el ticket\nEl ticket ha sido archivado o ocultado\nLa aplicación o el navegador no se han actualizado o recargado",
+
+  "kb_q33_question": "¿Por qué a veces se necesita una contraseña de acceso (gate)?",
+  "kb_q33_answer": "Para garantizar que solo clientes verificados creen una cuenta\nProtección contra registros de spam y múltiples inscripciones\nLa contraseña de acceso se genera y comprueba manualmente por DFS",
+
+  "kb_q34_question": "¿Puedo modificar un ticket posteriormente?",
+  "kb_q34_answer": "Sí, mientras el estado sea “Se necesita información” o “Abierto”\nSe pueden añadir o precisar fotos y comentarios",
+
+  "kb_q35_question": "¿Por qué ya no puedo abrir algunos tickets?",
+  "kb_q35_answer": "La cuenta de usuario correspondiente ha sido desactivada\nEl ticket está completamente cerrado y posiblemente archivado\nUn filtro de archivo o de estado oculta el ticket",
+
+  "kb_q36_question": "¿Cuándo se acepta una reclamación?",
+  "kb_q36_answer": "Un defecto de material es plausible o no se puede descartar\nParece posible una desviación en la producción\nEl instrumento ha fallado prematuramente pese a un uso correcto\nSe puede demostrar un defecto técnico",
+
+  "kb_q37_question": "¿Cuándo se rechaza una reclamación?",
+  "kb_q37_answer": "Existe una sobrecarga o uso claramente inadecuado\nNo hubo refrigeración suficiente\nLa velocidad de giro fue incorrecta o claramente excesiva\nSe observan daños previos o señales evidentes de caída\nEl instrumento está muy desgastado y fuera de su vida útil normal",
+
+  "kb_q38_question": "¿Por qué DFS a veces no puede indicar una causa clara?",
+  "kb_q38_answer": "El instrumento está demasiado dañado para determinar el origen con seguridad\nLa situación exacta de aplicación ya no puede reconstruirse\nNo se han facilitado fotos o son insuficientes\nHa pasado mucho tiempo entre el incidente y el análisis",
+
+  "kb_q39_question": "¿Qué ocurre con los instrumentos devueltos al laboratorio?",
+  "kb_q39_answer": "Análisis microscópico de las zonas afectadas\nComparación con muestras de referencia y nuevas\nInspección de fisuras, deformaciones y daños en el recubrimiento\nControl del descentramiento del vástago y valoración de la suavidad de marcha\nDocumentación de los resultados para aseguramiento de la calidad y PMS",
+
+  "kb_q40_question": "¿Recibo un informe sobre mi reclamación?",
+  "kb_q40_answer": "Sí, la valoración se documenta en el ticket\nA petición, el representante puede proporcionar un comentario ampliado",
+
+  "kb_q41_question": "¿Cómo debo fotografiar correctamente un instrumento?",
+  "kb_q41_answer": "Utilizar un fondo claro y homogéneo (por ejemplo, blanco)\nUsar luz diurna o iluminación LED uniforme\nEnfocar la cabeza y evitar sobreexposiciones\nTomar al menos tres vistas: cabeza, vástago y vista general\nOpcionalmente colocar una regla o escala al lado del instrumento",
+
+  "kb_q42_question": "¿Qué debo evitar al hacer fotos?",
+  "kb_q42_answer": "Primeros planos desenfocados sin detalles reconocibles\nManos o dedos que tapan el instrumento\nFondos muy recargados o distraídos\nReflejos fuertes o sobreexposición por el flash",
+
+  "kb_q43_question": "¿Por qué a veces hay que enviar el instrumento original?",
+  "kb_q43_answer": "Las fotos no bastan para una valoración fiable\nEl patrón de fallo es llamativo o relevante para la seguridad\nEs imprescindible un análisis de laboratorio para investigar la causa raíz\nLas comprobaciones de tendencias o de lote requieren el instrumento original",
+
+  "kb_q44_question": "¿Cómo debo embalar correctamente los instrumentos para su devolución?",
+  "kb_q44_answer": "Siempre que sea posible, embalar cada instrumento por separado (por ejemplo, blíster o funda)\nUtilizar un acolchado suficiente para evitar roturas o flexiones\nIncluir claramente el número de ticket\nEnviar los instrumentos limpios y secos",
+
+  "kb_q45_question": "¿Se me devuelven los instrumentos enviados?",
+  "kb_q45_answer": "Por regla general, los instrumentos permanecen en el laboratorio para la documentación\nSon posibles excepciones tras acuerdo previo",
+
+  "kb_q46_question": "¿Puedo enviar varios instrumentos en un solo paquete?",
+  "kb_q46_answer": "Sí, se pueden enviar varios instrumentos juntos\nCada instrumento debe embalarse por separado\nIncluir todos los números de ticket correspondientes\nEvitar confusiones mediante un etiquetado claro",
+
+  "kb_q47_question": "“Los instrumentos diamantados son de un solo uso” – ¿es cierto?",
+  "kb_q47_answer": "No, los instrumentos diamantados suelen ser reutilizables\nSin embargo, la vida útil real depende mucho de cómo se utilicen\nLa sobrecarga, la falta de refrigeración y la indicación inadecuada provocan un desgaste muy rápido\nEn condiciones óptimas suelen ser realistas pocas aplicaciones por instrumento",
+
+  "kb_q48_question": "“Más presión = más capacidad de corte” – ¿es correcto?",
+  "kb_q48_answer": "No, una presión elevada provoca el embozamiento de la capa diamantada\nAumenta considerablemente el desarrollo de calor\nEl recubrimiento puede desprenderse o desgastarse más rápido\nEl instrumento se vuelve romo antes\nUna presión ligera y controlada suele dar un mejor corte y un trabajo más suave"
 }
