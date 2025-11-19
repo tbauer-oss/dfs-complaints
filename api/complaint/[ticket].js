@@ -25,6 +25,7 @@ import {
 } from "../_lib/store.js";
 import { sendMail } from "../_lib/mailer.js";
 import { blobUploadsEnabled, processIncomingFiles } from "../_lib/uploads.js";
+import { sendComplaintStatusPush } from '../_lib/push.js';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "";
 
@@ -160,55 +161,55 @@ export default async function handler(req, res) {
   }
 
   // PATCH: Admin ändert Status/decision/reportLink
-  if (req.method === "PATCH") {
-    if (!adminAuthorized(req)) return bad(res, "admin unauthorized", 401);
-    let body;
-    try {
-      body = await readJsonBody(req, { limitBytes: BODY_LIMIT_BYTES });
-    } catch (bodyErr) {
-      const code = bodyErr?.statusCode || (bodyErr?.message === 'body too large' ? 413 : 400);
-      const msg = bodyErr?.message || 'invalid body';
-      return bad(res, msg, code);
-    }
+    if (req.method === "PATCH") {
+      if (!adminAuthorized(req)) return bad(res, "admin unauthorized", 401);
+      let body;
+      try {
+        body = await readJsonBody(req, { limitBytes: BODY_LIMIT_BYTES });
+      } catch (bodyErr) {
+        const code = bodyErr?.statusCode || (bodyErr?.message === 'body too large' ? 413 : 400);
+        const msg = bodyErr?.message || 'invalid body';
+        return bad(res, msg, code);
+      }
 
-    const patch = {};
-    if (body.status != null) {
-      const s = Number(body.status);
-      if (![1, 2, 3, 4, 5].includes(s))
-        return bad(res, "invalid status", 400);
-      patch.status = s;
-    }
-    if (body.decision != null) {
-      if (!["accepted", "rejected", null].includes(body.decision))
-        return bad(res, "invalid decision", 400);
-      patch.decision = body.decision;
-    }
-    if (body.reportLink != null) {
-      patch.reportLink = body.reportLink || null;
-    }
+      const patch = {};
+      if (body.status != null) {
+        const s = Number(body.status);
+        if (![1, 2, 3, 4, 5].includes(s))
+          return bad(res, "invalid status", 400);
+        patch.status = s;
+      }
+      if (body.decision != null) {
+        if (!["accepted", "rejected", null].includes(body.decision))
+          return bad(res, "invalid decision", 400);
+        patch.decision = body.decision;
+      }
+      if (body.reportLink != null) {
+        patch.reportLink = body.reportLink || null;
+      }
 
-    let updated = await complaintUpdate(ticket, patch);
-    if (!updated) return bad(res, "not found", 404);
+      let updated = await complaintUpdate(ticket, patch);
+      if (!updated) return bad(res, "not found", 404);
 
-    // Wenn abgelehnt -> automatisch abgeschlossen (rot), wie gewünscht
-    if (updated.decision === "rejected" && updated.status !== Status.CLOSED) {
-      updated = await complaintUpdate(ticket, { status: Status.CLOSED });
+      // Wenn abgelehnt -> automatisch abgeschlossen (rot), wie gewünscht
+      if (updated.decision === "rejected" && updated.status !== Status.CLOSED) {
+        updated = await complaintUpdate(ticket, { status: Status.CLOSED });
+      }
+
+      // Mail an Kunden bei Statusänderung/Entscheidung
+      await sendMail({
+        to: updated.email,
+        subject: `[DFS Complaint] Update zu ${ticket} (Status ${updated.status}${updated.decision ? ` / ${updated.decision}` : ""})`,
+        html: `
+          <p>Ihr Reklamationsstatus wurde aktualisiert.</p>
+          <p><strong>Ticket:</strong> ${ticket}<br/>
+             <strong>Status:</strong> ${updated.status}${updated.decision ? ` (${updated.decision})` : ""}</p>
+          ${updated.reportLink ? `<p><a href="${updated.reportLink}">Reklamationsbericht</a></p>` : ""}
+        `,
+      });
+
+      return ok(res, updated);
     }
-
-    // Mail an Kunden bei Statusänderung/Entscheidung
-    await sendMail({
-      to: updated.email,
-      subject: `[DFS Complaint] Update zu ${ticket} (Status ${updated.status}${updated.decision ? ` / ${updated.decision}` : ""})`,
-      html: `
-        <p>Ihr Reklamationsstatus wurde aktualisiert.</p>
-        <p><strong>Ticket:</strong> ${ticket}<br/>
-           <strong>Status:</strong> ${updated.status}${updated.decision ? ` (${updated.decision})` : ""}</p>
-        ${updated.reportLink ? `<p><a href="${updated.reportLink}">Reklamationsbericht</a></p>` : ""}
-      `,
-    });
-
-    return ok(res, updated);
-  }
 
   return methodNotAllowed(res);
 }
