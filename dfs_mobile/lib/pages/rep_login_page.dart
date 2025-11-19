@@ -34,51 +34,19 @@ class _RepLoginPageState extends State<RepLoginPage> {
   Future<void> _goRepDashboard() async {
     if (!mounted) return;
 
-    // 1) Opt-In-Dialog anzeigen
-    final wantsPush = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Push-Benachrichtigungen aktivieren?'),
-        content: const Text(
-          'Möchten Sie Push-Benachrichtigungen für neue Reklamationen und '
-          'Statusänderungen in Ihrem Gebiet erhalten?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Nein, danke'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Ja, aktivieren'),
-          ),
-        ],
-      ),
-    ) ?? false;
-
     final locale = Localizations.localeOf(context);
 
-    if (wantsPush) {
-      // 2a) Push AKTIVIEREN
-      try {
-        await PushNotifications.instance
-            .setup(widget.api, languageCode: locale.languageCode);
-      } catch (e) {
-        debugPrint('[push] rep setup failed: $e');
-      }
-      try {
-        await PushNotifications.instance
-            .replayLatestToken(widget.api, languageCode: locale.languageCode);
-      } catch (e) {
-        debugPrint('[push] rep token replay failed: $e');
-      }
-    } else {
-      // 2b) Sicherheitshalber deaktivieren (falls vorher schon Token registriert war)
-      try {
-        await PushNotifications.instance.deactivate(widget.api);
-      } catch (e) {
-        debugPrint('[push] rep deactivate failed: $e');
-      }
+    try {
+      await PushNotifications.instance
+          .setup(widget.api, languageCode: locale.languageCode);
+    } catch (e) {
+      debugPrint('[push] rep setup failed: $e');
+    }
+    try {
+      await PushNotifications.instance
+          .replayLatestToken(widget.api, languageCode: locale.languageCode);
+    } catch (e) {
+      debugPrint('[push] rep token replay failed: $e');
     }
 
     // 3) Danach ganz normal ins Dashboard

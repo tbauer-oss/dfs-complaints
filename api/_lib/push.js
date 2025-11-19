@@ -1,5 +1,7 @@
 // api/_lib/push.js – Push Notification helper (FCM HTTP v1)
 import crypto from 'crypto';
+import { usersList, repPushTokens } from './store.js';
+import { getRepOf } from './repsStore.js';
 
 export const config = { runtime: 'nodejs' };
 
@@ -211,8 +213,6 @@ export async function sendPushNotification({ tokens = [], title = '', body = '',
   };
 }
 
-import { usersList } from './store.js';
-
 const SUPPORTED_LANGS = new Set(['de', 'en', 'fr', 'it', 'es']);
 const LANG_ALIASES = {
   german: 'de',
@@ -310,13 +310,13 @@ export async function sendComplaintStatusPush(complaint) {
     (u) => (u.email || '').toString().toLowerCase() === ownerEmail,
   );
 
-  if (!user || !Array.isArray(user.pushTokens) || user.pushTokens.length === 0) {
-    console.warn('[push] sendComplaintStatusPush: no pushTokens for', ownerEmail);
-    return;
-  }
+  const customerLang = user ? detectCustomerLang(user, complaint) : 'en';
+  const customerTokens = Array.isArray(user?.pushTokens)
+    ? user.pushTokens
+        .map((p) => (p && p.token ? p.token.toString().trim() : ''))
+        .filter((t) => t.length > 0)
+    : [];
 
-  const lang = detectCustomerLang(user, complaint);
-  
   const titleMap = {
     de: 'Status Ihrer Reklamation wurde aktualisiert',
     en: 'Your complaint status has been updated',
@@ -343,31 +343,91 @@ export async function sendComplaintStatusPush(complaint) {
       : 'Se ha cambiado el estado de su reclamación.',
   };
 
-  const title = titleMap[lang] || titleMap.en;
-  const body = bodyMap[lang] || bodyMap.en;
+  const title = titleMap[customerLang] || titleMap.en;
+  const body = bodyMap[customerLang] || bodyMap.en;
 
-  const tokens = user.pushTokens
-    .map((p) => (p && p.token ? p.token.toString().trim() : ''))
-    .filter((t) => t.length > 0);
+  const tasks = [];
 
-  if (tokens.length === 0) {
-    console.warn('[push] sendComplaintStatusPush: user has empty token list');
-    return;
+  if (customerTokens.length === 0) {
+    console.warn('[push] sendComplaintStatusPush: no customer pushTokens for', ownerEmail);
+  } else {
+    tasks.push(
+      sendPushNotification({
+        tokens: customerTokens,
+        title,
+        body,
+        data: {
+          type: 'complaint-status',
+          ticket,
+          status: statusVal,
+          lang: customerLang,
+        },
+      }).then((result) => {
+        if (!result?.ok) {
+          console.warn('[push] sendComplaintStatusPush: customer not ok', result);
+        }
+      }),
+    );
   }
 
-  const result = await sendPushNotification({
-    tokens,
-    title,
-    body,
-    data: {
-      type: 'complaint-status',
-      ticket,
-      status: statusVal,
-      lang,
-    },
-  });
+  try {
+    const rep = await getRepOf(ownerEmail);
+    if (rep?.id) {
+      const repTokens = await repPushTokens(rep.id);
+      if (repTokens.length === 0) {
+        console.warn('[push] sendComplaintStatusPush: rep has no tokens', rep.id);
+      } else {
+        const lang = _normLang(rep.lang || complaint.lang || 'de', 'de');
+        const repTitleMap = {
+          de: 'Statusänderung bei Kundenreklamation',
+          en: 'Customer complaint status updated',
+          fr: 'Statut de réclamation client mis à jour',
+          it: 'Aggiornato lo stato di un reclamo cliente',
+          es: 'Estado de reclamación de cliente actualizado',
+        };
+        const repBodyMap = {
+          de: ticket
+            ? `Ticket ${ticket}: Der Status eines Kunden wurde geändert.`
+            : 'Der Status einer Kundenreklamation wurde geändert.',
+          en: ticket
+            ? `Ticket ${ticket}: A customer complaint status changed.`
+            : 'A customer complaint status has changed.',
+          fr: ticket
+            ? `Ticket ${ticket} : le statut d\'une réclamation client a changé.`
+            : 'Le statut d\'une réclamation client a changé.',
+          it: ticket
+            ? `Ticket ${ticket}: lo stato di un reclamo cliente è cambiato.`
+            : 'Lo stato di un reclamo cliente è cambiato.',
+          es: ticket
+            ? `Ticket ${ticket}: ha cambiado el estado de una reclamación de cliente.`
+            : 'El estado de una reclamación de cliente ha cambiado.',
+        };
 
-  if (!result?.ok) {
-    console.warn('[push] sendComplaintStatusPush: not ok', result);
+        tasks.push(
+          sendPushNotification({
+            tokens: repTokens.map((p) => (p.token || '').toString().trim()).filter(Boolean),
+            title: repTitleMap[lang] || repTitleMap.de,
+            body: repBodyMap[lang] || repBodyMap.de,
+            data: {
+              type: 'complaint-status',
+              ticket,
+              status: statusVal,
+              lang,
+              role: 'rep',
+            },
+          }).then((result) => {
+            if (!result?.ok) {
+              console.warn('[push] sendComplaintStatusPush: rep not ok', result);
+            }
+          }),
+        );
+      }
+    }
+  } catch (err) {
+    console.warn('[push] sendComplaintStatusPush: rep push failed', err?.message || err);
+  }
+
+  if (tasks.length > 0) {
+    await Promise.allSettled(tasks);
   }
 }
