@@ -209,7 +209,7 @@
   "unsavedChangesText": "Des modifications non enregistrées existent. Voulez-vous vraiment quitter ?",
 
   "gate_prompt": "Code d’accès (pour les clients non enregistrés)",
-  "gate_password": "mot de passe d'activation,
+  "gate_password": "Mot de passe d'autorisation",
   "continueLabel": "Continuer",
   "invalid": "Invalide",
   "gateUnlockHint": "Veuillez saisir votre adresse e-mail et le mot de passe d’autorisation pour ouvrir la zone d’inscription.",
