@@ -432,17 +432,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                           height: 1.1, // engere Zeilenhöhe
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      if (email.isNotEmpty || region.isNotEmpty)
-                        Text(
-                          [if (email.isNotEmpty) email, if (region.isNotEmpty) region].join(' • '),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withOpacity(.75),
-                            height: 1.15,
-                          ),
-                        ),
                     ],
                   ),
                 ),
