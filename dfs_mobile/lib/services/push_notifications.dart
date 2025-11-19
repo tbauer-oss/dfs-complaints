@@ -86,7 +86,32 @@ class PushNotifications {
     });
   }
 
-    Future<void> init() async {
+  Future<void> replayLatestToken(ApiClient api, {String? languageCode}) async {
+    if (kIsWeb) return;
+    final options = _firebaseOptions();
+    if (options == null) return;
+    final lang = (languageCode ?? '').trim();
+    try {
+      await _ensureFirebase(options);
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null && token.isNotEmpty) {
+        await _registerToken(api, token, languageCode);
+      } else {
+        final cached = (api.pushDeviceToken ?? '').trim();
+        if (cached.isEmpty) return;
+        await api.registerPushToken(
+          cached,
+          platform: _platformLabel(),
+          lang: lang.isEmpty ? null : lang,
+          locale: lang,
+        );
+      }
+    } catch (e) {
+      debugPrint('[push] replayLatestToken failed: $e');
+    }
+  }
+
+  Future<void> init() async {
     if (kIsWeb) return;
     final options = _firebaseOptions();
     if (options == null) return;
@@ -187,12 +212,13 @@ class PushNotifications {
 
   Future<void> _registerToken(ApiClient api, String token, String? languageCode) async {
     final lang = (languageCode ?? '').trim();
-    if (token == _lastToken && lang == _lastLang && api.pushDeviceToken == token) return;
+    final hasAuth = api.hasPushAuth;
+    if (hasAuth && token == _lastToken && lang == _lastLang && api.pushDeviceToken == token) return;
 
     final platform = _platformLabel();
 
     debugPrint('[push] FCM token: $token (platform=$platform, lang=${lang.isEmpty ? '-': lang})');
-    
+
     try {
       await api.registerPushToken(
         token,
@@ -200,8 +226,10 @@ class PushNotifications {
         locale: lang,
         lang: lang.isEmpty ? null : lang,
       );
-      _lastToken = token;
-      _lastLang = lang;
+      if (hasAuth) {
+        _lastToken = token;
+        _lastLang = lang;
+      }
     } catch (e) {
       debugPrint('[push] register token failed: $e');
     }
