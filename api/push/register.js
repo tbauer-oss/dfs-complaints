@@ -45,6 +45,7 @@ function authEmail(req) {
 }
 
 export default async function handler(req, res) {
+  console.log('[push/register] handler called', req.method, req.url);
   if (handlePreflight(req, res)) return;
   if (!JWT_SECRET) return bad(res, 'server misconfig', 500);
 
