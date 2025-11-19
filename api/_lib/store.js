@@ -57,21 +57,27 @@ function normalizePushTokens(list) {
   const seen = new Set();
   const arr = Array.isArray(list) ? list : [];
   for (const entry of arr) {
-    const token = (entry?.token || '').toString().trim();
+    const hasMeta = entry && typeof entry === 'object';
+    const rawToken = hasMeta ? (entry.token ?? entry.deviceToken ?? entry.id) : entry;
+    const token = (rawToken || '').toString().trim();
     if (!token || seen.has(token)) continue;
     seen.add(token);
-    const created = Number(entry?.createdAt || Date.now());
-    const updated = Number(entry?.updatedAt || created);
-    const platform = (entry?.platform || '').toString().trim();
-    const locale = (entry?.locale || '').toString().trim();
-    const lang = normLang(entry?.lang || '');
+
+    const createdRaw = hasMeta ? Number(entry.createdAt) : NaN;
+    const createdAt = Number.isFinite(createdRaw) ? createdRaw : Date.now();
+    const updatedRaw = hasMeta ? Number(entry.updatedAt) : NaN;
+    const updatedAt = Number.isFinite(updatedRaw) ? updatedRaw : createdAt;
+    const platform = hasMeta ? (entry.platform || '').toString().trim() : '';
+    const locale = hasMeta ? (entry.locale || '').toString().trim() : '';
+    const lang = normLang(hasMeta ? entry.lang || '' : '');
+
     out.push({
       token,
       platform: platform || undefined,
       lang,
       locale: locale || undefined,
-      createdAt: Number.isFinite(created) ? created : Date.now(),
-      updatedAt: Number.isFinite(updated) ? updated : Date.now(),
+      createdAt,
+      updatedAt,
     });
   }
   return out;
