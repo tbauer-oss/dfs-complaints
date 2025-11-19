@@ -8,6 +8,14 @@ const FCM_SERVER_KEY =
   process.env.FCM_LEGACY_SERVER_KEY ||
   '';
 
+function getFcmServerKey() {
+  return (FCM_SERVER_KEY || '').trim();
+}
+
+export function isPushConfigured() {
+  return getFcmServerKey().length > 0;
+}
+
 function chunk(list, size) {
   const out = [];
   for (let i = 0; i < list.length; i += size) {
@@ -17,16 +25,20 @@ function chunk(list, size) {
 }
 
 export async function sendPushNotification({ tokens = [], title = '', body = '', data = {} }) {
-  const authKey = (FCM_SERVER_KEY || '').trim();
+  const authKey = getFcmServerKey();
   const flat = Array.from(new Set((tokens || []).map(t => (t || '').toString().trim()))).filter(Boolean);
   if (!authKey) {
     console.warn('[push] Missing FCM server key – skipping push send');
-    return { ok: false, reason: 'missing-server-key', skipped: flat.length };
+    return { ok: false, reason: 'missing-server-key', skipped: flat.length, sent: 0, failed: flat.length };
   }
-  if (flat.length === 0) return { ok: false, reason: 'no-tokens' };
+  if (flat.length === 0) {
+    return { ok: false, reason: 'no-tokens', sent: 0, failed: 0 };
+  }
 
   const invalidTokens = new Set();
   const responses = [];
+  let successCount = 0;
+  let failureCount = 0;
 
   for (const batch of chunk(flat, 1000)) {
     const payload = {
@@ -59,7 +71,21 @@ export async function sendPushNotification({ tokens = [], title = '', body = '',
       if (!res.ok) {
         console.error('[push] FCM send failed', res.status, txt);
         responses.push({ ok: false, status: res.status, body: txt });
+        failureCount += batch.length;
         continue;
+      }
+
+      const successRaw = typeof json?.success === 'number' ? json.success : null;
+      const failureRaw = typeof json?.failure === 'number' ? json.failure : null;
+      if (successRaw !== null) {
+        successCount += Math.max(0, successRaw);
+      } else if (failureRaw !== null) {
+        successCount += Math.max(0, batch.length - failureRaw);
+      } else {
+        successCount += batch.length;
+      }
+      if (failureRaw !== null) {
+        failureCount += Math.max(0, failureRaw);
       }
 
       const results = Array.isArray(json?.results) ? json.results : [];
@@ -76,6 +102,7 @@ export async function sendPushNotification({ tokens = [], title = '', body = '',
     } catch (e) {
       console.error('[push] Network error', e);
       responses.push({ ok: false, error: e?.message || String(e) });
+      failureCount += batch.length;
     }
   }
 
@@ -83,5 +110,7 @@ export async function sendPushNotification({ tokens = [], title = '', body = '',
     ok: responses.every(r => r.ok !== false),
     invalidTokens: Array.from(invalidTokens),
     responses,
+    sent: successCount,
+    failed: failureCount,
   };
 }
