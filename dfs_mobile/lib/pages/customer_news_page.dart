@@ -79,7 +79,12 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
     return dateFmt.format(dt);
   }
 
-  Widget _buildHeader(AppLocalizations t, ThemeData theme, List<CustomerNewsEntry> entries) {
+  Widget _buildHeader(
+    BuildContext context,
+    AppLocalizations t,
+    ThemeData theme,
+    List<CustomerNewsEntry> entries,
+  ) {
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
     final gradient = LinearGradient(
@@ -194,155 +199,224 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
       );
     }
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-      padding: EdgeInsets.symmetric(
-        horizontal: 20,
-        vertical: isDark ? 18 : 20,
-      ),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        gradient: gradient,
-        border: Border.all(color: borderColor),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.35 : 0.12),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 420;
+
+        return Container(
+          margin: EdgeInsets.fromLTRB(12, 12, 12, isCompact ? 8 : 12),
+          padding: EdgeInsets.symmetric(
+            horizontal: isCompact ? 16 : 20,
+            vertical: isDark
+                ? (isCompact ? 14 : 18)
+                : (isCompact ? 16 : 20),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? textColor.withOpacity(0.12)
-                            : Colors.black.withOpacity(0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.campaign_outlined,
-                        color: textColor,
-                        size: 26,
-                        shadows: headerShadows,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      t.customerNewsTitle,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        color: textColor,
-                        fontWeight: FontWeight.w800,
-                        shadows: headerShadows,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      t.customerNewsSubtitle,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: secondaryTextColor,
-                        shadows: headerShadows,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      t.customerNewsHeroLead,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: secondaryTextColor,
-                        height: 1.35,
-                        shadows: headerShadows,
-                      ),
-                    ),
-                  ],
-                ),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(isCompact ? 18 : 24),
+            gradient: gradient,
+            border: Border.all(color: borderColor),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(isDark ? 0.35 : 0.12),
+                blurRadius: isCompact ? 14 : 20,
+                offset: Offset(0, isCompact ? 8 : 10),
               ),
-              const SizedBox(width: 16),
-              buildHeroVisual(110),
             ],
           ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 10,
-            runSpacing: 8,
-            children: highlightLabels
-                .map(
-                  (label) => Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(18),
-                      color: isDark
-                          ? colorScheme.surfaceVariant.withOpacity(0.5)
-                          : Colors.white.withOpacity(0.2),
-                      border: Border.all(
-                        color: isDark
-                            ? textColor.withOpacity(0.2)
-                            : Colors.white.withOpacity(0.65),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              isCompact
+                  ? Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(
-                          Icons.auto_graph,
-                          size: 14,
-                          color: textColor.withOpacity(0.95),
-                          shadows: headerShadows,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          label,
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            color: textColor,
-                            fontWeight: FontWeight.w600,
-                            shadows: headerShadows,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: isDark
+                                      ? textColor.withOpacity(0.12)
+                                      : Colors.black.withOpacity(0.2),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.campaign_outlined,
+                                  color: textColor,
+                                  size: 22,
+                                  shadows: headerShadows,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                t.customerNewsTitle,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  color: textColor,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1.1,
+                                  shadows: headerShadows,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                t.customerNewsSubtitle,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: secondaryTextColor,
+                                  height: 1.3,
+                                  shadows: headerShadows,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                t.customerNewsHeroLead,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: secondaryTextColor,
+                                  height: 1.35,
+                                  shadows: headerShadows,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
+                        const SizedBox(width: 12),
+                        buildHeroVisual(84),
+                      ],
+                    )
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: isDark
+                                      ? textColor.withOpacity(0.12)
+                                      : Colors.black.withOpacity(0.2),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.campaign_outlined,
+                                  color: textColor,
+                                  size: 26,
+                                  shadows: headerShadows,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                t.customerNewsTitle,
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  color: textColor,
+                                  fontWeight: FontWeight.w800,
+                                  shadows: headerShadows,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                t.customerNewsSubtitle,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  color: secondaryTextColor,
+                                  shadows: headerShadows,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                t.customerNewsHeroLead,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: secondaryTextColor,
+                                  height: 1.35,
+                                  shadows: headerShadows,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        buildHeroVisual(110),
                       ],
                     ),
-                  ),
-                )
-                .toList(),
-          ),
-          const SizedBox(height: 14),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final stats = [
-                statTile('${totalCount.clamp(0, 999)}+', t.customerNewsTitle),
-                statTile('$pinnedCount', t.customerNewsPinned),
-                statTile('$recentCount', t.customerNewsHeroFreshLabel),
-              ];
+              SizedBox(height: isCompact ? 12 : 14),
+              Wrap(
+                spacing: isCompact ? 8 : 10,
+                runSpacing: 8,
+                children: highlightLabels
+                    .map(
+                      (label) => Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isCompact ? 10 : 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(18),
+                          color: isDark
+                              ? colorScheme.surfaceVariant.withOpacity(0.5)
+                              : Colors.white.withOpacity(0.2),
+                          border: Border.all(
+                            color: isDark
+                                ? textColor.withOpacity(0.2)
+                                : Colors.white.withOpacity(0.65),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.auto_graph,
+                              size: 14,
+                              color: textColor.withOpacity(0.95),
+                              shadows: headerShadows,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              label,
+                              style: theme.textTheme.labelLarge?.copyWith(
+                                color: textColor,
+                                fontWeight: FontWeight.w600,
+                                shadows: headerShadows,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+              SizedBox(height: isCompact ? 10 : 14),
+              LayoutBuilder(
+                builder: (context, innerConstraints) {
+                  final stats = [
+                    statTile('${totalCount.clamp(0, 999)}+', t.customerNewsTitle),
+                    statTile('$pinnedCount', t.customerNewsPinned),
+                    statTile('$recentCount', t.customerNewsHeroFreshLabel),
+                  ];
 
-              if (constraints.maxWidth < 380) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (final stat in stats) ...[stat, const SizedBox(height: 12)],
-                  ],
-                );
-              }
+                  if (innerConstraints.maxWidth < 360) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (final stat in stats) ...[stat, const SizedBox(height: 10)],
+                      ],
+                    );
+                  }
 
-              return Row(
-                children: [
-                  for (final stat in stats) ...[
-                    Expanded(child: stat),
-                    if (stat != stats.last) const SizedBox(width: 12),
-                  ],
-                ],
-              );
-            },
+                  return Row(
+                    children: [
+                      for (final stat in stats) ...[
+                        Expanded(child: stat),
+                        if (stat != stats.last) SizedBox(width: isCompact ? 8 : 12),
+                      ],
+                    ],
+                  );
+                },
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -377,9 +451,15 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
     );
   }
 
-  Widget _buildNewsCard(AppLocalizations t, ThemeData theme, CustomerNewsEntry entry) {
+  Widget _buildNewsCard(
+    BuildContext context,
+    AppLocalizations t,
+    ThemeData theme,
+    CustomerNewsEntry entry,
+  ) {
     final textTheme = theme.textTheme;
     final colorScheme = theme.colorScheme;
+    final isCompact = MediaQuery.of(context).size.width < 420;
     final accentColor = entry.pinned ? colorScheme.primary : colorScheme.secondary;
     final backgroundGradient = LinearGradient(
       begin: Alignment.topLeft,
@@ -398,37 +478,40 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
         border: Border.all(color: accentColor.withOpacity(0.25)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(theme.brightness == Brightness.dark ? 0.35 : 0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 14),
+            color: Colors.black
+                .withOpacity(theme.brightness == Brightness.dark ? 0.35 : 0.08),
+            blurRadius: isCompact ? 12 : 18,
+            offset: Offset(0, isCompact ? 10 : 14),
           ),
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(isCompact ? 16 : 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Wrap(
-              spacing: 8,
+              spacing: isCompact ? 6 : 8,
               runSpacing: 6,
               children: [
-                _buildPill(theme, _categoryLabel(t, entry.category), accentColor, icon: Icons.sell_outlined),
+                _buildPill(theme, _categoryLabel(t, entry.category), accentColor,
+                    icon: Icons.sell_outlined),
                 if (entry.pinned)
-                  _buildPill(theme, t.customerNewsPinned, colorScheme.primary, icon: Icons.push_pin_outlined),
+                  _buildPill(theme, t.customerNewsPinned, colorScheme.primary,
+                      icon: Icons.push_pin_outlined),
               ],
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: isCompact ? 12 : 14),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(10),
+                  padding: EdgeInsets.all(isCompact ? 8 : 10),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: accentColor.withOpacity(0.18),
                   ),
-                  child: Icon(Icons.auto_awesome_outlined, color: accentColor),
+                  child: Icon(Icons.auto_awesome_outlined, color: accentColor, size: isCompact ? 20 : null),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -452,7 +535,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: isCompact ? 12 : 16),
             const Divider(height: 1, thickness: 1),
             const SizedBox(height: 10),
             LayoutBuilder(
@@ -545,7 +628,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
     } else {
       bodyContent = SliverList(
         delegate: SliverChildBuilderDelegate(
-          (context, index) => _buildNewsCard(t, theme, _items[index]),
+          (context, index) => _buildNewsCard(context, t, theme, _items[index]),
           childCount: _items.length,
         ),
       );
@@ -560,7 +643,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
-            SliverToBoxAdapter(child: _buildHeader(t, theme, _items)),
+            SliverToBoxAdapter(child: _buildHeader(context, t, theme, _items)),
             if (_error != null && _items.isNotEmpty)
               SliverToBoxAdapter(
                 child: Padding(
