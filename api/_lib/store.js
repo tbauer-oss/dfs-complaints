@@ -46,6 +46,7 @@ async function withRedisTimeout(promise, label = 'redis op') {
 }
 
 const P = 'dfs:';
+const KEY_REP_PUSH = (repId) => `${P}rep:${repId}:pushTokens`;
 
 // ===== In-Memory Fallback (Preview / Dev) =====
 const mem = {
@@ -656,15 +657,28 @@ export async function repPushTokens(repId) {
   const id = (repId || '').toString().trim();
   if (!id) return [];
 
-  try {
-    const rep = await loadRepById(id);
-    const email = (rep?.email || '').toString().toLowerCase();
-    if (!email) return [];
-    return await pushTokensForEmail(email);
-  } catch (e) {
-    console.warn('repPushTokens/loadRep', e?.message || e);
-    return [];
+  const key = KEY_REP_PUSH(id);
+  const r = getRedis();
+  if (r) {
+    const raw = await rget(key);
+    let list = null;
+    if (Array.isArray(raw)) list = raw;
+    else if (typeof raw === 'string' && raw.trim()) {
+      try { list = JSON.parse(raw); }
+      catch { list = []; }
+    } else if (raw && typeof raw === 'object') {
+      list = raw;
+    }
+    const normalized = normalizePushTokens(list);
+    if (!Array.isArray(list) || normalized.length !== _rawPushTokenCount(list)) {
+      try { await rset(key, normalized); }
+      catch (e) { console.error('repPushTokens/normalize', e); }
+    }
+    return normalized;
   }
+  const list = normalizePushTokens(mem.repPushTokens.get(id));
+  mem.repPushTokens.set(id, list);
+  return list;
 }
 
 export async function repPushTokenRegister(repId, token, meta = {}) {
@@ -672,22 +686,48 @@ export async function repPushTokenRegister(repId, token, meta = {}) {
   const tok = (token || '').toString().trim();
   if (!id || !tok) return null;
 
-  try {
-    const rep = await loadRepById(id);
-    const email = (rep?.email || '').toString().toLowerCase();
-    if (!email) {
-      console.warn('[store] repPushTokenRegister: rep has no email', id);
-      return null;
-    }
+  const now = Date.now();
+  const platform = (meta?.platform || '').toString().trim();
+  const locale = (meta?.locale || '').toString().trim();
+  let lang = normLang(meta?.lang || '');
 
-    return await pushTokenRegister(email, tok, {
-      ...meta,
-      lang: normLang(meta?.lang || rep?.lang || ''),
-    });
+  try {
+    const rep = await loadRepById(id).catch(() => null);
+    if (rep?.lang) lang = normLang(lang || rep.lang || '');
   } catch (e) {
-    console.error('[store] repPushTokenRegister failed', e);
-    return null;
+    console.warn('[store] repPushTokenRegister loadRep failed', e?.message || e);
   }
+
+  const existing = await repPushTokens(id);
+  const idx = existing.findIndex(t => t.token === tok);
+  if (idx >= 0) {
+    existing[idx] = {
+      ...existing[idx],
+      platform: platform || existing[idx].platform,
+      lang,
+      locale: locale || existing[idx].locale,
+      updatedAt: now,
+    };
+  } else {
+    existing.push({
+      token: tok,
+      platform: platform || undefined,
+      lang,
+      locale: locale || undefined,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
+  const r = getRedis();
+  if (r) {
+    try { await rset(KEY_REP_PUSH(id), existing); }
+    catch (e) { console.error('repPushTokenRegister/save', e); }
+  }
+
+  mem.repPushTokens.set(id, existing);
+
+  return existing[idx >= 0 ? idx : existing.length - 1];
 }
 
 export async function repPushTokenRemove(repId, token) {
@@ -695,15 +735,22 @@ export async function repPushTokenRemove(repId, token) {
   const tok = (token || '').toString().trim();
   if (!id || !tok) return false;
 
-  try {
-    const rep = await loadRepById(id);
-    const email = (rep?.email || '').toString().toLowerCase();
-    if (!email) return false;
-    return await pushTokenRemove(email, tok);
-  } catch (e) {
-    console.error('[store] repPushTokenRemove failed', e);
-    return false;
+  const list = (await repPushTokens(id)).filter(t => t.token !== tok);
+  const r = getRedis();
+  if (list.length > 0) {
+    if (r) {
+      try { await rset(KEY_REP_PUSH(id), list); }
+      catch (e) { console.error('repPushTokenRemove/save', e); }
+    }
+    mem.repPushTokens.set(id, list);
+  } else {
+    if (r) {
+      try { await rdel(KEY_REP_PUSH(id)); }
+      catch (e) { console.error('repPushTokenRemove/del', e); }
+    }
+    mem.repPushTokens.delete(id);
   }
+  return true;
 }
 
 export async function adminPushTokens() {
