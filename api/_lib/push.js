@@ -246,6 +246,28 @@ function _normLang(value, fallback = 'en') {
   return normalizePushLang(value) || fallback;
 }
 
+function detectCustomerLang(user, complaint, fallback = 'en') {
+  const candidates = [
+    complaint?.lang,
+    user?.lang,
+    user?.language,
+    user?.preferredLanguage,
+    user?.preferred_language,
+    user?.preferred_lang,
+    user?.langCode,
+    user?.lang_code,
+    user?.languageCode,
+    user?.language_code,
+    user?.locale,
+    user?.customerLang,
+  ];
+  for (const candidate of candidates) {
+    const normalized = normalizePushLang(candidate);
+    if (normalized) return normalized;
+  }
+  return fallback;
+}
+
 /**
  * Push bei Statusänderung einer Reklamation
  *
@@ -293,8 +315,8 @@ export async function sendComplaintStatusPush(complaint) {
     return;
   }
 
-  const lang = _normLang(complaint.lang || user.lang || 'en');
-
+  const lang = detectCustomerLang(user, complaint);
+  
   const titleMap = {
     de: 'Status Ihrer Reklamation wurde aktualisiert',
     en: 'Your complaint status has been updated',
