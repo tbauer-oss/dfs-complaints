@@ -47,11 +47,13 @@ function authEmail(req) {
 export default async function handler(req, res) {
   console.log('[push/register] handler called', req.method, req.url);
   if (handlePreflight(req, res)) return;
-  if (!JWT_SECRET) return bad(res, 'server misconfig', 500);
-
-  const email = authEmail(req);
+  const email = JWT_SECRET ? authEmail(req) : null;
   const rep = email ? null : getRepFromAuthHeader(req);
   const admin = (!email && !rep) ? isAdmin(req) : false;
+
+  // Wenn wir keinen JWT-Secret haben, können wir Kunden nicht verifizieren –
+  // Vertreter:innen und Admins sollen trotzdem weiterarbeiten können.
+  if (!JWT_SECRET && !rep && !admin) return bad(res, 'server misconfig', 500);
   if (!email && !rep && !admin) return bad(res, 'unauthorized', 401);
 
   if (req.method === 'POST') {

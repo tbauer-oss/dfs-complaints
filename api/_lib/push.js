@@ -371,6 +371,13 @@ export async function sendComplaintStatusPush(complaint) {
   }
 
   try {
+    let assignedRep = null;
+    try {
+      assignedRep = await getRepOf(ownerEmail);
+    } catch (e) {
+      console.warn('[push] sendComplaintStatusPush: getRepOf failed', e?.message || e);
+    }
+
     const repIdCandidates = [
       complaint.repId,
       complaint.rep_id,
@@ -409,16 +416,14 @@ export async function sendComplaintStatusPush(complaint) {
       }
     }
 
-    if (!rep) {
-      rep = await getRepOf(ownerEmail);
-    }
+    const targetRep = assignedRep || rep;
 
-    if (rep?.id) {
-      const repTokens = await repPushTokens(rep.id);
+    if (targetRep?.id) {
+      const repTokens = await repPushTokens(targetRep.id);
       if (repTokens.length === 0) {
-        console.warn('[push] sendComplaintStatusPush: rep has no tokens', rep.id);
+        console.warn('[push] sendComplaintStatusPush: rep has no tokens', targetRep.id);
       } else {
-        const lang = _normLang(rep.lang || complaint.lang || 'de', 'de');
+        const lang = _normLang(targetRep.lang || complaint.lang || 'de', 'de');
         const repTitleMap = {
           de: 'Statusänderung bei Kundenreklamation',
           en: 'Customer complaint status updated',
