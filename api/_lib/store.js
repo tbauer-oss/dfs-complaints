@@ -2,6 +2,7 @@
 // api/_lib/store.js  (ESM) – DFS Complaints Backend
 // =======================================================
 import { Redis } from '@upstash/redis';
+import { loadRepById } from './repsStore.js';
 
 /* =========================================================
    KV / Redis – ENV robust erkennen (Upstash & Vercel KV)
@@ -152,7 +153,6 @@ function normalizePushTokens(list) {
   return out;
 }
 
-const KEY_REP_PUSH = (repId) => `${P}rep:${repId}:pushTokens`;
 const KEY_ADMIN_PUSH = `${P}admin:pushTokens`;
 const KEY_GATE = (email) => `${P}gate:${email}`;
 const CATALOG_KEYS = ['lab_default', 'lab_esfr', 'dent_default', 'dent_esfr'];
@@ -656,15 +656,15 @@ export async function repPushTokens(repId) {
   const id = (repId || '').toString().trim();
   if (!id) return [];
 
-  // Vertreter:innen erhalten keine separaten Push-Tokens mehr.
-  const key = KEY_REP_PUSH(id);
-  const r = getRedis();
-  if (r) {
-    try { await rdel(key); }
-    catch (e) { console.error('repPushTokens/cleanup', e); }
+  try {
+    const rep = await loadRepById(id);
+    const email = (rep?.email || '').toString().toLowerCase();
+    if (!email) return [];
+    return await pushTokensForEmail(email);
+  } catch (e) {
+    console.warn('repPushTokens/loadRep', e?.message || e);
+    return [];
   }
-  mem.repPushTokens.delete(id);
-  return [];
 }
 
 export async function repPushTokenRegister(repId, token, meta = {}) {
@@ -672,22 +672,38 @@ export async function repPushTokenRegister(repId, token, meta = {}) {
   const tok = (token || '').toString().trim();
   if (!id || !tok) return null;
 
-  console.warn('[store] repPushTokenRegister ignored – rep push tokens disabled');
-  await repPushTokenRemove(id, tok);
-  return null;
+  try {
+    const rep = await loadRepById(id);
+    const email = (rep?.email || '').toString().toLowerCase();
+    if (!email) {
+      console.warn('[store] repPushTokenRegister: rep has no email', id);
+      return null;
+    }
+
+    return await pushTokenRegister(email, tok, {
+      ...meta,
+      lang: normLang(meta?.lang || rep?.lang || ''),
+    });
+  } catch (e) {
+    console.error('[store] repPushTokenRegister failed', e);
+    return null;
+  }
 }
 
 export async function repPushTokenRemove(repId, token) {
   const id = (repId || '').toString().trim();
   const tok = (token || '').toString().trim();
   if (!id || !tok) return false;
-  const r = getRedis();
-  if (r) {
-    try { await rdel(KEY_REP_PUSH(id)); }
-    catch (e) { console.error('repPushTokenRemove/del', e); }
+
+  try {
+    const rep = await loadRepById(id);
+    const email = (rep?.email || '').toString().toLowerCase();
+    if (!email) return false;
+    return await pushTokenRemove(email, tok);
+  } catch (e) {
+    console.error('[store] repPushTokenRemove failed', e);
+    return false;
   }
-  mem.repPushTokens.delete(id);
-  return true;
 }
 
 export async function adminPushTokens() {
