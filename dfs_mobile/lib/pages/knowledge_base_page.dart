@@ -436,6 +436,15 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
     );
   }
 
+  List<String> _splitAnswer(String raw) {
+    return raw
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .map((line) => line.replaceFirst(RegExp(r'^[•\-\u2022]\s*'), ''))
+        .toList(growable: false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
@@ -524,7 +533,7 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
                       final item = items[index];
                       return _KnowledgeEntryCard(
                         question: item.question(t),
-                        answer: item.answer(t),
+                        answers: _splitAnswer(item.answer(t)),
                         categoryLabel: _categoryLabel(item.category, t),
                       );
                     },
@@ -541,12 +550,12 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
 
 class _KnowledgeEntryCard extends StatelessWidget {
   final String question;
-  final String answer;
+  final List<String> answers;
   final String categoryLabel;
 
   const _KnowledgeEntryCard({
     required this.question,
-    required this.answer,
+    required this.answers,
     required this.categoryLabel,
   });
 
@@ -580,12 +589,39 @@ class _KnowledgeEntryCard extends StatelessWidget {
             ),
           ),
           children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                answer,
-                style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: answers
+                  .map(
+                    (line) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(top: 10),
+                            child: Container(
+                              width: 12,
+                              height: 3,
+                              decoration: BoxDecoration(
+                                color: colorScheme.primary,
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              line,
+                              style:
+                                  theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                  .toList(),
             ),
           ],
         ),

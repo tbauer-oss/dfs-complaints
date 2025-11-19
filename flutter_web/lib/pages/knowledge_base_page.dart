@@ -476,22 +476,28 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
               children: answers
                   .map(
                     (a) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.only(bottom: 10),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Padding(
-                            padding: EdgeInsets.only(top: 5),
-                            child: Icon(
-                              Icons.circle,
-                              size: 6,
+                          Padding(
+                            padding: const EdgeInsets.only(top: 10),
+                            child: Container(
+                              width: 12,
+                              height: 3,
+                              decoration: BoxDecoration(
+                                color: primary,
+                                borderRadius: BorderRadius.circular(2),
+                              ),
                             ),
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: Text(
                               a,
-                              style: theme.textTheme.bodyMedium,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                height: 1.4,
+                              ),
                             ),
                           ),
                         ],
@@ -510,23 +516,36 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    final primary = const Color(0xFF0865A2); // DFS-Blau
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final primary = isDark ? colorScheme.secondary : const Color(0xFF0865A2);
+    final gradient = LinearGradient(
+      colors: isDark
+          ? const [Color(0xFF0B1525), Color(0xFF111C2E)]
+          : const [Color(0xFFE7F3FB), Colors.white],
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+    );
 
     final items = _filteredItems(t);
 
+    final canPop = Navigator.of(context).canPop();
+
     return Scaffold(
+      backgroundColor: colorScheme.background,
+      appBar: AppBar(
+        title: Text(t.knowledgeBaseTile ?? 'Knowledge base (FAQ)'),
+        leading: canPop
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => Navigator.of(context).maybePop(),
+              )
+            : null,
+      ),
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Color(0xFFE7F3FB),
-              Colors.white,
-            ],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
+        decoration: BoxDecoration(gradient: gradient),
         child: SafeArea(
+          top: false,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Column(
@@ -538,6 +557,7 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(18),
                   ),
+                  color: theme.cardColor,
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Row(
@@ -575,7 +595,8 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
                               Text(
                                 t.kb_intro,
                                 style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: Colors.black87,
+                                  color: colorScheme.onSurface.withOpacity(0.8),
+                                  height: 1.35,
                                 ),
                               ),
                             ],
@@ -597,19 +618,22 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
                     });
                   },
                   decoration: InputDecoration(
-                    hintText: "Frage, Stichwort oder Begriff suchen …",
+                    hintText: t.kb_search_hint,
                     prefixIcon: const Icon(Icons.search),
                     filled: true,
-                    fillColor: Colors.white,
+                    fillColor: theme.cardColor,
                     contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16, vertical: 10),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(20),
-                      borderSide: BorderSide(color: primary.withOpacity(0.3)),
+                      borderSide:
+                          BorderSide(color: colorScheme.outlineVariant),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(20),
-                      borderSide: BorderSide(color: primary.withOpacity(0.2)),
+                      borderSide: BorderSide(
+                        color: colorScheme.outlineVariant.withOpacity(0.6),
+                      ),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(20),
@@ -626,7 +650,7 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
                   child: Row(
                     children: [
                       ChoiceChip(
-                        label: const Text("Alle"),
+                        label: Text(t.kb_filter_all),
                         selected: _selectedCategory == null,
                         onSelected: (_) {
                           setState(() {
@@ -661,10 +685,10 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
                   child: items.isEmpty
                       ? Center(
                           child: Text(
-                            "Keine Einträge gefunden. Bitte Suchbegriff oder Filter anpassen.",
+                            t.kb_empty_message,
                             textAlign: TextAlign.center,
                             style: theme.textTheme.bodyMedium?.copyWith(
-                              color: Colors.black54,
+                              color: colorScheme.onSurfaceVariant,
                             ),
                           ),
                         )
