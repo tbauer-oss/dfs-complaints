@@ -14,6 +14,7 @@ import 'account_page.dart';
 import 'support_page.dart';
 import 'rep_contact_page.dart';
 import 'customer_news_page.dart';
+import 'knowledge_base_page.dart';
 
 // const _pdfLabUrl  = 'pdfs/DFS-Labor-DE-US-2025-26_1.pdf';
 // const _pdfDentUrl = 'pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf';
@@ -646,6 +647,17 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
         },
       ),
       _Entry(
+        label: t.knowledgeBaseTile,
+        icon: Icons.psychology_alt_outlined,
+        colorA: const Color(0xFF00695C),
+        colorB: const Color(0xFF26A69A),
+        onTap: () {
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => const KnowledgeBasePage(),
+          ));
+        },
+      ),
+      _Entry(
         label: t.customerNewsTile,
         icon: Icons.campaign_outlined,
         colorA: const Color(0xFF5D4037),
@@ -686,6 +698,25 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
                     child: _buildRepHeaderResponsive(context),
+                  ),
+
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                    child: _KnowledgeBaseSpotlight(
+                      title: t.knowledgeBaseTile,
+                      subtitle: t.knowledgeBaseSubtitle,
+                      highlights: [
+                        t.knowledgeBaseHighlight1,
+                        t.knowledgeBaseHighlight2,
+                        t.knowledgeBaseHighlight3,
+                      ],
+                      ctaLabel: t.knowledgeBaseCta,
+                      onTap: () {
+                        Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => const KnowledgeBasePage(),
+                        ));
+                      },
+                    ),
                   ),
 
                   // ---------- Kacheln ----------
@@ -744,6 +775,163 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
 }
 
 // ---------------- Komponenten ----------------
+
+class _KnowledgeBaseSpotlight extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final List<String> highlights;
+  final String ctaLabel;
+  final VoidCallback onTap;
+
+  const _KnowledgeBaseSpotlight({
+    required this.title,
+    required this.subtitle,
+    required this.highlights,
+    required this.ctaLabel,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(24),
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF004E92), Color(0xFF4286F4)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.12),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 720;
+              final pills = highlights
+                  .where((text) => text.trim().isNotEmpty)
+                  .map((text) => Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.18),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.check_circle,
+                                color: Colors.white, size: 16),
+                            const SizedBox(width: 6),
+                            Text(
+                              text,
+                              style: textTheme.bodySmall
+                                  ?.copyWith(color: Colors.white),
+                            ),
+                          ],
+                        ),
+                      ))
+                  .toList();
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 60,
+                        height: 60,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.18),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: const Icon(
+                          Icons.psychology_alt_outlined,
+                          color: Colors.white,
+                          size: 34,
+                        ),
+                      ),
+                      const SizedBox(width: 18),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              style: textTheme.titleLarge?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              subtitle,
+                              style: textTheme.bodyMedium?.copyWith(
+                                color: Colors.white.withOpacity(0.92),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (pills.isNotEmpty) ...[
+                    const SizedBox(height: 18),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 8,
+                      children: pills,
+                    ),
+                  ],
+                  const SizedBox(height: 22),
+                  Align(
+                    alignment: isNarrow
+                        ? Alignment.centerLeft
+                        : Alignment.centerRight,
+                    child: ElevatedButton.icon(
+                      onPressed: onTap,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFF0D47A1),
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      icon: const Icon(Icons.arrow_outward_rounded),
+                      label: Text(
+                        ctaLabel,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 // (Optional weiterhin vorhanden – falls du sie anderswo nutzt.
 // In dieser Datei wird _RepBanner jetzt nicht mehr verwendet.)
