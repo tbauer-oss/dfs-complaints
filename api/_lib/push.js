@@ -1,6 +1,6 @@
 // api/_lib/push.js – Push Notification helper (FCM HTTP v1)
 import crypto from 'crypto';
-import { usersList, repPushTokens } from './store.js';
+import { usersList, repPushTokens, pushTokensForEmail } from './store.js';
 import { getRepOf, loadRepById, loadRepByEmail } from './repsStore.js';
 
 export const config = { runtime: 'nodejs' };
@@ -420,7 +420,19 @@ export async function sendComplaintStatusPush(complaint) {
 
     if (targetRep?.id) {
       const repTokens = await repPushTokens(targetRep.id);
-      if (repTokens.length === 0) {
+      const repEmailTokens = targetRep.email
+        ? await pushTokensForEmail(targetRep.email)
+        : [];
+
+      const combinedTokens = Array.from(
+        new Map(
+          [...repTokens, ...repEmailTokens]
+            .map((entry) => [entry.token, entry])
+            .filter(([token]) => Boolean(token)),
+        ).values(),
+      );
+
+      if (combinedTokens.length === 0) {
         console.warn('[push] sendComplaintStatusPush: rep has no tokens', targetRep.id);
       } else {
         const lang = _normLang(targetRep.lang || complaint.lang || 'de', 'de');
@@ -451,7 +463,9 @@ export async function sendComplaintStatusPush(complaint) {
 
         tasks.push(
           sendPushNotification({
-            tokens: repTokens.map((p) => (p.token || '').toString().trim()).filter(Boolean),
+            tokens: combinedTokens
+              .map((p) => (p.token || '').toString().trim())
+              .filter(Boolean),
             title: repTitleMap[lang] || repTitleMap.de,
             body: repBodyMap[lang] || repBodyMap.de,
             data: {
