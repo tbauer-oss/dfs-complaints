@@ -486,6 +486,11 @@
 
   "supportTitle": "Support DFS",
   "knowledgeBaseTile": "Base de connaissances (FAQ)",
+  "knowledgeBaseSubtitle": "Instructions utiles, dépannage et connaissances produit réunis en un seul endroit.",
+  "knowledgeBaseHighlight1": "FAQ avec recherche",
+  "knowledgeBaseHighlight2": "Conseils produit & process",
+  "knowledgeBaseHighlight3": "Toujours à jour",
+  "knowledgeBaseCta": "Ouvrir la base de connaissances",
   "category": "Catégorie",
   "yourMessage": "Votre message",
   "supportConsentText": "J’accepte le traitement conformément à l’avis de confidentialité.",
