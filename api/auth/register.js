@@ -7,6 +7,7 @@ import {
   handlePreflight, ok, bad, methodNotAllowed, readJson
 } from '../_lib/http.js';
 import { isStrongPassword } from '../_lib/passwords.js';
+import { isRepEmail } from '../_lib/repEmailGuard.js';
 
 const isPreview  = process.env.VERCEL_ENV !== 'production';
 const validEmail = s => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || ''));
@@ -86,6 +87,7 @@ export default async function handler(req, res) {
 
     const email = gateEmail;
     if (!validEmail(email))                return bad(res, 'invalid email', 400);
+    if (await isRepEmail(email))           return bad(res, 'email belongs to representative', 400);
     if (String(b.password) !== String(b.password2))
                                             return bad(res, 'password mismatch', 400);
     if (!isStrongPassword(b.password))
