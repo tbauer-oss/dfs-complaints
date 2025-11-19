@@ -2,6 +2,7 @@
 // api/_lib/store.js  (ESM) – DFS Complaints Backend
 // =======================================================
 import { Redis } from '@upstash/redis';
+import { loadRepById } from './repsStore.js';
 
 /* =========================================================
    KV / Redis – ENV robust erkennen (Upstash & Vercel KV)
@@ -45,6 +46,7 @@ async function withRedisTimeout(promise, label = 'redis op') {
 }
 
 const P = 'dfs:';
+const KEY_REP_PUSH = (repId) => `${P}rep:${repId}:pushTokens`;
 
 // ===== In-Memory Fallback (Preview / Dev) =====
 const mem = {
@@ -152,7 +154,6 @@ function normalizePushTokens(list) {
   return out;
 }
 
-const KEY_REP_PUSH = (repId) => `${P}rep:${repId}:pushTokens`;
 const KEY_ADMIN_PUSH = `${P}admin:pushTokens`;
 const KEY_GATE = (email) => `${P}gate:${email}`;
 const CATALOG_KEYS = ['lab_default', 'lab_esfr', 'dent_default', 'dent_esfr'];
@@ -656,15 +657,28 @@ export async function repPushTokens(repId) {
   const id = (repId || '').toString().trim();
   if (!id) return [];
 
-  // Vertreter:innen erhalten keine separaten Push-Tokens mehr.
   const key = KEY_REP_PUSH(id);
   const r = getRedis();
   if (r) {
-    try { await rdel(key); }
-    catch (e) { console.error('repPushTokens/cleanup', e); }
+    const raw = await rget(key);
+    let list = null;
+    if (Array.isArray(raw)) list = raw;
+    else if (typeof raw === 'string' && raw.trim()) {
+      try { list = JSON.parse(raw); }
+      catch { list = []; }
+    } else if (raw && typeof raw === 'object') {
+      list = raw;
+    }
+    const normalized = normalizePushTokens(list);
+    if (!Array.isArray(list) || normalized.length !== _rawPushTokenCount(list)) {
+      try { await rset(key, normalized); }
+      catch (e) { console.error('repPushTokens/normalize', e); }
+    }
+    return normalized;
   }
-  mem.repPushTokens.delete(id);
-  return [];
+  const list = normalizePushTokens(mem.repPushTokens.get(id));
+  mem.repPushTokens.set(id, list);
+  return list;
 }
 
 export async function repPushTokenRegister(repId, token, meta = {}) {
@@ -672,21 +686,70 @@ export async function repPushTokenRegister(repId, token, meta = {}) {
   const tok = (token || '').toString().trim();
   if (!id || !tok) return null;
 
-  console.warn('[store] repPushTokenRegister ignored – rep push tokens disabled');
-  await repPushTokenRemove(id, tok);
-  return null;
+  const now = Date.now();
+  const platform = (meta?.platform || '').toString().trim();
+  const locale = (meta?.locale || '').toString().trim();
+  let lang = normLang(meta?.lang || '');
+
+  try {
+    const rep = await loadRepById(id).catch(() => null);
+    if (rep?.lang) lang = normLang(lang || rep.lang || '');
+  } catch (e) {
+    console.warn('[store] repPushTokenRegister loadRep failed', e?.message || e);
+  }
+
+  const existing = await repPushTokens(id);
+  const idx = existing.findIndex(t => t.token === tok);
+  if (idx >= 0) {
+    existing[idx] = {
+      ...existing[idx],
+      platform: platform || existing[idx].platform,
+      lang,
+      locale: locale || existing[idx].locale,
+      updatedAt: now,
+    };
+  } else {
+    existing.push({
+      token: tok,
+      platform: platform || undefined,
+      lang,
+      locale: locale || undefined,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
+  const r = getRedis();
+  if (r) {
+    try { await rset(KEY_REP_PUSH(id), existing); }
+    catch (e) { console.error('repPushTokenRegister/save', e); }
+  }
+
+  mem.repPushTokens.set(id, existing);
+
+  return existing[idx >= 0 ? idx : existing.length - 1];
 }
 
 export async function repPushTokenRemove(repId, token) {
   const id = (repId || '').toString().trim();
   const tok = (token || '').toString().trim();
   if (!id || !tok) return false;
+
+  const list = (await repPushTokens(id)).filter(t => t.token !== tok);
   const r = getRedis();
-  if (r) {
-    try { await rdel(KEY_REP_PUSH(id)); }
-    catch (e) { console.error('repPushTokenRemove/del', e); }
+  if (list.length > 0) {
+    if (r) {
+      try { await rset(KEY_REP_PUSH(id), list); }
+      catch (e) { console.error('repPushTokenRemove/save', e); }
+    }
+    mem.repPushTokens.set(id, list);
+  } else {
+    if (r) {
+      try { await rdel(KEY_REP_PUSH(id)); }
+      catch (e) { console.error('repPushTokenRemove/del', e); }
+    }
+    mem.repPushTokens.delete(id);
   }
-  mem.repPushTokens.delete(id);
   return true;
 }
 
