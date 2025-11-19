@@ -2,13 +2,15 @@
 export const config = {
   runtime: 'nodejs',
   api: {
-    // Beschränkung für große JSON-Bodies (Anhänge werden base64-kodiert übermittelt)
-    bodyParser: { sizeLimit: '32mb' },
+    // Eigene Parser-Logik, damit wir CORS-Header auch bei großen Bodies setzen können
+    bodyParser: false,
   },
 };
 
+const BODY_LIMIT_BYTES = Number(process.env.API_BODY_LIMIT_BYTES || 64 * 1024 * 1024);
+
 import jwt from 'jsonwebtoken';
-import { setCors, noContent, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
+import { setCors, noContent, ok, bad, methodNotAllowed, readJsonBody } from '../_lib/http.js';
 import { complaintSave, userByEmail, nextTicket } from '../_lib/store.js';
 import {
   blobUploadsEnabled,
@@ -40,7 +42,14 @@ export default async function handler(req, res) {
     if (!u || u.revoked) return bad(res, 'forbidden', 403);
 
     // --- Body & Validierung ---
-    const b = readJson(req);
+    let b;
+    try {
+      b = await readJsonBody(req, { limitBytes: BODY_LIMIT_BYTES });
+    } catch (bodyErr) {
+      const code = bodyErr?.statusCode || (bodyErr?.message === 'body too large' ? 413 : 400);
+      const msg = bodyErr?.message || 'invalid body';
+      return bad(res, msg, code);
+    }
     const payload = b?.payload || {};
     const files   = Array.isArray(b?.files) ? b.files : [];
     const providedUploads = normalizeProvidedUploads(b?.uploads);
