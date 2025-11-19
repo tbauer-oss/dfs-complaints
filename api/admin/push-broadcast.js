@@ -23,11 +23,35 @@ function requireAdmin(req, res) {
 }
 
 const SUPPORTED_LANGS = new Set(['de', 'en', 'fr', 'it', 'es']);
-function normLang(value) {
+const LANG_ALIASES = {
+  german: 'de',
+  deutsch: 'de',
+  englisch: 'en',
+  english: 'en',
+  french: 'fr',
+  français: 'fr',
+  francais: 'fr',
+  italienisch: 'it',
+  italian: 'it',
+  spanish: 'es',
+  spanisch: 'es',
+  español: 'es',
+  espanol: 'es',
+};
+
+function normalizeLangValue(value) {
   const raw = (value || '').toString().trim().toLowerCase();
+  if (!raw) return null;
+  if (LANG_ALIASES[raw]) return LANG_ALIASES[raw];
   if (SUPPORTED_LANGS.has(raw)) return raw;
   const two = raw.split(/[-_]/)[0];
-  return SUPPORTED_LANGS.has(two) ? two : 'de';
+  if (SUPPORTED_LANGS.has(two)) return two;
+  if (LANG_ALIASES[two]) return LANG_ALIASES[two];
+  return null;
+}
+
+function normLang(value, fallback = 'en') {
+  return normalizeLangValue(value) || fallback;
 }
 
 function isPushConfigured() {
@@ -62,12 +86,25 @@ export default async function handler(req, res) {
 
     for (const user of users) {
       const owner = (user?.email || '').toString();
-      const defaultLang = normLang(user?.lang || 'de');
+      const defaultLang = normLang(
+        user?.lang ||
+        user?.language ||
+        user?.preferredLanguage ||
+        user?.preferred_language ||
+        user?.preferred_lang ||
+        user?.langCode ||
+        user?.lang_code ||
+        user?.languageCode ||
+        user?.language_code ||
+        user?.locale ||
+        user?.customerLang ||
+        'en',
+      );
       const pushTokens = Array.isArray(user?.pushTokens) ? user.pushTokens : [];
       for (const entry of pushTokens) {
         const tok = (entry?.token || '').toString().trim();
         if (!tok) continue;
-        const lang = normLang(entry?.lang || defaultLang);
+        const lang = normLang(entry?.lang || entry?.locale || defaultLang);
         if (!tokenByLang.has(lang)) tokenByLang.set(lang, new Set());
         tokenByLang.get(lang).add(tok);
         if (!tokenOwners.has(tok)) tokenOwners.set(tok, owner);

@@ -44,12 +44,35 @@ const mem = {
 };
 
 const SUPPORTED_LANGS = new Set(['de', 'en', 'fr', 'it', 'es']);
+const LANG_ALIASES = {
+  german: 'de',
+  deutsch: 'de',
+  englisch: 'en',
+  english: 'en',
+  french: 'fr',
+  français: 'fr',
+  francais: 'fr',
+  italienisch: 'it',
+  italian: 'it',
+  spanish: 'es',
+  spanisch: 'es',
+  español: 'es',
+  espanol: 'es',
+};
 
-function normLang(x) {
-  const lc = String(x || '').trim().toLowerCase();
+function normalizeLangValue(value) {
+  const lc = String(value || '').trim().toLowerCase();
+  if (!lc) return null;
+  if (LANG_ALIASES[lc]) return LANG_ALIASES[lc];
   if (SUPPORTED_LANGS.has(lc)) return lc;
   const two = lc.split(/[-_]/)[0];
-  return SUPPORTED_LANGS.has(two) ? two : 'de';
+  if (SUPPORTED_LANGS.has(two)) return two;
+  if (LANG_ALIASES[two]) return LANG_ALIASES[two];
+  return null;
+}
+
+function normLang(x) {
+  return normalizeLangValue(x) || 'de';
 }
 
 function _listifyPushTokens(list) {

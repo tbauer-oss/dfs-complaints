@@ -86,18 +86,63 @@ const PUSH_TEXT = {
 };
 
 const SUPPORTED_LANGS = new Set(['de', 'en', 'fr', 'it', 'es']);
+const LANG_ALIASES = {
+  german: 'de',
+  deutsch: 'de',
+  englisch: 'en',
+  english: 'en',
+  french: 'fr',
+  français: 'fr',
+  francais: 'fr',
+  italienisch: 'it',
+  italian: 'it',
+  spanish: 'es',
+  spanisch: 'es',
+  español: 'es',
+  espanol: 'es',
+};
 
-function resolveLang(input) {
+function normalizeLangValue(input) {
   const raw = (input || '').toString().trim().toLowerCase();
+  if (!raw) return null;
+  if (LANG_ALIASES[raw]) return LANG_ALIASES[raw];
   if (SUPPORTED_LANGS.has(raw)) return raw;
   const two = raw.split(/[-_]/)[0];
-  return SUPPORTED_LANGS.has(two) ? two : 'de';
+  if (SUPPORTED_LANGS.has(two)) return two;
+  if (LANG_ALIASES[two]) return LANG_ALIASES[two];
+  return null;
+}
+
+function resolveLang(input, fallback = 'en') {
+  return normalizeLangValue(input) || fallback;
+}
+
+function detectCustomerLang(user, complaint) {
+  const candidates = [
+    user?.lang,
+    user?.language,
+    user?.preferredLanguage,
+    user?.preferred_language,
+    user?.preferred_lang,
+    user?.langCode,
+    user?.lang_code,
+    user?.languageCode,
+    user?.language_code,
+    user?.locale,
+    user?.customerLang,
+    complaint?.lang,
+  ];
+  for (const candidate of candidates) {
+    const normalized = normalizeLangValue(candidate);
+    if (normalized) return normalized;
+  }
+  return null;
 }
 
 function buildPushMessage(lang, ticket, status) {
   const l = resolveLang(lang);
-  const texts = PUSH_TEXT[l] || PUSH_TEXT.de;
-  const labels = STATUS_I18N[l] || STATUS_I18N.de;
+  const texts = PUSH_TEXT[l] || PUSH_TEXT.en;
+  const labels = STATUS_I18N[l] || STATUS_I18N.en;
   const statusLabel = labels[status] || labels[1];
   return {
     title: texts.title,
@@ -153,19 +198,9 @@ export default async function handler(req, res) {
     userByEmail,
     pushTokensForEmail,
     pushTokenRemove,
-    repPushTokens,
-    repPushTokenRemove,
-    adminPushTokens,
-    adminPushTokenRemove,
     Status,
   } = await import('../_lib/store.js');
-  const { sendPushNotification } = await import('../_lib/push.js');
-  let getRepOf = null;
-  try {
-    ({ getRepOf } = await import('../_lib/repsStore.js'));
-  } catch {
-    getRepOf = null;
-  }
+  const { sendPushToTokens } = await import('../_lib/fcm.js');
   
   try {
     // ----------------------------
@@ -218,6 +253,11 @@ export default async function handler(req, res) {
       const rawInternal = hasInternal ? body.internalNo : undefined;
       const hasNotes    = Object.prototype.hasOwnProperty.call(body, 'notes');
       const rawNotes    = hasNotes ? body.notes : undefined;
+      const sendPushFlag =
+        body?.sendPush === true ||
+        body?.sendPush === 'true' ||
+        body?.sendPush === 1 ||
+        body?.sendPush === '1';
 
       if (!ticket) return bad(res, 'missing ticket', 400);
 
@@ -285,99 +325,52 @@ export default async function handler(req, res) {
       try { await complaintSave(ticket, c); }
       catch { await complaintSave({ ...c }); }
 
-      if (statusChanged) {
+      if (statusChanged && sendPushFlag) {
         try {
-          const tokenMeta = new Map();
-          const addTokens = (list, type, id, fallbackLang) => {
-            const arr = Array.isArray(list) ? list : [];
-            for (const entry of arr) {
+          const email = normEmail(c.email || '');
+          if (email) {
+            const user = await userByEmail(email);
+            const customerTokens = await pushTokensForEmail(email);
+            const accountLang = detectCustomerLang(user, c);
+            const tokensByLang = new Map();
+            for (const entry of customerTokens) {
               const tok = (entry?.token || '').toString().trim();
               if (!tok) continue;
-              const lang = resolveLang(entry?.lang || fallbackLang || '');
-              if (!tokenMeta.has(tok)) {
-                tokenMeta.set(tok, { lang, targets: [] });
-              }
-              const meta = tokenMeta.get(tok);
-              if (!meta.lang) meta.lang = lang;
-              if (!meta.targets.some(t => t.type === type && t.id === id)) {
-                meta.targets.push({ type, id });
-              }
-            }
-          };
-
-          const email = normEmail(c.email || '');
-          const user = email ? await userByEmail(email) : null;
-          if (email) {
-            const customerTokens = await pushTokensForEmail(email);
-            addTokens(customerTokens, 'customer', email, user?.lang || '');
-          }
-
-          let repInfo = null;
-          if (email && typeof getRepOf === 'function') {
-            try { repInfo = await getRepOf(email); }
-            catch (err) { console.warn('push rep lookup failed', err?.message || err); }
-          }
-          if (repInfo?.id) {
-            const repTokensList = await repPushTokens(repInfo.id);
-            addTokens(repTokensList, 'rep', String(repInfo.id), '');
-          }
-
-          const adminTokensList = await adminPushTokens();
-          addTokens(adminTokensList, 'admin', 'admin', '');
-
-          if (tokenMeta.size > 0) {
-            const tokensByLang = new Map();
-            for (const [token, meta] of tokenMeta.entries()) {
-              const lang = meta.lang || 'de';
+              const lang = resolveLang(entry?.lang || entry?.locale || accountLang || user?.lang || c.lang || '');
               if (!tokensByLang.has(lang)) tokensByLang.set(lang, []);
-              tokensByLang.get(lang).push({ token, meta });
+              tokensByLang.get(lang).push(tok);
             }
 
             const invalidTokens = new Set();
-            for (const [lang, entries] of tokensByLang.entries()) {
-              const tokens = entries.map(e => e.token);
+            for (const [lang, tokens] of tokensByLang.entries()) {
               if (tokens.length === 0) continue;
-              const audiences = Array.from(new Set(entries.flatMap(e => e.meta.targets.map(t => t.type)))).sort().join(',');
               const pushMsg = buildPushMessage(lang, c.ticket, c.status);
-              const dataPayload = {
+              const payloadData = {
                 type: 'complaint-status',
                 ticket: c.ticket,
                 status: String(c.status ?? ''),
                 statusLabel: pushMsg.statusLabel,
                 lang,
+                customerEmail: email,
               };
-              if (audiences) dataPayload.audiences = audiences;
-              if (email) dataPayload.customerEmail = email;
-              if (repInfo?.id) dataPayload.repId = String(repInfo.id);
 
-              const result = await sendPushNotification({
+              const result = await sendPushToTokens(
                 tokens,
-                title: pushMsg.title,
-                body: pushMsg.body,
-                data: dataPayload,
-              });
+                { title: pushMsg.title, body: pushMsg.body },
+                payloadData,
+              );
 
-              if (Array.isArray(result?.invalidTokens) && result.invalidTokens.length > 0) {
+              if (Array.isArray(result?.invalidTokens)) {
                 result.invalidTokens.forEach(t => invalidTokens.add(t));
               }
             }
 
             if (invalidTokens.size > 0) {
               for (const bad of invalidTokens) {
-                const meta = tokenMeta.get(bad);
-                if (!meta) continue;
-                for (const target of meta.targets) {
-                  try {
-                    if (target.type === 'customer' && target.id) {
-                      await pushTokenRemove(target.id, bad);
-                    } else if (target.type === 'rep' && target.id) {
-                      await repPushTokenRemove(target.id, bad);
-                    } else if (target.type === 'admin') {
-                      await adminPushTokenRemove(bad);
-                    }
-                  } catch (err) {
-                    console.error('push token cleanup failed', err);
-                  }
+                try {
+                  await pushTokenRemove(email, bad);
+                } catch (err) {
+                  console.error('push token cleanup failed', err);
                 }
               }
             }

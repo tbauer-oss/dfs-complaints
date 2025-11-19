@@ -213,12 +213,37 @@ export async function sendPushNotification({ tokens = [], title = '', body = '',
 
 import { usersList } from './store.js';
 
-// Helper: "de-DE" -> "de"
-function _normLang(value, fallback = 'de') {
+const SUPPORTED_LANGS = new Set(['de', 'en', 'fr', 'it', 'es']);
+const LANG_ALIASES = {
+  german: 'de',
+  deutsch: 'de',
+  englisch: 'en',
+  english: 'en',
+  french: 'fr',
+  français: 'fr',
+  francais: 'fr',
+  italienisch: 'it',
+  italian: 'it',
+  spanish: 'es',
+  spanisch: 'es',
+  español: 'es',
+  espanol: 'es',
+};
+
+function normalizePushLang(value) {
   const raw = (value || '').toString().trim().toLowerCase();
-  if (!raw) return fallback;
+  if (!raw) return null;
+  if (LANG_ALIASES[raw]) return LANG_ALIASES[raw];
+  if (SUPPORTED_LANGS.has(raw)) return raw;
   const two = raw.split(/[-_]/)[0];
-  return two || fallback;
+  if (SUPPORTED_LANGS.has(two)) return two;
+  if (LANG_ALIASES[two]) return LANG_ALIASES[two];
+  return null;
+}
+
+// Helper: "de-DE" -> "de"
+function _normLang(value, fallback = 'en') {
+  return normalizePushLang(value) || fallback;
 }
 
 /**
@@ -268,7 +293,7 @@ export async function sendComplaintStatusPush(complaint) {
     return;
   }
 
-  const lang = _normLang(complaint.lang || user.lang || 'de');
+  const lang = _normLang(complaint.lang || user.lang || 'en');
 
   const titleMap = {
     de: 'Status Ihrer Reklamation wurde aktualisiert',
@@ -296,8 +321,8 @@ export async function sendComplaintStatusPush(complaint) {
       : 'Se ha cambiado el estado de su reclamación.',
   };
 
-  const title = titleMap[lang] || titleMap.de;
-  const body = bodyMap[lang] || bodyMap.de;
+  const title = titleMap[lang] || titleMap.en;
+  const body = bodyMap[lang] || bodyMap.en;
 
   const tokens = user.pushTokens
     .map((p) => (p && p.token ? p.token.toString().trim() : ''))
