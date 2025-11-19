@@ -1,6 +1,6 @@
 // api/_lib/push.js – Push Notification helper (FCM HTTP v1)
 import crypto from 'crypto';
-import { usersList, repPushTokens } from './store.js';
+import { usersList, repPushTokens, pushTokensForEmail } from './store.js';
 import { getRepOf, loadRepById, loadRepByEmail } from './repsStore.js';
 
 export const config = { runtime: 'nodejs' };
@@ -371,6 +371,13 @@ export async function sendComplaintStatusPush(complaint) {
   }
 
   try {
+    let assignedRep = null;
+    try {
+      assignedRep = await getRepOf(ownerEmail);
+    } catch (e) {
+      console.warn('[push] sendComplaintStatusPush: getRepOf failed', e?.message || e);
+    }
+
     const repIdCandidates = [
       complaint.repId,
       complaint.rep_id,
@@ -409,16 +416,26 @@ export async function sendComplaintStatusPush(complaint) {
       }
     }
 
-    if (!rep) {
-      rep = await getRepOf(ownerEmail);
-    }
+    const targetRep = assignedRep || rep;
 
-    if (rep?.id) {
-      const repTokens = await repPushTokens(rep.id);
-      if (repTokens.length === 0) {
-        console.warn('[push] sendComplaintStatusPush: rep has no tokens', rep.id);
+    if (targetRep?.id) {
+      const repTokens = await repPushTokens(targetRep.id);
+      const repEmailTokens = targetRep.email
+        ? await pushTokensForEmail(targetRep.email)
+        : [];
+
+      const combinedTokens = Array.from(
+        new Map(
+          [...repTokens, ...repEmailTokens]
+            .map((entry) => [entry.token, entry])
+            .filter(([token]) => Boolean(token)),
+        ).values(),
+      );
+
+      if (combinedTokens.length === 0) {
+        console.warn('[push] sendComplaintStatusPush: rep has no tokens', targetRep.id);
       } else {
-        const lang = _normLang(rep.lang || complaint.lang || 'de', 'de');
+        const lang = _normLang(targetRep.lang || complaint.lang || 'de', 'de');
         const repTitleMap = {
           de: 'Statusänderung bei Kundenreklamation',
           en: 'Customer complaint status updated',
@@ -446,7 +463,9 @@ export async function sendComplaintStatusPush(complaint) {
 
         tasks.push(
           sendPushNotification({
-            tokens: repTokens.map((p) => (p.token || '').toString().trim()).filter(Boolean),
+            tokens: combinedTokens
+              .map((p) => (p.token || '').toString().trim())
+              .filter(Boolean),
             title: repTitleMap[lang] || repTitleMap.de,
             body: repBodyMap[lang] || repBodyMap.de,
             data: {

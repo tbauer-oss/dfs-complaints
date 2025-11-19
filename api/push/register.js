@@ -19,6 +19,7 @@ import {
   adminPushTokenRemove,
 } from '../_lib/store.js';
 import { getRepFromAuthHeader } from '../_lib/repAuth.js';
+import { loadRepById } from '../_lib/repsStore.js';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 
@@ -47,11 +48,13 @@ function authEmail(req) {
 export default async function handler(req, res) {
   console.log('[push/register] handler called', req.method, req.url);
   if (handlePreflight(req, res)) return;
-  if (!JWT_SECRET) return bad(res, 'server misconfig', 500);
-
-  const email = authEmail(req);
+  const email = JWT_SECRET ? authEmail(req) : null;
   const rep = email ? null : getRepFromAuthHeader(req);
   const admin = (!email && !rep) ? isAdmin(req) : false;
+
+  // Wenn wir keinen JWT-Secret haben, können wir Kunden nicht verifizieren –
+  // Vertreter:innen und Admins sollen trotzdem weiterarbeiten können.
+  if (!JWT_SECRET && !rep && !admin) return bad(res, 'server misconfig', 500);
   if (!email && !rep && !admin) return bad(res, 'unauthorized', 401);
 
   if (req.method === 'POST') {
@@ -68,6 +71,16 @@ export default async function handler(req, res) {
       await pushTokenRegister(email, token, { platform, locale, lang });
     } else if (rep) {
       await repPushTokenRegister(rep.repId, token, { platform, locale, lang });
+
+      try {
+        const repProfile = await loadRepById(rep.repId);
+        const repEmail = (repProfile?.email || '').toString().trim().toLowerCase();
+        if (repEmail) {
+          await pushTokenRegister(repEmail, token, { platform, locale, lang });
+        }
+      } catch (err) {
+        console.warn('[push/register] could not mirror rep token to email store', err?.message || err);
+      }
     } else if (admin) {
       await adminPushTokenRegister(token, { platform, locale, lang });
     }
@@ -90,7 +103,19 @@ export default async function handler(req, res) {
     if (!token) return bad(res, 'missing token', 400);
 
     if (email) await pushTokenRemove(email, token);
-    else if (rep) await repPushTokenRemove(rep.repId, token);
+    else if (rep) {
+      await repPushTokenRemove(rep.repId, token);
+
+      try {
+        const repProfile = await loadRepById(rep.repId);
+        const repEmail = (repProfile?.email || '').toString().trim().toLowerCase();
+        if (repEmail) {
+          await pushTokenRemove(repEmail, token);
+        }
+      } catch (err) {
+        console.warn('[push/register] could not remove mirrored rep token', err?.message || err);
+      }
+    }
     else if (admin) await adminPushTokenRemove(token);
     return noContent(res);
   }
