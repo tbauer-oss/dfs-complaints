@@ -86,6 +86,14 @@ class PushNotifications {
     });
   }
 
+    Future<void> init() async {
+    if (kIsWeb) return;
+    final options = _firebaseOptions();
+    if (options == null) return;
+
+    await _ensureFirebase(options);
+  }
+
   Future<void> deactivate(ApiClient api) async {
     if (kIsWeb) return;
     final options = _firebaseOptions();
