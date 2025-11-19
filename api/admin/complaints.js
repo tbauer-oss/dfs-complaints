@@ -86,18 +86,63 @@ const PUSH_TEXT = {
 };
 
 const SUPPORTED_LANGS = new Set(['de', 'en', 'fr', 'it', 'es']);
+const LANG_ALIASES = {
+  german: 'de',
+  deutsch: 'de',
+  englisch: 'en',
+  english: 'en',
+  french: 'fr',
+  français: 'fr',
+  francais: 'fr',
+  italienisch: 'it',
+  italian: 'it',
+  spanish: 'es',
+  spanisch: 'es',
+  español: 'es',
+  espanol: 'es',
+};
 
-function resolveLang(input) {
+function normalizeLangValue(input) {
   const raw = (input || '').toString().trim().toLowerCase();
+  if (!raw) return null;
+  if (LANG_ALIASES[raw]) return LANG_ALIASES[raw];
   if (SUPPORTED_LANGS.has(raw)) return raw;
   const two = raw.split(/[-_]/)[0];
-  return SUPPORTED_LANGS.has(two) ? two : 'de';
+  if (SUPPORTED_LANGS.has(two)) return two;
+  if (LANG_ALIASES[two]) return LANG_ALIASES[two];
+  return null;
+}
+
+function resolveLang(input, fallback = 'en') {
+  return normalizeLangValue(input) || fallback;
+}
+
+function detectCustomerLang(user, complaint) {
+  const candidates = [
+    user?.lang,
+    user?.language,
+    user?.preferredLanguage,
+    user?.preferred_language,
+    user?.preferred_lang,
+    user?.langCode,
+    user?.lang_code,
+    user?.languageCode,
+    user?.language_code,
+    user?.locale,
+    user?.customerLang,
+    complaint?.lang,
+  ];
+  for (const candidate of candidates) {
+    const normalized = normalizeLangValue(candidate);
+    if (normalized) return normalized;
+  }
+  return null;
 }
 
 function buildPushMessage(lang, ticket, status) {
   const l = resolveLang(lang);
-  const texts = PUSH_TEXT[l] || PUSH_TEXT.de;
-  const labels = STATUS_I18N[l] || STATUS_I18N.de;
+  const texts = PUSH_TEXT[l] || PUSH_TEXT.en;
+  const labels = STATUS_I18N[l] || STATUS_I18N.en;
   const statusLabel = labels[status] || labels[1];
   return {
     title: texts.title,
@@ -286,11 +331,12 @@ export default async function handler(req, res) {
           if (email) {
             const user = await userByEmail(email);
             const customerTokens = await pushTokensForEmail(email);
+            const accountLang = detectCustomerLang(user, c);
             const tokensByLang = new Map();
             for (const entry of customerTokens) {
               const tok = (entry?.token || '').toString().trim();
               if (!tok) continue;
-              const lang = resolveLang(entry?.lang || user?.lang || c.lang || '');
+              const lang = resolveLang(entry?.lang || entry?.locale || accountLang || user?.lang || c.lang || '');
               if (!tokensByLang.has(lang)) tokensByLang.set(lang, []);
               tokensByLang.get(lang).push(tok);
             }
