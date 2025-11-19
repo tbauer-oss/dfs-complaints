@@ -212,7 +212,7 @@
   "gate_password": "Password di autorizzazione",
   "continueLabel": "Continua",
   "invalid": "Non valido",
-  "gateUnlockHint": "Inserisci il tuo indirizzo e-mail e la password di autorizzazione per sbloccare l'area di registrazione.,
+  "gateUnlockHint": "Inserisci il tuo indirizzo e-mail e la password di autorizzazione per sbloccare l'area di registrazione.",
   "gateEmailRequired": "Inserisci il tuo indirizzo e-mail.",
   "gateCompanyRequired": "Inserisci il nome della tua azienda.",
   "gateInvalidEmail": "Inserisci un indirizzo e-mail valido.",
