@@ -4,11 +4,14 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:html' as html; // nur Web – für Link-Öffnen & mailto
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../models/complaint.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/attachment_preview.dart';
+import '../utils/image_optimizer.dart';
+import '../utils/upload_limits.dart';
 import '../widgets/legal_footer.dart';
 
 const _kComplaintMail = 'complaint@dfs-diamon.de';
@@ -243,27 +246,48 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     final res = await FilePicker.platform.pickFiles(allowMultiple: true, withData: true);
     if (res == null || res.files.isEmpty) return;
 
-    const limit = 8 * 1024 * 1024; // 8 MB
-    int totalBytes = 0;
-    final selected = <({String name, List<int> bytes, String mime, String? preview})>[];
+    final selected = <ComplaintFilePayload>[];
+    var totalBytes = 0;
+    var totalPayload = 0;
 
     for (final file in res.files) {
       final data = file.bytes;
       if (data == null || data.isEmpty) continue;
-      totalBytes += data.length;
-      if (totalBytes > limit) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(t.attachments_too_large)),
-        );
-        return;
+      var name = file.name;
+      var bytes = List<int>.from(data);
+      var mime = _guessMime(name);
+
+      if (kIsWeb) {
+        final optimized = optimizeImageForUpload(bytes, mime, originalName: name);
+        bytes = optimized.bytes;
+        mime = optimized.mime;
+        if ((optimized.suggestedName ?? '').isNotEmpty) {
+          name = optimized.suggestedName!;
+        }
+        totalPayload += estimateBase64Size(bytes.length);
+        if (totalPayload > kWebUploadPayloadBudgetBytes) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('${t.attachments_too_large} (Web-Limit 4MB)')),
+          );
+          return;
+        }
+      } else {
+        totalBytes += bytes.length;
+        if (totalBytes > kMobileAttachmentLimitBytes) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(t.attachments_too_large)),
+          );
+          return;
+        }
       }
-      final mime = _guessMime(file.name);
+
       selected.add((
-        name: file.name,
-        bytes: List<int>.from(data),
+        name: name,
+        bytes: bytes,
         mime: mime,
-        preview: createAttachmentPreview(data, mime),
+        preview: createAttachmentPreview(bytes, mime),
       ));
     }
 
@@ -277,7 +301,13 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
 
     setState(() => _busy = true);
     try {
-      await widget.api.complaintUploadFiles(c.ticket, selected);
+      if (kIsWeb) {
+        await sendInChunks(selected, (chunk) async {
+          await widget.api.complaintUploadFiles(c.ticket, chunk);
+        });
+      } else {
+        await widget.api.complaintUploadFiles(c.ticket, selected);
+      }
       await _load(silent: true);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
