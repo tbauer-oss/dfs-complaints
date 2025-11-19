@@ -77,6 +77,7 @@ class PushNotifications {
 
     final token = await messaging.getToken();
     if (token != null && token.isNotEmpty) {
+      debugPrint('[push] got FCM token from FirebaseMessaging: $token');
       await _registerToken(api, token, languageCode);
     }
 
@@ -181,6 +182,9 @@ class PushNotifications {
     if (token == _lastToken && lang == _lastLang && api.pushDeviceToken == token) return;
 
     final platform = _platformLabel();
+
+    debugPrint('[push] FCM token: $token (platform=$platform, lang=${lang.isEmpty ? '-': lang})');
+    
     try {
       await api.registerPushToken(
         token,
