@@ -86,7 +86,32 @@ class PushNotifications {
     });
   }
 
-    Future<void> init() async {
+  Future<void> replayLatestToken(ApiClient api, {String? languageCode}) async {
+    if (kIsWeb) return;
+    final options = _firebaseOptions();
+    if (options == null) return;
+    final lang = (languageCode ?? '').trim();
+    try {
+      await _ensureFirebase(options);
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null && token.isNotEmpty) {
+        await _registerToken(api, token, languageCode);
+      } else {
+        final cached = (api.pushDeviceToken ?? '').trim();
+        if (cached.isEmpty) return;
+        await api.registerPushToken(
+          cached,
+          platform: _platformLabel(),
+          lang: lang.isEmpty ? null : lang,
+          locale: lang,
+        );
+      }
+    } catch (e) {
+      debugPrint('[push] replayLatestToken failed: $e');
+    }
+  }
+
+  Future<void> init() async {
     if (kIsWeb) return;
     final options = _firebaseOptions();
     if (options == null) return;

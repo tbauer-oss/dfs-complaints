@@ -302,6 +302,11 @@ class _MyAppState extends State<MyApp> {
       } catch (e) {
         debugPrint('[push] setup on boot failed: $e');
       }
+      try {
+        await push.replayLatestToken(api, languageCode: _prefs.locale?.languageCode);
+      } catch (e) {
+        debugPrint('[push] replay token on boot failed: $e');
+      }
     }
   }
 
@@ -348,6 +353,7 @@ class _MyAppState extends State<MyApp> {
     api.setAdminSecret(secret);
     try {
       await push.setup(api, languageCode: _prefs.locale?.languageCode);
+      await push.replayLatestToken(api, languageCode: _prefs.locale?.languageCode);
     } catch (e) {
       debugPrint('[push] setup for admin failed: $e');
     }
@@ -385,7 +391,18 @@ class _MyAppState extends State<MyApp> {
     _syncAccountLanguage();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      push.setup(api, languageCode: _prefs.locale?.languageCode);
+      () async {
+        try {
+          await push.setup(api, languageCode: _prefs.locale?.languageCode);
+        } catch (e) {
+          debugPrint('[push] setup after login failed: $e');
+        }
+        try {
+          await push.replayLatestToken(api, languageCode: _prefs.locale?.languageCode);
+        } catch (e) {
+          debugPrint('[push] replay token after login failed: $e');
+        }
+      }();
     });
   }
   void _onLoggedOut() => setState(() => _loggedIn = false); // Kundenlogout

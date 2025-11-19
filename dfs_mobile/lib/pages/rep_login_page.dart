@@ -40,6 +40,12 @@ class _RepLoginPageState extends State<RepLoginPage> {
     } catch (e) {
       debugPrint('[push] rep setup failed: $e');
     }
+    try {
+      await PushNotifications.instance
+          .replayLatestToken(widget.api, languageCode: locale.languageCode);
+    } catch (e) {
+      debugPrint('[push] rep token replay failed: $e');
+    }
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => RepDashboardPage(api: widget.api)),
