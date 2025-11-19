@@ -1,10 +1,12 @@
 // api/complaint/[ticket].js
 export const config = {
-  runtime: "nodejs",
+  runtime: 'nodejs',
   api: {
-    bodyParser: { sizeLimit: "32mb" },
+    bodyParser: false,
   },
 };
+
+const BODY_LIMIT_BYTES = Number(process.env.API_BODY_LIMIT_BYTES || 64 * 1024 * 1024);
 
 import {
   setCors,
@@ -12,8 +14,8 @@ import {
   bad,
   noContent,
   methodNotAllowed,
-  readJson,
-} from "../_lib/http.js";
+  readJsonBody,
+} from '../_lib/http.js';
 import { getAuthUser } from "../_lib/auth.js";
 import {
   complaintGet,
@@ -68,7 +70,14 @@ export default async function handler(req, res) {
     const compMail = (comp.email || "").toString().trim().toLowerCase();
     if (!userMail || userMail !== compMail) return bad(res, "forbidden", 403);
 
-    const body = readJson(req);
+    let body;
+    try {
+      body = await readJsonBody(req, { limitBytes: BODY_LIMIT_BYTES });
+    } catch (bodyErr) {
+      const code = bodyErr?.statusCode || (bodyErr?.message === 'body too large' ? 413 : 400);
+      const msg = bodyErr?.message || 'invalid body';
+      return bad(res, msg, code);
+    }
     const files = Array.isArray(body?.files) ? body.files : [];
     let processed;
     try {
@@ -153,8 +162,14 @@ export default async function handler(req, res) {
   // PATCH: Admin ändert Status/decision/reportLink
   if (req.method === "PATCH") {
     if (!adminAuthorized(req)) return bad(res, "admin unauthorized", 401);
-    const body =
-      typeof req.body === "object" ? req.body : JSON.parse(req.body ?? "{}");
+    let body;
+    try {
+      body = await readJsonBody(req, { limitBytes: BODY_LIMIT_BYTES });
+    } catch (bodyErr) {
+      const code = bodyErr?.statusCode || (bodyErr?.message === 'body too large' ? 413 : 400);
+      const msg = bodyErr?.message || 'invalid body';
+      return bad(res, msg, code);
+    }
 
     const patch = {};
     if (body.status != null) {
