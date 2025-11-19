@@ -10,7 +10,7 @@ import {
   readJson,
 } from '../_lib/http.js';
 import { usersList, pushTokenRemove } from '../_lib/store.js';
-import { sendPushNotification } from '../_lib/push.js';
+import { sendPushNotification, isPushConfigured } from '../_lib/push.js';
 
 function requireAdmin(req, res) {
   const sec = (req.headers?.['x-admin-secret'] || '').toString().trim();
@@ -28,6 +28,39 @@ function normLang(value) {
   if (SUPPORTED_LANGS.has(raw)) return raw;
   const two = raw.split(/[-_]/)[0];
   return SUPPORTED_LANGS.has(two) ? two : 'de';
+}
+
+function describeSendFailure(result) {
+  if (!result) return null;
+  const reason = result.reason ? result.reason.toString() : '';
+  if (reason === 'missing-server-key') {
+    return 'Push-Dienst ist nicht konfiguriert (Firebase Server Key fehlt).';
+  }
+  if (reason === 'no-tokens') {
+    return 'Keine gültigen Geräte vorhanden.';
+  }
+  if (reason && reason !== 'missing-server-key' && reason !== 'no-tokens') {
+    return reason;
+  }
+  if (Array.isArray(result.responses)) {
+    for (const resp of result.responses) {
+      if (!resp || resp.ok !== false) continue;
+      if (resp.error) return resp.error;
+      if (resp.status && resp.body) {
+        const snippet = typeof resp.body === 'string'
+          ? resp.body
+          : (() => {
+              try { return JSON.stringify(resp.body); }
+              catch { return String(resp.body); }
+            })();
+        return `FCM HTTP ${resp.status}: ${snippet.length > 240 ? `${snippet.slice(0, 237)}…` : snippet}`;
+      }
+      if (resp.status) {
+        return `FCM HTTP ${resp.status}`;
+      }
+    }
+  }
+  return null;
 }
 
 export default async function handler(req, res) {
@@ -87,8 +120,25 @@ export default async function handler(req, res) {
 
     const invalidTokens = new Set();
     const errors = [];
+    const sortedLangEntries = Array.from(tokenByLang.entries()).sort((a, b) => a[0].localeCompare(b[0]));
 
-    for (const [lang, set] of Array.from(tokenByLang.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
+    if (!dryRun && !isPushConfigured()) {
+      return ok(res, {
+        dryRun,
+        totalTokens,
+        languages: sortedLangEntries.map(([lang, set]) => ({
+          lang,
+          tokens: set.size,
+          sent: 0,
+          ok: false,
+        })),
+        invalidTokens: 0,
+        errors: ['Push-Versand ist nicht konfiguriert (Firebase Server Key fehlt).'],
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    for (const [lang, set] of sortedLangEntries) {
       const tokens = Array.from(set);
       let sendResult = null;
       if (!dryRun) {
@@ -107,7 +157,8 @@ export default async function handler(req, res) {
             sendResult.invalidTokens.forEach((t) => invalidTokens.add(t));
           }
           if (!sendResult?.ok) {
-            errors.push(`Sprache ${lang}: Versand teilweise fehlgeschlagen`);
+            const detail = describeSendFailure(sendResult);
+            errors.push(`Sprache ${lang}: ${detail || 'Versand teilweise fehlgeschlagen.'}`);
           }
         } catch (err) {
           errors.push(`Sprache ${lang}: ${err?.message || err}`);
@@ -117,7 +168,19 @@ export default async function handler(req, res) {
       languages.push({
         lang,
         tokens: tokens.length,
-        sent: dryRun ? 0 : tokens.length,
+        sent: dryRun
+          ? 0
+          : Math.min(
+              tokens.length,
+              Math.max(
+                0,
+                sendResult && typeof sendResult.sent === 'number'
+                  ? Math.floor(sendResult.sent)
+                  : sendResult?.ok
+                      ? tokens.length
+                      : 0,
+              ),
+            ),
         ok: dryRun ? true : !!sendResult?.ok,
       });
     }
