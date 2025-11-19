@@ -14,6 +14,8 @@ import 'package:dfs_mobile/models/country.dart';
 import 'package:dfs_mobile/models/customer_news_entry.dart';
 import 'package:dfs_mobile/widgets/dialog_content_scroll.dart';
 import 'package:dfs_mobile/widgets/legal_footer.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 import 'admin_stats_page.dart';
 
@@ -153,6 +155,60 @@ class _AdminPageState extends State<AdminPage> {
   String _newsCategoryLabel(String code) {
     final key = code.trim().toLowerCase();
     return _newsCategoryLabels[key] ?? _newsCategoryLabels['general']!;
+  }
+
+  Future<void> _handleDebugPushRegister() async {
+    try {
+      try {
+        await Firebase.initializeApp();
+      } catch (_) {
+        // Bereits initialisiert ist okay.
+      }
+
+      final messaging = FirebaseMessaging.instance;
+      await messaging.requestPermission(alert: true, badge: true, sound: true);
+
+      final token = await messaging.getToken();
+      if (!mounted) return;
+      if (token == null || token.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Kein FCM-Token erhalten.')),
+        );
+        return;
+      }
+
+      await widget.api.registerPushToken(
+        token,
+        platform: kIsWeb ? 'web' : 'android',
+        locale: '',
+        lang: null,
+      );
+
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('FCM-Token (Debug)'),
+          content: DialogContentScroll(
+            child: SelectableText(
+              token,
+              style: const TextStyle(fontSize: 10),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Schließen'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fehler bei Push-Register: $e')),
+      );
+    }
   }
 
   // Hilfsfunktionen ---------------------------------------------------
@@ -851,6 +907,17 @@ class _AdminPageState extends State<AdminPage> {
             onTap: () {
               setState(() => _view = _AdminView.news);
               if (_newsEntries.isEmpty) _refreshNews();
+            },
+          ),
+          AdminTilePro(
+            label: 'Push-Register (Debug)',
+            subtitle: 'FCM-Token testen',
+            icon: Icons.notifications_active_outlined,
+            colorA: AdminPalette.redA,
+            colorB: AdminPalette.redB,
+            compact: compact,
+            onTap: () {
+              _handleDebugPushRegister();
             },
           ),
         ],

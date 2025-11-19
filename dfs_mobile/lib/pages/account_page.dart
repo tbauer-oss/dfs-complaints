@@ -7,8 +7,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:file_saver/file_saver.dart';
 import 'package:intl/intl.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 import '../services/app_prefs_scope.dart';
@@ -371,83 +369,6 @@ class _AccountPageState extends State<AccountPage> {
                 },
               ),
               const SizedBox(height: 24),
-
-              const SizedBox(height: 24),
-
-              // DEBUG: FCM-Token holen + bei Backend registrieren
-              OutlinedButton.icon(
-                icon: const Icon(Icons.notifications_active),
-                label: const Text('Push-Register (Debug)'),
-                onPressed: () async {
-                  try {
-                    // Firebase initialisieren (falls nicht schon passiert)
-                    try {
-                      await Firebase.initializeApp();
-                    } catch (_) {
-                      // Wenn schon initialisiert, ist das ok.
-                    }
-
-                    final messaging = FirebaseMessaging.instance;
-
-                    // Berechtigungen anfragen (einmalig)
-                    await messaging.requestPermission(
-                      alert: true,
-                      badge: true,
-                      sound: true,
-                    );
-
-                    // ECHTEN FCM-Token holen
-                    final token = await messaging.getToken();
-
-                    if (token == null || token.isEmpty) {
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Kein FCM-Token erhalten.'),
-                        ),
-                      );
-                      return;
-                    }
-
-                    // Token beim Backend registrieren
-                    await widget.api.registerPushToken(
-                      token,
-                      platform: 'android',
-                      locale: '',
-                      lang: null,
-                    );
-
-                    if (!mounted) return;
-
-                    // Token in einem Dialog anzeigen (zum Kopieren)
-                    await showDialog<void>(
-                      context: context,
-                      builder: (_) => AlertDialog(
-                        title: const Text('FCM-Token (Debug)'),
-                        content: DialogContentScroll(
-                          child: SelectableText(
-                            token,
-                            style: const TextStyle(fontSize: 10),
-                          ),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('Schließen'),
-                          ),
-                        ],
-                      ),
-                    );
-                  } catch (e) {
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Fehler bei Push-Register: $e'),
-                      ),
-                    );
-                  }
-                },
-              ),
             ],
           ),
         ),
