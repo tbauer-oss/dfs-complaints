@@ -596,5 +596,165 @@
   "newsCatShortage": "Limitazioni temporanee",
   "newsCatApp": "Versioni app",
   "newsCatGeneral": "Generale",
-  "customerNewsHeroFreshLabel": "Nuovi insight (30 giorni)"
+  "customerNewsHeroFreshLabel": "Nuovi insight (30 giorni)",
+  "kb_title": "Knowledge base – Reclami e strumenti",
+  "kb_intro": "Qui trovi domande e risposte frequenti sui reclami, sul comportamento tipico degli strumenti e sull’uso della DFS Complaint App.",
+  "kb_search_hint": "Cerca domanda, parola chiave o termine…",
+  "kb_filter_all": "Tutte le categorie",
+  "kb_empty_message": "Nessun risultato trovato. Modifica il termine di ricerca o i filtri.",
+
+  "kb_cat_a_title": "A – Domande generali sui reclami",
+  "kb_cat_b_title": "B – Strumenti diamantati",
+  "kb_cat_c_title": "C – Strumenti in carburo",
+  "kb_cat_d_title": "D – Frese in ceramica",
+  "kb_cat_e_title": "E – Lucidatori",
+  "kb_cat_f_title": "F – Ricondizionamento e sterilizzazione",
+  "kb_cat_g_title": "G – Utilizzo della DFS Complaint App",
+  "kb_cat_h_title": "H – Decisione e analisi tecnica",
+  "kb_cat_i_title": "I – Foto e resi",
+  "kb_cat_j_title": "J – Malintesi frequenti",
+
+  "kb_q1_question": "Come creo un reclamo passo dopo passo?",
+  "kb_q1_answer": "Apri l’app e accedi\nSeleziona \"Nuovo reclamo\"\nSeleziona il prodotto o inseriscilo manualmente\nSeleziona il tipo di difetto (se disponibile)\nDescrivi il problema in modo chiaro (il più preciso possibile)\nAggiungi foto (difetto, vista generale, gambo)\nInvia il ticket\nAnnota il numero di ticket (viene salvato automaticamente)",
+
+  "kb_q2_question": "Cosa deve contenere una buona descrizione del reclamo?",
+  "kb_q2_answer": "Quando si è verificato il problema?\nQuante utilizzazioni? (prima, quinta, ecc.)\nIn quale tipo di trattamento?\nCon quale manipolo o turbina?\nA quale velocità (giri/min)?\nCon quale tipo e quantità di raffreddamento?\nC’erano vibrazioni?\nSi sono verificati eventi particolari (p. es. incastro, forte calore, rumori)?",
+
+  "kb_q3_question": "Quanto tempo ho per segnalare un reclamo?",
+  "kb_q3_answer": "In generale il prima possibile dopo l’insorgenza del problema\nIn caso di usura o uso prolungato DFS non può garantire la copertura\nQuanto prima viene segnalato il reclamo, tanto migliore sarà l’analisi",
+
+  "kb_q4_question": "Perché le foto sono così importanti?",
+  "kb_q4_answer": "I difetti visibili sono spesso subito riconoscibili\nPiegature o danni al gambo sono chiaramente visibili\nLo stato della superficie e l’otturazione/intasamento possono essere valutati\nSenza foto sono quasi inevitabili domande di chiarimento e il processo richiede più tempo",
+
+  "kb_q5_question": "Il mio reclamo viene trattato in forma anonimizzata?",
+  "kb_q5_answer": "Internamente utilizziamo principalmente i dati tecnici rilevanti\nI dati personali vengono trattati in modo rigoroso secondo la normativa sulla protezione dei dati",
+
+  "kb_q6_question": "I miei reclami vengono valutati statisticamente?",
+  "kb_q6_answer": "Sì, i reclami vengono valutati in forma anonimizzata\nCiò serve al miglioramento della qualità, all’analisi delle tendenze e all’adempimento degli obblighi PMS",
+
+  "kb_q7_question": "Perché uno strumento diamantato diventa smusso dopo pochi secondi?",
+  "kb_q7_answer": "Una pressione eccessiva porta all’intasamento del rivestimento diamantato\nUn raffreddamento con acqua insufficiente provoca calore e usura maggiore\nÈ stata scelta una granulometria non adatta all’indicazione\nSuperfici molto dure (p. es. ceramica) sollecitano fortemente il rivestimento\nCuscinetti della turbina usurati generano vibrazioni e accelerano l’usura",
+
+  "kb_q8_question": "Come riconosco uno strumento diamantato intasato?",
+  "kb_q8_answer": "La superficie appare lucida invece che ruvida\nLe particelle di diamante sono appena visibili\nSono presenti depositi marroni, grigi o neri\nC’è poco o nessun asporto di materiale nonostante l’alta velocità\nI normali detergenti non riescono più a rimuovere completamente lo strato",
+
+  "kb_q9_question": "Perché lo strumento si scalda così tanto?",
+  "kb_q9_answer": "Flusso di raffreddamento inferiore a circa 50 ml/min\nAngolo dello spray non corretto che non colpisce adeguatamente l’area di preparazione\nPressione eccessiva sullo strumento\nCanale dell’acqua ostruito o parzialmente bloccato\nTempo di permanenza troppo lungo sullo stesso punto",
+
+  "kb_q10_question": "Uno strumento diamantato può piegarsi?",
+  "kb_q10_answer": "Sì, soprattutto gli strumenti lunghi e sottili sono sensibili\nAnche una piccola caduta può rendere inutilizzabile il gambo\nConseguenze: squilibrio, forte sviluppo di calore, sovraccarico del materiale e distacco del rivestimento",
+
+  "kb_q11_question": "Perché il rivestimento diamantato si distacca parzialmente?",
+  "kb_q11_answer": "Prevalgono forze laterali invece di una guida assiale\nIncastro in cavità strette o in zone sottosquadra\nDanni da caduta con formazione di microfessure nel rivestimento\nAffaticamento del materiale dopo molti cicli di ricondizionamento e autoclave",
+
+  "kb_q12_question": "Quanti trattamenti può sopportare di norma uno strumento diamantato?",
+  "kb_q12_answer": "A seconda dell’applicazione e del materiale circa da 1 a 10 trattamenti\nIn materiali molto duri (p. es. ceramica) la durata di vita è più breve\nSovraccarico, raffreddamento insufficiente o pressione eccessiva riducono drasticamente la durata",
+
+  "kb_q13_question": "Perché il gambo è scolorito o corroso?",
+  "kb_q13_answer": "Gli strumenti non sono stati completamente asciugati dopo la pulizia\nSono stati utilizzati detergenti aggressivi o non approvati\nSono stati impiegati bagni disinfettanti non idonei o non approvati\nIl contatto con altri metalli durante il ricondizionamento o lo stoccaggio ha provocato corrosione da contatto",
+
+  "kb_q14_question": "Perché lo strumento vibra fortemente ad alte velocità?",
+  "kb_q14_answer": "Piccole deviazioni del gambo causano un forte squilibrio ad alta velocità\nCuscinetti della turbina difettosi o usurati peggiorano il falso centraggio\nImpurità nella pinza o nel mandrino influiscono sul serraggio\nDanni o asimmetrie nella testa aumentano le vibrazioni",
+
+  "kb_q15_question": "Perché le frese in carburo si consumano più rapidamente del previsto?",
+  "kb_q15_answer": "Lavorazione di materiali estremamente duri\nForza di avanzamento troppo elevata o forte pressione laterale\nSurriscaldamento dei taglienti con perdita di durezza\nUn gambo piegato distribuisce le forze in modo non uniforme sui taglienti",
+
+  "kb_q16_question": "Perché una fresa in carburo talvolta si rompe improvvisamente?",
+  "kb_q16_answer": "Microfessure dovute a sovraccarico o uso scorretto precedente\nContatto con restauri metallici o materiali molto duri\nSenso di rotazione errato\nIncastro in zone strette o di difficile accesso\nForti forze radiali a causa di un avanzamento irregolare o brusco",
+
+  "kb_q17_question": "Come riconosco taglienti in carburo usurati?",
+  "kb_q17_answer": "L’asportazione di materiale peggiora sensibilmente\nI taglienti appaiono smussati o molto lucidi\nI trucioli diventano più polverosi e meno definiti\nIl rumore aumenta e diventa più acuto o sgradevole\nL’aumento di calore sul dente o sul materiale è chiaramente percepibile",
+
+  "kb_q18_question": "Perché compaiono scolorimenti nero-bluastri sullo strumento o sul materiale?",
+  "kb_q18_answer": "Danni termici dovuti a eccessivo riscaldamento\nRaffreddamento insufficiente o mal diretto\nPressione troppo bassa combinata con velocità ridotta genera calore da attrito\nGeometria di taglio danneggiata o smussata aumenta la produzione di calore",
+
+  "kb_q19_question": "Come riconosco un uso improprio dalla superficie di frattura?",
+  "kb_q19_answer": "Una frattura inclinata e sfrangiata indica forti forze laterali\nUna frattura centrale liscia può indicare affaticamento del materiale o danno pregresso\nSchegge sull’estremità del gambo indicano spesso una caduta o un urto",
+
+  "kb_q20_question": "Perché le frese in ceramica sono più sensibili degli strumenti in carburo?",
+  "kb_q20_answer": "La ceramica è molto dura ma nettamente più fragile del carburo\nLe forze laterali provocano rapidamente microfessure\nGli incastri o i movimenti bruschi sono particolarmente critici\nUn angolo di lavoro errato favorisce scheggiature dei taglienti",
+
+  "kb_q21_question": "Perché spesso si rompe solo un singolo tagliente su una fresa in ceramica?",
+  "kb_q21_answer": "Sovraccarico locale su un tagliente specifico\nContatto diretto con metallo o materiali molto duri\nGuida irregolare o movimento con incastro\nUna velocità non adatta può creare risonanze su un singolo tagliente",
+
+  "kb_q22_question": "Cosa peggiora in modo particolare la scorrevolezza delle frese in ceramica?",
+  "kb_q22_answer": "Anche piccole deviazioni del gambo hanno un forte effetto sulla ceramica\nSquilibri o difetti nei cuscinetti della turbina\nMicroscheggiature sulla punta o sui taglienti",
+
+  "kb_q23_question": "Perché un lucidatore si disintegra?",
+  "kb_q23_answer": "È stata superata la velocità massima consentita del lucidatore\nSi genera molto calore a causa di troppa pressione o di un tempo di contatto prolungato\nSono presenti fessure o difetti nella matrice in gomma o ibrida\nContatto con spigoli vivi o bave sulla superficie lavorata",
+
+  "kb_q24_question": "Perché l’effetto di lucidatura è debole?",
+  "kb_q24_answer": "È stato scelto uno stadio di lucidatura non adatto alla brillantezza desiderata\nLa superficie non è stata preparata sufficientemente prima della lucidatura\nLa velocità è troppo bassa per il lucidatore utilizzato\nIl lucidatore è già molto usurato o consumato\nIl tempo di contatto o la pressione sono insufficienti",
+
+  "kb_q25_question": "Perché compaiono depositi neri durante la lucidatura?",
+  "kb_q25_answer": "Il lucidatore si surriscalda e il materiale fonde sulla superficie\nUna pressione troppo elevata provoca il deposito di particelle di gomma\nÈ stato utilizzato un lucidatore non adatto al materiale trattato",
+
+  "kb_q26_question": "Perché è importante il prelavaggio immediato?",
+  "kb_q26_answer": "Evita l’adesione permanente di sangue, composito o cemento\nRiduce il carico microbico prima del ricondizionamento meccanico\nProtegge il rivestimento, i taglienti e la struttura superficiale\nPreviene punti di corrosione dovuti a residui",
+
+  "kb_q27_question": "Quali errori si verificano spesso durante il ricondizionamento?",
+  "kb_q27_answer": "Gli strumenti non vengono asciugati completamente\nSi usano prodotti chimici aggressivi o non approvati (acidi, basi)\nLa temperatura di lavaggio o disinfezione è troppo alta\nGli strumenti urtano tra loro durante il processo\nL’autoclave è caricato in modo errato o troppo pieno",
+
+  "kb_q28_question": "Perché compaiono macchie marroni dopo il ricondizionamento?",
+  "kb_q28_answer": "Ruggine superficiale dovuta a contatto con parti corrose\nUmidità o condensa nell’autoclave\nAsciugatura insufficiente o non corretta\nContatto con strumenti metallici di altri materiali",
+
+  "kb_q29_question": "Come riconosco un rischio di sicurezza legato allo strumento?",
+  "kb_q29_answer": "Fessure o intaccature sul gambo\nScheggiature sulla testa o sui taglienti\nPiegature o deformazioni visibili dello strumento\nPerdita parziale o totale del rivestimento\nPunti di corrosione, in particolare sul gambo o nella zona di serraggio",
+
+  "kb_q30_question": "Come posso prevenire la corrosione sugli strumenti?",
+  "kb_q30_answer": "Asciugare completamente gli strumenti dopo la pulizia\nNon utilizzare bagni di pulizia aggressivi o non approvati\nRidurre al minimo il contatto diretto tra leghe metalliche diverse\nEseguire la manutenzione regolare dell’autoclave e controllare la qualità dell’acqua",
+
+  "kb_q31_question": "Il ticket non può essere inviato – quali sono le cause frequenti?",
+  "kb_q31_answer": "Mancano campi obbligatori nel modulo di reclamo\nLa connessione Internet è interrotta o instabile\nLe foto o gli allegati sono troppo grandi\nL’account non è ancora stato attivato\nManca la password di accesso (gate) o non è valida",
+
+  "kb_q32_question": "Il ticket non appare – perché?",
+  "kb_q32_answer": "Le impostazioni del filtro nascondono alcuni ticket\nL’accesso è stato effettuato con un account diverso da quello che ha creato il ticket\nIl ticket è stato archiviato o nascosto\nL’app o il browser non sono stati aggiornati o ricaricati",
+
+  "kb_q33_question": "Perché a volte è necessaria una password di accesso (gate)?",
+  "kb_q33_answer": "Per garantire che solo clienti verificati possano creare un account\nProtezione da registrazioni spam e multiple\nLa password di accesso viene generata e verificata manualmente da DFS",
+
+  "kb_q34_question": "Posso modificare un ticket in un secondo momento?",
+  "kb_q34_answer": "Sì, finché lo stato è \"Informazioni necessarie\" o \"Aperto\"\nÈ possibile aggiungere o precisare foto e commenti",
+
+  "kb_q35_question": "Perché non posso più aprire alcuni ticket?",
+  "kb_q35_answer": "Il relativo account utente è stato disattivato\nIl ticket è completamente chiuso ed eventualmente archiviato\nUn filtro di archivio o di stato nasconde il ticket",
+
+  "kb_q36_question": "Quando viene accettato un reclamo?",
+  "kb_q36_answer": "Un difetto di materiale è plausibile o non può essere escluso\nSembra possibile una deviazione di produzione\nLo strumento si è guastato precocemente nonostante un uso corretto\nÈ possibile dimostrare un difetto tecnico",
+
+  "kb_q37_question": "Quando viene respinto un reclamo?",
+  "kb_q37_answer": "Sovraccarico evidente o uso chiaramente improprio\nRaffreddamento insufficiente\nVelocità di rotazione errata o palesemente troppo alta\nDanni pregressi o tracce di caduta chiaramente visibili\nLo strumento è molto usurato e oltre la sua normale durata di vita",
+
+  "kb_q38_question": "Perché a volte DFS non può indicare una causa chiara?",
+  "kb_q38_answer": "Lo strumento è troppo danneggiato per determinare con certezza l’origine\nLa situazione d’uso esatta non può più essere ricostruita\nNon sono state fornite foto o sono insufficienti\nÈ trascorso molto tempo tra l’evento e l’analisi",
+
+  "kb_q39_question": "Cosa succede agli strumenti restituiti in laboratorio?",
+  "kb_q39_answer": "Analisi microscopica delle zone interessate\nConfronto con campioni di riferimento e strumenti nuovi\nControllo di fessure, deformazioni e danni al rivestimento\nVerifica del fuori-centro del gambo e valutazione della scorrevolezza\nDocumentazione dei risultati per assicurazione qualità e PMS",
+
+  "kb_q40_question": "Ricevo un rapporto sul mio reclamo?",
+  "kb_q40_answer": "Sì, la valutazione viene documentata nel ticket\nSu richiesta il rappresentante può fornire un feedback più dettagliato",
+
+  "kb_q41_question": "Come devo fotografare correttamente uno strumento?",
+  "kb_q41_answer": "Utilizzare uno sfondo chiaro e uniforme (ad es. bianco)\nUsare luce diurna o illuminazione LED omogenea\nMettere a fuoco sulla testa ed evitare la sovraesposizione\nScattare almeno tre viste: testa, gambo e vista d’insieme\nEventualmente posizionare un righello o una scala accanto allo strumento",
+
+  "kb_q42_question": "Cosa devo evitare quando scatto le foto?",
+  "kb_q42_answer": "Primi piani sfocati senza dettagli riconoscibili\nMani o dita che coprono lo strumento\nSfondi molto confusi o distraenti\nForti riflessi o sovraesposizione dovuti al flash",
+
+  "kb_q43_question": "Perché a volte è necessario inviare lo strumento originale?",
+  "kb_q43_answer": "Le foto non sono sufficienti per una valutazione affidabile\nIl tipo di difetto è vistoso o rilevante per la sicurezza\nÈ indispensabile un’analisi di laboratorio per la ricerca della causa\nI controlli di tendenza o di lotto richiedono lo strumento originale",
+
+  "kb_q44_question": "Come devo imballare correttamente gli strumenti per la restituzione?",
+  "kb_q44_answer": "Se possibile, imballare ogni strumento separatamente (ad es. blister o guaina)\nUtilizzare un’imbottitura sufficiente per evitare rotture o piegature\nAllegare chiaramente il numero di ticket\nInviare gli strumenti puliti e asciutti",
+
+  "kb_q45_question": "Gli strumenti inviati vengono restituiti al mittente?",
+  "kb_q45_answer": "In linea generale gli strumenti restano in laboratorio per la documentazione\nEccezioni sono possibili previo accordo",
+
+  "kb_q46_question": "Posso inviare più strumenti in un unico pacco?",
+  "kb_q46_answer": "Sì, è possibile spedire più strumenti insieme\nOgni strumento deve comunque essere imballato separatamente\nAllegare tutti i numeri di ticket corrispondenti\nEvitare scambi con un’etichettatura chiara",
+
+  "kb_q47_question": "\"Gli strumenti diamantati sono monouso\" – è vero?",
+  "kb_q47_answer": "No, gli strumenti diamantati sono di norma riutilizzabili\nLa durata di vita effettiva dipende però molto dal modo in cui vengono utilizzati\nSovraccarico, mancanza di raffreddamento e indicazione errata portano a un’usura molto rapida\nIn condizioni ottimali sono realistiche solo poche applicazioni per strumento",
+
+  "kb_q48_question": "\"Più pressione = maggiore asportazione\" – è corretto?",
+  "kb_q48_answer": "No, un’elevata pressione provoca l’intasamento del rivestimento diamantato\nAumenta notevolmente lo sviluppo di calore\nIl rivestimento può staccarsi o consumarsi più rapidamente\nLo strumento diventa smusso più in fretta\nUna pressione leggera e controllata offre in genere un’asportazione migliore e un lavoro più delicato"
 }
