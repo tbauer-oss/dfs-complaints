@@ -200,9 +200,6 @@ class PushNotifications {
         locale: lang,
         lang: lang.isEmpty ? null : lang,
       );
-
-      // NEU: lokal im ApiClient merken (falls du die Property hast)
-      api.pushDeviceToken = token; // falls das schreibbar ist
       _lastToken = token;
       _lastLang = lang;
     } catch (e) {
