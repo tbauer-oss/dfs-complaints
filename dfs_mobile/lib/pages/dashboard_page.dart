@@ -19,7 +19,7 @@ import '../widgets/pdf_view_stub.dart'
 
 const _labCatalogLinks = [
   _CatalogLink(
-    label: 'DE / EN / IT',
+    label: 'DE / EN',
     url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Labor-DE-US-2025-26_1.pdf',
     locales: {'de', 'en', 'it'},
   ),
@@ -947,7 +947,7 @@ class _CatalogButtons extends StatelessWidget {
     Widget buildCard({
       required String title,
       required IconData icon,
-      required String description,
+      String? description,
       required List<_CatalogLink> links,
     }) {
       final link = _catalogLinkForLocale(links, localeCode);
@@ -1036,13 +1036,11 @@ class _CatalogButtons extends StatelessWidget {
       children: [
         buildCard(
           title: t.catalog_lab_title,
-          description: '',
           icon: Icons.biotech_outlined,
           links: _labCatalogLinks,
         ),
         buildCard(
           title: t.catalog_dent_title,
-          description: '',
           icon: Icons.medical_services_outlined,
           links: _dentCatalogLinks,
         ),
