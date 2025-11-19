@@ -52,26 +52,62 @@ function normLang(x) {
   return SUPPORTED_LANGS.has(two) ? two : 'de';
 }
 
+function _listifyPushTokens(list) {
+  if (Array.isArray(list)) return list;
+  if (list == null) return [];
+  if (typeof list === 'string') return [list];
+  if (typeof list === 'object') {
+    const hasDirectToken =
+      Object.prototype.hasOwnProperty.call(list, 'token') ||
+      Object.prototype.hasOwnProperty.call(list, 'deviceToken') ||
+      Object.prototype.hasOwnProperty.call(list, 'id');
+    if (hasDirectToken) return [list];
+    return Object.values(list);
+  }
+  return [];
+}
+
+function _rawPushTokenCount(list) {
+  if (Array.isArray(list)) return list.length;
+  if (list == null) return 0;
+  if (typeof list === 'string') return list.trim() ? 1 : 0;
+  if (typeof list === 'object') {
+    const hasDirectToken =
+      Object.prototype.hasOwnProperty.call(list, 'token') ||
+      Object.prototype.hasOwnProperty.call(list, 'deviceToken') ||
+      Object.prototype.hasOwnProperty.call(list, 'id');
+    if (hasDirectToken) return 1;
+    return Object.keys(list).length;
+  }
+  return 0;
+}
+
 function normalizePushTokens(list) {
   const out = [];
   const seen = new Set();
-  const arr = Array.isArray(list) ? list : [];
+  const arr = _listifyPushTokens(list);
   for (const entry of arr) {
-    const token = (entry?.token || '').toString().trim();
+    const hasMeta = entry && typeof entry === 'object';
+    const rawToken = hasMeta ? (entry.token ?? entry.deviceToken ?? entry.id) : entry;
+    const token = (rawToken || '').toString().trim();
     if (!token || seen.has(token)) continue;
     seen.add(token);
-    const created = Number(entry?.createdAt || Date.now());
-    const updated = Number(entry?.updatedAt || created);
-    const platform = (entry?.platform || '').toString().trim();
-    const locale = (entry?.locale || '').toString().trim();
-    const lang = normLang(entry?.lang || '');
+
+    const createdRaw = hasMeta ? Number(entry.createdAt) : NaN;
+    const createdAt = Number.isFinite(createdRaw) ? createdRaw : Date.now();
+    const updatedRaw = hasMeta ? Number(entry.updatedAt) : NaN;
+    const updatedAt = Number.isFinite(updatedRaw) ? updatedRaw : createdAt;
+    const platform = hasMeta ? (entry.platform || '').toString().trim() : '';
+    const locale = hasMeta ? (entry.locale || '').toString().trim() : '';
+    const lang = normLang(hasMeta ? entry.lang || '' : '');
+
     out.push({
       token,
       platform: platform || undefined,
       lang,
       locale: locale || undefined,
-      createdAt: Number.isFinite(created) ? created : Date.now(),
-      updatedAt: Number.isFinite(updated) ? updated : Date.now(),
+      createdAt,
+      updatedAt,
     });
   }
   return out;
@@ -563,7 +599,7 @@ export async function repPushTokens(repId) {
       list = raw;
     }
     const normalized = normalizePushTokens(list);
-    if (Array.isArray(list) && normalized.length !== list.length) {
+    if (!Array.isArray(list) || normalized.length !== _rawPushTokenCount(list)) {
       try { await rset(key, normalized); }
       catch (e) { console.error('repPushTokens/normalize', e); }
     }
@@ -651,7 +687,7 @@ export async function adminPushTokens() {
       list = raw;
     }
     const normalized = normalizePushTokens(list);
-    if (Array.isArray(list) && normalized.length !== list.length) {
+    if (!Array.isArray(list) || normalized.length !== _rawPushTokenCount(list)) {
       try { await rset(key, normalized); }
       catch (e) { console.error('adminPushTokens/normalize', e); }
     }
