@@ -187,12 +187,13 @@ class PushNotifications {
 
   Future<void> _registerToken(ApiClient api, String token, String? languageCode) async {
     final lang = (languageCode ?? '').trim();
-    if (token == _lastToken && lang == _lastLang && api.pushDeviceToken == token) return;
+    final hasAuth = api.hasPushAuth;
+    if (hasAuth && token == _lastToken && lang == _lastLang && api.pushDeviceToken == token) return;
 
     final platform = _platformLabel();
 
     debugPrint('[push] FCM token: $token (platform=$platform, lang=${lang.isEmpty ? '-': lang})');
-    
+
     try {
       await api.registerPushToken(
         token,
@@ -200,8 +201,10 @@ class PushNotifications {
         locale: lang,
         lang: lang.isEmpty ? null : lang,
       );
-      _lastToken = token;
-      _lastLang = lang;
+      if (hasAuth) {
+        _lastToken = token;
+        _lastLang = lang;
+      }
     } catch (e) {
       debugPrint('[push] register token failed: $e');
     }

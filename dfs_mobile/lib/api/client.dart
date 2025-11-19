@@ -1,6 +1,6 @@
 // lib/api/client.dart
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 
 // EIN einziger bedingter Import – nur für window.localStorage (Stub auf Mobile)
 import 'package:dfs_mobile/web_compat/html_stub.dart'
@@ -187,6 +187,13 @@ class ApiClient {
       h['X-Admin-Secret'] = adminSecret!;
     }
     return h;
+  }
+
+  bool get hasPushAuth {
+    final hasToken = (token ?? '').isNotEmpty;
+    final hasRepToken = (repToken ?? '').isNotEmpty;
+    final hasAdminSecret = (adminSecret ?? '').isNotEmpty;
+    return hasToken || hasRepToken || hasAdminSecret;
   }
 
   void clearAdminSecret() {
@@ -676,6 +683,19 @@ class ApiClient {
     }
   }
 
+  Future<void> _registerCachedPushTokenIfPossible() async {
+    final cached = (pushDeviceToken ?? '').trim();
+    if (cached.isEmpty) return;
+    final headers = _pushAuthHeaders();
+    final hasAuth = headers.containsKey('Authorization') || headers.containsKey('X-Admin-Secret');
+    if (!hasAuth) return;
+    try {
+      await registerPushToken(cached);
+    } catch (e) {
+      debugPrint('[push] cached token registration failed: $e');
+    }
+  }
+
   // ---------- Gate ----------
   Future<bool> gateUnlock(String password, {String? email, String? company}) async {
     final body = <String, String>{'password': password};
@@ -726,6 +746,7 @@ class ApiClient {
         if (j is Map && j['token'] is String) {
           token = j['token'] as String;
           _saveSession();
+          await _registerCachedPushTokenIfPossible();
           return LoginResult.success();
         }
         return LoginResult.failure(message: 'unexpected response', statusCode: status);
@@ -1141,6 +1162,7 @@ class ApiClient {
       repToken = tok;
       _repEmail = e;
       _saveSession();
+      await _registerCachedPushTokenIfPossible();
 
       return (ok: true, mustChange: mustChange);
     } catch (_) {
@@ -1170,6 +1192,7 @@ class ApiClient {
           }
         } catch (_) {}
         _saveSession();
+        await _registerCachedPushTokenIfPossible();
         return true;
       }
       return false;
