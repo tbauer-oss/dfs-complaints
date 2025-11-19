@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../models/complaint.dart';
 import '../models/catalog_link.dart';
 import '../models/customer_news_entry.dart';
+import 'config.dart';
 
 class ApiError implements Exception {
   final int status;
@@ -71,10 +72,33 @@ String _extractMessage(String body) {
 
 bool _ok2xx(int s) => s >= 200 && s < 300;
 
+String _resolveApiBase() {
+  const defined = String.fromEnvironment('API_BASE', defaultValue: '');
+  if (defined.isNotEmpty) return defined;
+
+  try {
+    final stored = html.window.localStorage['API_BASE'] ?? '';
+    if (stored.trim().isNotEmpty) return stored.trim();
+  } catch (_) {}
+
+  try {
+    final origin = html.window.location.origin;
+    final lower = origin.toLowerCase();
+    final isLocal = lower.contains('localhost') ||
+        lower.contains('127.0.0.1') ||
+        lower.contains('0.0.0.0') ||
+        lower.contains('://192.168.') ||
+        lower.contains('://10.') ||
+        lower.contains('://172.');
+    if (isLocal && origin.isNotEmpty) return origin;
+  } catch (_) {}
+
+  return CFG.apiBase;
+}
+
 class ApiClient {
   // ---------- Konfiguration ----------
-  static const String _apiBase =
-      String.fromEnvironment('API_BASE', defaultValue: '');
+  static final String _apiBase = _resolveApiBase();
 
   String? token;        // JWT (Kundenportal)
   String? gate;         // optionales Gate-Token
