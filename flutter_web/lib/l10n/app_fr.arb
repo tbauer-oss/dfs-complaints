@@ -596,5 +596,165 @@
   "newsCatShortage": "Limitations temporaires",
   "newsCatApp": "Versions de l'app",
   "newsCatGeneral": "Général",
-  "customerNewsHeroFreshLabel": "Nouveaux insights (30 jours)"
+  "customerNewsHeroFreshLabel": "Nouveaux insights (30 jours)",
+  "kb_title": "Base de connaissances – Réclamations et instruments",
+  "kb_intro": "Vous trouvez ici des questions et réponses fréquentes concernant les réclamations, le comportement typique des instruments et l’utilisation de l’application DFS Complaint.",
+  "kb_search_hint": "Rechercher une question, un mot-clé ou un terme…",
+  "kb_filter_all": "Toutes les catégories",
+  "kb_empty_message": "Aucun résultat trouvé. Veuillez adapter le terme de recherche ou les filtres.",
+
+  "kb_cat_a_title": "A – Questions générales sur les réclamations",
+  "kb_cat_b_title": "B – Instruments diamantés",
+  "kb_cat_c_title": "C – Instruments en carbure",
+  "kb_cat_d_title": "D – Fraises en céramique",
+  "kb_cat_e_title": "E – Polissoirs",
+  "kb_cat_f_title": "F – Retraitement et stérilisation",
+  "kb_cat_g_title": "G – Utilisation de l’application DFS Complaint",
+  "kb_cat_h_title": "H – Décision et analyse technique",
+  "kb_cat_i_title": "I – Photos et retours",
+  "kb_cat_j_title": "J – Idées reçues fréquentes",
+
+  "kb_q1_question": "Comment créer une réclamation étape par étape ?",
+  "kb_q1_answer": "Ouvrir l’application et se connecter\nSélectionner « Nouvelle réclamation »\nSélectionner le produit ou le saisir manuellement\nChoisir le type de défaut (si disponible)\nDécrire clairement le problème (aussi précisément que possible)\nAjouter des photos (défaut, vue d’ensemble, tige)\nEnvoyer le ticket\nNoter le numéro de ticket (enregistré automatiquement)",
+
+  "kb_q2_question": "Que doit contenir une bonne description de réclamation ?",
+  "kb_q2_answer": "À quel moment le problème est-il apparu ?\nCombien d’utilisations ? (première, cinquième, etc.)\nDans quel type de traitement ?\nAvec quel contre-angle ou turbine ?\nÀ quelle vitesse (tr/min) ?\nAvec quel type et quel débit de refroidissement ?\nY avait-il des vibrations ?\nY a-t-il eu des événements particuliers (p. ex. coincement, forte chaleur, bruit inhabituel) ?",
+
+  "kb_q3_question": "De combien de temps je dispose pour déclarer une réclamation ?",
+  "kb_q3_answer": "En principe, le plus rapidement possible après l’apparition du problème\nEn cas d’usure ou d’utilisation prolongée, DFS ne peut pas garantir une prise en charge\nPlus la réclamation est signalée tôt, mieux la situation peut être analysée",
+
+  "kb_q4_question": "Pourquoi les photos sont-elles si importantes ?",
+  "kb_q4_answer": "Les défauts visibles sont souvent immédiatement reconnaissables\nLes flexions ou dommages de la tige sont clairement visibles\nL’état de surface et l’encrassement peuvent être évalués\nSans photos, des demandes de précisions sont presque inévitables et le traitement est plus long",
+
+  "kb_q5_question": "Ma réclamation est-elle traitée de façon anonymisée ?",
+  "kb_q5_answer": "En interne, nous utilisons principalement les données techniques pertinentes\nLes données personnelles sont traitées strictement conformément aux règles de protection des données",
+
+  "kb_q6_question": "Mes réclamations sont-elles évaluées statistiquement ?",
+  "kb_q6_answer": "Oui, les réclamations sont évaluées de manière anonymisée\nCela sert à l’amélioration de la qualité, à l’analyse des tendances et au respect des exigences PMS",
+
+  "kb_q7_question": "Pourquoi un instrument diamanté devient-il émoussé après seulement quelques secondes ?",
+  "kb_q7_answer": "Une pression trop élevée entraîne l’encrassement du revêtement diamanté\nUn refroidissement à l’eau insuffisant provoque une surchauffe et une usure accrue\nUne granulométrie inadaptée a été choisie pour l’indication\nDes surfaces très dures (p. ex. céramique) sollicitent fortement le revêtement\nDes roulements de turbine usés créent des vibrations et accélèrent l’usure",
+
+  "kb_q8_question": "Comment reconnaître un instrument diamanté encrassé ?",
+  "kb_q8_answer": "La surface semble brillante plutôt que rugueuse\nLes particules de diamant sont à peine visibles\nPrésence de dépôts bruns, gris ou noirs\nPeu ou pas d’enlèvement de matière malgré une vitesse élevée\nLes produits de nettoyage habituels ne permettent plus d’éliminer complètement la couche",
+
+  "kb_q9_question": "Pourquoi l’instrument chauffe-t-il autant ?",
+  "kb_q9_answer": "Débit de refroidissement inférieur à env. 50 ml/min\nAngle de spray inadapté qui n’atteint pas correctement la zone de préparation\nPression excessive sur l’instrument\nCanal d’eau obstrué ou partiellement bloqué\nTemps de contact trop long au même endroit",
+
+  "kb_q10_question": "Un instrument diamanté peut-il se plier ?",
+  "kb_q10_answer": "Oui, en particulier les instruments longs et fins sont sensibles\nMême une petite chute peut rendre la tige inutilisable\nConséquences : déséquilibre, forte génération de chaleur, surcharge du matériau et perte du revêtement",
+
+  "kb_q11_question": "Pourquoi le revêtement diamanté se détache-t-il partiellement ?",
+  "kb_q11_answer": "Prédominance de forces latérales au lieu d’une guidage axial\nCoincement dans des cavités étroites ou des zones rétentives\nDommages dus à une chute entraînant des microfissures dans le revêtement\nFatigue du matériau après de nombreux cycles de retraitement et d’autoclave",
+
+  "kb_q12_question": "Combien de traitements un instrument diamanté peut-il généralement supporter ?",
+  "kb_q12_answer": "Selon l’application et le matériau, environ 1 à 10 traitements\nDans des matériaux très durs (p. ex. céramique), la durée de vie est plus courte\nLa surcharge, le refroidissement insuffisant ou une pression trop élevée réduisent fortement la durée de vie",
+
+  "kb_q13_question": "Pourquoi la tige est-elle décolorée ou corrodée ?",
+  "kb_q13_answer": "Les instruments n’ont pas été complètement séchés après le nettoyage\nDes produits de nettoyage agressifs ou non approuvés ont été utilisés\nDes bains de désinfection inadaptés ou non approuvés ont été employés\nLe contact avec d’autres métaux pendant le retraitement ou le stockage a provoqué une corrosion de contact",
+
+  "kb_q14_question": "Pourquoi l’instrument vibre-t-il fortement à haute vitesse ?",
+  "kb_q14_answer": "De très faibles déviations de la tige provoquent un déséquilibre important à haute vitesse\nDes roulements de turbine défectueux ou usés détériorent le faux-rond\nDes impuretés dans le mandrin ou la pince influencent la fixation\nDes dommages ou asymétries au niveau de la tête augmentent les vibrations",
+
+  "kb_q15_question": "Pourquoi les fraises en carbure s’usent-elles plus vite que prévu ?",
+  "kb_q15_answer": "Travail sur des matériaux extrêmement durs\nForce d’avance trop élevée ou pression latérale importante\nSurchauffe des arêtes de coupe entraînant une perte de dureté\nUne tige pliée entraîne une répartition inégale des charges sur les dents",
+
+  "kb_q16_question": "Pourquoi une fraise en carbure se casse-t-elle parfois brusquement ?",
+  "kb_q16_answer": "Microfissures dues à une surcharge ou à une mauvaise utilisation antérieure\nContact avec des restaurations métalliques ou des matériaux très durs\nSens de rotation inapproprié\nCoincement dans des zones étroites ou difficiles d’accès\nForts efforts radiaux dus à une avance irrégulière ou brusque",
+
+  "kb_q17_question": "Comment reconnaître des arêtes de coupe en carbure usées ?",
+  "kb_q17_answer": "L’enlèvement de matière diminue nettement\nLes arêtes de coupe paraissent émoussées ou très brillantes\nLes copeaux deviennent plutôt poudreux que bien définis\nLe bruit augmente et devient plus aigu ou désagréable\nL’échauffement de la dent ou du matériau augmente sensiblement",
+
+  "kb_q18_question": "Pourquoi observe-t-on des décolorations noir-bleu sur l’instrument ou le matériau ?",
+  "kb_q18_answer": "Dommages thermiques dus à une chaleur excessive\nRefroidissement insuffisant ou mal dirigé\nPression trop faible combinée à une vitesse réduite entraînant une chaleur de frottement\nGéométrie de coupe endommagée ou émoussée augmentant la production de chaleur",
+
+  "kb_q19_question": "Comment reconnaître une utilisation inappropriée à partir de la zone de fracture ?",
+  "kb_q19_answer": "Une fracture inclinée et effilochée indique de fortes forces latérales\nUne fracture centrale et lisse peut indiquer une fatigue du matériau ou un dommage antérieur\nDes éclats à l’extrémité de la tige suggèrent souvent une chute ou un choc mécanique",
+
+  "kb_q20_question": "Pourquoi les fraises en céramique sont-elles plus sensibles que les instruments en carbure ?",
+  "kb_q20_answer": "La céramique est très dure mais nettement plus cassante que le carbure\nLes forces latérales provoquent rapidement des microfissures\nLes blocages ou mouvements brusques sont particulièrement critiques\nUn angle de travail incorrect favorise l’écaillage des arêtes de coupe",
+
+  "kb_q21_question": "Pourquoi une seule dent se casse-t-elle souvent sur une fraise en céramique ?",
+  "kb_q21_answer": "Surcharge locale sur une dent spécifique\nContact direct avec du métal ou des matériaux très durs\nGuidage irrégulier ou mouvement avec coincement\nUne vitesse inadaptée peut créer des phénomènes de résonance sur une seule dent",
+
+  "kb_q22_question": "Qu’est-ce qui détériore particulièrement la douceur de marche des fraises en céramique ?",
+  "kb_q22_answer": "Même de très faibles déviations de la tige ont un effet important en céramique\nDéséquilibres ou défauts dans les roulements de turbine\nMicro-éclats à la pointe ou sur les arêtes de coupe",
+
+  "kb_q23_question": "Pourquoi un polissoir se désagrège-t-il ?",
+  "kb_q23_answer": "La vitesse maximale autorisée du polissoir a été dépassée\nUne forte génération de chaleur due à une pression trop élevée ou un temps de contact prolongé\nPrésence de fissures ou de défauts dans la matrice en caoutchouc ou hybride\nContact avec des arêtes vives ou des bavures sur la surface travaillée",
+
+  "kb_q24_question": "Pourquoi l’effet de polissage est-il faible ?",
+  "kb_q24_answer": "Un stade de polissage inadapté a été choisi pour le niveau de brillance souhaité\nLa surface n’a pas été suffisamment préparée avant le polissage\nLa vitesse est trop faible pour le polissoir utilisé\nLe polissoir est déjà fortement usé ou consommé\nLe temps de contact ou la pression sont insuffisants",
+
+  "kb_q25_question": "Pourquoi des dépôts noirs apparaissent-ils lors du polissage ?",
+  "kb_q25_answer": "Le polissoir surchauffe et le matériau fond sur la surface\nUne pression trop élevée provoque le dépôt de particules de caoutchouc\nUn polissoir inadapté a été utilisé pour le matériau traité",
+
+  "kb_q26_question": "Pourquoi un pré-nettoyage immédiat est-il important ?",
+  "kb_q26_answer": "Il empêche l’adhésion permanente de sang, de composite ou de ciment\nIl réduit la charge microbienne avant le retraitement mécanique\nIl protège le revêtement, les arêtes de coupe et la structure de surface\nIl prévient les points de corrosion causés par les résidus",
+
+  "kb_q27_question": "Quelles erreurs surviennent fréquemment lors du retraitement ?",
+  "kb_q27_answer": "Les instruments ne sont pas entièrement séchés\nDes produits chimiques agressifs ou non approuvés (acides, bases) sont utilisés\nLa température de nettoyage ou de désinfection est trop élevée\nLes instruments heurtent les uns les autres au cours du processus\nL’autoclave est mal chargé ou surchargé",
+
+  "kb_q28_question": "Pourquoi observe-t-on des taches brunes après le retraitement ?",
+  "kb_q28_answer": "Rouille superficielle due au contact avec des pièces corrodées\nHumidité ou condensation dans l’autoclave\nSéchage insuffisant ou inadapté\nContact avec des instruments métalliques d’autres matériaux",
+
+  "kb_q29_question": "Comment reconnaître un risque de sécurité lié à l’instrument ?",
+  "kb_q29_answer": "Fissures ou entailles sur la tige\nÉclats sur la tête ou les arêtes de coupe\nFlexion ou déformation visible de l’instrument\nPerte partielle ou totale du revêtement\nPoints de corrosion, en particulier sur la tige ou la zone de serrage",
+
+  "kb_q30_question": "Comment puis-je éviter la corrosion sur les instruments ?",
+  "kb_q30_answer": "Sécher complètement les instruments après le nettoyage\nNe pas utiliser de bains de nettoyage agressifs ou non approuvés\nLimiter autant que possible le contact direct entre alliages différents\nAssurer un entretien régulier de l’autoclave et vérifier la qualité de l’eau",
+
+  "kb_q31_question": "Impossible d’envoyer le ticket – quelles sont les causes fréquentes ?",
+  "kb_q31_answer": "Des champs obligatoires du formulaire de réclamation ne sont pas renseignés\nLa connexion Internet est interrompue ou instable\nLes photos ou les pièces jointes sont trop volumineuses\nLe compte n’a pas encore été activé\nLe mot de passe d’accès (gate) est manquant ou invalide",
+
+  "kb_q32_question": "Le ticket n’apparaît pas – pourquoi ?",
+  "kb_q32_answer": "Les paramètres de filtrage masquent certains tickets\nVous êtes connecté avec un compte différent de celui qui a créé le ticket\nLe ticket a été archivé ou masqué\nL’application ou le navigateur n’a pas été mis à jour ou rechargé",
+
+  "kb_q33_question": "Pourquoi un mot de passe d’accès (gate) est-il parfois nécessaire ?",
+  "kb_q33_answer": "Pour garantir que seuls des clients vérifiés puissent créer un compte\nProtection contre les enregistrements de spam et les inscriptions multiples\nLe mot de passe d’accès est généré et vérifié manuellement par DFS",
+
+  "kb_q34_question": "Puis-je modifier un ticket ultérieurement ?",
+  "kb_q34_answer": "Oui, tant que le statut est « Informations requises » ou « Ouvert »\nDes photos et commentaires peuvent être ajoutés ou précisés",
+
+  "kb_q35_question": "Pourquoi ne puis-je plus ouvrir certains tickets ?",
+  "kb_q35_answer": "Le compte utilisateur correspondant a été désactivé\nLe ticket est entièrement clôturé et éventuellement archivé\nUn filtre d’archivage ou de statut masque le ticket",
+
+  "kb_q36_question": "Quand une réclamation est-elle acceptée ?",
+  "kb_q36_answer": "Un défaut de matériau est plausible ou ne peut pas être exclu\nUn écart de production semble possible\nL’instrument est tombé en panne précocement malgré une utilisation correcte\nUn défaut technique peut être démontré",
+
+  "kb_q37_question": "Quand une réclamation est-elle rejetée ?",
+  "kb_q37_answer": "Surcharge évidente ou utilisation inappropriée\nRefroidissement insuffisant\nVitesse de rotation incorrecte ou manifestement trop élevée\nTraces de dommages antérieurs ou de chute clairement visibles\nL’instrument est fortement usé et au-delà de sa durée de vie normale",
+
+  "kb_q38_question": "Pourquoi DFS ne peut-il parfois pas indiquer une cause précise ?",
+  "kb_q38_answer": "L’instrument est trop endommagé pour déterminer l’origine avec certitude\nLa situation exacte d’utilisation ne peut plus être reconstituée\nAucune photo ou des photos insuffisantes ont été fournies\nUn long délai s’est écoulé entre l’incident et l’analyse",
+
+  "kb_q39_question": "Que se passe-t-il avec les instruments retournés au laboratoire ?",
+  "kb_q39_answer": "Analyse microscopique des zones concernées\nComparaison avec des échantillons de référence et des instruments neufs\nContrôle des fissures, déformations et dommages du revêtement\nContrôle du faux-rond de la tige et évaluation de la douceur de marche\nDocumentation des résultats pour l’assurance qualité et le PMS",
+
+  "kb_q40_question": "Vais-je recevoir un rapport sur ma réclamation ?",
+  "kb_q40_answer": "Oui, l’évaluation est documentée dans le ticket\nSur demande, un retour plus détaillé peut être fourni via le représentant",
+
+  "kb_q41_question": "Comment dois-je photographier correctement un instrument ?",
+  "kb_q41_answer": "Utiliser un fond clair et uniforme (par ex. blanc)\nUtiliser la lumière du jour ou un éclairage LED homogène\nMettre au point sur la tête et éviter la surexposition\nPrendre au moins trois vues : tête, tige et vue d’ensemble\nPlacer éventuellement une règle ou une échelle à côté de l’instrument",
+
+  "kb_q42_question": "Que dois-je éviter lors de la prise de photos ?",
+  "kb_q42_answer": "Gros plans flous sans détails exploitables\nMains ou doigts cachant l’instrument\nArrière-plans très chargés ou distrayants\nForts reflets ou surexposition dus au flash",
+
+  "kb_q43_question": "Pourquoi faut-il parfois envoyer l’instrument original ?",
+  "kb_q43_answer": "Les photos ne suffisent pas pour une évaluation fiable\nLe mode de défaillance est remarquable ou critique en termes de sécurité\nUne analyse en laboratoire est indispensable pour la recherche de la cause\nLes contrôles de tendance ou de lot nécessitent l’instrument original",
+
+  "kb_q44_question": "Comment dois-je emballer correctement les instruments pour un retour ?",
+  "kb_q44_answer": "Dans la mesure du possible, emballer chaque instrument séparément (p. ex. blister ou étui)\nUtiliser un rembourrage suffisant pour éviter les cassures ou les flexions\nJoindre clairement le numéro de ticket\nEnvoyer les instruments nettoyés et secs",
+
+  "kb_q45_question": "Les instruments retournés me sont-ils renvoyés ?",
+  "kb_q45_answer": "En règle générale, les instruments restent au laboratoire pour la documentation\nDes exceptions sont possibles après accord préalable",
+
+  "kb_q46_question": "Puis-je envoyer plusieurs instruments dans un seul colis ?",
+  "kb_q46_answer": "Oui, plusieurs instruments peuvent être expédiés ensemble\nChaque instrument doit toutefois être emballé séparément\nJoindre tous les numéros de ticket correspondants\nÉviter les confusions grâce à un étiquetage clair",
+
+  "kb_q47_question": "« Les instruments diamantés sont à usage unique » – est-ce vrai ?",
+  "kb_q47_answer": "Non, les instruments diamantés sont généralement réutilisables\nLa durée de vie réelle dépend fortement de la manière dont ils sont utilisés\nLa surcharge, le manque de refroidissement et une indication inadaptée entraînent une usure très rapide\nDans des conditions optimales, seules quelques utilisations par instrument sont réalistes",
+
+  "kb_q48_question": "« Plus de pression = plus d’enlèvement de matière » – est-ce exact ?",
+  "kb_q48_answer": "Non, une forte pression entraîne l’encrassement du revêtement diamanté\nLa production de chaleur augmente nettement\nLe revêtement peut se détacher ou s’user plus rapidement\nL’instrument s’émousse plus vite\nUne pression légère et contrôlée offre généralement un meilleur enlèvement de matière et un travail plus doux"
 }
