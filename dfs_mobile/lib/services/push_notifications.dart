@@ -226,6 +226,9 @@ class PushNotifications {
         locale: lang,
         lang: lang.isEmpty ? null : lang,
       );
+
+      api.pushDeviceToken = token;
+      
       if (hasAuth) {
         _lastToken = token;
         _lastLang = lang;
