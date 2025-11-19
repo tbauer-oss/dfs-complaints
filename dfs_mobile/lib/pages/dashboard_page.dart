@@ -997,8 +997,6 @@ class _CatalogButtons extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(title, style: titleStyle),
-                      const SizedBox(height: 2), // war 4
-                      Text(description, style: descStyle),
                       const SizedBox(height: 2), // war 6
                       Text(link.label, style: langStyle),
                     ],
