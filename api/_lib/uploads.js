@@ -3,7 +3,16 @@ import { randomUUID } from 'node:crypto';
 
 const MAX_PREVIEW_CHARS = 200000;
 const DEFAULT_MAX_TOTAL_BYTES = Number(process.env.MAX_UPLOAD_BYTES || 8 * 1024 * 1024);
-const BLOB_TOKEN = process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_TOKEN || '';
+
+const RAW_RW_TOKEN = (process.env.BLOB_READ_WRITE_TOKEN || '').trim();
+const RAW_LEGACY_TOKEN = (process.env.BLOB_TOKEN || '').trim();
+const EFFECTIVE_BLOB_TOKEN = RAW_RW_TOKEN || RAW_LEGACY_TOKEN;
+
+if (!RAW_RW_TOKEN && RAW_LEGACY_TOKEN) {
+  process.env.BLOB_READ_WRITE_TOKEN = RAW_LEGACY_TOKEN;
+}
+
+const BLOB_TOKEN = EFFECTIVE_BLOB_TOKEN;
 
 export const blobUploadsEnabled = Boolean(BLOB_TOKEN);
 

@@ -2,6 +2,7 @@
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -10,6 +11,8 @@ import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 import '../models/complaint_attachment.dart';
 import '../utils/attachment_preview.dart';
+import '../utils/image_optimizer.dart';
+import '../utils/upload_limits.dart';
 import 'complaint_summary_page.dart';
 
 // KEIN dart:html mehr nötig
@@ -41,7 +44,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   bool privacy = false;
 
   // Wichtig: exakt dieser Record-Typ (Name, Bytes, Mime)
-  List<({String name, List<int> bytes, String mime, String? preview})> files = [];
+  List<ComplaintFilePayload> files = [];
 
   String? info;
   String? err;
@@ -90,36 +93,91 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     super.dispose();
   }
 
+  int _estimateBase64(int byteLength) => estimateBase64Size(byteLength);
+
   Future<void> pickFiles() async {
     final t = context.t;
     final res = await FilePicker.platform.pickFiles(allowMultiple: true, withData: true);
-    if (res == null) return;
-
-    final sum = res.files.fold<int>(0, (s, f) => s + (f.bytes?.length ?? 0));
-    if (sum > 8 * 1024 * 1024) { setState(() => err = t.images_too_large); return; }
+    if (res == null || res.files.isEmpty) return;
 
     String _guessMime(String name) {
       final ext = name.split('.').last.toLowerCase();
       switch (ext) {
         case 'jpg':
-        case 'jpeg': return 'image/jpeg';
-        case 'png': return 'image/png';
-        case 'gif': return 'image/gif';
-        case 'webp': return 'image/webp';
-        default: return 'application/octet-stream';
+        case 'jpeg':
+          return 'image/jpeg';
+        case 'png':
+          return 'image/png';
+        case 'gif':
+          return 'image/gif';
+        case 'webp':
+          return 'image/webp';
+        default:
+          return 'application/octet-stream';
       }
     }
 
+    final prepared = <ComplaintFilePayload>[];
+    var totalBytes = 0;
+    var totalPayload = 0;
+
+    for (final f in res.files) {
+      final data = f.bytes;
+      if (data == null || data.isEmpty) continue;
+      var name = f.name;
+      var bytes = List<int>.from(data);
+      var mime = _guessMime(name);
+
+      if (kIsWeb) {
+        final optimized = optimizeImageForUpload(bytes, mime, originalName: name);
+        bytes = optimized.bytes;
+        mime = optimized.mime;
+        if ((optimized.suggestedName ?? '').isNotEmpty) {
+          name = optimized.suggestedName!;
+        }
+        totalPayload += _estimateBase64(bytes.length);
+        if (totalPayload > kWebUploadPayloadBudgetBytes) {
+          setState(() {
+            err = '${t.images_too_large} (Web-Limit 4MB)';
+            info = null;
+          });
+          return;
+        }
+      } else {
+        totalBytes += bytes.length;
+        if (totalBytes > kMobileAttachmentLimitBytes) {
+          setState(() {
+            err = t.images_too_large;
+            info = null;
+          });
+          return;
+        }
+      }
+
+      final preview = createAttachmentPreview(bytes, mime);
+      prepared.add((name: name, bytes: bytes, mime: mime, preview: preview));
+    }
+
+    if (prepared.isEmpty) return;
+
     setState(() {
-      files = res.files.map((f) {
-        final name = f.name;
-        final bytes = List<int>.from(f.bytes ?? const []);
-        final mime = _guessMime(name);
-        final preview = createAttachmentPreview(bytes, mime);
-        return (name: name, bytes: bytes, mime: mime, preview: preview); // Record, kein Map!
-      }).toList();
+      files = prepared;
       _dirty = true;
+      err = null;
+      info = null;
     });
+  }
+
+  Future<bool> _uploadAttachmentsAfterCreate(String ticket) async {
+    if (!kIsWeb || files.isEmpty) return true;
+    try {
+      await sendInChunks(files, (chunk) async {
+        await widget.api.complaintUploadFiles(ticket, chunk);
+      });
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   // -----------------------------
@@ -569,12 +627,23 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                         };
 
                         try {
-                          final res = await widget.api.complaintCreate(payload, files);
+                          final initialFiles = kIsWeb ? const <ComplaintFilePayload>[] : files;
+                          final res = await widget.api.complaintCreate(payload, initialFiles);
                           final ticket = (res?['ticket'] ?? '').toString();
 
                           if (ticket.isEmpty) {
                             setState(() { busy = false; err = t.send_failed; });
                           } else {
+                            if (kIsWeb && files.isNotEmpty) {
+                              final uploadsOk = await _uploadAttachmentsAfterCreate(ticket);
+                              if (!uploadsOk && mounted) {
+                                final message = '${t.attachments_error} ${t.attachments_add}.';
+                                ScaffoldMessenger.of(context)
+                                    .showSnackBar(SnackBar(content: Text(message)));
+                              }
+                            }
+
+                            if (!mounted) return;
                             setState(() { busy = false; _dirty = false; info = null; });
                             await _showSummary(ticket, payload);
                           }
