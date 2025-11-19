@@ -3125,7 +3125,7 @@ class _AdminPageState extends State<AdminPage> {
                         child: DropdownButtonFormField<String>(
                           value: selEmail,
                           decoration: const InputDecoration(
-                            labelText: 'Kunde (E-Mail)',
+                            labelText: 'Kunde (Firma)',
                             border: OutlineInputBorder(),
                           ),
                           items: all.map((e) {
