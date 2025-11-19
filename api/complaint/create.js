@@ -9,6 +9,11 @@ export const config = {
 import jwt from 'jsonwebtoken';
 import { setCors, noContent, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { complaintSave, userByEmail, nextTicket } from '../_lib/store.js';
+import {
+  blobUploadsEnabled,
+  normalizeProvidedUploads,
+  processIncomingFiles,
+} from '../_lib/uploads.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret';
 
@@ -37,6 +42,7 @@ export default async function handler(req, res) {
     const b = readJson(req);
     const payload = b?.payload || {};
     const files   = Array.isArray(b?.files) ? b.files : [];
+    const providedUploads = normalizeProvidedUploads(b?.uploads);
 
     if (!payload.article || !payload.desc) {
       return bad(res, 'required fields missing', 400);
@@ -49,11 +55,23 @@ export default async function handler(req, res) {
     const ticket = await nextTicket();
     const nowMs  = Date.now();
 
-    const normalizePreview = (value) => {
-      const str = (value ?? '').toString().trim();
-      if (!str) return undefined;
-      return str.length > 200000 ? str.slice(0, 200000) : str;
-    };
+    let processedFiles;
+    try {
+      processedFiles = await processIncomingFiles(files, {
+        ticket,
+        includeMailAttachments: true,
+        allowPreviewFallback: !blobUploadsEnabled,
+      });
+    } catch (err) {
+      const msg = err?.message === 'files too large'
+        ? 'files too large'
+        : err?.message === 'invalid file encoding'
+          ? 'invalid file encoding'
+          : 'file upload failed';
+      return bad(res, msg, 400);
+    }
+
+    const uploads = [...providedUploads, ...processedFiles.uploads];
 
     const complaint = {
       ticket,
@@ -64,12 +82,7 @@ export default async function handler(req, res) {
       decision: null,
       reportLink: null,
       payload,
-      uploads: files.map(f => ({
-        name: (f?.name || '').toString(),
-        mime: (f?.mime || 'application/octet-stream').toString(),
-        size: Math.floor(((f?.bytes || '') + '').length * 3 / 4) || 0,
-        preview: normalizePreview(f?.preview)
-      }))
+      uploads,
     };
 
     console.log('[create] before save', { email: u.email, segment: payload.segment, article: payload.article });
@@ -77,7 +90,7 @@ export default async function handler(req, res) {
 
     // --- Try Mail & XML (best effort) ---
     try {
-      console.log('[create] before mail/xml', { files: files.length });
+      console.log('[create] before mail/xml', { files: processedFiles.uploads.length });
 
       // dynamische Imports erst NACH save
       const [{ create }, { send, tpl }] = await Promise.all([
@@ -117,11 +130,7 @@ export default async function handler(req, res) {
 
       const attachments = [
         { filename: `${ticket}.xml`, content: Buffer.from(xml, 'utf8'), contentType: 'application/xml' },
-        ...files.map((f, i) => ({
-          filename: f?.name || `image_${i + 1}.bin`,
-          content: Buffer.from((f?.bytes || '') + '', 'base64'),
-          contentType: f?.mime || 'application/octet-stream'
-        })),
+        ...processedFiles.attachments,
       ];
 
       const htmlDFS = `
