@@ -358,6 +358,7 @@ async function checkServerAvailability(req) {
     const durationMs = Date.now() - started;
     const slow = durationMs >= 2000;
     const is4xx = res.status >= 400 && res.status < 500;
+    const is404 = res.status === 404;
 
     let status = 'ok';
     let message = 'Server erreichbar';
@@ -367,8 +368,10 @@ async function checkServerAvailability(req) {
       status = slow ? 'warn' : 'ok';
       if (slow) message = 'Server erreichbar (langsame Antwort)';
     } else if (is4xx) {
-      status = slow ? 'warn' : 'ok';
-      message = 'Server erreichbar – Pfad liefert HTTP 4xx (URL prüfen?)';
+      status = 'warn';
+      message = is404
+        ? 'Server erreichbar – Pfad liefert HTTP 404 (URL prüfen?)'
+        : 'Server erreichbar – Pfad liefert HTTP 4xx (Authentifizierung/Berechtigung prüfen?)';
       meta.clientError = true;
     } else {
       status = res.status >= 500 ? 'critical' : 'warn';
