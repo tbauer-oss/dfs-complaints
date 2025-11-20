@@ -253,8 +253,15 @@
   "privacy_link": "Privacy Policy",
   "privacy_agree": "I agree to the privacy policy.*",
   "human_check_label": "I'm a human",
-  "human_check_helper": "Quick safety check to prevent automated sign-ups.",
+  "human_check_helper": "Solve this quick task: {task}",
   "human_check_required": "Please confirm you're human.",
+  "human_check_success": "Human check passed",
+  "human_check_refresh": "New task",
+  "@human_check_helper": {
+    "placeholders": {
+      "task": {}
+    }
+  },
   "registration_received": "Registration received. You will be notified after approval.",
   "email_exists": "Email is already registered.",
   "register_pending_resent": "Registration already exists. Confirmation email has been resent.",
