@@ -469,6 +469,20 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  void _syncComplaint(AdminComplaint updated) {
+    setState(() {
+      final allIdx = _allComplaints.indexWhere((c) => c.ticket == updated.ticket);
+      if (allIdx != -1) {
+        _allComplaints[allIdx] = updated;
+      }
+
+      final openIdx = _openComplaints.indexWhere((c) => c.ticket == updated.ticket);
+      if (openIdx != -1) {
+        _openComplaints[openIdx] = updated;
+      }
+    });
+  }
+
   Future<void> _refreshNews() async {
     if (_newsLoading) return;
     setState(() {
@@ -3226,99 +3240,6 @@ class _AdminPageState extends State<AdminPage> {
       );
     }
 
-    Widget buildItem(AdminComplaint c) {
-      final company = _companyByEmail(c.email) ?? 'Unbekannte Firma';
-      final repLabel = _repLabelForComplaint(c);
-      final decisionColor = _decisionColor(c.decision);
-      final statusColor = _statusColor(c.status);
-
-      Widget chip(String label, Color color, {IconData? icon}) {
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: color.withOpacity(0.4)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (icon != null) ...[
-                Icon(icon, size: 16, color: color),
-                const SizedBox(width: 6),
-              ],
-              Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
-            ],
-          ),
-        );
-      }
-
-      return DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: theme.colorScheme.surfaceVariant.withOpacity(0.4),
-          border: Border.all(color: theme.colorScheme.outlineVariant),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text('Ticket ${c.ticket}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-                  const SizedBox(width: 10),
-                  chip(_labelForStatus(c.status), statusColor, icon: Icons.flag_rounded),
-                  const SizedBox(width: 8),
-                  chip(_labelForDecision(c.decision), decisionColor, icon: Icons.how_to_vote),
-                  const Spacer(),
-                  Icon(Icons.update, size: 16, color: theme.colorScheme.outline),
-                  const SizedBox(width: 4),
-                  Text(_fmtDate(c.updatedAt), style: theme.textTheme.bodySmall),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 18,
-                runSpacing: 6,
-                children: [
-                  Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.apartment_outlined, size: 18),
-                    const SizedBox(width: 6),
-                    Text(company, style: const TextStyle(fontWeight: FontWeight.w600)),
-                  ]),
-                  Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.mail_outline, size: 18),
-                    const SizedBox(width: 6),
-                    Text(c.email),
-                  ]),
-                  Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.badge_outlined, size: 18),
-                    const SizedBox(width: 6),
-                    Text(repLabel),
-                  ]),
-                  if ((c.internalNo ?? '').isNotEmpty)
-                    Row(mainAxisSize: MainAxisSize.min, children: [
-                      const Icon(Icons.confirmation_number_outlined, size: 18),
-                      const SizedBox(width: 6),
-                      Text('Intern: ${c.internalNo}'),
-                    ]),
-                ],
-              ),
-              if ((c.handlingLabel).trim().isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text('Wunsch / Behandlung: ${c.handlingLabel}'),
-              ],
-              if ((c.adminNotes ?? '').trim().isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text('Interne Notiz: ${c.adminNotes}', style: const TextStyle(color: Colors.black87)),
-              ],
-            ],
-          ),
-        ),
-      );
-    }
-
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -3362,7 +3283,24 @@ class _AdminPageState extends State<AdminPage> {
                   : ListView.separated(
                       itemCount: list.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 10),
-                      itemBuilder: (_, i) => buildItem(list[i]),
+                      itemBuilder: (_, i) {
+                        final c = list[i];
+                        return _ComplaintEditor(
+                          api: _api,
+                          c: c,
+                          companyHint: _companyByEmail(c.email),
+                          hasRep: _customerHasRep(c.email),
+                          onChanged: _syncComplaint,
+                          onClosed: () {
+                            _syncComplaint(c);
+                            setState(() {
+                              _openComplaints.removeWhere((x) => x.ticket == c.ticket);
+                            });
+                            _refreshAllComplaints();
+                            _refreshOpen();
+                          },
+                        );
+                      },
                     ),
             ),
           ],
@@ -3429,10 +3367,13 @@ class _AdminPageState extends State<AdminPage> {
                           c: c,
                           companyHint: _companyByEmail(c.email),
                           hasRep: _customerHasRep(c.email), // ← NEU
+                          onChanged: _syncComplaint,
                           onClosed: () {
+                            _syncComplaint(c);
                             setState(() {
                               _openComplaints.removeWhere((x) => x.ticket == c.ticket);
                             });
+                            _refreshAllComplaints();
                           },
                         );
                       },
@@ -5037,6 +4978,7 @@ class _ComplaintsDetailList extends StatelessWidget {
               .map((c) => _ComplaintEditor(
                     api: api,
                     c: c,
+                    onChanged: parent?._syncComplaint,
                     onClosed: onClosed,
                     companyHint: companyHint,
                     hasRep: (c.email.isNotEmpty)
@@ -5752,7 +5694,8 @@ class _ComplaintEditor extends StatefulWidget {
   final VoidCallback onClosed;
   final String? companyHint;
   final bool hasRep;
-  
+  final void Function(AdminComplaint c)? onChanged;
+
   const _ComplaintEditor({
     super.key,
     required this.api,
@@ -5760,6 +5703,7 @@ class _ComplaintEditor extends StatefulWidget {
     required this.onClosed,
     this.companyHint,
     this.hasRep = false,
+    this.onChanged,
   });
 
   @override
@@ -5840,6 +5784,10 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     );
   }
 
+  void _notifyChanged() {
+    widget.onChanged?.call(widget.c);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -5870,6 +5818,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       widget.c.reportLink = updated.reportLink;
       widget.c.status = updated.status;
       widget.c.decision = updated.decision;
+
+      _notifyChanged();
 
       if (updated.status == 5 || updated.decision == 'rejected') {
         widget.onClosed();
@@ -5905,8 +5855,10 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       );
       // Fallback, falls dein Backend etwas „bereinigt“ zurückgibt
       setState(() {
-       widget.c.internalNo = updated.internalNo ?? newVal;
+        widget.c.internalNo = updated.internalNo ?? newVal;
       });
+
+      _notifyChanged();
 
       if (updated.status == 5 || updated.decision == 'rejected') {
         widget.onClosed();
@@ -5976,6 +5928,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
         _noteOpen = false;
       });
 
+      _notifyChanged();
+
       final hasNote = (updated.adminNotes ?? '').trim().isNotEmpty;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(hasNote ? 'Notiz gespeichert.' : 'Notiz entfernt.')),
@@ -6009,6 +5963,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       setState(() {
         widget.c.internalNo = updated.internalNo; // bleibt i. d. R. null/leer
       });
+
+      _notifyChanged();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Interne Nummer entfernt.')),
@@ -6031,6 +5987,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       await widget.api.adminComplaintUpdate(ticket: widget.c.ticket, reportLink: '');
       _reportCtrl.text = '';
       widget.c.reportLink = null;
+
+      _notifyChanged();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Report-Link entfernt.')));
@@ -6082,6 +6040,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       );
       widget.c.status = updated.status;
       widget.c.decision = updated.decision;
+
+      _notifyChanged();
 
       if (updated.status == 5 || updated.decision == 'rejected') {
         widget.onClosed();
