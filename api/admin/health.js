@@ -357,8 +357,24 @@ async function checkServerAvailability(req) {
     clearTimeout(timeout);
     const durationMs = Date.now() - started;
     const slow = durationMs >= 2000;
-    const status = res.ok ? (slow ? 'warn' : 'ok') : res.status >= 500 ? 'critical' : 'warn';
-    const message = res.ok ? 'Server erreichbar' : 'Server antwortet mit Fehlercode';
+    const is4xx = res.status >= 400 && res.status < 500;
+
+    let status = 'ok';
+    let message = 'Server erreichbar';
+    const meta = { durationMs, url: target, httpStatus: res.status };
+
+    if (res.ok) {
+      status = slow ? 'warn' : 'ok';
+      if (slow) message = 'Server erreichbar (langsame Antwort)';
+    } else if (is4xx) {
+      status = slow ? 'warn' : 'ok';
+      message = 'Server erreichbar – Pfad liefert HTTP 4xx (URL prüfen?)';
+      meta.clientError = true;
+    } else {
+      status = res.status >= 500 ? 'critical' : 'warn';
+      message = res.status >= 500 ? 'Server-Fehler' : 'Server antwortet mit Fehlercode';
+    }
+
     const details = `HTTP ${res.status} – Antwortzeit ${durationMs} ms`;
     return {
       ok: status === 'ok',
@@ -366,7 +382,7 @@ async function checkServerAvailability(req) {
       label,
       message,
       details,
-      meta: { durationMs, url: target, httpStatus: res.status },
+      meta,
       order: 5,
     };
   } catch (err) {
