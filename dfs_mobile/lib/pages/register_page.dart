@@ -184,6 +184,7 @@ class _RegisterPageState extends State<RegisterPage> {
   Country? _countrySel;
   Salutation _salutation = Salutation.mr;
   bool _privacy = false;
+  bool _isHuman = false;
   String _selectedLang = 'de';
 
   bool _busy = false;
@@ -367,6 +368,10 @@ class _RegisterPageState extends State<RegisterPage> {
     try {
       if (_pw.text != _pw2.text) {
         setState(() => _err = t.password_mismatch);
+        return;
+      }
+      if (!_isHuman) {
+        setState(() => _err = t.human_check_required);
         return;
       }
       if (!_privacy) {
@@ -744,6 +749,50 @@ class _RegisterPageState extends State<RegisterPage> {
             ),
           ),
           const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: scheme.secondary.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: scheme.secondary.withOpacity(0.1)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Checkbox(
+                  value: _isHuman,
+                  onChanged: (v) => setState(() => _isHuman = v ?? false),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        t.human_check_label,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        t.human_check_helper,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: scheme.onSurface.withOpacity(0.7)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
