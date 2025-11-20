@@ -2,7 +2,10 @@
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image/image.dart' as img;
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/client.dart';
@@ -11,6 +14,8 @@ import '../models/complaint_attachment.dart';
 import '../utils/attachment_preview.dart';
 import 'knowledge_base_page.dart';
 import 'complaint_summary_page.dart';
+
+enum _AttachmentSource { camera, gallery, files }
 
 // KEIN dart:html mehr nötig
 
@@ -26,6 +31,7 @@ class ComplaintFormPage extends StatefulWidget {
 }
 
 class _ComplaintFormPageState extends State<ComplaintFormPage> {
+  static const _uploadLimit = 8 * 1024 * 1024;
   static const _helpPrefKey = 'dfs_complaint_help_collapsed';
   String segment = 'Zahnmedizin';
   final article = TextEditingController();
@@ -91,35 +97,176 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   }
 
   Future<void> pickFiles() async {
+    if (kIsWeb) {
+      await _pickWithFilePicker();
+      return;
+    }
+
+    final source = await _selectAttachmentSource();
+    if (source == null) return;
+
+    switch (source) {
+      case _AttachmentSource.camera:
+        await _pickFromCamera();
+        break;
+      case _AttachmentSource.gallery:
+        await _pickFromGallery();
+        break;
+      case _AttachmentSource.files:
+        await _pickWithFilePicker();
+        break;
+    }
+  }
+
+  Future<_AttachmentSource?> _selectAttachmentSource() {
     final t = context.t;
+    return showModalBottomSheet<_AttachmentSource>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: Text(t.attachment_source_camera),
+              onTap: () => Navigator.pop(context, _AttachmentSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: Text(t.attachment_source_gallery),
+              onTap: () => Navigator.pop(context, _AttachmentSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.attach_file_outlined),
+              title: Text(t.attachment_source_files),
+              onTap: () => Navigator.pop(context, _AttachmentSource.files),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _guessMime(String name) {
+    final parts = name.split('.');
+    final ext = parts.length > 1 ? parts.last.toLowerCase() : '';
+    switch (ext) {
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'webp':
+        return 'image/webp';
+      case 'heic':
+      case 'heif':
+        return 'image/heic';
+      case 'pdf':
+        return 'application/pdf';
+      default:
+        return 'application/octet-stream';
+    }
+  }
+
+  Future<({List<int> bytes, String mime})> _compressImage(List<int> data, String mime) async {
+    try {
+      final image = img.decodeImage(Uint8List.fromList(data));
+      if (image == null) return (bytes: data, mime: mime);
+
+      final maxSide = 1800;
+      final needsResize = image.width > maxSide || image.height > maxSide;
+      final resized = needsResize
+          ? img.copyResize(
+              image,
+              width: (image.width > image.height ? maxSide : null),
+              height: (image.height >= image.width ? maxSide : null),
+              interpolation: img.Interpolation.cubic,
+            )
+          : image;
+      final compressed = img.encodeJpg(resized, quality: 85);
+      return (bytes: compressed, mime: 'image/jpeg');
+    } catch (_) {
+      return (bytes: data, mime: mime);
+    }
+  }
+
+  Future<void> _applySelection(List<({String name, List<int> bytes, String mime})> selected) async {
+    if (selected.isEmpty) return;
+    final t = context.t;
+
+    int totalBytes = 0;
+    final next = <({String name, List<int> bytes, String mime, String? preview})>[];
+
+    for (final file in selected) {
+      List<int> bytes = file.bytes;
+      String mime = file.mime;
+
+      if (mime.startsWith('image/')) {
+        final compressed = await _compressImage(bytes, mime);
+        bytes = compressed.bytes;
+        mime = compressed.mime;
+      }
+
+      totalBytes += bytes.length;
+      if (totalBytes > _uploadLimit) {
+        if (mounted) setState(() => err = t.images_too_large);
+        return;
+      }
+
+      final preview = createAttachmentPreview(bytes, mime);
+      next.add((name: file.name, bytes: bytes, mime: mime, preview: preview));
+    }
+
+    if (!mounted) return;
+    setState(() {
+      files = next;
+      err = null;
+      _dirty = true;
+    });
+  }
+
+  Future<void> _pickWithFilePicker() async {
     final res = await FilePicker.platform.pickFiles(allowMultiple: true, withData: true);
     if (res == null) return;
 
-    final sum = res.files.fold<int>(0, (s, f) => s + (f.bytes?.length ?? 0));
-    if (sum > 8 * 1024 * 1024) { setState(() => err = t.images_too_large); return; }
+    final selected = res.files
+        .where((f) => f.bytes != null && f.bytes!.isNotEmpty)
+        .map((f) => (
+              name: f.name,
+              bytes: List<int>.from(f.bytes!),
+              mime: _guessMime(f.name),
+            ))
+        .toList();
 
-    String _guessMime(String name) {
-      final ext = name.split('.').last.toLowerCase();
-      switch (ext) {
-        case 'jpg':
-        case 'jpeg': return 'image/jpeg';
-        case 'png': return 'image/png';
-        case 'gif': return 'image/gif';
-        case 'webp': return 'image/webp';
-        default: return 'application/octet-stream';
-      }
+    await _applySelection(selected);
+  }
+
+  Future<void> _pickFromGallery() async {
+    final picker = ImagePicker();
+    final result = await picker.pickMultiImage();
+    if (result.isEmpty) return;
+
+    final selected = <({String name, List<int> bytes, String mime})>[];
+    for (final file in result) {
+      final bytes = await file.readAsBytes();
+      selected.add((name: file.name, bytes: bytes, mime: _guessMime(file.name)));
     }
 
-    setState(() {
-      files = res.files.map((f) {
-        final name = f.name;
-        final bytes = List<int>.from(f.bytes ?? const []);
-        final mime = _guessMime(name);
-        final preview = createAttachmentPreview(bytes, mime);
-        return (name: name, bytes: bytes, mime: mime, preview: preview); // Record, kein Map!
-      }).toList();
-      _dirty = true;
-    });
+    await _applySelection(selected);
+  }
+
+  Future<void> _pickFromCamera() async {
+    final picker = ImagePicker();
+    final photo = await picker.pickImage(source: ImageSource.camera, requestFullMetadata: false);
+    if (photo == null) return;
+
+    final bytes = await photo.readAsBytes();
+    await _applySelection([
+      (name: photo.name, bytes: bytes, mime: _guessMime(photo.name)),
+    ]);
   }
 
   // -----------------------------
