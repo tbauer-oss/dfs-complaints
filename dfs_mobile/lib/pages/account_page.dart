@@ -13,6 +13,7 @@ import '../services/app_prefs_scope.dart';
 import '../utils/lang_utils.dart';
 import '../widgets/dialog_content_scroll.dart';
 import '../widgets/legal_footer.dart';
+import '../widgets/password_field.dart';
 
 extension _L10nX on BuildContext {
   AppLocalizations get t => AppLocalizations.of(this)!;
@@ -330,8 +331,8 @@ class _AccountPageState extends State<AccountPage> {
                         // FIX: Key existierte nicht -> kompatibler Key + Fallback
                         title: Text(t.confirmPassword ?? 'Passwort bestätigen'),
                         content: DialogContentScroll(
-                          child: TextField(
-                            controller: ctrl, obscureText: true,
+                          child: PasswordField(
+                            controller: ctrl,
                             decoration: InputDecoration(labelText: t.gate_password),
                           ),
                         ),
@@ -609,22 +610,22 @@ class _PasswordPageState extends State<_PasswordPage> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              TextField(
-                controller: oldPw, obscureText: true,
+              PasswordField(
+                controller: oldPw,
                 decoration: InputDecoration(
                   labelText: t.oldPassword ?? 'Altes Passwort', border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 8),
-              TextField(
-                controller: newPw1, obscureText: true,
+              PasswordField(
+                controller: newPw1,
                 decoration: InputDecoration(
                   labelText: t.newPassword ?? 'Neues Passwort', border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 8),
-              TextField(
-                controller: newPw2, obscureText: true,
+              PasswordField(
+                controller: newPw2,
                 decoration: InputDecoration(
                   labelText: t.newPasswordRepeat ?? 'Neues Passwort (Wdh.)', border: const OutlineInputBorder(),
                 ),

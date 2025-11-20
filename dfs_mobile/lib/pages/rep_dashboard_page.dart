@@ -16,6 +16,7 @@ import '../services/app_prefs_scope.dart';
 import '../widgets/legal_footer.dart';
 import '../services/push_notifications.dart';
 import '../models/country.dart';
+import '../widgets/password_field.dart';
 
 // ---- L10n-Helper (top-level) ----
 extension _L10nX on BuildContext {
@@ -1569,21 +1570,18 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextField(
+                  PasswordField(
                     controller: oldCtrl,
-                    obscureText: true,
                     decoration: InputDecoration(labelText: t.oldPassword),
                   ),
                   const SizedBox(height: 8),
-                  TextField(
+                  PasswordField(
                     controller: new1Ctrl,
-                    obscureText: true,
                     decoration: InputDecoration(labelText: t.newPassword),
                   ),
                   const SizedBox(height: 8),
-                  TextField(
+                  PasswordField(
                     controller: new2Ctrl,
-                    obscureText: true,
                     decoration: InputDecoration(labelText: t.newPasswordRepeat),
                   ),
                   if (err != null) ...[
@@ -4198,10 +4196,9 @@ class _RepCreateCustomerDialogState extends State<_RepCreateCustomerDialog> {
               ),
               if (_passwordMode == _RepPasswordMode.manual) ...[
                 const SizedBox(height: 12),
-                TextFormField(
+                PasswordField(
                   controller: _passwordCtrl,
                   decoration: InputDecoration(labelText: t.password),
-                  obscureText: true,
                   textInputAction: TextInputAction.next,
                   validator: (value) {
                     final v = value ?? '';
@@ -4209,18 +4206,19 @@ class _RepCreateCustomerDialogState extends State<_RepCreateCustomerDialog> {
                     if (v.length < 8) return t.password_min_length;
                     return null;
                   },
+                  useTextFormField: true,
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
+                PasswordField(
                   controller: _password2Ctrl,
                   decoration: InputDecoration(labelText: t.password_repeat),
-                  obscureText: true,
                   textInputAction: TextInputAction.done,
                   validator: (value) {
                     if (value == null || value.isEmpty) return t.password_required;
                     if (value != _passwordCtrl.text) return t.password_mismatch;
                     return null;
                   },
+                  useTextFormField: true,
                 ),
               ],
               const SizedBox(height: 12),

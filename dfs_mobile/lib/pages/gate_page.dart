@@ -7,6 +7,7 @@ import 'package:dfs_mobile/web_compat/html_stub.dart'
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/dialog_content_scroll.dart';
+import '../widgets/password_field.dart';
 
 class GatePage extends StatefulWidget {
   final ApiClient api;
@@ -32,9 +33,8 @@ class _GatePageState extends State<GatePage> {
       builder: (ctx) => AlertDialog(
         title: const Text('Admin-Secret'),
         content: DialogContentScroll(
-          child: TextField(
+          child: PasswordField(
             controller: secretCtrl,
-            obscureText: true,
             decoration: const InputDecoration(
               labelText: 'X-Admin-Secret',
               border: OutlineInputBorder(),
@@ -114,9 +114,8 @@ class _GatePageState extends State<GatePage> {
             // ===== ursprünglicher Gate-Inhalt =====
             Text(t.gate_prompt, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 12),
-            TextField(
+            PasswordField(
               controller: _ctrl,
-              obscureText: true,
               decoration: InputDecoration(
                 border: const OutlineInputBorder(),
                 labelText: t.gate_password,

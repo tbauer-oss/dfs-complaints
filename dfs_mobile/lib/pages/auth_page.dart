@@ -7,6 +7,7 @@ import '../l10n/app_localizations.dart';
 import '../models/country.dart';
 import '../services/app_prefs_scope.dart';
 import '../utils/lang_utils.dart';
+import '../widgets/password_field.dart';
 
 enum Salutation { mr, ms, diverse }
 
@@ -116,9 +117,8 @@ class _AuthPageState extends State<AuthPage> {
             ),
             const SizedBox(height: 8),
 
-            TextField(
+            PasswordField(
               controller: _pw,
-              obscureText: true,
               decoration: InputDecoration(
                 labelText: t.password,
                 border: const OutlineInputBorder(),
@@ -127,9 +127,8 @@ class _AuthPageState extends State<AuthPage> {
 
             if (!isLogin) ...[
               const SizedBox(height: 8),
-              TextField(
+              PasswordField(
                 controller: _pw2,
-                obscureText: true,
                 decoration: InputDecoration(
                   labelText: t.password_repeat,
                   border: const OutlineInputBorder(),

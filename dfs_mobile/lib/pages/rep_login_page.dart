@@ -6,6 +6,7 @@ import '../l10n/app_localizations.dart';
 import '../widgets/dialog_content_scroll.dart';
 import '../widgets/legal_footer.dart';
 import '../services/push_notifications.dart';
+import '../widgets/password_field.dart';
 
 // L10n-Helper
 extension _L10nX on BuildContext {
@@ -131,18 +132,16 @@ class _RepLoginPageState extends State<RepLoginPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(
+                PasswordField(
                   controller: aCtrl,
-                  obscureText: true,
                   decoration: InputDecoration(
                     labelText: t.new_password_min8, // NEU
                     border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 10),
-                TextField(
+                PasswordField(
                   controller: bCtrl,
-                  obscureText: true,
                   decoration: InputDecoration(
                     labelText: t.new_password_repeat_label, // NEU
                     border: const OutlineInputBorder(),
@@ -257,9 +256,8 @@ class _RepLoginPageState extends State<RepLoginPage> {
                     onChanged: (_) => setState(() {}),
                   ),
                   const SizedBox(height: 12),
-                  TextField(
+                  PasswordField(
                     controller: _pw,
-                    obscureText: true,
                     autofillHints: const [AutofillHints.password],
                     decoration: InputDecoration(
                       labelText: t.password,
@@ -408,9 +406,8 @@ class _TempPasswordDialogState extends State<_TempPasswordDialog> {
               ),
             ),
             const SizedBox(height: 10),
-            TextField(
+            PasswordField(
               controller: _secCtrl,
-              obscureText: true,
               decoration: InputDecoration(
                 labelText: t.temp_password_label,
                 border: const OutlineInputBorder(),

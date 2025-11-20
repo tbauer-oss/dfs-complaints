@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/legal_footer.dart';
+import '../widgets/password_field.dart';
 
 class ResetPasswordPage extends StatefulWidget {
   final ApiClient api;
@@ -215,21 +216,18 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                           decoration: InputDecoration(labelText: t.email),
                         ),
                         const SizedBox(height: 12),
-                        TextField(
+                        PasswordField(
                           controller: _tempPassword,
-                          obscureText: true,
                           decoration: InputDecoration(labelText: t.reset_password_temp_label),
                         ),
                         const SizedBox(height: 12),
-                        TextField(
+                        PasswordField(
                           controller: _newPassword1,
-                          obscureText: true,
                           decoration: InputDecoration(labelText: t.newPassword),
                         ),
                         const SizedBox(height: 12),
-                        TextField(
+                        PasswordField(
                           controller: _newPassword2,
-                          obscureText: true,
                           decoration: InputDecoration(labelText: t.newPasswordRepeat),
                         ),
                         const SizedBox(height: 12),

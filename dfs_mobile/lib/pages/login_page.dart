@@ -6,6 +6,7 @@ import '../l10n/app_localizations.dart';
 import 'reset_password_page.dart';
 import '../services/push_notifications.dart';
 import 'dashboard_page.dart';
+import '../widgets/password_field.dart';
 
 // **KEIN direkter dart:html-Import mehr**
 import 'package:dfs_mobile/web_compat/html_stub.dart'
@@ -80,7 +81,6 @@ class _RepLoginPageState extends State<RepLoginPage> {
   final _pwFocus    = FocusNode();
 
   bool _busy = false;
-  bool _pwVisible = false;
   String? _err;
 
   @override
@@ -226,9 +226,8 @@ class _RepLoginPageState extends State<RepLoginPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(
+                PasswordField(
                   controller: _new1,
-                  obscureText: true,
                   decoration: InputDecoration(
                     labelText: t.newPassword,
                     prefixIcon: const Icon(Icons.lock_outline),
@@ -237,9 +236,8 @@ class _RepLoginPageState extends State<RepLoginPage> {
                   onSubmitted: (_) => (ctx as Element).markNeedsBuild(),
                 ),
                 const SizedBox(height: 8),
-                TextField(
+                PasswordField(
                   controller: _new2,
-                  obscureText: true,
                   decoration: InputDecoration(
                     labelText: t.newPasswordRepeat,
                     prefixIcon: const Icon(Icons.lock_reset),
@@ -408,18 +406,11 @@ class _RepLoginPageState extends State<RepLoginPage> {
                   onSubmitted: (_) => _pwFocus.requestFocus(),
                 ),
                 const SizedBox(height: 12),
-                TextField(
+                PasswordField(
                   controller: _pw,
                   focusNode: _pwFocus,
-                  obscureText: !_pwVisible,
                   autofillHints: const [AutofillHints.password],
-                  decoration: _decoration(context, label: 'Password', icon: Icons.lock_outline).copyWith(
-                    suffixIcon: IconButton(
-                      tooltip: _pwVisible ? 'Passwort verbergen' : 'Passwort anzeigen',
-                      onPressed: _busy ? null : () => setState(() => _pwVisible = !_pwVisible),
-                      icon: Icon(_pwVisible ? Icons.visibility_off : Icons.visibility),
-                    ),
-                  ),
+                  decoration: _decoration(context, label: 'Password', icon: Icons.lock_outline),
                   textInputAction: TextInputAction.done,
                   onChanged: (_) => setState(() {}),
                   onSubmitted: (_) => canLogin ? _login() : null,

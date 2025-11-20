@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/password_field.dart';
 
 extension _L10nX on BuildContext {
   AppLocalizations get t => AppLocalizations.of(this)!;
@@ -241,18 +242,16 @@ class _RepProfilePageState extends State<RepProfilePage> {
                     children: [
                       Text(t.changePassword, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
                       const SizedBox(height: 12),
-                      TextField(
+                      PasswordField(
                         controller: _pw1,
-                        obscureText: true,
                         decoration: InputDecoration(
                           labelText: t.new_password_min8,
                           border: const OutlineInputBorder(),
                         ),
                       ),
                       const SizedBox(height: 12),
-                      TextField(
+                      PasswordField(
                         controller: _pw2,
-                        obscureText: true,
                         decoration: InputDecoration(
                           labelText: t.new_password_repeat_label,
                           border: const OutlineInputBorder(),
