@@ -250,8 +250,15 @@
   "privacy_link": "Informativa sulla privacy",
   "privacy_agree": "Accetto l'informativa sulla privacy.*",
   "human_check_label": "Sono un essere umano",
-  "human_check_helper": "Controllo di sicurezza rapido per evitare registrazioni automatiche.",
+  "human_check_helper": "Risolvi questo rapido compito: {task}",
   "human_check_required": "Conferma di essere un essere umano.",
+  "human_check_success": "Verifica umana superata",
+  "human_check_refresh": "Nuova attività",
+  "@human_check_helper": {
+    "placeholders": {
+      "task": {}
+    }
+  },
   "registration_received": "Registrazione ricevuta. Sarai informato dopo l'approvazione.",
   "email_exists": "L'indirizzo email è già registrato.",
   "register_pending_resent": "La registrazione esiste già. L'email di conferma è stata rinviata.",
