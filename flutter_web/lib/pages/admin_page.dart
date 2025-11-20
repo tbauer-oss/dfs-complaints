@@ -469,6 +469,20 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  void _syncComplaint(AdminComplaint updated) {
+    setState(() {
+      final allIdx = _allComplaints.indexWhere((c) => c.ticket == updated.ticket);
+      if (allIdx != -1) {
+        _allComplaints[allIdx] = updated;
+      }
+
+      final openIdx = _openComplaints.indexWhere((c) => c.ticket == updated.ticket);
+      if (openIdx != -1) {
+        _openComplaints[openIdx] = updated;
+      }
+    });
+  }
+
   Future<void> _refreshNews() async {
     if (_newsLoading) return;
     setState(() {
@@ -3276,8 +3290,13 @@ class _AdminPageState extends State<AdminPage> {
                           c: c,
                           companyHint: _companyByEmail(c.email),
                           hasRep: _customerHasRep(c.email),
+                          onChanged: _syncComplaint,
                           onClosed: () {
-                            _refreshAll();
+                            _syncComplaint(c);
+                            setState(() {
+                              _openComplaints.removeWhere((x) => x.ticket == c.ticket);
+                            });
+                            _refreshAllComplaints();
                             _refreshOpen();
                           },
                         );
@@ -3348,10 +3367,13 @@ class _AdminPageState extends State<AdminPage> {
                           c: c,
                           companyHint: _companyByEmail(c.email),
                           hasRep: _customerHasRep(c.email), // ← NEU
+                          onChanged: _syncComplaint,
                           onClosed: () {
+                            _syncComplaint(c);
                             setState(() {
                               _openComplaints.removeWhere((x) => x.ticket == c.ticket);
                             });
+                            _refreshAllComplaints();
                           },
                         );
                       },
@@ -4956,6 +4978,7 @@ class _ComplaintsDetailList extends StatelessWidget {
               .map((c) => _ComplaintEditor(
                     api: api,
                     c: c,
+                    onChanged: parent?._syncComplaint,
                     onClosed: onClosed,
                     companyHint: companyHint,
                     hasRep: (c.email.isNotEmpty)
@@ -5671,7 +5694,8 @@ class _ComplaintEditor extends StatefulWidget {
   final VoidCallback onClosed;
   final String? companyHint;
   final bool hasRep;
-  
+  final void Function(AdminComplaint c)? onChanged;
+
   const _ComplaintEditor({
     super.key,
     required this.api,
@@ -5679,6 +5703,7 @@ class _ComplaintEditor extends StatefulWidget {
     required this.onClosed,
     this.companyHint,
     this.hasRep = false,
+    this.onChanged,
   });
 
   @override
@@ -5759,6 +5784,10 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     );
   }
 
+  void _notifyChanged() {
+    widget.onChanged?.call(widget.c);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -5789,6 +5818,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       widget.c.reportLink = updated.reportLink;
       widget.c.status = updated.status;
       widget.c.decision = updated.decision;
+
+      _notifyChanged();
 
       if (updated.status == 5 || updated.decision == 'rejected') {
         widget.onClosed();
@@ -5824,8 +5855,10 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       );
       // Fallback, falls dein Backend etwas „bereinigt“ zurückgibt
       setState(() {
-       widget.c.internalNo = updated.internalNo ?? newVal;
+        widget.c.internalNo = updated.internalNo ?? newVal;
       });
+
+      _notifyChanged();
 
       if (updated.status == 5 || updated.decision == 'rejected') {
         widget.onClosed();
@@ -5895,6 +5928,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
         _noteOpen = false;
       });
 
+      _notifyChanged();
+
       final hasNote = (updated.adminNotes ?? '').trim().isNotEmpty;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(hasNote ? 'Notiz gespeichert.' : 'Notiz entfernt.')),
@@ -5928,6 +5963,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       setState(() {
         widget.c.internalNo = updated.internalNo; // bleibt i. d. R. null/leer
       });
+
+      _notifyChanged();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Interne Nummer entfernt.')),
@@ -5950,6 +5987,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       await widget.api.adminComplaintUpdate(ticket: widget.c.ticket, reportLink: '');
       _reportCtrl.text = '';
       widget.c.reportLink = null;
+
+      _notifyChanged();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Report-Link entfernt.')));
@@ -6001,6 +6040,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       );
       widget.c.status = updated.status;
       widget.c.decision = updated.decision;
+
+      _notifyChanged();
 
       if (updated.status == 5 || updated.decision == 'rejected') {
         widget.onClosed();
