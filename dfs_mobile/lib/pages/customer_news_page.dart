@@ -123,7 +123,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
         .length;
     final totalCount = entries.length;
 
-    Widget statTile(String value, String label) {
+    Widget statTile(String value, String label, double numberScale, double labelScale) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -132,7 +132,9 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
             style: theme.textTheme.titleLarge?.copyWith(
               color: textColor,
               fontWeight: FontWeight.w800,
-              fontSize: (theme.textTheme.titleLarge?.fontSize ?? 22) * 0.9,
+              fontSize: (theme.textTheme.titleMedium?.fontSize ?? 18) * numberScale,
+              height: 1.05,
+              letterSpacing: -0.2,
               shadows: headerShadows,
             ),
           ),
@@ -140,7 +142,10 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
           Text(
             label,
             style: theme.textTheme.bodySmall?.copyWith(
-              color: textColor.withOpacity(0.95),
+              color: textColor.withOpacity(0.92),
+              fontSize: (theme.textTheme.bodySmall?.fontSize ?? 12) * labelScale,
+              height: 1.05,
+              letterSpacing: 0.1,
               shadows: headerShadows,
             ),
           ),
@@ -204,15 +209,17 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isCompact = constraints.maxWidth < 420;
-        final double compactScale = isCompact ? 0.74 : 0.82;
+        final double compactScale = isCompact ? 0.7 : 0.8;
+        final double statNumberScale = isCompact ? 0.9 : 0.98;
+        final double statLabelScale = isCompact ? 0.9 : 0.96;
 
         return Container(
-          margin: EdgeInsets.fromLTRB(10, 8, 10, isCompact ? 4 : 8),
+          margin: EdgeInsets.fromLTRB(10, 6, 10, isCompact ? 4 : 6),
           padding: EdgeInsets.symmetric(
             horizontal: isCompact ? 12 : 14,
             vertical: isDark
-                ? (isCompact ? 7 : 10)
-                : (isCompact ? 9 : 12),
+                ? (isCompact ? 6 : 9)
+                : (isCompact ? 8 : 11),
           ),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(isCompact ? 12 : 16),
@@ -355,13 +362,13 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
               SizedBox(height: isCompact ? 6 : 8),
               Wrap(
                 spacing: isCompact ? 6 : 8,
-                runSpacing: 4,
+                runSpacing: 3,
                 children: highlightLabels
                     .map(
                       (label) => Container(
                         padding: EdgeInsets.symmetric(
-                          horizontal: isCompact ? 9 : 11,
-                          vertical: isCompact ? 5 : 6,
+                          horizontal: isCompact ? 8 : 10,
+                          vertical: isCompact ? 4 : 5,
                         ),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(18),
@@ -390,7 +397,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                                 color: textColor,
                                 fontWeight: FontWeight.w600,
                                 fontSize: (theme.textTheme.labelLarge?.fontSize ?? 14) *
-                                    compactScale,
+                                    (compactScale * 0.96),
                                 shadows: headerShadows,
                               ),
                             ),
@@ -404,16 +411,19 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
               LayoutBuilder(
                 builder: (context, innerConstraints) {
                   final stats = [
-                    statTile('${totalCount.clamp(0, 999)}+', t.customerNewsTitle),
-                    statTile('$pinnedCount', t.customerNewsPinned),
-                    statTile('$recentCount', t.customerNewsHeroFreshLabel),
+                    statTile('${totalCount.clamp(0, 999)}+', t.customerNewsTitle,
+                        statNumberScale, statLabelScale),
+                    statTile('$pinnedCount', t.customerNewsPinned, statNumberScale,
+                        statLabelScale),
+                    statTile('$recentCount', t.customerNewsHeroFreshLabel,
+                        statNumberScale, statLabelScale),
                   ];
 
                   if (innerConstraints.maxWidth < 360) {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        for (final stat in stats) ...[stat, const SizedBox(height: 6)],
+                        for (final stat in stats) ...[stat, const SizedBox(height: 4)],
                       ],
                     );
                   }
@@ -422,7 +432,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                     children: [
                       for (final stat in stats) ...[
                         Expanded(child: stat),
-                        if (stat != stats.last) SizedBox(width: isCompact ? 6 : 10),
+                        if (stat != stats.last) SizedBox(width: isCompact ? 6 : 8),
                       ],
                     ],
                   );
