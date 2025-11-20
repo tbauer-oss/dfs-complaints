@@ -1,4 +1,6 @@
 // lib/pages/register_page.dart
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
@@ -185,14 +187,19 @@ class _RegisterPageState extends State<RegisterPage> {
   Country? _countrySel;
   Salutation _salutation = Salutation.mr;
   bool _privacy = false;
-  bool _isHuman = false;
+  String _humanQuestion = '';
+  int _humanAnswer = 0;
+  List<int> _humanOptions = const [];
+  bool _humanVerified = false;
   String _selectedLang = 'de';
 
-  bool get _canSubmit => !_busy && _privacy && _isHuman;
+  bool get _canSubmit => !_busy && _privacy && _humanVerified;
 
   bool _busy = false;
   String? _err;
   String? _info;
+
+  final _random = Random.secure();
 
   // --- Fehlende Member für AppBar-Actions (minimal) ---
   bool _loading = false;
@@ -215,6 +222,7 @@ class _RegisterPageState extends State<RegisterPage> {
       (c) => c.code == 'DE',
       orElse: () => kCountries.first,
     );
+    _rollHumanChallenge();
   }
 
   @override
@@ -259,6 +267,32 @@ class _RegisterPageState extends State<RegisterPage> {
   bool _isValidEmail(String email) {
     final regex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
     return regex.hasMatch(email);
+  }
+
+  void _rollHumanChallenge() {
+    final a = _random.nextInt(4) + 2; // 2–5
+    final b = _random.nextInt(4) + 2; // 2–5
+    final answer = a + b;
+
+    final options = <int>{answer};
+    while (options.length < 3) {
+      final delta = _random.nextInt(3) + 1; // 1–3
+      final candidate = answer + (_random.nextBool() ? delta : -delta);
+      if (candidate > 0) options.add(candidate);
+    }
+
+    final shuffled = options.toList()..shuffle(_random);
+
+    setState(() {
+      _humanQuestion = '$a + $b = ?';
+      _humanAnswer = answer;
+      _humanOptions = shuffled;
+      _humanVerified = false;
+    });
+  }
+
+  void _handleHumanSelection(int value) {
+    setState(() => _humanVerified = value == _humanAnswer);
   }
 
   Future<void> _unlockGate() async {
@@ -750,42 +784,118 @@ class _RegisterPageState extends State<RegisterPage> {
             ),
           ),
           const SizedBox(height: 24),
-          Container(
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeInOutCubic,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: scheme.secondary.withOpacity(0.05),
+              color: _humanVerified
+                  ? scheme.secondaryContainer.withOpacity(0.35)
+                  : scheme.secondary.withOpacity(0.05),
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: scheme.secondary.withOpacity(0.1)),
+              border: Border.all(
+                color: _humanVerified
+                    ? scheme.secondary.withOpacity(0.4)
+                    : scheme.secondary.withOpacity(0.1),
+              ),
+              boxShadow: _humanVerified
+                  ? [
+                      BoxShadow(
+                        color: scheme.secondary.withOpacity(0.16),
+                        blurRadius: 18,
+                        offset: const Offset(0, 10),
+                      ),
+                    ]
+                  : [],
             ),
-            child: Row(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Checkbox(
-                  value: _isHuman,
-                  onChanged: (v) => setState(() => _isHuman = v ?? false),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6),
-                  ),
+                Row(
+                  children: [
+                    Icon(
+                      _humanVerified
+                          ? Icons.verified_user_outlined
+                          : Icons.gesture_outlined,
+                      color: _humanVerified
+                          ? scheme.secondary
+                          : scheme.onSurface.withOpacity(0.7),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      t.human_check_label,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const Spacer(),
+                    TextButton.icon(
+                      onPressed: _rollHumanChallenge,
+                      icon: const Icon(Icons.refresh),
+                      label: Text(t.human_check_refresh),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
+                const SizedBox(height: 8),
+                AnimatedCrossFade(
+                  duration: const Duration(milliseconds: 300),
+                  crossFadeState: _humanVerified
+                      ? CrossFadeState.showSecond
+                      : CrossFadeState.showFirst,
+                  firstChild: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        t.human_check_label,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyMedium
-                            ?.copyWith(fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        t.human_check_helper,
+                        t.human_check_helper(_humanQuestion),
                         style: Theme.of(context)
                             .textTheme
                             .bodySmall
-                            ?.copyWith(color: scheme.onSurface.withOpacity(0.7)),
+                            ?.copyWith(color: scheme.onSurface.withOpacity(0.75)),
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          for (final option in _humanOptions)
+                            ChoiceChip(
+                              label: Text(option.toString()),
+                              selectedColor:
+                                  scheme.secondaryContainer.withOpacity(0.7),
+                              selected: _humanVerified && option == _humanAnswer,
+                              onSelected: (_) => _handleHumanSelection(option),
+                              avatar: Icon(
+                                Icons.touch_app_outlined,
+                                size: 18,
+                                color: _humanVerified && option == _humanAnswer
+                                    ? scheme.onSecondaryContainer
+                                    : scheme.onSurface.withOpacity(0.8),
+                              ),
+                              labelStyle: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: _humanVerified && option == _humanAnswer
+                                    ? scheme.onSecondaryContainer
+                                    : null,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  secondChild: Row(
+                    children: [
+                      Icon(Icons.check_circle, color: scheme.secondary),
+                      const SizedBox(width: 10),
+                      Text(
+                        t.human_check_success,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(
+                              color: scheme.secondary,
+                              fontWeight: FontWeight.w700,
+                            ),
                       ),
                     ],
                   ),
