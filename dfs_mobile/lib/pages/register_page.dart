@@ -186,7 +186,9 @@ class _RegisterPageState extends State<RegisterPage> {
   Country? _countrySel;
   Salutation _salutation = Salutation.mr;
   bool _privacy = false;
-  String _humanToken = '';
+  String _humanQuestion = '';
+  int _humanAnswer = 0;
+  List<int> _humanOptions = const [];
   bool _humanVerified = false;
   String _selectedLang = 'de';
 
@@ -267,24 +269,29 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   void _rollHumanChallenge() {
-    const options = [
-      'mensch',
-      'team',
-      'fair',
-      'licht',
-      'mutig',
-      'klar',
-    ];
+    final a = _random.nextInt(4) + 2; // 2–5
+    final b = _random.nextInt(4) + 2; // 2–5
+    final answer = a + b;
+
+    final options = <int>{answer};
+    while (options.length < 3) {
+      final delta = _random.nextInt(3) + 1; // 1–3
+      final candidate = answer + (_random.nextBool() ? delta : -delta);
+      if (candidate > 0) options.add(candidate);
+    }
+
+    final shuffled = options.toList()..shuffle(_random);
+
     setState(() {
-      _humanToken = options[_random.nextInt(options.length)];
+      _humanQuestion = '$a + $b = ?';
+      _humanAnswer = answer;
+      _humanOptions = shuffled;
       _humanVerified = false;
     });
   }
 
-  void _handleHumanInput(String value) {
-    final normalized = value.trim().toLowerCase();
-    final isValid = normalized == _humanToken.toLowerCase();
-    setState(() => _humanVerified = isValid);
+  void _handleHumanSelection(int value) {
+    setState(() => _humanVerified = value == _humanAnswer);
   }
 
   Future<void> _unlockGate() async {
@@ -841,27 +848,39 @@ class _RegisterPageState extends State<RegisterPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        t.human_check_helper(_humanToken),
+                        t.human_check_helper(_humanQuestion),
                         style: Theme.of(context)
                             .textTheme
                             .bodySmall
                             ?.copyWith(color: scheme.onSurface.withOpacity(0.75)),
                       ),
                       const SizedBox(height: 10),
-                      TextField(
-                        onChanged: _handleHumanInput,
-                        decoration: _decor(
-                          context,
-                          t.human_check_placeholder,
-                          icon: Icons.shield_moon_outlined,
-                        ).copyWith(
-                          suffixIcon: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 250),
-                            child: _humanVerified
-                                ? Icon(Icons.check_circle, color: scheme.secondary)
-                                : const SizedBox.shrink(),
-                          ),
-                        ),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          for (final option in _humanOptions)
+                            ChoiceChip(
+                              label: Text(option.toString()),
+                              selectedColor:
+                                  scheme.secondaryContainer.withOpacity(0.7),
+                              selected: _humanVerified && option == _humanAnswer,
+                              onSelected: (_) => _handleHumanSelection(option),
+                              avatar: Icon(
+                                Icons.touch_app_outlined,
+                                size: 18,
+                                color: _humanVerified && option == _humanAnswer
+                                    ? scheme.onSecondaryContainer
+                                    : scheme.onSurface.withOpacity(0.8),
+                              ),
+                              labelStyle: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: _humanVerified && option == _humanAnswer
+                                    ? scheme.onSecondaryContainer
+                                    : null,
+                              ),
+                            ),
+                        ],
                       ),
                     ],
                   ),

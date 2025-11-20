@@ -262,14 +262,13 @@
   "@login_failed_with_error": { "placeholders": { "error": { "type": "String" } } },
   "register_failed": "Échec de l’inscription : {reason}",
   "human_check_label": "Je suis un être humain",
-  "human_check_helper": "Saisissez le mot \"{word}\" pour prouver que vous n'êtes pas un bot.",
+  "human_check_helper": "Résolvez cette courte tâche : {task}",
   "human_check_required": "Veuillez confirmer que vous êtes humain.",
-  "human_check_placeholder": "Saisir le mot indiqué",
   "human_check_success": "Vérification humaine validée",
   "human_check_refresh": "Nouvelle tâche",
   "@human_check_helper": {
     "placeholders": {
-      "word": {}
+      "task": {}
     }
   },
   "privacy_required": "Veuillez confirmer la politique de confidentialité.",

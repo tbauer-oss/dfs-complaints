@@ -253,14 +253,13 @@
   "privacy_link": "Privacy Policy",
   "privacy_agree": "I agree to the privacy policy.*",
   "human_check_label": "I'm a human",
-  "human_check_helper": "Type the word \"{word}\" to prove you're human.",
+  "human_check_helper": "Solve this quick task: {task}",
   "human_check_required": "Please confirm you're human.",
-  "human_check_placeholder": "Enter the shown word",
   "human_check_success": "Human check passed",
   "human_check_refresh": "New task",
   "@human_check_helper": {
     "placeholders": {
-      "word": {}
+      "task": {}
     }
   },
   "registration_received": "Registration received. You will be notified after approval.",

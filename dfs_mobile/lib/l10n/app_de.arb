@@ -261,14 +261,13 @@
   "@login_failed_with_error": { "placeholders": { "error": { "type": "String" } } },
   "register_failed": "Registrierung fehlgeschlagen: {reason}",
   "human_check_label": "Ich bin ein Mensch",
-  "human_check_helper": "Tippe das Wort \"{word}\", damit wir wissen, dass du kein Bot bist.",
+  "human_check_helper": "Löse die Mini-Aufgabe: {task}",
   "human_check_required": "Bitte bestätigen Sie, dass Sie ein Mensch sind.",
-  "human_check_placeholder": "Wort eingeben",
   "human_check_success": "Menschlichkeits-Check bestanden",
   "human_check_refresh": "Neue Aufgabe",
   "@human_check_helper": {
     "placeholders": {
-      "word": {}
+      "task": {}
     }
   },
   "privacy_required": "Bitte Datenschutz bestätigen",
