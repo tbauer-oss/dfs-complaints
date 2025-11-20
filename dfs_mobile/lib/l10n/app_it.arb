@@ -261,6 +261,17 @@
   "account_blocked": "Account bloccato. Contatta il tuo referente.",
   "@login_failed_with_error": { "placeholders": { "error": { "type": "String" } } },
   "register_failed": "Registrazione non riuscita: {reason}",
+  "human_check_label": "Sono un essere umano",
+  "human_check_helper": "Digita la parola \"{word}\" per dimostrare che non sei un bot.",
+  "human_check_required": "Conferma di essere un essere umano.",
+  "human_check_placeholder": "Inserisci la parola",
+  "human_check_success": "Verifica umana superata",
+  "human_check_refresh": "Nuova attività",
+  "@human_check_helper": {
+    "placeholders": {
+      "word": {}
+    }
+  },
   "privacy_required": "Conferma la privacy dei dati.",
   "privacy_view": "Vedi l'informativa sulla privacy",
   "required_fields": "Compila tutti i campi obbligatori.",

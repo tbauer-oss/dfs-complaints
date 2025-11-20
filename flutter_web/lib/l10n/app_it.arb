@@ -249,6 +249,17 @@
   "required_fields": "Compila tutti i campi obbligatori.",
   "privacy_link": "Informativa sulla privacy",
   "privacy_agree": "Accetto l'informativa sulla privacy.*",
+  "human_check_label": "Sono un essere umano",
+  "human_check_helper": "Digita la parola \"{word}\" per dimostrare che non sei un bot.",
+  "human_check_required": "Conferma di essere un essere umano.",
+  "human_check_placeholder": "Inserisci la parola",
+  "human_check_success": "Verifica umana superata",
+  "human_check_refresh": "Nuova attività",
+  "@human_check_helper": {
+    "placeholders": {
+      "word": {}
+    }
+  },
   "registration_received": "Registrazione ricevuta. Sarai informato dopo l'approvazione.",
   "email_exists": "L'indirizzo email è già registrato.",
   "register_pending_resent": "La registrazione esiste già. L'email di conferma è stata rinviata.",

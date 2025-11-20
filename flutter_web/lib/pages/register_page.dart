@@ -1,4 +1,6 @@
 // lib/pages/register_page.dart
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
@@ -184,11 +186,17 @@ class _RegisterPageState extends State<RegisterPage> {
   Country? _countrySel;
   Salutation _salutation = Salutation.mr;
   bool _privacy = false;
+  String _humanToken = '';
+  bool _humanVerified = false;
   String _selectedLang = 'de';
+
+  bool get _canSubmit => !_busy && _privacy && _humanVerified;
 
   bool _busy = false;
   String? _err;
   String? _info;
+
+  final _random = Random.secure();
 
   // --- Fehlende Member für AppBar-Actions (minimal) ---
   bool _loading = false;
@@ -211,6 +219,7 @@ class _RegisterPageState extends State<RegisterPage> {
       (c) => c.code == 'DE',
       orElse: () => kCountries.first,
     );
+    _rollHumanChallenge();
   }
 
   @override
@@ -255,6 +264,27 @@ class _RegisterPageState extends State<RegisterPage> {
   bool _isValidEmail(String email) {
     final regex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
     return regex.hasMatch(email);
+  }
+
+  void _rollHumanChallenge() {
+    const options = [
+      'mensch',
+      'team',
+      'fair',
+      'licht',
+      'mutig',
+      'klar',
+    ];
+    setState(() {
+      _humanToken = options[_random.nextInt(options.length)];
+      _humanVerified = false;
+    });
+  }
+
+  void _handleHumanInput(String value) {
+    final normalized = value.trim().toLowerCase();
+    final isValid = normalized == _humanToken.toLowerCase();
+    setState(() => _humanVerified = isValid);
   }
 
   Future<void> _unlockGate() async {
@@ -367,6 +397,10 @@ class _RegisterPageState extends State<RegisterPage> {
     try {
       if (_pw.text != _pw2.text) {
         setState(() => _err = t.password_mismatch);
+        return;
+      }
+      if (!_isHuman) {
+        setState(() => _err = t.human_check_required);
         return;
       }
       if (!_privacy) {
@@ -744,6 +778,114 @@ class _RegisterPageState extends State<RegisterPage> {
             ),
           ),
           const SizedBox(height: 24),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeInOutCubic,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _humanVerified
+                  ? scheme.secondaryContainer.withOpacity(0.35)
+                  : scheme.secondary.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: _humanVerified
+                    ? scheme.secondary.withOpacity(0.4)
+                    : scheme.secondary.withOpacity(0.1),
+              ),
+              boxShadow: _humanVerified
+                  ? [
+                      BoxShadow(
+                        color: scheme.secondary.withOpacity(0.16),
+                        blurRadius: 18,
+                        offset: const Offset(0, 10),
+                      ),
+                    ]
+                  : [],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      _humanVerified
+                          ? Icons.verified_user_outlined
+                          : Icons.gesture_outlined,
+                      color: _humanVerified
+                          ? scheme.secondary
+                          : scheme.onSurface.withOpacity(0.7),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      t.human_check_label,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const Spacer(),
+                    TextButton.icon(
+                      onPressed: _rollHumanChallenge,
+                      icon: const Icon(Icons.refresh),
+                      label: Text(t.human_check_refresh),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                AnimatedCrossFade(
+                  duration: const Duration(milliseconds: 300),
+                  crossFadeState: _humanVerified
+                      ? CrossFadeState.showSecond
+                      : CrossFadeState.showFirst,
+                  firstChild: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        t.human_check_helper(_humanToken),
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: scheme.onSurface.withOpacity(0.75)),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        onChanged: _handleHumanInput,
+                        decoration: _decor(
+                          context,
+                          t.human_check_placeholder,
+                          icon: Icons.shield_moon_outlined,
+                        ).copyWith(
+                          suffixIcon: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 250),
+                            child: _humanVerified
+                                ? Icon(Icons.check_circle, color: scheme.secondary)
+                                : const SizedBox.shrink(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  secondChild: Row(
+                    children: [
+                      Icon(Icons.check_circle, color: scheme.secondary),
+                      const SizedBox(width: 10),
+                      Text(
+                        t.human_check_success,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(
+                              color: scheme.secondary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -842,7 +984,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   label: Text(t.back),
                 ),
                 FilledButton(
-                  onPressed: _busy ? null : _submit,
+                  onPressed: _canSubmit ? _submit : null,
                   child: _busy
                       ? const SizedBox(
                           width: 18,

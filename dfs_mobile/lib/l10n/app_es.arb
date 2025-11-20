@@ -260,6 +260,17 @@
   "account_blocked": "Cuenta bloqueada. Contacte con su persona de contacto.",
   "@login_failed_with_error": { "placeholders": { "error": { "type": "String" } } },
   "register_failed": "Registro fallido: {reason}",
+  "human_check_label": "Soy una persona",
+  "human_check_helper": "Escribe la palabra \"{word}\" para demostrar que no eres un bot.",
+  "human_check_required": "Confirme que es una persona.",
+  "human_check_placeholder": "Introduce la palabra",
+  "human_check_success": "Verificación humana superada",
+  "human_check_refresh": "Nueva tarea",
+  "@human_check_helper": {
+    "placeholders": {
+      "word": {}
+    }
+  },
   "privacy_required": "Confirme la política de privacidad.",
   "privacy_view": "Ver política de privacidad",
   "required_fields": "Rellene todos los campos obligatorios.",
