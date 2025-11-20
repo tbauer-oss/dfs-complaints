@@ -657,16 +657,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
           ));
         },
       ),
-      _Entry(
-        label: t.customerNewsTile,
-        icon: Icons.campaign_outlined,
-        colorA: const Color(0xFF5D4037),
-        colorB: const Color(0xFF8D6E63),
-        showIndicator: _hasUnreadNews,
-        onTap: () async {
-          await _openCustomerNews(context);
-        },
-      ),
     ];
 
     return SafeArea(
@@ -704,19 +694,15 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-                      child: _KnowledgeBaseSpotlight(
-                        title: t.knowledgeBaseTile,
-                        subtitle: t.knowledgeBaseSubtitle,
-                        highlights: [
-                          t.knowledgeBaseHighlight1,
-                          t.knowledgeBaseHighlight2,
-                          t.knowledgeBaseHighlight3,
-                        ],
-                        ctaLabel: t.knowledgeBaseCta,
-                        onTap: () {
-                          Navigator.of(context).push(MaterialPageRoute(
-                            builder: (_) => const KnowledgeBasePage(),
-                          ));
+                      child: _CustomerNewsSpotlight(
+                        title: t.customerNewsTitle,
+                        subtitle: t.customerNewsSubtitle,
+                        lead: t.customerNewsHeroLead,
+                        freshLabel: t.customerNewsHeroFreshLabel,
+                        ctaLabel: t.customerNewsReadMore,
+                        showIndicator: _hasUnreadNews,
+                        onTap: () async {
+                          await _openCustomerNews(context);
                         },
                       ),
                     ),
@@ -779,18 +765,22 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
 
 // ---------------- Komponenten ----------------
 
-class _KnowledgeBaseSpotlight extends StatelessWidget {
+class _CustomerNewsSpotlight extends StatelessWidget {
   final String title;
   final String subtitle;
-  final List<String> highlights;
+  final String lead;
+  final String freshLabel;
   final String ctaLabel;
+  final bool showIndicator;
   final VoidCallback onTap;
 
-  const _KnowledgeBaseSpotlight({
+  const _CustomerNewsSpotlight({
     required this.title,
     required this.subtitle,
-    required this.highlights,
+    required this.lead,
+    required this.freshLabel,
     required this.ctaLabel,
+    required this.showIndicator,
     required this.onTap,
   });
 
@@ -803,51 +793,31 @@ class _KnowledgeBaseSpotlight extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(20),
         child: Ink(
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-              colors: [Color(0xFF004E92), Color(0xFF4286F4)],
+              colors: [Color(0xFF4A148C), Color(0xFF7E57C2), Color(0xFFFF8F00)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.12),
-                blurRadius: 18,
+                color: Colors.black.withOpacity(0.10),
+                blurRadius: 16,
                 offset: const Offset(0, 8),
               ),
             ],
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
           child: LayoutBuilder(
             builder: (context, constraints) {
               final isNarrow = constraints.maxWidth < 720;
-              final pills = highlights
-                  .where((text) => text.trim().isNotEmpty)
-                  .map((text) => Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.18),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.check_circle,
-                                color: Colors.white, size: 16),
-                            const SizedBox(width: 6),
-                            Text(
-                              text,
-                              style: textTheme.bodySmall
-                                  ?.copyWith(color: Colors.white),
-                            ),
-                          ],
-                        ),
-                      ))
-                  .toList();
+
+              final leadStyle = textTheme.bodyMedium?.copyWith(
+                color: Colors.white.withOpacity(0.94),
+              );
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -855,74 +825,133 @@ class _KnowledgeBaseSpotlight extends StatelessWidget {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        width: 52,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.18),
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        child: const Icon(
-                          Icons.psychology_alt_outlined,
-                          color: Colors.white,
-                          size: 30,
-                        ),
+                      Stack(
+                        children: [
+                          Container(
+                            width: 50,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.18),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: const Icon(
+                              Icons.campaign_outlined,
+                              color: Colors.white,
+                              size: 30,
+                            ),
+                          ),
+                          if (showIndicator)
+                            Positioned(
+                              right: 4,
+                              top: 4,
+                              child: Container(
+                                width: 12,
+                                height: 12,
+                                decoration: BoxDecoration(
+                                  color: Colors.orangeAccent.shade100,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.25),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
-                      const SizedBox(width: 18),
+                      const SizedBox(width: 16),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              title,
-                              style: textTheme.titleLarge?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                              ),
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    title,
+                                    style: textTheme.titleLarge?.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                                if (showIndicator) ...[
+                                  const SizedBox(width: 10),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.16),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: Colors.white.withOpacity(0.25),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.fiber_new,
+                                            size: 16, color: Colors.white),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          freshLabel,
+                                          style: textTheme.bodySmall?.copyWith(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                             const SizedBox(height: 6),
                             Text(
                               subtitle,
                               style: textTheme.bodyMedium?.copyWith(
                                 color: Colors.white.withOpacity(0.92),
+                                height: 1.4,
                               ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              lead,
+                              style: leadStyle,
                             ),
                           ],
                         ),
                       ),
                     ],
                   ),
-                  if (pills.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: pills,
-                    ),
-                  ],
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 12),
                   Align(
-                    alignment: isNarrow
-                        ? Alignment.centerLeft
-                        : Alignment.centerRight,
+                    alignment:
+                        isNarrow ? Alignment.centerLeft : Alignment.centerRight,
                     child: ElevatedButton.icon(
                       onPressed: onTap,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
-                        foregroundColor: const Color(0xFF0D47A1),
+                        foregroundColor: const Color(0xFF4A148C),
                         elevation: 0,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 18,
-                          vertical: 12,
+                          vertical: 10,
                         ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      icon: const Icon(Icons.arrow_outward_rounded, size: 20),
+                      icon:
+                          const Icon(Icons.arrow_outward_rounded, size: 20),
                       label: Text(
                         ctaLabel,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
+                        style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
                     ),
                   ),
