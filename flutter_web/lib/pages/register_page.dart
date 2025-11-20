@@ -813,9 +813,18 @@ class _RegisterPageState extends State<RegisterPage> {
             curve: Curves.easeInOutCubic,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: _humanVerified
-                  ? scheme.secondaryContainer.withOpacity(0.35)
-                  : scheme.secondary.withOpacity(0.05),
+              color:
+                  _humanVerified ? null : scheme.secondary.withOpacity(0.05),
+              gradient: _humanVerified
+                  ? LinearGradient(
+                      colors: [
+                        scheme.secondaryContainer.withOpacity(0.7),
+                        scheme.secondaryContainer.withOpacity(0.45),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    )
+                  : null,
               borderRadius: BorderRadius.circular(18),
               border: Border.all(
                 color: _humanVerified
@@ -854,10 +863,16 @@ class _RegisterPageState extends State<RegisterPage> {
                           ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                     const Spacer(),
-                    TextButton.icon(
-                      onPressed: _rollHumanChallenge,
-                      icon: const Icon(Icons.refresh),
-                      label: Text(t.human_check_refresh),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 250),
+                      child: _humanVerified
+                          ? const SizedBox.shrink()
+                          : TextButton.icon(
+                              key: const ValueKey('human-refresh'),
+                              onPressed: _rollHumanChallenge,
+                              icon: const Icon(Icons.refresh),
+                              label: Text(t.human_check_refresh),
+                            ),
                     ),
                   ],
                 ),
