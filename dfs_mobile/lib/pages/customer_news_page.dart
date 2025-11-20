@@ -123,33 +123,32 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
         .length;
     final totalCount = entries.length;
 
-    Widget statTile(String value, String label, double numberScale, double labelScale) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            value,
-            style: theme.textTheme.titleLarge?.copyWith(
-              color: textColor,
-              fontWeight: FontWeight.w800,
-              fontSize: (theme.textTheme.titleMedium?.fontSize ?? 18) * numberScale,
-              height: 1.05,
-              letterSpacing: -0.2,
-              shadows: headerShadows,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: textColor.withOpacity(0.92),
-              fontSize: (theme.textTheme.bodySmall?.fontSize ?? 12) * labelScale,
-              height: 1.05,
-              letterSpacing: 0.1,
-              shadows: headerShadows,
-            ),
-          ),
-        ],
+    Text statNumber(String value, double scale) {
+      return Text(
+        value,
+        textAlign: TextAlign.center,
+        style: theme.textTheme.titleLarge?.copyWith(
+          color: textColor,
+          fontWeight: FontWeight.w800,
+          fontSize: (theme.textTheme.titleMedium?.fontSize ?? 18) * scale,
+          height: 1.05,
+          letterSpacing: -0.2,
+          shadows: headerShadows,
+        ),
+      );
+    }
+
+    Text statLabel(String label, double scale) {
+      return Text(
+        label,
+        textAlign: TextAlign.center,
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: textColor.withOpacity(0.92),
+          fontSize: (theme.textTheme.bodySmall?.fontSize ?? 12) * scale,
+          height: 1.05,
+          letterSpacing: 0.1,
+          shadows: headerShadows,
+        ),
       );
     }
 
@@ -259,30 +258,18 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                                   shadows: headerShadows,
                                 ),
                               ),
-                              const SizedBox(height: 2),
                               Text(
-                                t.customerNewsTitle,
+                                t.customerNewsSubtitle,
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   color: textColor,
                                   fontWeight: FontWeight.w800,
-                                  height: 1.05,
+                                  height: 1.1,
                                   fontSize:
-                                      (theme.textTheme.titleMedium?.fontSize ?? 20) * compactScale,
+                                      (theme.textTheme.titleLarge?.fontSize ?? 22) * (compactScale * 0.92),
                                   shadows: headerShadows,
                                 ),
                               ),
-                              const SizedBox(height: 1),
-                              Text(
-                                t.customerNewsSubtitle,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: secondaryTextColor,
-                                  height: 1.25,
-                                  fontSize:
-                                      (theme.textTheme.bodyMedium?.fontSize ?? 14) * compactScale,
-                                  shadows: headerShadows,
-                                ),
-                              ),
-                              const SizedBox(height: 1),
+                              const SizedBox(height: 3),
                               Text(
                                 t.customerNewsHeroLead,
                                 style: theme.textTheme.bodySmall?.copyWith(
@@ -324,25 +311,16 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                t.customerNewsTitle,
+                                t.customerNewsSubtitle,
                                 style: theme.textTheme.titleLarge?.copyWith(
                                   color: textColor,
                                   fontWeight: FontWeight.w800,
-                                  fontSize: (theme.textTheme.titleLarge?.fontSize ?? 22) * 0.82,
-                                  shadows: headerShadows,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                t.customerNewsSubtitle,
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  color: secondaryTextColor,
                                   fontSize:
-                                      (theme.textTheme.titleMedium?.fontSize ?? 18) * 0.84,
+                                      (theme.textTheme.titleLarge?.fontSize ?? 22) * 0.94,
                                   shadows: headerShadows,
                                 ),
                               ),
-                              const SizedBox(height: 3),
+                              const SizedBox(height: 4),
                               Text(
                                 t.customerNewsHeroLead,
                                 style: theme.textTheme.bodyMedium?.copyWith(
@@ -409,31 +387,55 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
               ),
               SizedBox(height: isCompact ? 6 : 8),
               LayoutBuilder(
-                builder: (context, innerConstraints) {
+                builder: (context, _) {
                   final stats = [
-                    statTile('${totalCount.clamp(0, 999)}+', t.customerNewsTitle,
-                        statNumberScale, statLabelScale),
-                    statTile('$pinnedCount', t.customerNewsPinned, statNumberScale,
-                        statLabelScale),
-                    statTile('$recentCount', t.customerNewsHeroFreshLabel,
-                        statNumberScale, statLabelScale),
+                    (
+                      value: '${totalCount.clamp(0, 999)}+',
+                      label: t.customerNewsTitle,
+                    ),
+                    (
+                      value: '$pinnedCount',
+                      label: t.customerNewsPinned,
+                    ),
+                    (
+                      value: '$recentCount',
+                      label: t.customerNewsHeroFreshLabel,
+                    ),
                   ];
 
-                  if (innerConstraints.maxWidth < 360) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  final gap = SizedBox(width: isCompact ? 6 : 8);
+
+                  Widget buildRow(List<Widget> children) {
+                    return Row(
                       children: [
-                        for (final stat in stats) ...[stat, const SizedBox(height: 4)],
-                      ],
+                        for (final child in children) ...[child, gap],
+                      ]
+                        ..removeLast(),
                     );
                   }
 
-                  return Row(
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      for (final stat in stats) ...[
-                        Expanded(child: stat),
-                        if (stat != stats.last) SizedBox(width: isCompact ? 6 : 8),
-                      ],
+                      buildRow(
+                        stats
+                            .map(
+                              (stat) => Expanded(
+                                child: statNumber(stat.value, statNumberScale),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                      const SizedBox(height: 3),
+                      buildRow(
+                        stats
+                            .map(
+                              (stat) => Expanded(
+                                child: statLabel(stat.label, statLabelScale),
+                              ),
+                            )
+                            .toList(),
+                      ),
                     ],
                   );
                 },
