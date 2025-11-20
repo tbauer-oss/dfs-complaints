@@ -291,8 +291,19 @@ class _RegisterPageState extends State<RegisterPage> {
     });
   }
 
-  void _handleHumanSelection(int value) {
-    setState(() => _humanVerified = value == _humanAnswer);
+  void _handleHumanSelection(BuildContext context, int value) {
+    if (value == _humanAnswer) {
+      setState(() => _humanVerified = true);
+      return;
+    }
+
+    setState(() => _humanVerified = false);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text(context.t.human_check_incorrect)),
+      );
+    _rollHumanChallenge();
   }
 
   Future<void> _unlockGate() async {
@@ -864,7 +875,8 @@ class _RegisterPageState extends State<RegisterPage> {
                               selectedColor:
                                   scheme.secondaryContainer.withOpacity(0.7),
                               selected: _humanVerified && option == _humanAnswer,
-                              onSelected: (_) => _handleHumanSelection(option),
+                              onSelected: (_) =>
+                                  _handleHumanSelection(context, option),
                               avatar: Icon(
                                 Icons.touch_app_outlined,
                                 size: 18,

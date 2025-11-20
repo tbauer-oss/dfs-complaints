@@ -264,6 +264,7 @@
   "human_check_helper": "Löse die Mini-Aufgabe: {task}",
   "human_check_required": "Bitte bestätigen Sie, dass Sie ein Mensch sind.",
   "human_check_success": "Menschlichkeits-Check bestanden",
+  "human_check_incorrect": "Ergebnis falsch. Neue Aufgabe geladen.",
   "human_check_refresh": "Neue Aufgabe",
   "@human_check_helper": {
     "placeholders": {
