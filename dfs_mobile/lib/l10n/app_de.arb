@@ -261,8 +261,15 @@
   "@login_failed_with_error": { "placeholders": { "error": { "type": "String" } } },
   "register_failed": "Registrierung fehlgeschlagen: {reason}",
   "human_check_label": "Ich bin ein Mensch",
-  "human_check_helper": "Kurzer Sicherheitscheck gegen automatisierte Registrierungen.",
+  "human_check_helper": "Löse die Mini-Aufgabe: {task}",
   "human_check_required": "Bitte bestätigen Sie, dass Sie ein Mensch sind.",
+  "human_check_success": "Menschlichkeits-Check bestanden",
+  "human_check_refresh": "Neue Aufgabe",
+  "@human_check_helper": {
+    "placeholders": {
+      "task": {}
+    }
+  },
   "privacy_required": "Bitte Datenschutz bestätigen",
   "required_fields": "Bitte Pflichtfelder ausfüllen",
   "privacy_view": "Datenschutzhinweise ansehen",
