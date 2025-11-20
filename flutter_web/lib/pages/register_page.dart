@@ -298,14 +298,27 @@ class _RegisterPageState extends State<RegisterPage> {
     }
 
     setState(() => _humanVerified = false);
+
+    final scheme = Theme.of(context).colorScheme;
+
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(content: Text(context.t.human_check_incorrect)),
+        SnackBar(
+          backgroundColor: scheme.error.withOpacity(0.08),
+          content: Text(
+            context.t.human_check_incorrect,
+            style: TextStyle(
+              color: scheme.error,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
       );
+
     _rollHumanChallenge();
   }
-
+  
   Future<void> _unlockGate() async {
     final t = context.t;
     final email = _gateEmail.text.trim();
