@@ -5,7 +5,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
@@ -13,6 +12,7 @@ import '../models/complaint_attachment.dart';
 import '../utils/attachment_preview.dart';
 import '../utils/image_optimizer.dart';
 import '../utils/upload_limits.dart';
+import 'knowledge_base_page.dart';
 import 'complaint_summary_page.dart';
 
 // KEIN dart:html mehr nötig
@@ -242,20 +242,10 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     _persistHelpPref(next);
   }
 
-  Future<void> _openHelpLink() async {
-    final raw = context.t.complaint_help_url;
-    final uri = Uri.tryParse(raw);
-    if (uri == null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(context.t.complaint_help_error)));
-      return;
-    }
-    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!ok && mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(context.t.complaint_help_error)));
-    }
+  void _openHelpLink() {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => const KnowledgeBasePage(),
+    ));
   }
 
   List<ComplaintAttachment> _currentAttachments() {
@@ -685,39 +675,62 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   Widget _buildHelpBox() {
     final t = context.t;
     final theme = Theme.of(context);
+    final textColor = theme.colorScheme.onSecondaryContainer.withOpacity(0.92);
+    final subtleBg = theme.colorScheme.secondaryContainer.withOpacity(0.55);
+
     return Card(
+      color: subtleBg,
       margin: const EdgeInsets.symmetric(vertical: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(Icons.info_outline, color: theme.colorScheme.primary),
-                const SizedBox(width: 12),
+                Icon(Icons.psychology_alt_outlined, color: theme.colorScheme.primary),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     t.complaint_help_title,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                    style: TextStyle(fontWeight: FontWeight.w700, color: textColor),
                   ),
                 ),
                 IconButton(
                   tooltip: _helpCollapsed ? t.complaint_help_expand : t.complaint_help_collapse,
                   onPressed: _toggleHelpBox,
-                  icon: Icon(_helpCollapsed ? Icons.expand_more : Icons.expand_less),
+                  icon: Icon(_helpCollapsed ? Icons.expand_more : Icons.expand_less, color: textColor),
                 ),
               ],
             ),
             if (!_helpCollapsed) ...[
-              const SizedBox(height: 8),
-              Text(t.complaint_help_body),
-              const SizedBox(height: 8),
-              TextButton.icon(
-                onPressed: _openHelpLink,
-                icon: const Icon(Icons.open_in_new),
-                label: Text(t.complaint_help_link),
+              const SizedBox(height: 6),
+              Text(
+                t.complaint_help_body,
+                style: TextStyle(color: textColor, height: 1.35),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Icon(Icons.auto_stories_outlined, size: 20, color: theme.colorScheme.primary),
+                  Text(
+                    t.complaint_help_hint,
+                    style: TextStyle(color: textColor, fontSize: 12.5, height: 1.3),
+                  ),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    onPressed: _openHelpLink,
+                    icon: const Icon(Icons.library_books_outlined),
+                    label: Text(t.complaint_help_link),
+                  ),
+                ],
               ),
             ],
           ],
