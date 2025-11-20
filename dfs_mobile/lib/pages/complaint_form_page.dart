@@ -656,6 +656,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                     style: OutlinedButton.styleFrom(
                       visualDensity: VisualDensity.compact,
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      textStyle: const TextStyle(fontSize: 13),
                     ),
                     onPressed: _openHelpLink,
                     icon: const Icon(Icons.library_books_outlined),
