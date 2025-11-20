@@ -476,12 +476,12 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
               // Sektion: Bilder / Anhänge
               _section(
                 icon: Icons.photo_library_outlined,
-                title: t.add_images,
+                title: t.attachments_title,
                 children: [
                   OutlinedButton.icon(
                     onPressed: pickFiles,
                     icon: const Icon(Icons.upload),
-                    label: Text(files.isEmpty ? t.add_images : t.images_selected(files.length)),
+                    label: Text(files.isEmpty ? t.add_attachment : t.images_selected(files.length)),
                   ),
                   if (files.isNotEmpty) ...[
                     const SizedBox(height: 8),
