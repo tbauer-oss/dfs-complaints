@@ -368,6 +368,47 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  String _labelForStatus(int s) {
+    switch (s) {
+      case 1:
+        return 'Eingegangen';
+      case 2:
+        return 'In Bearbeitung';
+      case 3:
+        return 'Rückfrage erforderlich';
+      case 4:
+        return 'In Nacharbeit';
+      case 5:
+        return 'Abgeschlossen';
+      default:
+        return 'Unbekannt';
+    }
+  }
+
+  String _labelForDecision(String? d) {
+    switch ((d ?? '').trim()) {
+      case 'accepted':
+        return 'Angenommen';
+      case 'rejected':
+        return 'Abgelehnt';
+      case '':
+        return '—';
+      default:
+        return d!.trim();
+    }
+  }
+
+  Color _decisionColor(String? d) {
+    final v = (d ?? '').trim();
+    if (v == 'accepted') return const Color(0xFF1B5E20);
+    if (v == 'rejected') return const Color(0xFFB71C1C);
+    return Theme.of(context).textTheme.bodyMedium?.color ?? Colors.black54;
+  }
+
+  String _fmtDate(DateTime d) {
+    return '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  }
+
   Future<void> _refreshAll() async {
     setState(() {
       _err = null;
@@ -7869,6 +7910,8 @@ class AdminPalette {
   static const tealB  = Color(0xFF00897B);
   static const blueA  = Color(0xFFE7F0FF);
   static const blueB  = Color(0xFF1E88E5);
+  static const purpleA = Color(0xFFF1E8FF);
+  static const purpleB = Color(0xFF7E57C2);
 }
 
 class AdminTilePro extends StatefulWidget {
