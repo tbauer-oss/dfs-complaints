@@ -407,10 +407,11 @@ class _RegisterPageState extends State<RegisterPage> {
         setState(() => _err = t.password_mismatch);
         return;
       }
-      if (!_isHuman) {
+      if (!_humanVerified) {
         setState(() => _err = t.human_check_required);
         return;
       }
+    }
       if (!_privacy) {
         setState(() => _err = t.privacy_required);
         return;
