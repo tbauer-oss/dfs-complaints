@@ -3226,99 +3226,6 @@ class _AdminPageState extends State<AdminPage> {
       );
     }
 
-    Widget buildItem(AdminComplaint c) {
-      final company = _companyByEmail(c.email) ?? 'Unbekannte Firma';
-      final repLabel = _repLabelForComplaint(c);
-      final decisionColor = _decisionColor(c.decision);
-      final statusColor = _statusColor(c.status);
-
-      Widget chip(String label, Color color, {IconData? icon}) {
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: color.withOpacity(0.4)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (icon != null) ...[
-                Icon(icon, size: 16, color: color),
-                const SizedBox(width: 6),
-              ],
-              Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
-            ],
-          ),
-        );
-      }
-
-      return DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: theme.colorScheme.surfaceVariant.withOpacity(0.4),
-          border: Border.all(color: theme.colorScheme.outlineVariant),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text('Ticket ${c.ticket}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-                  const SizedBox(width: 10),
-                  chip(_labelForStatus(c.status), statusColor, icon: Icons.flag_rounded),
-                  const SizedBox(width: 8),
-                  chip(_labelForDecision(c.decision), decisionColor, icon: Icons.how_to_vote),
-                  const Spacer(),
-                  Icon(Icons.update, size: 16, color: theme.colorScheme.outline),
-                  const SizedBox(width: 4),
-                  Text(_fmtDate(c.updatedAt), style: theme.textTheme.bodySmall),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 18,
-                runSpacing: 6,
-                children: [
-                  Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.apartment_outlined, size: 18),
-                    const SizedBox(width: 6),
-                    Text(company, style: const TextStyle(fontWeight: FontWeight.w600)),
-                  ]),
-                  Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.mail_outline, size: 18),
-                    const SizedBox(width: 6),
-                    Text(c.email),
-                  ]),
-                  Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.badge_outlined, size: 18),
-                    const SizedBox(width: 6),
-                    Text(repLabel),
-                  ]),
-                  if ((c.internalNo ?? '').isNotEmpty)
-                    Row(mainAxisSize: MainAxisSize.min, children: [
-                      const Icon(Icons.confirmation_number_outlined, size: 18),
-                      const SizedBox(width: 6),
-                      Text('Intern: ${c.internalNo}'),
-                    ]),
-                ],
-              ),
-              if ((c.handlingLabel).trim().isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text('Wunsch / Behandlung: ${c.handlingLabel}'),
-              ],
-              if ((c.adminNotes ?? '').trim().isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text('Interne Notiz: ${c.adminNotes}', style: const TextStyle(color: Colors.black87)),
-              ],
-            ],
-          ),
-        ),
-      );
-    }
-
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -3362,7 +3269,19 @@ class _AdminPageState extends State<AdminPage> {
                   : ListView.separated(
                       itemCount: list.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 10),
-                      itemBuilder: (_, i) => buildItem(list[i]),
+                      itemBuilder: (_, i) {
+                        final c = list[i];
+                        return _ComplaintEditor(
+                          api: _api,
+                          c: c,
+                          companyHint: _companyByEmail(c.email),
+                          hasRep: _customerHasRep(c.email),
+                          onClosed: () {
+                            _refreshAll();
+                            _refreshOpen();
+                          },
+                        );
+                      },
                     ),
             ),
           ],
