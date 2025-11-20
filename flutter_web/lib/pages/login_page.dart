@@ -4,6 +4,7 @@ import '../api/client.dart';
 import 'rep_dashboard_page.dart';
 import '../l10n/app_localizations.dart';
 import 'reset_password_page.dart';
+import '../widgets/password_field.dart';
 import 'dart:html' as html;
 
 /// Kleiner Helper, damit du überall bequem auf t zugreifen kannst
@@ -153,16 +154,14 @@ class _RepLoginPageState extends State<RepLoginPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(
+                PasswordField(
                   controller: _new1,
-                  obscureText: true,
                   decoration: InputDecoration(labelText: t.newPassword),
                   textInputAction: TextInputAction.next,
                   onSubmitted: (_) => (ctx as Element).markNeedsBuild(),
                 ),
-                TextField(
+                PasswordField(
                   controller: _new2,
-                  obscureText: true,
                   decoration: InputDecoration(labelText: t.newPasswordRepeat),
                   onSubmitted: (_) => save(),
                 ),
@@ -232,10 +231,9 @@ class _RepLoginPageState extends State<RepLoginPage> {
                               onSubmitted: (_) => _pwFocus.requestFocus(),
                             ),
                             const SizedBox(height: 12),
-                            TextField(
+                            PasswordField(
                               controller: _pw,
                               focusNode: _pwFocus,
-                              obscureText: true,
                               autofillHints: const [AutofillHints.password],
                               decoration: const InputDecoration(labelText: 'Password'),
                               textInputAction: TextInputAction.done,

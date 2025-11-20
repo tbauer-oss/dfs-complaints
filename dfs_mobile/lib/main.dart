@@ -32,6 +32,7 @@ import 'pages/reset_password_page.dart';
 // Widgets
 import 'widgets/lang_action.dart';
 import 'widgets/theme_action.dart' as w;
+import 'widgets/password_field.dart';
 import 'utils/lang_utils.dart';
 
 // ===== THEME BRANDING ===== //
@@ -317,13 +318,12 @@ class _MyAppState extends State<MyApp> {
       context: context,
       builder: (_) => AlertDialog(
         title: Text(t.admin_area),
-        content: TextField(
+        content: PasswordField(
           controller: ctrl,
           decoration: const InputDecoration(
             labelText: 'Admin Passwort',
             border: OutlineInputBorder(),
           ),
-          obscureText: true,
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: Text(t.cancel)),
@@ -1078,9 +1078,8 @@ class _LoginScreenState extends State<_LoginScreen> {
                 onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 12),
-              TextField(
+              PasswordField(
                 controller: _pw,
-                obscureText: true,
                 decoration: InputDecoration(
                   labelText: t.password,
                 ),

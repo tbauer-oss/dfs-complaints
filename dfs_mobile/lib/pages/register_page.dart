@@ -10,6 +10,7 @@ import '../services/app_prefs_scope.dart';
 import '../widgets/gate_code_input.dart';
 import '../widgets/theme_action.dart' as w;
 import '../widgets/legal_footer.dart';
+import '../widgets/password_field.dart';
 
 enum Salutation { mr, ms, diverse }
 
@@ -581,18 +582,16 @@ class _RegisterPageState extends State<RegisterPage> {
           const SizedBox(height: 16),
           _dualFields(
             context,
-            TextField(
+            PasswordField(
               controller: _pw,
-              obscureText: true,
               decoration: _decor(
                 context,
                 t.password,
                 icon: Icons.lock_outline,
               ),
             ),
-            TextField(
+            PasswordField(
               controller: _pw2,
-              obscureText: true,
               decoration: _decor(
                 context,
                 t.password_repeat,

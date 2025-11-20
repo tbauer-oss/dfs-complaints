@@ -4,6 +4,7 @@ import 'dart:html' as html;
 
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/password_field.dart';
 
 class GatePage extends StatefulWidget {
   final ApiClient api;
@@ -30,9 +31,8 @@ class _GatePageState extends State<GatePage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Admin-Secret'),
-        content: TextField(
+        content: PasswordField(
           controller: secretCtrl,
-          obscureText: true,
           decoration: const InputDecoration(
             labelText: 'X-Admin-Secret',
             border: OutlineInputBorder(),
@@ -227,9 +227,8 @@ class _GatePageState extends State<GatePage> {
                             ],
                           ),
                           SizedBox(height: isCompact ? 24 : 32),
-                          TextField(
+                          PasswordField(
                             controller: _ctrl,
-                            obscureText: true,
                             onSubmitted: (_) => _submit(),
                             decoration: InputDecoration(
                               labelText: t.gate_password,
