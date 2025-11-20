@@ -26,6 +26,7 @@ class AdminPage extends StatefulWidget {
 
 enum _AdminView {
   menu,
+  all,
   pending,
   users,
   open,
@@ -91,6 +92,7 @@ class _AdminPageState extends State<AdminPage> {
   // Daten
   List<PendingUser> _pending = [];
   List<ActiveUser> _users = [];
+  List<AdminComplaint> _allComplaints = [];
   List<AdminComplaint> _openComplaints = [];
   List<Rep> _reps = [];
   List<CustomerNewsEntry> _newsEntries = [];
@@ -102,6 +104,16 @@ class _AdminPageState extends State<AdminPage> {
 
   // Firmenfilter (Offene Reklamationen)
   String _filterCompany = 'Alle Firmen';
+
+  // Filter "Alle Reklamationen"
+  String _allSearch = '';
+  String _allCompanyFilter = 'Alle Firmen';
+  String _allRepFilter = 'Alle Vertreter';
+  String _allDecisionFilter = '';
+  int? _allStatusFilter;
+  String _allInternalFilter = 'Alle Nummern';
+
+  bool _loadAllComplaints = false;
 
   // Ansicht (Menü / Bereich)
   _AdminView _view = _AdminView.menu;
@@ -221,6 +233,7 @@ class _AdminPageState extends State<AdminPage> {
     }
 
     _refreshAll();
+    _refreshAllComplaints();
     _refreshOpen();
     _refreshReps();
     _loadCatalogConfigAdmin();
@@ -316,6 +329,45 @@ class _AdminPageState extends State<AdminPage> {
     return null;
   }
 
+  String _repLabelForComplaint(AdminComplaint c) {
+    final id = (c.repId ?? '').trim();
+    final assigned = _repNameForEmail(c.email);
+    final fromId = _reps.firstWhere(
+      (r) => r.id.trim().toLowerCase() == id.toLowerCase(),
+      orElse: () => Rep(
+        id: '',
+        firstName: '',
+        lastName: '',
+        email: '',
+        region: '',
+        lang: '',
+        customers: const [],
+      ),
+    );
+
+    if (fromId.id.isNotEmpty) return fromId.displayName;
+    if (assigned != null && assigned.trim().isNotEmpty) return assigned.trim();
+    if (id.isNotEmpty) return id;
+    return 'Ohne Vertreter';
+  }
+
+  Color _statusColor(int status) {
+    switch (status) {
+      case 1:
+        return const Color(0xFF1565C0);
+      case 2:
+        return const Color(0xFF6A1B9A);
+      case 3:
+        return const Color(0xFFEF6C00);
+      case 4:
+        return const Color(0xFF00897B);
+      case 5:
+        return const Color(0xFF2E7D32);
+      default:
+        return Colors.grey.shade700;
+    }
+  }
+
   Future<void> _refreshAll() async {
     setState(() {
       _err = null;
@@ -356,6 +408,23 @@ class _AdminPageState extends State<AdminPage> {
     } finally {
       if (!mounted) return;
       setState(() => _loadOpen = false);
+    }
+  }
+
+  Future<void> _refreshAllComplaints() async {
+    setState(() {
+      _err = null;
+      _loadAllComplaints = true;
+    });
+    try {
+      final list = await _api.fetchAllComplaints();
+      if (!mounted) return;
+      setState(() => _allComplaints = list);
+    } catch (e) {
+      setState(() => _err = '$e');
+    } finally {
+      if (!mounted) return;
+      setState(() => _loadAllComplaints = false);
     }
   }
 
@@ -2214,6 +2283,7 @@ class _AdminPageState extends State<AdminPage> {
     final theme = Theme.of(context);
     final title = switch (_view) {
       _AdminView.menu           => 'Adminbereich – DFS Customer Complaint',
+      _AdminView.all            => 'Alle Reklamationen',
       _AdminView.pending        => 'Pending (Freigabe ausstehend)',
       _AdminView.users          => 'Kundendatenbank',
       _AdminView.open           => 'Offene Reklamationen',
@@ -2251,6 +2321,7 @@ class _AdminPageState extends State<AdminPage> {
             tooltip: 'Alles neu laden',
             onPressed: () async {
               await _refreshAll();
+              await _refreshAllComplaints();
               await _refreshOpen();
               await _refreshNews();
             },
@@ -2307,6 +2378,16 @@ class _AdminPageState extends State<AdminPage> {
             count: _openComplaints.length,
             compact: compact,
             onTap: () => setState(() => _view = _AdminView.open),
+          ),
+          AdminTilePro(
+            label: 'Alle Reklamationen',
+            subtitle: 'Suche & Filter',
+            icon: Icons.dashboard_customize_outlined,
+            colorA: AdminPalette.purpleA,
+            colorB: AdminPalette.purpleB,
+            count: _allComplaints.length,
+            compact: compact,
+            onTap: () => setState(() => _view = _AdminView.all),
           ),
           AdminTilePro(
             label: 'Statistik & KPIs',
@@ -2485,6 +2566,8 @@ class _AdminPageState extends State<AdminPage> {
   // ------------------ Panel-Ansichten ------------------
   Widget _buildView() {
     switch (_view) {
+      case _AdminView.all:
+        return _buildAllComplaintsPanel();
       case _AdminView.pending:
         return _buildPendingPanel();
       case _AdminView.users:
@@ -2922,6 +3005,324 @@ class _AdminPageState extends State<AdminPage> {
                         },
                       );
               }(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAllComplaintsPanel() {
+    final theme = Theme.of(context);
+
+    final companies = <String>{
+      'Alle Firmen',
+      ..._allComplaints
+          .map((c) => (_companyByEmail(c.email) ?? '').trim())
+          .where((s) => s.isNotEmpty),
+    }.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    final reps = <String>{
+      'Alle Vertreter',
+      ..._allComplaints.map(_repLabelForComplaint).where((s) => s.trim().isNotEmpty),
+    }.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    final internalNos = <String>{
+      'Alle Nummern',
+      ..._allComplaints.map((c) => (c.internalNo ?? '').trim()).where((s) => s.isNotEmpty),
+    }.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    List<AdminComplaint> list = _allComplaints.where((c) {
+      final company = (_companyByEmail(c.email) ?? '').trim();
+      final repLabel = _repLabelForComplaint(c).trim();
+      final decision = (c.decision ?? '').trim();
+      final status = c.status;
+      final internal = (c.internalNo ?? '').trim();
+      final search = _allSearch.trim().toLowerCase();
+
+      bool matchesQuery() {
+        if (search.isEmpty) return true;
+        bool contains(Object? v) => v.toString().toLowerCase().contains(search);
+        final payloadMatches = (c.payload?.values.any(contains) ?? false);
+        return payloadMatches ||
+            contains(c.ticket) ||
+            contains(c.email) ||
+            contains(company) ||
+            contains(repLabel) ||
+            contains(decision) ||
+            contains(_labelForStatus(status)) ||
+            contains(c.handlingLabel) ||
+            contains(c.adminNotes ?? '') ||
+            contains(internal);
+      }
+
+      final companyMatch = _allCompanyFilter == 'Alle Firmen'
+          ? true
+          : company.toLowerCase() == _allCompanyFilter.toLowerCase();
+      final repMatch = _allRepFilter == 'Alle Vertreter'
+          ? true
+          : repLabel.toLowerCase() == _allRepFilter.toLowerCase();
+      final decisionMatch = _allDecisionFilter.isEmpty || decision == _allDecisionFilter;
+      final statusMatch = _allStatusFilter == null || status == _allStatusFilter;
+      final internalMatch = _allInternalFilter == 'Alle Nummern'
+          ? true
+          : internal == _allInternalFilter;
+
+      return matchesQuery() && companyMatch && repMatch && decisionMatch && statusMatch && internalMatch;
+    }).toList()
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+
+    Widget buildFilterBar() {
+      return Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        elevation: 2,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                onChanged: (v) => setState(() => _allSearch = v),
+                decoration: InputDecoration(
+                  labelText: 'Schnellsuche (Ticket, Kunde, Stichwort …)',
+                  prefixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                crossAxisAlignment: WrapCrossAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 250,
+                    child: DropdownButtonFormField<String>(
+                      value: _allCompanyFilter,
+                      isExpanded: true,
+                      items: companies
+                          .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
+                          .toList(),
+                      onChanged: (v) => setState(() => _allCompanyFilter = v ?? 'Alle Firmen'),
+                      decoration: const InputDecoration(
+                        labelText: 'Kunden (Firmenname)',
+                        prefixIcon: Icon(Icons.apartment_outlined),
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 220,
+                    child: DropdownButtonFormField<String>(
+                      value: _allRepFilter,
+                      items: reps
+                          .map((r) => DropdownMenuItem<String>(value: r, child: Text(r)))
+                          .toList(),
+                      onChanged: (v) => setState(() => _allRepFilter = v ?? 'Alle Vertreter'),
+                      decoration: const InputDecoration(
+                        labelText: 'Vertreter',
+                        prefixIcon: Icon(Icons.badge_outlined),
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 200,
+                    child: DropdownButtonFormField<String>(
+                      value: _allDecisionFilter,
+                      items: [
+                        const DropdownMenuItem<String>(value: '', child: Text('Alle Entscheidungen')),
+                        ...kDecisionItems.map((d) => DropdownMenuItem<String>(
+                              value: d['value']!,
+                              child: Text(d['label']!),
+                            )),
+                      ],
+                      onChanged: (v) => setState(() => _allDecisionFilter = v ?? ''),
+                      decoration: const InputDecoration(
+                        labelText: 'Entscheidungen',
+                        prefixIcon: Icon(Icons.how_to_vote_outlined),
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 200,
+                    child: DropdownButtonFormField<int?>(
+                      value: _allStatusFilter,
+                      items: [
+                        const DropdownMenuItem<int?>(value: null, child: Text('Alle Stati')),
+                        ...kStatusItems.map((s) => DropdownMenuItem<int?>(
+                              value: s['value'] as int,
+                              child: Text(s['label'] as String),
+                            )),
+                      ],
+                      onChanged: (v) => setState(() => _allStatusFilter = v),
+                      decoration: const InputDecoration(
+                        labelText: 'Stati',
+                        prefixIcon: Icon(Icons.flag_outlined),
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 220,
+                    child: DropdownButtonFormField<String>(
+                      value: _allInternalFilter,
+                      items: internalNos
+                          .map((n) => DropdownMenuItem<String>(value: n, child: Text(n.isEmpty ? '—' : n)))
+                          .toList(),
+                      onChanged: (v) => setState(() => _allInternalFilter = v ?? 'Alle Nummern'),
+                      decoration: const InputDecoration(
+                        labelText: 'Interne Reklamationsnummer',
+                        prefixIcon: Icon(Icons.confirmation_number_outlined),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    Widget buildItem(AdminComplaint c) {
+      final company = _companyByEmail(c.email) ?? 'Unbekannte Firma';
+      final repLabel = _repLabelForComplaint(c);
+      final decisionColor = _decisionColor(c.decision);
+      final statusColor = _statusColor(c.status);
+
+      Widget chip(String label, Color color, {IconData? icon}) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: color.withOpacity(0.4)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 16, color: color),
+                const SizedBox(width: 6),
+              ],
+              Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+            ],
+          ),
+        );
+      }
+
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: theme.colorScheme.surfaceVariant.withOpacity(0.4),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text('Ticket ${c.ticket}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                  const SizedBox(width: 10),
+                  chip(_labelForStatus(c.status), statusColor, icon: Icons.flag_rounded),
+                  const SizedBox(width: 8),
+                  chip(_labelForDecision(c.decision), decisionColor, icon: Icons.how_to_vote),
+                  const Spacer(),
+                  Icon(Icons.update, size: 16, color: theme.colorScheme.outline),
+                  const SizedBox(width: 4),
+                  Text(_fmtDate(c.updatedAt), style: theme.textTheme.bodySmall),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 18,
+                runSpacing: 6,
+                children: [
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.apartment_outlined, size: 18),
+                    const SizedBox(width: 6),
+                    Text(company, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  ]),
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.mail_outline, size: 18),
+                    const SizedBox(width: 6),
+                    Text(c.email),
+                  ]),
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.badge_outlined, size: 18),
+                    const SizedBox(width: 6),
+                    Text(repLabel),
+                  ]),
+                  if ((c.internalNo ?? '').isNotEmpty)
+                    Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.confirmation_number_outlined, size: 18),
+                      const SizedBox(width: 6),
+                      Text('Intern: ${c.internalNo}'),
+                    ]),
+                ],
+              ),
+              if ((c.handlingLabel).trim().isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text('Wunsch / Behandlung: ${c.handlingLabel}'),
+              ],
+              if ((c.adminNotes ?? '').trim().isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text('Interne Notiz: ${c.adminNotes}', style: const TextStyle(color: Colors.black87)),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.dashboard_customize_outlined),
+                const SizedBox(width: 8),
+                const Text('Alle Reklamationen', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text('${list.length} gefiltert',
+                      style: TextStyle(color: theme.colorScheme.onPrimaryContainer, fontWeight: FontWeight.w700)),
+                ),
+                const Spacer(),
+                if (_loadAllComplaints)
+                  const Padding(
+                    padding: EdgeInsets.only(right: 8),
+                    child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                  ),
+                IconButton(
+                  tooltip: 'Neu laden',
+                  onPressed: _loadAllComplaints ? null : _refreshAllComplaints,
+                  icon: const Icon(Icons.refresh),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            buildFilterBar(),
+            const SizedBox(height: 10),
+            Expanded(
+              child: list.isEmpty
+                  ? const Center(child: Text('Keine Reklamationen gefunden.'))
+                  : ListView.separated(
+                      itemCount: list.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (_, i) => buildItem(list[i]),
+                    ),
             ),
           ],
         ),
@@ -7093,6 +7494,13 @@ class AdminApi {
   Future<List<AdminComplaint>> fetchComplaintsByEmailDetailed(String email) async {
     final res = await _request('GET', '/api/admin/complaints', q: {'email': email, 'details': '1'});
     if (res.status != 200) throw 'complaints email GET: HTTP ${res.status} ${res.responseText}';
+    final List data = jsonDecode(res.responseText ?? '[]');
+    return data.map((e) => AdminComplaint.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<List<AdminComplaint>> fetchAllComplaints() async {
+    final res = await _request('GET', '/api/admin/complaints', q: {'all': '1'});
+    if (res.status != 200) throw 'all complaints GET: HTTP ${res.status} ${res.responseText}';
     final List data = jsonDecode(res.responseText ?? '[]');
     return data.map((e) => AdminComplaint.fromJson(e as Map<String, dynamic>)).toList();
   }
