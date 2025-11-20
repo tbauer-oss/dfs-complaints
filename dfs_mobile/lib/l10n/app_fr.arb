@@ -27,6 +27,8 @@
   "attachments_too_large": "Taille totale maximale des pièces jointes : 10 Mo",
   "attachments_existing": "Pièces jointes déjà envoyées",
   "attachments_file_unknown": "Pièce jointe",
+  "attachments_title": "Photos et fichiers",
+  "add_attachment": "Ajouter des pièces jointes",
 
   "we_are_here_for_you": "Nous sommes là pour vous.",
   "complaint_contact_button": "Contacter",
