@@ -256,6 +256,7 @@
   "human_check_helper": "Solve this quick task: {task}",
   "human_check_required": "Please confirm you're human.",
   "human_check_success": "Human check passed",
+  "human_check_incorrect": "Incorrect result. A new task has been loaded.",
   "human_check_refresh": "New task",
   "@human_check_helper": {
     "placeholders": {
