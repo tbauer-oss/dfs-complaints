@@ -261,8 +261,15 @@
   "@login_failed_with_error": { "placeholders": { "error": { "type": "String" } } },
   "register_failed": "Registro fallido: {reason}",
   "human_check_label": "Soy una persona",
-  "human_check_helper": "Comprobación rápida de seguridad para evitar registros automatizados.",
+  "human_check_helper": "Resuelve esta tarea rápida: {task}",
   "human_check_required": "Confirme que es una persona.",
+  "human_check_success": "Verificación humana superada",
+  "human_check_refresh": "Nueva tarea",
+  "@human_check_helper": {
+    "placeholders": {
+      "task": {}
+    }
+  },
   "privacy_required": "Confirme la política de privacidad.",
   "privacy_view": "Ver política de privacidad",
   "required_fields": "Rellene todos los campos obligatorios.",
