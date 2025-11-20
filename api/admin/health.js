@@ -10,6 +10,7 @@ import {
 } from '../_lib/http.js';
 import { redis } from '../_lib/redis.js';
 import { verifyTransport } from '../_lib/mail.js';
+import { monitorEventLoopDelay } from 'node:perf_hooks';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 const hasRedisUrl = !!process.env.UPSTASH_REDIS_REST_URL;
@@ -18,6 +19,13 @@ const MAIL_REQUIRED = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'];
 const MAIL_OPTIONAL = ['SMTP_PORT', 'SMTP_FROM', 'MAIL_FROM', 'MAIL_REPLY_TO', 'MAIL_QM'];
 const JWT_SECRET = process.env.JWT_SECRET?.trim();
 const GATE_JWT_TTL = process.env.GATE_JWT_TTL?.trim();
+const HEALTH_PING_URL = process.env.HEALTH_PING_URL?.trim();
+
+const STATUS_ORDER = {
+  ok: 0,
+  warn: 1,
+  critical: 2,
+};
 
 function isAdmin(req) {
   const hdr = req.headers?.['x-admin-secret'];
@@ -49,11 +57,31 @@ function deriveOrigin(req) {
   return `${protocol}://${host.trim()}`;
 }
 
+function normalizeCheck(entry, fallbackOrder = 100) {
+  const status = entry.status || (entry.ok ? 'ok' : 'critical');
+  const order = Number.isFinite(entry.order) ? entry.order : fallbackOrder;
+  return {
+    ...entry,
+    status,
+    order,
+  };
+}
+
+function combineStatus(entries) {
+  const worst = entries.reduce((acc, cur) => {
+    const status = cur.status || (cur.ok ? 'ok' : 'critical');
+    const rank = STATUS_ORDER[status] ?? STATUS_ORDER.critical;
+    return Math.max(acc, rank);
+  }, STATUS_ORDER.ok);
+  return Object.keys(STATUS_ORDER).find((key) => STATUS_ORDER[key] === worst) || 'critical';
+}
+
 async function checkRedis() {
   const label = 'Redis / Upstash';
   if (!hasRedisUrl || !hasRedisToken) {
     return {
       ok: false,
+      status: 'critical',
       label,
       message: 'UPSTASH_REDIS_REST_URL/_TOKEN fehlen',
       details: 'Bitte ENV-Variablen prüfen.',
@@ -83,6 +111,7 @@ async function checkRedis() {
     const okResult = read === value;
     return {
       ok: okResult,
+      status: okResult ? 'ok' : 'critical',
       label,
       message: okResult ? 'Schreiben & Lesen erfolgreich' : 'Rücklesung weicht vom Testwert ab',
       meta: { durationMs },
@@ -91,6 +120,7 @@ async function checkRedis() {
   } catch (err) {
     return {
       ok: false,
+      status: 'critical',
       label,
       message: err?.message || String(err),
       meta: { durationMs: Date.now() - started },
@@ -106,6 +136,7 @@ function checkApiBase(req) {
   if (!base && derived) {
     return {
       ok: true,
+      status: 'ok',
       label,
       message: 'API_BASE nicht gesetzt – verwende Request-Host',
       details: `Verwendete Basis: ${derived}`,
@@ -116,6 +147,7 @@ function checkApiBase(req) {
   if (!base) {
     return {
       ok: false,
+      status: 'warn',
       label,
       message: 'API_BASE fehlt',
       details: 'Keine ENV gesetzt und Host konnte nicht bestimmt werden.',
@@ -130,6 +162,7 @@ function checkApiBase(req) {
     }
     return {
       ok: true,
+      status: 'ok',
       label,
       message: 'API_BASE gesetzt',
       details: 'URL geprüft und gültig.',
@@ -139,6 +172,7 @@ function checkApiBase(req) {
   } catch (err) {
     return {
       ok: false,
+      status: 'critical',
       label,
       message: 'Ungültige URL in API_BASE',
       details: err?.message || String(err),
@@ -155,6 +189,7 @@ function checkAdminSecret(req) {
   if (!ADMIN_SECRET) {
     return {
       ok: false,
+      status: 'critical',
       label,
       message: 'ADMIN_SECRET fehlt',
       details: 'Bitte eine geheime Zeichenkette setzen, um den Admin-Endpunkt zu schützen.',
@@ -165,6 +200,7 @@ function checkAdminSecret(req) {
 
   return {
     ok: true,
+    status: 'ok',
     label,
     message: 'ADMIN_SECRET gesetzt',
     details: providedHeader
@@ -180,6 +216,7 @@ function checkGateJwtConfig() {
   if (!JWT_SECRET) {
     return {
       ok: false,
+      status: 'critical',
       label,
       message: 'JWT_SECRET fehlt',
       details: 'Gate-Tokens können ohne Signatur-Secret nicht ausgestellt werden.',
@@ -192,6 +229,7 @@ function checkGateJwtConfig() {
   if (GATE_JWT_TTL && (!Number.isFinite(ttlNumber) || ttlNumber <= 0)) {
     return {
       ok: false,
+      status: 'critical',
       label,
       message: 'Ungültiger Wert in GATE_JWT_TTL',
       details: 'Bitte eine positive Zahl in Sekunden konfigurieren.',
@@ -202,6 +240,7 @@ function checkGateJwtConfig() {
 
   return {
     ok: true,
+    status: 'ok',
     label,
     message: 'JWT_SECRET gültig',
     details: ttlNumber ? `Token-Lebensdauer: ${ttlNumber} Sekunden.` : 'Standard-TTL (15 Minuten) wird genutzt.',
@@ -269,6 +308,7 @@ async function checkMailConfig() {
 
   return {
     ok: okFinal,
+    status: okFinal ? 'ok' : transportVerified === false ? 'critical' : 'warn',
     label,
     message: okFinal
       ? 'SMTP-Einstellungen vollständig (Verbindung getestet)'
@@ -292,6 +332,99 @@ async function checkMailConfig() {
   };
 }
 
+async function checkServerAvailability(req) {
+  const label = 'Server-Verfügbarkeit';
+  const target = HEALTH_PING_URL || (process.env.API_BASE || '').trim() || deriveOrigin(req);
+
+  if (!target) {
+    return {
+      ok: false,
+      status: 'warn',
+      label,
+      message: 'Keine Basis-URL für Ping vorhanden',
+      details: 'Bitte HEALTH_PING_URL oder API_BASE setzen oder den Check mit Host aufrufen.',
+      meta: { missingUrl: true },
+      order: 5,
+    };
+  }
+
+  const started = Date.now();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000);
+
+  try {
+    const res = await fetch(target, { method: 'HEAD', signal: controller.signal });
+    clearTimeout(timeout);
+    const durationMs = Date.now() - started;
+    const slow = durationMs >= 2000;
+    const status = res.ok ? (slow ? 'warn' : 'ok') : res.status >= 500 ? 'critical' : 'warn';
+    const message = res.ok ? 'Server erreichbar' : 'Server antwortet mit Fehlercode';
+    const details = `HTTP ${res.status} – Antwortzeit ${durationMs} ms`;
+    return {
+      ok: status === 'ok',
+      status,
+      label,
+      message,
+      details,
+      meta: { durationMs, url: target, httpStatus: res.status },
+      order: 5,
+    };
+  } catch (err) {
+    clearTimeout(timeout);
+    return {
+      ok: false,
+      status: 'critical',
+      label,
+      message: 'Server nicht erreichbar',
+      details: err?.message || String(err),
+      meta: { durationMs: Date.now() - started, url: target },
+      order: 5,
+    };
+  }
+}
+
+async function checkServerStability() {
+  const label = 'Server-Stabilität';
+  const histogram = monitorEventLoopDelay({ resolution: 20 });
+  histogram.enable();
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  histogram.disable();
+
+  const meanMs = Number.isFinite(histogram.mean) ? Number(histogram.mean / 1e6) : 0;
+  const maxMs = Number.isFinite(histogram.max) ? Number(histogram.max / 1e6) : 0;
+  const uptimeSeconds = Math.round(process.uptime());
+
+  let status = 'ok';
+  let message = 'Event-Loop stabil';
+  if (meanMs > 300 || maxMs > 800) {
+    status = 'critical';
+    message = 'Event-Loop stark blockiert';
+  } else if (meanMs > 120 || maxMs > 400) {
+    status = 'warn';
+    message = 'Erhöhte Event-Loop-Latenz';
+  }
+
+  const notes = [];
+  if (uptimeSeconds < 300) {
+    notes.push('Server läuft weniger als 5 Minuten (kürzlicher Neustart?).');
+  }
+
+  return {
+    ok: status === 'ok',
+    status,
+    label,
+    message,
+    details: `Ø ${meanMs.toFixed(1)} ms, max ${maxMs.toFixed(1)} ms – Uptime ${Math.round(uptimeSeconds / 60)} min`,
+    meta: {
+      meanLatencyMs: Number(meanMs.toFixed(1)),
+      maxLatencyMs: Number(maxMs.toFixed(1)),
+      uptimeSeconds,
+      notes,
+    },
+    order: 6,
+  };
+}
+
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
@@ -305,16 +438,28 @@ export default async function handler(req, res) {
     const apiCheck = checkApiBase(req);
     const mailCheck = await checkMailConfig();
     const gateJwtCheck = checkGateJwtConfig();
-    const checks = {
+    const availabilityCheck = await checkServerAvailability(req);
+    const stabilityCheck = await checkServerStability();
+
+    const rawChecks = {
       adminSecret: adminSecretCheck,
       redis: redisCheck,
       apiBase: apiCheck,
       mail: mailCheck,
       gateJwt: gateJwtCheck,
+      availability: availabilityCheck,
+      stability: stabilityCheck,
     };
-    const okOverall = Object.values(checks).every((entry) => entry.ok);
+
+    const checks = Object.entries(rawChecks).reduce((acc, [key, value], index) => {
+      acc[key] = normalizeCheck(value, index);
+      return acc;
+    }, {});
+
+    const status = combineStatus(Object.values(checks));
     return ok(res, {
-      ok: okOverall,
+      ok: status === 'ok',
+      status,
       timestamp: new Date().toISOString(),
       checks,
     });

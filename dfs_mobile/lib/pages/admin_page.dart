@@ -1389,27 +1389,41 @@ class _AdminPageState extends State<AdminPage> {
     final cs = theme.colorScheme;
     final status = _systemHealth;
     final checks = status?.checks ?? const <SystemHealthCheck>[];
-    final overallOk = status?.ok;
+    final overallStatus = status?.status ??
+        (status?.ok == null
+            ? null
+            : status!.ok
+                ? SystemHealthStatus.ok
+                : SystemHealthStatus.critical);
     final tsLabel = status != null ? _formatTimestamp(status.timestamp) : null;
-    final failingLabels = checks.where((c) => !c.ok).map((c) => c.label).toList();
+    final warningLabels = checks.where((c) => c.isWarning).map((c) => c.label).toList();
+    final failingLabels = checks.where((c) => c.isCritical).map((c) => c.label).toList();
 
     Color summaryBg;
     Color summaryFg;
     IconData summaryIcon;
     String summaryText;
 
-    if (overallOk == true) {
+    if (overallStatus == SystemHealthStatus.ok) {
       summaryBg = cs.primaryContainer;
       summaryFg = cs.onPrimaryContainer;
       summaryIcon = Icons.check_circle_outline;
       summaryText = 'Alle Checks erfolgreich.';
-    } else if (overallOk == false) {
+    } else if (overallStatus == SystemHealthStatus.warn) {
+      summaryBg = cs.tertiaryContainer;
+      summaryFg = cs.onTertiaryContainer;
+      summaryIcon = Icons.warning_amber_rounded;
+      final labels = [...warningLabels, ...failingLabels];
+      summaryText = labels.isNotEmpty
+          ? 'Eingeschränkte Verfügbarkeit/Störung: ${labels.join(', ')}'
+          : 'Mindestens ein Check meldet eine Störung.';
+    } else if (overallStatus == SystemHealthStatus.critical) {
       summaryBg = cs.errorContainer;
       summaryFg = cs.onErrorContainer;
       summaryIcon = Icons.error_outline;
       summaryText = failingLabels.isNotEmpty
-          ? 'Aufmerksamkeit benötigt für: ${failingLabels.join(', ')}'
-          : 'Mindestens ein Check benötigt Aufmerksamkeit.';
+          ? 'Ausfälle/Störungen bei: ${failingLabels.join(', ')}'
+          : 'Mindestens ein Check meldet einen Ausfall.';
     } else {
       summaryBg = cs.surfaceVariant.withOpacity(0.7);
       summaryFg = cs.onSurfaceVariant;
@@ -2953,8 +2967,13 @@ class _SystemHealthCheckCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final icon = check.ok ? Icons.check_circle_outline : Icons.error_outline;
-    final iconColor = check.ok ? cs.primary : cs.error;
+    final statusColor = _statusColor(theme);
+    final icon = switch (check.status) {
+      SystemHealthStatus.ok => Icons.check_circle_outline,
+      SystemHealthStatus.warn => Icons.warning_amber_rounded,
+      SystemHealthStatus.critical => Icons.error_outline,
+    };
+    final iconColor = statusColor;
     final chips = _buildChips(theme);
 
     return Container(
@@ -2976,8 +2995,29 @@ class _SystemHealthCheckCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(check.label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            check.label,
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      check.statusLabel,
+                      style: theme.textTheme.labelMedium?.copyWith(color: statusColor, fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 4),
                     Text(check.message, style: theme.textTheme.bodyMedium),
                     if (check.details != null && check.details!.trim().isNotEmpty) ...[
                       const SizedBox(height: 4),
@@ -3004,9 +3044,32 @@ class _SystemHealthCheckCard extends StatelessWidget {
     );
   }
 
+  Color _statusColor(ThemeData theme) {
+    final cs = theme.colorScheme;
+    switch (check.status) {
+      case SystemHealthStatus.ok:
+        return cs.primary;
+      case SystemHealthStatus.warn:
+        return Colors.orange.shade800;
+      case SystemHealthStatus.critical:
+        return cs.error;
+    }
+  }
+
   List<Widget> _buildChips(ThemeData theme) {
     final cs = theme.colorScheme;
     final chips = <Widget>[];
+    final statusBg = switch (check.status) {
+      SystemHealthStatus.ok => cs.primaryContainer,
+      SystemHealthStatus.warn => cs.tertiaryContainer,
+      SystemHealthStatus.critical => cs.errorContainer,
+    };
+    final statusFg = switch (check.status) {
+      SystemHealthStatus.ok => cs.onPrimaryContainer,
+      SystemHealthStatus.warn => cs.onTertiaryContainer,
+      SystemHealthStatus.critical => cs.onErrorContainer,
+    };
+    chips.add(_metaChip(statusBg, statusFg, Icons.circle, check.statusLabel));
     final duration = check.durationMs;
     if (duration != null) {
       final label = duration >= 100
@@ -3017,6 +3080,27 @@ class _SystemHealthCheckCard extends StatelessWidget {
     final value = check.value;
     if (value != null) {
       chips.add(_metaChip(cs.secondaryContainer, cs.onSecondaryContainer, Icons.link, value));
+    }
+    final httpStatus = check.httpStatus;
+    if (httpStatus != null) {
+      chips.add(_metaChip(cs.surfaceVariant, cs.onSurfaceVariant, Icons.http, 'HTTP $httpStatus'));
+    }
+    final uptime = check.uptimeSeconds;
+    if (uptime != null) {
+      final uptimeMinutes = (uptime / 60).floor();
+      chips.add(_metaChip(cs.secondaryContainer, cs.onSecondaryContainer, Icons.timer, 'Uptime: ${uptimeMinutes} min'));
+    }
+    final meanLatency = check.meanLatencyMs;
+    final maxLatency = check.maxLatencyMs;
+    if (meanLatency != null || maxLatency != null) {
+      final parts = <String>[];
+      if (meanLatency != null) parts.add('Ø ${meanLatency.toStringAsFixed(1)} ms');
+      if (maxLatency != null) parts.add('max ${maxLatency.toStringAsFixed(1)} ms');
+      chips.add(_metaChip(cs.surfaceVariant, cs.onSurfaceVariant, Icons.multiline_chart, parts.join(' · ')));
+    }
+    final url = check.targetUrl;
+    if (url != null) {
+      chips.add(_metaChip(cs.surfaceVariant, cs.onSurfaceVariant, Icons.public, url));
     }
     for (final miss in check.missingRequired) {
       chips.add(_metaChip(cs.errorContainer, cs.onErrorContainer, Icons.report_problem, 'Fehlt: $miss'));
@@ -4145,15 +4229,59 @@ class AdminComplaint {
       };
 }
 
+enum SystemHealthStatus { ok, warn, critical }
+
+SystemHealthStatus _parseHealthStatus(String? raw, {bool? okFallback}) {
+  final normalized = raw?.toString().toLowerCase().trim();
+  switch (normalized) {
+    case 'ok':
+      return SystemHealthStatus.ok;
+    case 'warn':
+    case 'warning':
+      return SystemHealthStatus.warn;
+    case 'critical':
+    case 'error':
+    case 'fail':
+    case 'failed':
+      return SystemHealthStatus.critical;
+  }
+  if (okFallback != null) {
+    return okFallback ? SystemHealthStatus.ok : SystemHealthStatus.critical;
+  }
+  return SystemHealthStatus.warn;
+}
+
+String systemHealthStatusLabel(SystemHealthStatus status) {
+  switch (status) {
+    case SystemHealthStatus.ok:
+      return 'Läuft';
+    case SystemHealthStatus.warn:
+      return 'Störung';
+    case SystemHealthStatus.critical:
+      return 'Ausfall';
+  }
+}
+
+SystemHealthStatus combineHealthStatuses(Iterable<SystemHealthStatus> statuses) {
+  var current = SystemHealthStatus.ok;
+  for (final status in statuses) {
+    if (status == SystemHealthStatus.critical) return SystemHealthStatus.critical;
+    if (status == SystemHealthStatus.warn) current = SystemHealthStatus.warn;
+  }
+  return current;
+}
+
 class SystemHealthResult {
   final bool ok;
   final DateTime timestamp;
   final List<SystemHealthCheck> checks;
+  final SystemHealthStatus status;
 
   SystemHealthResult({
     required this.ok,
     required this.timestamp,
     required List<SystemHealthCheck> checks,
+    required this.status,
   }) : checks = List.unmodifiable(checks);
 
   factory SystemHealthResult.fromJson(Map<String, dynamic> json) {
@@ -4171,8 +4299,11 @@ class SystemHealthResult {
       });
     }
     list.sort((a, b) => a.order.compareTo(b.order));
-    final overall = json['ok'] == true ? true : list.every((c) => c.ok);
-    return SystemHealthResult(ok: overall, timestamp: ts, checks: list);
+    final status = combineHealthStatuses([
+      _parseHealthStatus(json['status']?.toString(), okFallback: json['ok'] as bool?),
+      ...list.map((c) => c.status),
+    ]);
+    return SystemHealthResult(ok: status == SystemHealthStatus.ok, timestamp: ts, checks: list, status: status);
   }
 }
 
@@ -4180,6 +4311,7 @@ class SystemHealthCheck {
   final String key;
   final String label;
   final bool ok;
+  final SystemHealthStatus status;
   final String message;
   final String? details;
   final Map<String, dynamic> meta;
@@ -4189,6 +4321,7 @@ class SystemHealthCheck {
     required this.key,
     required this.label,
     required this.ok,
+    required this.status,
     required this.message,
     this.details,
     Map<String, dynamic>? meta,
@@ -4207,6 +4340,7 @@ class SystemHealthCheck {
       key: key,
       label: (json['label'] ?? key).toString(),
       ok: json['ok'] == true,
+      status: _parseHealthStatus(json['status']?.toString(), okFallback: json['ok'] as bool?),
       message: (json['message'] ?? '').toString(),
       details: json['details']?.toString(),
       meta: metaMap,
@@ -4230,12 +4364,39 @@ class SystemHealthCheck {
   List<String> get missingOptional => _metaList('missingOptional');
   List<String> get notes => _metaList('notes');
 
+  String get statusLabel => systemHealthStatusLabel(status);
+  bool get isWarning => status == SystemHealthStatus.warn;
+  bool get isCritical => status == SystemHealthStatus.critical;
+
   double? get durationMs => meta['durationMs'] is num
       ? (meta['durationMs'] as num).toDouble()
       : null;
 
+  int? get httpStatus => meta['httpStatus'] is num
+      ? (meta['httpStatus'] as num).toInt()
+      : null;
+
+  int? get uptimeSeconds => meta['uptimeSeconds'] is num
+      ? (meta['uptimeSeconds'] as num).round()
+      : null;
+
+  double? get meanLatencyMs => meta['meanLatencyMs'] is num
+      ? (meta['meanLatencyMs'] as num).toDouble()
+      : null;
+
+  double? get maxLatencyMs => meta['maxLatencyMs'] is num
+      ? (meta['maxLatencyMs'] as num).toDouble()
+      : null;
+
   String? get value {
     final raw = meta['value'];
+    if (raw == null) return null;
+    final s = raw.toString().trim();
+    return s.isEmpty ? null : s;
+  }
+
+  String? get targetUrl {
+    final raw = meta['url'];
     if (raw == null) return null;
     final s = raw.toString().trim();
     return s.isEmpty ? null : s;
