@@ -647,6 +647,17 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
         },
       ),
       _Entry(
+        label: t.knowledgeBaseTile,
+        icon: Icons.psychology_alt_outlined,
+        colorA: const Color(0xFF00695C),
+        colorB: const Color(0xFF26A69A),
+        onTap: () {
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => const KnowledgeBasePage(),
+          ));
+        },
+      ),
+      _Entry(
         label: t.customerNewsTile,
         icon: Icons.campaign_outlined,
         colorA: const Color(0xFF5D4037),
