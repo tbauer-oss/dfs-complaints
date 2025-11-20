@@ -27,6 +27,8 @@
   "attachments_too_large": "Dimensione totale massima degli allegati: 10 MB",
   "attachments_existing": "Allegati già inviati",
   "attachments_file_unknown": "Allegato",
+  "attachments_title": "Foto e file",
+  "add_attachment": "Aggiungi allegati",
 
   "we_are_here_for_you": "Siamo qui per voi.",
   "complaint_contact_button": "Contattare",
