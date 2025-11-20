@@ -2390,17 +2390,13 @@ class _AdminPageState extends State<AdminPage> {
             onTap: () => setState(() => _view = _AdminView.catalogs),
           ),
           AdminTilePro(
-            label: 'Neuigkeiten & Infoscreen',
-            subtitle: 'Kundenticker pflegen',
-            icon: Icons.campaign_outlined,
-            colorA: AdminPalette.amberA,
-            colorB: AdminPalette.amberB,
+            label: 'App-Version',
+            subtitle: 'Version, Build, Hinweise',
+            icon: Icons.app_settings_alt_outlined,
+            colorA: AdminPalette.blueA,
+            colorB: AdminPalette.blueB,
             compact: compact,
-            count: _newsEntries.length,
-            onTap: () {
-              setState(() => _view = _AdminView.news);
-              if (_newsEntries.isEmpty) _refreshNews();
-            },
+            onTap: () => _editAppMeta(context),
           ),
           AdminTilePro(
             label: 'Systemstatus',
@@ -2413,15 +2409,19 @@ class _AdminPageState extends State<AdminPage> {
               setState(() => _view = _AdminView.systemHealth);
               _loadSystemHealth(force: true);
             },
-          ),
+          ),    
           AdminTilePro(
-            label: 'App-Version',
-            subtitle: 'Version, Build, Hinweise',
-            icon: Icons.app_settings_alt_outlined,
-            colorA: AdminPalette.blueA,
-            colorB: AdminPalette.blueB,
+            label: 'Neuigkeiten & Infoscreen',
+            subtitle: 'Kundenticker pflegen',
+            icon: Icons.campaign_outlined,
+            colorA: AdminPalette.amberA,
+            colorB: AdminPalette.amberB,
             compact: compact,
-            onTap: () => _editAppMeta(context),
+            count: _newsEntries.length,
+            onTap: () {
+              setState(() => _view = _AdminView.news);
+              if (_newsEntries.isEmpty) _refreshNews();
+            },
           ),
           AdminTilePro(
             label: 'Push-Mitteilungen',
