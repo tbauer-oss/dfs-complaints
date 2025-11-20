@@ -252,6 +252,7 @@
   "human_check_helper": "Resuelve esta tarea rápida: {task}",
   "human_check_required": "Confirme que es una persona.",
   "human_check_success": "Verificación humana superada",
+  "human_check_incorrect": "Resultado incorrecto. Se ha cargado una nueva tarea.",
   "human_check_refresh": "Nueva tarea",
   "@human_check_helper": {
     "placeholders": {
