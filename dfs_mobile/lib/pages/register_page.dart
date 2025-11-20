@@ -187,6 +187,8 @@ class _RegisterPageState extends State<RegisterPage> {
   bool _isHuman = false;
   String _selectedLang = 'de';
 
+  bool get _canSubmit => !_busy && _privacy && _isHuman;
+
   bool _busy = false;
   String? _err;
   String? _info;
@@ -891,7 +893,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   label: Text(t.back),
                 ),
                 FilledButton(
-                  onPressed: _busy ? null : _submit,
+                  onPressed: _canSubmit ? _submit : null,
                   child: _busy
                       ? const SizedBox(
                           width: 18,
