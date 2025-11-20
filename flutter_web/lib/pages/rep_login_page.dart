@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api/client.dart';
 import 'rep_dashboard_page.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/password_field.dart';
 import '../widgets/legal_footer.dart';
 
 // L10n-Helper
@@ -101,9 +102,8 @@ class _RepLoginPageState extends State<RepLoginPage> {
                 ),
               ),
               const SizedBox(height: 10),
-              TextField(
+              PasswordField(
                 controller: secCtrl,
-                obscureText: true,
                 decoration: InputDecoration(
                   labelText: t.temp_password_label, // NEU
                   border: const OutlineInputBorder(),
@@ -187,18 +187,16 @@ class _RepLoginPageState extends State<RepLoginPage> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
+              PasswordField(
                 controller: aCtrl,
-                obscureText: true,
                 decoration: InputDecoration(
                   labelText: t.new_password_min8, // NEU
                   border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 10),
-              TextField(
+              PasswordField(
                 controller: bCtrl,
-                obscureText: true,
                 decoration: InputDecoration(
                   labelText: t.new_password_repeat_label, // NEU
                   border: const OutlineInputBorder(),
@@ -312,9 +310,8 @@ class _RepLoginPageState extends State<RepLoginPage> {
                     onChanged: (_) => setState(() {}),
                   ),
                   const SizedBox(height: 12),
-                  TextField(
+                  PasswordField(
                     controller: _pw,
-                    obscureText: true,
                     autofillHints: const [AutofillHints.password],
                     decoration: InputDecoration(
                       labelText: t.password,

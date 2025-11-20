@@ -12,6 +12,7 @@ import '../services/app_prefs_scope.dart';
 import '../widgets/legal_footer.dart';
 import '../models/country.dart';
 import '../utils/lang_utils.dart';
+import '../widgets/password_field.dart';
 
 // ---- L10n-Helper (top-level) ----
 extension _L10nX on BuildContext {
@@ -571,10 +572,9 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                         ),
                         if (passwordMode == _RepPasswordMode.manual) ...[
                           const SizedBox(height: 12),
-                          TextFormField(
+                          PasswordField(
                             controller: passwordCtrl,
                             decoration: InputDecoration(labelText: t.password),
-                            obscureText: true,
                             textInputAction: TextInputAction.next,
                             validator: (value) {
                               final v = value ?? '';
@@ -584,10 +584,9 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                             },
                           ),
                           const SizedBox(height: 12),
-                          TextFormField(
+                          PasswordField(
                             controller: password2Ctrl,
                             decoration: InputDecoration(labelText: t.password_repeat),
-                            obscureText: true,
                             textInputAction: TextInputAction.done,
                             validator: (value) {
                               if (value == null || value.isEmpty) return t.password_required;
@@ -1868,21 +1867,18 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(
+                PasswordField(
                   controller: oldCtrl,
-                  obscureText: true,
                   decoration: InputDecoration(labelText: t.oldPassword),
                 ),
                 const SizedBox(height: 8),
-                TextField(
+                PasswordField(
                   controller: new1Ctrl,
-                  obscureText: true,
                   decoration: InputDecoration(labelText: t.newPassword),
                 ),
                 const SizedBox(height: 8),
-                TextField(
+                PasswordField(
                   controller: new2Ctrl,
-                  obscureText: true,
                   decoration: InputDecoration(labelText: t.newPasswordRepeat),
                 ),
                 if (err != null) ...[
