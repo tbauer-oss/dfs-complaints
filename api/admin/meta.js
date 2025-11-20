@@ -3,6 +3,15 @@ export const config = { runtime: 'nodejs' };
 
 // --- Utils ---
 const nowIso = () => new Date().toISOString();
+const envBuild = () => {
+  const fromEnv =
+    process.env.APP_BUILD ||
+    process.env.BUILD_ID ||
+    process.env.VERCEL_GIT_COMMIT_SHA ||
+    process.env.VERCEL_GIT_COMMIT_REF ||
+    '';
+  return fromEnv.toString();
+};
 const json = (res, code, data) => {
   res.statusCode = code;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -55,7 +64,7 @@ export default async function handler(req, res) {
   try {
     const data = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
     const version = (data.version ?? '').toString().trim();
-    const build   = (data.build   ?? '').toString().trim();
+    const build   = (data.build   ?? '').toString().trim() || envBuild();
     const notes   = (data.notes   ?? '').toString();
 
     if (!version) return json(res, 400, { error: 'version required' });

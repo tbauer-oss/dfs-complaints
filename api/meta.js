@@ -3,6 +3,15 @@ export const config = { runtime: 'nodejs' };
 
 // --- Utils ---
 const nowIso = () => new Date().toISOString();
+const envBuild = () => {
+  const fromEnv =
+    process.env.APP_BUILD ||
+    process.env.BUILD_ID ||
+    process.env.VERCEL_GIT_COMMIT_SHA ||
+    process.env.VERCEL_GIT_COMMIT_REF ||
+    '';
+  return fromEnv.toString();
+};
 const json = (res, code, data) => {
   res.statusCode = code;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -30,7 +39,7 @@ async function loadMeta() {
     global.__APP_META__ = global.__APP_META__ || null;
     return global.__APP_META__ || {
       version: '',
-      build: '',
+      build: envBuild(),
       notes: '',
       updatedAt: '',
     };
@@ -44,7 +53,7 @@ async function loadMeta() {
   if (j && typeof j.result === 'string' && j.result) {
     try { return JSON.parse(j.result); } catch {}
   }
-  return { version: '', build: '', notes: '', updatedAt: '' };
+  return { version: '', build: envBuild(), notes: '', updatedAt: '' };
 }
 
 export default async function handler(req, res) {
@@ -57,7 +66,7 @@ export default async function handler(req, res) {
     // Falls leer, optional Default befüllen
     return json(res, 200, {
       version: meta.version || '',
-      build: meta.build || '',
+      build: meta.build || envBuild(),
       notes: meta.notes || '',
       updatedAt: meta.updatedAt || '',
       // Optionale Zusatzfelder möglich
