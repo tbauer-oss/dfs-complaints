@@ -24,6 +24,8 @@
   "attachments_too_large": "Max. 10 MB Gesamtgröße für Anhänge",
   "attachments_existing": "Bereits gesendete Anhänge",
   "attachments_file_unknown": "Anhang",
+  "attachments_title": "Fotos & Dateien",
+  "add_attachment": "Anhänge hinzufügen",
 
   "firstName": "Vorname",
   "lastName": "Nachname",
