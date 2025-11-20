@@ -410,12 +410,12 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
 
-              // kleine, dezente Counter-Chips (2 pro Zeile, dann 1/1)
+              // kleine, dezente Counter-Chips (kompakter dargestellt)
               Wrap(
-                spacing: 10,
-                runSpacing: 10,
+                spacing: 8,
+                runSpacing: 8,
                 children: [
                   _overviewStat(
                     icon: Icons.report_problem_rounded,
@@ -457,30 +457,29 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     required Color color,
   }) {
     final cs = Theme.of(context).colorScheme;
-
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: color.withOpacity(.08),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: color.withOpacity(.28), width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: cs.onSurface,
-                fontSize: 13,
-              ),
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 7),
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: cs.onSurface,
+              fontSize: 12,
             ),
-          const SizedBox(width: 8),
+          ),
+          const SizedBox(width: 7),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
               color: color,
               borderRadius: BorderRadius.circular(999),
@@ -490,7 +489,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w700,
-                fontSize: 12,
+                fontSize: 11,
                 height: 1,
               ),
             ),
