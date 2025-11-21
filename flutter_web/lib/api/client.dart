@@ -194,6 +194,14 @@ class ApiClient {
   DateTime? _appMetaLoadedAt;
   List<CustomerNewsEntry>? _newsCache;
   DateTime? _newsLoadedAt;
+  static const Duration _newsCacheTtl = Duration(minutes: 1);
+
+  void _invalidateNewsCache() {
+    _newsCache = null;
+    _newsLoadedAt = null;
+  }
+
+  void clearCustomerNewsCache() => _invalidateNewsCache();
 
   Map<String, dynamic>? get appMeta => _appMeta;
   String get appVersion => _appMeta?['version']?.toString() ?? '';
@@ -356,7 +364,7 @@ class ApiClient {
   Future<List<CustomerNewsEntry>> fetchCustomerNews({bool refresh = false}) async {
     final cacheValid =
         _newsCache != null && _newsLoadedAt != null &&
-        DateTime.now().difference(_newsLoadedAt!).inMinutes < 5;
+        DateTime.now().difference(_newsLoadedAt!) < _newsCacheTtl;
     if (!refresh && cacheValid) return _newsCache!;
 
     final r = await http.get(

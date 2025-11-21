@@ -222,7 +222,7 @@ class _AdminPageState extends State<AdminPage> {
   @override
   void initState() {
     super.initState();
-    _api = AdminApi();
+    _api = AdminApi(onNewsChanged: widget.api.clearCustomerNewsCache);
     _custCountry = _defaultCountry;
 
     // Secret zuerst aus der API (wenn über Admin-Button gekommen),
@@ -7576,6 +7576,9 @@ class _AdminAttachmentPreviewTileState extends State<_AdminAttachmentPreviewTile
 // Admin API (Browser, dart:html)
 // ===================================================================
 class AdminApi {
+  AdminApi({this.onNewsChanged});
+
+  final VoidCallback? onNewsChanged;
   String _secret = '';
   void setSecret(String s) => _secret = s;
 
@@ -7962,6 +7965,7 @@ class AdminApi {
     }
     final txt = res.responseText?.trim() ?? '';
     final Map<String, dynamic> j = txt.isEmpty ? <String, dynamic>{} : jsonDecode(txt);
+    onNewsChanged?.call();
     return CustomerNewsEntry.fromJson(j);
   }
 
@@ -7971,6 +7975,7 @@ class AdminApi {
     if (res.status != 200 && res.status != 204) {
       throw 'admin news DELETE: HTTP ${res.status} ${res.responseText}';
     }
+    onNewsChanged?.call();
   }
 
   Future<AdminPushBroadcastResult> sendPushBroadcast({
