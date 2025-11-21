@@ -32,10 +32,8 @@ function getTransport() {
   _transporter = nodemailer.createTransport({
     host: SMTP_HOST,
     port: SMTP_PORT,
-    secure: SMTP_PORT === 465,           // <-- Korrekt: NUR 465 ist "secure:true"
+    secure: SMTP_PORT === 465,
     auth: { user: SMTP_USER, pass: SMTP_PASS },
-    tls: { minVersion: 'TLSv1.2', servername: SMTP_HOST },
-    pool: true, maxConnections: 2, maxMessages: 20,
   });
   return _transporter;
 }
