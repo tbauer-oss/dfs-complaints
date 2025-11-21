@@ -300,6 +300,7 @@
   "oldPassword": "Vecchia password",
   "newPassword": "Nuova password (min. 8 caratteri con lettere, numeri e caratteri speciali)",
   "newPasswordRepeat": "Nuova password (ripeti)",
+  "password_requirements": "Almeno 8 caratteri con lettere (Aa), numeri (1-9) e caratteri speciali.",
   "confirmPassword": "Conferma password",
   "password": "Password*",
   "password_repeat": "Password (ripeti)*",
