@@ -7,7 +7,7 @@ import {
 import jwt from 'jsonwebtoken';
 import {
   userByEmail, userSave, userDelete, pendingDelete,
-  complaintsByEmail, complaintDelete, anonymizeUserAndComplaints,
+  anonymizeUserAndComplaints,
 } from './_lib/store.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || '';
@@ -132,18 +132,9 @@ export default async function handler(req, res) {
       const anonymize = !hard && String(req.query?.anonymize || '').trim() === '1';
 
       if (hard) {
-        // 1) Reklamationen löschen
-        const list = await complaintsByEmail(email);
-        if (Array.isArray(list)) {
-          for (const c of list) {
-            if (c?.ticket) {
-              try { await complaintDelete(c.ticket); } catch (_) {}
-            }
-          }
-        }
-        // 2) Nutzer löschen
+        // 1) Nutzer löschen (Reklamationen bleiben aus regulatorischen Gründen bestehen)
         try { await userDelete(email); } catch (_) {}
-        // 3) evtl. Pending-Eintrag löschen
+        // 2) evtl. Pending-Eintrag löschen
         try { await pendingDelete(email); } catch (_) {}
       } else if (anonymize) {
         // DSGVO-konforme Anonymisierung (statt Hard-Delete)

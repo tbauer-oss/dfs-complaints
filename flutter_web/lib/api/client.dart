@@ -932,19 +932,6 @@ class ApiClient {
     throw Exception('DELETE/POST /api/account failed: ${r.statusCode} ${r.body}');
   }
 
-  Future<void> accountAnonymize() async {
-    try {
-      final r = await _delete('/api/account?anonymize=1', auth: true);
-      if (!_ok2xx(r.statusCode)) {
-        final msg = _extractMessage(r.body);
-        throw ApiError(r.statusCode, msg);
-      }
-    } catch (e) {
-      if (e is ApiError) rethrow;
-      throw ApiError(0, e.toString());
-    }
-  }
-
   Future<void> accountChangePassword(String oldPw, String newPw) async {
     try {
       final r = await _post(

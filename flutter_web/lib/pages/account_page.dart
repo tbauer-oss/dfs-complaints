@@ -40,7 +40,6 @@ class _AccountPageState extends State<AccountPage> {
   String? err;
   Map<String, dynamic>? acc;
   bool _exportBusy = false;
-  bool _anonymizeBusy = false;
 
   @override
   void initState() {
@@ -155,59 +154,6 @@ class _AccountPageState extends State<AccountPage> {
     }
   }
 
-  Future<void> _handleAnonymize() async {
-    if (_anonymizeBusy) return;
-    final t = context.t;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text(t.accountAnonymizeTitle ?? 'Konto anonymisieren'),
-        content: ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 320),
-          child: Scrollbar(
-            thumbVisibility: true,
-            child: SingleChildScrollView(
-              child: Text(
-                t.accountAnonymizeDescription ??
-                    'Alle personenbezogenen Daten werden anonymisiert. Reklamationen '
-                    'bleiben für Statistik und Qualitätsmanagement erhalten, ein Login ist danach nicht mehr möglich.',
-              ),
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(t.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(t.continueLabel),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true) return;
-
-    setState(() => _anonymizeBusy = true);
-    try {
-      await widget.api.accountAnonymize();
-      await widget.api.logout();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.accountAnonymized ?? 'Konto anonymisiert.')),
-      );
-      Navigator.of(context).popUntil((r) => r.isFirst);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${t.error ?? 'Fehler'}: $e')),
-      );
-    } finally {
-      if (mounted) setState(() => _anonymizeBusy = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final t = context.t;
@@ -282,23 +228,6 @@ class _AccountPageState extends State<AccountPage> {
                 onPressed: _exportBusy ? null : _handleExport,
               ),
               const SizedBox(height: 12),
-
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.deepOrange,
-                ),
-                icon: _anonymizeBusy
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.shield_moon),
-                label: Text(t.accountAnonymizeButton ?? 'Konto anonymisieren'),
-                onPressed: _anonymizeBusy ? null : _handleAnonymize,
-              ),
-              const SizedBox(height: 12),
-
               OutlinedButton.icon(
                 icon: const Icon(Icons.delete_forever, color: Colors.red),
                 label: Text(t.accountDelete, style: const TextStyle(color: Colors.red)),
