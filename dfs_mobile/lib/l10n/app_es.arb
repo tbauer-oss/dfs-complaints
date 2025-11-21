@@ -14,6 +14,8 @@
   "langNameIT": "Italiano",
   "langNameES": "Español",
 
+  "ticket": "Número de ticket",
+
   "we_are_here_for_you": "Estamos aquí para usted.",
   "complaint_contact_button": "Contactar",
   "complaint_contact_title": "Mensaje sobre el ticket {ticket}",
