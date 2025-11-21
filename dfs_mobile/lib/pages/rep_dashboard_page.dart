@@ -1319,70 +1319,78 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Card(
-          elevation: 3,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-            child: Wrap(
-              spacing: 14,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                SizedBox(
-                  width: 320,
-                  child: DropdownButtonFormField<String>(
-                    isExpanded: true,
-                    value: selectedCompany,
-                    items: <DropdownMenuItem<String>>[
-                      DropdownMenuItem<String>(
-                        value: '',
-                        child: Text(t.allCompanies ?? t.allCompanies),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final maxWidth = constraints.maxWidth;
+            final companyWidth = math.min(maxWidth, 320.0);
+            final filterWidth = math.min(maxWidth, 240.0);
+
+            return Card(
+              elevation: 3,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                child: Wrap(
+                  spacing: 14,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: companyWidth,
+                      child: DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        value: selectedCompany,
+                        items: <DropdownMenuItem<String>>[
+                          DropdownMenuItem<String>(
+                            value: '',
+                            child: Text(t.allCompanies ?? t.allCompanies),
+                          ),
+                          ...companies.map((co) => DropdownMenuItem<String>(
+                                value: co,
+                                child: Text(co),
+                              )),
+                        ],
+                        onChanged: (v) => setState(() => _selectedCompany = (v ?? '')),
+                        decoration: InputDecoration(
+                          labelText: t.rep_filter_company_label,
+                          prefixIcon: const Icon(Icons.apartment_outlined),
+                        ),
                       ),
-                      ...companies.map((co) => DropdownMenuItem<String>(
-                            value: co,
-                            child: Text(co),
-                          )),
-                    ],
-                    onChanged: (v) => setState(() => _selectedCompany = (v ?? '')),
-                    decoration: InputDecoration(
-                      labelText: t.rep_filter_company_label,
-                      prefixIcon: const Icon(Icons.apartment_outlined),
                     ),
-                  ),
-                ),
-                FilterChip(
-                  label: Text(t.rep_filter_show_closed),
-                  selected: _showClosedAll,
-                  onSelected: (v) => setState(() => _showClosedAll = v),
-                ),
-                SizedBox(
-                  width: 220,
-                  child: DropdownButtonFormField<String>(
-                    value: _decisionFilter,
-                    items: _decisionFilterItems(t),
-                    onChanged: (v) => setState(() => _decisionFilter = v ?? ''),
-                    decoration: InputDecoration(
-                      labelText: t.rep_filter_decision_label ?? 'Entscheidung filtern',
-                      prefixIcon: const Icon(Icons.how_to_vote_outlined),
+                    FilterChip(
+                      label: Text(t.rep_filter_show_closed),
+                      selected: _showClosedAll,
+                      onSelected: (v) => setState(() => _showClosedAll = v),
                     ),
-                  ),
-                ),
-                SizedBox(
-                  width: 220,
-                  child: DropdownButtonFormField<String>(
-                    value: _statusFilter,
-                    items: _statusFilterItems(t),
-                    onChanged: (v) => setState(() => _statusFilter = v ?? ''),
-                    decoration: InputDecoration(
-                      labelText: t.rep_filter_status_label ?? 'Status filtern',
-                      prefixIcon: const Icon(Icons.flag_outlined),
+                    SizedBox(
+                      width: filterWidth,
+                      child: DropdownButtonFormField<String>(
+                        value: _decisionFilter,
+                        items: _decisionFilterItems(t),
+                        onChanged: (v) => setState(() => _decisionFilter = v ?? ''),
+                        decoration: InputDecoration(
+                          labelText: t.rep_filter_decision_label ?? 'Entscheidung filtern',
+                          prefixIcon: const Icon(Icons.how_to_vote_outlined),
+                        ),
+                      ),
                     ),
-                  ),
+                    SizedBox(
+                      width: filterWidth,
+                      child: DropdownButtonFormField<String>(
+                        value: _statusFilter,
+                        items: _statusFilterItems(t),
+                        onChanged: (v) => setState(() => _statusFilter = v ?? ''),
+                        decoration: InputDecoration(
+                          labelText: t.rep_filter_status_label ?? 'Status filtern',
+                          prefixIcon: const Icon(Icons.flag_outlined),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
         const SizedBox(height: 12),
         _Card(

@@ -535,10 +535,10 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                           const Icon(Icons.description_outlined, size: 20),
                                           const SizedBox(width: 8),
                                           Expanded(
-                                            child: Row(
-                                              crossAxisAlignment: CrossAxisAlignment.center,
-                                              children: [
-                                                Flexible(
+                                            child: LayoutBuilder(
+                                              builder: (context, constraints) {
+                                                final ticketText = ConstrainedBox(
+                                                  constraints: BoxConstraints(maxWidth: constraints.maxWidth),
                                                   child: Text(
                                                     ticket.isEmpty ? '—' : ticket,
                                                     maxLines: 1,
@@ -546,19 +546,20 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                                     style:
                                                         const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
                                                   ),
-                                                ),
-                                                if (hasInternalNo)
-                                                  Flexible(
-                                                    fit: FlexFit.loose,
-                                                    child: Padding(
-                                                      padding: const EdgeInsets.only(left: 8),
-                                                      child: Align(
-                                                        alignment: Alignment.centerRight,
-                                                        child: _internalNoPill(t, internalNo),
-                                                      ),
-                                                    ),
-                                                  ),
-                                              ],
+                                                );
+
+                                                if (!hasInternalNo) return ticketText;
+
+                                                return Wrap(
+                                                  spacing: 8,
+                                                  runSpacing: 6,
+                                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                                  children: [
+                                                    ticketText,
+                                                    _internalNoPill(t, internalNo),
+                                                  ],
+                                                );
+                                              },
                                             ),
                                           ),
                                         ],
@@ -703,7 +704,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
   Widget _internalNoPill(AppLocalizations t, String value) {
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceVariant,
         borderRadius: BorderRadius.circular(8),
@@ -712,11 +713,12 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.tag, size: 14),
-          const SizedBox(width: 4),
+          const Icon(Icons.tag, size: 13),
+          const SizedBox(width: 3),
           Text(
             '${t.internal_no_label}: $value',
             style: TextStyle(
+              fontSize: 13,
               fontWeight: FontWeight.w600,
               color: theme.colorScheme.onSurfaceVariant,
             ),
