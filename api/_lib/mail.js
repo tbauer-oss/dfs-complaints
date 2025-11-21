@@ -2,23 +2,27 @@
 import nodemailer from 'nodemailer';
 import fs from 'fs';
 import path from 'path';
+import { mailConfigOk, resolveMailConfig } from './mail-config.js';
 
 // ==== Absender / QM (via ENV übersteuerbar) ====
-const FROM     = process.env.MAIL_FROM || 'DFS Complaints <no-reply_dfs-complaints@gmx.net>';
-const REPLY_TO = process.env.MAIL_REPLY_TO || 'complaint@dfs-diamon.de';
-const QM       = process.env.MAIL_QM || 'complaint@dfs-diamon.de';
+const MAIL = resolveMailConfig();
+const FROM     = MAIL.from || 'DFS Complaints <no-reply_dfs-complaints@gmx.net>';
+const REPLY_TO = MAIL.replyTo || 'complaint@dfs-diamon.de';
+const QM       = MAIL.qm || 'complaint@dfs-diamon.de';
 
 // ==== SMTP-ENV ====
-const SMTP_HOST = process.env.SMTP_HOST;                // z.B. mail.gmx.net
-const SMTP_PORT = Number(process.env.SMTP_PORT || 587); // 587=STARTTLS, 465=SMTPS
-const SMTP_USER = process.env.SMTP_USER;                // z.B. no-reply_dfs-complaints@gmx.net
-const SMTP_PASS = process.env.SMTP_PASS;
+const SMTP_HOST = MAIL.host;                // z.B. mail.gmx.net
+const SMTP_PORT = MAIL.port; // 587=STARTTLS, 465=SMTPS
+const SMTP_USER = MAIL.user;                // z.B. no-reply_dfs-complaints@gmx.net
+const SMTP_PASS = MAIL.pass;
 
 let _transporter = null;
 
+const { ok: mailOk, missing: missingMailEnv } = mailConfigOk(MAIL);
+
 function ensureEnv() {
-  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
-    throw new Error('SMTP env missing (SMTP_HOST, SMTP_USER, SMTP_PASS)');
+  if (!mailOk) {
+    throw new Error(`SMTP env missing (${missingMailEnv.join(', ')})`);
   }
 }
 

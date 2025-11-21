@@ -10,13 +10,14 @@ import {
 } from '../_lib/http.js';
 import { redis } from '../_lib/redis.js';
 import { verifyTransport } from '../_lib/mail.js';
+import { mailConfigOk, resolveMailConfig } from '../_lib/mail-config.js';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 const hasRedisUrl = !!process.env.UPSTASH_REDIS_REST_URL;
 const hasRedisToken = !!process.env.UPSTASH_REDIS_REST_TOKEN;
 const MAIL_REQUIRED = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'];
-const MAIL_OPTIONAL = ['SMTP_PORT', 'SMTP_FROM', 'MAIL_FROM', 'MAIL_REPLY_TO', 'MAIL_QM'];
+const MAIL_OPTIONAL = ['SMTP_PORT', 'SMTP_FROM', 'MAIL_FROM', 'MAIL_REPLY_TO', 'MAIL_QM', 'MAIL_HOST', 'MAIL_USER', 'MAIL_PASS'];
 const JWT_SECRET = process.env.JWT_SECRET?.trim();
 const GATE_JWT_TTL = process.env.GATE_JWT_TTL?.trim();
 const HEALTH_PING_URL = process.env.HEALTH_PING_URL?.trim();
@@ -251,16 +252,15 @@ function checkGateJwtConfig() {
 
 async function checkMailConfig() {
   const label = 'Mail-Konfiguration';
-  const missingRequired = MAIL_REQUIRED.filter((key) => {
-    const raw = process.env[key];
-    return !raw || !String(raw).trim();
-  });
+  const mailConfig = resolveMailConfig();
+  const { ok: configOk, missing } = mailConfigOk(mailConfig);
+  const missingRequired = missing;
   const missingOptional = MAIL_OPTIONAL.filter((key) => {
     const raw = process.env[key];
     return !raw || !String(raw).trim();
   });
 
-  const okResult = missingRequired.length === 0;
+  const okResult = configOk;
   const notes = [];
   const senderSource =
     process.env.SMTP_FROM?.trim()
@@ -269,7 +269,9 @@ async function checkMailConfig() {
         ? 'MAIL_FROM'
         : process.env.SMTP_USER?.trim()
           ? 'SMTP_USER'
-          : null;
+          : process.env.MAIL_USER?.trim()
+            ? 'MAIL_USER'
+            : null;
   if (senderSource) {
     notes.push(`Absender wird über ${senderSource} bereitgestellt.`);
   } else {
