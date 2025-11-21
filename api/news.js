@@ -7,6 +7,7 @@ import { customerNewsList } from './_lib/store.js';
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
+  res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'GET') {
     return methodNotAllowed(res);
   }
