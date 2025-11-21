@@ -113,6 +113,14 @@ class _AdminPageState extends State<AdminPage> {
   int? _allStatusFilter;
   String _allInternalFilter = 'Alle Nummern';
 
+  // Mehrfach-Zuordnung interne Nummer
+  final Set<String> _selectedAllTickets = <String>{};
+  final Set<String> _selectedOpenTickets = <String>{};
+  final _bulkInternalAllCtrl = TextEditingController();
+  final _bulkInternalOpenCtrl = TextEditingController();
+  bool _bulkAssigningAll = false;
+  bool _bulkAssigningOpen = false;
+
   bool _loadAllComplaints = false;
 
   // Ansicht (Menü / Bereich)
@@ -237,6 +245,31 @@ class _AdminPageState extends State<AdminPage> {
     _refreshOpen();
     _refreshReps();
     _loadCatalogConfigAdmin();
+  }
+
+  @override
+  void dispose() {
+    _repFirstCtrl.dispose();
+    _repLastCtrl.dispose();
+    _repMailCtrl.dispose();
+    _custCompanyCtrl.dispose();
+    _custFirstNameCtrl.dispose();
+    _custLastNameCtrl.dispose();
+    _custEmailCtrl.dispose();
+    _custStreetCtrl.dispose();
+    _custZipCtrl.dispose();
+    _custCityCtrl.dispose();
+    _custPhoneCtrl.dispose();
+    _labDefaultCtrl.dispose();
+    _labEsfrCtrl.dispose();
+    _dentDefaultCtrl.dispose();
+    _dentEsfrCtrl.dispose();
+    _pushTitleCtrl.dispose();
+    _pushBodyCtrl.dispose();
+    _pushLinkCtrl.dispose();
+    _bulkInternalAllCtrl.dispose();
+    _bulkInternalOpenCtrl.dispose();
+    super.dispose();
   }
 
   bool _customerHasRep(String email) {
@@ -443,7 +476,12 @@ class _AdminPageState extends State<AdminPage> {
     try {
       final list = await _api.fetchOpenComplaints();
       if (!mounted) return;
-      setState(() => _openComplaints = list);
+      setState(() {
+        _openComplaints = list;
+        _selectedOpenTickets.removeWhere(
+          (ticket) => !_openComplaints.any((c) => c.ticket == ticket),
+        );
+      });
     } catch (e) {
       setState(() => _err = '$e');
     } finally {
@@ -460,7 +498,12 @@ class _AdminPageState extends State<AdminPage> {
     try {
       final list = await _api.fetchAllComplaints();
       if (!mounted) return;
-      setState(() => _allComplaints = list);
+      setState(() {
+        _allComplaints = list;
+        _selectedAllTickets.removeWhere(
+          (ticket) => !_allComplaints.any((c) => c.ticket == ticket),
+        );
+      });
     } catch (e) {
       setState(() => _err = '$e');
     } finally {
@@ -481,6 +524,90 @@ class _AdminPageState extends State<AdminPage> {
         _openComplaints[openIdx] = updated;
       }
     });
+  }
+
+  void _toggleTicketSelection(String ticket, bool selected, {required bool isOpenList}) {
+    setState(() {
+      final set = isOpenList ? _selectedOpenTickets : _selectedAllTickets;
+      if (selected) {
+        set.add(ticket);
+      } else {
+        set.remove(ticket);
+      }
+    });
+  }
+
+  void _clearTicketSelection({required bool isOpenList}) {
+    setState(() {
+      (isOpenList ? _selectedOpenTickets : _selectedAllTickets).clear();
+    });
+  }
+
+  Future<void> _assignInternalNoBulk({required bool isOpenList}) async {
+    final controller = isOpenList ? _bulkInternalOpenCtrl : _bulkInternalAllCtrl;
+    final selected = isOpenList ? _selectedOpenTickets : _selectedAllTickets;
+    final internal = controller.text.trim();
+
+    if (internal.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bitte interne Nummer eingeben.')),
+      );
+      return;
+    }
+
+    if (selected.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bitte mindestens ein Ticket auswählen.')),
+      );
+      return;
+    }
+
+    setState(() {
+      if (isOpenList) {
+        _bulkAssigningOpen = true;
+      } else {
+        _bulkAssigningAll = true;
+      }
+    });
+
+    final tickets = List<String>.from(selected);
+    var success = 0;
+
+    try {
+      for (final t in tickets) {
+        final updated = await _api.adminComplaintUpdate(ticket: t, internalNo: internal);
+        _syncComplaint(updated);
+        success++;
+      }
+
+      if (!mounted) return;
+      setState(() {
+        selected.clear();
+      });
+
+      if (mounted) {
+        final suffix = success == 1 ? '' : 's';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Interne Nummer bei $success Ticket$suffix gesetzt.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          if (isOpenList) {
+            _bulkAssigningOpen = false;
+          } else {
+            _bulkAssigningAll = false;
+          }
+        });
+      }
+    }
   }
 
   Future<void> _refreshNews() async {
@@ -3067,6 +3194,93 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  Widget _buildBulkInternalBar({required bool isOpenList}) {
+    final controller = isOpenList ? _bulkInternalOpenCtrl : _bulkInternalAllCtrl;
+    final selected = isOpenList ? _selectedOpenTickets : _selectedAllTickets;
+    final busy = isOpenList ? _bulkAssigningOpen : _bulkAssigningAll;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.link_outlined),
+              const SizedBox(width: 8),
+              Text(
+                'Mehrere Tickets einer internen Nummer zuordnen',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              const Spacer(),
+              if (busy)
+                const SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 12,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Chip(
+                avatar: const Icon(Icons.confirmation_number_outlined, size: 18),
+                label: Text('${selected.length} Ticket${selected.length == 1 ? '' : 's'} ausgewählt'),
+              ),
+              SizedBox(
+                width: 240,
+                child: TextField(
+                  controller: controller,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    labelText: 'Interne Nummer',
+                    prefixIcon: const Icon(Icons.tag),
+                    suffixIcon: controller.text.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: 'Eingabe leeren',
+                            onPressed: busy
+                                ? null
+                                : () {
+                                    controller.clear();
+                                    setState(() {});
+                                  },
+                            icon: const Icon(Icons.close),
+                          ),
+                  ),
+                ),
+              ),
+              FilledButton.icon(
+                onPressed: busy || selected.isEmpty || controller.text.trim().isEmpty
+                    ? null
+                    : () => _assignInternalNoBulk(isOpenList: isOpenList),
+                icon: const Icon(Icons.save_outlined),
+                label: const Text('Interne Nummer zuweisen'),
+              ),
+              TextButton.icon(
+                onPressed: busy || selected.isEmpty
+                    ? null
+                    : () => _clearTicketSelection(isOpenList: isOpenList),
+                icon: const Icon(Icons.clear_all),
+                label: const Text('Auswahl zurücksetzen'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAllComplaintsPanel() {
     final theme = Theme.of(context);
 
@@ -3277,6 +3491,8 @@ class _AdminPageState extends State<AdminPage> {
             const SizedBox(height: 10),
             buildFilterBar(),
             const SizedBox(height: 10),
+            _buildBulkInternalBar(isOpenList: false),
+            const SizedBox(height: 6),
             Expanded(
               child: list.isEmpty
                   ? const Center(child: Text('Keine Reklamationen gefunden.'))
@@ -3290,11 +3506,17 @@ class _AdminPageState extends State<AdminPage> {
                           c: c,
                           companyHint: _companyByEmail(c.email),
                           hasRep: _customerHasRep(c.email),
+                          selectable: true,
+                          selected: _selectedAllTickets.contains(c.ticket),
+                          onSelected: (v) =>
+                              _toggleTicketSelection(c.ticket, v ?? false, isOpenList: false),
                           onChanged: _syncComplaint,
                           onClosed: () {
                             _syncComplaint(c);
                             setState(() {
                               _openComplaints.removeWhere((x) => x.ticket == c.ticket);
+                              _selectedAllTickets.remove(c.ticket);
+                              _selectedOpenTickets.remove(c.ticket);
                             });
                             _refreshAllComplaints();
                             _refreshOpen();
@@ -3354,6 +3576,8 @@ class _AdminPageState extends State<AdminPage> {
               ),
             ]),
             const SizedBox(height: 8),
+            _buildBulkInternalBar(isOpenList: true),
+            const SizedBox(height: 6),
             Expanded(
               child: list.isEmpty
                   ? const Center(child: Text('Keine offenen Reklamationen.'))
@@ -3367,11 +3591,17 @@ class _AdminPageState extends State<AdminPage> {
                           c: c,
                           companyHint: _companyByEmail(c.email),
                           hasRep: _customerHasRep(c.email), // ← NEU
+                          selectable: true,
+                          selected: _selectedOpenTickets.contains(c.ticket),
+                          onSelected: (v) =>
+                              _toggleTicketSelection(c.ticket, v ?? false, isOpenList: true),
                           onChanged: _syncComplaint,
                           onClosed: () {
                             _syncComplaint(c);
                             setState(() {
                               _openComplaints.removeWhere((x) => x.ticket == c.ticket);
+                              _selectedOpenTickets.remove(c.ticket);
+                              _selectedAllTickets.remove(c.ticket);
                             });
                             _refreshAllComplaints();
                           },
@@ -5694,6 +5924,9 @@ class _ComplaintEditor extends StatefulWidget {
   final VoidCallback onClosed;
   final String? companyHint;
   final bool hasRep;
+  final bool selectable;
+  final bool selected;
+  final ValueChanged<bool?>? onSelected;
   final void Function(AdminComplaint c)? onChanged;
 
   const _ComplaintEditor({
@@ -5703,6 +5936,9 @@ class _ComplaintEditor extends StatefulWidget {
     required this.onClosed,
     this.companyHint,
     this.hasRep = false,
+    this.selectable = false,
+    this.selected = false,
+    this.onSelected,
     this.onChanged,
   });
 
@@ -6286,6 +6522,14 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (widget.selectable)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12, top: 2),
+                    child: Checkbox(
+                      value: widget.selected,
+                      onChanged: widget.onSelected,
+                    ),
+                  ),
                 // Linke Seite: Ticket + Interne Nr. + Datum + Status-Chip
                 Expanded(
                   child: Column(
