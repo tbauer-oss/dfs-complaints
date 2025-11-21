@@ -22,13 +22,19 @@ class MyComplaintsPage extends StatefulWidget {
   State<MyComplaintsPage> createState() => _MyComplaintsPageState();
 }
 
-enum _SortBy { updated, created, status }
+enum _SortBy { updated, created }
 
 class _MyComplaintsPageState extends State<MyComplaintsPage> {
   bool _busy = false;
   String? _err;
   List<Complaint> _items = const [];
+  List<Complaint> _allItems = const [];
   MyRep? _myRep;
+
+  String? _filterTicket;
+  String? _filterInternalNo;
+  int? _filterStatus;
+  String? _filterDecision;
 
   Timer? _poll; // Auto-Refresh
 
@@ -64,9 +70,9 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     try {
       final raw = await widget.api.myComplaintsDetailed();
       final list = raw.map(Complaint.fromJson).toList(growable: false);
-      _applySort(list);
       if (!mounted) return;
-      setState(() => _items = list);
+      setState(() => _allItems = list);
+      _refreshFilteredItems();
     } catch (e) {
       final msg = '$e';
       if (!mounted) return;
@@ -81,6 +87,26 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
       if (!mounted) return;
       if (!silent) setState(() => _busy = false);
     }
+  }
+
+  void _refreshFilteredItems() {
+    final filtered = _applyFilters(List<Complaint>.from(_allItems));
+    _applySort(filtered);
+    if (mounted) setState(() => _items = filtered);
+  }
+
+  List<Complaint> _applyFilters(List<Complaint> list) {
+    return list.where((c) {
+      final ticket = (c.ticket).trim();
+      final internal = (c.internalNo ?? '').trim();
+      final decision = (c.decision ?? '').trim();
+
+      if ((_filterTicket ?? '').isNotEmpty && ticket != _filterTicket) return false;
+      if ((_filterInternalNo ?? '').isNotEmpty && internal != _filterInternalNo) return false;
+      if (_filterStatus != null && c.status != _filterStatus) return false;
+      if ((_filterDecision ?? '').isNotEmpty && decision != _filterDecision) return false;
+      return true;
+    }).toList(growable: false);
   }
 
   void _applySort(List<Complaint> list) {
@@ -102,20 +128,27 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
         list.sort((a, b) => cmpNum(
             a.createdAt.millisecondsSinceEpoch, b.createdAt.millisecondsSinceEpoch));
         break;
-      case _SortBy.status:
-        list.sort((a, b) {
-          final s = _asc ? a.status.compareTo(b.status) : b.status.compareTo(a.status);
-          if (s != 0) return s;
-          final ta = (a.updatedAt.millisecondsSinceEpoch > 0
-              ? a.updatedAt.millisecondsSinceEpoch
-              : a.createdAt.millisecondsSinceEpoch);
-          final tb = (b.updatedAt.millisecondsSinceEpoch > 0
-              ? b.updatedAt.millisecondsSinceEpoch
-              : b.createdAt.millisecondsSinceEpoch);
-          return _asc ? ta.compareTo(tb) : tb.compareTo(ta);
-        });
-        break;
     }
+  }
+
+  List<String> _optionsFrom(Iterable<String> values) {
+    final set = <String>{};
+    for (final v in values) {
+      final trimmed = v.trim();
+      if (trimmed.isNotEmpty) set.add(trimmed);
+    }
+    final list = set.toList();
+    list.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return list;
+  }
+
+  List<int> _statusOptions(List<Complaint> list) {
+    final set = <int>{};
+    for (final c in list) {
+      set.add(c.status);
+    }
+    final out = set.toList()..sort();
+    return out;
   }
 
   String _fmt(DateTime dt) {
@@ -345,8 +378,8 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
               setState(() {
                 _sortBy = s;
                 _asc = asc;
-                _applySort(_items);
               });
+              _refreshFilteredItems();
             },
           ),
           if (_busy)
@@ -409,7 +442,35 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                   ],
                 ),
               ),
+          ),
+
+          // Filter
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+            child: _FilterBar(
+              tickets: _optionsFrom(_allItems.map((c) => (c.ticket).trim())),
+              internalNos:
+                  _optionsFrom(_allItems.map((c) => (c.internalNo ?? '').trim())),
+              statuses: _statusOptions(_allItems),
+              decisions: _optionsFrom(_allItems.map((c) => (c.decision ?? '').trim())),
+              selectedTicket: _filterTicket,
+              selectedInternal: _filterInternalNo,
+              selectedStatus: _filterStatus,
+              selectedDecision: _filterDecision,
+              statusLabel: (s) => _statusTextLocalized(t, s),
+              decisionLabel: (d) => _decisionText(t, d),
+              onChanged: (
+                  {String? ticket, String? internal, int? status, String? decision}) {
+                setState(() {
+                  _filterTicket = ticket;
+                  _filterInternalNo = internal;
+                  _filterStatus = status;
+                  _filterDecision = decision;
+                });
+                _refreshFilteredItems();
+              },
             ),
+          ),
 
           // Liste der Reklamationen
           Expanded(
@@ -729,6 +790,110 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
   }
 }
 
+class _FilterBar extends StatelessWidget {
+  final List<String> tickets;
+  final List<String> internalNos;
+  final List<int> statuses;
+  final List<String> decisions;
+  final String? selectedTicket;
+  final String? selectedInternal;
+  final int? selectedStatus;
+  final String? selectedDecision;
+  final void Function({String? ticket, String? internal, int? status, String? decision})
+      onChanged;
+  final String Function(int status) statusLabel;
+  final String Function(String? decision) decisionLabel;
+
+  const _FilterBar({
+    required this.tickets,
+    required this.internalNos,
+    required this.statuses,
+    required this.decisions,
+    required this.selectedTicket,
+    required this.selectedInternal,
+    required this.selectedStatus,
+    required this.selectedDecision,
+    required this.onChanged,
+    required this.statusLabel,
+    required this.decisionLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+
+    Widget buildDropdown<T>({
+      required String label,
+      required T? value,
+      required List<DropdownMenuItem<T?>> items,
+      required void Function(T?) onChanged,
+    }) {
+      return ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 190),
+        child: DropdownButtonFormField<T?>(
+          value: value,
+          isDense: true,
+          decoration: InputDecoration(
+            labelText: label,
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          items: items,
+          onChanged: onChanged,
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          buildDropdown<String>(
+            label: t.ticket,
+            value: selectedTicket,
+            items: [
+              DropdownMenuItem<String?>(value: null, child: Text(t.rep_overview_all)),
+              ...tickets.map((v) => DropdownMenuItem<String?>(value: v, child: Text(v))),
+            ],
+            onChanged: (v) => onChanged(ticket: v, internal: selectedInternal, status: selectedStatus, decision: selectedDecision),
+          ),
+          buildDropdown<String>(
+            label: t.internal_no_label,
+            value: selectedInternal,
+            items: [
+              DropdownMenuItem<String?>(value: null, child: Text(t.rep_overview_all)),
+              ...internalNos.map((v) => DropdownMenuItem<String?>(value: v, child: Text(v))),
+            ],
+            onChanged: (v) => onChanged(ticket: selectedTicket, internal: v, status: selectedStatus, decision: selectedDecision),
+          ),
+          buildDropdown<int>(
+            label: t.status,
+            value: selectedStatus,
+            items: [
+              DropdownMenuItem<int?>(value: null, child: Text(t.allStatus)),
+              ...statuses.map((v) => DropdownMenuItem<int?>(value: v, child: Text(statusLabel(v)))),
+            ],
+            onChanged: (v) => onChanged(ticket: selectedTicket, internal: selectedInternal, status: v, decision: selectedDecision),
+          ),
+          buildDropdown<String>(
+            label: t.decision,
+            value: selectedDecision,
+            items: [
+              DropdownMenuItem<String?>(value: null, child: Text(t.allDecisions)),
+              ...decisions.map((v) => DropdownMenuItem<String?>(value: v, child: Text(decisionLabel(v)))),
+            ],
+            onChanged: (v) => onChanged(ticket: selectedTicket, internal: selectedInternal, status: selectedStatus, decision: v),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ---- Sortier-Steuerung (rechts in der AppBar) ----
 class _SortControls extends StatelessWidget {
   final _SortBy sortBy;
@@ -754,7 +919,6 @@ class _SortControls extends StatelessWidget {
           items: [
             DropdownMenuItem(value: _SortBy.updated, child: Text(t.updated)),
             DropdownMenuItem(value: _SortBy.created, child: Text(t.created)),
-            DropdownMenuItem(value: _SortBy.status,  child: Text(t.status)),
           ],
         ),
         IconButton(
