@@ -40,6 +40,57 @@ enum _AdminView {
 
 enum _CustPasswordMode { adminSecret, generated }
 
+String _internalNumberPrefix({DateTime? now}) {
+  final date = now ?? DateTime.now();
+  final yy = DateFormat('yy').format(date);
+  return 'R820-${yy}_';
+}
+
+String _extractOrDefaultInternalPrefix(String value) {
+  final trimmed = value.trim();
+  if (trimmed.startsWith('R820-')) {
+    final idx = trimmed.indexOf('_');
+    if (idx >= 0) {
+      return trimmed.substring(0, idx + 1);
+    }
+  }
+  return _internalNumberPrefix();
+}
+
+void _guardInternalNumberPrefix(TextEditingController controller) {
+  var adjusting = false;
+
+  controller.addListener(() {
+    if (adjusting) return;
+    adjusting = true;
+
+    final current = controller.text;
+    final prefix = _extractOrDefaultInternalPrefix(current);
+
+    final suffix = current.startsWith(prefix)
+        ? current.substring(prefix.length)
+        : current.replaceFirst(RegExp(r'^R820-\d{2}_?'), '');
+
+    final enforced = '$prefix$suffix';
+
+    if (enforced != current || controller.selection.baseOffset < prefix.length) {
+      controller.value = TextEditingValue(
+        text: enforced,
+        selection: TextSelection.collapsed(offset: enforced.length),
+      );
+    }
+
+    adjusting = false;
+  });
+}
+
+String _ensureInternalNumberPrefix(String value) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) return '';
+  if (trimmed.startsWith('R820-')) return trimmed;
+  return '${_internalNumberPrefix()}$trimmed';
+}
+
 class _AdminPageState extends State<AdminPage> {
   static const int _repReminderDefaultDelayDays = 4;
   late final AdminApi _api;
@@ -224,6 +275,10 @@ class _AdminPageState extends State<AdminPage> {
     super.initState();
     _api = AdminApi(onNewsChanged: widget.api.clearCustomerNewsCache);
     _custCountry = _defaultCountry;
+    _bulkInternalAllCtrl.text = _internalNumberPrefix();
+    _bulkInternalOpenCtrl.text = _internalNumberPrefix();
+    _guardInternalNumberPrefix(_bulkInternalAllCtrl);
+    _guardInternalNumberPrefix(_bulkInternalOpenCtrl);
 
     // Secret zuerst aus der API (wenn über Admin-Button gekommen),
     // sonst aus LocalStorage (dfs_admin).
@@ -546,14 +601,17 @@ class _AdminPageState extends State<AdminPage> {
   Future<void> _assignInternalNoBulk({required bool isOpenList}) async {
     final controller = isOpenList ? _bulkInternalOpenCtrl : _bulkInternalAllCtrl;
     final selected = isOpenList ? _selectedOpenTickets : _selectedAllTickets;
-    final internal = controller.text.trim();
+    final rawInternal = controller.text.trim();
+    final internal = _ensureInternalNumberPrefix(rawInternal);
 
-    if (internal.isEmpty) {
+    if (internal.isEmpty || internal == _internalNumberPrefix()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Bitte interne Nummer eingeben.')),
       );
       return;
     }
+
+    controller.text = internal;
 
     if (selected.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -6046,7 +6104,11 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   void initState() {
     super.initState();
     _reportCtrl.text = widget.c.reportLink ?? '';
-    _internalCtrl.text = widget.c.internalNo ?? '';
+    _internalCtrl.text =
+        (widget.c.internalNo == null || widget.c.internalNo!.trim().isEmpty)
+            ? _internalNumberPrefix()
+            : widget.c.internalNo!;
+    _guardInternalNumberPrefix(_internalCtrl);
     _notesCtrl.text = widget.c.adminNotes ?? '';
     _status = widget.c.status;
     _decision = widget.c.decision;
@@ -6095,10 +6157,20 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     if (_busy) return;
     setState(() => _busy = true);
 
-    final newVal = _internalCtrl.text.trim();
+    final entered = _internalCtrl.text.trim();
+    final newVal = _ensureInternalNumberPrefix(entered);
+
+    if (newVal.isEmpty || newVal == _internalNumberPrefix()) {
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bitte Nummer hinter dem Prefix ergänzen.')),
+      );
+      return;
+    }
 
     // UI sofort updaten, damit es direkt neben der Ticketnummer erscheint
     setState(() {
+      _internalCtrl.text = newVal;
       widget.c.internalNo = newVal;
     });
 
@@ -6205,7 +6277,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
 
     // UI sofort leeren
     setState(() {
-      _internalCtrl.text = '';
+      _internalCtrl.text = _internalNumberPrefix();
       widget.c.internalNo = null;
     });
 
