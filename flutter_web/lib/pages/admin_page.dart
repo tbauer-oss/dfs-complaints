@@ -3502,6 +3502,7 @@ class _AdminPageState extends State<AdminPage> {
                       itemBuilder: (_, i) {
                         final c = list[i];
                         return _ComplaintEditor(
+                          key: ValueKey('complaint-${c.ticket}'),
                           api: _api,
                           c: c,
                           companyHint: _companyByEmail(c.email),
@@ -3587,6 +3588,7 @@ class _AdminPageState extends State<AdminPage> {
                       itemBuilder: (ctx, i) {
                         final c = list[i];
                         return _ComplaintEditor(
+                          key: ValueKey('complaint-${c.ticket}'),
                           api: _api,
                           c: c,
                           companyHint: _companyByEmail(c.email),
@@ -5227,6 +5229,7 @@ class _ComplaintsDetailList extends StatelessWidget {
           const SizedBox(height: 6),
           ...r.items
               .map((c) => _ComplaintEditor(
+                    key: ValueKey('complaint-${c.ticket}'),
                     api: api,
                     c: c,
                     onChanged: parent?._syncComplaint,
