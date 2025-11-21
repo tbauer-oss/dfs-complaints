@@ -484,6 +484,7 @@
   "complaint_summary_title": "Confirmación y resumen",
   "complaint_summary_subtitle": "Su reclamación se ha enviado correctamente.",
   "complaint_summary_ticket_label": "Número de ticket",
+  "ticket": "Número de ticket",
   "complaint_summary_date_label": "Fecha",
   "complaint_summary_customer_label": "Cliente / Empresa",
   "complaint_summary_customer_contact": "Contacto",
