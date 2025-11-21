@@ -1119,23 +1119,9 @@ export async function anonymizeUserAndComplaints(email) {
   }
 
   const list = await complaintsByEmail(mail).catch(() => []);
-  let updated = 0;
-  if (Array.isArray(list)) {
-    for (const c of list) {
-      if (!c?.ticket) continue;
-      const scrubbedComplaint = _scrubValue({ ...c }, placeholderEmail) || {};
-      scrubbedComplaint.ticket = c.ticket;
-      scrubbedComplaint.updatedAt = now;
-      scrubbedComplaint.anonymized = true;
-      scrubbedComplaint.anonymizedAt = now;
-      await complaintSave(scrubbedComplaint).catch((e) => {
-        console.error('[store] anonymize complaint save failed:', e);
-      });
-      updated++;
-    }
-  }
+  const complaints = Array.isArray(list) ? list.length : 0;
 
-  return { user: anonymizedUser, complaints: updated, placeholderEmail };
+  return { user: anonymizedUser, complaints, placeholderEmail };
 }
 
 /* ============== Gate Codes ============== */
