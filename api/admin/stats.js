@@ -8,7 +8,7 @@ import {
   noContent,
   methodNotAllowed,
 } from '../_lib/http.js';
-import { resolveCountryCode } from '../_lib/countryNames.js';
+import { normalizeCountryName, resolveCountryCode } from '../_lib/countryNames.js';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 const isAdmin = (req) => ADMIN_SECRET && req.headers?.['x-admin-secret'] === ADMIN_SECRET;
@@ -271,8 +271,6 @@ function pickCountry(complaint) {
     complaint?.user?.countryCode,
     complaint?.user?.country,
     complaint?.user?.land,
-    complaint,
-    payload,
   ];
   const seen = new Set();
   let fallback = null;
@@ -286,7 +284,8 @@ function pickCountry(complaint) {
       seen.add(key);
       const resolved = resolveCountryCode(normalized);
       if (resolved) return resolved;
-      if (!fallback) fallback = normalized;
+      const clean = normalizeCountryName(normalized);
+      if (!fallback && clean && !/\d/.test(clean)) fallback = normalized;
     }
   }
   return fallback || 'Unbekannt';
