@@ -3,7 +3,7 @@ export const config = { runtime: 'nodejs' };
 import { handlePreflight, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { randomGateCode, hashGateCode } from '../_lib/gate.js';
 import { gateStoreSet } from '../_lib/store.js';
-import { sendMail } from '../_lib/mailer.js';
+import { send } from '../_lib/mail.js';
 
 const INTERNAL_GATE_EMAIL = process.env.GATE_NOTIFY_EMAIL || 'complaint@dfs-diamon.de';
 
@@ -72,20 +72,23 @@ export default async function handler(req, res) {
         .filter((line) => line !== null)
         .join('\n');
       const subject = `[Gate-Code] ${company || email}`;
-      const result = await sendMail({
-        to: INTERNAL_GATE_EMAIL,
+
+      await send(INTERNAL_GATE_EMAIL, {
         subject,
-        html,
         text,
+        html,
+        lang: 'de',
       });
-      mailSent = !!result?.ok;
-      if (!mailSent) mailError = result?.reason || 'send failed';
+
+      mailSent = true;
     } catch (err) {
       mailError = err?.message || String(err);
       console.error('gate-request mail failed:', mailError);
     }
 
-    return ok(res, { ok: true, mailSent, mailError });
+    if (!mailSent) return bad(res, 'gate_mail_failed', 500);
+
+    return ok(res, { ok: true, mailSent: true });
   } catch (err) {
     console.error('gate-request fatal:', err);
     const msg = isPreview ? err?.message || String(err) : 'internal error';
