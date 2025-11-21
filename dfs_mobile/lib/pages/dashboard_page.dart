@@ -1186,27 +1186,22 @@ class _CatalogButtons extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: cs.outlineVariant.withOpacity(0.40)),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(icon, size: isPhone ? 18 : 20, color: cs.onSurface.withOpacity(0.70)),
-                const SizedBox(width: 10), // war 12
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: titleStyle),
-                      const SizedBox(height: 2), // war 6
-                      Text(link.label, style: langStyle),
-                    ],
-                  ),
-                ),
-              ],
+            Icon(icon, size: isPhone ? 18 : 20, color: cs.onSurface.withOpacity(0.70)),
+            const SizedBox(width: 10), // war 12
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: titleStyle),
+                  const SizedBox(height: 2), // war 6
+                  Text(link.label, style: langStyle),
+                ],
+              ),
             ),
-            const SizedBox(height: 6), // war 10
+            const SizedBox(width: 8),
             TextButton.icon(
               onPressed: () {
                 Navigator.of(context).push(
