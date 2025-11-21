@@ -121,6 +121,7 @@ class _RepContactPageState extends State<RepContactPage> {
         'contactLastName' : _lastName.text.trim(),
         'subject'         : subject,
         'message'         : msg,
+        'lang'            : Localizations.localeOf(context).languageCode,
       };
 
       await widget.api.sendRepContact(payload);
@@ -130,12 +131,17 @@ class _RepContactPageState extends State<RepContactPage> {
         SnackBar(content: Text(t.rep_contact_sent)),
       );
       Navigator.of(context).pop();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(t.rep_contact_error)),
-        );
-      }
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      final msg = e.message.isNotEmpty ? ' (${e.message})' : '';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${t.rep_contact_error}$msg')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.rep_contact_error)),
+      );
     } finally {
       if (mounted) setState(() => _sending = false);
     }
