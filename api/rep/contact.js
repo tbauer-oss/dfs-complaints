@@ -1,4 +1,5 @@
 // api/rep/contact.js
+import { setCors } from '../_lib/cors.js';
 import { send, tpl } from '../_lib/mail.js'; // Pfad wie bei deinen anderen Routen
 
 function asString(v) {
@@ -13,6 +14,10 @@ function normLang(x) {
 }
 
 export default async function handler(req, res) {
+  setCors(req, res, 'Content-Type, Authorization, X-Gate');
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }

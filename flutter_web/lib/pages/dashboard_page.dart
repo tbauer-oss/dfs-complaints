@@ -129,70 +129,76 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
   }
 
   Future<void> _initCustomerName() async {
-    // Wir versuchen mehrere Quellen, ohne harte Abhängigkeit von bestimmten ApiClient-Methoden.
     Map<String, dynamic>? profile;
 
     try {
-      final dyn = widget.api as dynamic; // dynamisch, damit kein Compile-Error, falls Methode fehlt
-
-      // 1) Häufige Varianten
-      try { if (dyn.getMyAccount != null) profile = await dyn.getMyAccount(); } catch (_) {}
-      try { if (profile == null && dyn.getMe != null) profile = await dyn.getMe(); } catch (_) {}
-
-      // 2) Direkt-Caches, falls vorhanden
-      if (profile == null) {
-        try { final p = dyn.currentUser; if (p is Map) profile = Map<String, dynamic>.from(p); } catch (_) {}
+      // Session sicherstellen, damit accountGet funktioniert
+      if (widget.api.token == null || widget.api.token!.isEmpty) {
+        await widget.api.restoreSession();
       }
 
-      // 3) JWT-Claims, falls verfügbar
-      if (profile == null) {
-        try { final c = dyn.jwtClaims; if (c is Map) profile = Map<String, dynamic>.from(c); } catch (_) {}
-      }
+      profile = await widget.api.accountGet();
     } catch (_) {
-      // still
+      profile = null; // Fallback greift unten
     }
 
-    final name = _pickCompany(profile);
-    final email = _pickEmail(profile);
+    String? company;
+    String? email;
+
+    if (profile != null) {
+      const companyKeys = [
+        'company',
+        'companyName',
+        'firm',
+        'firma',
+        'organization',
+        'organisation',
+        'org',
+        'customerCompany',
+        'customer_name',
+        'customer',
+        'accountCompany',
+      ];
+
+      for (final k in companyKeys) {
+        final v = profile[k];
+        if (v is String) {
+          final s = v.trim();
+          if (s.isNotEmpty) {
+            company = s;
+            break;
+          }
+        }
+      }
+
+      const emailKeys = [
+        'email',
+        'mail',
+        'emailAddress',
+        'email_address',
+        'contactEmail',
+        'customer_email',
+        'companyEmail',
+      ];
+
+      for (final k in emailKeys) {
+        final v = profile[k];
+        if (v is String) {
+          final s = v.trim();
+          if (s.isNotEmpty) {
+            email = s;
+            break;
+          }
+        }
+      }
+    }
+
     if (mounted) {
       setState(() {
-        _customerName = name;
+        _customerName = company;
         _customerEmail = email;
       });
     }
-  }
-
-  String? _pickCompany(Map<String, dynamic>? m) {
-    if (m == null) return null;
-    // typ. Schlüssel, die in deinen Projekten vorkommen könnten
-    const keys = [
-      'company', 'companyName', 'firm', 'firma', 'organization', 'organisation',
-      'org', 'customerCompany', 'customer_name', 'customer', 'accountCompany'
-    ];
-    for (final k in keys) {
-      final v = m[k];
-      if (v is String) {
-        final s = v.trim();
-        if (s.isNotEmpty) return s;
-      }
-    }
-    return null;
-  }
-
-  String? _pickEmail(Map<String, dynamic>? m) {
-    if (m == null) return null;
-    const keys = [
-      'email', 'mail', 'emailAddress', 'email_address',
-      'contactEmail', 'customer_email', 'companyEmail',
-    ];
-    for (final k in keys) {
-      final v = m[k];
-      if (v is String) {
-        final s = v.trim();
-        if (s.isNotEmpty) return s;
-      }
-    }
-    return null;
   }
 
   void _ensureRepOnce() {

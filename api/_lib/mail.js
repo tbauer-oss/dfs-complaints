@@ -29,13 +29,16 @@ function ensureEnv() {
 function getTransport() {
   if (_transporter) return _transporter;
   ensureEnv();
+
+  // Brevo/Smtp2Go mögen keinen Verbindungs-Pool; halte die Config daher bewusst
+  // schlank wie in api/_lib/mailer.js, das aktuell zuverlässig Gate-/Support-Post
+  // versendet. Durch das Weglassen von pool und den TLS-Tweaks wird der Versand
+  // robuster bei SMTP-Providern mit strikteren Limits.
   _transporter = nodemailer.createTransport({
     host: SMTP_HOST,
     port: SMTP_PORT,
-    secure: SMTP_PORT === 465,           // <-- Korrekt: NUR 465 ist "secure:true"
+    secure: SMTP_PORT === 465,
     auth: { user: SMTP_USER, pass: SMTP_PASS },
-    tls: { minVersion: 'TLSv1.2', servername: SMTP_HOST },
-    pool: true, maxConnections: 2, maxMessages: 20,
   });
   return _transporter;
 }
@@ -532,11 +535,16 @@ export async function send(
   const html = htmlShell({ title: subject, bodyHtml: textToParagraphs(text), lang });
   const atts = [...logoAttachment(), ...attachments];
 
-  const fromAddress = cleanAddress(from) || SMTP_USER;
+  // Standard-Absender ist die konfigurierte MAIL.from (zertifiziert/verifiziert
+  // bei Brevo). Der SMTP-Login (z. B. "apikey") ist *nicht* als From-Adresse
+  // geeignet und führte dazu, dass Brevo die Mails zwar akzeptierte, aber
+  // nicht zählte/auslieferte. Daher immer MAIL.from verwenden, sofern nicht
+  // explizit übergeben.
+  const fromAddress = cleanAddress(from) || FROM;
   const replyToAddress =
     replyTo !== undefined
       ? cleanAddress(replyTo)
-      : (fromAddress === SMTP_USER ? REPLY_TO : fromAddress);
+      : REPLY_TO;
 
   const ccList = normalizeAddressList(cc);
 
@@ -549,8 +557,12 @@ export async function send(
     attachments: atts,
   };
 
-  if (fromAddress !== SMTP_USER) {
-    mailOptions.sender = SMTP_USER;
+  // Absender der SMTP-Sitzung als technischer Sender mitschicken, falls
+  // vorhanden (wird von Brevo toleriert, aber nur, wenn es eine gültige Mail
+  // ist; andernfalls weglassen).
+  const senderAddress = cleanAddress(SMTP_USER);
+  if (senderAddress && senderAddress.includes('@') && senderAddress !== fromAddress) {
+    mailOptions.sender = senderAddress;
   }
 
   if (replyToAddress) {
@@ -564,7 +576,12 @@ export async function send(
   }
 
   const info = await sendWithRetry(mailOptions);
-  console.log('mail: sent', { to, messageId: info.messageId });
+  console.log('mail: sent', {
+    to,
+    messageId: info.messageId,
+    accepted: info.accepted,
+    response: info.response,
+  });
   return info;
 }
 

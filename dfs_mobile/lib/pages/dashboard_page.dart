@@ -1617,6 +1617,7 @@ class _RepContactPageState extends State<RepContactPage> {
         'contactLastName' : _lastName.text.trim(),
         'subject'         : subject,
         'message'         : msg,
+        'lang'            : Localizations.localeOf(context).languageCode,
       };
 
       // 🔴 Jetzt: Versand über dein Backend mit Kunden-Bearer-Token
