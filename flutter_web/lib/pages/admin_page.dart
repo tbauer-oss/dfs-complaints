@@ -43,7 +43,7 @@ enum _CustPasswordMode { adminSecret, generated }
 String _internalNumberPrefix({DateTime? now}) {
   final date = now ?? DateTime.now();
   final yy = DateFormat('yy').format(date);
-  return 'R820-$yy_';
+  return 'R820-${yy}_';
 }
 
 String _ensureInternalNumberPrefix(String value) {
