@@ -264,7 +264,7 @@
   "human_check_label": "Sono un essere umano",
   "human_check_helper": "Risolvi questo rapido compito: {task}",
   "human_check_required": "Conferma di essere un essere umano.",
-  "human_check_success": "Verifica umana superata",
+  "human_check_success": "Controllo di sicurezza completato",
   "human_check_incorrect": "Risultato errato. È stato caricato un nuovo compito.",
   "human_check_refresh": "Nuova attività",
   "@human_check_helper": {
