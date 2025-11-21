@@ -4,18 +4,23 @@
 export const PROD_FE  = 'https://dfs-complaints-web.vercel.app';
 export const LOCAL_FE = 'http://localhost:8080';
 const PREVIEW  = /^https:\/\/dfs-complaints-web-[a-z0-9-]+(?:-[a-z0-9-]+)?\.vercel\.app$/i;
+const EXTRA    = (process.env.WEB_ORIGIN || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 // --- Origin prüfen ---
 export function isAllowedOrigin(origin = '') {
   if (!origin) return false;
   if (origin === PROD_FE || origin === LOCAL_FE) return true;
+  if (EXTRA.includes(origin)) return true;
   return PREVIEW.test(origin);
 }
 
 // --- CORS setzen (immer am Handler-Anfang aufrufen!) ---
 export function setCors(req, res) {
   const origin = req.headers?.origin || '';
-  const allow  = isAllowedOrigin(origin) ? origin : PROD_FE;
+  const allow  = isAllowedOrigin(origin) ? origin : (EXTRA[0] || PROD_FE);
 
   // Kern
   res.setHeader('Access-Control-Allow-Origin', allow);
