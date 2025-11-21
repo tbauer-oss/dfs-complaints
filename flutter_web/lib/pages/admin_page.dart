@@ -3200,25 +3200,28 @@ class _AdminPageState extends State<AdminPage> {
     final busy = isOpenList ? _bulkAssigningOpen : _bulkAssigningAll;
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
         border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 10,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(Icons.link_outlined),
               const SizedBox(width: 8),
-              Text(
+              const Text(
                 'Mehrere Tickets einer internen Nummer zuordnen',
-                style: const TextStyle(fontWeight: FontWeight.w700),
+                style: TextStyle(fontWeight: FontWeight.w700),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               if (busy)
                 const SizedBox(
                   height: 18,
@@ -3227,54 +3230,47 @@ class _AdminPageState extends State<AdminPage> {
                 ),
             ],
           ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 12,
-            runSpacing: 10,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Chip(
-                avatar: const Icon(Icons.confirmation_number_outlined, size: 18),
-                label: Text('${selected.length} Ticket${selected.length == 1 ? '' : 's'} ausgewählt'),
-              ),
-              SizedBox(
-                width: 240,
-                child: TextField(
-                  controller: controller,
-                  onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(
-                    labelText: 'Interne Nummer',
-                    prefixIcon: const Icon(Icons.tag),
-                    suffixIcon: controller.text.isEmpty
-                        ? null
-                        : IconButton(
-                            tooltip: 'Eingabe leeren',
-                            onPressed: busy
-                                ? null
-                                : () {
-                                    controller.clear();
-                                    setState(() {});
-                                  },
-                            icon: const Icon(Icons.close),
-                          ),
-                  ),
-                ),
-              ),
-              FilledButton.icon(
-                onPressed: busy || selected.isEmpty || controller.text.trim().isEmpty
+          Chip(
+            avatar: const Icon(Icons.confirmation_number_outlined, size: 18),
+            label: Text('${selected.length} Ticket${selected.length == 1 ? '' : 's'} ausgewählt'),
+          ),
+          SizedBox(
+            width: 240,
+            child: TextField(
+              controller: controller,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                labelText: 'Interne Nummer',
+                prefixIcon: const Icon(Icons.tag),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                suffixIcon: controller.text.isEmpty
                     ? null
-                    : () => _assignInternalNoBulk(isOpenList: isOpenList),
-                icon: const Icon(Icons.save_outlined),
-                label: const Text('Interne Nummer zuweisen'),
+                    : IconButton(
+                        tooltip: 'Eingabe leeren',
+                        onPressed: busy
+                            ? null
+                            : () {
+                                controller.clear();
+                                setState(() {});
+                              },
+                        icon: const Icon(Icons.close),
+                      ),
               ),
-              TextButton.icon(
-                onPressed: busy || selected.isEmpty
-                    ? null
-                    : () => _clearTicketSelection(isOpenList: isOpenList),
-                icon: const Icon(Icons.clear_all),
-                label: const Text('Auswahl zurücksetzen'),
-              ),
-            ],
+            ),
+          ),
+          FilledButton.icon(
+            onPressed: busy || selected.isEmpty || controller.text.trim().isEmpty
+                ? null
+                : () => _assignInternalNoBulk(isOpenList: isOpenList),
+            icon: const Icon(Icons.save_outlined),
+            label: const Text('Interne Nummer zuweisen'),
+          ),
+          TextButton.icon(
+            onPressed: busy || selected.isEmpty
+                ? null
+                : () => _clearTicketSelection(isOpenList: isOpenList),
+            icon: const Icon(Icons.clear_all),
+            label: const Text('Auswahl zurücksetzen'),
           ),
         ],
       ),
@@ -3349,104 +3345,102 @@ class _AdminPageState extends State<AdminPage> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         elevation: 2,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Wrap(
+            spacing: 12,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.start,
             children: [
-              TextField(
-                onChanged: (v) => setState(() => _allSearch = v),
-                decoration: InputDecoration(
-                  labelText: 'Schnellsuche (Ticket, Kunde, Stichwort …)',
-                  prefixIcon: const Icon(Icons.search),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              SizedBox(
+                width: 320,
+                child: TextField(
+                  onChanged: (v) => setState(() => _allSearch = v),
+                  decoration: InputDecoration(
+                    labelText: 'Schnellsuche (Ticket, Kunde, Stichwort …)',
+                    prefixIcon: const Icon(Icons.search),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  ),
                 ),
               ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                crossAxisAlignment: WrapCrossAlignment.start,
-                children: [
-                  SizedBox(
-                    width: 250,
-                    child: DropdownButtonFormField<String>(
-                      value: _allCompanyFilter,
-                      isExpanded: true,
-                      items: companies
-                          .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
-                          .toList(),
-                      onChanged: (v) => setState(() => _allCompanyFilter = v ?? 'Alle Firmen'),
-                      decoration: const InputDecoration(
-                        labelText: 'Kunden (Firmenname)',
-                        prefixIcon: Icon(Icons.apartment_outlined),
-                      ),
-                    ),
+              SizedBox(
+                width: 240,
+                child: DropdownButtonFormField<String>(
+                  value: _allCompanyFilter,
+                  isExpanded: true,
+                  items: companies
+                      .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
+                      .toList(),
+                  onChanged: (v) => setState(() => _allCompanyFilter = v ?? 'Alle Firmen'),
+                  decoration: const InputDecoration(
+                    labelText: 'Kunden (Firmenname)',
+                    prefixIcon: Icon(Icons.apartment_outlined),
                   ),
-                  SizedBox(
-                    width: 220,
-                    child: DropdownButtonFormField<String>(
-                      value: _allRepFilter,
-                      items: reps
-                          .map((r) => DropdownMenuItem<String>(value: r, child: Text(r)))
-                          .toList(),
-                      onChanged: (v) => setState(() => _allRepFilter = v ?? 'Alle Vertreter'),
-                      decoration: const InputDecoration(
-                        labelText: 'Vertreter',
-                        prefixIcon: Icon(Icons.badge_outlined),
-                      ),
-                    ),
+                ),
+              ),
+              SizedBox(
+                width: 220,
+                child: DropdownButtonFormField<String>(
+                  value: _allRepFilter,
+                  items: reps
+                      .map((r) => DropdownMenuItem<String>(value: r, child: Text(r)))
+                      .toList(),
+                  onChanged: (v) => setState(() => _allRepFilter = v ?? 'Alle Vertreter'),
+                  decoration: const InputDecoration(
+                    labelText: 'Vertreter',
+                    prefixIcon: Icon(Icons.badge_outlined),
                   ),
-                  SizedBox(
-                    width: 200,
-                    child: DropdownButtonFormField<String>(
-                      value: _allDecisionFilter,
-                      items: [
-                        const DropdownMenuItem<String>(value: '', child: Text('Alle Entscheidungen')),
-                        ...kDecisionItems.map((d) => DropdownMenuItem<String>(
-                              value: d['value']!,
-                              child: Text(d['label']!),
-                            )),
-                      ],
-                      onChanged: (v) => setState(() => _allDecisionFilter = v ?? ''),
-                      decoration: const InputDecoration(
-                        labelText: 'Entscheidungen',
-                        prefixIcon: Icon(Icons.how_to_vote_outlined),
-                      ),
-                    ),
+                ),
+              ),
+              SizedBox(
+                width: 200,
+                child: DropdownButtonFormField<String>(
+                  value: _allDecisionFilter,
+                  items: [
+                    const DropdownMenuItem<String>(value: '', child: Text('Alle Entscheidungen')),
+                    ...kDecisionItems.map((d) => DropdownMenuItem<String>(
+                          value: d['value']!,
+                          child: Text(d['label']!),
+                        )),
+                  ],
+                  onChanged: (v) => setState(() => _allDecisionFilter = v ?? ''),
+                  decoration: const InputDecoration(
+                    labelText: 'Entscheidungen',
+                    prefixIcon: Icon(Icons.how_to_vote_outlined),
                   ),
-                  SizedBox(
-                    width: 200,
-                    child: DropdownButtonFormField<int?>(
-                      value: _allStatusFilter,
-                      items: [
-                        const DropdownMenuItem<int?>(value: null, child: Text('Alle Stati')),
-                        ...kStatusItems.map((s) => DropdownMenuItem<int?>(
-                              value: s['value'] as int,
-                              child: Text(s['label'] as String),
-                            )),
-                      ],
-                      onChanged: (v) => setState(() => _allStatusFilter = v),
-                      decoration: const InputDecoration(
-                        labelText: 'Stati',
-                        prefixIcon: Icon(Icons.flag_outlined),
-                      ),
-                    ),
+                ),
+              ),
+              SizedBox(
+                width: 200,
+                child: DropdownButtonFormField<int?>(
+                  value: _allStatusFilter,
+                  items: [
+                    const DropdownMenuItem<int?>(value: null, child: Text('Alle Stati')),
+                    ...kStatusItems.map((s) => DropdownMenuItem<int?>(
+                          value: s['value'] as int,
+                          child: Text(s['label'] as String),
+                        )),
+                  ],
+                  onChanged: (v) => setState(() => _allStatusFilter = v),
+                  decoration: const InputDecoration(
+                    labelText: 'Stati',
+                    prefixIcon: Icon(Icons.flag_outlined),
                   ),
-                  SizedBox(
-                    width: 220,
-                    child: DropdownButtonFormField<String>(
-                      value: _allInternalFilter,
-                      items: internalNos
-                          .map((n) => DropdownMenuItem<String>(value: n, child: Text(n.isEmpty ? '—' : n)))
-                          .toList(),
-                      onChanged: (v) => setState(() => _allInternalFilter = v ?? 'Alle Nummern'),
-                      decoration: const InputDecoration(
-                        labelText: 'Interne Reklamationsnummer',
-                        prefixIcon: Icon(Icons.confirmation_number_outlined),
-                      ),
-                    ),
+                ),
+              ),
+              SizedBox(
+                width: 220,
+                child: DropdownButtonFormField<String>(
+                  value: _allInternalFilter,
+                  items: internalNos
+                      .map((n) => DropdownMenuItem<String>(value: n, child: Text(n.isEmpty ? '—' : n)))
+                      .toList(),
+                  onChanged: (v) => setState(() => _allInternalFilter = v ?? 'Alle Nummern'),
+                  decoration: const InputDecoration(
+                    labelText: 'Interne Reklamationsnummer',
+                    prefixIcon: Icon(Icons.confirmation_number_outlined),
                   ),
-                ],
+                ),
               ),
             ],
           ),
