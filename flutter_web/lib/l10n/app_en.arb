@@ -18,6 +18,8 @@
   "theme_light": "Light",
   "theme_dark": "Dark",
 
+  "ticket": "Ticket number",
+
   "attachments_add": "Send additional attachments",
   "attachments_success": "Attachments were sent successfully.",
   "attachments_error": "Attachments could not be sent.",
