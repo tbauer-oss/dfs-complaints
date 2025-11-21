@@ -150,6 +150,7 @@ export default async function handler(req, res) {
         "[complaint][attachments] mail failed",
         mailErr?.message || mailErr,
       );
+      return bad(res, "attachment_mail_failed", 500);
     }
 
     return ok(res, {

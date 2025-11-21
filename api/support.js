@@ -3,7 +3,6 @@ export const config = { runtime: 'nodejs' };
 
 import { setCors, ok, bad, noContent, methodNotAllowed } from './_lib/http.js';
 import { getAuthUser } from './_lib/auth.js';
-import { sendMail } from './_lib/mailer.js';
 import { send, tpl } from './_lib/mail.js';
 
 const LANGS = new Set(['de', 'en', 'fr', 'it', 'es']);
@@ -27,45 +26,62 @@ export default async function handler(req, res) {
   const user = getAuthUser(req);
   if (!user) return bad(res, 'unauthorized', 401);
 
-  const body = typeof req.body === 'object' ? req.body : JSON.parse(req.body ?? '{}');
-  const cat = (body?.category || 'other').toString().toLowerCase();
-  const text = (body?.message || '').toString();
-  const consent = !!body?.consent;
+  try {
+    const body = typeof req.body === 'object' ? req.body : JSON.parse(req.body ?? '{}');
+    const cat = (body?.category || 'other').toString().toLowerCase();
+    const text = (body?.message || '').toString();
+    const consent = !!body?.consent;
 
-  if (!CATS.has(cat)) return bad(res, 'invalid category', 400);
-  if (!text.trim()) return bad(res, 'empty message', 400);
-  if (!consent) return bad(res, 'consent required', 400);
+    if (!CATS.has(cat)) return bad(res, 'invalid category', 400);
+    if (!text.trim()) return bad(res, 'empty message', 400);
+    if (!consent) return bad(res, 'consent required', 400);
 
-  const lang = normLang(user?.lang || req.headers['accept-language']);
-  const contactName = asString(user?.contact || user?.contactName || user?.name);
+    const lang = normLang(user?.lang || req.headers['accept-language']);
+    const contactName = asString(user?.contact || user?.contactName || user?.name);
 
-  await sendMail({
-    to: 'complaint@dfs-diamon.de',
-    cc: user.email,
-    subject: `[DFS Support] ${cat} von ${user.email}`,
-    html: `<p>${text.replace(/\n/g,'<br/>')}</p>`
-  });
+    const lines = [
+      'Kontakt über das DFS Kundenportal – Support',
+      '',
+      `Kategorie: ${cat}`,
+      `Absender: ${user.email}`,
+      contactName ? `Kontaktperson: ${contactName}` : null,
+      '',
+      '--- Nachricht ---',
+      '',
+      text,
+    ].filter(Boolean);
 
-  if (user?.email) {
-    try {
-      const confirmation = tpl.messageConfirmation(
-        {
-          name: contactName,
-          subject: '',
-          message: text,
-          channel: 'support',
-        },
-        lang,
-      );
+    await send('complaint@dfs-diamon.de', {
+      subject: `[DFS Support] ${cat} von ${user.email}`,
+      text: lines.join('\n'),
+      lang: 'de',
+      cc: user.email,
+    });
 
-      await send(user.email, {
-        ...confirmation,
-        lang,
-      });
-    } catch (err) {
-      console.error('support confirmation mail failed', err);
+    if (user?.email) {
+      try {
+        const confirmation = tpl.messageConfirmation(
+          {
+            name: contactName,
+            subject: '',
+            message: text,
+            channel: 'support',
+          },
+          lang,
+        );
+
+        await send(user.email, {
+          ...confirmation,
+          lang,
+        });
+      } catch (err) {
+        console.error('support confirmation mail failed', err);
+      }
     }
-  }
 
-  return ok(res, { ok: true });
+    return ok(res, { ok: true });
+  } catch (err) {
+    console.error('[support] send failed', err);
+    return bad(res, 'support_contact_failed', 500);
+  }
 }
