@@ -8,7 +8,11 @@ import {
   noContent,
   methodNotAllowed,
 } from '../_lib/http.js';
-import { normalizeCountryName, resolveCountryCode } from '../_lib/countryNames.js';
+import {
+  countryLabelFromCode,
+  normalizeCountryName,
+  resolveCountryCode,
+} from '../_lib/countryNames.js';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 const isAdmin = (req) => ADMIN_SECRET && req.headers?.['x-admin-secret'] === ADMIN_SECRET;
@@ -283,7 +287,7 @@ function pickCountry(complaint) {
       if (seen.has(key)) continue;
       seen.add(key);
       const resolved = resolveCountryCode(normalized);
-      if (resolved) return resolved;
+      if (resolved) return countryLabelFromCode(resolved) || resolved;
       const clean = normalizeCountryName(normalized);
       if (!fallback && clean && !/\d/.test(clean)) fallback = normalized;
     }

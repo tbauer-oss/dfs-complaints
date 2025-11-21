@@ -110,6 +110,12 @@ const NAME_LOOKUP = (() => {
 
 const TOKEN_REGEX = /[A-Za-z]{2,}/g;
 
+export function countryLabelFromCode(code) {
+  if (!code) return null;
+  const upper = code.toString().trim().toUpperCase();
+  return COUNTRY_DATA[upper] || null;
+}
+
 export function normalizeCountryName(input) {
   if (!input && input !== 0) return '';
   const str = String(input).trim().toLowerCase();
