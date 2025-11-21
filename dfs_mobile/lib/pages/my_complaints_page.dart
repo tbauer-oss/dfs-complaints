@@ -1,6 +1,7 @@
 // lib/pages/my_complaints_page.dart
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:dfs_mobile/web_compat/html_stub.dart'
   if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
@@ -827,9 +828,10 @@ class _FilterBar extends StatelessWidget {
       required T? value,
       required List<DropdownMenuItem<T?>> items,
       required void Function(T?) onChanged,
+      required double width,
     }) {
-      return ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 190),
+      return SizedBox(
+        width: width,
         child: DropdownButtonFormField<T?>(
           value: value,
           isDense: true,
@@ -845,51 +847,67 @@ class _FilterBar extends StatelessWidget {
       );
     }
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Wrap(
-        spacing: 10,
-        runSpacing: 10,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          buildDropdown<String>(
-            label: t.ticket,
-            value: selectedTicket,
-            items: [
-              DropdownMenuItem<String?>(value: null, child: Text(t.rep_overview_all)),
-              ...tickets.map((v) => DropdownMenuItem<String?>(value: v, child: Text(v))),
-            ],
-            onChanged: (v) => onChanged(ticket: v, internal: selectedInternal, status: selectedStatus, decision: selectedDecision),
-          ),
-          buildDropdown<String>(
-            label: t.internal_no_label,
-            value: selectedInternal,
-            items: [
-              DropdownMenuItem<String?>(value: null, child: Text(t.rep_overview_all)),
-              ...internalNos.map((v) => DropdownMenuItem<String?>(value: v, child: Text(v))),
-            ],
-            onChanged: (v) => onChanged(ticket: selectedTicket, internal: v, status: selectedStatus, decision: selectedDecision),
-          ),
-          buildDropdown<int>(
-            label: t.status,
-            value: selectedStatus,
-            items: [
-              DropdownMenuItem<int?>(value: null, child: Text(t.allStatus)),
-              ...statuses.map((v) => DropdownMenuItem<int?>(value: v, child: Text(statusLabel(v)))),
-            ],
-            onChanged: (v) => onChanged(ticket: selectedTicket, internal: selectedInternal, status: v, decision: selectedDecision),
-          ),
-          buildDropdown<String>(
-            label: t.decision,
-            value: selectedDecision,
-            items: [
-              DropdownMenuItem<String?>(value: null, child: Text(t.allDecisions)),
-              ...decisions.map((v) => DropdownMenuItem<String?>(value: v, child: Text(decisionLabel(v)))),
-            ],
-            onChanged: (v) => onChanged(ticket: selectedTicket, internal: selectedInternal, status: selectedStatus, decision: v),
-          ),
-        ],
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        final compact = maxWidth < 520;
+        final fieldWidth = compact
+            ? maxWidth
+            : math.min<double>(280, (maxWidth - 12) / 2);
+
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          alignment: compact ? WrapAlignment.start : WrapAlignment.spaceBetween,
+          children: [
+            buildDropdown<String>(
+              label: t.ticket,
+              value: selectedTicket,
+              width: fieldWidth,
+              items: [
+                DropdownMenuItem<String?>(value: null, child: Text(t.rep_overview_all)),
+                ...tickets.map((v) => DropdownMenuItem<String?>(value: v, child: Text(v))),
+              ],
+              onChanged: (v) =>
+                  onChanged(ticket: v, internal: selectedInternal, status: selectedStatus, decision: selectedDecision),
+            ),
+            buildDropdown<String>(
+              label: t.internal_no_label,
+              value: selectedInternal,
+              width: fieldWidth,
+              items: [
+                DropdownMenuItem<String?>(value: null, child: Text(t.rep_overview_all)),
+                ...internalNos.map((v) => DropdownMenuItem<String?>(value: v, child: Text(v))),
+              ],
+              onChanged: (v) =>
+                  onChanged(ticket: selectedTicket, internal: v, status: selectedStatus, decision: selectedDecision),
+            ),
+            buildDropdown<int>(
+              label: t.status,
+              value: selectedStatus,
+              width: fieldWidth,
+              items: [
+                DropdownMenuItem<int?>(value: null, child: Text(t.allStatus)),
+                ...statuses.map((v) => DropdownMenuItem<int?>(value: v, child: Text(statusLabel(v)))),
+              ],
+              onChanged: (v) =>
+                  onChanged(ticket: selectedTicket, internal: selectedInternal, status: v, decision: selectedDecision),
+            ),
+            buildDropdown<String>(
+              label: t.decision,
+              value: selectedDecision,
+              width: fieldWidth,
+              items: [
+                DropdownMenuItem<String?>(value: null, child: Text(t.allDecisions)),
+                ...decisions.map((v) => DropdownMenuItem<String?>(value: v, child: Text(decisionLabel(v)))),
+              ],
+              onChanged: (v) =>
+                  onChanged(ticket: selectedTicket, internal: selectedInternal, status: selectedStatus, decision: v),
+            ),
+          ],
+        );
+      },
     );
   }
 }
