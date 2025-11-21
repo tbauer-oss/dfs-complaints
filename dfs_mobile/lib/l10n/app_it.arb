@@ -485,7 +485,6 @@
   "complaint_summary_title": "Conferma e riepilogo",
   "complaint_summary_subtitle": "Il reclamo è stato inviato con successo.",
   "complaint_summary_ticket_label": "Numero ticket",
-  "ticket": "Numero ticket",
   "complaint_summary_date_label": "Data",
   "complaint_summary_customer_label": "Cliente / Azienda",
   "complaint_summary_customer_contact": "Contatto",
