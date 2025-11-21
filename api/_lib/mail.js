@@ -529,10 +529,11 @@ function normalizeAddressList(value) {
 
 export async function send(
   to,
-  { subject, text, lang = 'de', from, replyTo, cc },
+  { subject, text, html, lang = 'de', from, replyTo, cc },
   attachments = [],
 ) {
-  const html = htmlShell({ title: subject, bodyHtml: textToParagraphs(text), lang });
+  const bodyHtml = html ?? textToParagraphs(text);
+  const htmlDoc = htmlShell({ title: subject, bodyHtml, lang });
   const atts = [...logoAttachment(), ...attachments];
 
   const fromAddress = cleanAddress(from) || SMTP_USER;
@@ -548,7 +549,7 @@ export async function send(
     to,
     subject,
     text,
-    html,
+    html: htmlDoc,
     attachments: atts,
   };
 
