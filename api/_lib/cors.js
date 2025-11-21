@@ -1,6 +1,10 @@
 // api/_lib/cors.js
 const PROD_FE = 'https://dfs-complaints-web.vercel.app';
 const PREVIEW = /^https:\/\/dfs-complaints-web-[a-z0-9-]+(?:-[a-z0-9-]+)?\.vercel\.app$/i;
+const EXTRA = (process.env.WEB_ORIGIN || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 /**
  * Einheitliche CORS-Konfiguration für alle API-Routen
@@ -19,9 +23,14 @@ export function setCors(
   // Zulässige Origins: Prod + Preview + lokales Testing (optional)
   const allow =
     origin &&
-    (origin === PROD_FE || PREVIEW.test(origin) || origin.startsWith('http://localhost'))
+    (
+      origin === PROD_FE ||
+      PREVIEW.test(origin) ||
+      origin.startsWith('http://localhost') ||
+      EXTRA.includes(origin)
+    )
       ? origin
-      : (process.env.WEB_ORIGIN || PROD_FE);
+      : (EXTRA[0] || PROD_FE);
 
   // Standard-Header
   res?.setHeader?.('Access-Control-Allow-Origin', allow);
