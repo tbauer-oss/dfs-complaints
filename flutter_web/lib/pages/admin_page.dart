@@ -3905,6 +3905,7 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   Future<void> _openRepCustomersDialog(Rep rep) async {
+    var currentRep = rep;
     final Map<String, String> emailAssignedToRepId = {};
     for (final r in _reps) {
       for (final e in r.customers) {
@@ -3933,7 +3934,7 @@ class _AdminPageState extends State<AdminPage> {
             if (selEmail == null || selEmail!.trim().isEmpty) return;
 
             final otherRepId = emailAssignedToRepId[selEmail!];
-            if (otherRepId != null && otherRepId != rep.id) {
+            if (otherRepId != null && otherRepId != currentRep.id) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Dieser Kunde ist bereits einem anderen Vertreter zugewiesen.')),
               );
@@ -3942,12 +3943,13 @@ class _AdminPageState extends State<AdminPage> {
 
             setLocal(() => busy = true);
             try {
-              final customers = await _api.assignCustomerToRep(repId: rep.id, email: selEmail!.trim());
+              final customers = await _api.assignCustomerToRep(repId: currentRep.id, email: selEmail!.trim());
+              Rep? updatedRep;
 
               setState(() {
-                final idx = _reps.indexWhere((x) => x.id == rep.id);
+                final idx = _reps.indexWhere((x) => x.id == currentRep.id);
                 if (idx >= 0) {
-                  _reps[idx] = Rep(
+                  updatedRep = Rep(
                     id: _reps[idx].id,
                     firstName: _reps[idx].firstName,
                     lastName: _reps[idx].lastName,
@@ -3956,10 +3958,16 @@ class _AdminPageState extends State<AdminPage> {
                     lang: _reps[idx].lang,
                     customers: customers,
                   );
+                  _reps[idx] = updatedRep!;
                 }
               });
 
               await _refreshReps();
+
+              final refreshedRep = _reps.firstWhere(
+                (x) => x.id == currentRep.id,
+                orElse: () => updatedRep ?? currentRep,
+              );
 
               emailAssignedToRepId
                 ..clear()
@@ -3972,7 +3980,10 @@ class _AdminPageState extends State<AdminPage> {
               );
               if ((selEmail ?? '').isEmpty) selEmail = null;
 
-              setLocal(() => busy = false);
+              setLocal(() {
+                currentRep = refreshedRep;
+                busy = false;
+              });
             } catch (e) {
               setLocal(() => busy = false);
               if (mounted) {
@@ -3984,12 +3995,13 @@ class _AdminPageState extends State<AdminPage> {
           Future<void> doUnassign(String email) async {
             setLocal(() => busy = true);
             try {
-              final customers = await _api.unassignCustomerFromRep(repId: rep.id, email: email);
+              final customers = await _api.unassignCustomerFromRep(repId: currentRep.id, email: email);
+              Rep? updatedRep;
 
               setState(() {
-                final idx = _reps.indexWhere((x) => x.id == rep.id);
+                final idx = _reps.indexWhere((x) => x.id == currentRep.id);
                 if (idx >= 0) {
-                  _reps[idx] = Rep(
+                  updatedRep = Rep(
                     id: _reps[idx].id,
                     firstName: _reps[idx].firstName,
                     lastName: _reps[idx].lastName,
@@ -3998,10 +4010,16 @@ class _AdminPageState extends State<AdminPage> {
                     lang: _reps[idx].lang,
                     customers: customers,
                   );
+                  _reps[idx] = updatedRep!;
                 }
               });
 
               await _refreshReps();
+
+              final refreshedRep = _reps.firstWhere(
+                (x) => x.id == currentRep.id,
+                orElse: () => updatedRep ?? currentRep,
+              );
 
               emailAssignedToRepId
                 ..clear()
@@ -4016,7 +4034,10 @@ class _AdminPageState extends State<AdminPage> {
                 if ((selEmail ?? '').isEmpty) selEmail = null;
               }
 
-              setLocal(() => busy = false);
+              setLocal(() {
+                currentRep = refreshedRep;
+                busy = false;
+              });
             } catch (e) {
               setLocal(() => busy = false);
               if (mounted) {
@@ -4026,7 +4047,7 @@ class _AdminPageState extends State<AdminPage> {
           }
 
           return AlertDialog(
-            title: Text('Kunden für ${rep.displayName}'),
+            title: Text('Kunden für ${currentRep.displayName}'),
             content: SizedBox(
               width: 620,
               child: Column(
@@ -4039,17 +4060,17 @@ class _AdminPageState extends State<AdminPage> {
                       border: Border.all(color: Colors.grey.shade300),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: (rep.customers.isEmpty)
+                    child: (currentRep.customers.isEmpty)
                         ? const Center(child: Padding(
                             padding: EdgeInsets.all(12),
                             child: Text('Keine Kunden zugewiesen.'),
                           ))
                         : ListView.separated(
                             shrinkWrap: true,
-                            itemCount: rep.customers.length,
+                            itemCount: currentRep.customers.length,
                             separatorBuilder: (_, __) => const Divider(height: 1),
                             itemBuilder: (_, i) {
-                              final email = rep.customers[i];
+                              final email = currentRep.customers[i];
                               final company = _companyByEmail(email) ?? '';
                               return ListTile(
                                 leading: const Icon(Icons.person_outline),
