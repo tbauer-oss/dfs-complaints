@@ -565,26 +565,33 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                           const Icon(Icons.description_outlined, size: 20),
                                           const SizedBox(width: 8),
                                           Expanded(
-                                            child: Row(
-                                              children: [
-                                                Expanded(
+                                            child: LayoutBuilder(
+                                              builder: (context, constraints) {
+                                                final ticketText = ConstrainedBox(
+                                                  constraints: BoxConstraints(maxWidth: constraints.maxWidth),
                                                   child: Text(
                                                     ticket.isEmpty ? '—' : ticket,
                                                     maxLines: 1,
                                                     overflow: TextOverflow.ellipsis,
-                                                    style:
-                                                        const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                                                  ),
-                                                ),
-                                                if (hasInternalNo)
-                                                  Flexible(
-                                                    flex: 0,
-                                                    child: Padding(
-                                                      padding: const EdgeInsets.only(left: 8),
-                                                      child: _internalNoPill(t, internalNo),
+                                                    style: const TextStyle(
+                                                      fontWeight: FontWeight.w700,
+                                                      fontSize: 16,
                                                     ),
                                                   ),
-                                              ],
+                                                );
+
+                                                if (!hasInternalNo) return ticketText;
+
+                                                return Wrap(
+                                                  spacing: 8,
+                                                  runSpacing: 6,
+                                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                                  children: [
+                                                    ticketText,
+                                                    _internalNoPill(t, internalNo),
+                                                  ],
+                                                );
+                                              },
                                             ),
                                           ),
                                         ],
