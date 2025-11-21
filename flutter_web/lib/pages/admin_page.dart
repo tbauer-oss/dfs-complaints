@@ -46,6 +46,44 @@ String _internalNumberPrefix({DateTime? now}) {
   return 'R820-${yy}_';
 }
 
+String _extractOrDefaultInternalPrefix(String value) {
+  final trimmed = value.trim();
+  if (trimmed.startsWith('R820-')) {
+    final idx = trimmed.indexOf('_');
+    if (idx >= 0) {
+      return trimmed.substring(0, idx + 1);
+    }
+  }
+  return _internalNumberPrefix();
+}
+
+void _guardInternalNumberPrefix(TextEditingController controller) {
+  var adjusting = false;
+
+  controller.addListener(() {
+    if (adjusting) return;
+    adjusting = true;
+
+    final current = controller.text;
+    final prefix = _extractOrDefaultInternalPrefix(current);
+
+    final suffix = current.startsWith(prefix)
+        ? current.substring(prefix.length)
+        : current.replaceFirst(RegExp(r'^R820-\d{2}_?'), '');
+
+    final enforced = '$prefix$suffix';
+
+    if (enforced != current || controller.selection.baseOffset < prefix.length) {
+      controller.value = TextEditingValue(
+        text: enforced,
+        selection: TextSelection.collapsed(offset: enforced.length),
+      );
+    }
+
+    adjusting = false;
+  });
+}
+
 String _ensureInternalNumberPrefix(String value) {
   final trimmed = value.trim();
   if (trimmed.isEmpty) return '';
@@ -239,6 +277,8 @@ class _AdminPageState extends State<AdminPage> {
     _custCountry = _defaultCountry;
     _bulkInternalAllCtrl.text = _internalNumberPrefix();
     _bulkInternalOpenCtrl.text = _internalNumberPrefix();
+    _guardInternalNumberPrefix(_bulkInternalAllCtrl);
+    _guardInternalNumberPrefix(_bulkInternalOpenCtrl);
 
     // Secret zuerst aus der API (wenn über Admin-Button gekommen),
     // sonst aus LocalStorage (dfs_admin).
@@ -6068,6 +6108,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
         (widget.c.internalNo == null || widget.c.internalNo!.trim().isEmpty)
             ? _internalNumberPrefix()
             : widget.c.internalNo!;
+    _guardInternalNumberPrefix(_internalCtrl);
     _notesCtrl.text = widget.c.adminNotes ?? '';
     _status = widget.c.status;
     _decision = widget.c.decision;
