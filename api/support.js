@@ -1,7 +1,7 @@
 // api/support.js
 export const config = { runtime: 'nodejs' };
 
-import { setCors, ok, bad, noContent, methodNotAllowed } from './_lib/http.js';
+import { handlePreflight, methodNotAllowed, ok, bad } from './_lib/http.js';
 import { getAuthUser } from './_lib/auth.js';
 import { sendMail } from './_lib/mailer.js';
 import { send, tpl } from './_lib/mail.js';
@@ -20,8 +20,7 @@ function asString(v) {
 const CATS = new Set(['general','complaint','technical','account','privacy','feedback','improve','other']);
 
 export default async function handler(req, res) {
-  setCors(req, res);
-  if (req.method === 'OPTIONS') return noContent(res);
+  if (handlePreflight(req, res)) return;
   if (req.method !== 'POST') return methodNotAllowed(res);
 
   const user = getAuthUser(req);
