@@ -1,5 +1,6 @@
 // api/rep/contact.js
-import { send, tpl } from '../_lib/mail.js'; // Pfad wie bei deinen anderen Routen
+import { setCors, noContent, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
+import { send, tpl } from '../_lib/mail.js';
 
 function asString(v) {
   return (typeof v === 'string' ? v : '').trim();
@@ -13,12 +14,12 @@ function normLang(x) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  setCors(req, res);
+  if (req.method === 'OPTIONS') return noContent(res);
+  if (req.method !== 'POST') return methodNotAllowed(res);
 
   try {
-    const body = req.body || {};
+    const body = readJson(req);
 
     const repEmail        = asString(body.repEmail);
     const repFirstName    = asString(body.repFirstName);
@@ -32,7 +33,7 @@ export default async function handler(req, res) {
     const lang            = normLang(body.lang || req.headers['accept-language']);
 
     if (!subjectRaw || !messageRaw) {
-      return res.status(400).json({ error: 'Missing subject or message' });
+      return bad(res, 'missing subject or message', 400);
     }
 
     const contactName = [contactFirst, contactLast]
@@ -109,13 +110,9 @@ export default async function handler(req, res) {
       });
     }
 
-    return res.status(200).json({ ok: true });
+    return ok(res, { ok: true });
   } catch (err) {
     console.error('rep/contact error', err);
-    const msg = err && err.message ? err.message : String(err);
-    return res.status(500).json({
-      error: 'rep_contact_failed',
-      message: msg,
-    });
+    return bad(res, 'rep_contact_failed', 500);
   }
 }
