@@ -1066,7 +1066,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     final title = switch (_view) {
       _RepView.menu      => t.rep_dashboard,
       _RepView.open      => t.complaintsMyCustomer,
-      _RepView.all       => 'Alle Reklamationen',
+      _RepView.all       => t.rep_menu_all_title,
       _RepView.customers => t.myCustomers,
       _RepView.support   => t.rep_support_contact_title,
       _RepView.account   => t.profilePW,
@@ -1192,8 +1192,8 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
         _MenuCard(
           color: Colors.red,
           icon: Icons.report_gmailerrorred_outlined,
-          title: 'Offene Reklamationen',
-          subtitle: 'Bearbeiten & Entscheiden',
+          title: ctx.t.rep_menu_open_title,
+          subtitle: ctx.t.rep_menu_open_subtitle,
           count: openCount,
           compact: compact,
           scale: scale,
@@ -1209,8 +1209,8 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
         _MenuCard(
           color: Colors.indigo,
           icon: Icons.all_inbox_outlined,
-          title: 'Alle Reklamationen',
-          subtitle: 'Filtern & Suchen',
+          title: ctx.t.rep_menu_all_title,
+          subtitle: ctx.t.rep_menu_all_subtitle,
           count: allCount,
           compact: compact,
           scale: scale,
@@ -1223,8 +1223,8 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
         _MenuCard(
           color: Colors.teal,
           icon: Icons.apartment_outlined,
-          title: 'Kundendatenbank',
-          subtitle: 'Firmen & Kontakte',
+          title: ctx.t.rep_menu_customers_title,
+          subtitle: ctx.t.rep_menu_customers_subtitle,
           count: _customers.length,
           compact: compact,
           scale: scale,
@@ -1237,8 +1237,8 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
         _MenuCard(
           color: Colors.blueGrey,
           icon: Icons.person_outline,
-          title: 'Mein Account',
-          subtitle: 'Profil & Passwort',
+          title: ctx.t.rep_menu_account_title,
+          subtitle: ctx.t.rep_menu_account_subtitle,
           count: null,
           compact: compact,
           scale: scale,
@@ -1365,9 +1365,9 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                           )),
                     ],
                     onChanged: (v) => setState(() => _selectedCompany = (v ?? '')),
-                    decoration: const InputDecoration(
-                      labelText: 'Firmenname filtern',
-                      prefixIcon: Icon(Icons.apartment_outlined),
+                    decoration: InputDecoration(
+                      labelText: t.rep_filter_company_label,
+                      prefixIcon: const Icon(Icons.apartment_outlined),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -1485,9 +1485,9 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                           )),
                     ],
                     onChanged: (v) => setState(() => _selectedCompany = (v ?? '')),
-                    decoration: const InputDecoration(
-                      labelText: 'Firmenname filtern',
-                      prefixIcon: Icon(Icons.apartment_outlined),
+                    decoration: InputDecoration(
+                      labelText: t.rep_filter_company_label,
+                      prefixIcon: const Icon(Icons.apartment_outlined),
                     ),
                   ),
                 ),
@@ -1516,7 +1516,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                   ),
                 ),
                 FilterChip(
-                  label: const Text('Abgeschlossen anzeigen'),
+                  label: Text(t.rep_filter_show_closed),
                   selected: _showClosedAll,
                   onSelected: (v) => setState(() => _showClosedAll = v),
                 ),
@@ -1527,7 +1527,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
         const SizedBox(height: 12),
         // Liste
         _Card(
-          title: 'Alle Reklamationen',
+          title: t.rep_menu_all_title,
           child: list.isEmpty
               ? Text(t.noComplaintsFound)
               : ListView.separated(
