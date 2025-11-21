@@ -3,23 +3,9 @@ export const config = { runtime: 'nodejs' };
 import { handlePreflight, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { randomGateCode, hashGateCode } from '../_lib/gate.js';
 import { gateStoreSet } from '../_lib/store.js';
-import { sendMail } from '../_lib/mailer.js';
+import { send } from '../_lib/mail.js';
 
 const INTERNAL_GATE_EMAIL = process.env.GATE_NOTIFY_EMAIL || 'complaint@dfs-diamon.de';
-const FALLBACK_GATE_CC =
-  process.env.GATE_NOTIFY_CC || process.env.MAIL_QM || 'complaint@dfs-diamon.de';
-
-function normalizeRecipients(...values) {
-  const recipients = new Set();
-  values
-    .flatMap((value) => String(value || '')
-      .split(',')
-      .map((part) => part.trim())
-    )
-    .filter(Boolean)
-    .forEach((value) => recipients.add(value));
-  return Array.from(recipients);
-}
 
 const isPreview = process.env.VERCEL_ENV !== 'production';
 
@@ -86,24 +72,23 @@ export default async function handler(req, res) {
         .filter((line) => line !== null)
         .join('\n');
       const subject = `[Gate-Code] ${company || email}`;
-      const to = normalizeRecipients(INTERNAL_GATE_EMAIL);
-      const cc = normalizeRecipients(FALLBACK_GATE_CC).filter((value) => !to.includes(value));
 
-      const result = await sendMail({
-        to: to.join(', '),
-        cc: cc.length ? cc.join(', ') : undefined,
+      await send(INTERNAL_GATE_EMAIL, {
         subject,
-        html,
         text,
+        html,
+        lang: 'de',
       });
-      mailSent = !!result?.ok;
-      if (!mailSent) mailError = result?.reason || 'send failed';
+
+      mailSent = true;
     } catch (err) {
       mailError = err?.message || String(err);
       console.error('gate-request mail failed:', mailError);
     }
 
-    return ok(res, { ok: true, mailSent, mailError });
+    if (!mailSent) return bad(res, 'gate_mail_failed', 500);
+
+    return ok(res, { ok: true, mailSent: true });
   } catch (err) {
     console.error('gate-request fatal:', err);
     const msg = isPreview ? err?.message || String(err) : 'internal error';
