@@ -294,6 +294,7 @@
   "oldPassword": "Contraseña anterior",
   "newPassword": "Nueva contraseña (mín. 8 caracteres con letras, números y caracteres especiales)",
   "newPasswordRepeat": "Nueva contraseña (repetir)",
+  "password_requirements": "Al menos 8 caracteres con letras (Aa), números (1-9) y caracteres especiales.",
   "confirmPassword": "Confirmar contraseña",
   "password": "Contraseña*",
   "password_repeat": "Contraseña (repetir)*",

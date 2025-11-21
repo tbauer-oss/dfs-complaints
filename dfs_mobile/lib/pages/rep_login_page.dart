@@ -137,6 +137,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
                   decoration: InputDecoration(
                     labelText: t.new_password_min8, // NEU
                     border: const OutlineInputBorder(),
+                    helperText: t.password_requirements,
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -145,6 +146,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
                   decoration: InputDecoration(
                     labelText: t.new_password_repeat_label, // NEU
                     border: const OutlineInputBorder(),
+                    helperText: t.password_requirements,
                   ),
                   onSubmitted: (_) async {
                     if (!saving) {

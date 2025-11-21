@@ -300,6 +300,7 @@
   "oldPassword": "Ancien mot de passe",
   "newPassword": "Nouveau mot de passe (min. 8 caractères avec lettres, chiffres et caractères spéciaux)",
   "newPasswordRepeat": "Nouveau mot de passe (répéter)",
+  "password_requirements": "Au moins 8 caractères avec lettres (Aa), chiffres (1-9) et caractères spéciaux.",
   "confirmPassword": "Confirmer le mot de passe",
   "password": "Mot de passe*",
   "password_repeat": "Mot de passe (répéter)*",

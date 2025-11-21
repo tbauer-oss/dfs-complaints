@@ -310,6 +310,7 @@ class _RepProfilePageState extends State<RepProfilePage> {
                         decoration: InputDecoration(
                           labelText: t.new_password_min8,
                           border: const OutlineInputBorder(),
+                          helperText: t.password_requirements,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -318,6 +319,7 @@ class _RepProfilePageState extends State<RepProfilePage> {
                         decoration: InputDecoration(
                           labelText: t.new_password_repeat_label,
                           border: const OutlineInputBorder(),
+                          helperText: t.password_requirements,
                         ),
                         onSubmitted: (_) => _busyPw ? null : _changePassword(),
                       ),

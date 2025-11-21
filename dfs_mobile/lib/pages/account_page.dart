@@ -556,14 +556,18 @@ class _PasswordPageState extends State<_PasswordPage> {
               PasswordField(
                 controller: newPw1,
                 decoration: InputDecoration(
-                  labelText: t.newPassword ?? 'Neues Passwort', border: const OutlineInputBorder(),
+                  labelText: t.newPassword ?? 'Neues Passwort',
+                  border: const OutlineInputBorder(),
+                  helperText: t.password_requirements,
                 ),
               ),
               const SizedBox(height: 8),
               PasswordField(
                 controller: newPw2,
                 decoration: InputDecoration(
-                  labelText: t.newPasswordRepeat ?? 'Neues Passwort (Wdh.)', border: const OutlineInputBorder(),
+                  labelText: t.newPasswordRepeat ?? 'Neues Passwort (Wdh.)',
+                  border: const OutlineInputBorder(),
+                  helperText: t.password_requirements,
                 ),
               ),
               const SizedBox(height: 16),

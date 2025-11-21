@@ -305,6 +305,7 @@
   "oldPassword": "Altes Passwort",
   "newPassword": "Neues Passwort (mind. 8 Zeichen mit Buchstaben, Zahlen & Sonderzeichen)",
   "newPasswordRepeat": "Neues Passwort (Wiederholung)",
+  "password_requirements": "Mindestens 8 Zeichen mit Buchstaben (Aa), Zahlen (1-9) und Sonderzeichen.",
   "confirmPassword": "Passwort bestätigen",
   "password": "Passwort*",
   "password_repeat": "Passwort (Wiederholung)*",
