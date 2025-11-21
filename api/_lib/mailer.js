@@ -2,10 +2,10 @@
 import nodemailer from 'nodemailer';
 
 const env = {
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT || 587),
-  user: process.env.SMTP_USER,
-  pass: process.env.SMTP_PASS,
+  host: process.env.SMTP_HOST || process.env.MAIL_HOST || process.env.MAIL_SERVER,
+  port: Number(process.env.SMTP_PORT || process.env.MAIL_PORT || 587),
+  user: process.env.SMTP_USER || process.env.MAIL_USER,
+  pass: process.env.SMTP_PASS || process.env.MAIL_PASS,
   from: process.env.SMTP_FROM || process.env.MAIL_FROM,
 };
 
