@@ -1,4 +1,7 @@
 // api/rep/contact.js
+export const config = { runtime: 'nodejs' };
+
+import { handlePreflight, methodNotAllowed } from '../_lib/http.js';
 import { send, tpl } from '../_lib/mail.js'; // Pfad wie bei deinen anderen Routen
 
 function asString(v) {
@@ -13,9 +16,8 @@ function normLang(x) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (handlePreflight(req, res)) return;
+  if (req.method !== 'POST') return methodNotAllowed(res);
 
   try {
     const body = req.body || {};
