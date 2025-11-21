@@ -25,7 +25,7 @@ export function setCors(req, res) {
 
   // Vom Browser angefragte Header dynamisch spiegeln; Baseline immer erlauben
   const reqAllowed = req.headers?.['access-control-request-headers'];
-  const baseline   = 'Content-Type, Authorization, X-Admin-Secret, X-Gate';
+  const baseline   = 'Content-Type, Authorization, X-Admin-Secret, X-Gate, X-Rep-Secret, X-Debug';
   const allowHdrs  = reqAllowed && String(reqAllowed).trim().length > 0
     ? `${baseline}, ${String(reqAllowed)}`
     : baseline;
