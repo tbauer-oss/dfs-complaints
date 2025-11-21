@@ -1,5 +1,7 @@
 // api/rep/contact.js
-import { setCors, noContent, methodNotAllowed } from '../_lib/http.js';
+export const config = { runtime: 'nodejs' };
+
+import { handlePreflight, methodNotAllowed } from '../_lib/http.js';
 import { send, tpl } from '../_lib/mail.js'; // Pfad wie bei deinen anderen Routen
 
 function asString(v) {
