@@ -18,6 +18,8 @@
   "theme_light": "Chiaro",
   "theme_dark": "Scuro",
 
+  "ticket": "Numero ticket",
+
   "attachments_add": "Invia ulteriori allegati",
   "attachments_success": "Gli allegati sono stati inviati con successo.",
   "attachments_error": "Impossibile inviare gli allegati.",
