@@ -54,9 +54,19 @@ export default async function handler(req, res) {
       if (!wanted) return bad(res, 'missing email', 400);
       const list = await usersList();
       const u = list.find(x => String(x?.email || '').trim().toLowerCase() === wanted);
-      
+
       if (!u) return bad(res, 'not found', 404);
       u.revoked = !!revoked;
+
+      // Falls der Nutzer sein Konto selbst gelöscht hat, aber der Admin ihn wieder
+      // freigibt, entfernen wir die Self-Delete-Markierung, damit entsprechende
+      // Hinweise in der UI verschwinden.
+      if (!u.revoked) {
+        u.selfDeleted = false;
+        u.revokedAt = null;
+        u.deletedAt = null;
+      }
+
       await userSave(u);
       return ok(res, { ok: true });
     }
