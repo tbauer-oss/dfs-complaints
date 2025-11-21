@@ -818,8 +818,8 @@ class _RegisterPageState extends State<RegisterPage> {
               gradient: _humanVerified
                   ? LinearGradient(
                       colors: [
-                        scheme.secondaryContainer.withOpacity(0.7),
-                        scheme.secondaryContainer.withOpacity(0.45),
+                        Colors.green.withOpacity(0.20),
+                        Colors.green.withOpacity(0.10),
                       ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
@@ -828,13 +828,13 @@ class _RegisterPageState extends State<RegisterPage> {
               borderRadius: BorderRadius.circular(18),
               border: Border.all(
                 color: _humanVerified
-                    ? scheme.secondary.withOpacity(0.4)
+                    ? Colors.green.withOpacity(0.5)
                     : scheme.secondary.withOpacity(0.1),
               ),
               boxShadow: _humanVerified
                   ? [
                       BoxShadow(
-                        color: scheme.secondary.withOpacity(0.16),
+                        color: Colors.green.withOpacity(0.18),
                         blurRadius: 18,
                         offset: const Offset(0, 10),
                       ),
