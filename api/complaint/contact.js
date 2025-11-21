@@ -6,6 +6,7 @@ import { getAuthUser } from '../_lib/auth.js';
 import { complaintGet, userByEmail } from '../_lib/store.js';
 import { getRepOf } from '../_lib/repsStore.js';
 import { send, tpl } from '../_lib/mail.js';
+import { sendMail } from '../_lib/mailer.js';
 
 const QM_MAIL = process.env.MAIL_QM || 'complaint@dfs-diamon.de';
 const LANGS = new Set(['de', 'en', 'fr', 'it', 'es']);
@@ -129,14 +130,34 @@ export default async function handler(req, res) {
 
     const mailSubject = `[DFS Complaint ${ticket}] ${subject}`;
 
-    await send(target, {
-      subject: mailSubject,
-      text: lines.join('\n'),
-      lang: 'de',
-      cc,
-    });
+    let delivered = false;
+    const mailText = lines.join('\n');
 
-    if (user.email) {
+    try {
+      await send(target, {
+        subject: mailSubject,
+        text: mailText,
+        lang: 'de',
+        cc,
+      });
+      delivered = true;
+    } catch (err) {
+      console.error('[complaint/contact] primary mail failed', err?.message || err);
+      try {
+        await sendMail({
+          to: target,
+          subject: mailSubject,
+          text: mailText,
+          cc,
+        });
+        delivered = true;
+      } catch (fallbackErr) {
+        console.error('[complaint/contact] fallback mail failed', fallbackErr?.message || fallbackErr);
+        return bad(res, 'message_send_failed', 500);
+      }
+    }
+
+    if (user.email && delivered) {
       try {
         const confirmation = tpl.messageConfirmation(
           {
