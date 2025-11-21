@@ -563,7 +563,7 @@ export async function send(
     mailOptions.cc = ccList;
   }
 
-  const info = await getTransport().sendMail(mailOptions);
+  const info = await sendWithRetry(mailOptions);
   console.log('mail: sent', { to, messageId: info.messageId });
   return info;
 }
@@ -571,4 +571,44 @@ export async function send(
 export async function notifyQM(msg) {
   if (!QM) return;
   return send(QM, msg);
+}
+
+async function sendWithRetry(mailOptions, { attempts = 3, baseDelayMs = 1000 } = {}) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await getTransport().sendMail(mailOptions);
+    } catch (err) {
+      lastError = err;
+      if (!isTemporarySmtpError(err) || attempt === attempts) {
+        throw err;
+      }
+
+      const delay = baseDelayMs * attempt;
+      console.warn('mail: temporary SMTP error, retrying', {
+        attempt,
+        delay,
+        code: err?.code,
+        responseCode: err?.responseCode,
+        command: err?.command,
+      });
+      await wait(delay);
+    }
+  }
+
+  throw lastError;
+}
+
+function isTemporarySmtpError(err) {
+  const responseCode = typeof err?.responseCode === 'number' ? err.responseCode : null;
+  if (responseCode && responseCode >= 400 && responseCode < 500) {
+    return true;
+  }
+
+  const smtpCode = parseInt(String(err?.code ?? ''), 10);
+  return smtpCode >= 400 && smtpCode < 500;
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
