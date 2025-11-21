@@ -9,10 +9,17 @@ const REPLY_TO = process.env.MAIL_REPLY_TO || 'complaint@dfs-diamon.de';
 const QM       = process.env.MAIL_QM || 'complaint@dfs-diamon.de';
 
 // ==== SMTP-ENV ====
-const SMTP_HOST = process.env.SMTP_HOST;                // z.B. mail.gmx.net
-const SMTP_PORT = Number(process.env.SMTP_PORT || 587); // 587=STARTTLS, 465=SMTPS
-const SMTP_USER = process.env.SMTP_USER;                // z.B. no-reply_dfs-complaints@gmx.net
-const SMTP_PASS = process.env.SMTP_PASS;
+const SMTP_HOST =
+  process.env.SMTP_HOST ||
+  process.env.MAIL_HOST ||
+  process.env.MAIL_SERVER;
+const SMTP_PORT = Number(
+  process.env.SMTP_PORT ||
+  process.env.MAIL_PORT ||
+  587,
+); // 587=STARTTLS, 465=SMTPS
+const SMTP_USER = process.env.SMTP_USER || process.env.MAIL_USER;
+const SMTP_PASS = process.env.SMTP_PASS || process.env.MAIL_PASS;
 
 let _transporter = null;
 
