@@ -21,6 +21,22 @@ function firstNonEmpty(...values) {
   return '';
 }
 
+function pickInternalNo(comp) {
+  try {
+    const payload = (comp?.payload && typeof comp.payload === 'object') ? comp.payload : {};
+    return firstNonEmpty(
+      comp?.internalNo,
+      comp?.internalId,
+      comp?.internal,
+      payload?.internalNo,
+      payload?.internalId,
+      payload?.internal,
+    );
+  } catch (_) {
+    return '';
+  }
+}
+
 function normLang(value) {
   const raw = String(value || '').toLowerCase();
   const two = raw.split(/[-_]/)[0];
@@ -79,6 +95,7 @@ export default async function handler(req, res) {
       console.warn('[complaint/contact] failed to load account', err?.message || err);
     }
     const payload = (comp?.payload && typeof comp.payload === 'object') ? comp.payload : {};
+    const internalNo = pickInternalNo(comp);
 
     const company = firstNonEmpty(
       account?.company,
@@ -114,6 +131,7 @@ export default async function handler(req, res) {
       `Kunde: ${company || '(unbekannt)'}`,
       `Kunden-E-Mail: ${user.email}`,
     ];
+    if (internalNo) lines.push(`Interne Reklamationsnummer: ${internalNo}`);
     if (contactName) lines.push(`Kontaktperson: ${contactName}`);
     if (hasRep) {
       lines.push(`Zugewiesener Ansprechpartner: ${repDisplay}`);
@@ -127,7 +145,8 @@ export default async function handler(req, res) {
     lines.push('');
     lines.push(message);
 
-    const mailSubject = `[DFS Complaint ${ticket}] ${subject}`;
+    const ticketLabel = internalNo ? `${ticket} / Intern ${internalNo}` : ticket;
+    const mailSubject = `[DFS Complaint ${ticketLabel}] ${subject}`;
 
     await send(target, {
       subject: mailSubject,

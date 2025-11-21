@@ -328,7 +328,10 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
 
   Future<void> _openComplaintContactForm(Complaint c) async {
     final t = AppLocalizations.of(context)!;
-    final initialSubject = t.complaint_contact_subject_prefill(c.ticket);
+    final internal = (c.internalNo ?? '').trim();
+    final initialSubject = internal.isNotEmpty
+        ? '${t.complaint_contact_subject_prefill(c.ticket)} – Intern $internal'
+        : t.complaint_contact_subject_prefill(c.ticket);
 
     final sent = await showDialog<bool>(
       context: context,

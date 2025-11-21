@@ -6332,7 +6332,9 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   // --- E-Mail an Kunden ------------------------------------------------
   String _buildMailSubject(AdminComplaint c) {
     final wish = c.handlingLabel == '—' ? '' : ' – ${c.handlingLabel}';
-    return '[DFS Complaint ${c.ticket}] Rückfrage zu Ihrer Reklamation$wish';
+    final internal = (c.internalNo ?? '').trim();
+    final ticketLabel = internal.isNotEmpty ? '${c.ticket} – Intern $internal' : c.ticket;
+    return '[DFS Complaint $ticketLabel] Rückfrage zu Ihrer Reklamation$wish';
   }
 
   String _buildMailBody(AdminComplaint c) {
