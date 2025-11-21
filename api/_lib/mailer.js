@@ -1,34 +1,30 @@
 // api/_lib/mailer.js
 import nodemailer from 'nodemailer';
+import { mailConfigOk, resolveMailConfig } from './mail-config.js';
 
-const {
-  SMTP_HOST,
-  SMTP_PORT,
-  SMTP_USER,
-  SMTP_PASS,
-  SMTP_FROM,
-  MAIL_FROM,
-} = process.env;
+const MAIL = resolveMailConfig();
+const { ok: mailOk, missing: missingMailEnv } = mailConfigOk(MAIL);
 
-const FALLBACK_FROM =
-  (SMTP_FROM && SMTP_FROM.trim()) ||
-  (MAIL_FROM && MAIL_FROM.trim()) ||
-  (SMTP_USER && SMTP_USER.trim()) ||
-  'DFS Complaints <no-reply_dfs-complaints@gmx.net>';
+const FALLBACK_FROM = MAIL.from || 'DFS Complaints <no-reply_dfs-complaints@gmx.net>';
 
 let transporter = null;
-if (SMTP_HOST && (SMTP_USER ? SMTP_PASS : true)) {
-  const port = Number(SMTP_PORT || 587);
+if (mailOk) {
   transporter = nodemailer.createTransport({
-    host: SMTP_HOST,
-    port,
-    secure: port === 465,
-    auth: SMTP_USER && SMTP_PASS ? { user: SMTP_USER, pass: SMTP_PASS } : undefined,
+    host: MAIL.host,
+    port: MAIL.port,
+    secure: MAIL.port === 465,
+    auth: MAIL.user && MAIL.pass ? { user: MAIL.user, pass: MAIL.pass } : undefined,
   });
 }
 
 export async function sendMail({ to, subject, html, text, cc }) {
-  if (!transporter) return { ok: false, reason: 'no-transporter' };
+  if (!transporter) {
+    return {
+      ok: false,
+      reason: 'missing-smtp-config',
+      missing: missingMailEnv,
+    };
+  }
   const info = await transporter.sendMail({
     from: FALLBACK_FROM,
     to,
