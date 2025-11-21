@@ -154,17 +154,23 @@ class _RepLoginPageState extends State<RepLoginPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                PasswordField(
-                  controller: _new1,
-                  decoration: InputDecoration(labelText: t.newPassword),
-                  textInputAction: TextInputAction.next,
-                  onSubmitted: (_) => (ctx as Element).markNeedsBuild(),
+              PasswordField(
+                controller: _new1,
+                decoration: InputDecoration(
+                  labelText: t.newPassword,
+                  helperText: t.password_requirements,
                 ),
-                PasswordField(
-                  controller: _new2,
-                  decoration: InputDecoration(labelText: t.newPasswordRepeat),
-                  onSubmitted: (_) => save(),
+                textInputAction: TextInputAction.next,
+                onSubmitted: (_) => (ctx as Element).markNeedsBuild(),
+              ),
+              PasswordField(
+                controller: _new2,
+                decoration: InputDecoration(
+                  labelText: t.newPasswordRepeat,
+                  helperText: t.password_requirements,
                 ),
+                onSubmitted: (_) => save(),
+              ),
                 if (localErr != null) ...[
                   const SizedBox(height: 8),
                   Text(localErr!, style: const TextStyle(color: Colors.red)),

@@ -303,6 +303,7 @@
   "oldPassword": "Old password",
   "newPassword": "New password (min. 8 characters incl. letters, numbers & special characters)",
   "newPasswordRepeat": "New password (repeat)",
+  "password_requirements": "At least 8 characters with letters (Aa), numbers (1-9) and special characters.",
   "confirmPassword": "Confirm password",
   "password": "Password*",
   "password_repeat": "Password (repeat)*",

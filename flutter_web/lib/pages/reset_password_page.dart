@@ -236,12 +236,18 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                             const SizedBox(height: 12),
                             PasswordField(
                               controller: _newPassword1,
-                              decoration: InputDecoration(labelText: t.newPassword),
+                              decoration: InputDecoration(
+                                labelText: t.newPassword,
+                                helperText: t.password_requirements,
+                              ),
                             ),
                             const SizedBox(height: 12),
                             PasswordField(
                               controller: _newPassword2,
-                              decoration: InputDecoration(labelText: t.newPasswordRepeat),
+                              decoration: InputDecoration(
+                                labelText: t.newPasswordRepeat,
+                                helperText: t.password_requirements,
+                              ),
                             ),
                             const SizedBox(height: 12),
                             if (_completeError != null)

@@ -1585,12 +1585,18 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                   const SizedBox(height: 8),
                   PasswordField(
                     controller: new1Ctrl,
-                    decoration: InputDecoration(labelText: t.newPassword),
+                    decoration: InputDecoration(
+                      labelText: t.newPassword,
+                      helperText: t.password_requirements,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   PasswordField(
                     controller: new2Ctrl,
-                    decoration: InputDecoration(labelText: t.newPasswordRepeat),
+                    decoration: InputDecoration(
+                      labelText: t.newPasswordRepeat,
+                      helperText: t.password_requirements,
+                    ),
                   ),
                   if (err != null) ...[
                     const SizedBox(height: 10),

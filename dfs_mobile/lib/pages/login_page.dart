@@ -230,6 +230,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
                   controller: _new1,
                   decoration: InputDecoration(
                     labelText: t.newPassword,
+                    helperText: t.password_requirements,
                     prefixIcon: const Icon(Icons.lock_outline),
                   ),
                   textInputAction: TextInputAction.next,
@@ -240,6 +241,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
                   controller: _new2,
                   decoration: InputDecoration(
                     labelText: t.newPasswordRepeat,
+                    helperText: t.password_requirements,
                     prefixIcon: const Icon(Icons.lock_reset),
                   ),
                   onSubmitted: (_) => save(),
