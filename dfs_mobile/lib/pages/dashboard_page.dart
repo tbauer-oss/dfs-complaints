@@ -318,76 +318,14 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
 
     // Kein Vertreter hinterlegt → Hinweis + Kontakt & Refresh
     if (r == null) {
-      return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.grey.withOpacity(.35)),
-            color: Colors.grey.withOpacity(.07),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.business_outlined, size: 20),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Zeige den Kundennamen (statt "DFS-Diamon GmbH")
-                    Text(
-                      company.isNotEmpty ? company : t.we_are_here_for_you,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        height: 1.1,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    // Hinweis + Kontaktmöglichkeit
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Text(
-                          AppLocalizations.of(context)!.rep_not_assigned,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: cs.onSurface.withOpacity(.70),
-                            height: 1.15,
-                          ),
-                        ),
-                        TextButton.icon(
-                          style: TextButton.styleFrom(
-                            visualDensity: const VisualDensity(horizontal: -2, vertical: -3),
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          ),
-                          onPressed: () => _openRepContactForm(context),
-                          icon: const Icon(Icons.mail_outline, size: 18),
-                          label: Text(
-                            t.rep_contact_form,
-                            style: theme.textTheme.labelMedium,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                tooltip: AppLocalizations.of(context)!.refresh,
-                onPressed: () {
-                  _initRep();
-                  _initCustomerName(); // falls sich was ändert
-                },
-                icon: const Icon(Icons.refresh),
-              ),
-            ],
-          ),
+      if (_repLoading) {
+        return const SizedBox(
+          height: 72,
+          child: Center(child: CircularProgressIndicator(strokeWidth: 2.5)),
         );
       }
+      return const SizedBox.shrink();
+    }
 
     final first  = r.firstName.trim();
     final last   = r.lastName.trim();
@@ -480,67 +418,14 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     final company = (_customerName ?? '').trim();
 
     if (r == null) {
-      // wie oben: Null-Hinweis
-      return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [const Color(0xFF1976D2).withOpacity(0.14), const Color(0xFF42A5F5).withOpacity(0.10)],
-            ),
-            border: Border.all(color: const Color(0xFF1976D2).withOpacity(0.5), width: 1),
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 10, offset: const Offset(0, 4))],
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 38, height: 38,
-                decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF1976D2)),
-                child: const Icon(Icons.business_outlined, color: Colors.white, size: 22),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      company.isNotEmpty ? company : t.we_are_here_for_you,
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                      maxLines: 2, overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Text(
-                          t.rep_not_assigned,
-                          style: TextStyle(color: cs.onSurface.withOpacity(.75), fontSize: 13),
-                        ),
-                        TextButton.icon(
-                          onPressed: () => _openRepContactForm(context),
-                          icon: const Icon(Icons.mail_outline),
-                          label: Text(t.rep_contact_form),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                tooltip: t.refresh,
-                onPressed: () {
-                  _initRep();
-                  _initCustomerName();
-                },
-                icon: const Icon(Icons.refresh),
-              ),
-            ],
-          ),
+      if (_repLoading) {
+        return const SizedBox(
+          height: 80,
+          child: Center(child: CircularProgressIndicator(strokeWidth: 2.5)),
         );
       }
+      return const SizedBox.shrink();
+    }
     
     final first  = r.firstName.trim();
     final last   = r.lastName.trim();
@@ -617,7 +502,9 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
   }
 
   // --- RESPONSIVE Umschalter: mobil kompakt, Desktop groß ---
-  Widget _buildRepHeaderResponsive(BuildContext context) {
+  Widget? _buildRepHeaderResponsive(BuildContext context) {
+    if (!_repLoading && _myRep == null) return null;
+
     // Breakpoint beliebig – 900px ist ein guter Desktop-Schwellenwert
     final isWide = MediaQuery.of(context).size.width >= 900;
     return isWide ? _buildRepCardLarge(context)
@@ -710,17 +597,20 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
             aspectRatio = isPhone ? 1.06 : 1.1;
           }
 
+          final repHeader = _buildRepHeaderResponsive(context);
+
           return Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 1080),
               child: CustomScrollView(
                 slivers: [
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-                    sliver: SliverToBoxAdapter(
-                      child: _buildRepHeaderResponsive(context),
+                  if (repHeader != null)
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+                      sliver: SliverToBoxAdapter(
+                        child: repHeader,
+                      ),
                     ),
-                  ),
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
