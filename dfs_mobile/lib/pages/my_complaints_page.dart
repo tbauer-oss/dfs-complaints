@@ -27,6 +27,8 @@ enum _SortBy { updated, created }
 
 class _MyComplaintsPageState extends State<MyComplaintsPage> {
   bool _busy = false;
+  bool _loading = false;
+  bool _uploading = false;
   String? _err;
   List<Complaint> _items = const [];
   List<Complaint> _allItems = const [];
@@ -65,6 +67,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     if (!silent) {
       setState(() {
         _busy = true;
+        _loading = true;
         _err = null;
       });
     }
@@ -86,7 +89,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
       }
     } finally {
       if (!mounted) return;
-      if (!silent) setState(() => _busy = false);
+      if (!silent) setState(() { _busy = false; _loading = false; });
     }
   }
 
@@ -311,7 +314,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
       return;
     }
 
-    setState(() => _busy = true);
+    setState(() { _busy = true; _uploading = true; });
     try {
       await widget.api.complaintUploadFiles(c.ticket, selected);
       await _load(silent: true);
@@ -328,7 +331,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
         SnackBar(content: Text(errMsg)),
       );
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() { _busy = false; _uploading = false; });
     }
   }
 
@@ -473,9 +476,12 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
             ),
           ),
 
+          if (_uploading)
+            const LinearProgressIndicator(minHeight: 4),
+
           // Liste der Reklamationen
           Expanded(
-            child: _busy
+            child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _err != null
                     ? Center(child: Text(_err!))
