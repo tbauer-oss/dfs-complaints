@@ -490,13 +490,20 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                       runSpacing: 8,
                       children: [
                         for (final f in files)
-                          Chip(
+                          InputChip(
                             label: Text(
                               f.name,
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1,
                             ),
                             avatar: const Icon(Icons.insert_drive_file_outlined),
+                            onDeleted: () {
+                              setState(() {
+                                files = files.where((file) => file != f).toList();
+                                _dirty = true;
+                              });
+                            },
+                            deleteIcon: const Icon(Icons.close),
                           ),
                       ],
                     ),
