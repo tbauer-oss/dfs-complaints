@@ -61,6 +61,14 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
 
   void _markDirty() { if (!_dirty) setState(() => _dirty = true); }
 
+  void _removeAttachmentAt(int index) {
+    setState(() {
+      final next = List.of(files)..removeAt(index);
+      files = next;
+      _dirty = true;
+    });
+  }
+
   Future<bool> _confirmLeaveIfDirty() async {
     if (!_dirty) return true;
     final t = context.t;
@@ -586,14 +594,16 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        for (final f in files)
+                        for (final entry in files.asMap().entries)
                           Chip(
                             label: Text(
-                              f.name,
+                              entry.value.name,
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1,
                             ),
                             avatar: const Icon(Icons.insert_drive_file_outlined),
+                            deleteIcon: const Icon(Icons.close),
+                            onDeleted: () => _removeAttachmentAt(entry.key),
                           ),
                       ],
                     ),
