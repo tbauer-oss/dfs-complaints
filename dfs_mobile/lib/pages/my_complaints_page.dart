@@ -541,7 +541,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                   runSpacing: 8,
                                   crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
-                                    if (articleNo.isNotEmpty)
+                                    if (articleNo.isNotEmpty && !hasInternalNo)
                                       _KeyValuePill(
                                         icon: Icons.handyman_outlined,
                                         label: (t.articleNo ?? t.article),
@@ -632,13 +632,29 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
 
                                                 if (!hasInternalNo) return ticketText;
 
-                                                return Wrap(
-                                                  spacing: 8,
-                                                  runSpacing: 6,
-                                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                                return Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
                                                   children: [
-                                                    ticketText,
-                                                    _internalNoPill(t, internalNo),
+                                                    Wrap(
+                                                      spacing: 8,
+                                                      runSpacing: 6,
+                                                      crossAxisAlignment: WrapCrossAlignment.center,
+                                                      children: [
+                                                        ticketText,
+                                                        _internalNoPill(t, internalNo),
+                                                      ],
+                                                    ),
+                                                    if (articleNo.isNotEmpty) ...[
+                                                      const SizedBox(height: 6),
+                                                      Align(
+                                                        alignment: Alignment.centerLeft,
+                                                        child: _KeyValuePill(
+                                                          icon: Icons.handyman_outlined,
+                                                          label: (t.articleNo ?? t.article),
+                                                          value: articleNo,
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ],
                                                 );
                                               },
@@ -988,8 +1004,7 @@ class _ActionButton extends StatelessWidget {
       icon: Icon(icon, size: 18),
       label: Text(
         label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center,
       ),
       style: FilledButton.styleFrom(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
