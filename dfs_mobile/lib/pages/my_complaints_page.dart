@@ -451,28 +451,36 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
           // Filter
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-            child: _FilterBar(
-              tickets: _optionsFrom(_allItems.map((c) => (c.ticket).trim())),
-              internalNos:
-                  _optionsFrom(_allItems.map((c) => (c.internalNo ?? '').trim())),
-              statuses: _statusOptions(_allItems),
-              decisions: _optionsFrom(_allItems.map((c) => (c.decision ?? '').trim())),
-              selectedTicket: _filterTicket,
-              selectedInternal: _filterInternalNo,
-              selectedStatus: _filterStatus,
-              selectedDecision: _filterDecision,
-              statusLabel: (s) => _statusTextLocalized(t, s),
-              decisionLabel: (d) => _decisionText(t, d),
-              onChanged: (
-                  {String? ticket, String? internal, int? status, String? decision}) {
-                setState(() {
-                  _filterTicket = ticket;
-                  _filterInternalNo = internal;
-                  _filterStatus = status;
-                  _filterDecision = decision;
-                });
-                _refreshFilteredItems();
-              },
+            child: Card(
+              elevation: 0,
+              color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(.4),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 12, 10, 8),
+                child: _FilterBar(
+                  tickets: _optionsFrom(_allItems.map((c) => (c.ticket).trim())),
+                  internalNos:
+                      _optionsFrom(_allItems.map((c) => (c.internalNo ?? '').trim())),
+                  statuses: _statusOptions(_allItems),
+                  decisions: _optionsFrom(_allItems.map((c) => (c.decision ?? '').trim())),
+                  selectedTicket: _filterTicket,
+                  selectedInternal: _filterInternalNo,
+                  selectedStatus: _filterStatus,
+                  selectedDecision: _filterDecision,
+                  statusLabel: (s) => _statusTextLocalized(t, s),
+                  decisionLabel: (d) => _decisionText(t, d),
+                  onChanged: (
+                      {String? ticket, String? internal, int? status, String? decision}) {
+                    setState(() {
+                      _filterTicket = ticket;
+                      _filterInternalNo = internal;
+                      _filterStatus = status;
+                      _filterDecision = decision;
+                    });
+                    _refreshFilteredItems();
+                  },
+                ),
+              ),
             ),
           ),
 
@@ -491,9 +499,9 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                             onRefresh: () => _load(silent: false),
                             child: ListView.separated(
                               physics: const AlwaysScrollableScrollPhysics(),
-                              padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+                              padding: const EdgeInsets.fromLTRB(10, 10, 10, 14),
                               itemCount: _items.length,
-                              separatorBuilder: (_, __) => const SizedBox(height: 10),
+                              separatorBuilder: (_, __) => const SizedBox(height: 8),
                               itemBuilder: (_, i) {
                                 final c = _items[i];
                                 final ticket = (c.ticket).toString();
@@ -527,8 +535,8 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                 );
 
                                 final statusWrap = Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
+                                  spacing: 6,
+                                  runSpacing: 6,
                                   crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
                                     _StatusPill(text: decisionText, color: decisionColor),
@@ -537,8 +545,8 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                 );
 
                                 final metaWrap = Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
+                                  spacing: 6,
+                                  runSpacing: 6,
                                   crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
                                     if (articleNo.isNotEmpty && !hasInternalNo)
@@ -606,12 +614,12 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                 // EXPANSION: alle Details
                                 return Card(
                                   elevation: 2,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                   child: Theme(
                                     data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
                                     child: ExpansionTile(
-                                      tilePadding: const EdgeInsets.fromLTRB(14, 6, 14, 6),
-                                      childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                                      tilePadding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+                                      childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                                       title: Row(
                                         children: [
                                           const Icon(Icons.description_outlined, size: 20),
@@ -626,7 +634,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                                     maxLines: 1,
                                                     overflow: TextOverflow.ellipsis,
                                                     style:
-                                                        const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                                                        const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
                                                   ),
                                                 );
 
@@ -874,7 +882,11 @@ class _FilterBar extends StatelessWidget {
           decoration: InputDecoration(
             labelText: label,
             isDense: true,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            labelStyle: Theme.of(context)
+                .textTheme
+                .bodyMedium
+                ?.copyWith(fontWeight: FontWeight.w600, fontSize: 13),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
           ),
           items: items,
@@ -886,15 +898,15 @@ class _FilterBar extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxWidth = constraints.maxWidth;
-        final compact = maxWidth < 520;
+        final compact = maxWidth < 560;
         final fieldWidth = compact
             ? maxWidth
-            : math.min<double>(280, (maxWidth - 12) / 2);
+            : math.min<double>(260, (maxWidth - 16) / 2);
 
         return Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 10,
+          runSpacing: 10,
+          crossAxisAlignment: WrapCrossAlignment.start,
           alignment: compact ? WrapAlignment.start : WrapAlignment.spaceBetween,
           children: [
             buildDropdown<String>(
@@ -1001,16 +1013,16 @@ class _ActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return FilledButton.tonalIcon(
       onPressed: onPressed,
-      icon: Icon(icon, size: 18),
+      icon: Icon(icon, size: 16),
       label: Text(
         label,
         textAlign: TextAlign.center,
       ),
       style: FilledButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        textStyle: const TextStyle(fontWeight: FontWeight.w700),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        visualDensity: const VisualDensity(horizontal: -1, vertical: -1),
       ),
     );
   }
@@ -1025,7 +1037,7 @@ class _StatusPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final safe = text.isEmpty ? '—' : text;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
         color: color.withOpacity(.12),
         border: Border.all(color: color, width: 1),
@@ -1033,7 +1045,7 @@ class _StatusPill extends StatelessWidget {
       ),
       child: Text(
         safe,
-        style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12.5),
+        style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12),
       ),
     );
   }
@@ -1049,10 +1061,10 @@ class _KeyValuePill extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
         color: cs.surfaceVariant.withOpacity(.55),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(9),
         border: Border.all(color: cs.outlineVariant),
       ),
       child: Row(
@@ -1060,7 +1072,7 @@ class _KeyValuePill extends StatelessWidget {
         children: [
           Icon(icon, size: 16),
           const SizedBox(width: 6),
-          Text('$label: ', style: const TextStyle(fontWeight: FontWeight.w600)),
+          Text('$label: ', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5)),
           Flexible(child: Text(value, overflow: TextOverflow.ellipsis, maxLines: 1)),
         ],
       ),
