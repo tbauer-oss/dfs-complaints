@@ -40,6 +40,7 @@ class _AuthPageState extends State<AuthPage> {
   String? _err;
   bool _busy = false;
   String _selectedLang = 'de';
+  bool _staySignedIn = true;
 
   @override
   void initState() {
@@ -124,6 +125,16 @@ class _AuthPageState extends State<AuthPage> {
                 border: const OutlineInputBorder(),
               ),
             ),
+
+            if (isLogin)
+              CheckboxListTile(
+                value: _staySignedIn,
+                onChanged: (v) => setState(() => _staySignedIn = v ?? false),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: Text(t.stay_signed_in),
+              ),
 
             if (!isLogin) ...[
               const SizedBox(height: 8),
@@ -337,6 +348,7 @@ class _AuthPageState extends State<AuthPage> {
     try {
       // ---------- LOGIN ----------
       if (isLogin) {
+        widget.api.setCustomerSessionPersistence(_staySignedIn);
         final result = await widget.api.login(_email.text.trim(), _pw.text);
         if (!mounted) return;
         if (result.ok) {
