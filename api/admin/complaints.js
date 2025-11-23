@@ -302,19 +302,19 @@ function buildPayloadMail(lang, ticket) {
   const l = resolveLang(lang, 'de');
 
   const SUBJECT = {
-    de: `Aktualisierung Ihrer Reklamation ${ticket}`,
-    en: `Update to your complaint ${ticket}`,
-    fr: `Mise à jour de votre réclamation ${ticket}`,
-    it: `Aggiornamento della sua segnalazione ${ticket}`,
-    es: `Actualización de su reclamación ${ticket}`,
+    de: `Korrektur Ihrer Reklamation ${ticket}`,
+    en: `Correction of your complaint ${ticket}`,
+    fr: `Correction de votre réclamation ${ticket}`,
+    it: `Correzione del reclamo ${ticket}`,
+    es: `Corrección de su reclamación ${ticket}`,
   };
 
   const INTRO = {
-    de: `wir haben Ihre Reklamation ${ticket} angepasst. Folgende Angaben wurden geändert:`,
-    en: `we updated your complaint ${ticket}. The following details were changed:`,
-    fr: `nous avons mis à jour votre réclamation ${ticket}. Les informations suivantes ont été modifiées :`,
-    it: `abbiamo aggiornato la sua segnalazione ${ticket}. Sono stati modificati i seguenti dati:`,
-    es: `hemos actualizado su reclamación ${ticket}. Se han modificado los siguientes datos:`,
+    de: `wir haben Ihre Reklamation ${ticket} korrigiert. Folgende Angaben wurden geändert:`,
+    en: `we have corrected your complaint ${ticket}. The following details were changed:`,
+    fr: `nous avons corrigé votre réclamation ${ticket}. Les informations suivantes ont été modifiées :`,
+    it: `abbiamo corretto il Suo reclamo ${ticket}. Sono stati modificati i seguenti dati:`,
+    es: `hemos corregido su reclamación ${ticket}. Se han modificado los siguientes datos:`,
   };
 
   const OUTRO = {
