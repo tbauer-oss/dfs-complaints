@@ -346,6 +346,7 @@ class _TempPasswordDialogState extends State<_TempPasswordDialog> {
   final TextEditingController _secCtrl = TextEditingController();
   String? _error;
   bool _saving = false;
+  bool _staySignedIn = true;
 
   @override
   void initState() {
@@ -425,6 +426,14 @@ class _TempPasswordDialogState extends State<_TempPasswordDialog> {
                 labelText: t.temp_password_label,
                 border: const OutlineInputBorder(),
               ),
+            ),
+            CheckboxListTile(
+              value: _staySignedIn,
+              onChanged: (v) => setState(() => _staySignedIn = v ?? false),
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              title: Text(t.stay_signed_in),
             ),
             if (_error != null) ...[
               const SizedBox(height: 8),
