@@ -9,6 +9,7 @@ import {
   methodNotAllowed,
   readJson,
 } from '../_lib/http.js';
+import { sendMail } from '../_lib/mailer.js';
 
 // -------- Admin-Auth ----------
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
@@ -174,6 +175,82 @@ const sortDescByDate = (a, b) => {
 };
 const decorateForAdmin = (c) => ({ ...c, statusLabel: STATUS_LABEL[c.status] || STATUS_LABEL[1] });
 
+const EDITABLE_PAYLOAD_FIELDS = {
+  segment: { label: 'Produktbereich', keys: ['segment', 'customer_segment', 'segment_code'] },
+  productType: { label: 'Produkttyp', keys: ['product_type', 'productType', 'type'] },
+  article: { label: 'Artikelnummer', keys: ['article', 'article_no', 'articleNumber', 'artnr'] },
+  batch: { label: 'Charge / Lot', keys: ['batch', 'batch_no', 'lot', 'lot_no'] },
+  serial: { label: 'Seriennummer', keys: ['serial', 'serial_no', 'sn'] },
+  qty: { label: 'Menge', keys: ['qty', 'quantity', 'amount', 'menge'] },
+  expiry: { label: 'Ablaufdatum', keys: ['expiry', 'expiry_date', 'exp'] },
+  desc: { label: 'Fehler / Beschreibung', keys: ['desc', 'description', 'comment', 'details', 'failure_desc'] },
+  reason: { label: 'Grund / Ursache', keys: ['reason', 'failure_reason', 'cause'] },
+  returned: { label: 'Produkte zurückgeschickt', keys: ['returned'] },
+  handling: { label: 'Gewünschte Behandlung', keys: ['handling', 'customer_wish', 'customerWish', 'wish', 'treatment_wish'] },
+  applied: { label: 'Am Patienten angewendet', keys: ['applied'] },
+  injury: { label: 'Verletzung', keys: ['injury'] },
+  injuryDesc: { label: 'Verletzungsbeschreibung', keys: ['injuryDesc'] },
+};
+
+function pickPayloadValue(payload = {}, keys = []) {
+  for (const key of keys) {
+    const raw = payload?.[key];
+    if (raw === undefined || raw === null) continue;
+    const str = raw.toString().trim();
+    if (str) return str;
+  }
+  return '';
+}
+
+function chooseTargetKey(payload = {}, keys = []) {
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(payload, key)) return key;
+  }
+  return keys[0];
+}
+
+function normalizePayloadInput(input) {
+  if (!input || typeof input !== 'object') return null;
+  const out = {};
+  for (const [k, v] of Object.entries(input)) {
+    out[k] = (v ?? '').toString().trim();
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+function diffAndMergePayload(current = {}, incoming = {}) {
+  const updated = { ...current };
+  const changes = [];
+
+  for (const [canonical, cfg] of Object.entries(EDITABLE_PAYLOAD_FIELDS)) {
+    if (!Object.prototype.hasOwnProperty.call(incoming, canonical)) continue;
+    const newValue = (incoming[canonical] ?? '').toString().trim();
+    const prevValue = pickPayloadValue(updated, cfg.keys);
+    const targetKey = chooseTargetKey(updated, cfg.keys);
+
+    if (newValue) updated[targetKey] = newValue; else delete updated[targetKey];
+
+    if (prevValue !== newValue) {
+      changes.push({
+        label: cfg.label,
+        before: prevValue || '—',
+        after: newValue || '—',
+      });
+    }
+  }
+
+  return { updated, changes };
+}
+
+function escapeHtml(value = '') {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 // =======================================================
 // Handler
 // =======================================================
@@ -253,6 +330,7 @@ export default async function handler(req, res) {
       const rawInternal = hasInternal ? body.internalNo : undefined;
       const hasNotes    = Object.prototype.hasOwnProperty.call(body, 'notes');
       const rawNotes    = hasNotes ? body.notes : undefined;
+      const payloadInput = normalizePayloadInput(body?.payload);
       const sendPushFlag =
         body?.sendPush === true ||
         body?.sendPush === 'true' ||
@@ -266,6 +344,18 @@ export default async function handler(req, res) {
 
       const prevStatus = Number(c.status ?? 1);
       let statusChanged = false;
+      let payloadChanged = false;
+      let payloadChanges = [];
+
+      if (payloadInput) {
+        const currentPayload = (c.payload && typeof c.payload === 'object') ? { ...c.payload } : {};
+        const { updated, changes } = diffAndMergePayload(currentPayload, payloadInput);
+        if (changes.length > 0) {
+          c.payload = updated;
+          payloadChanged = true;
+          payloadChanges = changes;
+        }
+      }
 
       // Status (optional)
       if (statusIn !== undefined) {
@@ -325,6 +415,45 @@ export default async function handler(req, res) {
       try { await complaintSave(ticket, c); }
       catch { await complaintSave({ ...c }); }
 
+      if (payloadChanged && payloadChanges.length > 0) {
+        const recipient = (c.email || '').toString().trim();
+        if (recipient) {
+          const subject = `[DFS Complaint ${c.ticket}] Aktualisierung Ihrer Reklamation`;
+          const bulletLines = payloadChanges
+            .map((chg) => `• ${chg.label}: vorher "${chg.before}", jetzt "${chg.after}"`)
+            .join('\n');
+
+          const htmlList = payloadChanges
+            .map((chg) =>
+              `<li><strong>${escapeHtml(chg.label)}:</strong> vorher „${escapeHtml(chg.before)}”, jetzt „${escapeHtml(chg.after)}”</li>`)
+            .join('');
+
+          const textBody =
+            `Guten Tag,\n\n` +
+            `wir haben Ihre Reklamation ${c.ticket} angepasst. Folgende Angaben wurden geändert:\n` +
+            `${bulletLines}\n\n` +
+            `Bei Rückfragen stehen wir gerne zur Verfügung.\n\n` +
+            `Freundliche Grüße\nDFS-DIAMON GmbH – Quality Management`;
+
+          const htmlBody =
+            `<p>Guten Tag,</p>` +
+            `<p>wir haben Ihre Reklamation <strong>${escapeHtml(c.ticket)}</strong> angepasst. ` +
+            `Folgende Angaben wurden geändert:</p>` +
+            `<ul>${htmlList}</ul>` +
+            `<p>Bei Rückfragen stehen wir gerne zur Verfügung.</p>` +
+            `<p>Freundliche Grüße<br/>DFS-DIAMON GmbH – Quality Management</p>`;
+
+          try {
+            const mailResult = await sendMail({ to: recipient, subject, text: textBody, html: htmlBody });
+            if (!mailResult?.ok) {
+              console.error('admin/complaints mail failed', mailResult?.reason || 'unknown reason');
+            }
+          } catch (err) {
+            console.error('admin/complaints mail failed', err);
+          }
+        }
+      }
+
       if (statusChanged && sendPushFlag) {
         try {
           const email = normEmail(c.email || '');
@@ -379,17 +508,8 @@ export default async function handler(req, res) {
           console.error('admin/complaints push notify failed:', pushErr);
         }
       }
-      
-      return ok(res, {
-        ticket: c.ticket,
-        status: c.status,
-        statusLabel: STATUS_LABEL[c.status] || STATUS_LABEL[1],
-        decision: c.decision ?? null,
-        reportLink: c.reportLink ?? null,
-        internalNo: c.internalNo ?? null,
-        adminNotes: c.adminNotes ?? null,
-        updatedAt: c.updatedAt,
-      });
+
+      return ok(res, decorateForAdmin(c));
     }
 
     // ----------------------------

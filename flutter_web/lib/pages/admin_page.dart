@@ -5432,7 +5432,7 @@ class AdminComplaint {
   String? reportLink;
   String? internalNo;
   String? adminNotes;
-  final Map<String, dynamic>? payload;
+  Map<String, dynamic>? payload;
   final List<ComplaintUpload> uploads;
 
   // Vertreter-Daten
@@ -5506,8 +5506,9 @@ class AdminComplaint {
       return s;
     }
 
-    final payload =
-        (j['payload'] is Map) ? (j['payload'] as Map).cast<String, dynamic>() : null;
+    final payload = (j['payload'] is Map)
+        ? Map<String, dynamic>.from((j['payload'] as Map).cast<String, dynamic>())
+        : null;
 
     String? repRaw = (j['repOpinion']
           ?? j['rep_opinion']
@@ -6030,6 +6031,23 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   bool _expanded = false;
   bool _noteOpen = false;
 
+  static const Map<String, List<String>> _payloadKeyMap = {
+    'segment': ['segment', 'customer_segment', 'segment_code'],
+    'productType': ['product_type', 'productType', 'type'],
+    'article': ['article', 'article_no', 'articleNumber', 'artnr'],
+    'batch': ['batch', 'batch_no', 'lot', 'lot_no'],
+    'serial': ['serial', 'serial_no', 'sn'],
+    'qty': ['qty', 'quantity', 'amount', 'menge'],
+    'expiry': ['expiry', 'expiry_date', 'exp'],
+    'desc': ['desc', 'description', 'comment', 'details', 'failure_desc'],
+    'reason': ['reason', 'failure_reason', 'cause'],
+    'returned': ['returned'],
+    'handling': ['handling', 'customer_wish', 'customerWish', 'wish', 'treatment_wish'],
+    'applied': ['applied'],
+    'injury': ['injury'],
+    'injuryDesc': ['injuryDesc'],
+  };
+
   int? _status; // 1..6
   String? _decision;
   
@@ -6048,6 +6066,15 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   String? _detPickOrNull(Map<String, dynamic>? p, List<String> keys) {
     final s = _detPick(p, keys);
     return s.isEmpty ? null : s;
+  }
+
+  Map<String, String> _payloadSnapshot() {
+    final payload = (widget.c.payload is Map) ? (widget.c.payload as Map).cast<String, dynamic>() : null;
+    final out = <String, String>{};
+    _payloadKeyMap.forEach((key, aliases) {
+      out[key] = _detPick(payload, aliases);
+    });
+    return out;
   }
 
   Widget _detKv(String label, String? value, {int? maxLines = 2}) {
@@ -6411,6 +6438,357 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
       }
+    }
+  }
+
+  Future<void> _openEditDialog() async {
+    if (_busy) return;
+
+    final snapshot = _payloadSnapshot();
+    final formKey = GlobalKey<FormState>();
+
+    String segment = snapshot['segment'] ?? '';
+    String productType = snapshot['productType'] ?? '';
+    final productTypeCtrl = TextEditingController(text: productType);
+    final articleCtrl = TextEditingController(text: snapshot['article'] ?? '');
+    final batchCtrl = TextEditingController(text: snapshot['batch'] ?? '');
+    final serialCtrl = TextEditingController(text: snapshot['serial'] ?? '');
+    final qtyCtrl = TextEditingController(text: snapshot['qty'] ?? '');
+    final expiryCtrl = TextEditingController(text: snapshot['expiry'] ?? '');
+    final descCtrl = TextEditingController(text: snapshot['desc'] ?? '');
+    final reasonCtrl = TextEditingController(text: snapshot['reason'] ?? '');
+    String returned = snapshot['returned'] ?? '';
+    String handling = snapshot['handling'] ?? '';
+    final handlingCtrl = TextEditingController(text: handling);
+    String applied = snapshot['applied'] ?? '';
+    String injury = snapshot['injury'] ?? '';
+    final injuryDescCtrl = TextEditingController(text: snapshot['injuryDesc'] ?? '');
+
+    final controllers = <TextEditingController>[
+      productTypeCtrl,
+      articleCtrl,
+      batchCtrl,
+      serialCtrl,
+      qtyCtrl,
+      expiryCtrl,
+      descCtrl,
+      reasonCtrl,
+      handlingCtrl,
+      injuryDescCtrl,
+    ];
+
+    void disposeControllers() {
+      for (final c in controllers) {
+        c.dispose();
+      }
+    }
+
+    Map<String, String>? updatedPayload = await showDialog<Map<String, String>?>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setState) {
+          String? normalizedDropdown(String value) => value.trim().isEmpty ? null : value;
+
+          List<DropdownMenuItem<String>> yesNoItems() => const [
+                DropdownMenuItem(value: 'Ja', child: Text('Ja')),
+                DropdownMenuItem(value: 'Nein', child: Text('Nein')),
+              ];
+
+          return AlertDialog(
+            title: const Text('Reklamation ändern'),
+            content: SizedBox(
+              width: 720,
+              child: SingleChildScrollView(
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: normalizedDropdown(segment),
+                              items: const [
+                                DropdownMenuItem(value: 'Zahnmedizin', child: Text('Zahnmedizin')),
+                                DropdownMenuItem(value: 'Dentallabor', child: Text('Dentallabor')),
+                              ],
+                              decoration: const InputDecoration(
+                                labelText: 'Produktbereich',
+                                border: OutlineInputBorder(),
+                              ),
+                              onChanged: (v) => setState(() => segment = v ?? ''),
+                              isExpanded: true,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextFormField(
+                              controller: productTypeCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Produkttyp (optional)',
+                                border: OutlineInputBorder(),
+                              ),
+                              onChanged: (v) => productType = v,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: articleCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Artikelnummer',
+                                border: OutlineInputBorder(),
+                              ),
+                              validator: (v) => (v == null || v.trim().isEmpty)
+                                  ? 'Artikelnummer erforderlich'
+                                  : null,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextFormField(
+                              controller: batchCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Charge / Lot',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: qtyCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Menge',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextFormField(
+                              controller: expiryCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Ablaufdatum',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: serialCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Seriennummer (optional)',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: normalizedDropdown(returned),
+                              items: const [
+                                DropdownMenuItem(value: 'Ja', child: Text('Ja')),
+                                DropdownMenuItem(value: 'Nein', child: Text('Nein')),
+                              ],
+                              decoration: const InputDecoration(
+                                labelText: 'Produkte zurückgeschickt?',
+                                border: OutlineInputBorder(),
+                              ),
+                              onChanged: (v) => setState(() => returned = v ?? ''),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: handlingCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Gewünschte Behandlung',
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: (v) => handling = v,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: descCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Fehler / Beschreibung',
+                          border: OutlineInputBorder(),
+                        ),
+                        minLines: 3,
+                        maxLines: 6,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Bitte eine Beschreibung angeben'
+                            : null,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: reasonCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Grund / Ursache (optional)',
+                          border: OutlineInputBorder(),
+                        ),
+                        minLines: 2,
+                        maxLines: 4,
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: normalizedDropdown(applied),
+                              items: yesNoItems(),
+                              decoration: const InputDecoration(
+                                labelText: 'Am Patienten angewendet?',
+                                border: OutlineInputBorder(),
+                              ),
+                              onChanged: (v) => setState(() => applied = v ?? ''),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: normalizedDropdown(injury),
+                              items: yesNoItems(),
+                              decoration: const InputDecoration(
+                                labelText: 'Verletzung?',
+                                border: OutlineInputBorder(),
+                              ),
+                              onChanged: (v) => setState(() => injury = v ?? ''),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: injuryDescCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Beschreibung der Verletzung (optional)',
+                          border: OutlineInputBorder(),
+                        ),
+                        minLines: 2,
+                        maxLines: 5,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Abbrechen'),
+              ),
+              FilledButton.icon(
+                onPressed: () {
+                  if (!formKey.currentState!.validate()) return;
+                  Navigator.pop(ctx, {
+                    'segment': segment,
+                    'productType': productTypeCtrl.text,
+                    'article': articleCtrl.text,
+                    'batch': batchCtrl.text,
+                    'serial': serialCtrl.text,
+                    'qty': qtyCtrl.text,
+                    'expiry': expiryCtrl.text,
+                    'desc': descCtrl.text,
+                    'reason': reasonCtrl.text,
+                    'returned': returned,
+                    'handling': handlingCtrl.text,
+                    'applied': applied,
+                    'injury': injury,
+                    'injuryDesc': injuryDescCtrl.text,
+                  });
+                },
+                icon: const Icon(Icons.save_outlined),
+                label: const Text('Änderungen speichern'),
+              ),
+            ],
+          );
+        });
+      },
+    );
+
+    if (updatedPayload == null) {
+      disposeControllers();
+      return;
+    }
+
+    updatedPayload = updatedPayload.map((k, v) => MapEntry(k, v.trim()));
+
+    bool hasChanges = false;
+    updatedPayload.forEach((key, value) {
+      if ((snapshot[key] ?? '').trim() != value) hasChanges = true;
+    });
+
+    if (!hasChanges) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Keine Änderungen vorgenommen.')));
+      }
+      disposeControllers();
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Änderungen übernehmen?'),
+        content: Text('Änderungen an Ticket ${widget.c.ticket} speichern und den Kunden per Mail informieren?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Ja, speichern')),
+        ],
+      ),
+    );
+
+    if (confirm != true) {
+      disposeControllers();
+      return;
+    }
+
+    setState(() => _busy = true);
+    try {
+      final updated = await widget.api.updateComplaintDetails(
+        ticket: widget.c.ticket,
+        payload: updatedPayload,
+      );
+
+      final newPayload = updated.payload ?? <String, dynamic>{};
+      widget.c.payload ??= <String, dynamic>{};
+      widget.c.payload!
+        ..clear()
+        ..addAll(newPayload);
+
+      _notifyChanged();
+
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Reklamation aktualisiert. Info-Mail wurde versendet.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+      disposeControllers();
     }
   }
 
@@ -7409,6 +7787,14 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                             ),
                           ),
                         ],
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            onPressed: _busy ? null : _openEditDialog,
+                            icon: const Icon(Icons.edit_note_outlined),
+                            label: const Text('Reklamation ändern'),
+                          ),
+                        ),
                         const SizedBox(height: 20),
                         editor,
                       ],
@@ -7878,6 +8264,24 @@ class AdminApi {
     if (internalNo != null) body['internalNo'] = internalNo;
     if (notes != null) body['notes'] = notes;
     if (sendPush != null) body['sendPush'] = sendPush;
+
+    final res = await _request('POST', '/api/admin/complaints', body: body);
+    if (res.status != 200) {
+      throw 'HTTP ${res.status} ${res.statusText} — ${res.responseText ?? ''}';
+    }
+    final Map<String, dynamic> j =
+        (res.responseText ?? '').trim().isEmpty ? <String, dynamic>{} : jsonDecode(res.responseText!);
+    return AdminComplaint.fromJson(j);
+  }
+
+  Future<AdminComplaint> updateComplaintDetails({
+    required String ticket,
+    required Map<String, String> payload,
+  }) async {
+    final body = <String, dynamic>{
+      'ticket': ticket,
+      'payload': payload,
+    };
 
     final res = await _request('POST', '/api/admin/complaints', body: body);
     if (res.status != 200) {
