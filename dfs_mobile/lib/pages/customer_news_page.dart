@@ -91,31 +91,23 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
     final gradient = LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: isDark
-          ? [
-              colorScheme.surface,
-              colorScheme.surfaceVariant.withOpacity(0.9),
-            ]
-          : [
-              Color.lerp(colorScheme.primary, Colors.black, 0.25)!,
-              colorScheme.primary,
-            ],
+      colors: [
+        colorScheme.primary.withOpacity(isDark ? 0.22 : 0.18),
+        colorScheme.surfaceVariant.withOpacity(isDark ? 0.55 : 0.32),
+      ],
     );
-    final borderColor = isDark
-        ? colorScheme.outline.withOpacity(0.35)
-        : Colors.white.withOpacity(0.35);
-    final textColor = isDark ? colorScheme.onSurface : Colors.white;
-    final secondaryTextColor =
-        isDark ? colorScheme.onSurfaceVariant : Colors.white.withOpacity(0.92);
-    final headerShadows = !isDark
-        ? [
+    final borderColor = colorScheme.outlineVariant.withOpacity(0.5);
+    final textColor = theme.colorScheme.onSurface;
+    final mutedText = textColor.withOpacity(0.75);
+    final headerShadows = isDark
+        ? null
+        : [
             Shadow(
-              color: Colors.black.withOpacity(0.45),
-              blurRadius: 12,
-              offset: const Offset(0, 3),
+              color: Colors.black.withOpacity(0.25),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
             ),
-          ]
-        : null;
+          ];
     final highlightLabels = [t.newsCatProduct, t.newsCatApp, t.newsCatRegulatory];
     final pinnedCount = entries.where((e) => e.pinned).length;
     final recentCount = entries
@@ -143,22 +135,21 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
         label,
         textAlign: TextAlign.center,
         style: theme.textTheme.bodySmall?.copyWith(
-          color: textColor.withOpacity(0.92),
+          color: mutedText,
           fontSize: (theme.textTheme.bodySmall?.fontSize ?? 12) * scale,
           height: 1.05,
           letterSpacing: 0.1,
-          shadows: headerShadows,
         ),
       );
     }
 
     Widget buildHeroVisual(double height) {
       final accent = isDark
-          ? colorScheme.primary.withOpacity(0.25)
-          : Colors.white.withOpacity(0.25);
-      final largeCircle = height * 0.75;
-      final mediumCircle = height * 0.6;
-      final smallCircle = height * 0.45;
+          ? colorScheme.primaryContainer.withOpacity(0.35)
+          : colorScheme.primary.withOpacity(0.18);
+      final largeCircle = height * 0.72;
+      final mediumCircle = height * 0.54;
+      final smallCircle = height * 0.38;
       return SizedBox(
         height: height,
         child: Stack(
@@ -198,7 +189,11 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
             ),
             Align(
               alignment: Alignment.center,
-              child: Icon(Icons.auto_awesome, color: textColor, size: 48),
+              child: Icon(
+                Icons.auto_awesome,
+                color: colorScheme.onPrimaryContainer,
+                size: 46,
+              ),
             ),
           ],
         ),
@@ -208,27 +203,25 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isCompact = constraints.maxWidth < 420;
-        final double compactScale = isCompact ? 0.7 : 0.8;
-        final double statNumberScale = isCompact ? 0.9 : 0.98;
-        final double statLabelScale = isCompact ? 0.9 : 0.96;
+        final double compactScale = isCompact ? 0.92 : 1.0;
+        final double statNumberScale = isCompact ? 0.96 : 1.0;
+        final double statLabelScale = isCompact ? 0.94 : 0.98;
 
         return Container(
-          margin: EdgeInsets.fromLTRB(10, 6, 10, isCompact ? 4 : 6),
+          margin: EdgeInsets.fromLTRB(12, 12, 12, isCompact ? 8 : 12),
           padding: EdgeInsets.symmetric(
-            horizontal: isCompact ? 12 : 14,
-            vertical: isDark
-                ? (isCompact ? 6 : 9)
-                : (isCompact ? 8 : 11),
+            horizontal: isCompact ? 14 : 16,
+            vertical: isCompact ? 12 : 14,
           ),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(isCompact ? 12 : 16),
+            borderRadius: BorderRadius.circular(isCompact ? 16 : 18),
             gradient: gradient,
             border: Border.all(color: borderColor),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.3 : 0.1),
-                blurRadius: isCompact ? 6 : 10,
-                offset: Offset(0, isCompact ? 4 : 6),
+                color: Colors.black.withOpacity(isDark ? 0.28 : 0.08),
+                blurRadius: isCompact ? 10 : 14,
+                offset: Offset(0, isCompact ? 8 : 12),
               ),
             ],
           ),
@@ -244,40 +237,32 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Container(
-                                padding: const EdgeInsets.all(6),
+                                padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
-                                  color: isDark
-                                      ? textColor.withOpacity(0.12)
-                                      : Colors.black.withOpacity(0.18),
+                                  color: colorScheme.primaryContainer.withOpacity(isDark ? 0.3 : 0.4),
                                   shape: BoxShape.circle,
                                 ),
                                 child: Icon(
                                   Icons.campaign_outlined,
-                                  color: textColor,
-                                  size: 14,
-                                  shadows: headerShadows,
+                                  color: colorScheme.onPrimaryContainer,
+                                  size: 16,
                                 ),
                               ),
+                              const SizedBox(height: 8),
                               Text(
                                 t.customerNewsSubtitle,
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   color: textColor,
                                   fontWeight: FontWeight.w800,
-                                  height: 1.1,
-                                  fontSize:
-                                      (theme.textTheme.titleLarge?.fontSize ?? 22) * (compactScale * 0.92),
-                                  shadows: headerShadows,
+                                  height: 1.15,
                                 ),
                               ),
                               const SizedBox(height: 3),
                               Text(
                                 t.customerNewsHeroLead,
                                 style: theme.textTheme.bodySmall?.copyWith(
-                                  color: secondaryTextColor,
-                                  height: 1.3,
-                                  fontSize:
-                                      (theme.textTheme.bodySmall?.fontSize ?? 12) * compactScale,
-                                  shadows: headerShadows,
+                                  color: mutedText,
+                                  height: 1.4,
                                 ),
                               ),
                             ],
@@ -295,39 +280,32 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Container(
-                                padding: const EdgeInsets.all(8),
+                                padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: isDark
-                                      ? textColor.withOpacity(0.12)
-                                      : Colors.black.withOpacity(0.18),
+                                  color: colorScheme.primaryContainer.withOpacity(isDark ? 0.3 : 0.4),
                                   shape: BoxShape.circle,
                                 ),
                                 child: Icon(
                                   Icons.campaign_outlined,
-                                  color: textColor,
-                                  size: 18,
-                                  shadows: headerShadows,
+                                  color: colorScheme.onPrimaryContainer,
+                                  size: 20,
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 8),
                               Text(
                                 t.customerNewsSubtitle,
-                                style: theme.textTheme.titleLarge?.copyWith(
+                                style: theme.textTheme.headlineSmall?.copyWith(
                                   color: textColor,
                                   fontWeight: FontWeight.w800,
-                                  fontSize:
-                                      (theme.textTheme.titleLarge?.fontSize ?? 22) * 0.94,
-                                  shadows: headerShadows,
+                                  letterSpacing: -0.2,
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 6),
                               Text(
                                 t.customerNewsHeroLead,
                                 style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: secondaryTextColor,
-                                  height: 1.35,
-                                  fontSize: (theme.textTheme.bodyMedium?.fontSize ?? 14) * 0.84,
-                                  shadows: headerShadows,
+                                  color: mutedText,
+                                  height: 1.5,
                                 ),
                               ),
                             ],
@@ -493,10 +471,10 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
     final accentColor = entry.pinned ? colorScheme.primary : colorScheme.secondary;
     final listDate = DateFormat.yMMMd(t.localeName).format(entry.publishedAt);
     final backgroundGradient = LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
       colors: [
-        accentColor.withOpacity(theme.brightness == Brightness.dark ? 0.35 : 0.1),
+        colorScheme.surfaceVariant.withOpacity(theme.brightness == Brightness.dark ? 0.45 : 0.2),
         colorScheme.surface,
       ],
     );
@@ -506,7 +484,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         gradient: backgroundGradient,
-        border: Border.all(color: accentColor.withOpacity(0.25)),
+        border: Border.all(color: accentColor.withOpacity(0.22)),
         boxShadow: [
           BoxShadow(
             color: Colors.black
@@ -519,24 +497,75 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              color: accentColor.withOpacity(theme.brightness == Brightness.dark ? 0.2 : 0.12),
+            ),
+            padding: EdgeInsets.symmetric(
+              horizontal: isCompact ? 12 : 16,
+              vertical: isCompact ? 8 : 10,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  entry.pinned ? Icons.star_rounded : Icons.campaign_outlined,
+                  size: isCompact ? 18 : 20,
+                  color: accentColor,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    entry.title,
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      height: 1.15,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isCompact ? 8 : 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    color: accentColor.withOpacity(0.18),
+                  ),
+                  child: Text(
+                    listDate,
+                    style: textTheme.labelLarge?.copyWith(
+                      color: accentColor,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
           InkWell(
             borderRadius: BorderRadius.circular(24),
             onTap: onToggle,
             child: Padding(
-              padding: EdgeInsets.all(isCompact ? 14 : 16),
+              padding: EdgeInsets.fromLTRB(
+                isCompact ? 14 : 16,
+                isCompact ? 12 : 14,
+                isCompact ? 14 : 16,
+                isCompact ? 6 : 8,
+              ),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding: EdgeInsets.all(isCompact ? 8 : 10),
+                    width: 40,
+                    height: 40,
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: accentColor.withOpacity(0.18),
+                      borderRadius: BorderRadius.circular(12),
+                      color: accentColor.withOpacity(0.15),
                     ),
+                    alignment: Alignment.center,
                     child: Icon(
                       Icons.auto_awesome_outlined,
                       color: accentColor,
-                      size: isCompact ? 18 : 20,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -545,27 +574,30 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          entry.title,
-                          style: textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            height: 1.2,
+                          _categoryLabel(t, entry.category),
+                          style: textTheme.labelLarge?.copyWith(
+                            color: colorScheme.onSurface.withOpacity(0.7),
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          listDate,
-                          style: textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurface.withOpacity(0.7),
-                            fontWeight: FontWeight.w600,
-                          ),
+                          entry.summary,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.bodyMedium?.copyWith(height: 1.4),
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Icon(
-                    expanded ? Icons.expand_less : Icons.expand_more,
-                    color: accentColor,
+                  AnimatedRotation(
+                    duration: const Duration(milliseconds: 180),
+                    turns: expanded ? 0.5 : 0,
+                    child: Icon(
+                      Icons.expand_more,
+                      color: accentColor,
+                    ),
                   ),
                 ],
               ),
@@ -587,20 +619,28 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                       spacing: isCompact ? 6 : 8,
                       runSpacing: 6,
                       children: [
-                        _buildPill(theme, _categoryLabel(t, entry.category), accentColor,
-                            icon: Icons.sell_outlined),
+                        _buildPill(
+                          theme,
+                          _categoryLabel(t, entry.category),
+                          accentColor,
+                          icon: Icons.sell_outlined,
+                        ),
                         if (entry.pinned)
-                          _buildPill(theme, t.customerNewsPinned, colorScheme.primary,
-                              icon: Icons.push_pin_outlined),
+                          _buildPill(
+                            theme,
+                            t.customerNewsPinned,
+                            colorScheme.primary,
+                            icon: Icons.push_pin_outlined,
+                          ),
                       ],
                     ),
-                    SizedBox(height: isCompact ? 10 : 12),
+                    SizedBox(height: isCompact ? 12 : 14),
                     Text(
                       entry.summary,
-                      style: textTheme.bodyMedium?.copyWith(height: 1.4),
+                      style: textTheme.bodyLarge?.copyWith(height: 1.45),
                     ),
-                    SizedBox(height: isCompact ? 10 : 14),
-                    const Divider(height: 1, thickness: 1),
+                    SizedBox(height: isCompact ? 12 : 16),
+                    Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant),
                     const SizedBox(height: 10),
                     LayoutBuilder(
                       builder: (context, constraints) {
