@@ -350,7 +350,7 @@ class _MyAppState extends State<MyApp> {
       return;
     }
 
-    api.setAdminSecret(secret);
+    await api.setAdminSecret(secret);
     try {
       await push.setup(api, languageCode: _prefs.locale?.languageCode);
       await push.replayLatestToken(api, languageCode: _prefs.locale?.languageCode);
@@ -361,8 +361,8 @@ class _MyAppState extends State<MyApp> {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => AdminPage(api: api)));
   }
 
-  void _openRegister(BuildContext context) {
-    api.clearGate();
+  Future<void> _openRegister(BuildContext context) async {
+    await api.clearGate();
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => RegisterPage(api: api)));
   }
 
@@ -977,6 +977,7 @@ class _LoginScreenState extends State<_LoginScreen> {
   final _pw    = TextEditingController();
   bool _busy = false;
   String? _err;
+  bool _staySignedIn = true;
 
   // robustes Asset-Checking (SVG → PNG → Text)
   Future<bool> _assetExists(String path) async {
@@ -991,6 +992,7 @@ class _LoginScreenState extends State<_LoginScreen> {
   Future<void> _doLogin() async {
     setState(() { _busy = true; _err = null; });
     try {
+      widget.api.setCustomerSessionPersistence(_staySignedIn);
       final result = await widget.api.login(_email.text.trim(), _pw.text); // Kunden-Login
       if (!mounted) return;
       if (result.ok) {
@@ -1082,14 +1084,23 @@ class _LoginScreenState extends State<_LoginScreen> {
                 controller: _pw,
                 decoration: InputDecoration(
                   labelText: t.password,
-                ),
-                onSubmitted: (_) => canLogin ? _doLogin() : null,
-                enabled: !_busy,
-                onChanged: (_) => setState(() {}),
               ),
+              onSubmitted: (_) => canLogin ? _doLogin() : null,
+              enabled: !_busy,
+              onChanged: (_) => setState(() {}),
+            ),
 
-              if (_err != null) ...[
-                const SizedBox(height: 12),
+            CheckboxListTile(
+              value: _staySignedIn,
+              onChanged: _busy ? null : (v) => setState(() => _staySignedIn = v ?? false),
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              title: Text(t.stay_signed_in),
+            ),
+
+            if (_err != null) ...[
+              const SizedBox(height: 12),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(_err!, style: const TextStyle(color: Colors.red)),

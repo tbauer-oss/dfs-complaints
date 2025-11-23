@@ -216,6 +216,7 @@ class _MyAppState extends State<MyApp> {
 
   bool _bootDone = false;
   bool _loggedIn = false; // Kundenlogin (token) steuert den Kunden-Flow
+  bool _rememberAdmin = true;
 
   // ---- Helpers ----
   bool get _customerLoggedIn => (api.token != null && api.token!.isNotEmpty);
@@ -240,25 +241,42 @@ class _MyAppState extends State<MyApp> {
   Future<void> _openAdmin(BuildContext context) async {
     final t = AppLocalizations.of(context)!;
     final ctrl = TextEditingController(text: api.adminSecret ?? '');
+    var remember = _rememberAdmin;
     final wantOpen = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: Text(t.admin_area),
-        content: PasswordField(
-          controller: ctrl,
-          decoration: const InputDecoration(
-            labelText: 'Admin Passwort',
-            border: OutlineInputBorder(),
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          title: Text(t.admin_area),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              PasswordField(
+                controller: ctrl,
+                decoration: const InputDecoration(
+                  labelText: 'Admin Passwort',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              CheckboxListTile(
+                value: remember,
+                onChanged: (v) => setS(() => remember = v ?? false),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: Text(t.stay_signed_in),
+              ),
+            ],
           ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t.cancel)),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(t.open)),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(t.cancel)),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(t.open)),
-        ],
       ),
     );
 
     if (wantOpen != true) return;
+    _rememberAdmin = remember;
 
     final secret = ctrl.text.trim();
     if (secret.isEmpty) {
@@ -276,7 +294,7 @@ class _MyAppState extends State<MyApp> {
       return;
     }
 
-    api.setAdminSecret(secret);
+    api.setAdminSecret(secret, persist: _rememberAdmin);
     if (!mounted) return;
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => AdminPage(api: api)));
   }

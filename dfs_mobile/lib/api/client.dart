@@ -1,6 +1,7 @@
 // lib/api/client.dart
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:shared_preferences/shared_preferences.dart';
 
 // EIN einziger bedingter Import – nur für window.localStorage (Stub auf Mobile)
 import 'package:dfs_mobile/web_compat/html_stub.dart'
@@ -98,59 +99,134 @@ class ApiClient {
   String? _repEmail;    // zuletzt geprüfte/benutzte Vertreter-E-Mail
 
   // ---------- Session persistieren ----------
-  void _saveSession() {
-    final ls = kIsWeb ? html.window.localStorage : <String, String>{};
+  bool _persistCustomerSession = true;
+  bool _persistRepSession = true;
+  bool _persistAdminSession = true;
 
-    // Token
-    if (token != null) {
-      ls['dfs_token'] = token!;
-    } else {
-      ls.remove('dfs_token');
+  Future<void> _saveSession() async {
+    final allowPushPersist =
+        _persistCustomerSession || _persistRepSession || _persistAdminSession;
+
+    if (kIsWeb) {
+      final ls = html.window.localStorage;
+
+      // Token
+      if (_persistCustomerSession && token != null) {
+        ls['dfs_token'] = token!;
+      } else {
+        ls.remove('dfs_token');
+      }
+
+      // Admin-Secret
+      if (_persistAdminSession && adminSecret != null) {
+        ls['dfs_admin'] = adminSecret!;
+      } else {
+        ls.remove('dfs_admin');
+      }
+
+      // Gate
+      if (_persistCustomerSession && gate != null) {
+        ls['dfs_gate'] = gate!;
+      } else {
+        ls.remove('dfs_gate');
+      }
+
+      // Rep-Token
+      if (_persistRepSession && repToken != null) {
+        ls['dfs_rep_token'] = repToken!;
+      } else {
+        ls.remove('dfs_rep_token');
+      }
+
+      if (allowPushPersist && pushDeviceToken != null && pushDeviceToken!.isNotEmpty) {
+        ls['dfs_push_token'] = pushDeviceToken!;
+      } else {
+        ls.remove('dfs_push_token');
+      }
+
+      // Vertreter-E-Mail (nur als Hilfe für Secret-Login)
+      if (_persistRepSession && _repEmail != null && _repEmail!.isNotEmpty) {
+        ls['dfs_rep_email'] = _repEmail!;
+      } else {
+        ls.remove('dfs_rep_email');
+      }
+      return;
     }
 
-    // Admin-Secret
-    if (adminSecret != null) {
-      ls['dfs_admin'] = adminSecret!;
+    final prefs = await SharedPreferences.getInstance();
+
+    if (_persistCustomerSession && token != null && token!.isNotEmpty) {
+      await prefs.setString('dfs_token', token!);
     } else {
-      ls.remove('dfs_admin');
+      await prefs.remove('dfs_token');
     }
 
-    // Gate
-    if (gate != null) {
-      ls['dfs_gate'] = gate!;
+    if (_persistAdminSession && adminSecret != null && adminSecret!.isNotEmpty) {
+      await prefs.setString('dfs_admin', adminSecret!);
     } else {
-      ls.remove('dfs_gate');
+      await prefs.remove('dfs_admin');
     }
 
-    // Rep-Token
-    if (repToken != null) {
-      ls['dfs_rep_token'] = repToken!;
+    if (_persistCustomerSession && gate != null && gate!.isNotEmpty) {
+      await prefs.setString('dfs_gate', gate!);
     } else {
-      ls.remove('dfs_rep_token');
+      await prefs.remove('dfs_gate');
     }
 
-    if (pushDeviceToken != null && pushDeviceToken!.isNotEmpty) {
-      ls['dfs_push_token'] = pushDeviceToken!;
+    if (_persistRepSession && repToken != null && repToken!.isNotEmpty) {
+      await prefs.setString('dfs_rep_token', repToken!);
     } else {
-      ls.remove('dfs_push_token');
+      await prefs.remove('dfs_rep_token');
     }
 
-    // Vertreter-E-Mail (nur als Hilfe für Secret-Login)
-    if (_repEmail != null && _repEmail!.isNotEmpty) {
-      ls['dfs_rep_email'] = _repEmail!;
+    if (allowPushPersist && pushDeviceToken != null && pushDeviceToken!.isNotEmpty) {
+      await prefs.setString('dfs_push_token', pushDeviceToken!);
     } else {
-      ls.remove('dfs_rep_email');
+      await prefs.remove('dfs_push_token');
+    }
+
+    if (_persistRepSession && _repEmail != null && _repEmail!.isNotEmpty) {
+      await prefs.setString('dfs_rep_email', _repEmail!);
+    } else {
+      await prefs.remove('dfs_rep_email');
     }
   }
 
   Future<void> restoreSession() async {
-    final ls = kIsWeb ? html.window.localStorage : <String, String>{};
-    token       = ls['dfs_token'];
-    adminSecret = ls['dfs_admin'];
-    gate        = ls['dfs_gate'];
-    repToken    = ls['dfs_rep_token'];
-    _repEmail   = ls['dfs_rep_email'];
-    pushDeviceToken = ls['dfs_push_token'];
+    if (kIsWeb) {
+      final ls = html.window.localStorage;
+      token       = ls['dfs_token'];
+      adminSecret = ls['dfs_admin'];
+      gate        = ls['dfs_gate'];
+      repToken    = ls['dfs_rep_token'];
+      _repEmail   = ls['dfs_rep_email'];
+      pushDeviceToken = ls['dfs_push_token'];
+
+      _persistCustomerSession = (token ?? '').isNotEmpty || (gate ?? '').isNotEmpty;
+      _persistAdminSession = (adminSecret ?? '').isNotEmpty;
+      _persistRepSession = (repToken ?? '').isNotEmpty || (_repEmail ?? '').isNotEmpty;
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    token       = prefs.getString('dfs_token');
+    adminSecret = prefs.getString('dfs_admin');
+    gate        = prefs.getString('dfs_gate');
+    repToken    = prefs.getString('dfs_rep_token');
+    _repEmail   = prefs.getString('dfs_rep_email');
+    pushDeviceToken = prefs.getString('dfs_push_token');
+
+    _persistCustomerSession = (token ?? '').isNotEmpty || (gate ?? '').isNotEmpty;
+    _persistAdminSession = (adminSecret ?? '').isNotEmpty;
+    _persistRepSession = (repToken ?? '').isNotEmpty || (_repEmail ?? '').isNotEmpty;
+  }
+
+  void setCustomerSessionPersistence(bool persist) {
+    _persistCustomerSession = persist;
+  }
+
+  void setRepSessionPersistence(bool persist) {
+    _persistRepSession = persist;
   }
 
   Future<void> logout() async {
@@ -161,13 +237,17 @@ class ApiClient {
     token = null;
     adminSecret = null;
     gate = null;
+    _persistCustomerSession = true;
+    _persistAdminSession = true;
+    _persistRepSession = true;
     pushDeviceToken = null;
-    _saveSession();
+    await _saveSession();
   }
 
-  void setAdminSecret(String? s) {
+  Future<void> setAdminSecret(String? s, {bool persist = true}) async {
+    _persistAdminSession = persist && (s ?? '').trim().isNotEmpty;
     adminSecret = (s ?? '').trim().isEmpty ? null : s!.trim();
-    _saveSession();
+    await _saveSession();
   }
 
   Map<String, String> _pushAuthHeaders() {
@@ -196,14 +276,15 @@ class ApiClient {
     return hasToken || hasRepToken || hasAdminSecret;
   }
 
-  void clearAdminSecret() {
+  Future<void> clearAdminSecret() async {
     adminSecret = null;
-    _saveSession();
+    _persistAdminSession = true;
+    await _saveSession();
   }
   
-  void clearGate() {
+  Future<void> clearGate() async {
     gate = null;
-    _saveSession();
+    await _saveSession();
   }
 
   // ---------- Header-Helfer ----------
@@ -269,7 +350,7 @@ class ApiClient {
         final tok = (j is Map ? (j['token'] ?? '') : '').toString();
         if (tok.isNotEmpty) {
           repToken = tok;
-          _saveSession();
+          await _saveSession();
           return true;
         }
       }
@@ -312,7 +393,7 @@ class ApiClient {
     final newTok = r.headers['x-rep-token'];
     if (newTok != null && newTok.isNotEmpty && newTok != repToken) {
       repToken = newTok;
-      _saveSession();
+      await _saveSession();
     }
 
     return r;
@@ -629,7 +710,7 @@ class ApiClient {
     final hasAuth = headers.containsKey('Authorization') || headers.containsKey('X-Admin-Secret');
     if (!hasAuth) {
       pushDeviceToken = trimmed;
-      _saveSession();
+      await _saveSession();
       return;
     }
 
@@ -648,7 +729,7 @@ class ApiClient {
       throw ApiError(res.statusCode, msg);
     }
     pushDeviceToken = trimmed;
-    _saveSession();
+    await _saveSession();
   }
 
   Future<void> unregisterPushToken(String token, {bool silent = false}) async {
@@ -656,7 +737,7 @@ class ApiClient {
     if (trimmed.isEmpty) {
       if (pushDeviceToken != null) {
         pushDeviceToken = null;
-        _saveSession();
+        await _saveSession();
       }
       return;
     }
@@ -685,7 +766,7 @@ class ApiClient {
 
     if (pushDeviceToken == trimmed) {
       pushDeviceToken = null;
-      _saveSession();
+      await _saveSession();
     }
   }
 
@@ -715,12 +796,12 @@ class ApiClient {
       final j = jsonDecode(r.body);
       if (j is Map && j['gate'] is String) {
         gate = j['gate'] as String;
-        _saveSession();
+        await _saveSession();
         return true;
       }
       if (j is Map && j['ok'] == true) {
         gate = 'ok';
-        _saveSession();
+        await _saveSession();
         return true;
       }
       return false;
@@ -751,7 +832,7 @@ class ApiClient {
         final j = jsonDecode(r.body);
         if (j is Map && j['token'] is String) {
           token = j['token'] as String;
-          _saveSession();
+          await _saveSession();
           await _registerCachedPushTokenIfPossible();
           return LoginResult.success();
         }
@@ -1125,7 +1206,7 @@ class ApiClient {
           final exists = (j is Map && j['exists'] is bool) ? j['exists'] as bool : false;
           if (exists) {
             _repEmail = e;
-            _saveSession();
+            await _saveSession();
           }
           return exists;
         } catch (_) {}
@@ -1154,7 +1235,7 @@ class ApiClient {
 
       repToken = tok;
       _repEmail = e;
-      _saveSession();
+      await _saveSession();
       await _registerCachedPushTokenIfPossible();
 
       return (ok: true, mustChange: mustChange);
@@ -1184,7 +1265,7 @@ class ApiClient {
             }
           }
         } catch (_) {}
-        _saveSession();
+        await _saveSession();
         await _registerCachedPushTokenIfPossible();
         return true;
       }
@@ -1205,7 +1286,7 @@ class ApiClient {
       final r = await http.get(_u('/api/rep/me'), headers: _repHeaders());
       if (_ok2xx(r.statusCode)) return true;
       repToken = null;
-      _saveSession();
+      await _saveSession();
       return false;
     } catch (_) {
       return false;
@@ -1228,7 +1309,7 @@ class ApiClient {
           final j = jsonDecode(r.body);
           if (j is Map && j['token'] is String) {
             repToken = j['token'] as String;
-            _saveSession();
+            await _saveSession();
           }
         }
       } catch (_) {}
@@ -1280,7 +1361,7 @@ class ApiClient {
 
   Future<void> repLogout() async {
     repToken = null;
-    _saveSession();
+    await _saveSession();
   }
 
   // Ende ApiClient
