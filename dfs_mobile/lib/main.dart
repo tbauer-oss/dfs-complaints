@@ -469,7 +469,9 @@ class _MyAppState extends State<MyApp> {
             darkTheme: _darkTheme(),
 
             // ---- Routing ----
-            initialRoute: '/',
+            // Wenn ein Vertreter-Token vorhanden ist, direkt ins Rep-Dashboard einsteigen,
+            // damit "angemeldet bleiben" auch nach App-Neustart greift.
+            initialRoute: _repLoggedIn ? '/rep' : '/',
             routes: {
               // Root / Startseite: Kunden-Flow
               '/': (_) => Builder(
