@@ -615,7 +615,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
                       child: _CustomerNewsSpotlight(
-                        // title: t.customerNewsTitle,
+                        title: t.customerNewsTitle,
                         subtitle: t.customerNewsSubtitle,
                         lead: t.customerNewsHeroLead,
                         freshLabel: t.customerNewsHeroFreshLabel,
