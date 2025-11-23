@@ -755,10 +755,10 @@ class _LoginLanding extends StatelessWidget {
     required this.prefs,
     required this.api,
     required this.onOpenRegister,
-    required this.onOpenAdmin,
     required this.onOpenRep,
     required this.onLoggedIn,
     required this.onOpenResetPassword,
+    required this.onOpenAdmin,
   });
 
   @override
@@ -805,9 +805,9 @@ class _LoginLanding extends StatelessWidget {
                               api: api,
                               onLoggedIn: onLoggedIn,
                               onOpenRegister: onOpenRegister,
-                              onOpenAdmin: onOpenAdmin,
                               onOpenRep: onOpenRep,
                               onOpenResetPassword: onOpenResetPassword,
+                              onOpenAdmin: onOpenAdmin,
                             ),
 
                             const SizedBox(height: 16),
@@ -871,49 +871,14 @@ class _LoginLanding extends StatelessWidget {
                                     ],
                                   ),
                                   const SizedBox(height: 14),
-                                  LayoutBuilder(
-                                    builder: (context, c) {
-                                      final isNarrow = c.maxWidth < 620;
-
-                                      final repButton = FilledButton.icon(
-                                        icon: const Icon(Icons.handshake),
-                                        label: Text(t.rep_area ?? t.rep_area),
-                                        onPressed: onOpenRep,
-                                        style: FilledButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(vertical: 14),
-                                          shape: const StadiumBorder(),
-                                        ),
-                                      );
-
-                                      final adminButton = OutlinedButton.icon(
-                                        icon: const Icon(Icons.admin_panel_settings),
-                                        label: Text(t.admin_area),
-                                        onPressed: onOpenAdmin,
-                                        style: OutlinedButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(vertical: 14),
-                                          shape: const StadiumBorder(),
-                                        ),
-                                      );
-
-                                      if (isNarrow) {
-                                        return Column(
-                                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                                          children: [
-                                            repButton,
-                                            const SizedBox(height: 10),
-                                            adminButton,
-                                          ],
-                                        );
-                                      }
-
-                                      return Row(
-                                        children: [
-                                          Expanded(child: repButton),
-                                          const SizedBox(width: 12),
-                                          Expanded(child: adminButton),
-                                        ],
-                                      );
-                                    },
+                                  FilledButton.icon(
+                                    icon: const Icon(Icons.handshake),
+                                    label: Text(t.rep_area ?? t.rep_area),
+                                    onPressed: onOpenRep,
+                                    style: FilledButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(vertical: 14),
+                                      shape: const StadiumBorder(),
+                                    ),
                                   ),
                                 ],
                               ),
