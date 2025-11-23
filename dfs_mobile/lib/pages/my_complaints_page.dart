@@ -526,13 +526,21 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                       _busy ? null : () => _openComplaintContactForm(c),
                                 );
 
-                                final infoWrap = Wrap(
+                                final statusWrap = Wrap(
                                   spacing: 8,
                                   runSpacing: 8,
                                   crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
                                     _StatusPill(text: decisionText, color: decisionColor),
                                     _StatusPill(text: statusText, color: statusColor),
+                                  ],
+                                );
+
+                                final metaWrap = Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
                                     if (articleNo.isNotEmpty)
                                       _KeyValuePill(
                                         icon: Icons.handyman_outlined,
@@ -545,6 +553,17 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                         label: t.product_type ?? 'Produkttyp',
                                         value: productType,
                                       ),
+                                  ],
+                                );
+
+                                final headerInfo = Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    statusWrap,
+                                    if (metaWrap.children.isNotEmpty) ...[
+                                      const SizedBox(height: 10),
+                                      metaWrap,
+                                    ],
                                   ],
                                 );
 
@@ -576,7 +595,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                     return Row(
                                       crossAxisAlignment: CrossAxisAlignment.center,
                                       children: [
-                                        Expanded(child: infoWrap),
+                                        Expanded(child: headerInfo),
                                         const SizedBox(width: 12),
                                         actionRow,
                                       ],
