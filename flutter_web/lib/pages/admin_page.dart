@@ -5434,6 +5434,7 @@ class AdminComplaint {
   String? adminNotes;
   Map<String, dynamic>? payload;
   final List<ComplaintUpload> uploads;
+  List<ComplaintHistoryEntry> history;
 
   // Vertreter-Daten
   String? repOpinion; // 'accepted' | 'rejected' | 'pending'
@@ -5463,8 +5464,10 @@ class AdminComplaint {
     this.payload,
     this.repOpinion,
     this.repId,
+    List<ComplaintHistoryEntry>? history,
     List<ComplaintUpload>? uploads,
-  }) : uploads = List.unmodifiable(uploads ?? const <ComplaintUpload>[]);
+  })  : uploads = List.unmodifiable(uploads ?? const <ComplaintUpload>[]),
+        history = List<ComplaintHistoryEntry>.unmodifiable(history ?? const <ComplaintHistoryEntry>[]);
 
   static Map<String, dynamic> _coerceMap(dynamic value) {
     if (value is Map) {
@@ -5486,6 +5489,17 @@ class AdminComplaint {
       return out;
     }
     return const <ComplaintUpload>[];
+  }
+
+  static List<ComplaintHistoryEntry> _parseHistory(dynamic value) {
+    if (value is List) {
+      return List<ComplaintHistoryEntry>.unmodifiable(value.map((entry) {
+        if (entry is Map<String, dynamic>) return ComplaintHistoryEntry.fromJson(entry);
+        if (entry is Map) return ComplaintHistoryEntry.fromJson(_coerceMap(entry));
+        return null;
+      }).whereType<ComplaintHistoryEntry>());
+    }
+    return const <ComplaintHistoryEntry>[];
   }
 
   factory AdminComplaint.fromJson(Map<String, dynamic> j) {
@@ -5542,6 +5556,7 @@ class AdminComplaint {
     final repIdLocal = _pickRepId(j, payload);
 
     final uploads = _parseUploads(j['uploads'] ?? j['files']);
+    final history = _parseHistory(j['history']);
 
     return AdminComplaint(
       ticket: (j['ticket'] ?? '').toString(),
@@ -5562,6 +5577,7 @@ class AdminComplaint {
       payload: payload,
       repOpinion: _norm(repRaw),
       repId: repIdLocal,
+      history: history,
       uploads: uploads,
     );
   }
@@ -5577,8 +5593,59 @@ class AdminComplaint {
         'internalNo': internalNo,
         'adminNotes': adminNotes,
         'payload': payload,
+        'history': history.map((e) => e.toJson()).toList(),
         if (repOpinion != null) 'repOpinion': repOpinion,
         if (repId != null) 'repId': repId,
+      };
+}
+
+class ComplaintHistoryEntry {
+  final DateTime at;
+  final String actor;
+  final String type;
+  final String message;
+  final Map<String, dynamic>? data;
+
+  ComplaintHistoryEntry({
+    required this.at,
+    required this.actor,
+    required this.type,
+    required this.message,
+    this.data,
+  });
+
+  factory ComplaintHistoryEntry.fromJson(Map<String, dynamic> j) {
+    DateTime _dt(v) {
+      if (v is int) return DateTime.fromMillisecondsSinceEpoch(v);
+      if (v is num) return DateTime.fromMillisecondsSinceEpoch(v.toInt());
+      if (v is String && v.trim().isNotEmpty) {
+        final parsed = DateTime.tryParse(v.trim());
+        if (parsed != null) return parsed;
+      }
+      return DateTime.now();
+    }
+
+    Map<String, dynamic>? _map(v) {
+      if (v is Map<String, dynamic>) return v;
+      if (v is Map) return v.map((key, value) => MapEntry('$key', value));
+      return null;
+    }
+
+    return ComplaintHistoryEntry(
+      at: _dt(j['at']),
+      actor: (j['actor'] ?? 'system').toString(),
+      type: (j['type'] ?? 'info').toString(),
+      message: (j['message'] ?? '').toString(),
+      data: _map(j['data']),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'at': at.toIso8601String(),
+        'actor': actor,
+        'type': type,
+        'message': message,
+        if (data != null) 'data': data,
       };
 }
 
@@ -6161,6 +6228,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       widget.c.reportLink = updated.reportLink;
       widget.c.status = updated.status;
       widget.c.decision = updated.decision;
+      widget.c.history = updated.history;
 
       _notifyChanged();
 
@@ -6209,6 +6277,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       // Fallback, falls dein Backend etwas „bereinigt“ zurückgibt
       setState(() {
         widget.c.internalNo = updated.internalNo ?? newVal;
+        widget.c.history = updated.history;
       });
 
       _notifyChanged();
@@ -6279,6 +6348,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
         widget.c.adminNotes = updated.adminNotes;
         _notesCtrl.text = updated.adminNotes ?? '';
         _noteOpen = false;
+        widget.c.history = updated.history;
       });
 
       _notifyChanged();
@@ -6315,6 +6385,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       );
       setState(() {
         widget.c.internalNo = updated.internalNo; // bleibt i. d. R. null/leer
+        widget.c.history = updated.history;
       });
 
       _notifyChanged();
@@ -6337,9 +6408,12 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   Future<void> _clearReportLink() async {
     setState(() => _busy = true);
     try {
-      await widget.api.adminComplaintUpdate(ticket: widget.c.ticket, reportLink: '');
+      final updated = await widget.api.adminComplaintUpdate(ticket: widget.c.ticket, reportLink: '');
       _reportCtrl.text = '';
-      widget.c.reportLink = null;
+      widget.c.reportLink = updated.reportLink;
+      widget.c.status = updated.status;
+      widget.c.decision = updated.decision;
+      widget.c.history = updated.history;
 
       _notifyChanged();
 
@@ -6393,6 +6467,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       );
       widget.c.status = updated.status;
       widget.c.decision = updated.decision;
+      widget.c.history = updated.history;
 
       _notifyChanged();
 
@@ -6773,6 +6848,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       widget.c.payload!
         ..clear()
         ..addAll(newPayload);
+      widget.c.history = updated.history;
 
       _notifyChanged();
 
@@ -6900,6 +6976,84 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       return value >= 10 ? '${value.toStringAsFixed(0)} KB' : '${value.toStringAsFixed(1)} KB';
     }
     return '$size B';
+  }
+
+  String _historyTypeLabel(String raw) {
+    switch (raw.trim()) {
+      case 'created':
+        return 'Erstellt';
+      case 'status':
+        return 'Status';
+      case 'decision':
+        return 'Entscheidung';
+      case 'payload':
+        return 'Details';
+      case 'report':
+        return 'Report-Link';
+      case 'internal':
+        return 'Interne Nummer';
+      case 'notes':
+        return 'Notiz';
+      default:
+        return raw.trim().isEmpty ? 'Aktualisierung' : raw;
+    }
+  }
+
+  String _historyDetails(ComplaintHistoryEntry entry) {
+    final data = entry.data;
+    if (data == null || data.isEmpty) return '';
+
+    if (data['changes'] is List) {
+      final parts = <String>[];
+      for (final change in data['changes'] as List) {
+        if (change is Map) {
+          final label = (change['label'] ?? '').toString();
+          final before = (change['before'] ?? '—').toString();
+          final after = (change['after'] ?? '—').toString();
+          parts.add(label.isEmpty ? '$before → $after' : '$label: $before → $after');
+        }
+      }
+      return parts.join(' | ');
+    }
+
+    if (data['link'] != null) return data['link'].toString();
+    if (data['internalNo'] != null) return data['internalNo'].toString();
+
+    return data.entries.map((e) => '${e.key}: ${e.value}').join(' | ');
+  }
+
+  void _exportHistoryCsv() {
+    final entries = List<ComplaintHistoryEntry>.from(widget.c.history);
+    if (entries.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Keine Historie zum Export vorhanden.')));
+      return;
+    }
+
+    entries.sort((a, b) => a.at.compareTo(b.at));
+    const sep = ';';
+    String esc(String v) => '"${v.replaceAll('"', '""')}"';
+
+    final buffer = StringBuffer();
+    buffer.writeln([ 'Datum', 'Typ', 'Quelle', 'Beschreibung', 'Details' ].map(esc).join(sep));
+
+    for (final entry in entries) {
+      final row = [
+        _fmtDateTime(entry.at),
+        _historyTypeLabel(entry.type),
+        entry.actor,
+        entry.message,
+        _historyDetails(entry),
+      ].map((v) => esc(v)).join(sep);
+      buffer.writeln(row);
+    }
+
+    final blob = html.Blob([buffer.toString()], 'text/csv;charset=utf-8');
+    final url = html.Url.createObjectUrlFromBlob(blob);
+    final anchor = html.AnchorElement(href: url)
+      ..setAttribute('download', 'reklamation_${widget.c.ticket}_historie.csv');
+    anchor.click();
+    html.Url.revokeObjectUrl(url);
   }
 
   void _composeMailToCustomer() {
@@ -7701,6 +7855,83 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                     );
                   }
 
+                  Widget buildHistorySection() {
+                    final history = List<ComplaintHistoryEntry>.from(c.history);
+                    history.sort((a, b) => b.at.compareTo(a.at));
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.timeline_outlined),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Reklamationshistorie',
+                                  style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                                ),
+                              ],
+                            ),
+                            OutlinedButton.icon(
+                              onPressed: history.isEmpty ? null : _exportHistoryCsv,
+                              icon: const Icon(Icons.download_outlined),
+                              label: const Text('Exportieren'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        if (history.isEmpty)
+                          Text(
+                            'Keine Einträge vorhanden.',
+                            style: textTheme.bodySmall?.copyWith(color: secondaryTextColor),
+                          )
+                        else
+                          ...history.map((entry) {
+                            final details = _historyDetails(entry);
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(Icons.history, size: 18, color: scheme.outline),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          _fmtDateTime(entry.at),
+                                          style: textTheme.bodySmall?.copyWith(color: secondaryTextColor),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          entry.message.isEmpty ? '(ohne Beschreibung)' : entry.message,
+                                          style: textTheme.bodyMedium,
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          '${_historyTypeLabel(entry.type)} • ${entry.actor}',
+                                          style: textTheme.bodySmall?.copyWith(color: secondaryTextColor),
+                                        ),
+                                        if (details.isNotEmpty)
+                                          Text(
+                                            details,
+                                            style: textTheme.bodySmall?.copyWith(color: secondaryTextColor),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
+                      ],
+                    );
+                  }
+
                   final editor = isWide
                       ? Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -7787,6 +8018,9 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                             ),
                           ),
                         ],
+                        const SizedBox(height: 12),
+                        buildHistorySection(),
+                        const SizedBox(height: 12),
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton.icon(
