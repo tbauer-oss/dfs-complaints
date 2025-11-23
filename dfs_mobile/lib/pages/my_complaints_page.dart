@@ -585,7 +585,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                       return Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          infoWrap,
+                                          headerInfo,
                                           const SizedBox(height: 12),
                                           actionRow,
                                         ],
