@@ -439,41 +439,72 @@ class _RepLoginPageState extends State<RepLoginPage> {
                   ),
                 ),
 
-                const SizedBox(height: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      t.forgot_password_button,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(.9),
-                          ),
-                      textAlign: TextAlign.center,
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(.35),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Theme.of(context).dividerColor.withOpacity(.4),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      t.forgot_password_instructions,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(.8),
-                          ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 6),
-                    TextButton(
-                      onPressed: _busy
-                          ? null
-                          : () => Navigator.of(context).push(
-                                MaterialPageRoute(builder: (_) => ResetPasswordPage(api: widget.api)),
-                              ),
-                      style: TextButton.styleFrom(
-                        foregroundColor:
-                            Theme.of(context).colorScheme.primary.withOpacity(_busy ? .4 : .9),
-                        textStyle: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        size: 20,
+                        color: Theme.of(context).colorScheme.primary.withOpacity(.85),
                       ),
-                      child: Text(t.reset_password_request_action),
-                    ),
-                  ],
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              t.forgot_password_button,
+                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                    color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(.9),
+                                  ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              t.forgot_password_instructions,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    height: 1.35,
+                                    color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(.8),
+                                  ),
+                            ),
+                            const SizedBox(height: 6),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: TextButton(
+                                onPressed: _busy
+                                    ? null
+                                    : () => Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                              builder: (_) => ResetPasswordPage(api: widget.api)),
+                                        ),
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  visualDensity: VisualDensity.compact,
+                                  foregroundColor: Theme.of(context)
+                                      .colorScheme
+                                      .primary
+                                      .withOpacity(_busy ? .4 : .9),
+                                  textStyle: Theme.of(context).textTheme.labelLarge,
+                                ),
+                                child: Text(t.reset_password_request_action),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
 
                 const SizedBox(height: 8),
