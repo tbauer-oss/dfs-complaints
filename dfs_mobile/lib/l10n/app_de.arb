@@ -21,7 +21,7 @@
 
   "ticket": "Ticketnummer",
 
-  "attachments_add": "Anhänge nachträglich senden",
+  "attachments_add": "Anhänge senden",
   "attachments_success": "Anhänge wurden erfolgreich übermittelt.",
   "attachments_error": "Anhänge konnten nicht gesendet werden.",
   "attachment_source_camera": "Foto aufnehmen",
@@ -32,7 +32,7 @@
   "attachments_file_unknown": "Anhang",
 
   "we_are_here_for_you": "Wir sind für Sie da.",
-  "complaint_contact_button": "Kontakt aufnehmen",
+  "complaint_contact_button": "Kontakt",
   "complaint_contact_title": "Nachricht zu Ticket {ticket}",
   "@complaint_contact_title": {
     "placeholders": {

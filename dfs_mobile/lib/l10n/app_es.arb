@@ -47,7 +47,7 @@
   "theme_light": "Claro",
   "theme_dark": "Oscuro",
 
-  "attachments_add": "Enviar archivos adjuntos adicionales",
+  "attachments_add": "Enviar adjuntos",
   "attachments_success": "Los archivos adjuntos se enviaron correctamente.",
   "attachments_error": "No se pudieron enviar los archivos adjuntos.",
   "attachment_source_camera": "Hacer foto",
