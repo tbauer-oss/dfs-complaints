@@ -6096,6 +6096,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   final _notesCtrl = TextEditingController();
   bool _busy = false;
   bool _expanded = false;
+  bool _historyExpanded = false;
   bool _noteOpen = false;
 
   static const Map<String, List<String>> _payloadKeyMap = {
@@ -7865,15 +7866,44 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Row(
-                              children: [
-                                const Icon(Icons.timeline_outlined),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Reklamationshistorie',
-                                  style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                            Expanded(
+                              child: InkWell(
+                                onTap: () => setState(() => _historyExpanded = !_historyExpanded),
+                                borderRadius: BorderRadius.circular(12),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        _historyExpanded
+                                            ? Icons.expand_less_outlined
+                                            : Icons.expand_more_outlined,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      const Icon(Icons.timeline_outlined),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Reklamationshistorie',
+                                        style:
+                                            textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      if (history.isNotEmpty)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 8),
+                                          decoration: BoxDecoration(
+                                            color: scheme.primary.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(20),
+                                          ),
+                                          child: Text(
+                                            '${history.length} Einträge',
+                                            style: textTheme.labelMedium?.copyWith(color: scheme.primary),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
                                 ),
-                              ],
+                              ),
                             ),
                             OutlinedButton.icon(
                               onPressed: history.isEmpty ? null : _exportHistoryCsv,
@@ -7882,52 +7912,56 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 12),
-                        if (history.isEmpty)
-                          Text(
-                            'Keine Einträge vorhanden.',
-                            style: textTheme.bodySmall?.copyWith(color: secondaryTextColor),
-                          )
-                        else
-                          ...history.map((entry) {
-                            final details = _historyDetails(entry);
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Icon(Icons.history, size: 18, color: scheme.outline),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          _fmtDateTime(entry.at),
-                                          style: textTheme.bodySmall?.copyWith(color: secondaryTextColor),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          entry.message.isEmpty ? '(ohne Beschreibung)' : entry.message,
-                                          style: textTheme.bodyMedium,
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          '${_historyTypeLabel(entry.type)} • ${entry.actor}',
-                                          style: textTheme.bodySmall?.copyWith(color: secondaryTextColor),
-                                        ),
-                                        if (details.isNotEmpty)
+                        if (_historyExpanded) ...[
+                          const SizedBox(height: 12),
+                          if (history.isEmpty)
+                            Text(
+                              'Keine Einträge vorhanden.',
+                              style: textTheme.bodySmall?.copyWith(color: secondaryTextColor),
+                            )
+                          else
+                            ...history.map((entry) {
+                              final details = _historyDetails(entry);
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(Icons.history, size: 18, color: scheme.outline),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
                                           Text(
-                                            details,
+                                            _fmtDateTime(entry.at),
                                             style: textTheme.bodySmall?.copyWith(color: secondaryTextColor),
                                           ),
-                                      ],
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            entry.message.isEmpty
+                                                ? '(ohne Beschreibung)'
+                                                : entry.message,
+                                            style: textTheme.bodyMedium,
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            '${_historyTypeLabel(entry.type)} • ${entry.actor}',
+                                            style: textTheme.bodySmall?.copyWith(color: secondaryTextColor),
+                                          ),
+                                          if (details.isNotEmpty)
+                                            Text(
+                                              details,
+                                              style: textTheme.bodySmall?.copyWith(color: secondaryTextColor),
+                                            ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }),
+                                  ],
+                                ),
+                              );
+                            }),
+                        ],
                       ],
                     );
                   }
