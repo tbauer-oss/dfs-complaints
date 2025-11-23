@@ -443,14 +443,9 @@ export default async function handler(req, res) {
             `<p>Bei Rückfragen stehen wir gerne zur Verfügung.</p>` +
             `<p>Freundliche Grüße<br/>DFS-DIAMON GmbH – Quality Management</p>`;
 
-          try {
-            const mailResult = await sendMail({ to: recipient, subject, text: textBody, html: htmlBody });
-            if (!mailResult?.ok) {
-              console.error('admin/complaints mail failed', mailResult?.reason || 'unknown reason');
-            }
-          } catch (err) {
+          sendMail({ to: recipient, subject, text: textBody, html: htmlBody }).catch((err) => {
             console.error('admin/complaints mail failed', err);
-          }
+          });
         }
       }
 
