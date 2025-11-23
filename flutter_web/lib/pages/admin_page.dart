@@ -6159,8 +6159,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
 
         final labelStyle = textTheme.labelMedium?.copyWith(
           fontWeight: FontWeight.w700,
-          letterSpacing: 0.25,
-          color: colorScheme.onSurfaceVariant.withOpacity(0.92),
+          letterSpacing: 0.5,
+          color: colorScheme.onSurfaceVariant.withOpacity(0.9),
         );
 
         final valueText = Text(
@@ -6168,7 +6168,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
           maxLines: effectiveMaxLines,
           softWrap: true,
           style: textTheme.bodyMedium?.copyWith(
-            height: 1.35,
+            height: 1.32,
+            fontWeight: FontWeight.w600,
             color: colorScheme.onSurface,
           ),
         );
@@ -6178,7 +6179,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(label.toUpperCase(), style: labelStyle),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   valueText,
                 ],
               )
@@ -6186,26 +6187,24 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   SizedBox(
-                    width: 170,
+                    width: 164,
                     child: Text(label.toUpperCase(), style: labelStyle),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
                   Expanded(child: valueText),
                 ],
               );
 
-        return DecoratedBox(
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
           decoration: BoxDecoration(
-            color: colorScheme.surfaceContainerLow.withOpacity(0.65),
+            color: colorScheme.surfaceContainerLowest.withOpacity(0.8),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: colorScheme.outlineVariant.withOpacity(0.55),
+              color: colorScheme.outlineVariant.withOpacity(0.4),
             ),
           ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-            child: content,
-          ),
+          child: content,
         );
       },
     );
@@ -7517,9 +7516,19 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                 firstChild: Container(
                   width: double.infinity,
                   margin: const EdgeInsets.only(top: 4),
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.22),
+                    gradient: LinearGradient(
+                      colors: [
+                        Theme.of(context).colorScheme.surface,
+                        Theme.of(context)
+                            .colorScheme
+                            .surfaceVariant
+                            .withOpacity(0.35),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
                       color: Theme.of(context)
@@ -7532,8 +7541,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                         color: Theme.of(context)
                             .colorScheme
                             .shadow
-                            .withOpacity(0.06),
-                        blurRadius: 16,
+                            .withOpacity(0.05),
+                        blurRadius: 14,
                         offset: const Offset(0, 8),
                       ),
                     ],
@@ -7628,25 +7637,35 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                Icon(Icons.info_outline,
-                                    size: 20, color: colorScheme.primary),
-                                const SizedBox(width: 8),
+                                DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    color: colorScheme.primaryContainer,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: Icon(Icons.info_outline,
+                                        size: 18, color: colorScheme.primary),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
                                 Text(
                                   'Details der Reklamation',
-                                  style: textTheme.titleSmall?.copyWith(
+                                  style: textTheme.titleMedium?.copyWith(
                                     fontWeight: FontWeight.w800,
-                                    letterSpacing: 0.1,
+                                    letterSpacing: 0.15,
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 10),
                             Text(
                               'Keine zusätzlichen Angaben vorhanden.',
                               style: textTheme.bodyMedium?.copyWith(
                                 color:
-                                    colorScheme.onSurfaceVariant.withOpacity(0.72),
+                                    colorScheme.onSurfaceVariant.withOpacity(0.74),
                               ),
                             ),
                           ],
@@ -7657,27 +7676,50 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              Icon(Icons.info_outline,
-                                  size: 20, color: colorScheme.primary),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Details der Reklamation',
-                                style: textTheme.titleSmall?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.1,
+                              DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: colorScheme.primaryContainer,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: colorScheme.shadow.withOpacity(0.08),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
                                 ),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: Icon(Icons.info_outline,
+                                      size: 18, color: colorScheme.primary),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Details der Reklamation',
+                                    style: textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.15,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Wichtigste Angaben kompakt und geordnet.',
+                                    style: textTheme.bodySmall?.copyWith(
+                                      color: colorScheme.onSurfaceVariant
+                                          .withOpacity(0.78),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Produktdaten, Fehlerbild und Kundenwunsch auf einen Blick.',
-                            style: textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSurfaceVariant.withOpacity(0.78),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 14),
                           if (useTwoColumns &&
                               (primaryColumn.isNotEmpty ||
                                   secondaryColumn.isNotEmpty))
@@ -7686,19 +7728,23 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                               children: [
                                 if (primaryColumn.isNotEmpty)
                                   Expanded(
-                                      child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: spaced(primaryColumn))),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: spaced(primaryColumn),
+                                    ),
+                                  ),
                                 if (primaryColumn.isNotEmpty &&
                                     secondaryColumn.isNotEmpty)
-                                  const SizedBox(width: 24),
+                                  const SizedBox(width: 16),
                                 if (secondaryColumn.isNotEmpty)
                                   Expanded(
-                                      child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: spaced(secondaryColumn))),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: spaced(secondaryColumn),
+                                    ),
+                                  ),
                               ],
                             )
                           else
@@ -7708,18 +7754,18 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                                 ...spaced(primaryColumn),
                                 if (primaryColumn.isNotEmpty &&
                                     secondaryColumn.isNotEmpty)
-                                  const Divider(height: 24),
+                                  const Divider(height: 22),
                                 ...spaced(secondaryColumn),
                               ],
                             ),
                           if (attachments.isNotEmpty) ...[
-                            const SizedBox(height: 18),
+                            const SizedBox(height: 16),
                             Text(
                               'Anhänge',
                               style: textTheme.titleSmall
                                   ?.copyWith(fontWeight: FontWeight.w700),
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 6),
                             ...attachments.map(
                               (upload) => _AdminAttachmentPreviewTile(
                                 upload: upload,
