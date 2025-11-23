@@ -821,61 +821,29 @@ class _LoginLanding extends StatelessWidget {
                             ),
                             const SizedBox(height: 10),
 
-                            // Buttons bleiben wie gehabt – jetzt aber sicher in der ScrollView
+                            // Buttons für weitere Bereiche – responsiv eingebettet in die ScrollView
                             LayoutBuilder(
                               builder: (context, c) {
                                 final isNarrow = c.maxWidth < 560;
+                                final repButton = FilledButton.tonalIcon(
+                                  icon: const Icon(Icons.handshake),
+                                  label: Text(t.rep_area ?? t.rep_area),
+                                  onPressed: onOpenRep,
+                                  style: FilledButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                    shape: const StadiumBorder(),
+                                  ),
+                                );
+
                                 if (isNarrow) {
-                                  return Column(
-                                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                                    children: [
-                                      FilledButton.tonalIcon(
-                                        icon: const Icon(Icons.handshake),
-                                        label: Text(t.rep_area ?? t.rep_area),
-                                        onPressed: onOpenRep,
-                                        style: FilledButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(vertical: 14),
-                                          shape: const StadiumBorder(),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 10),
-                                      OutlinedButton.icon(
-                                        icon: const Icon(Icons.admin_panel_settings),
-                                        label: Text(t.admin_area),
-                                        onPressed: onOpenAdmin,
-                                        style: OutlinedButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(vertical: 14),
-                                          shape: const StadiumBorder(),
-                                        ),
-                                      ),
-                                    ],
+                                  return SizedBox(
+                                    width: double.infinity,
+                                    child: repButton,
                                   );
                                 } else {
                                   return Row(
                                     children: [
-                                      Expanded(
-                                        child: FilledButton.tonalIcon(
-                                          icon: const Icon(Icons.handshake),
-                                          label: Text(t.rep_area ?? 'Vertreterbereich'),
-                                          onPressed: onOpenRep,
-                                          style: FilledButton.styleFrom(
-                                            padding: const EdgeInsets.symmetric(vertical: 14),
-                                            shape: const StadiumBorder(),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: OutlinedButton.icon(
-                                          icon: const Icon(Icons.admin_panel_settings),
-                                          label: Text(t.admin_area),
-                                          onPressed: onOpenAdmin,
-                                          style: OutlinedButton.styleFrom(
-                                            padding: const EdgeInsets.symmetric(vertical: 14),
-                                            shape: const StadiumBorder(),
-                                          ),
-                                        ),
-                                      ),
+                                      Expanded(child: repButton),
                                     ],
                                   );
                                 }
@@ -980,6 +948,8 @@ class _LoginScreenState extends State<_LoginScreen> {
   bool _busy = false;
   String? _err;
   bool _staySignedIn = true;
+  int _logoTapCount = 0;
+  DateTime? _lastLogoTap;
 
   // robustes Asset-Checking (SVG → PNG → Text)
   Future<bool> _assetExists(String path) async {
@@ -1018,6 +988,23 @@ class _LoginScreenState extends State<_LoginScreen> {
     }
   }
 
+  void _onLogoTap() {
+    final now = DateTime.now();
+    if (_lastLogoTap == null || now.difference(_lastLogoTap!) > const Duration(milliseconds: 600)) {
+      _logoTapCount = 1;
+    } else {
+      _logoTapCount += 1;
+    }
+
+    _lastLogoTap = now;
+
+    if (_logoTapCount >= 5) {
+      _logoTapCount = 0;
+      _lastLogoTap = null;
+      widget.onOpenAdmin();
+    }
+  }
+
   @override
   void dispose() {
     _email.dispose();
@@ -1042,22 +1029,26 @@ class _LoginScreenState extends State<_LoginScreen> {
             children: [
               Row(
                 children: [
-                  SizedBox(
-                    height: 42,
-                    child: FutureBuilder<bool>(
-                      future: _assetExists('assets/dfs_logo.svg'),
-                      builder: (context, snap) {
-                        if (snap.connectionState == ConnectionState.done && (snap.data ?? false)) {
-                          return SvgPicture.asset('assets/dfs_logo.svg', height: 42);
-                        }
-                        return Image.asset(
-                          'assets/dfs_logo.png',
-                          height: 42,
-                          filterQuality: FilterQuality.high,
-                          isAntiAlias: true,
-                          errorBuilder: (_, __, ___) => const Text('DFS'),
-                        );
-                      },
+                  GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onTap: _onLogoTap,
+                    child: SizedBox(
+                      height: 42,
+                      child: FutureBuilder<bool>(
+                        future: _assetExists('assets/dfs_logo.svg'),
+                        builder: (context, snap) {
+                          if (snap.connectionState == ConnectionState.done && (snap.data ?? false)) {
+                            return SvgPicture.asset('assets/dfs_logo.svg', height: 42);
+                          }
+                          return Image.asset(
+                            'assets/dfs_logo.png',
+                            height: 42,
+                            filterQuality: FilterQuality.high,
+                            isAntiAlias: true,
+                            errorBuilder: (_, __, ___) => const Text('DFS'),
+                          );
+                        },
+                      ),
                     ),
                   ),
                   const SizedBox(width: 14),
