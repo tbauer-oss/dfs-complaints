@@ -426,7 +426,8 @@
   "newsCatGeneral": "General",
   "customer_login": "Inicio de sesión de clientes",
   "customer_label": "Cliente",
-  "more_areas": "Más áreas",
+  "quick_access_title": "Acceso directo",
+  "quick_access_subtitle": "Accede de inmediato al área de representantes.",
   "opening_rep_area": "Abriendo el área del representante…",
 
   "tab_complaint": "Reportar reclamación",
