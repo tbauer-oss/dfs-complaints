@@ -20,7 +20,7 @@
 
   "ticket": "Numero ticket",
 
-  "attachments_add": "Invia ulteriori allegati",
+  "attachments_add": "Invia allegati",
   "attachments_success": "Gli allegati sono stati inviati con successo.",
   "attachments_error": "Impossibile inviare gli allegati.",
   "attachment_source_camera": "Scatta foto",
