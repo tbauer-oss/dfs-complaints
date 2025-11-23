@@ -513,26 +513,17 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                 final hasInternalNo = internalNo.isNotEmpty;
 
                                 // HEADER: Status, Artikelnummer, Produkttyp sofort sichtbar
-                                final attachmentsButton = TextButton.icon(
+                                final attachmentsButton = _ActionButton(
+                                  icon: Icons.attach_file_outlined,
+                                  label: t.attachments_add,
                                   onPressed: _busy ? null : () => _addAttachments(c),
-                                  icon: const Icon(Icons.attach_file_outlined),
-                                  label: Text(t.attachments_add),
                                 );
 
-                                final contactButton = TextButton.icon(
+                                final contactButton = _ActionButton(
+                                  icon: Icons.mail_outline,
+                                  label: t.complaint_contact_button,
                                   onPressed:
                                       _busy ? null : () => _openComplaintContactForm(c),
-                                  icon: const Icon(Icons.mail_outline),
-                                  label: Text(t.complaint_contact_button),
-                                );
-
-                                final actionButtons = Wrap(
-                                  spacing: 10,
-                                  runSpacing: 6,
-                                  children: [
-                                    attachmentsButton,
-                                    contactButton,
-                                  ],
                                 );
 
                                 final statusWrap = Wrap(
@@ -579,31 +570,34 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                 final headerLine = LayoutBuilder(
                                   builder: (context, constraints) {
                                     final isCompact = constraints.maxWidth < 620;
-                                    final actions = ConstrainedBox(
-                                      constraints: BoxConstraints(
-                                        maxWidth:
-                                            isCompact ? constraints.maxWidth : 340,
+                                    final actionRow = SizedBox(
+                                      width: math.min(constraints.maxWidth, 380),
+                                      child: Row(
+                                        children: [
+                                          Expanded(child: attachmentsButton),
+                                          const SizedBox(width: 10),
+                                          Expanded(child: contactButton),
+                                        ],
                                       ),
-                                      child: actionButtons,
                                     );
 
                                     if (isCompact) {
                                       return Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          headerInfo,
-                                          const SizedBox(height: 10),
-                                          actions,
+                                          infoWrap,
+                                          const SizedBox(height: 12),
+                                          actionRow,
                                         ],
                                       );
                                     }
 
                                     return Row(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment: CrossAxisAlignment.center,
                                       children: [
                                         Expanded(child: headerInfo),
                                         const SizedBox(width: 12),
-                                        actions,
+                                        actionRow,
                                       ],
                                     );
                                   },
@@ -976,6 +970,36 @@ class _SortControls extends StatelessWidget {
 }
 
 // ------------------- kleine UI-Helfer (darstellungs-only) -------------------
+
+class _ActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onPressed;
+  const _ActionButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton.tonalIcon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 18),
+      label: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      style: FilledButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        visualDensity: VisualDensity.compact,
+      ),
+    );
+  }
+}
 
 class _StatusPill extends StatelessWidget {
   final String text;
