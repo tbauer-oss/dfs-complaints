@@ -527,23 +527,29 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                 );
 
                                 final actionButtons = Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  alignment: WrapAlignment.end,
+                                  spacing: 10,
+                                  runSpacing: 6,
                                   children: [
                                     attachmentsButton,
                                     contactButton,
                                   ],
                                 );
 
-                                final infoWrap = Wrap(
+                                final statusWrap = Wrap(
                                   spacing: 8,
                                   runSpacing: 8,
                                   crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
                                     _StatusPill(text: decisionText, color: decisionColor),
                                     _StatusPill(text: statusText, color: statusColor),
+                                  ],
+                                );
+
+                                final metaWrap = Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
                                     if (articleNo.isNotEmpty)
                                       _KeyValuePill(
                                         icon: Icons.handyman_outlined,
@@ -559,21 +565,35 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                   ],
                                 );
 
+                                final headerInfo = Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    statusWrap,
+                                    if (metaWrap.children.isNotEmpty) ...[
+                                      const SizedBox(height: 10),
+                                      metaWrap,
+                                    ],
+                                  ],
+                                );
+
                                 final headerLine = LayoutBuilder(
                                   builder: (context, constraints) {
-                                    if (constraints.maxWidth < 520) {
+                                    final isCompact = constraints.maxWidth < 620;
+                                    final actions = ConstrainedBox(
+                                      constraints: BoxConstraints(
+                                        maxWidth:
+                                            isCompact ? constraints.maxWidth : 340,
+                                      ),
+                                      child: actionButtons,
+                                    );
+
+                                    if (isCompact) {
                                       return Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          infoWrap,
-                                          const SizedBox(height: 8),
-                                          Align(
-                                            alignment: Alignment.centerRight,
-                                            child: ConstrainedBox(
-                                              constraints: const BoxConstraints(maxWidth: 360),
-                                              child: actionButtons,
-                                            ),
-                                          ),
+                                          headerInfo,
+                                          const SizedBox(height: 10),
+                                          actions,
                                         ],
                                       );
                                     }
@@ -581,9 +601,9 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                     return Row(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Expanded(child: infoWrap),
+                                        Expanded(child: headerInfo),
                                         const SizedBox(width: 12),
-                                        actionButtons,
+                                        actions,
                                       ],
                                     );
                                   },
