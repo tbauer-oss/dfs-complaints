@@ -108,40 +108,44 @@ class ApiClient {
   // Merker für Vertreter-Login-Flow
   String? _repEmail;    // zuletzt geprüfte/benutzte Vertreter-E-Mail
 
+  bool _persistCustomerSession = true;
+  bool _persistRepSession = true;
+  bool _persistAdminSession = true;
+
   // ---------- Session persistieren ----------
   void _saveSession() {
     final ls = html.window.localStorage;
 
     // Token
-    if (token != null) {
+    if (_persistCustomerSession && token != null) {
       ls['dfs_token'] = token!;
     } else {
       ls.remove('dfs_token');
     }
 
     // Admin-Secret
-    if (adminSecret != null) {
+    if (_persistAdminSession && adminSecret != null) {
       ls['dfs_admin'] = adminSecret!;
     } else {
       ls.remove('dfs_admin');
     }
 
     // Gate
-    if (gate != null) {
+    if (_persistCustomerSession && gate != null) {
       ls['dfs_gate'] = gate!;
     } else {
       ls.remove('dfs_gate');
     }
 
     // Rep-Token
-    if (repToken != null) {
+    if (_persistRepSession && repToken != null) {
       ls['dfs_rep_token'] = repToken!;
     } else {
       ls.remove('dfs_rep_token');
     }
 
     // Vertreter-E-Mail (nur als Hilfe für Secret-Login, kein Sicherheitskritikum)
-    if (_repEmail != null && _repEmail!.isNotEmpty) {
+    if (_persistRepSession && _repEmail != null && _repEmail!.isNotEmpty) {
       ls['dfs_rep_email'] = _repEmail!;
     } else {
       ls.remove('dfs_rep_email');
@@ -155,6 +159,10 @@ class ApiClient {
     gate        = ls['dfs_gate'];
     repToken    = ls['dfs_rep_token'];
     _repEmail   = ls['dfs_rep_email'];
+
+    _persistCustomerSession = (token ?? '').isNotEmpty || (gate ?? '').isNotEmpty;
+    _persistAdminSession = (adminSecret ?? '').isNotEmpty;
+    _persistRepSession = (repToken ?? '').isNotEmpty || (_repEmail ?? '').isNotEmpty;
   }
 
   Future<void> logout() async {
@@ -163,8 +171,17 @@ class ApiClient {
     gate = null;
     _saveSession();
   }
-  
-  void setAdminSecret(String? s) {
+
+  void setCustomerSessionPersistence(bool persist) {
+    _persistCustomerSession = persist;
+  }
+
+  void setRepSessionPersistence(bool persist) {
+    _persistRepSession = persist;
+  }
+
+  void setAdminSecret(String? s, {bool persist = true}) {
+    _persistAdminSession = persist && (s ?? '').trim().isNotEmpty;
     adminSecret = (s ?? '').trim().isEmpty ? null : s!.trim();
     _saveSession();
   }

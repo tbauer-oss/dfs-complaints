@@ -20,32 +20,51 @@ class _GatePageState extends State<GatePage> {
   bool _busy = false;
   bool _cardHovered = false;
   bool _buttonHovered = false;
+  bool _rememberAdmin = true;
 
   // === Admin: Secret-Dialog + Preflight-Check ===
   Future<void> _openAdmin() async {
+    final t = AppLocalizations.of(context)!;
     final secretCtrl = TextEditingController(
       text: html.window.localStorage['admin_secret'] ?? '',
     );
+    var remember = _rememberAdmin;
 
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Admin-Secret'),
-        content: PasswordField(
-          controller: secretCtrl,
-          decoration: const InputDecoration(
-            labelText: 'X-Admin-Secret',
-            border: OutlineInputBorder(),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          title: const Text('Admin-Secret'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              PasswordField(
+                controller: secretCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'X-Admin-Secret',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              CheckboxListTile(
+                value: remember,
+                onChanged: (v) => setS(() => remember = v ?? false),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: Text(t.stay_signed_in),
+              ),
+            ],
           ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Weiter')),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Weiter')),
-        ],
       ),
     );
 
     if (ok != true) return;
+    _rememberAdmin = remember;
 
     final secret = secretCtrl.text.trim();
     if (secret.isEmpty) {
@@ -57,7 +76,11 @@ class _GatePageState extends State<GatePage> {
     }
 
     // Persistieren
-    html.window.localStorage['admin_secret'] = secret;
+    if (remember) {
+      html.window.localStorage['admin_secret'] = secret;
+    } else {
+      html.window.localStorage.remove('admin_secret');
+    }
 
     // Preflight gegen /api/admin/users prüfen
     try {

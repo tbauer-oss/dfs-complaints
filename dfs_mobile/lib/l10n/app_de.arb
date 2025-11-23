@@ -261,6 +261,7 @@
   "login_failed_with_error": "Login fehlgeschlagen: {error}",
   "account_blocked": "Account gesperrt. Bitte wenden Sie sich an Ihren Ansprechpartner.",
   "@login_failed_with_error": { "placeholders": { "error": { "type": "String" } } },
+  "stay_signed_in": "Angemeldet bleiben?",
   "register_failed": "Registrierung fehlgeschlagen: {reason}",
   "human_check_label": "Ich bin ein Mensch",
   "human_check_helper": "Löse die Mini-Aufgabe: {task}",

@@ -350,7 +350,7 @@ class _MyAppState extends State<MyApp> {
       return;
     }
 
-    api.setAdminSecret(secret);
+    await api.setAdminSecret(secret);
     try {
       await push.setup(api, languageCode: _prefs.locale?.languageCode);
       await push.replayLatestToken(api, languageCode: _prefs.locale?.languageCode);
@@ -361,8 +361,8 @@ class _MyAppState extends State<MyApp> {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => AdminPage(api: api)));
   }
 
-  void _openRegister(BuildContext context) {
-    api.clearGate();
+  Future<void> _openRegister(BuildContext context) async {
+    await api.clearGate();
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => RegisterPage(api: api)));
   }
 
