@@ -27,6 +27,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
   final _pw    = TextEditingController();
   bool _busy = false;
   String? _err;
+  bool _staySignedIn = true;
 
   void _setErr(String? msg) => setState(() => _err = msg);
   void _setBusy(bool b) => setState(() => _busy = b);
@@ -78,6 +79,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
 
     _setBusy(true);
     try {
+      widget.api.setRepSessionPersistence(_staySignedIn);
       final res = await widget.api.repLogin(email, pw);
       if (!res.ok) {
         _setErr(t.login_failed_check_credentials); // NEU
@@ -268,6 +270,14 @@ class _RepLoginPageState extends State<RepLoginPage> {
                     onChanged: (_) => setState(() {}),
                     onSubmitted: (_) => canLogin ? _submitPasswordLogin() : null,
                   ),
+                  CheckboxListTile(
+                    value: _staySignedIn,
+                    onChanged: (v) => setState(() => _staySignedIn = v ?? false),
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: Text(t.stay_signed_in),
+                  ),
                   const SizedBox(height: 12),
                   if (_err != null)
                     Padding(
@@ -336,6 +346,7 @@ class _TempPasswordDialogState extends State<_TempPasswordDialog> {
   final TextEditingController _secCtrl = TextEditingController();
   String? _error;
   bool _saving = false;
+  bool _staySignedIn = true;
 
   @override
   void initState() {
@@ -370,6 +381,7 @@ class _TempPasswordDialogState extends State<_TempPasswordDialog> {
     });
 
     try {
+      widget.api.setRepSessionPersistence(_staySignedIn);
       final ok = await widget.api.repLoginWithSecret(email, sec);
       if (!mounted) return;
       if (!ok) {
@@ -414,6 +426,14 @@ class _TempPasswordDialogState extends State<_TempPasswordDialog> {
                 labelText: t.temp_password_label,
                 border: const OutlineInputBorder(),
               ),
+            ),
+            CheckboxListTile(
+              value: _staySignedIn,
+              onChanged: (v) => setState(() => _staySignedIn = v ?? false),
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              title: Text(t.stay_signed_in),
             ),
             if (_error != null) ...[
               const SizedBox(height: 8),
