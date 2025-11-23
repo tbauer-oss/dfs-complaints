@@ -461,53 +461,71 @@ class _MyAppState extends State<MyApp> {
                                               onOpenResetPassword: () => _openResetPassword(ctx),
                                             ),
                                             const SizedBox(height: 18),
-                                            Align(
-                                              alignment: Alignment.centerLeft,
-                                              child: Text(
-                                                t.more_areas,
-                                                style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
-                                                      color: Theme.of(ctx).colorScheme.primary,
-                                                      fontWeight: FontWeight.w700,
+                                            Container(
+                                              width: double.infinity,
+                                              padding: const EdgeInsets.all(18),
+                                              decoration: BoxDecoration(
+                                                color: scheme.surface,
+                                                borderRadius: BorderRadius.circular(18),
+                                                border: Border.all(
+                                                  color: scheme.outlineVariant.withOpacity(isDark ? 0.6 : 0.8),
+                                                ),
+                                                boxShadow: [
+                                                  if (!isDark)
+                                                    BoxShadow(
+                                                      color: Colors.black.withOpacity(0.05),
+                                                      blurRadius: 16,
+                                                      offset: const Offset(0, 8),
                                                     ),
+                                                ],
                                               ),
-                                            ),
-                                            const SizedBox(height: 10),
-                                            LayoutBuilder(
-                                              builder: (context, innerConstraints) {
-                                                final isNarrow = innerConstraints.maxWidth < 560;
-                                                if (isNarrow) {
-                                                  // mobil: Buttons untereinander
-                                                  return Column(
-                                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Row(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
                                                     children: [
-                                                      FilledButton.tonalIcon(
-                                                        icon: const Icon(Icons.handshake),
-                                                        label: Text(t.rep_area ?? t.rep_area),
-                                                        onPressed: () => _openRepArea(ctx),
-                                                        style: FilledButton.styleFrom(
-                                                          padding: const EdgeInsets.symmetric(vertical: 14),
-                                                          shape: const StadiumBorder(),
+                                                      Container(
+                                                        padding: const EdgeInsets.all(10),
+                                                        decoration: BoxDecoration(
+                                                          color: scheme.primaryContainer,
+                                                          shape: BoxShape.circle,
+                                                        ),
+                                                        child: Icon(
+                                                          Icons.handshake,
+                                                          color: scheme.onPrimaryContainer,
                                                         ),
                                                       ),
-                                                      const SizedBox(height: 10),
-                                                      OutlinedButton.icon(
-                                                        icon: const Icon(Icons.admin_panel_settings),
-                                                        label: Text(t.admin_area),
-                                                        onPressed: () => _openAdmin(ctx),
-                                                        style: OutlinedButton.styleFrom(
-                                                          padding: const EdgeInsets.symmetric(vertical: 14),
-                                                          shape: const StadiumBorder(),
+                                                      const SizedBox(width: 14),
+                                                      Expanded(
+                                                        child: Column(
+                                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                                          children: [
+                                                            Text(
+                                                              t.quick_access_title,
+                                                              style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                                                                    fontWeight: FontWeight.w800,
+                                                                    color: scheme.primary,
+                                                                  ),
+                                                            ),
+                                                            const SizedBox(height: 4),
+                                                            Text(
+                                                              t.quick_access_subtitle,
+                                                              style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+                                                                    color: scheme.onSurfaceVariant,
+                                                                  ),
+                                                            ),
+                                                          ],
                                                         ),
                                                       ),
                                                     ],
-                                                  );
-                                                }
+                                                  ),
+                                                  const SizedBox(height: 14),
+                                                  LayoutBuilder(
+                                                    builder: (context, innerConstraints) {
+                                                      final isNarrow = innerConstraints.maxWidth < 640;
 
-                                                // Desktop: Buttons nebeneinander
-                                                return Row(
-                                                  children: [
-                                                    Expanded(
-                                                      child: FilledButton.tonalIcon(
+                                                      final repButton = FilledButton.icon(
                                                         icon: const Icon(Icons.handshake),
                                                         label: Text(t.rep_area ?? 'Vertreterbereich'),
                                                         onPressed: () => _openRepArea(ctx),
@@ -515,11 +533,9 @@ class _MyAppState extends State<MyApp> {
                                                           padding: const EdgeInsets.symmetric(vertical: 14),
                                                           shape: const StadiumBorder(),
                                                         ),
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 12),
-                                                    Expanded(
-                                                      child: OutlinedButton.icon(
+                                                      );
+
+                                                      final adminButton = OutlinedButton.icon(
                                                         icon: const Icon(Icons.admin_panel_settings),
                                                         label: Text(t.admin_area),
                                                         onPressed: () => _openAdmin(ctx),
@@ -527,11 +543,30 @@ class _MyAppState extends State<MyApp> {
                                                           padding: const EdgeInsets.symmetric(vertical: 14),
                                                           shape: const StadiumBorder(),
                                                         ),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                );
-                                              },
+                                                      );
+
+                                                      if (isNarrow) {
+                                                        return Column(
+                                                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                                                          children: [
+                                                            repButton,
+                                                            const SizedBox(height: 10),
+                                                            adminButton,
+                                                          ],
+                                                        );
+                                                      }
+
+                                                      return Row(
+                                                        children: [
+                                                          Expanded(child: repButton),
+                                                          const SizedBox(width: 12),
+                                                          Expanded(child: adminButton),
+                                                        ],
+                                                      );
+                                                    },
+                                                  ),
+                                                ],
+                                              ),
                                             ),
                                           ],
                                         ),

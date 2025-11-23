@@ -415,7 +415,8 @@
   "customer_area": "Espace client",
   "customer_login": "Connexion client",
   "customer_label": "Client",
-  "more_areas": "Autres zones",
+  "quick_access_title": "Accès direct",
+  "quick_access_subtitle": "Accédez immédiatement à l'espace représentants ou à l'administration.",
   "opening_rep_area": "Ouverture de l’espace représentant…",
 
   "tab_complaint": "Déclarer une réclamation",

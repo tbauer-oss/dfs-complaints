@@ -427,7 +427,8 @@
   "newsCatGeneral": "Generale",
   "customer_login": "Accesso clienti",
   "customer_label": "Cliente",
-  "more_areas": "Altre aree",
+  "quick_access_title": "Accesso diretto",
+  "quick_access_subtitle": "Vai subito all'area rappresentanti o all'amministrazione.",
   "opening_rep_area": "Apertura area rappresentante…",
 
   "tab_complaint": "Segnala reclamo",
