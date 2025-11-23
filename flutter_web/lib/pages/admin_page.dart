@@ -8032,6 +8032,12 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
+                                const SizedBox(width: 12),
+                                TextButton.icon(
+                                  onPressed: _busy ? null : _openEditDialog,
+                                  icon: const Icon(Icons.edit_note_outlined),
+                                  label: const Text('Reklamation ändern'),
+                                ),
                               ],
                             ),
                             if (!isWide)
@@ -8054,15 +8060,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                         ],
                         const SizedBox(height: 12),
                         buildHistorySection(),
-                        const SizedBox(height: 12),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton.icon(
-                            onPressed: _busy ? null : _openEditDialog,
-                            icon: const Icon(Icons.edit_note_outlined),
-                            label: const Text('Reklamation ändern'),
-                          ),
-                        ),
                         const SizedBox(height: 20),
                         editor,
                       ],
