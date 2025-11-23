@@ -93,6 +93,15 @@ export default async function handler(req, res) {
       reportLink: null,
       payload,
       uploads,
+      history: [
+        {
+          at: nowMs,
+          actor: 'customer',
+          type: 'created',
+          message: 'Reklamation eingereicht',
+          data: { email: u.email },
+        },
+      ],
     };
 
     console.log('[create] before save', { email: u.email, segment: payload.segment, article: payload.article });

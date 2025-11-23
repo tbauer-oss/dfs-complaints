@@ -173,7 +173,40 @@ const sortDescByDate = (a, b) => {
   const tb = b?.updatedAt ?? b?.createdAt ?? 0;
   return (tb || 0) - (ta || 0);
 };
-const decorateForAdmin = (c) => ({ ...c, statusLabel: STATUS_LABEL[c.status] || STATUS_LABEL[1] });
+function normalizeHistoryEntry(entry = {}) {
+  const at = Number(entry?.at);
+  const actor = (entry?.actor || 'system').toString().trim() || 'system';
+  const type = (entry?.type || 'info').toString().trim() || 'info';
+  const message = (entry?.message || '').toString();
+  const data = (entry?.data && typeof entry.data === 'object') ? entry.data : undefined;
+  return {
+    at: Number.isFinite(at) && at > 0 ? at : Date.now(),
+    actor,
+    type,
+    message,
+    ...(data ? { data } : {}),
+  };
+}
+
+function normalizeHistory(list) {
+  if (!Array.isArray(list)) return [];
+  const out = list.map((entry) => normalizeHistoryEntry(entry)).filter(Boolean);
+  out.sort((a, b) => (a.at || 0) - (b.at || 0));
+  return out;
+}
+
+function pushHistory(c, entry) {
+  const existing = Array.isArray(c?.history) ? c.history.slice() : [];
+  existing.push(normalizeHistoryEntry(entry));
+  c.history = normalizeHistory(existing);
+  return c.history;
+}
+
+const decorateForAdmin = (c) => ({
+  ...c,
+  history: normalizeHistory(c?.history),
+  statusLabel: STATUS_LABEL[c.status] || STATUS_LABEL[1],
+});
 
 const EDITABLE_PAYLOAD_FIELDS = {
   segment: { label: 'Produktbereich', keys: ['segment', 'customer_segment', 'segment_code'] },
@@ -434,9 +467,19 @@ export default async function handler(req, res) {
       if (!c) return bad(res, 'not found', 404);
 
       const prevStatus = Number(c.status ?? 1);
+      const prevDecision = (c.decision ?? null);
+      const prevReportLink = (c.reportLink ?? '').toString().trim();
+      const prevInternal = (c.internalNo ?? '').toString().trim();
+      const prevNotes = (c.adminNotes ?? '').toString();
       let statusChanged = false;
       let payloadChanged = false;
       let payloadChanges = [];
+      let decisionChanged = false;
+      let reportChanged = false;
+      let internalChanged = false;
+      let notesChanged = false;
+
+      c.history = normalizeHistory(c.history);
 
       if (payloadInput) {
         const currentPayload = (c.payload && typeof c.payload === 'object') ? { ...c.payload } : {};
@@ -445,6 +488,12 @@ export default async function handler(req, res) {
           c.payload = updated;
           payloadChanged = true;
           payloadChanges = changes;
+          pushHistory(c, {
+            actor: 'admin',
+            type: 'payload',
+            message: `Payload aktualisiert (${changes.length} Änderung${changes.length === 1 ? '' : 'en'})`,
+            data: { changes },
+          });
         }
       }
 
@@ -465,6 +514,7 @@ export default async function handler(req, res) {
           return bad(res, 'invalid decision', 400);
         }
         c.decision = decision;
+        if (decision !== prevDecision) decisionChanged = true;
 
         // Business-Logik: 'rejected' => schließen + Status "Entscheidung"
         if (c.decision === 'rejected') {
@@ -482,6 +532,8 @@ export default async function handler(req, res) {
         const v = (reportLink ?? '').toString().trim();
         if (v) c.reportLink = v;
         else delete c.reportLink;
+        const nextReport = (c.reportLink ?? '').toString().trim();
+        if (nextReport !== prevReportLink) reportChanged = true;
       }
 
       // Interne Nummer (optional; "" => löschen)
@@ -489,6 +541,8 @@ export default async function handler(req, res) {
         const v = (rawInternal ?? '').toString().trim();
         if (v) c.internalNo = v;
         else delete c.internalNo;
+        const nextInternal = (c.internalNo ?? '').toString().trim();
+        if (nextInternal !== prevInternal) internalChanged = true;
       }
 
       // Admin-Notizen (optional; "" => löschen)
@@ -496,10 +550,71 @@ export default async function handler(req, res) {
         const v = (rawNotes ?? '').toString();
         if (v.trim()) c.adminNotes = v;
         else delete c.adminNotes;
+        const nextNotes = (c.adminNotes ?? '').toString();
+        if (nextNotes !== prevNotes) notesChanged = true;
+      }
+
+      if (!statusChanged && prevStatus !== c.status) statusChanged = true;
+
+      if (statusChanged) {
+        pushHistory(c, {
+          actor: 'admin',
+          type: 'status',
+          message: `Status geändert: ${(STATUS_LABEL[prevStatus] || prevStatus)} → ${(STATUS_LABEL[c.status] || c.status)}`,
+          data: { before: prevStatus, after: c.status },
+        });
+      }
+
+      if (decisionChanged) {
+        const decisionLabel = c.decision === 'accepted'
+          ? 'Angenommen'
+          : c.decision === 'rejected'
+            ? 'Abgelehnt'
+            : 'Zurückgesetzt';
+        pushHistory(c, {
+          actor: 'admin',
+          type: 'decision',
+          message: `Entscheidung aktualisiert: ${decisionLabel}`,
+          data: { before: prevDecision, after: c.decision },
+        });
+      }
+
+      if (reportChanged) {
+        const label = (c.reportLink ?? '').toString().trim().isEmpty
+          ? 'Report-Link entfernt'
+          : 'Report-Link hinterlegt';
+        pushHistory(c, {
+          actor: 'admin',
+          type: 'report',
+          message: label,
+          data: { link: c.reportLink || null },
+        });
+      }
+
+      if (internalChanged) {
+        const label = (c.internalNo ?? '').toString().trim().isEmpty
+          ? 'Interne Nummer entfernt'
+          : `Interne Nummer gesetzt: ${c.internalNo}`;
+        pushHistory(c, {
+          actor: 'admin',
+          type: 'internal',
+          message: label,
+          data: { internalNo: c.internalNo || null },
+        });
+      }
+
+      if (notesChanged) {
+        const label = (c.adminNotes ?? '').toString().trim().isEmpty
+          ? 'Admin-Notiz entfernt'
+          : 'Admin-Notiz aktualisiert';
+        pushHistory(c, {
+          actor: 'admin',
+          type: 'notes',
+          message: label,
+        });
       }
 
       c.updatedAt = Date.now();
-      if (!statusChanged && prevStatus !== c.status) statusChanged = true;
       if (statusChanged) c.statusUpdatedAt = Date.now();
 
       // robust persistieren
