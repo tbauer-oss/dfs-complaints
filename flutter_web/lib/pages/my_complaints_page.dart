@@ -572,7 +572,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                   children: [
                                     _StatusPill(text: decisionText, color: decisionColor),
                                     _StatusPill(text: statusText, color: statusColor),
-                                    if (articleNo.isNotEmpty)
+                                    if (articleNo.isNotEmpty && !hasInternalNo)
                                       _KeyValuePill(
                                           icon: Icons.handyman_outlined,
                                           label: (t.articleNo ?? t.article),
@@ -643,13 +643,20 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
 
                                                 if (!hasInternalNo) return ticketText;
 
-                                                return Wrap(
-                                                  spacing: 8,
-                                                  runSpacing: 6,
-                                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                                return Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
                                                   children: [
                                                     ticketText,
+                                                    const SizedBox(height: 6),
                                                     _internalNoPill(t, internalNo),
+                                                    if (articleNo.isNotEmpty) ...[
+                                                      const SizedBox(height: 6),
+                                                      _KeyValuePill(
+                                                        icon: Icons.handyman_outlined,
+                                                        label: (t.articleNo ?? t.article),
+                                                        value: articleNo,
+                                                      ),
+                                                    ],
                                                   ],
                                                 );
                                               },
