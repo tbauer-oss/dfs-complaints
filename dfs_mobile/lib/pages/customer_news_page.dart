@@ -203,6 +203,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isCompact = constraints.maxWidth < 420;
+        final double compactScale = isCompact ? 0.92 : 1.0;
         final double statNumberScale = isCompact ? 0.96 : 1.0;
         final double statLabelScale = isCompact ? 0.94 : 0.98;
 
