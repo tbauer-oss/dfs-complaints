@@ -7507,7 +7507,10 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                       final theme = Theme.of(context);
                       final textTheme = theme.textTheme;
                       final colorScheme = theme.colorScheme;
-                      final useTwoColumns = constraints.maxWidth >= 820;
+                      // Show the details in two columns even on slightly
+                      // narrower layouts so that the description and patient
+                      // questions appear beside the product details.
+                      final useTwoColumns = constraints.maxWidth >= 720;
 
                       void addDetail(List<Widget> list, String label, String? value,
                           {int? maxLines = 2}) {
