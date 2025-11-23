@@ -73,7 +73,7 @@ class BiometricAuthService {
     try {
       return await _auth.authenticate(
         localizedReason: localizedReason,
-        options: const AuthenticationOptions(biometricOnly: true),
+        biometricOnly: true,
       );
     } on PlatformException {
       return false;
