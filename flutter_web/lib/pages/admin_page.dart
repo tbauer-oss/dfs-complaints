@@ -6149,42 +6149,62 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     final v = (value ?? '').trim();
     if (v.isEmpty) return const SizedBox.shrink();
 
-    const labelStyle = TextStyle(fontWeight: FontWeight.w600);
-
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 420;
+        final theme = Theme.of(context);
+        final colorScheme = theme.colorScheme;
+        final textTheme = theme.textTheme;
+        final compact = constraints.maxWidth < 520;
         final effectiveMaxLines = compact ? null : maxLines;
+
+        final labelStyle = textTheme.labelMedium?.copyWith(
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.25,
+          color: colorScheme.onSurfaceVariant.withOpacity(0.92),
+        );
 
         final valueText = Text(
           v,
           maxLines: effectiveMaxLines,
           softWrap: true,
+          style: textTheme.bodyMedium?.copyWith(
+            height: 1.35,
+            color: colorScheme.onSurface,
+          ),
         );
 
-        if (compact) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: labelStyle),
-                const SizedBox(height: 4),
-                valueText,
-              ],
-            ),
-          );
-        }
+        final content = compact
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label.toUpperCase(), style: labelStyle),
+                  const SizedBox(height: 4),
+                  valueText,
+                ],
+              )
+            : Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 170,
+                    child: Text(label.toUpperCase(), style: labelStyle),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: valueText),
+                ],
+              );
 
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(width: 160, child: Text(label, style: labelStyle)),
-              const SizedBox(width: 8),
-              Expanded(child: valueText),
-            ],
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            color: colorScheme.surfaceContainerLow.withOpacity(0.65),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: colorScheme.outlineVariant.withOpacity(0.55),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+            child: content,
           ),
         );
       },
@@ -7497,10 +7517,26 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                 firstChild: Container(
                   width: double.infinity,
                   margin: const EdgeInsets.only(top: 4),
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.30),
-                    borderRadius: BorderRadius.circular(12),
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.22),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .outlineVariant
+                          .withOpacity(0.55),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .shadow
+                            .withOpacity(0.06),
+                        blurRadius: 16,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
                   ),
                   child: LayoutBuilder(
                     builder: (context, constraints) {
@@ -7525,7 +7561,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                         for (var i = 0; i < items.length; i++) {
                           result.add(items[i]);
                           if (i < items.length - 1) {
-                            result.add(const SizedBox(height: 8));
+                            result.add(const SizedBox(height: 10));
                           }
                         }
                         return result;
@@ -7591,12 +7627,21 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              'Details der Reklamation',
-                              style: textTheme.titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            Row(
+                              children: [
+                                Icon(Icons.info_outline,
+                                    size: 20, color: colorScheme.primary),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Details der Reklamation',
+                                  style: textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.1,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 8),
                             Text(
                               'Keine zusätzlichen Angaben vorhanden.',
                               style: textTheme.bodyMedium?.copyWith(
@@ -7611,10 +7656,26 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          Row(
+                            children: [
+                              Icon(Icons.info_outline,
+                                  size: 20, color: colorScheme.primary),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Details der Reklamation',
+                                style: textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.1,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
                           Text(
-                            'Details der Reklamation',
-                            style: textTheme.titleSmall
-                                ?.copyWith(fontWeight: FontWeight.w700),
+                            'Produktdaten, Fehlerbild und Kundenwunsch auf einen Blick.',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant.withOpacity(0.78),
+                            ),
                           ),
                           const SizedBox(height: 12),
                           if (useTwoColumns &&
