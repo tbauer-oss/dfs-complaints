@@ -546,16 +546,16 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
           InkWell(
             borderRadius: BorderRadius.circular(24),
             onTap: onToggle,
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                isCompact ? 14 : 16,
-                isCompact ? 12 : 14,
-                isCompact ? 14 : 16,
-                isCompact ? 6 : 8,
-              ),
-              child: Row(
-                children: [
-                  Container(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              isCompact ? 14 : 16,
+              isCompact ? 12 : 14,
+              isCompact ? 14 : 16,
+              isCompact ? 6 : 8,
+            ),
+            child: Row(
+              children: [
+                Container(
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
@@ -568,30 +568,60 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                       color: accentColor,
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _categoryLabel(t, entry.category),
-                          style: textTheme.labelLarge?.copyWith(
-                            color: colorScheme.onSurface.withOpacity(0.7),
-                            fontWeight: FontWeight.w700,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: isCompact ? 6 : 8,
+                        runSpacing: 4,
+                        children: [
+                          _buildPill(
+                            theme,
+                            _categoryLabel(t, entry.category),
+                            accentColor,
+                            icon: Icons.sell_outlined,
                           ),
+                          if (entry.pinned)
+                            _buildPill(
+                              theme,
+                              t.customerNewsPinned,
+                              colorScheme.primary,
+                              icon: Icons.push_pin_outlined,
+                            ),
+                        ],
+                      ),
+                      SizedBox(height: isCompact ? 8 : 10),
+                      Row(
+                        children: [
+                          Icon(Icons.calendar_today, size: 16, color: accentColor),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              _formatDate(t, entry.publishedAt),
+                              style: textTheme.bodySmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: colorScheme.onSurface.withOpacity(0.85),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        t.customerNewsReadMore,
+                        style: textTheme.labelMedium?.copyWith(
+                          color: accentColor.withOpacity(0.9),
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.1,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          entry.summary,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: textTheme.bodyMedium?.copyWith(height: 1.4),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  AnimatedRotation(
+                ),
+                const SizedBox(width: 8),
+                AnimatedRotation(
                     duration: const Duration(milliseconds: 180),
                     turns: expanded ? 0.5 : 0,
                     child: Icon(
@@ -652,11 +682,33 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                               child: Text(
                                 _formatDate(t, entry.publishedAt),
                                 style:
-                                    textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+                                    textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
                               ),
                             ),
                           ],
                         );
+
+                        final updatedRow = entry.updatedAt.isAfter(
+                                entry.publishedAt.add(const Duration(minutes: 1)))
+                            ? Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.update, size: 16, color: accentColor),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        _formatDate(t, entry.updatedAt),
+                                        style: textTheme.bodySmall?.copyWith(
+                                          fontWeight: FontWeight.w600,
+                                          color: colorScheme.onSurface.withOpacity(0.8),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : null;
 
                         final linkButton = entry.linkUrl != null
                             ? TextButton.icon(
@@ -675,6 +727,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               dateRow,
+                              if (updatedRow != null) updatedRow,
                               if (linkButton != null)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 8),
@@ -687,6 +740,10 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                         return Row(
                           children: [
                             Expanded(child: dateRow),
+                            if (updatedRow != null) ...[
+                              const SizedBox(width: 12),
+                              Expanded(child: updatedRow),
+                            ],
                             if (linkButton != null) linkButton,
                           ],
                         );
