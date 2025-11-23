@@ -810,15 +810,15 @@ class _LoginLanding extends StatelessWidget {
                               onOpenAdmin: onOpenAdmin,
                             ),
 
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 10),
                             Container(
                               width: double.infinity,
-                              padding: const EdgeInsets.all(18),
+                              padding: const EdgeInsets.all(14),
                               decoration: BoxDecoration(
-                                color: scheme.surface,
-                                borderRadius: BorderRadius.circular(18),
+                                color: scheme.surfaceContainerHighest.withOpacity(isDark ? 0.65 : 0.55),
+                                borderRadius: BorderRadius.circular(14),
                                 border: Border.all(
-                                  color: scheme.outlineVariant.withOpacity(isDark ? 0.6 : 0.8),
+                                  color: scheme.outlineVariant.withOpacity(isDark ? 0.5 : 0.4),
                                 ),
                                 boxShadow: [
                                   if (!isDark)
@@ -835,18 +835,11 @@ class _LoginLanding extends StatelessWidget {
                                   Row(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(10),
-                                        decoration: BoxDecoration(
-                                          color: scheme.primaryContainer,
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: Icon(
-                                          Icons.handshake,
-                                          color: scheme.onPrimaryContainer,
-                                        ),
+                                      Icon(
+                                        Icons.handshake,
+                                        color: scheme.primary,
                                       ),
-                                      const SizedBox(width: 14),
+                                      const SizedBox(width: 12),
                                       Expanded(
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -854,8 +847,8 @@ class _LoginLanding extends StatelessWidget {
                                             Text(
                                               t.quick_access_title,
                                               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                                    fontWeight: FontWeight.w800,
-                                                    color: scheme.primary,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: scheme.onSurface,
                                                   ),
                                             ),
                                             const SizedBox(height: 4),
@@ -870,14 +863,17 @@ class _LoginLanding extends StatelessWidget {
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 14),
-                                  FilledButton.icon(
-                                    icon: const Icon(Icons.handshake),
-                                    label: Text(t.rep_area ?? t.rep_area),
-                                    onPressed: onOpenRep,
-                                    style: FilledButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(vertical: 14),
-                                      shape: const StadiumBorder(),
+                                  const SizedBox(height: 10),
+                                  Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: OutlinedButton.icon(
+                                      icon: const Icon(Icons.login_rounded, size: 18),
+                                      label: Text(t.rep_area ?? t.rep_area),
+                                      onPressed: onOpenRep,
+                                      style: OutlinedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                        visualDensity: VisualDensity.compact,
+                                      ),
                                     ),
                                   ),
                                 ],

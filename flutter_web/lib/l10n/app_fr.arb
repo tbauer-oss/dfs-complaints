@@ -416,7 +416,7 @@
   "customer_login": "Connexion client",
   "customer_label": "Client",
   "quick_access_title": "Accès direct",
-  "quick_access_subtitle": "Accédez immédiatement à l'espace représentants.",
+  "quick_access_subtitle": "Accédez immédiatement à l'espace représentants ou administrateurs.",
   "opening_rep_area": "Ouverture de l’espace représentant…",
 
   "tab_complaint": "Déclarer une réclamation",

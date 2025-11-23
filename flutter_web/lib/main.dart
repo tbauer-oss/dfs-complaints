@@ -521,13 +521,32 @@ class _MyAppState extends State<MyApp> {
                                                     ],
                                                   ),
                                                   const SizedBox(height: 14),
-                                          FilledButton.icon(
-                                            icon: const Icon(Icons.handshake),
-                                            label: Text(t.rep_area ?? 'Vertreterbereich'),
-                                            onPressed: () => _openRepArea(ctx),
-                                            style: FilledButton.styleFrom(
-                                              padding: const EdgeInsets.symmetric(vertical: 14),
-                                              shape: const StadiumBorder(),
+                                                  Wrap(
+                                                    spacing: 10,
+                                                    runSpacing: 10,
+                                                    children: [
+                                                      FilledButton.icon(
+                                                        icon: const Icon(Icons.handshake),
+                                                        label: Text(t.rep_area ?? 'Vertreterbereich'),
+                                                        onPressed: () => _openRepArea(ctx),
+                                                        style: FilledButton.styleFrom(
+                                                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                                                          shape: const StadiumBorder(),
+                                                        ),
+                                                      ),
+                                                      OutlinedButton.icon(
+                                                        icon: const Icon(Icons.admin_panel_settings_outlined),
+                                                        label: Text(t.admin_area ?? 'Adminbereich'),
+                                                        onPressed: () => _openAdmin(ctx),
+                                                        style: OutlinedButton.styleFrom(
+                                                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                                                          shape: const StadiumBorder(),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
                                             ),
                                           ),
                                         ],
