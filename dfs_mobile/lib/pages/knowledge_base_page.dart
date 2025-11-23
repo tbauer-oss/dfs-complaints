@@ -410,10 +410,182 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
     });
   }
 
+  Widget _buildHeaderCard(
+    AppLocalizations t,
+    ThemeData theme,
+    int visibleResults,
+  ) {
+    final cs = theme.colorScheme;
+    final baseText = theme.textTheme;
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            cs.primary.withOpacity(theme.brightness == Brightness.dark ? 0.14 : 0.18),
+            cs.surfaceVariant.withOpacity(0.45),
+          ],
+        ),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.4)),
+        boxShadow: [
+          BoxShadow(
+            color: cs.shadow.withOpacity(0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  height: 54,
+                  width: 54,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: cs.onPrimary.withOpacity(0.06),
+                    border: Border.all(color: cs.outlineVariant.withOpacity(0.4)),
+                  ),
+                  child: Icon(
+                    Icons.menu_book_rounded,
+                    color: cs.primary,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        t.kb_title,
+                        style: baseText.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        t.kb_intro,
+                        style: baseText.bodyMedium?.copyWith(
+                          height: 1.5,
+                          color: baseText.bodyMedium?.color?.withOpacity(0.9),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _InfoPill(
+                  icon: Icons.category_outlined,
+                  label: t.kb_filter_all,
+                  value: '${KnowledgeCategory.values.length} Kategorien',
+                ),
+                _InfoPill(
+                  icon: Icons.library_books_outlined,
+                  label: 'Einträge',
+                  value: '${_knowledgeItems.length} Artikel',
+                ),
+                _InfoPill(
+                  icon: Icons.auto_awesome,
+                  label: 'Aktuelle Ansicht',
+                  value: '$visibleResults Ergebnisse',
+                  emphasize: true,
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                color: cs.surface.withOpacity(theme.brightness == Brightness.dark ? 0.75 : 0.92),
+                border: Border.all(color: cs.outlineVariant.withOpacity(0.5)),
+              ),
+              child: TextField(
+                controller: _searchController,
+                textInputAction: TextInputAction.search,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  labelText: t.search,
+                  hintText: t.kb_search_hint,
+                  labelStyle: baseText.labelLarge,
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _searchController.text.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.close_rounded),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() {});
+                          },
+                        ),
+                  border: InputBorder.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Schnellfilter',
+              style: baseText.labelLarge?.copyWith(
+                color: cs.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            _buildCategoryChips(t),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildCategoryChips(AppLocalizations t) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    ChoiceChip buildChip({required Widget label, required bool selected, required void Function(bool) onSelected}) {
+      return ChoiceChip(
+        label: label,
+        selected: selected,
+        onSelected: onSelected,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        selectedColor: cs.primaryContainer.withOpacity(0.8),
+        backgroundColor: cs.surfaceVariant.withOpacity(theme.brightness == Brightness.dark ? 0.5 : 0.7),
+        labelStyle: theme.textTheme.bodyMedium?.copyWith(
+          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: cs.outlineVariant.withOpacity(0.45)),
+        ),
+      );
+    }
+
     final chips = <Widget>[
-      FilterChip(
-        label: Text(t.kb_filter_all),
+      buildChip(
+        label: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.all_inclusive, size: 18),
+            const SizedBox(width: 6),
+            Text(t.kb_filter_all),
+          ],
+        ),
         selected: _selectedCategories.isEmpty,
         onSelected: (_) => setState(() => _selectedCategories.clear()),
       ),
@@ -421,7 +593,7 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
 
     for (final cat in KnowledgeCategory.values) {
       chips.add(
-        FilterChip(
+        buildChip(
           label: Text(_categoryLabel(cat, t)),
           selected: _selectedCategories.contains(cat),
           onSelected: (value) => _toggleCategory(cat, value),
@@ -450,6 +622,7 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
     final t = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final items = _filteredItems(t);
+    final visibleResults = items.length;
 
     return Scaffold(
       appBar: AppBar(
@@ -460,47 +633,8 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
           slivers: [
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      t.kb_title,
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      t.kb_intro,
-                      style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
-                    ),
-                    const SizedBox(height: 20),
-                    TextField(
-                      controller: _searchController,
-                      textInputAction: TextInputAction.search,
-                      onChanged: (_) => setState(() {}),
-                      decoration: InputDecoration(
-                        labelText: t.search,
-                        hintText: t.kb_search_hint,
-                        prefixIcon: const Icon(Icons.search),
-                        suffixIcon: _searchController.text.isEmpty
-                            ? null
-                            : IconButton(
-                                icon: const Icon(Icons.clear),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  setState(() {});
-                                },
-                              ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildCategoryChips(t),
-                    const SizedBox(height: 12),
-                    const Divider(),
-                  ],
-                ),
+                padding: const EdgeInsets.fromLTRB(16, 18, 16, 12),
+                child: _buildHeaderCard(t, theme, visibleResults),
               ),
             ),
             if (items.isEmpty)
@@ -625,6 +759,63 @@ class _KnowledgeEntryCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _InfoPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool emphasize;
+
+  const _InfoPill({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.emphasize = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: emphasize
+            ? cs.primaryContainer.withOpacity(0.3)
+            : cs.surfaceVariant.withOpacity(theme.brightness == Brightness.dark ? 0.35 : 0.55),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: emphasize ? cs.primary : cs.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: cs.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
