@@ -755,15 +755,17 @@ class _LoginLanding extends StatelessWidget {
     required this.prefs,
     required this.api,
     required this.onOpenRegister,
-    required this.onOpenAdmin,
     required this.onOpenRep,
     required this.onLoggedIn,
     required this.onOpenResetPassword,
+    required this.onOpenAdmin,
   });
 
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       // WICHTIG: damit bei Tastatur nichts überläuft
@@ -803,51 +805,71 @@ class _LoginLanding extends StatelessWidget {
                               api: api,
                               onLoggedIn: onLoggedIn,
                               onOpenRegister: onOpenRegister,
-                              onOpenAdmin: onOpenAdmin,
                               onOpenRep: onOpenRep,
                               onOpenResetPassword: onOpenResetPassword,
+                              onOpenAdmin: onOpenAdmin,
                             ),
 
-                            const SizedBox(height: 16),
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                t.more_areas,
-                                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                  color: Theme.of(context).colorScheme.primary,
-                                  fontWeight: FontWeight.w700,
+                            const SizedBox(height: 10),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: scheme.surfaceContainerHighest.withOpacity(isDark ? 0.65 : 0.55),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: scheme.outlineVariant.withOpacity(isDark ? 0.5 : 0.4),
                                 ),
                               ),
-                            ),
-                            const SizedBox(height: 10),
-
-                            // Buttons für weitere Bereiche – responsiv eingebettet in die ScrollView
-                            LayoutBuilder(
-                              builder: (context, c) {
-                                final isNarrow = c.maxWidth < 560;
-                                final repButton = FilledButton.tonalIcon(
-                                  icon: const Icon(Icons.handshake),
-                                  label: Text(t.rep_area ?? t.rep_area),
-                                  onPressed: onOpenRep,
-                                  style: FilledButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
-                                    shape: const StadiumBorder(),
-                                  ),
-                                );
-
-                                if (isNarrow) {
-                                  return SizedBox(
-                                    width: double.infinity,
-                                    child: repButton,
-                                  );
-                                } else {
-                                  return Row(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Expanded(child: repButton),
+                                      Icon(
+                                        Icons.handshake,
+                                        color: scheme.primary,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              t.quick_access_title,
+                                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                                    fontWeight: FontWeight.w700,
+                                                    color: scheme.onSurface,
+                                                  ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              t.quick_access_subtitle,
+                                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                                    color: scheme.onSurfaceVariant,
+                                                  ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
                                     ],
-                                  );
-                                }
-                              },
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: OutlinedButton.icon(
+                                      icon: const Icon(Icons.login_rounded, size: 18),
+                                      label: Text(t.rep_area ?? t.rep_area),
+                                      onPressed: onOpenRep,
+                                      style: OutlinedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
 
                             // etwas Extra-Platz unten
