@@ -820,6 +820,14 @@ class _LoginLanding extends StatelessWidget {
                                 border: Border.all(
                                   color: scheme.outlineVariant.withOpacity(isDark ? 0.5 : 0.4),
                                 ),
+                                boxShadow: [
+                                  if (!isDark)
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 16,
+                                      offset: const Offset(0, 8),
+                                    ),
+                                ],
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
