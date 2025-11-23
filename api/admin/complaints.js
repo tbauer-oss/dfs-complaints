@@ -251,6 +251,97 @@ function escapeHtml(value = '') {
     .replace(/'/g, '&#039;');
 }
 
+function buildStatusMail(lang, ticket, prevStatus, nextStatus) {
+  const l = resolveLang(lang, 'de');
+  const labels = STATUS_I18N[l] || STATUS_I18N.de;
+  const before = labels[prevStatus] || labels[1];
+  const after = labels[nextStatus] || labels[1];
+
+  const SUBJECT = {
+    de: `Aktualisierung Ihrer Reklamation ${ticket}`,
+    en: `Update to your complaint ${ticket}`,
+    fr: `Mise à jour de votre réclamation ${ticket}`,
+    it: `Aggiornamento della sua segnalazione ${ticket}`,
+    es: `Actualización de su reclamación ${ticket}`,
+  };
+
+  const INTRO = {
+    de: `wir haben Ihre Reklamation ${ticket} aktualisiert. Der Status hat sich geändert:`,
+    en: `we updated your complaint ${ticket}. The status has changed:`,
+    fr: `nous avons mis à jour votre réclamation ${ticket}. Le statut a changé :`,
+    it: `abbiamo aggiornato la sua segnalazione ${ticket}. Lo stato è cambiato:`,
+    es: `hemos actualizado su reclamación ${ticket}. El estado ha cambiado:`,
+  };
+
+  const OUTRO = {
+    de: 'Bei Rückfragen stehen wir gerne zur Verfügung.',
+    en: 'If you have any questions, please let us know.',
+    fr: 'Pour toute question, nous restons à votre disposition.',
+    it: 'Per eventuali domande restiamo a disposizione.',
+    es: 'Si tiene alguna pregunta, estamos a su disposición.',
+  };
+
+  const CLOSING = {
+    de: 'Freundliche Grüße\nDFS-DIAMON GmbH – Quality Management',
+    en: 'Kind regards\nDFS-DIAMON GmbH – Quality Management',
+    fr: 'Cordialement\nDFS-DIAMON GmbH – Quality Management',
+    it: 'Cordiali saluti\nDFS-DIAMON GmbH – Quality Management',
+    es: 'Saludos cordiales\nDFS-DIAMON GmbH – Quality Management',
+  };
+
+  return {
+    subject: SUBJECT[l] || SUBJECT.de,
+    intro: INTRO[l] || INTRO.de,
+    outro: OUTRO[l] || OUTRO.de,
+    closing: CLOSING[l] || CLOSING.de,
+    statusLine: `${before} → ${after}`,
+  };
+}
+
+function buildPayloadMail(lang, ticket) {
+  const l = resolveLang(lang, 'de');
+
+  const SUBJECT = {
+    de: `Aktualisierung Ihrer Reklamation ${ticket}`,
+    en: `Update to your complaint ${ticket}`,
+    fr: `Mise à jour de votre réclamation ${ticket}`,
+    it: `Aggiornamento della sua segnalazione ${ticket}`,
+    es: `Actualización de su reclamación ${ticket}`,
+  };
+
+  const INTRO = {
+    de: `wir haben Ihre Reklamation ${ticket} angepasst. Folgende Angaben wurden geändert:`,
+    en: `we updated your complaint ${ticket}. The following details were changed:`,
+    fr: `nous avons mis à jour votre réclamation ${ticket}. Les informations suivantes ont été modifiées :`,
+    it: `abbiamo aggiornato la sua segnalazione ${ticket}. Sono stati modificati i seguenti dati:`,
+    es: `hemos actualizado su reclamación ${ticket}. Se han modificado los siguientes datos:`,
+  };
+
+  const OUTRO = {
+    de: 'Bei Rückfragen stehen wir gerne zur Verfügung.',
+    en: 'If you have any questions, please let us know.',
+    fr: 'Pour toute question, nous restons à votre disposition.',
+    it: 'Per eventuali domande restiamo a disposizione.',
+    es: 'Si tiene alguna pregunta, estamos a su disposición.',
+  };
+
+  const CLOSING = {
+    de: 'Freundliche Grüße\nDFS-DIAMON GmbH – Quality Management',
+    en: 'Kind regards\nDFS-DIAMON GmbH – Quality Management',
+    fr: 'Cordialement\nDFS-DIAMON GmbH – Quality Management',
+    it: 'Cordiali saluti\nDFS-DIAMON GmbH – Quality Management',
+    es: 'Saludos cordiales\nDFS-DIAMON GmbH – Quality Management',
+  };
+
+  return {
+    subject: SUBJECT[l] || SUBJECT.de,
+    intro: INTRO[l] || INTRO.de,
+    outro: OUTRO[l] || OUTRO.de,
+    closing: CLOSING[l] || CLOSING.de,
+    statusLine: null,
+  };
+}
+
 // =======================================================
 // Handler
 // =======================================================
@@ -415,35 +506,53 @@ export default async function handler(req, res) {
       try { await complaintSave(ticket, c); }
       catch { await complaintSave({ ...c }); }
 
-      if (payloadChanged && payloadChanges.length > 0) {
+      if ((payloadChanged && payloadChanges.length > 0) || statusChanged) {
         const recipient = (c.email || '').toString().trim();
-        if (recipient) {
-          const subject = `[DFS Complaint ${c.ticket}] Aktualisierung Ihrer Reklamation`;
-          const bulletLines = payloadChanges
-            .map((chg) => `• ${chg.label}: vorher "${chg.before}", jetzt "${chg.after}"`)
-            .join('\n');
+        const normalized = normEmail(recipient);
+        if (recipient && normalized) {
+          let account = null;
+          try {
+            account = await userByEmail(normalized);
+          } catch (err) {
+            console.error('admin/complaints user lookup failed', err);
+          }
 
-          const htmlList = payloadChanges
-            .map((chg) =>
-              `<li><strong>${escapeHtml(chg.label)}:</strong> vorher „${escapeHtml(chg.before)}”, jetzt „${escapeHtml(chg.after)}”</li>`)
-            .join('');
+          const lang = detectCustomerLang(account, c) || 'de';
+          const hasStatusChange = statusChanged;
+          const hasPayloadChanges = payloadChanged && payloadChanges.length > 0;
+          const mailText = hasStatusChange
+            ? buildStatusMail(lang, c.ticket, prevStatus, c.status)
+            : buildPayloadMail(lang, c.ticket);
+          const changeLines = [];
+          const htmlItems = [];
+
+          if (hasStatusChange) {
+            changeLines.push(`• ${mailText.statusLine}`);
+            htmlItems.push(`<li><strong>${escapeHtml(mailText.statusLine)}</strong></li>`);
+          }
+
+          if (hasPayloadChanges) {
+            payloadChanges.forEach((chg) => {
+              changeLines.push(`• ${chg.label}: vorher "${chg.before}", jetzt "${chg.after}"`);
+              htmlItems.push(
+                `<li><strong>${escapeHtml(chg.label)}:</strong> vorher „${escapeHtml(chg.before)}”, jetzt „${escapeHtml(chg.after)}”</li>`,
+              );
+            });
+          }
 
           const textBody =
-            `Guten Tag,\n\n` +
-            `wir haben Ihre Reklamation ${c.ticket} angepasst. Folgende Angaben wurden geändert:\n` +
-            `${bulletLines}\n\n` +
-            `Bei Rückfragen stehen wir gerne zur Verfügung.\n\n` +
-            `Freundliche Grüße\nDFS-DIAMON GmbH – Quality Management`;
+            `Guten Tag,\n\n${mailText.intro}\n` +
+            `${changeLines.join('\n')}\n\n` +
+            `${mailText.outro}\n\n${mailText.closing}`;
 
           const htmlBody =
             `<p>Guten Tag,</p>` +
-            `<p>wir haben Ihre Reklamation <strong>${escapeHtml(c.ticket)}</strong> angepasst. ` +
-            `Folgende Angaben wurden geändert:</p>` +
-            `<ul>${htmlList}</ul>` +
-            `<p>Bei Rückfragen stehen wir gerne zur Verfügung.</p>` +
-            `<p>Freundliche Grüße<br/>DFS-DIAMON GmbH – Quality Management</p>`;
+            `<p>${escapeHtml(mailText.intro)}</p>` +
+            `<ul>${htmlItems.join('')}</ul>` +
+            `<p>${escapeHtml(mailText.outro)}</p>` +
+            `<p>${escapeHtml(mailText.closing).replace(/\n/g, '<br/>')}</p>`;
 
-          sendMail({ to: recipient, subject, text: textBody, html: htmlBody }).catch((err) => {
+          sendMail({ to: recipient, subject: mailText.subject, text: textBody, html: htmlBody }).catch((err) => {
             console.error('admin/complaints mail failed', err);
           });
         }
