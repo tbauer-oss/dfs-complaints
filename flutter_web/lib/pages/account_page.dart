@@ -346,6 +346,7 @@ class _AccountEditPageState extends State<_AccountEditPage> {
   Country? _countrySel;
 
   bool busy = false;
+  late Country _selectedCountry;
   late String _selectedLang;
 
   @override
@@ -510,6 +511,8 @@ class _AccountEditPageState extends State<_AccountEditPage> {
                           'street':  street.text.trim(),
                           'zip':     zip.text.trim(),
                           'city':    city.text.trim(),
+                          'country': _selectedCountry.label(context),
+                          'countryCode': _selectedCountry.code,
                           'lang':    _selectedLang,
                           'country': country.label(context),
                           'countryCode': country.code,
