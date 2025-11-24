@@ -9,6 +9,7 @@ import 'package:file_saver/file_saver.dart';
 import 'package:intl/intl.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
+import '../models/country.dart';
 import '../services/app_prefs_scope.dart';
 import '../utils/lang_utils.dart';
 import '../widgets/dialog_content_scroll.dart';
@@ -350,12 +351,14 @@ class _AccountEditPageState extends State<_AccountEditPage> {
       TextEditingController(text: widget.initial['city']?.toString() ?? '');
 
   bool busy = false;
+  late Country _selectedCountry;
   late String _selectedLang;
 
   @override
   void initState() {
     super.initState();
     _selectedLang = normalizeLangCode(widget.initial['lang']?.toString());
+    _selectedCountry = _resolveInitialCountry();
   }
 
   @override
@@ -367,6 +370,28 @@ class _AccountEditPageState extends State<_AccountEditPage> {
     zip.dispose();
     city.dispose();
     super.dispose();
+  }
+
+  Country _resolveInitialCountry() {
+    final code = widget.initial['countryCode']?.toString().trim();
+    if (code != null && code.isNotEmpty) {
+      final match = kCountries.firstWhere(
+        (c) => c.code.toUpperCase() == code.toUpperCase(),
+        orElse: () => kCountries.first,
+      );
+      return match;
+    }
+
+    final name = widget.initial['country']?.toString().trim();
+    if (name != null && name.isNotEmpty) {
+      final match = kCountries.firstWhere(
+        (c) => c.names.values.any((v) => v.toLowerCase() == name.toLowerCase()),
+        orElse: () => kCountries.first,
+      );
+      return match;
+    }
+
+    return kCountries.first;
   }
 
   @override
@@ -425,6 +450,25 @@ class _AccountEditPageState extends State<_AccountEditPage> {
                 },
               ),
               const SizedBox(height: 8),
+              DropdownButtonFormField<Country>(
+                value: _selectedCountry,
+                isExpanded: true,
+                decoration: InputDecoration(
+                  labelText: t.country,
+                  border: const OutlineInputBorder(),
+                ),
+                items: kCountries
+                    .map((c) => DropdownMenuItem<Country>(
+                          value: c,
+                          child: Text(c.label(context)),
+                        ))
+                    .toList(),
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() => _selectedCountry = value);
+                },
+              ),
+              const SizedBox(height: 8),
               TextField(
                 controller: company,
                 decoration: InputDecoration(
@@ -474,6 +518,8 @@ class _AccountEditPageState extends State<_AccountEditPage> {
                           'street':  street.text.trim(),
                           'zip':     zip.text.trim(),
                           'city':    city.text.trim(),
+                          'country': _selectedCountry.label(context),
+                          'countryCode': _selectedCountry.code,
                           'lang':    _selectedLang,
                         });
                         await prefs.setLang(_selectedLang);
