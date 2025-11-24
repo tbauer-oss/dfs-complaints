@@ -489,6 +489,7 @@
   "description": "Description",
 
   "reportComplaint": "Report complaint",
+  "complaintWizardTile": "Complaint wizard",
   "openComplaintReport": "Open complaint report",
   "myComplaints": "My complaints",
   "complaint_help_title": "Knowledge base",
