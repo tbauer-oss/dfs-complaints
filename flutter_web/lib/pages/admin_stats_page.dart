@@ -333,6 +333,8 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
     final months = _parseMonthBuckets();
     final countries = _parseCountryBuckets();
     final reps = _parseRepBuckets();
+    final products = _parseProductBuckets();
+    final lots = _parseLotBuckets();
     final customers = _parseCustomerBuckets();
     final timeStats = _parseTimeToCloseStats();
     final weekdays = _parseWeekdayBuckets();
@@ -429,6 +431,49 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
           _CustomerRankingSection(customers: customers, total: total),
           const SizedBox(height: 24),
           _TimeToCloseSection(stats: timeStats),
+        ],
+        const SizedBox(height: 24),
+        if (isWide) ...[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _TopListSection(
+                  title: 'Top-Produkte (nach Reklamationen)',
+                  icon: Icons.inventory_2_outlined,
+                  buckets: products,
+                  total: total,
+                  emptyMessage: 'Keine Produktdaten verfügbar',
+                ),
+              ),
+              const SizedBox(width: 24),
+              Expanded(
+                child: _TopListSection(
+                  title: 'Top-LOTs',
+                  icon: Icons.qr_code_2_outlined,
+                  buckets: lots,
+                  total: total,
+                  emptyMessage: 'Keine LOT-Daten verfügbar',
+                ),
+              ),
+            ],
+          ),
+        ] else ...[
+          _TopListSection(
+            title: 'Top-Produkte (nach Reklamationen)',
+            icon: Icons.inventory_2_outlined,
+            buckets: products,
+            total: total,
+            emptyMessage: 'Keine Produktdaten verfügbar',
+          ),
+          const SizedBox(height: 24),
+          _TopListSection(
+            title: 'Top-LOTs',
+            icon: Icons.qr_code_2_outlined,
+            buckets: lots,
+            total: total,
+            emptyMessage: 'Keine LOT-Daten verfügbar',
+          ),
         ],
         const SizedBox(height: 24),
         _LoadPatternSection(weekdays: weekdays, hours: hours),
@@ -624,6 +669,34 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
       if (primary != 0) return primary;
       return a.label.compareTo(b.label);
     });
+    return out;
+  }
+
+  List<_TopBucket> _parseProductBuckets() {
+    final raw = (_stats?['topProducts'] as List?) ?? const [];
+    final out = <_TopBucket>[];
+    for (final entry in raw) {
+      if (entry is Map) {
+        final label = (entry['label'] ?? '').toString().trim();
+        if (label.isEmpty) continue;
+        final count = (entry['count'] as num?)?.toInt() ?? 0;
+        out.add(_TopBucket(label: label, count: count));
+      }
+    }
+    return out;
+  }
+
+  List<_TopBucket> _parseLotBuckets() {
+    final raw = (_stats?['topLots'] as List?) ?? const [];
+    final out = <_TopBucket>[];
+    for (final entry in raw) {
+      if (entry is Map) {
+        final label = (entry['label'] ?? '').toString().trim();
+        if (label.isEmpty) continue;
+        final count = (entry['count'] as num?)?.toInt() ?? 0;
+        out.add(_TopBucket(label: label, count: count));
+      }
+    }
     return out;
   }
 
@@ -1231,6 +1304,100 @@ class _CustomerRankTile extends StatelessWidget {
   }
 }
 
+class _TopListSection extends StatelessWidget {
+  final List<_TopBucket> buckets;
+  final int total;
+  final String title;
+  final IconData icon;
+  final String emptyMessage;
+
+  const _TopListSection({
+    required this.buckets,
+    required this.total,
+    required this.title,
+    required this.icon,
+    required this.emptyMessage,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (buckets.isEmpty) {
+      return _SectionCard(
+        title: title,
+        icon: icon,
+        child: _EmptyPlaceholder(message: emptyMessage),
+      );
+    }
+    final top = buckets.take(10).toList(growable: false);
+    return _SectionCard(
+      title: title,
+      icon: icon,
+      child: Column(
+        children: [
+          for (var i = 0; i < top.length; i++) ...[
+            _TopRankTile(rank: i + 1, bucket: top[i], total: total),
+            if (i != top.length - 1) const SizedBox(height: 12),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TopRankTile extends StatelessWidget {
+  final int rank;
+  final _TopBucket bucket;
+  final int total;
+  const _TopRankTile({required this.rank, required this.bucket, required this.total});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final share = total > 0 ? bucket.count / total : null;
+    final shareLabel = (share == null)
+        ? null
+        : NumberFormat.decimalPercentPattern(locale: 'de', decimalDigits: 1).format(share);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CircleAvatar(
+          radius: 16,
+          backgroundColor: theme.colorScheme.secondary.withOpacity(0.12),
+          child: Text('$rank', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.secondary)),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                bucket.label,
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              LinearProgressIndicator(
+                value: share?.clamp(0.0, 1.0) ?? 0,
+                minHeight: 6,
+                backgroundColor: theme.colorScheme.surfaceVariant,
+                valueColor: AlwaysStoppedAnimation(theme.colorScheme.secondary),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text('${bucket.count}', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+            if (shareLabel != null)
+              Text(shareLabel, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline)),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 class _TimeToCloseSection extends StatelessWidget {
   final _TimeToCloseStats? stats;
   const _TimeToCloseSection({required this.stats});
@@ -1717,6 +1884,12 @@ class _CustomerBucket {
     this.email,
     this.customerNumber,
   });
+}
+
+class _TopBucket {
+  final String label;
+  final int count;
+  const _TopBucket({required this.label, required this.count});
 }
 
 class _CountryBucket {
