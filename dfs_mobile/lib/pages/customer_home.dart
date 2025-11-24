@@ -259,7 +259,7 @@ class CustomerHomePage extends StatelessWidget {
                                               Navigator.of(context).push(
                                                 MaterialPageRoute(
                                                   builder: (_) =>
-                                                      const KnowledgeBasePage(),
+                                                      KnowledgeBasePage(api: api),
                                                 ),
                                               );
                                             },

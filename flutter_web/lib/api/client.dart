@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../models/complaint.dart';
 import '../models/catalog_link.dart';
 import '../models/customer_news_entry.dart';
+import '../models/faq.dart';
 import 'config.dart';
 
 class ApiError implements Exception {
@@ -212,6 +213,9 @@ class ApiClient {
   List<CustomerNewsEntry>? _newsCache;
   DateTime? _newsLoadedAt;
   static const Duration _newsCacheTtl = Duration(minutes: 1);
+  FaqData? _faqCache;
+  DateTime? _faqLoadedAt;
+  static const Duration _faqCacheTtl = Duration(minutes: 1);
 
   void _invalidateNewsCache() {
     _newsCache = null;
@@ -406,6 +410,31 @@ class ApiClient {
     _newsCache = items;
     _newsLoadedAt = DateTime.now();
     return items;
+  }
+
+  Future<FaqData> fetchFaq({bool refresh = false}) async {
+    final cacheValid = _faqCache != null &&
+        _faqLoadedAt != null &&
+        DateTime.now().difference(_faqLoadedAt!) < _faqCacheTtl;
+    if (!refresh && cacheValid) return _faqCache!;
+
+    final res = await http.get(
+      _u('/api/faq'),
+      headers: {'Content-Type': 'application/json'},
+    );
+
+    if (!_ok2xx(res.statusCode)) {
+      throw ApiError(res.statusCode, _extractMessage(res.body));
+    }
+
+    final body = res.body.trim();
+    final decoded = body.isEmpty ? <String, dynamic>{} : jsonDecode(body);
+    final data =
+        decoded is Map<String, dynamic> ? FaqData.fromJson(decoded) : const FaqData(categories: [], entries: []);
+
+    _faqCache = data;
+    _faqLoadedAt = DateTime.now();
+    return data;
   }
 
   // ---- Basis ----
