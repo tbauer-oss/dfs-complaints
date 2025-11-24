@@ -527,23 +527,29 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                 Expanded(
                   child: Text(
                     t.complaint_auto_help_title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
                       color: theme.colorScheme.onSecondaryContainer,
-                      fontSize: compact ? 13.5 : 14,
+                      fontSize: compact ? 13.25 : 13.75,
                     ),
                   ),
                 ),
-                Chip(
-                  visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
-                  label: Text(
-                    knowledgeCategoryLabel(suggestion.category, t),
-                    style: const TextStyle(fontSize: 11),
-                  ),
-                  avatar: Icon(Icons.folder_open, size: 18, color: theme.colorScheme.primary),
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
               ],
+            ),
+            SizedBox(height: compact ? 4 : 6),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Chip(
+                visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+                label: Text(
+                  knowledgeCategoryLabel(suggestion.category, t),
+                  style: const TextStyle(fontSize: 11),
+                ),
+                avatar: Icon(Icons.folder_open, size: 18, color: theme.colorScheme.primary),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
             ),
             SizedBox(height: compact ? 4 : 6),
             Text(
