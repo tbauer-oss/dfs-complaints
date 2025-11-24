@@ -599,6 +599,45 @@ class ApiClient {
     return (j is Map) ? j.cast<String, dynamic>() : <String, dynamic>{};
   }
 
+  Future<RepMe> repUpdateProfile({
+    String? firstName,
+    String? lastName,
+    String? region,
+    String? lang,
+    String? country,
+    String? countryCode,
+  }) async {
+    final body = <String, dynamic>{};
+    if (firstName != null) body['firstName'] = firstName;
+    if (lastName != null) body['lastName'] = lastName;
+    if (region != null) body['region'] = region;
+    if (lang != null) body['lang'] = lang;
+    if (country != null) body['country'] = country;
+    if (countryCode != null) body['countryCode'] = countryCode;
+
+    final r = await _repFetch(
+      '/api/rep/update',
+      method: 'PUT',
+      body: body,
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw Exception('PUT /api/rep/update failed: ${r.statusCode} ${r.body}');
+    }
+
+    final raw = r.body.trim().isEmpty ? '{}' : r.body;
+    final decoded = jsonDecode(raw);
+    if (decoded is Map<String, dynamic>) {
+      if (decoded['rep'] is Map) {
+        return RepMe.fromJson((decoded['rep'] as Map).cast<String, dynamic>());
+      }
+      return RepMe.fromJson(decoded);
+    }
+    if (decoded is Map) {
+      return RepMe.fromJson(decoded.cast<String, dynamic>());
+    }
+    throw Exception('invalid response for /api/rep/update');
+  }
+
   Future<List<String>> repCustomers() async {
     final r = await _repFetch('/api/rep/customers');
     if (!_ok2xx(r.statusCode)) {
@@ -1460,6 +1499,9 @@ class RepMe {
   final String lastName;
   final String email;
   final String region;
+  final String country;
+  final String countryCode;
+  final String lang;
   final List<String> customers;
   const RepMe({
     required this.id,
@@ -1467,6 +1509,9 @@ class RepMe {
     required this.lastName,
     required this.email,
     required this.region,
+    required this.country,
+    required this.countryCode,
+    required this.lang,
     required this.customers,
   });
 
@@ -1476,6 +1521,9 @@ class RepMe {
     lastName: (j['lastName']  ?? '').toString(),
     email:    (j['email']     ?? '').toString(),
     region:   (j['region']    ?? '').toString(),
+    country:  (j['country']   ?? '').toString(),
+    countryCode: (j['countryCode'] ?? '').toString(),
+    lang:     (j['lang']      ?? '').toString(),
     customers: (j['customers'] as List? ?? const []).cast<String>(),
   );
 }

@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:file_saver/file_saver.dart';
 import 'package:intl/intl.dart';
 import '../api/client.dart';
+import '../data/country_geography.dart';
 import '../l10n/app_localizations.dart';
 import '../models/country.dart';
 import '../services/app_prefs_scope.dart';
@@ -189,6 +190,7 @@ class _AccountPageState extends State<AccountPage> {
               Text('${t.company}: ${_val(acc!['company'])}'),
               // FIX: v(...) existierte nicht -> Helper _val
               Text('${t.contact_person}: ${_val(acc!['contact'])}'),
+              Text('${t.country_label ?? 'Land'}: ${_val(acc!['country'])}'),
               Text('${t.catalog_select_language}: ${_langDisplay(context, acc!['lang'])}'),
               Builder(
                 builder: (_) {
@@ -350,6 +352,7 @@ class _AccountEditPageState extends State<_AccountEditPage> {
   late final TextEditingController city    =
       TextEditingController(text: widget.initial['city']?.toString() ?? '');
 
+  Country? _countrySel;
   bool busy = false;
   late Country _selectedCountry;
   late String _selectedLang;
@@ -358,7 +361,10 @@ class _AccountEditPageState extends State<_AccountEditPage> {
   void initState() {
     super.initState();
     _selectedLang = normalizeLangCode(widget.initial['lang']?.toString());
-    _selectedCountry = _resolveInitialCountry();
+    _countrySel = _resolveCountry(
+      widget.initial['countryCode']?.toString() ?? '',
+      widget.initial['country']?.toString() ?? '',
+    );
   }
 
   @override
@@ -372,26 +378,22 @@ class _AccountEditPageState extends State<_AccountEditPage> {
     super.dispose();
   }
 
-  Country _resolveInitialCountry() {
-    final code = widget.initial['countryCode']?.toString().trim();
-    if (code != null && code.isNotEmpty) {
-      final match = kCountries.firstWhere(
-        (c) => c.code.toUpperCase() == code.toUpperCase(),
-        orElse: () => kCountries.first,
-      );
-      return match;
-    }
+  Country _selectedCountry(BuildContext context) {
+    final fallback = kCountries.first;
+    return _countrySel ?? _resolveCountry(
+          widget.initial['countryCode']?.toString() ?? '',
+          widget.initial['country']?.toString() ?? '',
+        ) ??
+        fallback;
+  }
 
-    final name = widget.initial['country']?.toString().trim();
-    if (name != null && name.isNotEmpty) {
-      final match = kCountries.firstWhere(
-        (c) => c.names.values.any((v) => v.toLowerCase() == name.toLowerCase()),
-        orElse: () => kCountries.first,
-      );
-      return match;
+  Country? _resolveCountry(String code, String name) {
+    final resolved = CountryGeography.resolveCode(code.isNotEmpty ? code : name);
+    if (resolved == null) return null;
+    for (final country in kCountries) {
+      if (country.code.toUpperCase() == resolved.toUpperCase()) return country;
     }
-
-    return kCountries.first;
+    return null;
   }
 
   @override
@@ -451,22 +453,20 @@ class _AccountEditPageState extends State<_AccountEditPage> {
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<Country>(
-                value: _selectedCountry,
-                isExpanded: true,
+                value: _selectedCountry(context),
                 decoration: InputDecoration(
-                  labelText: t.country,
+                  labelText: t.country_label,
                   border: const OutlineInputBorder(),
                 ),
                 items: kCountries
-                    .map((c) => DropdownMenuItem<Country>(
-                          value: c,
-                          child: Text(c.label(context)),
-                        ))
+                    .map(
+                      (country) => DropdownMenuItem<Country>(
+                        value: country,
+                        child: Text(country.label(context)),
+                      ),
+                    )
                     .toList(),
-                onChanged: (value) {
-                  if (value == null) return;
-                  setState(() => _selectedCountry = value);
-                },
+                onChanged: (val) => setState(() => _countrySel = val),
               ),
               const SizedBox(height: 8),
               TextField(
@@ -511,6 +511,7 @@ class _AccountEditPageState extends State<_AccountEditPage> {
                     onPressed: busy ? null : () async {
                       setState(() => busy = true);
                       try {
+                        final country = _selectedCountry(context);
                         await widget.api.accountUpdate({
                           'email':   email.text.trim(),
                           'contact': contact.text.trim(),
@@ -521,6 +522,8 @@ class _AccountEditPageState extends State<_AccountEditPage> {
                           'country': _selectedCountry.label(context),
                           'countryCode': _selectedCountry.code,
                           'lang':    _selectedLang,
+                          'country': country.label(context),
+                          'countryCode': country.code,
                         });
                         await prefs.setLang(_selectedLang);
                         if (!mounted) return;

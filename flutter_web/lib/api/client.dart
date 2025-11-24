@@ -595,12 +595,16 @@ class ApiClient {
     String? lastName,
     String? region,
     String? lang,
+    String? country,
+    String? countryCode,
   }) async {
     final body = <String, dynamic>{};
     if (firstName != null) body['firstName'] = firstName;
     if (lastName != null) body['lastName'] = lastName;
     if (region != null) body['region'] = region;
     if (lang != null) body['lang'] = lang;
+    if (country != null) body['country'] = country;
+    if (countryCode != null) body['countryCode'] = countryCode;
 
     final r = await _repFetch(
       '/api/rep/update',
@@ -1478,6 +1482,8 @@ class RepMe {
   final String lastName;
   final String email;
   final String region;
+  final String country;
+  final String countryCode;
   final String lang;
   final List<String> customers;
   const RepMe({
@@ -1486,6 +1492,8 @@ class RepMe {
     required this.lastName,
     required this.email,
     required this.region,
+    required this.country,
+    required this.countryCode,
     required this.lang,
     required this.customers,
   });
@@ -1496,6 +1504,8 @@ class RepMe {
     lastName: (j['lastName']  ?? '').toString(),
     email:    (j['email']     ?? '').toString(),
     region:   (j['region']    ?? '').toString(),
+    country:  (j['country']   ?? '').toString(),
+    countryCode: (j['countryCode'] ?? '').toString(),
     lang:     (j['lang']      ?? '').toString(),
     customers: (j['customers'] as List? ?? const []).cast<String>(),
   );
