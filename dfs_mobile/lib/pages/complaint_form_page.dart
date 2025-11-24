@@ -73,6 +73,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   String? info;
   String? err;
   bool busy = false;
+  final ValueNotifier<bool> _busyNotifier = ValueNotifier(false);
 
   Map<String, dynamic>? _account;
   bool _helpCollapsed = false;
@@ -103,6 +104,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     for (final c in _ctrls) { c.removeListener(_markDirty); }
     desc.removeListener(_handleDescriptionChanged);
     _scrollCtrl.dispose();
+    _busyNotifier.dispose();
     super.dispose();
   }
 
@@ -151,6 +153,12 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
 
   List<_WizardStep> _buildWizardSteps(AppLocalizations t, {required bool isDentist}) {
     return [
+      _WizardStep(
+        id: 'intro',
+        icon: Icons.celebration_outlined,
+        title: t.complaint_wizard_title,
+        hint: t.complaint_wizard_subtitle,
+      ),
       _WizardStep(id: 'segment', icon: Icons.flag_outlined, title: t.complaint_wizard_step_overview, hint: t.segment),
       _WizardStep(id: 'product', icon: Icons.shopping_bag_outlined, title: t.complaint_wizard_step_product, hint: t.article),
       if (isDentist)
@@ -179,23 +187,6 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
         hint: t.complaint_wizard_step_finish,
       ),
     ];
-  }
-
-  Future<void> _scrollToSection(String id) async {
-    final ctx = _sectionKeys[id]?.currentContext;
-    if (ctx == null) return;
-    await Scrollable.ensureVisible(
-      ctx,
-      duration: const Duration(milliseconds: 350),
-      curve: Curves.easeInOut,
-      alignment: 0.05,
-    );
-  }
-
-  Future<void> _goToStep(List<_WizardStep> steps, int index) async {
-    if (index < 0 || index >= steps.length) return;
-    setState(() => _wizardStep = index);
-    await _scrollToSection(steps[index].id);
   }
 
   Widget _wizardAnchor(String id, Widget child) {
@@ -759,13 +750,14 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     final isDentist = segment == optDentist;
 
     setState(() { busy = true; err = null; info = null; });
+    _busyNotifier.value = true;
 
-    if (!privacy) { setState(() { err = t.privacy_required; busy = false; }); return; }
+    if (!privacy) { setState(() { err = t.privacy_required; busy = false; }); _busyNotifier.value = false; return; }
     if (article.text.trim().isEmpty || desc.text.trim().isEmpty) {
-      setState(() { err = t.required_fields; busy = false; }); return;
+      setState(() { err = t.required_fields; busy = false; }); _busyNotifier.value = false; return;
     }
     if (isDentist && batch.text.trim().isEmpty) {
-      setState(() { err = t.batch; busy = false; }); return;
+      setState(() { err = t.batch; busy = false; }); _busyNotifier.value = false; return;
     }
 
     final payload = <String, dynamic>{
@@ -789,8 +781,10 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
 
       if (ticket.isEmpty) {
         setState(() { busy = false; err = t.send_failed; });
+        _busyNotifier.value = false;
       } else {
         setState(() { busy = false; _dirty = false; info = null; });
+        _busyNotifier.value = false;
         onSuccess?.call();
         await _showSummary(ticket, payload);
       }
@@ -799,6 +793,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
         busy = false;
         err = t.network_cors_error(e.toString());
       });
+      _busyNotifier.value = false;
     }
   }
 
@@ -1190,10 +1185,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     if (steps.isEmpty) return const SizedBox.shrink();
 
     final theme = Theme.of(context);
-    final active = _wizardStep.clamp(0, steps.length - 1);
-    if (active != _wizardStep) _wizardStep = active;
-    final currentStep = steps[active];
-    final progress = steps.isEmpty ? 0.0 : (active + 1) / steps.length;
+    final realSteps = steps.where((s) => s.id != 'intro').toList(growable: false);
 
     return Card(
       elevation: 0,
@@ -1225,60 +1217,35 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('${active + 1}/${steps.length} · ${currentStep.title}', style: const TextStyle(fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 6),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(99),
-                        child: LinearProgressIndicator(value: progress, minHeight: compact ? 6 : 8),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                IconButton(
-                  tooltip: t.complaint_wizard_next,
-                  onPressed: active < steps.length - 1 ? () => _goToStep(steps, active + 1) : null,
-                  icon: const Icon(Icons.skip_next_outlined),
-                ),
-              ],
+            ClipRRect(
+              borderRadius: BorderRadius.circular(99),
+              child: LinearProgressIndicator(value: 0, minHeight: compact ? 6 : 8),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
+            Text(
+              t.complaint_wizard_hint,
+              style: TextStyle(fontSize: compact ? 12 : 12.5, color: theme.colorScheme.onSurfaceVariant, height: 1.4),
+            ),
+            const SizedBox(height: 10),
             Wrap(
               spacing: 8,
-              runSpacing: 8,
+              runSpacing: 6,
               children: [
-                for (final entry in steps.asMap().entries)
-                  InputChip(
-                    selected: entry.key == active,
-                    onPressed: () => _goToStep(steps, entry.key),
-                    avatar: Icon(entry.value.icon, size: 18),
-                    label: Text(entry.value.title),
+                for (final step in realSteps)
+                  Chip(
+                    avatar: Icon(step.icon, size: 18),
+                    label: Text(step.title),
                   ),
               ],
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    t.complaint_wizard_hint,
-                    style: TextStyle(fontSize: compact ? 12 : 12.5, color: theme.colorScheme.onSurfaceVariant, height: 1.4),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                FilledButton.icon(
-                  onPressed: onOpenWizard,
-                  icon: const Icon(Icons.play_circle_outline),
-                  label: Text(t.complaintWizardTile),
-                ),
-              ],
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.icon(
+                onPressed: onOpenWizard,
+                icon: const Icon(Icons.play_circle_outline),
+                label: Text(t.complaintWizardTile),
+              ),
             ),
           ],
         ),
@@ -1292,179 +1259,23 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     required List<({String id, Widget widget})> sections,
   }) async {
     if (steps.isEmpty) return;
-    final pageCtrl = PageController(initialPage: _wizardStep.clamp(0, steps.length - 1));
 
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return FractionallySizedBox(
-          heightFactor: 0.94,
-          child: ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            child: StatefulBuilder(builder: (ctx, setModalState) {
-              final sectionLookup = {for (final entry in sections) entry.id: entry.widget};
-              final innerCompact = MediaQuery.of(ctx).size.width < 520;
-              final active = _wizardStep.clamp(0, steps.length - 1);
-              final progress = steps.isEmpty ? 0.0 : (active + 1) / steps.length;
+    final sectionLookup = {for (final entry in sections) entry.id: entry.widget};
+    final review = _wizardReview(compact: false, t: t);
 
-              void goTo(int index) {
-                final next = index.clamp(0, steps.length - 1);
-                setState(() => _wizardStep = next);
-                setModalState(() {});
-                pageCtrl.animateToPage(next, duration: const Duration(milliseconds: 260), curve: Curves.easeInOut);
-              }
-
-              return Material(
-                color: Theme.of(ctx).colorScheme.surface,
-                child: SafeArea(
-                  child: Column(
-                    children: [
-                      Padding(
-                        padding: EdgeInsets.fromLTRB(innerCompact ? 14 : 16, 12, innerCompact ? 8 : 10, 6),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(t.complaint_wizard_title, style: TextStyle(fontWeight: FontWeight.w800, fontSize: innerCompact ? 16 : 17)),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    t.complaint_wizard_subtitle,
-                                    style: TextStyle(color: Theme.of(ctx).colorScheme.onSurfaceVariant, height: 1.4),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            IconButton(
-                              onPressed: () => Navigator.of(ctx).pop(),
-                              icon: const Icon(Icons.close),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Padding(
-                        padding: EdgeInsets.fromLTRB(innerCompact ? 14 : 16, 0, innerCompact ? 14 : 16, 10),
-                        child: Column(
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: LinearProgressIndicator(
-                                    value: progress,
-                                    minHeight: innerCompact ? 6 : 8,
-                                    borderRadius: BorderRadius.circular(99),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Text('${active + 1}/${steps.length}', style: const TextStyle(fontWeight: FontWeight.w700)),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: Row(
-                                children: [
-                                  for (final entry in steps.asMap().entries)
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 8),
-                                      child: ChoiceChip(
-                                        selected: entry.key == active,
-                                        onSelected: (_) => goTo(entry.key),
-                                        label: Text(entry.value.title),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Expanded(
-                        child: PageView(
-                          controller: pageCtrl,
-                          onPageChanged: (i) {
-                            setState(() => _wizardStep = i);
-                            setModalState(() {});
-                          },
-                          children: [
-                            for (final step in steps)
-                              SingleChildScrollView(
-                                padding: EdgeInsets.fromLTRB(innerCompact ? 14 : 18, 6, innerCompact ? 14 : 18, 96),
-                                child: Column(
-                                  children: [
-                                    sectionLookup[step.id] ?? const SizedBox.shrink(),
-                                    if (step.id == 'privacy') ...[
-                                      const SizedBox(height: 12),
-                                      _wizardReview(compact: innerCompact, t: t),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      Padding(
-                        padding: EdgeInsets.fromLTRB(innerCompact ? 12 : 16, 8, innerCompact ? 12 : 16, 12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(steps[active].icon, size: 18),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(steps[active].title, style: const TextStyle(fontWeight: FontWeight.w700)),
-                                      const SizedBox(height: 2),
-                                      Text(steps[active].hint, style: TextStyle(color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                OutlinedButton.icon(
-                                  onPressed: active > 0 && !busy ? () => goTo(active - 1) : null,
-                                  icon: const Icon(Icons.chevron_left),
-                                  label: Text(t.complaint_wizard_prev),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: FilledButton.icon(
-                                    onPressed: busy
-                                        ? null
-                                        : (active < steps.length - 1
-                                            ? () => goTo(active + 1)
-                                            : () => _submitComplaint(onSuccess: () => Navigator.of(ctx).pop())),
-                                    icon: busy
-                                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                                        : Icon(active < steps.length - 1 ? Icons.navigate_next : Icons.send_outlined),
-                                    label: Text(active < steps.length - 1 ? t.complaint_wizard_next : t.send),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-          ),
-        );
-      },
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => _ComplaintWizardOverlay(
+          steps: steps,
+          sectionLookup: sectionLookup,
+          review: review,
+          busyListenable: _busyNotifier,
+          onSubmit: () => _submitComplaint(onSuccess: () => Navigator.of(context).pop()),
+          t: t,
+        ),
+      ),
     );
-
-    pageCtrl.dispose();
   }
 
   @override
@@ -1674,6 +1485,199 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                 ],
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ComplaintWizardOverlay extends StatefulWidget {
+  final List<_WizardStep> steps;
+  final Map<String, Widget> sectionLookup;
+  final Widget review;
+  final ValueListenable<bool> busyListenable;
+  final Future<void> Function() onSubmit;
+  final AppLocalizations t;
+  const _ComplaintWizardOverlay({
+    required this.steps,
+    required this.sectionLookup,
+    required this.review,
+    required this.busyListenable,
+    required this.onSubmit,
+    required this.t,
+    super.key,
+  });
+
+  @override
+  State<_ComplaintWizardOverlay> createState() => _ComplaintWizardOverlayState();
+}
+
+class _ComplaintWizardOverlayState extends State<_ComplaintWizardOverlay> {
+  late final PageController _pageCtrl;
+  int _active = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageCtrl = PageController(initialPage: 0);
+  }
+
+  @override
+  void dispose() {
+    _pageCtrl.dispose();
+    super.dispose();
+  }
+
+  void _goTo(int index) {
+    final next = index.clamp(0, widget.steps.length - 1);
+    setState(() => _active = next);
+    _pageCtrl.animateToPage(next, duration: const Duration(milliseconds: 240), curve: Curves.easeInOut);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.t;
+    final theme = Theme.of(context);
+    final step = widget.steps[_active];
+    final totalWithoutIntro = (widget.steps.length - 1).clamp(0, widget.steps.length - 1);
+    final completed = _active.clamp(0, totalWithoutIntro);
+    final progress = totalWithoutIntro == 0 ? 0.0 : completed / totalWithoutIntro;
+    final isIntro = step.id == 'intro';
+    final isLast = _active == widget.steps.length - 1;
+
+    Widget buildPage(_WizardStep s) {
+      if (s.id == 'intro') {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.emoji_objects_outlined, size: 72, color: theme.colorScheme.primary),
+                const SizedBox(height: 12),
+                Text(
+                  t.complaintWizardTile,
+                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  t.complaint_wizard_subtitle,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: theme.colorScheme.onSurfaceVariant, height: 1.35),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  t.complaint_wizard_hint,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: theme.colorScheme.onSurfaceVariant, height: 1.35),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      final content = widget.sectionLookup[s.id];
+      final children = <Widget>[if (content != null) content];
+      if (s.id == 'privacy') {
+        children.addAll([const SizedBox(height: 12), widget.review]);
+      }
+
+      return SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        child: Column(children: children),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(icon: const Icon(Icons.arrow_back), tooltip: t.back, onPressed: () => Navigator.of(context).pop()),
+        title: Text(t.complaintWizardTile),
+        actions: [IconButton(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.close))],
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          minHeight: 8,
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text('$completed/$totalWithoutIntro', style: const TextStyle(fontWeight: FontWeight.w700)),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Icon(step.icon, size: 18, color: theme.colorScheme.primary),
+                        Text(step.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                        if (step.hint.isNotEmpty)
+                          Text(
+                            step.hint,
+                            style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: PageView(
+                controller: _pageCtrl,
+                physics: const NeverScrollableScrollPhysics(),
+                onPageChanged: (i) => setState(() => _active = i),
+                children: [for (final s in widget.steps) buildPage(s)],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 8, 14, 18),
+              child: ValueListenableBuilder<bool>(
+                valueListenable: widget.busyListenable,
+                builder: (_, busy, __) {
+                  final primaryLabel = isLast ? t.send : (isIntro ? t.complaint_wizard_next : t.complaint_wizard_next);
+                  return Row(
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: (busy || isIntro || _active == 0) ? null : () => _goTo(_active - 1),
+                        icon: const Icon(Icons.chevron_left),
+                        label: Text(t.complaint_wizard_prev),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: busy
+                              ? null
+                              : (isLast
+                                  ? widget.onSubmit
+                                  : () => _goTo(_active + 1)),
+                          icon: busy
+                              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                              : Icon(isLast ? Icons.send_outlined : Icons.navigate_next),
+                          label: Text(primaryLabel),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
           ],
         ),
       ),
