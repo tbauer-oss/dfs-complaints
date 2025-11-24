@@ -1225,6 +1225,15 @@ class _AdminPageState extends State<AdminPage> {
                       icon: const Icon(Icons.refresh),
                     ),
                     const SizedBox(width: 4),
+                    OutlinedButton.icon(
+                      onPressed: () => html.window.open(
+                        'https://www.dfs-diamon.de/de/user',
+                        '_blank',
+                      ),
+                      icon: const Icon(Icons.open_in_new),
+                      label: const Text('Kataloge austauschen'),
+                    ),
+                    const SizedBox(width: 4),
                     FilledButton.icon(
                       onPressed: _catCfgBusy
                           ? null
