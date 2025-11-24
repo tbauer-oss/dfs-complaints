@@ -416,6 +416,16 @@
   "customerNewsHeroLead": "Inspirierende Produktstories, Service-Tipps und Erfolgsgeschichten direkt aus unserem Haus.",
   "customerNewsTile": "Neuigkeiten & Updates",
   "customerNewsPinned": "Hervorgehoben",
+  "customerNewsNewSince": "Neu seit {date}",
+  "@customerNewsNewSince": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "customerNewsUpdateLabel": "Aktuelles Update",
+  "customerNewsMarketingHook": "Marketing-Highlight für Ihr Team – jetzt entdecken.",
   "customerNewsReadMore": "Mehr erfahren",
   "customerNewsEmpty": "Aktuell liegen keine Neuigkeiten vor.",
   "customerNewsError": "Neuigkeiten konnten nicht geladen werden: {msg}",
@@ -769,6 +779,16 @@
   "customerNewsHeroLead": "Inspirierende Produktstories, Service-Tipps und Erfolgsgeschichten direkt aus unserem Haus.",
   "customerNewsTile": "Neuigkeiten & Updates",
   "customerNewsPinned": "Hervorgehoben",
+  "customerNewsNewSince": "Neu seit {date}",
+  "@customerNewsNewSince": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "customerNewsUpdateLabel": "Aktuelles Update",
+  "customerNewsMarketingHook": "Marketing-Highlight für Ihr Team – jetzt entdecken.",
   "customerNewsReadMore": "Mehr erfahren",
   "customerNewsEmpty": "Aktuell liegen keine Neuigkeiten vor.",
   "customerNewsError": "Neuigkeiten konnten nicht geladen werden: {msg}",
