@@ -528,6 +528,20 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
         },
       ),
       _Entry(
+        label: t.complaintWizardTile ?? 'Reklamations-Assistent',
+        icon: Icons.auto_awesome_outlined,
+        colorA: const Color(0xFF673AB7),
+        colorB: const Color(0xFF9575CD),
+        onTap: () {
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => ComplaintFormPage(
+              api: widget.api,
+              wizardMode: true,
+            ),
+          ));
+        },
+      ),
+      _Entry(
         label: t.myComplaints,
         icon: Icons.list_alt,
         colorA: const Color(0xFF2E7D32),
