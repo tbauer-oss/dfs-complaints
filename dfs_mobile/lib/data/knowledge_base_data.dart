@@ -55,7 +55,7 @@ String knowledgeCategoryLabel(KnowledgeCategory cat, AppLocalizations t) {
 }
 
 /// Alle 48 Einträge, verknüpft mit den ARB-Keys
-const List<KnowledgeItem> knowledgeItems = [
+final List<KnowledgeItem> knowledgeItems = [
   // 🔵 Kategorie A – Allgemeine Reklamationsfragen
   KnowledgeItem(
     id: 1,
