@@ -30,8 +30,6 @@ class _WizardStep {
   const _WizardStep({required this.id, required this.icon, required this.title, required this.hint});
 }
 
-enum _WizardDialogResult { previous, next, close }
-
 class ComplaintFormPage extends StatefulWidget {
   final ApiClient api;
   final bool wizardMode;
@@ -71,7 +69,6 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
 
   final ScrollController _scrollCtrl = ScrollController();
   int _wizardStep = 0;
-  final Set<String> _wizardVisited = {};
   final Map<String, GlobalKey> _sectionKeys = {
     'segment': GlobalKey(),
     'product': GlobalKey(),
@@ -84,6 +81,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   String? info;
   String? err;
   bool busy = false;
+  final ValueNotifier<bool> _busyNotifier = ValueNotifier(false);
 
   Map<String, dynamic>? _account;
   bool _helpCollapsed = false;
@@ -144,6 +142,12 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
 
   List<_WizardStep> _buildWizardSteps(AppLocalizations t, {required bool isDentist}) {
     return [
+      _WizardStep(
+        id: 'intro',
+        icon: Icons.celebration_outlined,
+        title: t.complaint_wizard_title,
+        hint: t.complaint_wizard_subtitle,
+      ),
       _WizardStep(id: 'segment', icon: Icons.flag_outlined, title: t.complaint_wizard_step_overview, hint: t.segment),
       _WizardStep(id: 'product', icon: Icons.shopping_bag_outlined, title: t.complaint_wizard_step_product, hint: t.article),
       if (isDentist)
@@ -213,6 +217,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     for (final c in _ctrls) { c.removeListener(_markDirty); }
     desc.removeListener(_handleDescriptionChanged);
     _scrollCtrl.dispose();
+    _busyNotifier.dispose();
     super.dispose();
   }
 
@@ -820,164 +825,96 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     );
   }
 
-  List<Widget> _stepFieldsFor(String id, AppLocalizations t) {
-    switch (id) {
-      case 'segment':
-        return _segmentFields(t);
-      case 'product':
-        return _productFields(t);
-      case 'patient':
-        return _patientFields(t);
-      case 'attachments':
-        return _attachmentFields(t);
-      case 'resolution':
-        return _resolutionFields(t);
-      case 'privacy':
-        return _privacyFields(t);
-      default:
-        return const [];
-    }
-  }
+  List<({String id, Widget widget})> _buildSections({
+    required AppLocalizations t,
+    required bool isDentist,
+    required bool needInjuryDesc,
+    required bool anchored,
+  }) {
+    Widget wrap(String id, Widget child) => anchored ? _wizardAnchor(id, child) : child;
 
-  bool _isStepComplete(String id, AppLocalizations t, {required bool isDentist, required bool needInjuryDesc}) {
-    switch (id) {
-      case 'segment':
-        return segment.isNotEmpty;
-      case 'product':
-        final hasBasics = article.text.trim().isNotEmpty && desc.text.trim().isNotEmpty;
-        return hasBasics && (!isDentist || batch.text.trim().isNotEmpty);
-      case 'patient':
-        if (!isDentist) return true;
-        final hasBasics = applied.isNotEmpty && injury.isNotEmpty;
-        return hasBasics && (!needInjuryDesc || injuryDesc.text.trim().isNotEmpty);
-      case 'attachments':
-        return files.isNotEmpty || _wizardVisited.contains('attachments');
-      case 'resolution':
-        return returned.isNotEmpty && handling.isNotEmpty;
-      case 'privacy':
-        return privacy;
-      default:
-        return false;
-    }
-  }
+    final sections = <({String id, Widget widget})>[];
 
-  Future<_WizardDialogResult?> _openWizardStepDialog(List<_WizardStep> steps, int index, AppLocalizations t) {
-    final step = steps[index];
-    _wizardVisited.add(step.id);
-    final isFirst = index == 0;
-    final isLast = index == steps.length - 1;
-
-    return showDialog<_WizardDialogResult>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) {
-        return Dialog(
-          insetPadding: const EdgeInsets.all(18),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 820, minHeight: 420, maxHeight: 760),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      CircleAvatar(
-                        radius: 20,
-                        backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(.12),
-                        child: Icon(step.icon, color: Theme.of(context).colorScheme.primary),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('${index + 1}/${steps.length} · ${step.title}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                            const SizedBox(height: 4),
-                            Text(step.hint, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: t.cancel,
-                        onPressed: () => Navigator.of(ctx).pop(_WizardDialogResult.close),
-                        icon: const Icon(Icons.close),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: Column(children: _stepFieldsFor(step.id, t)),
-                          ),
-                          if (step.id != 'privacy')
-                            Padding(
-                              padding: const EdgeInsets.only(top: 12),
-                              child: Text(
-                                t.complaint_wizard_hint,
-                                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12.5),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      TextButton.icon(
-                        onPressed: isFirst ? null : () => Navigator.of(ctx).pop(_WizardDialogResult.previous),
-                        icon: const Icon(Icons.arrow_back),
-                        label: Text(t.complaint_wizard_prev),
-                      ),
-                      FilledButton.icon(
-                        onPressed: () => Navigator.of(ctx).pop(
-                          isLast ? _WizardDialogResult.close : _WizardDialogResult.next,
-                        ),
-                        icon: Icon(isLast ? Icons.check_circle_outline : Icons.arrow_forward),
-                        label: Text(isLast ? t.complaint_wizard_done : t.complaint_wizard_next),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
+    sections.add(
+      (id: 'segment', widget: wrap('segment', _section(
+        icon: Icons.person_outline,
+        title: t.segment,
+        children: _segmentFields(t),
+      ))),
     );
-  }
 
-  Future<void> _runWizardFlow(List<_WizardStep> steps, int startIndex, AppLocalizations t) async {
-    if (steps.isEmpty) return;
-    var index = startIndex.clamp(0, steps.length - 1);
+    sections.add(
+      (id: 'product', widget: wrap('product', _section(
+        icon: Icons.build_outlined,
+        title: t.article,
+        children: _productFields(t),
+      ))),
+    );
 
-    while (mounted) {
-      final action = await _openWizardStepDialog(steps, index, t);
-      if (!mounted || action == null || action == _WizardDialogResult.close) break;
-
-      if (action == _WizardDialogResult.next && index < steps.length - 1) {
-        index++;
-      } else if (action == _WizardDialogResult.previous && index > 0) {
-        index--;
-      } else {
-        break;
-      }
+    if (isDentist) {
+      sections.add(
+        (id: 'patient', widget: wrap('patient', _section(
+          icon: Icons.healing_outlined,
+          title: t.applied_to_patient,
+          children: _patientFields(t),
+        ))),
+      );
     }
 
-    if (mounted) setState(() => _wizardStep = index);
+    sections.add(
+      (id: 'attachments', widget: wrap('attachments', _section(
+        icon: Icons.photo_library_outlined,
+        title: t.attachments_title,
+        children: _attachmentFields(t),
+      ))),
+    );
+
+    sections.add(
+      (id: 'resolution', widget: wrap('resolution', _section(
+        icon: Icons.local_shipping_outlined,
+        title: t.returned_question,
+        children: _resolutionFields(t),
+      ))),
+    );
+
+    sections.add(
+      (id: 'privacy', widget: wrap('privacy', _section(
+        icon: Icons.privacy_tip_outlined,
+        title: t.privacy_view,
+        children: _privacyFields(t),
+      ))),
+    );
+
+    return sections;
+  }
+
+  Future<void> _openWizardFlow(List<_WizardStep> steps, AppLocalizations t) async {
+    if (steps.isEmpty) return;
+
+    final isDentist = segment == t.segment_dentist;
+    final needInjuryDesc = isDentist && applied == t.yes && injury == t.yes;
+
+    final sections = _buildSections(
+      t: t,
+      isDentist: isDentist,
+      needInjuryDesc: needInjuryDesc,
+      anchored: false,
+    );
+    final sectionLookup = {for (final entry in sections) entry.id: entry.widget};
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => _ComplaintWizardOverlay(
+          steps: steps,
+          sectionLookup: sectionLookup,
+          review: _wizardReview(t),
+          busyListenable: _busyNotifier,
+          onSubmit: () => _submitComplaint(t, onSuccess: () => Navigator.of(context).pop()),
+          t: t,
+        ),
+      ),
+    );
   }
 
   Widget _wizardReview(AppLocalizations t) {
@@ -1041,6 +978,78 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     );
   }
 
+  Future<void> _submitComplaint(AppLocalizations t, {VoidCallback? onSuccess}) async {
+    final optDentist = t.segment_dentist, optLab = t.segment_lab;
+    final optYes = t.yes, optNo = t.no;
+    final optReturnedYes = t.yes, optReturnedNo = t.no;
+    final optHandlingRep = t.handling_replacement, optHandlingCredit = t.handling_credit, optHandlingRework = t.handling_rework;
+
+    if (segment != optDentist && segment != optLab) segment = optDentist;
+    if (applied != optYes && applied != optNo) applied = optNo;
+    if (injury != optYes && injury != optNo) injury = optNo;
+    if (returned != optReturnedYes && returned != optReturnedNo) returned = optReturnedNo;
+    if (![optHandlingRep, optHandlingCredit, optHandlingRework].contains(handling)) handling = optHandlingRep;
+
+    final isDentist = segment == optDentist;
+
+    setState(() { busy = true; err = null; info = null; });
+    _busyNotifier.value = true;
+
+    if (!privacy) { setState(() { err = t.privacy_required; busy = false; }); _busyNotifier.value = false; return; }
+    if (article.text.trim().isEmpty || desc.text.trim().isEmpty) {
+      setState(() { err = t.required_fields; busy = false; }); _busyNotifier.value = false; return;
+    }
+    if (isDentist && batch.text.trim().isEmpty) {
+      setState(() { err = t.batch; busy = false; }); _busyNotifier.value = false; return;
+    }
+
+    final payload = <String, dynamic>{
+      'segment': segment == optDentist ? 'Zahnmedizin': 'Dentallabor',
+      'article': article.text.trim(),
+      'batch': batch.text.trim(),
+      'qty': qty.text.trim(),
+      'expiry': expiry.text.trim(),
+      'desc': desc.text.trim(),
+      'applied': isDentist ? (applied == optYes ? 'Ja' : 'Nein') : '',
+      'injury': isDentist ? (injury == optYes ? 'Ja' : 'Nein') : '',
+      'injuryDesc': isDentist ? injuryDesc.text.trim() : '',
+      'returned': (returned == optReturnedYes ? 'Ja' : 'Nein'),
+      'handling': handling == optHandlingRep ? 'Ersatz' : (handling == optHandlingCredit ? 'Gutschrift' : 'Nacharbeit'),
+      'privacy': 'true',
+    };
+
+    try {
+      final initialFiles = kIsWeb ? const <ComplaintFilePayload>[] : files;
+      final res = await widget.api.complaintCreate(payload, initialFiles);
+      final ticket = (res?['ticket'] ?? '').toString();
+
+      if (ticket.isEmpty) {
+        setState(() { busy = false; err = t.send_failed; });
+        _busyNotifier.value = false;
+      } else {
+        if (kIsWeb && files.isNotEmpty) {
+          final uploadsOk = await _uploadAttachmentsAfterCreate(ticket);
+          if (!uploadsOk && mounted) {
+            final message = '${t.attachments_error} ${t.attachments_add}.';
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+          }
+        }
+
+        if (!mounted) return;
+        setState(() { busy = false; _dirty = false; info = null; });
+        _busyNotifier.value = false;
+        onSuccess?.call();
+        await _showSummary(ticket, payload);
+      }
+    } catch (e) {
+      setState(() {
+        busy = false;
+        err = t.network_cors_error(e.toString());
+      });
+      _busyNotifier.value = false;
+    }
+  }
+
   Widget _banner({required bool isError, required String text}) {
     final color = isError ? Colors.red : Colors.green;
     final bg = isError ? Colors.red.withOpacity(.06) : Colors.green.withOpacity(.06);
@@ -1066,45 +1075,8 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   }) {
     if (steps.isEmpty) return const SizedBox.shrink();
 
-    final active = _wizardStep.clamp(0, steps.length - 1);
-    if (active != _wizardStep) _wizardStep = active;
     final theme = Theme.of(context);
-    final completed = steps.where((s) => _isStepComplete(s.id, t, isDentist: isDentist, needInjuryDesc: needInjuryDesc)).length;
-    final progress = steps.isEmpty ? 0.0 : completed / steps.length;
-
-    Widget stepTile(int index, _WizardStep step) {
-      final done = _isStepComplete(step.id, t, isDentist: isDentist, needInjuryDesc: needInjuryDesc);
-      return Card(
-        elevation: 0,
-        color: theme.colorScheme.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        margin: const EdgeInsets.symmetric(vertical: 6),
-        child: ListTile(
-          leading: CircleAvatar(
-            radius: 20,
-            backgroundColor: done ? theme.colorScheme.primary.withOpacity(.16) : theme.colorScheme.surfaceTint.withOpacity(.12),
-            child: Icon(done ? Icons.check_circle_outline : step.icon, color: done ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant),
-          ),
-          title: Text('${index + 1}. ${step.title}', style: const TextStyle(fontWeight: FontWeight.w700)),
-          subtitle: Text(step.hint),
-          trailing: Wrap(
-            spacing: 8,
-            children: [
-              Chip(
-                avatar: Icon(done ? Icons.auto_awesome : Icons.edit_outlined, size: 16, color: done ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant),
-                label: Text(done ? t.complaint_wizard_done : t.complaint_wizard_next),
-              ),
-              FilledButton.tonalIcon(
-                onPressed: () => _runWizardFlow(steps, index, t),
-                icon: const Icon(Icons.open_in_new),
-                label: Text(done ? t.complaint_wizard_done : t.complaint_wizard_next),
-              ),
-            ],
-          ),
-          onTap: () => _runWizardFlow(steps, index, t),
-        ),
-      );
-    }
+    final realSteps = steps.where((s) => s.id != 'intro').toList(growable: false);
 
     return Card(
       elevation: 0,
@@ -1134,21 +1106,36 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                     ],
                   ),
                 ),
-                FilledButton.icon(
-                  onPressed: () => _runWizardFlow(steps, active, t),
-                  icon: const Icon(Icons.play_arrow),
-                  label: Text(t.complaint_wizard_next),
-                ),
               ],
             ),
             const SizedBox(height: 12),
-            LinearProgressIndicator(value: progress, minHeight: 8, borderRadius: BorderRadius.circular(20)),
-            const SizedBox(height: 8),
-            Text('${completed}/${steps.length} ${t.complaint_wizard_step_finish}', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
-            const SizedBox(height: 10),
-            ...List.generate(steps.length, (i) => stepTile(i, steps[i])),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(99),
+              child: const LinearProgressIndicator(value: 0, minHeight: 8),
+            ),
             const SizedBox(height: 8),
             Text(t.complaint_wizard_hint, style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                for (final step in realSteps)
+                  Chip(
+                    avatar: Icon(step.icon, size: 18),
+                    label: Text(step.title),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.icon(
+                onPressed: () => _openWizardFlow(steps, t),
+                icon: const Icon(Icons.play_arrow),
+                label: Text(t.complaintWizardTile),
+              ),
+            ),
           ],
         ),
       ),
@@ -1175,7 +1162,12 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     final wizardSteps = widget.wizardMode
         ? _buildWizardSteps(t, isDentist: isDentist)
         : const <_WizardStep>[];
-    if (!isDentist) _wizardVisited.remove('patient');
+    final sections = _buildSections(
+      t: t,
+      isDentist: isDentist,
+      needInjuryDesc: needInjuryDesc,
+      anchored: true,
+    );
 
     final body = SingleChildScrollView(
       controller: _scrollCtrl,
@@ -1213,66 +1205,12 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
 
               _buildHelpBox(),
 
-              Builder(builder: (context) {
-                final sections = <({String id, Widget widget})>[];
-
-                sections.add(
-                  (id: 'segment', widget: _wizardAnchor('segment', _section(
-                    icon: Icons.person_outline,
-                    title: t.segment,
-                    children: _segmentFields(t),
-                  ))),
-                );
-
-                sections.add(
-                  (id: 'product', widget: _wizardAnchor('product', _section(
-                    icon: Icons.build_outlined,
-                    title: t.article,
-                    children: _productFields(t),
-                  ))),
-                );
-
-                if (isDentist) {
-                  sections.add(
-                    (id: 'patient', widget: _wizardAnchor('patient', _section(
-                      icon: Icons.healing_outlined,
-                      title: t.applied_to_patient,
-                      children: _patientFields(t),
-                    ))),
-                  );
-                }
-
-                sections.add(
-                  (id: 'attachments', widget: _wizardAnchor('attachments', _section(
-                    icon: Icons.photo_library_outlined,
-                    title: t.attachments_title,
-                    children: _attachmentFields(t),
-                  ))),
-                );
-
-                sections.add(
-                  (id: 'resolution', widget: _wizardAnchor('resolution', _section(
-                    icon: Icons.local_shipping_outlined,
-                    title: t.returned_question,
-                    children: _resolutionFields(t),
-                  ))),
-                );
-
-                sections.add(
-                  (id: 'privacy', widget: _wizardAnchor('privacy', _section(
-                    icon: Icons.privacy_tip_outlined,
-                    title: t.privacy_view,
-                    children: _privacyFields(t),
-                  ))),
-                );
-
-                return Column(
-                  children: [
-                    for (final section in sections) section.widget,
-                    if (widget.wizardMode) _wizardReview(t),
-                  ],
-                );
-              }),
+              Column(
+                children: [
+                  for (final section in sections) section.widget,
+                  if (widget.wizardMode) _wizardReview(t),
+                ],
+              ),
 
               if (err != null) _banner(isError: true, text: err!),
               if (info != null) _banner(isError: false, text: info!),
@@ -1285,64 +1223,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                   children: [
                     OutlinedButton(onPressed: _handleCancel, child: Text(t.cancel)),
                     ElevatedButton.icon(
-                      onPressed: busy
-                          ? null
-                          : () async {
-                        setState(() { busy = true; err = null; info = null; });
-
-                        // Validierung
-                        if (!privacy) { setState(() { err = t.privacy_required; busy = false; }); return; }
-                        if (article.text.trim().isEmpty || desc.text.trim().isEmpty) {
-                          setState(() { err = t.required_fields; busy = false; }); return;
-                        }
-                        if (isDentist && batch.text.trim().isEmpty) {
-                          setState(() { err = t.batch; busy = false; }); return;
-                        }
-
-                        // Payload
-                        final payload = <String, dynamic>{
-                          'segment': segment == optDentist ? 'Zahnmedizin': 'Dentallabor',
-                          'article': article.text.trim(),
-                          'batch': batch.text.trim(),
-                          'qty': qty.text.trim(),
-                          'expiry': expiry.text.trim(),
-                          'desc': desc.text.trim(),
-                          'applied': isDentist ? (applied == optYes ? 'Ja' : 'Nein') : '',
-                          'injury': isDentist ? (injury == optYes ? 'Ja' : 'Nein') : '',
-                          'injuryDesc': isDentist ? injuryDesc.text.trim() : '',
-                          'returned': (returned == optReturnedYes ? 'Ja' : 'Nein'),
-                          'handling': handling == optHandlingRep ? 'Ersatz' : (handling == optHandlingCredit ? 'Gutschrift' : 'Nacharbeit'),
-                          'privacy': 'true',
-                        };
-
-                        try {
-                          final initialFiles = kIsWeb ? const <ComplaintFilePayload>[] : files;
-                          final res = await widget.api.complaintCreate(payload, initialFiles);
-                          final ticket = (res?['ticket'] ?? '').toString();
-
-                          if (ticket.isEmpty) {
-                            setState(() { busy = false; err = t.send_failed; });
-                          } else {
-                            if (kIsWeb && files.isNotEmpty) {
-                              final uploadsOk = await _uploadAttachmentsAfterCreate(ticket);
-                              if (!uploadsOk && mounted) {
-                                final message = '${t.attachments_error} ${t.attachments_add}.';
-                                ScaffoldMessenger.of(context)
-                                    .showSnackBar(SnackBar(content: Text(message)));
-                              }
-                            }
-
-                            if (!mounted) return;
-                            setState(() { busy = false; _dirty = false; info = null; });
-                            await _showSummary(ticket, payload);
-                          }
-                        } catch (e) {
-                          setState(() {
-                            busy = false;
-                            err = t.network_cors_error(e.toString());
-                          });
-                        }
-                      },
+                      onPressed: busy ? null : () => _submitComplaint(t),
                       icon: busy
                           ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                           : const Icon(Icons.send_outlined),
@@ -1432,6 +1313,199 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                 ],
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ComplaintWizardOverlay extends StatefulWidget {
+  final List<_WizardStep> steps;
+  final Map<String, Widget> sectionLookup;
+  final Widget review;
+  final ValueListenable<bool> busyListenable;
+  final Future<void> Function() onSubmit;
+  final AppLocalizations t;
+  const _ComplaintWizardOverlay({
+    required this.steps,
+    required this.sectionLookup,
+    required this.review,
+    required this.busyListenable,
+    required this.onSubmit,
+    required this.t,
+    super.key,
+  });
+
+  @override
+  State<_ComplaintWizardOverlay> createState() => _ComplaintWizardOverlayState();
+}
+
+class _ComplaintWizardOverlayState extends State<_ComplaintWizardOverlay> {
+  late final PageController _pageCtrl;
+  int _active = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageCtrl = PageController(initialPage: 0);
+  }
+
+  @override
+  void dispose() {
+    _pageCtrl.dispose();
+    super.dispose();
+  }
+
+  void _goTo(int index) {
+    final next = index.clamp(0, widget.steps.length - 1);
+    setState(() => _active = next);
+    _pageCtrl.animateToPage(next, duration: const Duration(milliseconds: 240), curve: Curves.easeInOut);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.t;
+    final theme = Theme.of(context);
+    final step = widget.steps[_active];
+    final totalWithoutIntro = (widget.steps.length - 1).clamp(0, widget.steps.length - 1);
+    final completed = _active.clamp(0, totalWithoutIntro);
+    final progress = totalWithoutIntro == 0 ? 0.0 : completed / totalWithoutIntro;
+    final isIntro = step.id == 'intro';
+    final isLast = _active == widget.steps.length - 1;
+
+    Widget buildPage(_WizardStep s) {
+      if (s.id == 'intro') {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.emoji_objects_outlined, size: 72, color: theme.colorScheme.primary),
+                const SizedBox(height: 12),
+                Text(
+                  t.complaintWizardTile,
+                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  t.complaint_wizard_subtitle,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: theme.colorScheme.onSurfaceVariant, height: 1.35),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  t.complaint_wizard_hint,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: theme.colorScheme.onSurfaceVariant, height: 1.35),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      final content = widget.sectionLookup[s.id];
+      final children = <Widget>[if (content != null) content];
+      if (s.id == 'privacy') {
+        children.addAll([const SizedBox(height: 12), widget.review]);
+      }
+
+      return SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        child: Column(children: children),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(icon: const Icon(Icons.arrow_back), tooltip: t.back, onPressed: () => Navigator.of(context).pop()),
+        title: Text(t.complaintWizardTile),
+        actions: [IconButton(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.close))],
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          minHeight: 8,
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text('$completed/$totalWithoutIntro', style: const TextStyle(fontWeight: FontWeight.w700)),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Icon(step.icon, size: 18, color: theme.colorScheme.primary),
+                        Text(step.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                        if (step.hint.isNotEmpty)
+                          Text(
+                            step.hint,
+                            style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: PageView(
+                controller: _pageCtrl,
+                physics: const NeverScrollableScrollPhysics(),
+                onPageChanged: (i) => setState(() => _active = i),
+                children: [for (final s in widget.steps) buildPage(s)],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 8, 14, 18),
+              child: ValueListenableBuilder<bool>(
+                valueListenable: widget.busyListenable,
+                builder: (_, busy, __) {
+                  final primaryLabel = isLast ? t.send : (isIntro ? t.complaint_wizard_next : t.complaint_wizard_next);
+                  return Row(
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: (busy || isIntro || _active == 0) ? null : () => _goTo(_active - 1),
+                        icon: const Icon(Icons.chevron_left),
+                        label: Text(t.complaint_wizard_prev),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: busy
+                              ? null
+                              : (isLast
+                                  ? widget.onSubmit
+                                  : () => _goTo(_active + 1)),
+                          icon: busy
+                              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                              : Icon(isLast ? Icons.send_outlined : Icons.navigate_next),
+                          label: Text(primaryLabel),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
           ],
         ),
       ),
