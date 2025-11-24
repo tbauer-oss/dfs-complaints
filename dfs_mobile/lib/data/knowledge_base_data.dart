@@ -54,31 +54,6 @@ String knowledgeCategoryLabel(KnowledgeCategory cat, AppLocalizations t) {
   }
 }
 
-String knowledgeCategoryCode(KnowledgeCategory cat) {
-  switch (cat) {
-    case KnowledgeCategory.aGeneral:
-      return 'cat_a_general';
-    case KnowledgeCategory.bDiamond:
-      return 'cat_b_diamond';
-    case KnowledgeCategory.cCarbide:
-      return 'cat_c_carbide';
-    case KnowledgeCategory.dCeramic:
-      return 'cat_d_ceramic';
-    case KnowledgeCategory.ePolishers:
-      return 'cat_e_polishers';
-    case KnowledgeCategory.fReprocessing:
-      return 'cat_f_reprocessing';
-    case KnowledgeCategory.gApp:
-      return 'cat_g_app';
-    case KnowledgeCategory.hAnalysis:
-      return 'cat_h_analysis';
-    case KnowledgeCategory.iPhotos:
-      return 'cat_i_photos';
-    case KnowledgeCategory.jMisconceptions:
-      return 'cat_j_misconceptions';
-  }
-}
-
 /// Alle 48 Einträge, verknüpft mit den ARB-Keys
 final List<KnowledgeItem> knowledgeItems = [
   // 🔵 Kategorie A – Allgemeine Reklamationsfragen
@@ -389,3 +364,4 @@ final List<KnowledgeItem> knowledgeItems = [
     answer: (t) => t.kb_q48_answer,
   ),
 ];
+
