@@ -251,7 +251,7 @@ function collectCountryCandidates(value, depth = 0, visited = new Set()) {
   return [];
 }
 
-function pickCountryMeta(complaint) {
+function pickCountryMeta(complaint, directoryEntry = null) {
   const payload = complaint?.payload || {};
   const sources = [
     complaint?.countryCode,
@@ -275,6 +275,7 @@ function pickCountryMeta(complaint) {
     complaint?.user?.countryCode,
     complaint?.user?.country,
     complaint?.user?.land,
+    directoryEntry,
   ];
   const seen = new Set();
   let fallback = null;
@@ -300,8 +301,8 @@ function pickCountryMeta(complaint) {
   return { country: fallback || 'Unbekannt', countryCode: null };
 }
 
-function pickCountry(complaint) {
-  return pickCountryMeta(complaint).country;
+function pickCountry(complaint, directoryEntry = null) {
+  return pickCountryMeta(complaint, directoryEntry).country;
 }
 
 function pickRepMeta(complaint) {
@@ -451,10 +452,14 @@ function buildActiveUserDirectory(list) {
       user?.customerNo ||
       user?.kundennummer
     );
+    const countryMeta = pickCountryMeta(user);
+    const hasCountry = countryMeta && countryMeta.country && countryMeta.country !== 'Unbekannt';
     map.set(email, {
       label: label || user?.email || email,
       company: company || contact || null,
       customerNumber: customerNumber || null,
+      country: hasCountry ? countryMeta.country : null,
+      countryCode: countryMeta?.countryCode || null,
     });
   }
   return map;
@@ -581,7 +586,16 @@ function buildAuditEntries(list, repInfo = new Map(), activeDirectory = new Map(
       statusLabel: statusLabel(c?.status),
       decision: (c?.decision || 'pending') || 'pending',
       decisionLabel: decisionLabel(c?.decision),
-      country: pickCountry(c),
+      country: pickCountry(
+        c,
+        meta?.email
+          ? (() => {
+              const directory = activeDirectory.get(meta.email);
+              if (!directory) return null;
+              return { country: directory.country, countryCode: directory.countryCode };
+            })()
+          : null,
+      ),
       customer: meta?.label || meta?.email || '',
       customerEmail: meta?.email || '',
       customerNumber: meta?.customerNumber || '',
@@ -615,7 +629,9 @@ function buildStats(list, range, repInfo = new Map(), activeDirectory = new Map(
 
   const byCountryMap = new Map();
   for (const complaint of list) {
-    const meta = pickCountryMeta(complaint);
+    const customer = pickCustomerMeta(complaint);
+    const directory = customer?.email ? activeDirectory.get(customer.email) : null;
+    const meta = pickCountryMeta(complaint, directory ? { country: directory.country, countryCode: directory.countryCode } : null);
     const key = meta.countryCode || meta.country || 'Unbekannt';
     const current = byCountryMap.get(key) || { ...meta, count: 0 };
     current.country = meta.country || current.country || 'Unbekannt';
