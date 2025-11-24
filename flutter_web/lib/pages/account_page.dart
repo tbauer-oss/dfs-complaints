@@ -7,7 +7,9 @@ import 'package:flutter/services.dart';
 import 'package:file_saver/file_saver.dart';
 import 'package:intl/intl.dart';
 import '../api/client.dart';
+import '../data/country_geography.dart';
 import '../l10n/app_localizations.dart';
+import '../models/country.dart';
 import '../services/app_prefs_scope.dart';
 import '../utils/lang_utils.dart';
 import '../widgets/legal_footer.dart';
@@ -174,6 +176,7 @@ class _AccountPageState extends State<AccountPage> {
               Text('E-Mail: ${_val(acc!['email'], '')}'),
               Text('${t.company}: ${_val(acc!['company'])}'),
               Text('${t.contact_person}: ${_val(acc!['contact'])}'),
+              Text('${t.country_label ?? 'Land'}: ${_val(acc!['country'])}'),
               Text('${t.catalog_select_language}: ${_langDisplay(context, acc!['lang'])}'),
 
               // NEU: Kundennummer (nur Anzeige)
@@ -340,6 +343,8 @@ class _AccountEditPageState extends State<_AccountEditPage> {
   late final TextEditingController city    =
       TextEditingController(text: widget.initial['city']?.toString() ?? '');
 
+  Country? _countrySel;
+
   bool busy = false;
   late String _selectedLang;
 
@@ -347,6 +352,10 @@ class _AccountEditPageState extends State<_AccountEditPage> {
   void initState() {
     super.initState();
     _selectedLang = normalizeLangCode(widget.initial['lang']?.toString());
+    _countrySel = _resolveCountry(
+      widget.initial['countryCode']?.toString() ?? '',
+      widget.initial['country']?.toString() ?? '',
+    );
   }
 
   @override
@@ -358,6 +367,24 @@ class _AccountEditPageState extends State<_AccountEditPage> {
     zip.dispose();
     city.dispose();
     super.dispose();
+  }
+
+  Country _selectedCountry(BuildContext context) {
+    final fallback = kCountries.first;
+    return _countrySel ?? _resolveCountry(
+          widget.initial['countryCode']?.toString() ?? '',
+          widget.initial['country']?.toString() ?? '',
+        ) ??
+        fallback;
+  }
+
+  Country? _resolveCountry(String code, String name) {
+    final resolved = CountryGeography.resolveCode(code.isNotEmpty ? code : name);
+    if (resolved == null) return null;
+    for (final country in kCountries) {
+      if (country.code.toUpperCase() == resolved.toUpperCase()) return country;
+    }
+    return null;
   }
 
   @override
@@ -416,6 +443,23 @@ class _AccountEditPageState extends State<_AccountEditPage> {
                 },
               ),
               const SizedBox(height: 8),
+              DropdownButtonFormField<Country>(
+                value: _selectedCountry(context),
+                decoration: InputDecoration(
+                  labelText: t.country_label,
+                  border: const OutlineInputBorder(),
+                ),
+                items: kCountries
+                    .map(
+                      (country) => DropdownMenuItem<Country>(
+                        value: country,
+                        child: Text(country.label(context)),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (val) => setState(() => _countrySel = val),
+              ),
+              const SizedBox(height: 8),
               TextField(
                 controller: company,
                 decoration: InputDecoration(
@@ -458,6 +502,7 @@ class _AccountEditPageState extends State<_AccountEditPage> {
                     onPressed: busy ? null : () async {
                       setState(() => busy = true);
                       try {
+                        final country = _selectedCountry(context);
                         await widget.api.accountUpdate({
                           'email':   email.text.trim(),
                           'contact': contact.text.trim(),
@@ -466,6 +511,8 @@ class _AccountEditPageState extends State<_AccountEditPage> {
                           'zip':     zip.text.trim(),
                           'city':    city.text.trim(),
                           'lang':    _selectedLang,
+                          'country': country.label(context),
+                          'countryCode': country.code,
                         });
                         await prefs.setLang(_selectedLang);
                         if (!mounted) return;
