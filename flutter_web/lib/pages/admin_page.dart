@@ -158,6 +158,7 @@ class _AdminPageState extends State<AdminPage> {
   AdminMailLogStats? _mailStats;
   bool _mailCenterLoading = false;
   String? _mailCenterErr;
+  bool _mailCenterAutoRequested = false;
   String _mailStatusFilter = 'Alle Stati';
   String _mailCategoryFilter = 'Alle Typen';
   String _mailSearch = '';
@@ -600,6 +601,7 @@ class _AdminPageState extends State<AdminPage> {
     setState(() {
       _mailCenterErr = null;
       _mailCenterLoading = true;
+      _mailCenterAutoRequested = true;
     });
     try {
       final res = await _api.fetchMailCenter();
@@ -2612,7 +2614,8 @@ class _AdminPageState extends State<AdminPage> {
     }.toList()
       ..sort();
 
-    if (_mailLogs.isEmpty && !_mailCenterLoading) {
+    if (_mailLogs.isEmpty && !_mailCenterLoading && !_mailCenterAutoRequested) {
+      _mailCenterAutoRequested = true;
       WidgetsBinding.instance.addPostFrameCallback((_) => _refreshMailCenter());
     }
 
