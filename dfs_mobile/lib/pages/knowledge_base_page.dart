@@ -4,7 +4,7 @@ import '../data/knowledge_base_data.dart';
 import '../l10n/app_localizations.dart';
 
 /// Alle 48 Einträge, verknüpft mit den ARB-Keys
-const List<KnowledgeItem> _knowledgeItems = knowledgeItems;
+final List<KnowledgeItem> _knowledgeItems = knowledgeItems;
 
 class KnowledgeBasePage extends StatefulWidget {
   const KnowledgeBasePage({super.key});
