@@ -163,6 +163,9 @@ class _AdminPageState extends State<AdminPage> {
   String _allDecisionFilter = '';
   int? _allStatusFilter;
   String _allInternalFilter = 'Alle Nummern';
+  bool _showAllFilters = false;
+  bool _showBulkAssignAll = false;
+  bool _showBulkAssignOpen = false;
 
   // Mehrfach-Zuordnung interne Nummer
   final Set<String> _selectedAllTickets = <String>{};
@@ -3256,6 +3259,7 @@ class _AdminPageState extends State<AdminPage> {
     final controller = isOpenList ? _bulkInternalOpenCtrl : _bulkInternalAllCtrl;
     final selected = isOpenList ? _selectedOpenTickets : _selectedAllTickets;
     final busy = isOpenList ? _bulkAssigningOpen : _bulkAssigningAll;
+    final expanded = isOpenList ? _showBulkAssignOpen : _showBulkAssignAll;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -3265,70 +3269,102 @@ class _AdminPageState extends State<AdminPage> {
         border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Wrap(
-        spacing: 12,
-        runSpacing: 10,
-        crossAxisAlignment: WrapCrossAlignment.center,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
+          Wrap(
+            spacing: 12,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              const Icon(Icons.link_outlined),
-              const SizedBox(width: 8),
-              const Text(
-                'Mehrere Tickets einer internen Nummer zuordnen',
-                style: TextStyle(fontWeight: FontWeight.w700),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.link_outlined),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Mehrere Tickets einer internen Nummer zuordnen',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(width: 8),
+                  if (busy)
+                    const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                ],
               ),
-              const SizedBox(width: 8),
-              if (busy)
-                const SizedBox(
-                  height: 18,
-                  width: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
+              Chip(
+                avatar: const Icon(Icons.confirmation_number_outlined, size: 18),
+                label:
+                    Text('${selected.length} Ticket${selected.length == 1 ? '' : 's'} ausgewählt'),
+              ),
+              TextButton.icon(
+                onPressed: () => setState(() {
+                  if (isOpenList) {
+                    _showBulkAssignOpen = !_showBulkAssignOpen;
+                  } else {
+                    _showBulkAssignAll = !_showBulkAssignAll;
+                  }
+                }),
+                icon: Icon(expanded ? Icons.expand_less : Icons.expand_more),
+                label: Text(expanded ? 'Zuordnung ausblenden' : 'Zuordnung einblenden'),
+              ),
             ],
           ),
-          Chip(
-            avatar: const Icon(Icons.confirmation_number_outlined, size: 18),
-            label: Text('${selected.length} Ticket${selected.length == 1 ? '' : 's'} ausgewählt'),
-          ),
-          SizedBox(
-            width: 240,
-            child: TextField(
-              controller: controller,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                labelText: 'Interne Nummer',
-                prefixIcon: const Icon(Icons.tag),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                suffixIcon: controller.text.isEmpty
-                    ? null
-                    : IconButton(
-                        tooltip: 'Eingabe leeren',
-                        onPressed: busy
+          AnimatedCrossFade(
+            firstChild: const SizedBox.shrink(),
+            secondChild: Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 10,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 240,
+                    child: TextField(
+                      controller: controller,
+                      onChanged: (_) => setState(() {}),
+                      decoration: InputDecoration(
+                        labelText: 'Interne Nummer',
+                        prefixIcon: const Icon(Icons.tag),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        suffixIcon: controller.text.isEmpty
                             ? null
-                            : () {
-                                controller.clear();
-                                setState(() {});
-                              },
-                        icon: const Icon(Icons.close),
+                            : IconButton(
+                                tooltip: 'Eingabe leeren',
+                                onPressed: busy
+                                    ? null
+                                    : () {
+                                        controller.clear();
+                                        setState(() {});
+                                      },
+                                icon: const Icon(Icons.close),
+                              ),
                       ),
+                    ),
+                  ),
+                  FilledButton.icon(
+                    onPressed: busy || selected.isEmpty || controller.text.trim().isEmpty
+                        ? null
+                        : () => _assignInternalNoBulk(isOpenList: isOpenList),
+                    icon: const Icon(Icons.save_outlined),
+                    label: const Text('Interne Nummer zuweisen'),
+                  ),
+                  TextButton.icon(
+                    onPressed: busy || selected.isEmpty
+                        ? null
+                        : () => _clearTicketSelection(isOpenList: isOpenList),
+                    icon: const Icon(Icons.clear_all),
+                    label: const Text('Auswahl zurücksetzen'),
+                  ),
+                ],
               ),
             ),
-          ),
-          FilledButton.icon(
-            onPressed: busy || selected.isEmpty || controller.text.trim().isEmpty
-                ? null
-                : () => _assignInternalNoBulk(isOpenList: isOpenList),
-            icon: const Icon(Icons.save_outlined),
-            label: const Text('Interne Nummer zuweisen'),
-          ),
-          TextButton.icon(
-            onPressed: busy || selected.isEmpty
-                ? null
-                : () => _clearTicketSelection(isOpenList: isOpenList),
-            icon: const Icon(Icons.clear_all),
-            label: const Text('Auswahl zurücksetzen'),
+            crossFadeState: expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 150),
           ),
         ],
       ),
@@ -3399,28 +3435,14 @@ class _AdminPageState extends State<AdminPage> {
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
 
     Widget buildFilterBar() {
-      return Card(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        elevation: 2,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      Widget buildMoreFilters() {
+        return Padding(
+          padding: const EdgeInsets.only(top: 10),
           child: Wrap(
             spacing: 12,
             runSpacing: 10,
             crossAxisAlignment: WrapCrossAlignment.start,
             children: [
-              SizedBox(
-                width: 320,
-                child: TextField(
-                  onChanged: (v) => setState(() => _allSearch = v),
-                  decoration: InputDecoration(
-                    labelText: 'Schnellsuche (Ticket, Kunde, Stichwort …)',
-                    prefixIcon: const Icon(Icons.search),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  ),
-                ),
-              ),
               SizedBox(
                 width: 240,
                 child: DropdownButtonFormField<String>(
@@ -3499,6 +3521,51 @@ class _AdminPageState extends State<AdminPage> {
                     prefixIcon: Icon(Icons.confirmation_number_outlined),
                   ),
                 ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      return Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        elevation: 2,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Wrap(
+                spacing: 12,
+                runSpacing: 10,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                alignment: WrapAlignment.spaceBetween,
+                children: [
+                  SizedBox(
+                    width: 320,
+                    child: TextField(
+                      onChanged: (v) => setState(() => _allSearch = v),
+                      decoration: InputDecoration(
+                        labelText: 'Schnellsuche (Ticket, Kunde, Stichwort …)',
+                        prefixIcon: const Icon(Icons.search),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      ),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => setState(() => _showAllFilters = !_showAllFilters),
+                    icon: Icon(_showAllFilters ? Icons.expand_less : Icons.expand_more),
+                    label: Text(_showAllFilters ? 'Filter ausblenden' : 'Weitere Filter'),
+                  ),
+                ],
+              ),
+              AnimatedCrossFade(
+                firstChild: const SizedBox.shrink(),
+                secondChild: buildMoreFilters(),
+                crossFadeState:
+                    _showAllFilters ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                duration: const Duration(milliseconds: 150),
               ),
             ],
           ),
