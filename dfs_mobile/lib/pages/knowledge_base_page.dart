@@ -5,6 +5,9 @@ import '../data/knowledge_base_data.dart';
 import '../l10n/app_localizations.dart';
 import '../models/faq.dart';
 
+/// Alle 48 Einträge, verknüpft mit den ARB-Keys
+final List<KnowledgeItem> _knowledgeItems = knowledgeItems;
+
 class KnowledgeBasePage extends StatefulWidget {
   final ApiClient api;
   const KnowledgeBasePage({super.key, required this.api});
