@@ -59,6 +59,8 @@ const mem = {
   adminPushTokens: [],
   gateCodes: new Map(),
   customerNews: [],
+  faqCategories: [],
+  faqItems: [],
 };
 
 const SUPPORTED_LANGS = new Set(['de', 'en', 'fr', 'it', 'es']);
@@ -198,6 +200,9 @@ const NEWS_CATEGORY_CODES = [
   'general',
 ];
 export const CUSTOMER_NEWS_CATEGORY_CODES = [...NEWS_CATEGORY_CODES];
+const FAQ_AUDIENCE_CODES = ['customer', 'rep', 'both'];
+const KEY_FAQ_CATEGORIES = `${P}faq:categories`;
+const KEY_FAQ_ITEMS = `${P}faq:items`;
 const PUSH_TOKEN_FRESH_MS = Math.max(
   60 * 60 * 1000,
   Number(process.env.PUSH_TOKEN_FRESH_MS || 1000 * 60 * 60 * 24 * 45)
@@ -482,6 +487,286 @@ export async function customerNewsDelete(id) {
   const next = list.filter((item) => item.id !== target);
   await _persistCustomerNews(next);
   return next.length !== list.length;
+}
+
+/* ============== FAQ / Knowledge Base ============== */
+export { FAQ_AUDIENCE_CODES };
+
+function _normalizeFaqAudience(value) {
+  const raw = (value ?? '').toString().trim().toLowerCase();
+  if (FAQ_AUDIENCE_CODES.includes(raw)) return raw;
+  return 'both';
+}
+
+function _faqAudienceMatches(entryAudience, requested) {
+  const target = _normalizeFaqAudience(requested);
+  if (target === 'both') return true;
+  const normalized = _normalizeFaqAudience(entryAudience);
+  if (normalized === 'both') return true;
+  return normalized === target;
+}
+
+function _orderValue(value, fallback = 0) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function _normalizeStoredFaqCategory(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const id = (raw.id ?? '').toString().trim();
+  const title = _text(raw.title ?? raw.name ?? '', 200);
+  if (!id || !title) return null;
+  const description = _text(raw.description ?? '', 2000);
+  return {
+    id,
+    title,
+    description: description || null,
+    order: _orderValue(raw.order, 0),
+    active: raw.active === undefined ? true : Boolean(raw.active),
+  };
+}
+
+function _normalizeStoredFaqEntry(raw, categories) {
+  if (!raw || typeof raw !== 'object') return null;
+  const id = (raw.id ?? '').toString().trim();
+  const categoryId = (raw.categoryId ?? '').toString().trim();
+  const question = _text(raw.question ?? '', 500);
+  const answer = _text(raw.answer ?? '', 8000);
+  if (!id || !categoryId || !question || !answer) return null;
+
+  if (Array.isArray(categories) && categories.length > 0) {
+    const exists = categories.some((cat) => cat.id === categoryId);
+    if (!exists) return null;
+  }
+
+  const createdAt = _parseTs(raw.createdAt, Date.now());
+  const updatedAt = _parseTs(raw.updatedAt, createdAt);
+
+  return {
+    id,
+    categoryId,
+    question,
+    answer,
+    audience: _normalizeFaqAudience(raw.audience),
+    order: _orderValue(raw.order, 0),
+    active: raw.active === undefined ? true : Boolean(raw.active),
+    createdAt,
+    updatedAt,
+  };
+}
+
+function _normalizeFaqCategoryPayload(input = {}, existing = null) {
+  const now = Date.now();
+  const base = existing ? { ...existing } : {};
+  const title = _text(input.title ?? input.name ?? base.title ?? '', 200);
+  if (!title) throw new Error('title required');
+  const description = _text(input.description ?? base.description ?? '', 2000);
+
+  return {
+    id:
+      (input.id ?? base.id ?? '').toString().trim() ||
+      `faq_cat_${now}_${Math.random().toString(36).slice(2, 8)}`,
+    title,
+    description: description || null,
+    order: _orderValue(input.order, base.order ?? 0),
+    active: input.active !== undefined ? Boolean(input.active) : Boolean(base.active ?? true),
+  };
+}
+
+function _normalizeFaqEntryPayload(input = {}, existing = null, categories = []) {
+  const now = Date.now();
+  const base = existing ? { ...existing } : {};
+  const categoryId = (input.categoryId ?? base.categoryId ?? '').toString().trim();
+  if (!categoryId) throw new Error('categoryId required');
+  if (Array.isArray(categories) && categories.length > 0) {
+    const exists = categories.some((cat) => cat.id === categoryId);
+    if (!exists) throw new Error('category not found');
+  }
+
+  const question = _text(input.question ?? base.question ?? '', 500);
+  const answer = _text(input.answer ?? base.answer ?? '', 8000);
+  if (!question || !answer) throw new Error('question and answer required');
+
+  return {
+    id:
+      (input.id ?? base.id ?? '').toString().trim() ||
+      `faq_${now}_${Math.random().toString(36).slice(2, 8)}`,
+    categoryId,
+    question,
+    answer,
+    audience: _normalizeFaqAudience(input.audience ?? base.audience ?? 'both'),
+    order: _orderValue(input.order, base.order ?? 0),
+    active: input.active !== undefined ? Boolean(input.active) : Boolean(base.active ?? true),
+    createdAt: base.createdAt ?? now,
+    updatedAt: now,
+  };
+}
+
+function _sortFaqCategories(list = []) {
+  return [...list].sort((a, b) => {
+    if ((a.order ?? 0) !== (b.order ?? 0)) return (a.order ?? 0) - (b.order ?? 0);
+    return (a.title || '').localeCompare(b.title || '');
+  });
+}
+
+function _sortFaqItems(list = [], categories = []) {
+  const orderMap = new Map(categories.map((cat, idx) => [cat.id, idx]));
+  return [...list].sort((a, b) => {
+    const catOrderA = orderMap.has(a.categoryId) ? orderMap.get(a.categoryId) : Number.MAX_SAFE_INTEGER;
+    const catOrderB = orderMap.has(b.categoryId) ? orderMap.get(b.categoryId) : Number.MAX_SAFE_INTEGER;
+    if (catOrderA !== catOrderB) return catOrderA - catOrderB;
+    if ((a.order ?? 0) !== (b.order ?? 0)) return (a.order ?? 0) - (b.order ?? 0);
+    return (a.updatedAt ?? a.createdAt ?? 0) - (b.updatedAt ?? b.createdAt ?? 0);
+  });
+}
+
+async function _loadFaqCategories() {
+  let list = null;
+  const r = getRedis();
+  if (r) {
+    const raw = await rget(KEY_FAQ_CATEGORIES);
+    if (Array.isArray(raw)) {
+      list = raw;
+    } else if (typeof raw === 'string' && raw.trim()) {
+      try { list = JSON.parse(raw); }
+      catch { list = []; }
+    }
+  }
+
+  if (!Array.isArray(list)) {
+    if (Array.isArray(global.__DFS_FAQ_CATEGORIES__)) list = global.__DFS_FAQ_CATEGORIES__;
+    else list = Array.isArray(mem.faqCategories) ? mem.faqCategories : [];
+  }
+
+  const normalized = [];
+  for (const entry of Array.isArray(list) ? list : []) {
+    const norm = _normalizeStoredFaqCategory(entry);
+    if (norm) normalized.push(norm);
+  }
+
+  mem.faqCategories = normalized.map((item) => ({ ...item }));
+  return normalized;
+}
+
+async function _loadFaqItems(categories = null) {
+  const cats = Array.isArray(categories) ? categories : await _loadFaqCategories();
+  let list = null;
+  const r = getRedis();
+  if (r) {
+    const raw = await rget(KEY_FAQ_ITEMS);
+    if (Array.isArray(raw)) {
+      list = raw;
+    } else if (typeof raw === 'string' && raw.trim()) {
+      try { list = JSON.parse(raw); }
+      catch { list = []; }
+    }
+  }
+
+  if (!Array.isArray(list)) {
+    if (Array.isArray(global.__DFS_FAQ_ITEMS__)) list = global.__DFS_FAQ_ITEMS__;
+    else list = Array.isArray(mem.faqItems) ? mem.faqItems : [];
+  }
+
+  const normalized = [];
+  for (const entry of Array.isArray(list) ? list : []) {
+    const norm = _normalizeStoredFaqEntry(entry, cats);
+    if (norm) normalized.push(norm);
+  }
+
+  mem.faqItems = normalized.map((item) => ({ ...item }));
+  return normalized;
+}
+
+async function _persistFaqCategories(list) {
+  const safeList = _sortFaqCategories(list).map((item) => ({ ...item }));
+  mem.faqCategories = safeList.map((item) => ({ ...item }));
+  const r = getRedis();
+  if (r) {
+    await rset(KEY_FAQ_CATEGORIES, safeList);
+  } else {
+    global.__DFS_FAQ_CATEGORIES__ = safeList;
+  }
+  return safeList;
+}
+
+async function _persistFaqItems(list, categories = null) {
+  const cats = Array.isArray(categories) ? categories : await _loadFaqCategories();
+  const safeList = _sortFaqItems(list, cats).map((item) => ({ ...item }));
+  mem.faqItems = safeList.map((item) => ({ ...item }));
+  const r = getRedis();
+  if (r) {
+    await rset(KEY_FAQ_ITEMS, safeList);
+  } else {
+    global.__DFS_FAQ_ITEMS__ = safeList;
+  }
+  return safeList;
+}
+
+export async function faqList({ audience = 'customer', includeInactive = false } = {}) {
+  const categories = await _loadFaqCategories();
+  const items = await _loadFaqItems(categories);
+  const requestedAudience = _normalizeFaqAudience(audience);
+
+  const cats = includeInactive ? categories : categories.filter((cat) => cat.active);
+  const allowedCatIds = new Set(cats.map((cat) => cat.id));
+
+  const visibleItems = items.filter((item) => {
+    if (!allowedCatIds.has(item.categoryId)) return false;
+    if (!includeInactive && !item.active) return false;
+    return _faqAudienceMatches(item.audience, requestedAudience);
+  });
+
+  const sortedCats = _sortFaqCategories(cats);
+  const sortedItems = _sortFaqItems(visibleItems, sortedCats);
+  return { categories: sortedCats, items: sortedItems };
+}
+
+export async function faqUpsertCategory(data) {
+  const categories = await _loadFaqCategories();
+  const targetId = (data?.id ?? '').toString().trim();
+  const idx = targetId ? categories.findIndex((cat) => cat.id === targetId) : -1;
+  const existing = idx >= 0 ? categories[idx] : null;
+  const normalized = _normalizeFaqCategoryPayload(data, existing);
+  if (idx >= 0) categories[idx] = normalized; else categories.push(normalized);
+  await _persistFaqCategories(categories);
+  return normalized;
+}
+
+export async function faqUpsertEntry(data) {
+  const categories = await _loadFaqCategories();
+  if (!Array.isArray(categories) || categories.length === 0) throw new Error('no categories configured');
+  const items = await _loadFaqItems(categories);
+  const targetId = (data?.id ?? '').toString().trim();
+  const idx = targetId ? items.findIndex((item) => item.id === targetId) : -1;
+  const existing = idx >= 0 ? items[idx] : null;
+  const normalized = _normalizeFaqEntryPayload(data, existing, categories);
+  if (idx >= 0) items[idx] = normalized; else items.push(normalized);
+  await _persistFaqItems(items, categories);
+  return normalized;
+}
+
+export async function faqDeleteCategory(id) {
+  const target = (id ?? '').toString().trim();
+  if (!target) return false;
+  const categories = await _loadFaqCategories();
+  const items = await _loadFaqItems(categories);
+  const nextCategories = categories.filter((cat) => cat.id !== target);
+  const nextItems = items.filter((item) => item.categoryId !== target);
+  await Promise.all([
+    _persistFaqCategories(nextCategories),
+    _persistFaqItems(nextItems, nextCategories),
+  ]);
+  return nextCategories.length !== categories.length;
+}
+
+export async function faqDeleteEntry(id) {
+  const target = (id ?? '').toString().trim();
+  if (!target) return false;
+  const categories = await _loadFaqCategories();
+  const items = await _loadFaqItems(categories);
+  const nextItems = items.filter((item) => item.id !== target);
+  await _persistFaqItems(nextItems, categories);
+  return nextItems.length !== items.length;
 }
 
 /* ============== Diagnose /api/diag/kv ============== */
