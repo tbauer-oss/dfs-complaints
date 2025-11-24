@@ -63,15 +63,26 @@ export default async function handler(req, res) {
     const platform = (body?.platform || '').toString().trim();
     const locale = (body?.locale || '').toString().trim();
     const lang = (body?.lang || '').toString().trim();
+    const appVersion = (body?.appVersion || body?.version || '').toString().trim();
+    const appBuild = (body?.appBuild || body?.build || '').toString().trim();
+    const latNum = Number(body?.lat);
+    const lngNum = Number(body?.lng);
+    const lat = Number.isFinite(latNum) ? latNum : undefined;
+    const lng = Number.isFinite(lngNum) ? lngNum : undefined;
+    const city = (body?.city || '').toString().trim();
+    const country = (body?.country || '').toString().trim();
+    const label = (body?.locationLabel || body?.location || '').toString().trim();
 
-    console.log('[push/register] token=', token, 'platform=', platform, 'locale=', locale, 'lang=', lang);
+    const location = { lat, lng, city, country, label };
+
+    console.log('[push/register] token=', token, 'platform=', platform, 'locale=', locale, 'lang=', lang, 'appVersion=', appVersion);
 
     if (email) {
-      await pushTokenRegister(email, token, { platform, locale, lang });
+      await pushTokenRegister(email, token, { platform, locale, lang, appVersion, appBuild, location });
     } else if (rep) {
-      await repPushTokenRegister(rep.repId, token, { platform, locale, lang });
+      await repPushTokenRegister(rep.repId, token, { platform, locale, lang, appVersion, appBuild, location });
     } else if (admin) {
-      await adminPushTokenRegister(token, { platform, locale, lang });
+      await adminPushTokenRegister(token, { platform, locale, lang, appVersion, appBuild, location });
     }
     return ok(res, { ok: true });
   }

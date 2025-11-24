@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../api/client.dart';
 
 const String _kApiKey = String.fromEnvironment('FIREBASE_API_KEY', defaultValue: '');
@@ -65,11 +66,14 @@ class PushNotifications {
   bool _initialized = false;
   String? _lastToken;
   String? _lastLang;
+  String? _appVersion;
+  String? _appBuild;
 
   Future<void> setup(ApiClient api, {String? languageCode}) async {
     if (kIsWeb) return;
     final options = _firebaseOptions();
     await _ensureFirebase(options);
+    await _ensureAppInfo();
 
     final messaging = FirebaseMessaging.instance;
     await messaging.setForegroundNotificationPresentationOptions(alert: true, badge: true, sound: true);
@@ -100,6 +104,7 @@ class PushNotifications {
     final lang = (languageCode ?? '').trim();
     try {
       await _ensureFirebase(options);
+      await _ensureAppInfo();
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null && token.isNotEmpty) {
         await _registerToken(api, token, languageCode);
@@ -111,6 +116,8 @@ class PushNotifications {
           platform: _platformLabel(),
           lang: lang.isEmpty ? null : lang,
           locale: lang,
+          appVersion: _appVersion,
+          appBuild: _appBuild,
         );
       }
     } catch (e) {
@@ -233,11 +240,14 @@ class PushNotifications {
     debugPrint('[push] FCM token: $token (platform=$platform, lang=${lang.isEmpty ? '-': lang})');
 
     try {
+      await _ensureAppInfo();
       await api.registerPushToken(
         token,
         platform: platform,
         locale: lang,
         lang: lang.isEmpty ? null : lang,
+        appVersion: _appVersion,
+        appBuild: _appBuild,
       );
 
       api.pushDeviceToken = token;
@@ -280,5 +290,16 @@ class PushNotifications {
       if (defaultTargetPlatform == TargetPlatform.android) return 'android';
     } catch (_) {}
     return 'mobile';
+  }
+
+  Future<void> _ensureAppInfo() async {
+    if (_appVersion != null || _appBuild != null) return;
+    try {
+      final info = await PackageInfo.fromPlatform();
+      _appVersion = info.version;
+      _appBuild = info.buildNumber;
+    } catch (e) {
+      debugPrint('[push] package info unavailable: $e');
+    }
   }
 }

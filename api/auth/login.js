@@ -6,7 +6,7 @@ import jwt from 'jsonwebtoken';
 import {
   handlePreflight, ok, bad, methodNotAllowed, readJson
 } from '../_lib/http.js';
-import { userByEmail } from '../_lib/store.js';
+import { recordUserLogin, userByEmail } from '../_lib/store.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret';
 
@@ -34,6 +34,13 @@ export default async function handler(req, res) {
     if (u.revoked) return bad(res, 'revoked', 403);
 
     const token = jwt.sign({ sub: u.email, email: u.email }, JWT_SECRET, { expiresIn: '12h' });
+
+    // Meta protokollieren (letzter Login + evtl. App-Version)
+    try {
+      await recordUserLogin(email, { appVersion: body?.appVersion, appBuild: body?.appBuild });
+    } catch (e) {
+      console.warn('[auth/login] recordUserLogin failed:', e?.message || e);
+    }
 
     return ok(res, {
       ok: true,

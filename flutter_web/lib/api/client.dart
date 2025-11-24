@@ -1173,6 +1173,25 @@ class ApiClient {
     return const <String, dynamic>{};
   }
 
+  Future<Map<String, dynamic>?> adminActivity({required String email, String kind = 'auto'}) async {
+    final trimmed = email.trim();
+    if (trimmed.isEmpty) return null;
+    final params = <String, String>{'email': trimmed};
+    final k = kind.trim().toLowerCase();
+    if (k == 'customer' || k == 'rep') params['kind'] = k;
+    final query = params.entries
+        .map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
+        .join('&');
+    final r = await http.get(_u('/api/admin/activity?$query'), headers: _adminHeaders());
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    if (r.body.trim().isEmpty) return null;
+    final decoded = jsonDecode(r.body);
+    if (decoded is Map) return decoded.cast<String, dynamic>();
+    return null;
+  }
+
   // ---------- Vertreter (Kundenbereich) ----------
   Future<MyRep?> getMyRep() async {
     final base = _apiBase.isEmpty

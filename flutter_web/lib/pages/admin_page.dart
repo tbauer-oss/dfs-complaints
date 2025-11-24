@@ -34,6 +34,7 @@ enum _AdminView {
   news,
   catalogs,
   systemHealth,
+  activity,
   createCustomer,
   pushBroadcast,
 }
@@ -227,6 +228,13 @@ class _AdminPageState extends State<AdminPage> {
   String? _pushErr;
   AdminPushBroadcastResult? _pushResult;
 
+  // Aktivitäts-Check (Kunden & Vertreter)
+  final _activityEmailCtrl = TextEditingController();
+  String _activityKind = 'auto';
+  _ActivitySnapshot? _activity;
+  bool _activityLoading = false;
+  String? _activityErr;
+
   String _stripPdfsPrefix(String? v) {
     if (v == null) return '';
     var s = v.trim();
@@ -325,6 +333,7 @@ class _AdminPageState extends State<AdminPage> {
     _pushTitleCtrl.dispose();
     _pushBodyCtrl.dispose();
     _pushLinkCtrl.dispose();
+    _activityEmailCtrl.dispose();
     _bulkInternalAllCtrl.dispose();
     _bulkInternalOpenCtrl.dispose();
     super.dispose();
@@ -2032,6 +2041,250 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  Future<void> _loadActivity() async {
+    final email = _activityEmailCtrl.text.trim();
+    if (email.isEmpty) {
+      setState(() {
+        _activityErr = 'Bitte E-Mail eingeben.';
+        _activity = null;
+      });
+      return;
+    }
+    setState(() {
+      _activityLoading = true;
+      _activityErr = null;
+    });
+    try {
+      final res = await widget.api.adminActivity(email: email, kind: _activityKind);
+      if (res == null || res['found'] != true) {
+        setState(() {
+          _activity = null;
+          _activityErr = 'Kein Datensatz gefunden.';
+        });
+      } else {
+        setState(() {
+          _activity = _ActivitySnapshot.fromJson(res);
+          _activityErr = null;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _activityErr = e.toString();
+        _activity = null;
+      });
+    } finally {
+      setState(() => _activityLoading = false);
+    }
+  }
+
+  Widget _buildActivityPanel() {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final result = _activity;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.query_stats_outlined, color: cs.primary),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Kunden-/Rep-Aktivitätsübersicht',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                SizedBox(
+                  width: 200,
+                  child: DropdownButtonFormField<String>(
+                    value: _activityKind,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Typ',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'auto', child: Text('Auto (erst Kunde, dann Rep)')),
+                      DropdownMenuItem(value: 'customer', child: Text('Kunde')),
+                      DropdownMenuItem(value: 'rep', child: Text('Vertreter')),
+                    ],
+                    onChanged: (v) => setState(() => _activityKind = v ?? 'auto'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 300,
+                  child: TextField(
+                    controller: _activityEmailCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'E-Mail',
+                      hintText: 'kunde@firma.tld',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    onSubmitted: (_) => _activityLoading ? null : _loadActivity(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilledButton.icon(
+                  onPressed: _activityLoading ? null : _loadActivity,
+                  icon: _activityLoading
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.search),
+                  label: Text(_activityLoading ? 'Lädt …' : 'Abrufen'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (_activityLoading) const LinearProgressIndicator(),
+            if (_activityErr != null) ...[
+              const SizedBox(height: 8),
+              Text('Fehler: $_activityErr', style: TextStyle(color: cs.error)),
+            ],
+            const SizedBox(height: 8),
+            Expanded(
+              child: result == null
+                  ? const Center(
+                      child: Text('E-Mail eingeben und Abrufen klicken, um Aktivitätsdaten zu sehen.'),
+                    )
+                  : _buildActivityDetails(result, cs),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActivityDetails(_ActivitySnapshot data, ColorScheme cs) {
+    String tsLabel(int? ts) {
+      if (ts == null || ts <= 0) return 'Keine Daten';
+      try {
+        return _formatTimestamp(DateTime.fromMillisecondsSinceEpoch(ts));
+      } catch (_) {
+        return ts.toString();
+      }
+    }
+
+    String pushLabel() {
+      final base = data.pushValid ? 'Ja' : 'Nein';
+      return data.pushUpdatedMs != null ? '$base – aktualisiert ${tsLabel(data.pushUpdatedMs)}' : base;
+    }
+
+    final stats = [
+      _activityStatCard('Letzter Login', tsLabel(data.lastLoginMs), Icons.login_rounded, cs.primary),
+      _activityStatCard(
+        'Letzte Reklamation',
+        data.lastComplaintTicket != null
+            ? '${tsLabel(data.lastComplaintMs)} (Ticket ${data.lastComplaintTicket})'
+            : tsLabel(data.lastComplaintMs),
+        Icons.assignment_outlined,
+        cs.secondary,
+      ),
+      _activityStatCard('Offene Tickets', data.openTickets.toString(), Icons.pending_actions_outlined, cs.tertiary),
+      _activityStatCard(
+        'Push-Token gültig?',
+        '${pushLabel()} (${data.tokens} Token)',
+        data.pushValid ? Icons.verified_user_outlined : Icons.error_outline,
+        data.pushValid ? cs.primary : cs.error,
+      ),
+      _activityStatCard('App-Version', data.appVersionLabel, Icons.system_update_alt_outlined, cs.primary),
+      _activityStatCard('Standort', data.locationLabel, Icons.location_on_outlined, cs.outline),
+    ];
+
+    return ListView(
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(data.displayName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      Chip(label: Text(data.kindLabel)),
+                      Chip(label: Text(data.email)),
+                      if (data.company.isNotEmpty) Chip(label: Text(data.company)),
+                      if (data.contact.isNotEmpty) Chip(label: Text(data.contact)),
+                      if (data.region.isNotEmpty) Chip(label: Text('Region ${data.region}')),
+                      Chip(label: Text('${data.tokens} Push-Token')),
+                      if (data.customers.isNotEmpty)
+                        Chip(label: Text('${data.customers.length} zugewiesene Kunden')),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: stats,
+        ),
+        if (data.isRep && data.customers.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text('Zugeordnete Kunden (${data.customers.length}):', style: const TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final mail in data.customers.take(20)) Chip(label: Text(mail)),
+              if (data.customers.length > 20)
+                Chip(label: Text('… ${data.customers.length - 20} weitere')),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _activityStatCard(String title, String value, IconData icon, Color color) {
+    final theme = Theme.of(context);
+    return Container(
+      width: 260,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700, color: color),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCreateCustomerPanel() {
     String? _req(String v, String label) {
       if (v.trim().isEmpty) return '$label wird benötigt';
@@ -2544,6 +2797,7 @@ class _AdminPageState extends State<AdminPage> {
       _AdminView.catalogs       => 'Katalog-Konfiguration',
       _AdminView.systemHealth   => 'Systemstatus & Checks',
       _AdminView.createCustomer => 'Neuen Kunden anlegen',
+      _AdminView.activity       => 'Aktivitätsübersicht',
       _AdminView.pushBroadcast  => 'Push-Benachrichtigungen',
     };
 
@@ -2742,7 +2996,16 @@ class _AdminPageState extends State<AdminPage> {
               setState(() => _view = _AdminView.systemHealth);
               _loadSystemHealth(force: true);
             },
-          ),    
+          ),
+          AdminTilePro(
+            label: 'Aktivitätsübersicht',
+            subtitle: 'Login, Tickets, Push',
+            icon: Icons.query_stats_outlined,
+            colorA: AdminPalette.tealA,
+            colorB: AdminPalette.tealB,
+            compact: compact,
+            onTap: () => setState(() => _view = _AdminView.activity),
+          ),
           AdminTilePro(
             label: 'Neuigkeiten & Infoscreen',
             subtitle: 'Kundenticker pflegen',
@@ -2836,6 +3099,8 @@ class _AdminPageState extends State<AdminPage> {
         return _buildCatalogsPanel();
       case _AdminView.systemHealth:
         return _buildSystemHealthPanel();
+      case _AdminView.activity:
+        return _buildActivityPanel();
       case _AdminView.createCustomer:
         return _buildCreateCustomerPanel();
       case _AdminView.pushBroadcast:
@@ -5896,6 +6161,121 @@ class SystemHealthCheck {
     if (raw == null) return null;
     final s = raw.toString().trim();
     return s.isEmpty ? null : s;
+  }
+}
+
+class _ActivitySnapshot {
+  final String kind;
+  final String email;
+  final String name;
+  final String company;
+  final String contact;
+  final String region;
+  final List<String> customers;
+  final int? lastLoginMs;
+  final int? lastComplaintMs;
+  final String? lastComplaintTicket;
+  final int openTickets;
+  final bool pushValid;
+  final int? pushUpdatedMs;
+  final String pushPlatform;
+  final String appVersion;
+  final String appBuild;
+  final Map<String, dynamic>? location;
+  final int tokens;
+
+  const _ActivitySnapshot({
+    required this.kind,
+    required this.email,
+    required this.name,
+    required this.company,
+    required this.contact,
+    required this.region,
+    required this.customers,
+    required this.lastLoginMs,
+    required this.lastComplaintMs,
+    required this.lastComplaintTicket,
+    required this.openTickets,
+    required this.pushValid,
+    required this.pushUpdatedMs,
+    required this.pushPlatform,
+    required this.appVersion,
+    required this.appBuild,
+    required this.location,
+    required this.tokens,
+  });
+
+  static int? _parseMillis(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toInt();
+    if (value is String && value.trim().isNotEmpty) {
+      final parsed = int.tryParse(value.trim());
+      if (parsed != null) return parsed;
+      final dt = DateTime.tryParse(value.trim());
+      if (dt != null) return dt.millisecondsSinceEpoch;
+    }
+    return null;
+  }
+
+  factory _ActivitySnapshot.fromJson(Map<String, dynamic> json) {
+    List<String> _strList(dynamic raw) {
+      if (raw is List) return raw.map((e) => e.toString()).toList();
+      return const [];
+    }
+
+    return _ActivitySnapshot(
+      kind: (json['kind'] ?? 'customer').toString(),
+      email: (json['email'] ?? '').toString(),
+      name: (json['name'] ?? '').toString(),
+      company: (json['company'] ?? '').toString(),
+      contact: (json['contact'] ?? '').toString(),
+      region: (json['region'] ?? '').toString(),
+      customers: _strList(json['customers']),
+      lastLoginMs: _parseMillis(json['lastLoginAt']),
+      lastComplaintMs: _parseMillis(json['lastComplaintAt']),
+      lastComplaintTicket: json['lastComplaintTicket']?.toString(),
+      openTickets: (json['openTickets'] is num) ? (json['openTickets'] as num).toInt() : 0,
+      pushValid: json['pushValid'] == true,
+      pushUpdatedMs: _parseMillis(json['pushUpdatedAt']),
+      pushPlatform: (json['pushPlatform'] ?? '').toString(),
+      appVersion: (json['appVersion'] ?? '').toString(),
+      appBuild: (json['appBuild'] ?? '').toString(),
+      location: (json['location'] is Map) ? (json['location'] as Map).cast<String, dynamic>() : null,
+      tokens: (json['tokens'] is num) ? (json['tokens'] as num).toInt() : 0,
+    );
+  }
+
+  bool get isRep => kind.toLowerCase() == 'rep';
+
+  String get kindLabel => isRep ? 'Vertreter' : 'Kunde';
+
+  String get displayName {
+    final base = (name.isNotEmpty ? name : contact).trim();
+    if (base.isNotEmpty) return base;
+    if (company.isNotEmpty) return company;
+    return email;
+  }
+
+  String get appVersionLabel {
+    if (appVersion.isEmpty && appBuild.isEmpty) return 'Unbekannt';
+    if (appVersion.isNotEmpty && appBuild.isNotEmpty) return '$appVersion (Build $appBuild)';
+    if (appVersion.isNotEmpty) return appVersion;
+    return 'Build $appBuild';
+  }
+
+  String get locationLabel {
+    final loc = location ?? const <String, dynamic>{};
+    final label = (loc['label'] ?? '').toString().trim();
+    final city = (loc['city'] ?? '').toString().trim();
+    final country = (loc['country'] ?? '').toString().trim();
+    final lat = loc['lat'];
+    final lng = loc['lng'];
+    String coords = '';
+    if (lat is num && lng is num) {
+      coords = '(${lat.toStringAsFixed(2)}, ${lng.toStringAsFixed(2)})';
+    }
+    final parts = [label, city, country, coords].where((e) => e.trim().isNotEmpty).toList();
+    return parts.isEmpty ? 'Keine Angabe' : parts.join(' · ');
   }
 }
 
