@@ -2,7 +2,7 @@
 // api/_lib/store.js  (ESM) – DFS Complaints Backend
 // =======================================================
 import { Redis } from '@upstash/redis';
-import { loadRepById } from './repsStore.js';
+import { loadRepByEmail, loadRepById, repCustomers } from './repsStore.js';
 
 /* =========================================================
    KV / Redis – ENV robust erkennen (Upstash & Vercel KV)
@@ -123,6 +123,26 @@ function _rawPushTokenCount(list) {
   return 0;
 }
 
+function _normalizeLocation(raw) {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const latNum = Number(raw.lat);
+  const lngNum = Number(raw.lng);
+  const lat = Number.isFinite(latNum) ? latNum : undefined;
+  const lng = Number.isFinite(lngNum) ? lngNum : undefined;
+  const city = (raw.city || raw.town || raw.locality || '').toString().trim();
+  const country = (raw.country || raw.countryCode || '').toString().trim();
+  const label = (raw.label || raw.locationLabel || '').toString().trim();
+
+  if (!lat && !lng && !city && !country && !label) return undefined;
+  const out = {};
+  if (lat !== undefined) out.lat = lat;
+  if (lng !== undefined) out.lng = lng;
+  if (city) out.city = city;
+  if (country) out.country = country;
+  if (label) out.label = label;
+  return out;
+}
+
 function normalizePushTokens(list) {
   const out = [];
   const seen = new Set();
@@ -141,6 +161,9 @@ function normalizePushTokens(list) {
     const platform = hasMeta ? (entry.platform || '').toString().trim() : '';
     const locale = hasMeta ? (entry.locale || '').toString().trim() : '';
     const lang = normLang(hasMeta ? entry.lang || '' : '');
+    const appVersion = hasMeta ? (entry.appVersion || '').toString().trim() : '';
+    const appBuild = hasMeta ? (entry.appBuild || '').toString().trim() : '';
+    const location = hasMeta ? _normalizeLocation(entry.location || {}) : undefined;
 
     out.push({
       token,
@@ -149,6 +172,9 @@ function normalizePushTokens(list) {
       locale: locale || undefined,
       createdAt,
       updatedAt,
+      ...(appVersion ? { appVersion } : {}),
+      ...(appBuild ? { appBuild } : {}),
+      ...(location ? { location } : {}),
     });
   }
   return out;
@@ -172,6 +198,10 @@ const NEWS_CATEGORY_CODES = [
   'general',
 ];
 export const CUSTOMER_NEWS_CATEGORY_CODES = [...NEWS_CATEGORY_CODES];
+const PUSH_TOKEN_FRESH_MS = Math.max(
+  60 * 60 * 1000,
+  Number(process.env.PUSH_TOKEN_FRESH_MS || 1000 * 60 * 60 * 24 * 45)
+);
 
 function _normalizeCatalogConfig(input) {
   const src = input && typeof input === 'object' ? input : {};
@@ -614,14 +644,22 @@ export async function pushTokenRegister(email, token, meta = {}) {
   const platform = (meta?.platform || '').toString().trim();
   const locale = (meta?.locale || '').toString().trim();
   const lang = normLang(meta?.lang || user.lang || '');
+  const appVersion = (meta?.appVersion ?? meta?.version ?? '').toString().trim();
+  const appBuild = (meta?.appBuild ?? meta?.build ?? '').toString().trim();
+  const location = _normalizeLocation(meta?.location || meta);
 
   const existingIdx = tokens.findIndex(t => t.token === tok);
   if (existingIdx >= 0) {
+    const prevLoc = tokens[existingIdx].location;
+    const nextLoc = location || prevLoc;
     tokens[existingIdx] = {
       ...tokens[existingIdx],
       platform: platform || tokens[existingIdx].platform,
       lang,
       locale: locale || tokens[existingIdx].locale,
+      appVersion: appVersion || tokens[existingIdx].appVersion,
+      appBuild: appBuild || tokens[existingIdx].appBuild,
+      ...(nextLoc ? { location: nextLoc } : {}),
       updatedAt: now,
     };
   } else {
@@ -632,6 +670,9 @@ export async function pushTokenRegister(email, token, meta = {}) {
       locale: locale || undefined,
       createdAt: now,
       updatedAt: now,
+      ...(appVersion ? { appVersion } : {}),
+      ...(appBuild ? { appBuild } : {}),
+      ...(location ? { location } : {}),
     });
   }
 
@@ -651,6 +692,27 @@ export async function pushTokenRemove(email, token) {
   if (tokens.length > 0) user.pushTokens = tokens; else delete user.pushTokens;
   await userSave(user);
   return true;
+}
+
+export async function recordUserLogin(email, meta = {}) {
+  const mail = String(email || '').trim().toLowerCase();
+  if (!mail) return null;
+  const user = await userByEmail(mail);
+  if (!user) return null;
+
+  const now = Date.now();
+  const appVersion = (meta?.appVersion ?? meta?.version ?? '').toString().trim();
+  const appBuild = (meta?.appBuild ?? meta?.build ?? '').toString().trim();
+
+  const updated = {
+    ...user,
+    lastLoginAt: now,
+  };
+  if (appVersion) updated.lastLoginAppVersion = appVersion;
+  if (appBuild) updated.lastLoginAppBuild = appBuild;
+
+  await userSave(updated);
+  return updated;
 }
 
 export async function repPushTokens(repId) {
@@ -690,6 +752,9 @@ export async function repPushTokenRegister(repId, token, meta = {}) {
   const platform = (meta?.platform || '').toString().trim();
   const locale = (meta?.locale || '').toString().trim();
   let lang = normLang(meta?.lang || '');
+  const appVersion = (meta?.appVersion ?? meta?.version ?? '').toString().trim();
+  const appBuild = (meta?.appBuild ?? meta?.build ?? '').toString().trim();
+  const location = _normalizeLocation(meta?.location || meta);
 
   try {
     const rep = await loadRepById(id).catch(() => null);
@@ -701,11 +766,16 @@ export async function repPushTokenRegister(repId, token, meta = {}) {
   const existing = await repPushTokens(id);
   const idx = existing.findIndex(t => t.token === tok);
   if (idx >= 0) {
+    const prevLoc = existing[idx].location;
+    const nextLoc = location || prevLoc;
     existing[idx] = {
       ...existing[idx],
       platform: platform || existing[idx].platform,
       lang,
       locale: locale || existing[idx].locale,
+      appVersion: appVersion || existing[idx].appVersion,
+      appBuild: appBuild || existing[idx].appBuild,
+      ...(nextLoc ? { location: nextLoc } : {}),
       updatedAt: now,
     };
   } else {
@@ -714,6 +784,9 @@ export async function repPushTokenRegister(repId, token, meta = {}) {
       platform: platform || undefined,
       lang,
       locale: locale || undefined,
+      ...(appVersion ? { appVersion } : {}),
+      ...(appBuild ? { appBuild } : {}),
+      ...(location ? { location } : {}),
       createdAt: now,
       updatedAt: now,
     });
@@ -1087,6 +1160,106 @@ export async function complaintsForRepEmails(emails, { status = '' } = {}) {
   });
 
   return out;
+}
+
+function _freshestToken(tokens = []) {
+  let best = null;
+  let ts = 0;
+  for (const t of tokens || []) {
+    const cur = Number(t?.updatedAt ?? t?.createdAt ?? 0);
+    if (!Number.isFinite(cur)) continue;
+    if (cur > ts) {
+      ts = cur;
+      best = t;
+    }
+  }
+  return { token: best, ts };
+}
+
+export function isPushTokenFresh(token) {
+  const ts = Number(token?.updatedAt ?? token?.createdAt ?? 0);
+  if (!Number.isFinite(ts) || ts <= 0) return false;
+  return (Date.now() - ts) <= PUSH_TOKEN_FRESH_MS;
+}
+
+export async function activityForUser(email) {
+  const mail = _nm(email);
+  if (!mail) return null;
+  const user = await userByEmail(mail);
+  if (!user) return null;
+
+  const complaints = await complaintsByEmail(mail).catch(() => []);
+  const openTickets = complaints.filter(c => (c?.status ?? 0) !== Status.CLOSED).length;
+  const lastComplaint = complaints?.[0] || null;
+  const lastComplaintAt = lastComplaint
+    ? Number(lastComplaint.updatedAt ?? lastComplaint.createdAt ?? 0) || null
+    : null;
+
+  const tokens = normalizePushTokens(user.pushTokens);
+  const { token: freshest, ts: pushTs } = _freshestToken(tokens);
+  const appVersion = (freshest?.appVersion || user.lastLoginAppVersion || '').toString();
+  const appBuild = (freshest?.appBuild || user.lastLoginAppBuild || '').toString();
+
+  return {
+    kind: 'customer',
+    email: user.email || mail,
+    company: user.company || '',
+    contact: user.contact || '',
+    lastLoginAt: Number(user.lastLoginAt) || null,
+    lastComplaintAt,
+    lastComplaintTicket: lastComplaint?.ticket || null,
+    openTickets,
+    pushValid: freshest ? isPushTokenFresh(freshest) : false,
+    pushUpdatedAt: pushTs || null,
+    pushPlatform: freshest?.platform || '',
+    appVersion: appVersion || '',
+    appBuild: appBuild || '',
+    location: freshest?.location || undefined,
+    tokens: tokens.length,
+  };
+}
+
+export async function activityForRep({ repId, email } = {}) {
+  const id = (repId || '').toString().trim();
+  const mail = _nm(email);
+
+  let rep = null;
+  if (id) rep = await loadRepById(id).catch(() => null);
+  if (!rep && mail) rep = await loadRepByEmail(mail).catch(() => null);
+  if (!rep) return null;
+
+  const customers = await repCustomers(rep.id).catch(() => []);
+  const complaints = await complaintsForRepEmails(customers || []).catch(() => []);
+  const openTickets = complaints.filter(c => (c?.status ?? 0) !== Status.CLOSED).length;
+  const lastComplaint = complaints?.[0] || null;
+  const lastComplaintAt = lastComplaint
+    ? Number(lastComplaint.updatedAt ?? lastComplaint.createdAt ?? 0) || null
+    : null;
+
+  const tokens = await repPushTokens(rep.id);
+  const { token: freshest, ts: pushTs } = _freshestToken(tokens);
+  const appVersion = (freshest?.appVersion || rep.lastLoginAppVersion || '').toString();
+  const appBuild = (freshest?.appBuild || rep.lastLoginAppBuild || '').toString();
+
+  return {
+    kind: 'rep',
+    repId: rep.id,
+    email: rep.email || mail,
+    name: `${rep.firstName || ''} ${rep.lastName || ''}`.trim(),
+    region: rep.region || '',
+    customers: customers || [],
+    lastLoginAt: Number(rep.lastLoginAt) || null,
+    lastComplaintAt,
+    lastComplaintTicket: lastComplaint?.ticket || null,
+    openTickets,
+    pushValid: freshest ? isPushTokenFresh(freshest) : false,
+    pushUpdatedAt: pushTs || null,
+    pushPlatform: freshest?.platform || '',
+    appVersion: appVersion || '',
+    appBuild: appBuild || '',
+    location: freshest?.location || undefined,
+    tokens: tokens.length,
+  };
 }
 
 /* ============== DSGVO: User + Complaints anonymisieren ============== */
