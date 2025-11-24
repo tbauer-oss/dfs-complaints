@@ -22,6 +22,14 @@ extension _L10nX on BuildContext {
   AppLocalizations get t => AppLocalizations.of(this)!;
 }
 
+class _WizardStep {
+  final String id;
+  final IconData icon;
+  final String title;
+  final String hint;
+  const _WizardStep({required this.id, required this.icon, required this.title, required this.hint});
+}
+
 class ComplaintFormPage extends StatefulWidget {
   final ApiClient api;
   const ComplaintFormPage({super.key, required this.api});
@@ -57,6 +65,17 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
 
   // Wichtig: exakt dieser Record-Typ (Name, Bytes, Mime)
   List<ComplaintFilePayload> files = [];
+
+  final ScrollController _scrollCtrl = ScrollController();
+  int _wizardStep = 0;
+  final Map<String, GlobalKey> _sectionKeys = {
+    'segment': GlobalKey(),
+    'product': GlobalKey(),
+    'patient': GlobalKey(),
+    'attachments': GlobalKey(),
+    'resolution': GlobalKey(),
+    'privacy': GlobalKey(),
+  };
 
   String? info;
   String? err;
@@ -119,6 +138,59 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     setState(() => _autoHelpItem = bestScore >= 2 ? best : null);
   }
 
+  List<_WizardStep> _buildWizardSteps(AppLocalizations t, {required bool isDentist}) {
+    return [
+      _WizardStep(id: 'segment', icon: Icons.flag_outlined, title: t.complaint_wizard_step_overview, hint: t.segment),
+      _WizardStep(id: 'product', icon: Icons.shopping_bag_outlined, title: t.complaint_wizard_step_product, hint: t.article),
+      if (isDentist)
+        _WizardStep(
+          id: 'patient',
+          icon: Icons.favorite_outline,
+          title: t.complaint_wizard_step_patient,
+          hint: t.applied_to_patient,
+        ),
+      _WizardStep(
+        id: 'attachments',
+        icon: Icons.photo_library_outlined,
+        title: t.complaint_wizard_step_attachments,
+        hint: t.attachments_title,
+      ),
+      _WizardStep(
+        id: 'resolution',
+        icon: Icons.handshake_outlined,
+        title: t.complaint_wizard_step_confirmation,
+        hint: t.returned_question,
+      ),
+      _WizardStep(
+        id: 'privacy',
+        icon: Icons.privacy_tip_outlined,
+        title: t.privacy_view,
+        hint: t.complaint_wizard_step_finish,
+      ),
+    ];
+  }
+
+  Future<void> _scrollToSection(String id) async {
+    final ctx = _sectionKeys[id]?.currentContext;
+    if (ctx == null) return;
+    await Scrollable.ensureVisible(
+      ctx,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeInOut,
+      alignment: 0.05,
+    );
+  }
+
+  Future<void> _goToStep(List<_WizardStep> steps, int index) async {
+    if (index < 0 || index >= steps.length) return;
+    setState(() => _wizardStep = index);
+    await _scrollToSection(steps[index].id);
+  }
+
+  Widget _wizardAnchor(String id, Widget child) {
+    return KeyedSubtree(key: _sectionKeys[id], child: child);
+  }
+
   Future<bool> _confirmLeaveIfDirty() async {
     if (!_dirty) return true;
     final t = context.t;
@@ -153,6 +225,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   void dispose() {
     for (final c in _ctrls) { c.removeListener(_markDirty); }
     desc.removeListener(_handleDescriptionChanged);
+    _scrollCtrl.dispose();
     super.dispose();
   }
 
@@ -580,6 +653,103 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     );
   }
 
+  Widget _buildWizardCard({required List<_WizardStep> steps, required AppLocalizations t}) {
+    if (steps.isEmpty) return const SizedBox.shrink();
+    final active = _wizardStep.clamp(0, steps.length - 1);
+    if (active != _wizardStep) _wizardStep = active;
+
+    final theme = Theme.of(context);
+    final subtleBg = theme.colorScheme.surfaceContainerHighest;
+
+    Widget stepChip(int index, _WizardStep step) {
+      final selected = index == active;
+      return ChoiceChip(
+        selected: selected,
+        onSelected: (_) => _goToStep(steps, index),
+        labelPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        avatar: CircleAvatar(
+          radius: 12,
+          backgroundColor: selected ? theme.colorScheme.primary : theme.colorScheme.primary.withOpacity(.15),
+          child: Icon(step.icon, size: 15, color: selected ? theme.colorScheme.onPrimary : theme.colorScheme.primary),
+        ),
+        label: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('${index + 1}. ${step.title}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+            const SizedBox(height: 2),
+            Text(step.hint, style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
+          ],
+        ),
+      );
+    }
+
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.symmetric(vertical: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: subtleBg,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.auto_awesome_outlined, color: theme.colorScheme.primary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(t.complaint_wizard_title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                      const SizedBox(height: 4),
+                      Text(
+                        t.complaint_wizard_subtitle,
+                        style: TextStyle(fontSize: 13, color: theme.colorScheme.onSurfaceVariant, height: 1.35),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [for (final entry in steps.asMap().entries) stepChip(entry.key, entry.value)],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    t.complaint_wizard_hint,
+                    style: TextStyle(fontSize: 12.5, color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                OutlinedButton.icon(
+                  onPressed: active > 0 ? () => _goToStep(steps, active - 1) : null,
+                  icon: const Icon(Icons.chevron_left),
+                  label: Text(t.complaint_wizard_prev),
+                ),
+                const SizedBox(width: 8),
+                FilledButton.icon(
+                  onPressed: active < steps.length - 1
+                      ? () => _goToStep(steps, active + 1)
+                      : () => _goToStep(steps, steps.length - 1),
+                  icon: Icon(active < steps.length - 1 ? Icons.navigate_next : Icons.check_circle_outline),
+                  label: Text(active < steps.length - 1 ? t.complaint_wizard_next : t.complaint_wizard_done),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.t;
@@ -597,7 +767,10 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     final isDentist = segment == optDentist;
     final needInjuryDesc = isDentist && applied == optYes && injury == optYes;
 
+    final wizardSteps = _buildWizardSteps(t, isDentist: isDentist);
+
     final body = SingleChildScrollView(
+      controller: _scrollCtrl,
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
       child: Center(
         child: ConstrainedBox(
@@ -627,194 +800,214 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                 ),
               ),
 
+              _buildWizardCard(steps: wizardSteps, t: t),
+
               _buildHelpBox(),
 
               // Sektion: Allgemein
-              _section(
-                icon: Icons.person_outline,
-                title: t.segment,
-                children: [
-                  DropdownButtonFormField<String>(
-                    value: segment,
-                    items: [
-                      DropdownMenuItem(value: optDentist, child: Text(optDentist)),
-                      DropdownMenuItem(value: optLab, child: Text(optLab)),
-                    ],
-                    onChanged: (v) => setState(() { segment = v ?? optDentist; _dirty = true; } ),
-                    decoration: _dec(context, t.segment),
-                  ),
-                ],
+              _wizardAnchor(
+                'segment',
+                _section(
+                  icon: Icons.person_outline,
+                  title: t.segment,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      value: segment,
+                      items: [
+                        DropdownMenuItem(value: optDentist, child: Text(optDentist)),
+                        DropdownMenuItem(value: optLab, child: Text(optLab)),
+                      ],
+                      onChanged: (v) => setState(() { segment = v ?? optDentist; _dirty = true; } ),
+                      decoration: _dec(context, t.segment),
+                    ),
+                  ],
+                ),
               ),
 
               // Sektion: Produktdetails
-              _section(
-                icon: Icons.build_outlined,
-                title: t.article,
-                children: [
-                  TextField(controller: article, decoration: _dec(context, t.article)),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: batch,
-                    decoration: _dec(context, isDentist ? '${t.batch} *' : t.batch, hint: isDentist ? t.batch : null),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(children: [
-                    Expanded(child: TextField(controller: qty, decoration: _dec(context, t.qty))),
-                    const SizedBox(width: 10),
-                    Expanded(child: TextField(controller: expiry, decoration: _dec(context, t.expiry))),
-                  ]),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: desc,
-                    maxLines: 4,
-                    decoration: _dec(context, t.problem_desc),
-                  ),
-                  const SizedBox(height: 4),
-                  _buildAutoHelpCard(),
-                ],
+              _wizardAnchor(
+                'product',
+                _section(
+                  icon: Icons.build_outlined,
+                  title: t.article,
+                  children: [
+                    TextField(controller: article, decoration: _dec(context, t.article)),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: batch,
+                      decoration: _dec(context, isDentist ? '${t.batch} *' : t.batch, hint: isDentist ? t.batch : null),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(children: [
+                      Expanded(child: TextField(controller: qty, decoration: _dec(context, t.qty))),
+                      const SizedBox(width: 10),
+                      Expanded(child: TextField(controller: expiry, decoration: _dec(context, t.expiry))),
+                    ]),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: desc,
+                      maxLines: 4,
+                      decoration: _dec(context, t.problem_desc),
+                    ),
+                    const SizedBox(height: 4),
+                    _buildAutoHelpCard(),
+                  ],
+                ),
               ),
 
               // Sektion: Patientenbezug (nur Zahnarzt)
               if (isDentist)
-                _section(
-                  icon: Icons.healing_outlined,
-                  title: t.applied_to_patient,
-                  children: [
-                    DropdownButtonFormField<String>(
-                      value: applied,
-                      items: [
-                        DropdownMenuItem(value: optYes, child: Text(optYes)),
-                        DropdownMenuItem(value: optNo, child: Text(optNo)),
-                      ],
-                      onChanged: (v) => setState(() { applied = v ?? optNo; _dirty = true; } ),
-                      decoration: _dec(context, t.applied_to_patient),
-                    ),
-                    const SizedBox(height: 10),
-                    DropdownButtonFormField<String>(
-                      value: injury,
-                      items: [
-                        DropdownMenuItem(value: optYes, child: Text(optYes)),
-                        DropdownMenuItem(value: optNo, child: Text(optNo)),
-                      ],
-                      onChanged: (v) => setState(() { injury = v ?? optNo; _dirty = true; } ),
-                      decoration: _dec(context, t.injury_question),
-                    ),
-                    if (needInjuryDesc) ...[
+                _wizardAnchor(
+                  'patient',
+                  _section(
+                    icon: Icons.healing_outlined,
+                    title: t.applied_to_patient,
+                    children: [
+                      DropdownButtonFormField<String>(
+                        value: applied,
+                        items: [
+                          DropdownMenuItem(value: optYes, child: Text(optYes)),
+                          DropdownMenuItem(value: optNo, child: Text(optNo)),
+                        ],
+                        onChanged: (v) => setState(() { applied = v ?? optNo; _dirty = true; } ),
+                        decoration: _dec(context, t.applied_to_patient),
+                      ),
                       const SizedBox(height: 10),
-                      TextField(controller: injuryDesc, maxLines: 3, decoration: _dec(context, t.injury_desc)),
+                      DropdownButtonFormField<String>(
+                        value: injury,
+                        items: [
+                          DropdownMenuItem(value: optYes, child: Text(optYes)),
+                          DropdownMenuItem(value: optNo, child: Text(optNo)),
+                        ],
+                        onChanged: (v) => setState(() { injury = v ?? optNo; _dirty = true; } ),
+                        decoration: _dec(context, t.injury_question),
+                      ),
+                      if (needInjuryDesc) ...[
+                        const SizedBox(height: 10),
+                        TextField(controller: injuryDesc, maxLines: 3, decoration: _dec(context, t.injury_desc)),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
 
               // Sektion: Bilder / Anhänge
-              _section(
-                icon: Icons.photo_library_outlined,
-                title: t.attachments_title,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: pickFiles,
-                    icon: const Icon(Icons.upload),
-                    label: Text(files.isEmpty ? t.add_attachment : t.images_selected(files.length)),
-                  ),
-                  if (files.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final f in files)
-                          InputChip(
-                            label: Text(
-                              f.name,
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1,
-                            ),
-                            avatar: const Icon(Icons.insert_drive_file_outlined),
-                            onDeleted: () {
-                              setState(() {
-                                files = files.where((file) => file != f).toList();
-                                _dirty = true;
-                              });
-                            },
-                            deleteIcon: const Icon(Icons.close),
-                          ),
-                      ],
+              _wizardAnchor(
+                'attachments',
+                _section(
+                  icon: Icons.photo_library_outlined,
+                  title: t.attachments_title,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: pickFiles,
+                      icon: const Icon(Icons.upload),
+                      label: Text(files.isEmpty ? t.add_attachment : t.images_selected(files.length)),
                     ),
+                    if (files.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final f in files)
+                            InputChip(
+                              label: Text(
+                                f.name,
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                              avatar: const Icon(Icons.insert_drive_file_outlined),
+                              onDeleted: () {
+                                setState(() {
+                                  files = files.where((file) => file != f).toList();
+                                  _dirty = true;
+                                });
+                              },
+                              deleteIcon: const Icon(Icons.close),
+                            ),
+                        ],
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
 
               // Sektion: Rücksendung & Wunsch
-              _section(
-                icon: Icons.local_shipping_outlined,
-                title: t.returned_question,
-                children: [
-                  DropdownButtonFormField<String>(
-                    value: returned,
-                    items: [
-                      DropdownMenuItem(value: optReturnedYes, child: Text(optReturnedYes)),
-                      DropdownMenuItem(value: optReturnedNo, child: Text(optReturnedNo)),
-                    ],
-                    onChanged: (v) => setState(() { returned = v ?? optReturnedNo; _dirty = true; } ),
-                    decoration: _dec(context, t.returned_question),
-                  ),
-                  const SizedBox(height: 10),
-                  DropdownButtonFormField<String>(
-                    value: handling,
-                    items: [
-                      DropdownMenuItem(value: optHandlingRep, child: Text(optHandlingRep)),
-                      DropdownMenuItem(value: optHandlingCredit, child: Text(optHandlingCredit)),
-                      DropdownMenuItem(value: optHandlingRework, child: Text(optHandlingRework)),
-                    ],
-                    onChanged: (v) => setState(() { handling = v ?? optHandlingRep; _dirty = true; } ),
-                    decoration: _dec(context, t.handling),
-                  ),
-                ],
+              _wizardAnchor(
+                'resolution',
+                _section(
+                  icon: Icons.local_shipping_outlined,
+                  title: t.returned_question,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      value: returned,
+                      items: [
+                        DropdownMenuItem(value: optReturnedYes, child: Text(optReturnedYes)),
+                        DropdownMenuItem(value: optReturnedNo, child: Text(optReturnedNo)),
+                      ],
+                      onChanged: (v) => setState(() { returned = v ?? optReturnedNo; _dirty = true; } ),
+                      decoration: _dec(context, t.returned_question),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      value: handling,
+                      items: [
+                        DropdownMenuItem(value: optHandlingRep, child: Text(optHandlingRep)),
+                        DropdownMenuItem(value: optHandlingCredit, child: Text(optHandlingCredit)),
+                        DropdownMenuItem(value: optHandlingRework, child: Text(optHandlingRework)),
+                      ],
+                      onChanged: (v) => setState(() { handling = v ?? optHandlingRep; _dirty = true; } ),
+                      decoration: _dec(context, t.handling),
+                    ),
+                  ],
+                ),
               ),
 
               // Sektion: Datenschutz
-              _section(
-                icon: Icons.privacy_tip_outlined,
-                title: t.privacy_view,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Checkbox(
-                        value: privacy,
-                        onChanged: (v) => setState(() { privacy = v ?? false; _dirty = true; }),
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(t.privacy_agree),
-                            const SizedBox(height: 4),
-                            InkWell(
-                              onTap: () => Navigator.of(context).pushNamed('/legal/privacy'),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.privacy_tip_outlined, size: 18),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    t.privacy_view,
-                                    style: TextStyle(
-                                      color: Theme.of(context).colorScheme.primary,
-                                      decoration: TextDecoration.underline,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+              _wizardAnchor(
+                'privacy',
+                _section(
+                  icon: Icons.privacy_tip_outlined,
+                  title: t.privacy_view,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Checkbox(
+                          value: privacy,
+                          onChanged: (v) => setState(() { privacy = v ?? false; _dirty = true; }),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(t.privacy_agree),
+                              const SizedBox(height: 4),
+                              InkWell(
+                                onTap: () => Navigator.of(context).pushNamed('/legal/privacy'),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.privacy_tip_outlined, size: 18),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      t.privacy_view,
+                                      style: TextStyle(
+                                        color: Theme.of(context).colorScheme.primary,
+                                        decoration: TextDecoration.underline,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
 
               if (err != null) _banner(isError: true, text: err!),
