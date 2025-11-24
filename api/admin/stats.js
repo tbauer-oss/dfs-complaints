@@ -251,7 +251,7 @@ function collectCountryCandidates(value, depth = 0, visited = new Set()) {
   return [];
 }
 
-function pickCountry(complaint) {
+function pickCountryMeta(complaint) {
   const payload = complaint?.payload || {};
   const sources = [
     complaint?.countryCode,
@@ -287,12 +287,21 @@ function pickCountry(complaint) {
       if (seen.has(key)) continue;
       seen.add(key);
       const resolved = resolveCountryCode(normalized);
-      if (resolved) return countryLabelFromCode(resolved) || resolved;
+      if (resolved) {
+        return {
+          country: countryLabelFromCode(resolved) || resolved,
+          countryCode: resolved,
+        };
+      }
       const clean = normalizeCountryName(normalized);
       if (!fallback && clean && !/\d/.test(clean)) fallback = normalized;
     }
   }
-  return fallback || 'Unbekannt';
+  return { country: fallback || 'Unbekannt', countryCode: null };
+}
+
+function pickCountry(complaint) {
+  return pickCountryMeta(complaint).country;
 }
 
 function pickRepMeta(complaint) {
@@ -604,8 +613,22 @@ function buildStats(list, range, repInfo = new Map(), activeDirectory = new Map(
     count: monthsRaw.get(month) || 0,
   }));
 
-  const byCountry = Array.from(countBy(list, (c) => pickCountry(c)).entries())
-    .map(([country, count]) => ({ country, count }))
+  const byCountryMap = new Map();
+  for (const complaint of list) {
+    const meta = pickCountryMeta(complaint);
+    const key = meta.countryCode || meta.country || 'Unbekannt';
+    const current = byCountryMap.get(key) || { ...meta, count: 0 };
+    current.country = meta.country || current.country || 'Unbekannt';
+    current.countryCode = meta.countryCode || current.countryCode || null;
+    current.count += 1;
+    byCountryMap.set(key, current);
+  }
+  const byCountry = Array.from(byCountryMap.values())
+    .map((entry) => ({
+      country: entry.country,
+      countryCode: entry.countryCode || undefined,
+      count: entry.count,
+    }))
     .sort((a, b) => b.count - a.count || a.country.localeCompare(b.country));
 
   const repMap = new Map();
