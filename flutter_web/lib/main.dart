@@ -463,86 +463,103 @@ class _MyAppState extends State<MyApp> {
                                             const SizedBox(height: 18),
                                             Container(
                                               width: double.infinity,
-                                              padding: const EdgeInsets.all(18),
+                                              padding: const EdgeInsets.all(22),
                                               decoration: BoxDecoration(
-                                                color: scheme.surface,
-                                                borderRadius: BorderRadius.circular(18),
+                                                gradient: LinearGradient(
+                                                  begin: Alignment.topLeft,
+                                                  end: Alignment.bottomRight,
+                                                  colors: [
+                                                    scheme.primary.withOpacity(isDark ? 0.18 : 0.22),
+                                                    scheme.surfaceVariant.withOpacity(isDark ? 0.45 : 0.35),
+                                                  ],
+                                                ),
+                                                borderRadius: BorderRadius.circular(20),
                                                 border: Border.all(
-                                                  color: scheme.outlineVariant.withOpacity(isDark ? 0.6 : 0.8),
+                                                  color: scheme.outlineVariant.withOpacity(isDark ? 0.7 : 0.9),
                                                 ),
                                                 boxShadow: [
-                                                  if (!isDark)
-                                                    BoxShadow(
-                                                      color: Colors.black.withOpacity(0.05),
-                                                      blurRadius: 16,
-                                                      offset: const Offset(0, 8),
-                                                    ),
+                                                  BoxShadow(
+                                                    color: Colors.black.withOpacity(isDark ? 0.4 : 0.1),
+                                                    blurRadius: 20,
+                                                    offset: const Offset(0, 12),
+                                                  ),
                                                 ],
                                               ),
                                               child: Column(
                                                 crossAxisAlignment: CrossAxisAlignment.center,
                                                 children: [
-                                                  Row(
-                                                    mainAxisAlignment: MainAxisAlignment.center,
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                                    children: [
-                                                      Container(
-                                                        padding: const EdgeInsets.all(10),
-                                                        decoration: BoxDecoration(
-                                                          color: scheme.primaryContainer,
-                                                          shape: BoxShape.circle,
-                                                        ),
-                                                        child: Icon(
-                                                          Icons.handshake,
-                                                          color: scheme.onPrimaryContainer,
-                                                        ),
-                                                      ),
-                                                      const SizedBox(width: 14),
-                                                      Column(
-                                                        crossAxisAlignment: CrossAxisAlignment.center,
-                                                        children: [
-                                                          Text(
-                                                            t.quick_access_title,
-                                                            style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
-                                                                  fontWeight: FontWeight.w800,
-                                                                  color: scheme.primary,
-                                                                ),
-                                                            textAlign: TextAlign.center,
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 14),
+                                                    decoration: BoxDecoration(
+                                                      color: scheme.surface.withOpacity(0.7),
+                                                      borderRadius: BorderRadius.circular(30),
+                                                      border: Border.all(color: scheme.primary.withOpacity(0.4)),
+                                                    ),
+                                                    child: Text(
+                                                      'DFS',
+                                                      style: Theme.of(ctx).textTheme.labelLarge?.copyWith(
+                                                            letterSpacing: 0.8,
+                                                            fontWeight: FontWeight.w700,
+                                                            color: scheme.primary,
                                                           ),
-                                                          const SizedBox(height: 4),
-                                                          Text(
-                                                            t.quick_access_subtitle,
-                                                            style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
-                                                                  color: scheme.onSurfaceVariant,
-                                                                ),
-                                                            textAlign: TextAlign.center,
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ],
+                                                    ),
                                                   ),
-                                                  const SizedBox(height: 14),
+                                                  const SizedBox(height: 12),
+                                                  Text(
+                                                    t.quick_access_title,
+                                                    style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
+                                                          fontWeight: FontWeight.w800,
+                                                          color: scheme.onSurface,
+                                                        ),
+                                                    textAlign: TextAlign.center,
+                                                  ),
+                                                  const SizedBox(height: 8),
+                                                  Text(
+                                                    t.quick_access_subtitle,
+                                                    style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+                                                          color: scheme.onSurfaceVariant,
+                                                        ),
+                                                    textAlign: TextAlign.center,
+                                                  ),
+                                                  const SizedBox(height: 18),
                                                   Wrap(
-                                                    spacing: 10,
-                                                    runSpacing: 10,
+                                                    spacing: 12,
+                                                    runSpacing: 12,
                                                     alignment: WrapAlignment.center,
                                                     children: [
-                                                      FilledButton.icon(
-                                                        icon: const Icon(Icons.handshake),
-                                                        label: Text(t.rep_area ?? 'Vertreterbereich'),
+                                                      FilledButton(
                                                         onPressed: () => _openRepArea(ctx),
                                                         style: FilledButton.styleFrom(
-                                                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                                                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
                                                           shape: const StadiumBorder(),
+                                                          backgroundColor: scheme.primary,
+                                                          foregroundColor: scheme.onPrimary,
+                                                          elevation: 0,
+                                                        ),
+                                                        child: Row(
+                                                          mainAxisSize: MainAxisSize.min,
+                                                          children: [
+                                                            Text(t.rep_area ?? 'Vertreterbereich'),
+                                                            const SizedBox(width: 8),
+                                                            const Icon(Icons.chevron_right_rounded, size: 20),
+                                                          ],
                                                         ),
                                                       ),
-                                                      OutlinedButton.icon(
-                                                        icon: const Icon(Icons.admin_panel_settings_outlined),
-                                                        label: Text(t.admin_area ?? 'Adminbereich'),
+                                                      OutlinedButton(
                                                         onPressed: () => _openAdmin(ctx),
                                                         style: OutlinedButton.styleFrom(
-                                                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                                                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
                                                           shape: const StadiumBorder(),
+                                                          side: BorderSide(color: scheme.outlineVariant.withOpacity(0.9)),
+                                                          foregroundColor: scheme.onSurface,
+                                                        ),
+                                                        child: Row(
+                                                          mainAxisSize: MainAxisSize.min,
+                                                          children: [
+                                                            Text(t.admin_area ?? 'Adminbereich'),
+                                                            const SizedBox(width: 8),
+                                                            Icon(Icons.arrow_outward_rounded, color: scheme.primary, size: 20),
+                                                          ],
                                                         ),
                                                       ),
                                                     ],
