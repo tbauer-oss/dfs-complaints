@@ -5,7 +5,6 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../api/client.dart';
-import '../models/admin_mail_log.dart';
 import '../models/country.dart';
 import '../models/complaint.dart' show ComplaintUpload;
 import '../models/customer_news_entry.dart';
@@ -34,7 +33,6 @@ enum _AdminView {
   reps,
   news,
   catalogs,
-  mailCenter,
   systemHealth,
   activity,
   createCustomer,
@@ -152,18 +150,6 @@ class _AdminPageState extends State<AdminPage> {
   List<CustomerNewsEntry> _newsEntries = [];
   bool _newsLoading = false;
   String? _newsErr;
-
-  // Mailcenter
-  List<AdminMailLogEntry> _mailLogs = [];
-  AdminMailLogStats? _mailStats;
-  bool _mailCenterLoading = false;
-  String? _mailCenterErr;
-  bool _mailCenterAutoRequested = false;
-  String _mailStatusFilter = 'Alle Stati';
-  String _mailCategoryFilter = 'Alle Typen';
-  String _mailSearch = '';
-  bool _mailResendBusy = false;
-  final _mailSearchCtrl = TextEditingController();
 
   // Email -> detaillierte Reklamationen (für Users/Pending)
   final Map<String, _ComplaintsResult> _complaints = {};
@@ -349,7 +335,6 @@ class _AdminPageState extends State<AdminPage> {
     _pushBodyCtrl.dispose();
     _pushLinkCtrl.dispose();
     _activityEmailCtrl.dispose();
-    _mailSearchCtrl.dispose();
     _bulkInternalAllCtrl.dispose();
     _bulkInternalOpenCtrl.dispose();
     super.dispose();
@@ -593,29 +578,6 @@ class _AdminPageState extends State<AdminPage> {
     } finally {
       if (!mounted) return;
       setState(() => _loadAllComplaints = false);
-    }
-  }
-
-  Future<void> _refreshMailCenter({bool force = false}) async {
-    if (_mailCenterLoading && !force) return;
-    setState(() {
-      _mailCenterErr = null;
-      _mailCenterLoading = true;
-      _mailCenterAutoRequested = true;
-    });
-    try {
-      final res = await _api.fetchMailCenter();
-      if (!mounted) return;
-      setState(() {
-        _mailLogs = res.items;
-        _mailStats = res.stats;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _mailCenterErr = '$e');
-    } finally {
-      if (!mounted) return;
-      setState(() => _mailCenterLoading = false);
     }
   }
 
@@ -2398,356 +2360,6 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  List<AdminMailLogEntry> _filteredMailLogs() {
-    final q = _mailSearch.trim().toLowerCase();
-    return _mailLogs.where((m) {
-      final norm = m.normalizedStatus;
-      if (_mailStatusFilter == 'Gesendet' && norm != 'sent') return false;
-      if (_mailStatusFilter == 'Fehlgeschlagen' && norm != 'failed') return false;
-      if (_mailStatusFilter == 'Geplant/Retry' && norm != 'queued') return false;
-      if (_mailCategoryFilter != 'Alle Typen' &&
-          m.displayCategory.toLowerCase() != _mailCategoryFilter.toLowerCase()) {
-        return false;
-      }
-      if (q.isNotEmpty) {
-        final haystack = [
-          m.subject,
-          m.to,
-          m.cc ?? '',
-          m.bcc ?? '',
-          m.category,
-          m.status,
-          m.template ?? '',
-          m.error ?? '',
-        ].join(' ').toLowerCase();
-        if (!haystack.contains(q)) return false;
-      }
-      return true;
-    }).toList();
-  }
-
-  String _mailStatusLabel(AdminMailLogEntry m) {
-    return switch (m.normalizedStatus) {
-      'sent' => 'Gesendet',
-      'failed' => 'Fehlgeschlagen',
-      'queued' => 'Geplant/Retry',
-      _ => m.status.isEmpty ? 'Unbekannt' : m.status,
-    };
-  }
-
-  Color _mailStatusColor(AdminMailLogEntry m, ColorScheme cs) {
-    return switch (m.normalizedStatus) {
-      'sent' => cs.tertiary,
-      'failed' => cs.error,
-      'queued' => cs.primary,
-      _ => cs.outline,
-    };
-  }
-
-  Widget _mailStatusChip(AdminMailLogEntry m, ColorScheme cs) {
-    final color = _mailStatusColor(m, cs);
-    return Chip(
-      avatar: Icon(
-        switch (m.normalizedStatus) {
-          'sent' => Icons.mark_email_read_outlined,
-          'failed' => Icons.error_outline,
-          'queued' => Icons.schedule_send_outlined,
-          _ => Icons.help_outline,
-        },
-        size: 18,
-        color: color,
-      ),
-      label: Text(_mailStatusLabel(m)),
-      backgroundColor: color.withOpacity(0.12),
-      shape: StadiumBorder(side: BorderSide(color: color.withOpacity(0.35))),
-      labelStyle: TextStyle(color: color, fontWeight: FontWeight.w700),
-    );
-  }
-
-  Future<void> _resendMail(AdminMailLogEntry mail) async {
-    setState(() {
-      _mailCenterErr = null;
-      _mailResendBusy = true;
-    });
-    try {
-      final updated = await _api.resendMail(mail.id);
-      if (!mounted) return;
-      if (updated != null) {
-        setState(() {
-          final idx = _mailLogs.indexWhere((e) => e.id == updated.id);
-          if (idx != -1) {
-            _mailLogs[idx] = updated;
-          } else {
-            _mailLogs = [updated, ..._mailLogs];
-          }
-        });
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mail wird erneut versendet.')),
-      );
-      await _refreshMailCenter(force: true);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _mailCenterErr = '$e');
-    } finally {
-      if (!mounted) return;
-      setState(() => _mailResendBusy = false);
-    }
-  }
-
-  Widget _buildMailLogTile(AdminMailLogEntry mail, ColorScheme cs, DateFormat fmt) {
-    String tsLabel() {
-      final ts = mail.sentAt ?? mail.lastTriedAt ?? mail.createdAt;
-      return ts == null ? 'Zeit unbekannt' : fmt.format(ts.toLocal());
-    }
-
-    final canResend = mail.normalizedStatus != 'sent';
-    final detailsStyle = TextStyle(color: cs.onSurfaceVariant);
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: cs.outlineVariant.withOpacity(0.6)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              _mailStatusChip(mail, cs),
-              const SizedBox(width: 8),
-              Chip(
-                label: Text(mail.displayCategory),
-                backgroundColor: cs.secondaryContainer.withOpacity(0.3),
-                labelStyle: TextStyle(color: cs.onSecondaryContainer, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(width: 8),
-              Icon(Icons.schedule_outlined, size: 18, color: cs.outline),
-              const SizedBox(width: 4),
-              Text(tsLabel(), style: detailsStyle),
-              const Spacer(),
-              if (canResend)
-                FilledButton.icon(
-                  onPressed: _mailResendBusy ? null : () => _resendMail(mail),
-                  icon: _mailResendBusy
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.refresh_outlined),
-                  label: const Text('Erneut senden'),
-                ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(mail.subject.isEmpty ? '(Ohne Betreff)' : mail.subject,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 10,
-            runSpacing: 6,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.mail_outline, size: 16),
-                  const SizedBox(width: 4),
-                  Text(mail.to, style: detailsStyle),
-                ],
-              ),
-              if ((mail.cc ?? '').isNotEmpty)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.copy_outlined, size: 16),
-                    const SizedBox(width: 4),
-                    Text('CC: ${mail.cc}', style: detailsStyle),
-                  ],
-                ),
-              if ((mail.bcc ?? '').isNotEmpty)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.visibility_off_outlined, size: 16),
-                    const SizedBox(width: 4),
-                    Text('BCC: ${mail.bcc}', style: detailsStyle),
-                  ],
-                ),
-              if ((mail.template ?? '').isNotEmpty)
-                Chip(
-                  label: Text('Template: ${mail.template}'),
-                  backgroundColor: cs.primaryContainer.withOpacity(0.35),
-                  labelStyle: TextStyle(color: cs.onPrimaryContainer),
-                ),
-              Chip(
-                label: Text('Versuche: ${mail.attempts <= 0 ? '1' : mail.attempts}'),
-                backgroundColor: cs.surfaceVariant.withOpacity(0.65),
-              ),
-            ],
-          ),
-          if ((mail.error ?? '').isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.error_outline, color: cs.error, size: 18),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    'Letzte Fehlermeldung: ${mail.error}',
-                    style: TextStyle(color: cs.error),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMailCenterPanel() {
-    final cs = Theme.of(context).colorScheme;
-    final fmt = DateFormat('dd.MM.yyyy HH:mm');
-    final filtered = _filteredMailLogs();
-    final categories = {
-      'Alle Typen',
-      ..._mailLogs.map((e) => e.displayCategory),
-    }.toList()
-      ..sort();
-
-    if (_mailLogs.isEmpty && !_mailCenterLoading && !_mailCenterAutoRequested) {
-      _mailCenterAutoRequested = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) => _refreshMailCenter());
-    }
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.mark_email_unread_outlined, color: cs.primary),
-                const SizedBox(width: 8),
-                const Expanded(
-                  child: Text(
-                    'Admin-Mailcenter',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Neu laden',
-                  onPressed: _mailCenterLoading ? null : () => _refreshMailCenter(force: true),
-                  icon: _mailCenterLoading
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.refresh),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                SizedBox(
-                  width: 320,
-                  child: TextField(
-                    controller: _mailSearchCtrl,
-                    onChanged: (v) => setState(() => _mailSearch = v),
-                    decoration: const InputDecoration(
-                      labelText: 'Suche (Empfänger, Betreff, Status)',
-                      prefixIcon: Icon(Icons.search),
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                  ),
-                ),
-                SizedBox(
-                  width: 180,
-                  child: DropdownButtonFormField<String>(
-                    value: _mailStatusFilter,
-                    items: const [
-                      DropdownMenuItem(value: 'Alle Stati', child: Text('Alle Stati')),
-                      DropdownMenuItem(value: 'Gesendet', child: Text('Gesendet')),
-                      DropdownMenuItem(value: 'Geplant/Retry', child: Text('Geplant/Retry')),
-                      DropdownMenuItem(value: 'Fehlgeschlagen', child: Text('Fehlgeschlagen')),
-                    ],
-                    onChanged: (v) => setState(() => _mailStatusFilter = v ?? 'Alle Stati'),
-                    decoration: const InputDecoration(
-                      labelText: 'Status',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                  ),
-                ),
-                SizedBox(
-                  width: 200,
-                  child: DropdownButtonFormField<String>(
-                    value: categories.contains(_mailCategoryFilter) ? _mailCategoryFilter : 'Alle Typen',
-                    items: [
-                      for (final c in categories) DropdownMenuItem(value: c, child: Text(c)),
-                    ],
-                    onChanged: (v) => setState(() => _mailCategoryFilter = v ?? 'Alle Typen'),
-                    decoration: const InputDecoration(
-                      labelText: 'Kategorie',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                  ),
-                ),
-                if (_mailStats != null)
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      Chip(
-                        avatar: const Icon(Icons.all_inbox_outlined, size: 18),
-                        label: Text('Gesamt: ${_mailStats!.total}')
-                      ),
-                      Chip(
-                        avatar: const Icon(Icons.mark_email_read_outlined, size: 18),
-                        label: Text('Gesendet: ${_mailStats!.sent}')
-                      ),
-                      Chip(
-                        avatar: const Icon(Icons.error_outline, size: 18),
-                        label: Text('Fehler: ${_mailStats!.failed}')
-                      ),
-                      Chip(
-                        avatar: const Icon(Icons.schedule_outlined, size: 18),
-                        label: Text('Geplant: ${_mailStats!.queued}')
-                      ),
-                    ],
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            if (_mailCenterLoading) const LinearProgressIndicator(),
-            if (_mailCenterErr != null) ...[
-              const SizedBox(height: 8),
-              Text('Fehler: $_mailCenterErr', style: TextStyle(color: cs.error)),
-            ],
-            const SizedBox(height: 8),
-            Expanded(
-              child: filtered.isEmpty
-                  ? Center(
-                      child: Text(
-                        _mailCenterLoading
-                            ? 'Mailcenter lädt …'
-                            : 'Keine Mail-Einträge gefunden. Eventuell filtert die Suche zu streng?',
-                      ),
-                    )
-                  : ListView.separated(
-                      itemCount: filtered.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      itemBuilder: (_, i) => _buildMailLogTile(filtered[i], cs, fmt),
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildCreateCustomerPanel() {
     String? _req(String v, String label) {
       if (v.trim().isEmpty) return '$label wird benötigt';
@@ -3258,7 +2870,6 @@ class _AdminPageState extends State<AdminPage> {
       _AdminView.reps           => 'Vertreterverwaltung',
       _AdminView.news           => 'Neuigkeiten & Infoscreen',
       _AdminView.catalogs       => 'Katalog-Konfiguration',
-      _AdminView.mailCenter     => 'Admin-Mailcenter',
       _AdminView.systemHealth   => 'Systemstatus & Checks',
       _AdminView.createCustomer => 'Neuen Kunden anlegen',
       _AdminView.activity       => 'Aktivitätsübersicht',
@@ -3294,7 +2905,6 @@ class _AdminPageState extends State<AdminPage> {
               await _refreshAllComplaints();
               await _refreshOpen();
               await _refreshNews();
-              await _refreshMailCenter(force: true);
             },
             icon: const Icon(Icons.refresh),
           ),
@@ -3463,19 +3073,6 @@ class _AdminPageState extends State<AdminPage> {
             },
           ),
           AdminTilePro(
-            label: 'Admin-Mailcenter',
-            subtitle: 'Versandmonitoring & Fehler',
-            icon: Icons.mark_email_read_outlined,
-            colorA: AdminPalette.blueA,
-            colorB: AdminPalette.blueB,
-            compact: compact,
-            count: _mailStats?.failed,
-            onTap: () {
-              setState(() => _view = _AdminView.mailCenter);
-              if (_mailLogs.isEmpty) _refreshMailCenter();
-            },
-          ),
-          AdminTilePro(
             label: 'Aktivitätsübersicht',
             subtitle: 'Login, Tickets, Push',
             icon: Icons.query_stats_outlined,
@@ -3575,8 +3172,6 @@ class _AdminPageState extends State<AdminPage> {
         return _buildNewsPanel();
       case _AdminView.catalogs:
         return _buildCatalogsPanel();
-      case _AdminView.mailCenter:
-        return _buildMailCenterPanel();
       case _AdminView.systemHealth:
         return _buildSystemHealthPanel();
       case _AdminView.activity:
@@ -9809,54 +9404,6 @@ class AdminApi {
     final txt = res.responseText?.trim() ?? '';
     final Map<String, dynamic> j = txt.isEmpty ? <String, dynamic>{} : jsonDecode(txt);
     return AdminPushBroadcastResult.fromJson(j);
-  }
-
-  Future<AdminMailCenterPayload> fetchMailCenter() async {
-    final res = await _request('GET', '/api/admin/mailcenter');
-    if (res.status != 200) {
-      throw 'admin mailcenter GET: HTTP ${res.status} ${res.responseText}';
-    }
-    final txt = res.responseText?.trim() ?? '';
-    if (txt.isEmpty) {
-      return AdminMailCenterPayload(items: const [], stats: null);
-    }
-    final data = jsonDecode(txt);
-
-    List listFrom(dynamic raw) {
-      if (raw is List) return raw;
-      if (raw is Map && raw['items'] is List) return raw['items'] as List;
-      return const [];
-    }
-
-    final stats = (data is Map && data['stats'] is Map)
-        ? AdminMailLogStats.fromJson(Map<String, dynamic>.from(data['stats'] as Map))
-        : null;
-
-    final items = listFrom(data)
-        .whereType<Map>()
-        .map((e) => AdminMailLogEntry.fromJson(e.cast<String, dynamic>()))
-        .toList();
-
-    return AdminMailCenterPayload(items: items, stats: stats);
-  }
-
-  Future<AdminMailLogEntry?> resendMail(String id) async {
-    final res = await _request('POST', '/api/admin/mailcenter', body: {
-      'action': 'resend',
-      'id': id,
-    });
-    if (res.status != 200 && res.status != 202) {
-      throw 'admin mailcenter resend: HTTP ${res.status} ${res.responseText}';
-    }
-
-    final txt = res.responseText?.trim() ?? '';
-    if (txt.isEmpty) return null;
-    try {
-      final Map<String, dynamic> j = jsonDecode(txt);
-      return AdminMailLogEntry.fromJson(j);
-    } catch (_) {
-      return null;
-    }
   }
 
   Future<SystemHealthResult> fetchSystemHealth() async {
