@@ -480,9 +480,10 @@ class _MyAppState extends State<MyApp> {
                                                 ],
                                               ),
                                               child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                crossAxisAlignment: CrossAxisAlignment.center,
                                                 children: [
                                                   Row(
+                                                    mainAxisAlignment: MainAxisAlignment.center,
                                                     crossAxisAlignment: CrossAxisAlignment.start,
                                                     children: [
                                                       Container(
@@ -497,26 +498,26 @@ class _MyAppState extends State<MyApp> {
                                                         ),
                                                       ),
                                                       const SizedBox(width: 14),
-                                                      Expanded(
-                                                        child: Column(
-                                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                                          children: [
-                                                            Text(
-                                                              t.quick_access_title,
-                                                              style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
-                                                                    fontWeight: FontWeight.w800,
-                                                                    color: scheme.primary,
-                                                                  ),
-                                                            ),
-                                                            const SizedBox(height: 4),
-                                                            Text(
-                                                              t.quick_access_subtitle,
-                                                              style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
-                                                                    color: scheme.onSurfaceVariant,
-                                                                  ),
-                                                            ),
-                                                          ],
-                                                        ),
+                                                      Column(
+                                                        crossAxisAlignment: CrossAxisAlignment.center,
+                                                        children: [
+                                                          Text(
+                                                            t.quick_access_title,
+                                                            style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                                                                  fontWeight: FontWeight.w800,
+                                                                  color: scheme.primary,
+                                                                ),
+                                                            textAlign: TextAlign.center,
+                                                          ),
+                                                          const SizedBox(height: 4),
+                                                          Text(
+                                                            t.quick_access_subtitle,
+                                                            style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+                                                                  color: scheme.onSurfaceVariant,
+                                                                ),
+                                                            textAlign: TextAlign.center,
+                                                          ),
+                                                        ],
                                                       ),
                                                     ],
                                                   ),
@@ -524,6 +525,7 @@ class _MyAppState extends State<MyApp> {
                                                   Wrap(
                                                     spacing: 10,
                                                     runSpacing: 10,
+                                                    alignment: WrapAlignment.center,
                                                     children: [
                                                       FilledButton.icon(
                                                         icon: const Icon(Icons.handshake),
