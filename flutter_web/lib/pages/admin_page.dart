@@ -8,6 +8,9 @@ import '../api/client.dart';
 import '../models/country.dart';
 import '../models/complaint.dart' show ComplaintUpload;
 import '../models/customer_news_entry.dart';
+import '../models/faq.dart';
+import '../data/knowledge_base_data.dart';
+import '../l10n/app_localizations.dart';
 import '../widgets/dialog_content_scroll.dart';
 import '../widgets/legal_footer.dart';
 import '../utils/lang_utils.dart';
@@ -33,6 +36,7 @@ enum _AdminView {
   open,
   reps,
   news,
+  faq,
   catalogs,
   systemHealth,
   activity,
@@ -151,6 +155,18 @@ class _AdminPageState extends State<AdminPage> {
   List<CustomerNewsEntry> _newsEntries = [];
   bool _newsLoading = false;
   String? _newsErr;
+
+  // FAQ / Wissensdatenbank
+  List<FaqCategory> _faqCategories = [];
+  List<FaqEntry> _faqEntries = [];
+  bool _faqLoading = false;
+  bool _faqSeeding = false;
+  String? _faqErr;
+  String? _faqSeedErr;
+  bool _faqShowInactive = true;
+  String _faqAudienceFilter = 'both';
+  String? _faqCategoryFilter;
+  String _faqSearch = '';
 
   // Email -> detaillierte Reklamationen (für Users/Pending)
   final Map<String, _ComplaintsResult> _complaints = {};
@@ -313,6 +329,7 @@ class _AdminPageState extends State<AdminPage> {
     _refreshOpen();
     _refreshReps();
     _loadCatalogConfigAdmin();
+    _refreshFaq();
   }
 
   @override
@@ -702,6 +719,97 @@ class _AdminPageState extends State<AdminPage> {
     } finally {
       if (!mounted) return;
       setState(() => _newsLoading = false);
+    }
+  }
+
+  String _faqAudienceLabel(String code) {
+    switch (code) {
+      case 'customer':
+        return 'Nur Kunden';
+      case 'rep':
+        return 'Nur Reps';
+      default:
+        return 'Kunden & Reps';
+    }
+  }
+
+  String _faqCategoryName(String id) {
+    final found = _faqCategories.firstWhere(
+      (c) => c.id == id,
+      orElse: () => const FaqCategory(id: '', title: ''),
+    );
+    return found.title.isEmpty ? 'Unbekannte Kategorie' : found.title;
+  }
+
+  String _legacyCategoryId(KnowledgeCategory cat) =>
+      'legacy_${knowledgeCategoryCode(cat)}';
+
+  Future<void> _seedFaqFromLegacyKnowledgeBase() async {
+    if (_faqSeeding) return;
+    final t = AppLocalizations.of(context);
+    if (t == null) return;
+
+    setState(() {
+      _faqSeeding = true;
+      _faqSeedErr = null;
+    });
+
+    try {
+      final Map<KnowledgeCategory, FaqCategory> createdCats = {};
+      for (final cat in KnowledgeCategory.values) {
+        final saved = await _api.saveFaqCategory(
+          id: _legacyCategoryId(cat),
+          title: knowledgeCategoryLabel(cat, t),
+          order: KnowledgeCategory.values.indexOf(cat),
+          active: true,
+        );
+        createdCats[cat] = saved;
+      }
+
+      for (final item in knowledgeItems) {
+        final cat = createdCats[item.category];
+        if (cat == null) continue;
+        await _api.saveFaqEntry(
+          id: 'legacy_item_${item.id}',
+          categoryId: cat.id,
+          question: item.question(t),
+          answer: item.answer(t),
+          audience: 'both',
+          order: item.id,
+          active: true,
+        );
+      }
+
+      await _refreshFaq();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _faqSeedErr = '$e');
+    } finally {
+      if (!mounted) return;
+      setState(() => _faqSeeding = false);
+    }
+  }
+
+  Future<void> _refreshFaq() async {
+    if (_faqLoading) return;
+    setState(() {
+      _faqLoading = true;
+      _faqErr = null;
+    });
+    try {
+      final data = await _api.fetchFaq();
+      if (!mounted) return;
+      setState(() {
+        _faqCategories = data.categories;
+        _faqEntries = data.entries;
+        _faqErr = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _faqErr = '$e');
+    } finally {
+      if (!mounted) return;
+      setState(() => _faqLoading = false);
     }
   }
 
@@ -2961,6 +3069,7 @@ class _AdminPageState extends State<AdminPage> {
       _AdminView.open           => 'Offene Reklamationen',
       _AdminView.reps           => 'Vertreterverwaltung',
       _AdminView.news           => 'Neuigkeiten & Infoscreen',
+      _AdminView.faq            => 'Wissensdatenbank (FAQ)',
       _AdminView.catalogs       => 'Katalog-Konfiguration',
       _AdminView.systemHealth   => 'Systemstatus & Checks',
       _AdminView.createCustomer => 'Neuen Kunden anlegen',
@@ -2997,6 +3106,7 @@ class _AdminPageState extends State<AdminPage> {
               await _refreshAllComplaints();
               await _refreshOpen();
               await _refreshNews();
+              await _refreshFaq();
             },
             icon: const Icon(Icons.refresh),
           ),
@@ -3187,6 +3297,19 @@ class _AdminPageState extends State<AdminPage> {
             },
           ),
           AdminTilePro(
+            label: 'Wissensdatenbank (FAQ)',
+            subtitle: 'Artikel & Kategorien verwalten',
+            icon: Icons.library_books_outlined,
+            colorA: AdminPalette.blueA,
+            colorB: AdminPalette.blueB,
+            compact: compact,
+            count: _faqEntries.length,
+            onTap: () {
+              setState(() => _view = _AdminView.faq);
+              if (_faqEntries.isEmpty) _refreshFaq();
+            },
+          ),
+          AdminTilePro(
             label: 'Push-Mitteilungen',
             subtitle: 'Broadcast an alle Kunden',
             icon: Icons.notifications_active_outlined,
@@ -3262,6 +3385,8 @@ class _AdminPageState extends State<AdminPage> {
         return _buildRepsPanel();
       case _AdminView.news:
         return _buildNewsPanel();
+      case _AdminView.faq:
+        return _buildFaqPanel();
       case _AdminView.catalogs:
         return _buildCatalogsPanel();
       case _AdminView.systemHealth:
@@ -3382,6 +3507,606 @@ class _AdminPageState extends State<AdminPage> {
         ),
       ),
     );
+  }
+
+  Widget _buildFaqPanel() {
+    final theme = Theme.of(context);
+    final filteredCategories = (_faqShowInactive
+            ? _faqCategories
+            : _faqCategories.where((c) => c.active))
+        .toList()
+      ..sort((a, b) => a.order.compareTo(b.order));
+
+    final query = _faqSearch.trim().toLowerCase();
+    final filteredEntries = _faqEntries.where((e) {
+      if (!_faqShowInactive && !e.active) return false;
+      if (_faqCategoryFilter != null && _faqCategoryFilter!.isNotEmpty) {
+        if (e.categoryId != _faqCategoryFilter) return false;
+      }
+      if (_faqAudienceFilter != 'both') {
+        final a = e.audience.isEmpty ? 'both' : e.audience;
+        if (a != 'both' && a != _faqAudienceFilter) return false;
+      }
+      if (query.isNotEmpty) {
+        final q = e.question.toLowerCase();
+        final a = e.answer.toLowerCase();
+        if (!q.contains(query) && !a.contains(query)) return false;
+      }
+      if (!_faqShowInactive) {
+        final exists = filteredCategories.any((c) => c.id == e.categoryId);
+        if (!exists) return false;
+      }
+      return true;
+    }).toList()
+      ..sort((a, b) {
+        final cmp = a.order.compareTo(b.order);
+        if (cmp != 0) return cmp;
+        return a.question.compareTo(b.question);
+      });
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.library_books_outlined),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Wissensdatenbank (FAQ)',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Neu laden',
+                  onPressed: _faqLoading ? null : _refreshFaq,
+                  icon: const Icon(Icons.refresh),
+                ),
+                const SizedBox(width: 6),
+                FilledButton.tonalIcon(
+                  onPressed: () => _openFaqCategoryEditor(),
+                  icon: const Icon(Icons.add_circle_outline),
+                  label: const Text('Kategorie'),
+                ),
+                const SizedBox(width: 8),
+                FilledButton.icon(
+                  onPressed: _faqCategories.isEmpty
+                      ? null
+                      : () => _openFaqEntryEditor(),
+                  icon: const Icon(Icons.post_add_outlined),
+                  label: const Text('Artikel'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (_faqLoading) const LinearProgressIndicator(),
+            if (_faqErr != null) ...[
+              const SizedBox(height: 8),
+              Text('Fehler: $_faqErr', style: const TextStyle(color: Colors.red)),
+            ],
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Switch(
+                      value: _faqShowInactive,
+                      onChanged: (v) => setState(() => _faqShowInactive = v),
+                    ),
+                    const Text('Inaktive anzeigen'),
+                  ],
+                ),
+                DropdownButton<String>(
+                  value: _faqAudienceFilter,
+                  items: const [
+                    DropdownMenuItem(value: 'both', child: Text('Alle Zielgruppen')),
+                    DropdownMenuItem(value: 'customer', child: Text('Nur Kunden')),
+                    DropdownMenuItem(value: 'rep', child: Text('Nur Reps')),
+                  ],
+                  onChanged: (v) => setState(() => _faqAudienceFilter = v ?? 'both'),
+                ),
+                DropdownButton<String?>(
+                  value: _faqCategoryFilter,
+                  hint: const Text('Alle Kategorien'),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Alle Kategorien'),
+                    ),
+                    ...filteredCategories.map(
+                      (c) => DropdownMenuItem<String?>(
+                        value: c.id,
+                        child: Text(c.title),
+                      ),
+                    ),
+                  ],
+                  onChanged: (v) => setState(() => _faqCategoryFilter = v),
+                ),
+                SizedBox(
+                  width: 260,
+                  child: TextField(
+                    decoration: const InputDecoration(
+                      labelText: 'Suche in Frage / Antwort',
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                    onChanged: (v) => setState(() => _faqSearch = v),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Kategorien (${filteredCategories.length})',
+              style: theme.textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: filteredCategories.isEmpty
+                  ? [const Text('Keine Kategorien hinterlegt.')]
+                  : filteredCategories
+                      .map(
+                        (cat) => InputChip(
+                          label: Text('${cat.title}${cat.active ? '' : ' (inaktiv)'}'),
+                          avatar: const Icon(Icons.folder_open),
+                          onPressed: () => _openFaqCategoryEditor(cat),
+                          onDeleted: () => _confirmDeleteCategory(cat),
+                        ),
+                      )
+                      .toList(),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Artikel (${filteredEntries.length})',
+              style: theme.textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: filteredEntries.isEmpty
+                  ? _buildFaqEmptyState(theme)
+                  : ListView.builder(
+                      itemCount: filteredEntries.length,
+                      itemBuilder: (_, idx) {
+                        final entry = filteredEntries[idx];
+                        return _buildFaqEntryCard(entry, theme);
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFaqEmptyState(ThemeData theme) {
+    final t = AppLocalizations.of(context);
+    final cs = theme.colorScheme;
+    return Center(
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 520),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: cs.surfaceVariant.withOpacity(theme.brightness == Brightness.dark ? 0.25 : 0.45),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: cs.outlineVariant.withOpacity(0.6)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Keine FAQ-Einträge vorhanden',
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Wir haben noch keine Datensätze im neuen Admin-FAQ-Store gefunden.',
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Tipp: Du kannst die bestehende Wissensdatenbank aus der App automatisch übernehmen.',
+              style: theme.textTheme.bodyMedium?.copyWith(color: cs.primary),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                FilledButton.icon(
+                  onPressed: _faqSeeding ? null : _seedFaqFromLegacyKnowledgeBase,
+                  icon: _faqSeeding
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.import_contacts_outlined),
+                  label: Text(
+                    'Wissensdatenbank importieren (${KnowledgeCategory.values.length} Kategorien / ${knowledgeItems.length} Einträge)'
+                        .trim(),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                TextButton(
+                  onPressed: _faqSeeding ? null : _refreshFaq,
+                  child: const Text('Neu laden'),
+                ),
+              ],
+            ),
+            if (_faqSeedErr != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                _faqSeedErr!,
+                style: theme.textTheme.bodySmall?.copyWith(color: cs.error),
+              ),
+            ],
+            if (t != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Aktuelle Inhalte (Auszug):',
+                style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 6),
+              ...knowledgeItems.take(3).map(
+                (item) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text('• ${item.question(t)}'),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFaqEntryCard(FaqEntry entry, ThemeData theme) {
+    final catName = _faqCategoryName(entry.categoryId);
+    final chips = <Widget>[
+      Chip(label: Text(catName)),
+      Chip(label: Text(_faqAudienceLabel(entry.audience))),
+      if (!entry.active) const Chip(label: Text('Inaktiv')),
+    ];
+
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        entry.question,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Wrap(spacing: 6, runSpacing: 6, children: chips),
+                      const SizedBox(height: 8),
+                      Text(entry.answer),
+                    ],
+                  ),
+                ),
+                Column(
+                  children: [
+                    IconButton(
+                      tooltip: 'Bearbeiten',
+                      onPressed: () => _openFaqEntryEditor(entry),
+                      icon: const Icon(Icons.edit_outlined),
+                    ),
+                    IconButton(
+                      tooltip: 'Löschen',
+                      onPressed: () => _confirmDeleteEntry(entry),
+                      icon: const Icon(Icons.delete_outline),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmDeleteCategory(FaqCategory category) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Kategorie löschen?'),
+        content: Text('"${category.title}" und alle zugehörigen Einträge entfernen?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await _api.deleteFaqCategory(category.id);
+      await _refreshFaq();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fehler beim Löschen: $e')),
+      );
+    }
+  }
+
+  Future<void> _confirmDeleteEntry(FaqEntry entry) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Eintrag löschen?'),
+        content: Text('"${entry.question}" entfernen?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await _api.deleteFaqEntry(entry.id);
+      await _refreshFaq();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fehler beim Löschen: $e')),
+      );
+    }
+  }
+
+  Future<void> _openFaqCategoryEditor([FaqCategory? category]) async {
+    final titleCtrl = TextEditingController(text: category?.title ?? '');
+    final descCtrl = TextEditingController(text: category?.description ?? '');
+    final orderCtrl = TextEditingController(text: category?.order.toString() ?? '0');
+    bool active = category?.active ?? true;
+
+    await showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(category == null ? 'Kategorie anlegen' : 'Kategorie bearbeiten'),
+        content: StatefulBuilder(
+          builder: (ctx, setModalState) => SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: titleCtrl,
+                  decoration: const InputDecoration(labelText: 'Titel'),
+                ),
+                TextField(
+                  controller: descCtrl,
+                  minLines: 1,
+                  maxLines: 3,
+                  decoration: const InputDecoration(labelText: 'Beschreibung (optional)'),
+                ),
+                TextField(
+                  controller: orderCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Reihenfolge (Zahl, optional)'),
+                ),
+                Row(
+                  children: [
+                    Switch(value: active, onChanged: (v) => setModalState(() => active = v)),
+                    const Text('Aktiv'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final title = titleCtrl.text.trim();
+              final desc = descCtrl.text.trim();
+              final order = int.tryParse(orderCtrl.text.trim());
+              if (title.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Titel darf nicht leer sein.')),
+                );
+                return;
+              }
+              try {
+                final saved = await _api.saveFaqCategory(
+                  id: category?.id,
+                  title: title,
+                  description: desc.isEmpty ? null : desc,
+                  order: order,
+                  active: active,
+                );
+                if (!mounted) return;
+                setState(() {
+                  final next = [..._faqCategories];
+                  final idx = next.indexWhere((c) => c.id == saved.id);
+                  if (idx >= 0) {
+                    next[idx] = saved;
+                  } else {
+                    next.add(saved);
+                  }
+                  _faqCategories = next;
+                });
+                Navigator.of(context).pop();
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Fehler: $e')),
+                );
+              }
+            },
+            child: const Text('Speichern'),
+          ),
+        ],
+      ),
+    );
+
+    titleCtrl.dispose();
+    descCtrl.dispose();
+    orderCtrl.dispose();
+  }
+
+  Future<void> _openFaqEntryEditor([FaqEntry? entry]) async {
+    if (_faqCategories.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bitte zuerst eine Kategorie anlegen.')),
+      );
+      return;
+    }
+
+    final questionCtrl = TextEditingController(text: entry?.question ?? '');
+    final answerCtrl = TextEditingController(text: entry?.answer ?? '');
+    final orderCtrl = TextEditingController(text: entry?.order.toString() ?? '0');
+    String audience = entry?.audience.isNotEmpty == true ? entry!.audience : 'both';
+    String categoryId = entry?.categoryId ?? _faqCategories.first.id;
+    bool active = entry?.active ?? true;
+
+    await showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(entry == null ? 'FAQ-Eintrag anlegen' : 'FAQ-Eintrag bearbeiten'),
+        content: StatefulBuilder(
+          builder: (ctx, setModalState) => SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  value: categoryId,
+                  items: _faqCategories
+                      .map(
+                        (c) => DropdownMenuItem<String>(
+                          value: c.id,
+                          child: Text(c.title),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) => setModalState(() => categoryId = v ?? categoryId),
+                  decoration: const InputDecoration(labelText: 'Kategorie'),
+                ),
+                DropdownButtonFormField<String>(
+                  value: audience,
+                  items: const [
+                    DropdownMenuItem(value: 'both', child: Text('Kunden & Reps')),
+                    DropdownMenuItem(value: 'customer', child: Text('Nur Kunden')),
+                    DropdownMenuItem(value: 'rep', child: Text('Nur Reps')),
+                  ],
+                  onChanged: (v) => setModalState(() => audience = v ?? 'both'),
+                  decoration: const InputDecoration(labelText: 'Zielgruppe'),
+                ),
+                TextField(
+                  controller: questionCtrl,
+                  maxLines: 2,
+                  decoration: const InputDecoration(labelText: 'Frage'),
+                ),
+                TextField(
+                  controller: answerCtrl,
+                  minLines: 3,
+                  maxLines: 6,
+                  decoration: const InputDecoration(labelText: 'Antwort'),
+                ),
+                TextField(
+                  controller: orderCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Reihenfolge (Zahl, optional)'),
+                ),
+                Row(
+                  children: [
+                    Switch(value: active, onChanged: (v) => setModalState(() => active = v)),
+                    const Text('Aktiv'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final question = questionCtrl.text.trim();
+              final answer = answerCtrl.text.trim();
+              final order = int.tryParse(orderCtrl.text.trim());
+              if (question.isEmpty || answer.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Frage und Antwort dürfen nicht leer sein.')),
+                );
+                return;
+              }
+              try {
+                final saved = await _api.saveFaqEntry(
+                  id: entry?.id,
+                  categoryId: categoryId,
+                  question: question,
+                  answer: answer,
+                  audience: audience,
+                  order: order,
+                  active: active,
+                );
+                if (!mounted) return;
+                setState(() {
+                  final next = [..._faqEntries];
+                  final idx = next.indexWhere((e) => e.id == saved.id);
+                  if (idx >= 0) {
+                    next[idx] = saved;
+                  } else {
+                    next.add(saved);
+                  }
+                  _faqEntries = next;
+                });
+                Navigator.of(context).pop();
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Fehler: $e')),
+                );
+              }
+            },
+            child: const Text('Speichern'),
+          ),
+        ],
+      ),
+    );
+
+    questionCtrl.dispose();
+    answerCtrl.dispose();
+    orderCtrl.dispose();
   }
 
   Widget _buildPendingPanel() {
@@ -9475,6 +10200,93 @@ class AdminApi {
       throw 'admin news DELETE: HTTP ${res.status} ${res.responseText}';
     }
     onNewsChanged?.call();
+  }
+
+  Future<FaqData> fetchFaq() async {
+    final res = await _request('GET', '/api/admin/faq');
+    if (res.status != 200) {
+      throw 'admin faq GET: HTTP ${res.status} ${res.responseText}';
+    }
+    final txt = res.responseText?.trim() ?? '';
+    final Map<String, dynamic> data =
+        txt.isEmpty ? <String, dynamic>{} : jsonDecode(txt);
+    return FaqData.fromJson(data);
+  }
+
+  Future<FaqCategory> saveFaqCategory({
+    String? id,
+    required String title,
+    String? description,
+    int? order,
+    bool? active,
+  }) async {
+    final body = <String, dynamic>{
+      'type': 'category',
+      if (id != null && id.isNotEmpty) 'id': id,
+      'title': title,
+      if (description != null) 'description': description,
+      if (order != null) 'order': order,
+      if (active != null) 'active': active,
+    };
+    final res = await _request('POST', '/api/admin/faq', body: body);
+    if (res.status != 200) {
+      throw 'admin faq category POST: HTTP ${res.status} ${res.responseText}';
+    }
+    final Map<String, dynamic> j =
+        (res.responseText?.trim().isEmpty ?? true)
+            ? <String, dynamic>{}
+            : jsonDecode(res.responseText!);
+    return FaqCategory.fromJson(j);
+  }
+
+  Future<FaqEntry> saveFaqEntry({
+    String? id,
+    required String categoryId,
+    required String question,
+    required String answer,
+    String audience = 'both',
+    int? order,
+    bool? active,
+  }) async {
+    final body = <String, dynamic>{
+      'type': 'entry',
+      'categoryId': categoryId,
+      'question': question,
+      'answer': answer,
+      'audience': audience,
+      if (id != null && id.isNotEmpty) 'id': id,
+      if (order != null) 'order': order,
+      if (active != null) 'active': active,
+    };
+    final res = await _request('POST', '/api/admin/faq', body: body);
+    if (res.status != 200) {
+      throw 'admin faq entry POST: HTTP ${res.status} ${res.responseText}';
+    }
+    final Map<String, dynamic> j =
+        (res.responseText?.trim().isEmpty ?? true)
+            ? <String, dynamic>{}
+            : jsonDecode(res.responseText!);
+    return FaqEntry.fromJson(j);
+  }
+
+  Future<void> deleteFaqCategory(String id) async {
+    final res = await _request('DELETE', '/api/admin/faq', body: {
+      'type': 'category',
+      'id': id,
+    });
+    if (res.status != 200 && res.status != 204) {
+      throw 'admin faq DELETE category: HTTP ${res.status} ${res.responseText}';
+    }
+  }
+
+  Future<void> deleteFaqEntry(String id) async {
+    final res = await _request('DELETE', '/api/admin/faq', body: {
+      'type': 'entry',
+      'id': id,
+    });
+    if (res.status != 200 && res.status != 204) {
+      throw 'admin faq DELETE entry: HTTP ${res.status} ${res.responseText}';
+    }
   }
 
   Future<AdminPushBroadcastResult> sendPushBroadcast({
