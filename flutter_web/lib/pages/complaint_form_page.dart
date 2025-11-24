@@ -244,7 +244,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
 
   void _openHelpLink() {
     Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => const KnowledgeBasePage(),
+      builder: (_) => KnowledgeBasePage(api: widget.api),
     ));
   }
 
