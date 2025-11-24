@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import '../data/knowledge_base_data.dart';
 import '../l10n/app_localizations.dart';
 
@@ -387,10 +388,22 @@ class _KnowledgeEntryCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: Text(
-                              line,
-                              style:
-                                  theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+                            child: MarkdownBody(
+                              data: line,
+                              styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
+                                p: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+                                strong: theme.textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  height: 1.45,
+                                ),
+                                em: theme.textTheme.bodyMedium?.copyWith(
+                                  fontStyle: FontStyle.italic,
+                                  height: 1.45,
+                                ),
+                                pPadding: EdgeInsets.zero,
+                                textScaleFactor:
+                                    MediaQuery.of(context).textScaler.scale(1.0),
+                              ),
                             ),
                           ),
                         ],

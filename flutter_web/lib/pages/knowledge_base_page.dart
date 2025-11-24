@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import '../data/knowledge_base_data.dart';
 import '../l10n/app_localizations.dart';
 
@@ -132,10 +133,21 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: Text(
-                              a,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                height: 1.4,
+                            child: MarkdownBody(
+                              data: a,
+                              styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
+                                p: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
+                                strong: theme.textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  height: 1.4,
+                                ),
+                                em: theme.textTheme.bodyMedium?.copyWith(
+                                  fontStyle: FontStyle.italic,
+                                  height: 1.4,
+                                ),
+                                pPadding: EdgeInsets.zero,
+                                textScaleFactor:
+                                    MediaQuery.of(context).textScaler.scale(1.0),
                               ),
                             ),
                           ),
