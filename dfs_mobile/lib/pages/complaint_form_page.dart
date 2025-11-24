@@ -501,7 +501,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     );
   }
 
-  Widget _buildAutoHelpCard() {
+  Widget _buildAutoHelpCard({required bool compact}) {
     final suggestion = _autoHelpItem;
     if (suggestion == null) return const SizedBox.shrink();
 
@@ -511,62 +511,74 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     final preview = answers.isNotEmpty ? answers.first : null;
 
     return Card(
-      color: theme.colorScheme.secondaryContainer.withOpacity(0.7),
+      color: theme.colorScheme.secondaryContainer.withOpacity(0.72),
       elevation: 0,
-      margin: const EdgeInsets.only(top: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      margin: EdgeInsets.only(top: compact ? 4 : 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(compact ? 12 : 14)),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+        padding: EdgeInsets.fromLTRB(12, compact ? 10 : 12, 12, compact ? 12 : 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Icon(Icons.psychology_alt_outlined, color: theme.colorScheme.primary),
-                const SizedBox(width: 10),
+                SizedBox(width: compact ? 8 : 10),
                 Expanded(
                   child: Text(
                     t.complaint_auto_help_title,
-                    style: TextStyle(fontWeight: FontWeight.w700, color: theme.colorScheme.onSecondaryContainer),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: theme.colorScheme.onSecondaryContainer,
+                      fontSize: compact ? 13.5 : 14,
+                    ),
                   ),
                 ),
                 Chip(
-                  visualDensity: VisualDensity.compact,
+                  visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
                   label: Text(
                     knowledgeCategoryLabel(suggestion.category, t),
-                    style: const TextStyle(fontSize: 12),
+                    style: const TextStyle(fontSize: 11),
                   ),
                   avatar: Icon(Icons.folder_open, size: 18, color: theme.colorScheme.primary),
                   materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
               ],
             ),
-            const SizedBox(height: 6),
+            SizedBox(height: compact ? 4 : 6),
             Text(
               t.complaint_auto_help_intro,
-              style: TextStyle(color: theme.colorScheme.onSecondaryContainer.withOpacity(0.9)),
+              style: TextStyle(
+                color: theme.colorScheme.onSecondaryContainer.withOpacity(0.9),
+                fontSize: compact ? 12.5 : 13,
+              ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: compact ? 6 : 8),
             Text(
               suggestion.question(t),
-              style: const TextStyle(fontWeight: FontWeight.w600),
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: compact ? 13.5 : 14),
             ),
             if (preview != null) ...[
-              const SizedBox(height: 6),
+              SizedBox(height: compact ? 4 : 6),
               Text(
                 preview,
-                maxLines: 2,
+                maxLines: compact ? 3 : 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(height: 1.35),
               ),
             ],
-            const SizedBox(height: 10),
+            SizedBox(height: compact ? 8 : 10),
             Align(
               alignment: Alignment.centerLeft,
               child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(visualDensity: VisualDensity.comfortable),
+                style: OutlinedButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 14, vertical: compact ? 8 : 10),
+                  minimumSize: Size(compact ? 0 : 40, 0),
+                  textStyle: TextStyle(fontSize: compact ? 12.5 : 13.5),
+                ),
                 onPressed: () => _openSuggestedAnswer(suggestion),
-                icon: const Icon(Icons.visibility_outlined),
+                icon: const Icon(Icons.visibility_outlined, size: 18),
                 label: Text(t.complaint_auto_help_button),
               ),
             ),
@@ -622,7 +634,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   // -----------------------------
   // UI-Helfer (nur Darstellung)
   // -----------------------------
-  InputDecoration _dec(BuildContext ctx, String label, {String? hint}) {
+  InputDecoration _dec(BuildContext ctx, String label, {String? hint, required bool compact}) {
     return InputDecoration(
       labelText: label,
       hintText: hint,
@@ -633,17 +645,25 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide(color: Theme.of(ctx).colorScheme.outlineVariant),
       ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: compact ? 10 : 12,
+      ),
     );
   }
 
-  Widget _section({required IconData icon, required String title, required List<Widget> children}) {
+  Widget _section({
+    required IconData icon,
+    required String title,
+    required List<Widget> children,
+    required bool compact,
+  }) {
     return Card(
       elevation: 0,
       margin: const EdgeInsets.symmetric(vertical: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(compact ? 12 : 16)),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+        padding: EdgeInsets.fromLTRB(14, compact ? 12 : 14, 14, compact ? 14 : 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -651,16 +671,16 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(icon, size: 20),
-                const SizedBox(width: 8),
+                SizedBox(width: compact ? 6 : 8),
                 Expanded(
                   child: Text(
                     title,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    style: TextStyle(fontSize: compact ? 15 : 16, fontWeight: FontWeight.w700),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: compact ? 10 : 12),
             ...children,
           ],
         ),
@@ -688,6 +708,8 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   @override
   Widget build(BuildContext context) {
     final t = context.t;
+    final width = MediaQuery.of(context).size.width;
+    final compact = width < 420;
     final optDentist = t.segment_dentist, optLab = t.segment_lab;
     final optYes = t.yes, optNo = t.no;
     final optReturnedYes = t.yes, optReturnedNo = t.no;
@@ -703,28 +725,28 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     final needInjuryDesc = isDentist && applied == optYes && injury == optYes;
 
     final body = SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+      padding: EdgeInsets.fromLTRB(compact ? 12 : 16, 12, compact ? 12 : 16, 24),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 800),
+          constraints: BoxConstraints(maxWidth: compact ? 640 : 800),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Kopfinfo (rein visuell)
               Card(
                 elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(compact ? 12 : 16)),
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                  padding: EdgeInsets.fromLTRB(14, compact ? 12 : 14, 14, compact ? 12 : 14),
                   child: Row(
                     children: [
                       const Icon(Icons.report_gmailerrorred_outlined),
-                      const SizedBox(width: 10),
+                      SizedBox(width: compact ? 8 : 10),
                       Expanded(
                         child: Text(
                           t.reportComplaint,
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                          style: TextStyle(fontSize: compact ? 17 : 18, fontWeight: FontWeight.w700),
                         ),
                       ),
                     ],
@@ -732,12 +754,13 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                 ),
               ),
 
-              _buildHelpBox(),
+              _buildHelpBox(compact: compact),
 
               // Sektion: Allgemein
               _section(
                 icon: Icons.person_outline,
                 title: t.segment,
+                compact: compact,
                 children: [
                   DropdownButtonFormField<String>(
                     value: segment,
@@ -746,7 +769,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                       DropdownMenuItem(value: optLab, child: Text(optLab)),
                     ],
                     onChanged: (v) => setState(() { segment = v ?? optDentist; _dirty = true; } ),
-                    decoration: _dec(context, t.segment),
+                    decoration: _dec(context, t.segment, compact: compact),
                   ),
                 ],
               ),
@@ -755,27 +778,28 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
               _section(
                 icon: Icons.build_outlined,
                 title: t.article,
+                compact: compact,
                 children: [
-                  TextField(controller: article, decoration: _dec(context, t.article)),
+                  TextField(controller: article, decoration: _dec(context, t.article, compact: compact)),
                   const SizedBox(height: 10),
                   TextField(
                     controller: batch,
-                    decoration: _dec(context, isDentist ? '${t.batch} *' : t.batch, hint: isDentist ? t.batch : null),
+                    decoration: _dec(context, isDentist ? '${t.batch} *' : t.batch, hint: isDentist ? t.batch : null, compact: compact),
                   ),
                   const SizedBox(height: 10),
                   Row(children: [
-                    Expanded(child: TextField(controller: qty, decoration: _dec(context, t.qty))),
-                    const SizedBox(width: 10),
-                    Expanded(child: TextField(controller: expiry, decoration: _dec(context, t.expiry))),
+                    Expanded(child: TextField(controller: qty, decoration: _dec(context, t.qty, compact: compact))),
+                    SizedBox(width: compact ? 8 : 10),
+                    Expanded(child: TextField(controller: expiry, decoration: _dec(context, t.expiry, compact: compact))),
                   ]),
                   const SizedBox(height: 10),
                   TextField(
                     controller: desc,
                     maxLines: 4,
-                    decoration: _dec(context, t.problem_desc),
+                    decoration: _dec(context, t.problem_desc, compact: compact),
                   ),
                   const SizedBox(height: 4),
-                  _buildAutoHelpCard(),
+                  _buildAutoHelpCard(compact: compact),
                 ],
               ),
 
@@ -784,6 +808,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                 _section(
                   icon: Icons.healing_outlined,
                   title: t.applied_to_patient,
+                  compact: compact,
                   children: [
                     DropdownButtonFormField<String>(
                       value: applied,
@@ -792,7 +817,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                         DropdownMenuItem(value: optNo, child: Text(optNo)),
                       ],
                       onChanged: (v) => setState(() { applied = v ?? optNo; _dirty = true; } ),
-                      decoration: _dec(context, t.applied_to_patient),
+                      decoration: _dec(context, t.applied_to_patient, compact: compact),
                     ),
                     const SizedBox(height: 10),
                     DropdownButtonFormField<String>(
@@ -802,11 +827,11 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                         DropdownMenuItem(value: optNo, child: Text(optNo)),
                       ],
                       onChanged: (v) => setState(() { injury = v ?? optNo; _dirty = true; } ),
-                      decoration: _dec(context, t.injury_question),
+                      decoration: _dec(context, t.injury_question, compact: compact),
                     ),
                     if (needInjuryDesc) ...[
                       const SizedBox(height: 10),
-                      TextField(controller: injuryDesc, maxLines: 3, decoration: _dec(context, t.injury_desc)),
+                      TextField(controller: injuryDesc, maxLines: 3, decoration: _dec(context, t.injury_desc, compact: compact)),
                     ],
                   ],
                 ),
@@ -815,6 +840,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
               _section(
                 icon: Icons.photo_library_outlined,
                 title: t.attachments_title,
+                compact: compact,
                 children: [
                   OutlinedButton.icon(
                     onPressed: pickFiles,
@@ -848,6 +874,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
               _section(
                 icon: Icons.local_shipping_outlined,
                 title: t.returned_question,
+                compact: compact,
                 children: [
                   DropdownButtonFormField<String>(
                     value: returned,
@@ -856,7 +883,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                       DropdownMenuItem(value: optReturnedNo, child: Text(optReturnedNo)),
                     ],
                     onChanged: (v) => setState(() { returned = v ?? optReturnedNo; _dirty = true; } ),
-                    decoration: _dec(context, t.returned_question),
+                    decoration: _dec(context, t.returned_question, compact: compact),
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
@@ -867,7 +894,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                       DropdownMenuItem(value: optHandlingRework, child: Text(optHandlingRework)),
                     ],
                     onChanged: (v) => setState(() { handling = v ?? optHandlingRep; _dirty = true; } ),
-                    decoration: _dec(context, t.handling),
+                    decoration: _dec(context, t.handling, compact: compact),
                   ),
                 ],
               ),
@@ -876,6 +903,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
               _section(
                 icon: Icons.privacy_tip_outlined,
                 title: t.privacy_view,
+                compact: compact,
                 children: [
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1001,7 +1029,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     );
   }
 
-  Widget _buildHelpBox() {
+  Widget _buildHelpBox({required bool compact}) {
     final t = context.t;
     final theme = Theme.of(context);
     final textColor = theme.colorScheme.onSecondaryContainer.withOpacity(0.92);
@@ -1010,20 +1038,20 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     return Card(
       color: subtleBg,
       margin: const EdgeInsets.symmetric(vertical: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(compact ? 12 : 16)),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+        padding: EdgeInsets.fromLTRB(12, compact ? 10 : 12, 12, compact ? 12 : 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Icon(Icons.psychology_alt_outlined, color: theme.colorScheme.primary),
-                const SizedBox(width: 10),
+                SizedBox(width: compact ? 8 : 10),
                 Expanded(
                   child: Text(
                     t.complaint_help_title,
-                    style: TextStyle(fontWeight: FontWeight.w700, color: textColor),
+                    style: TextStyle(fontWeight: FontWeight.w700, color: textColor, fontSize: compact ? 13.5 : 14),
                   ),
                 ),
                 IconButton(
@@ -1034,27 +1062,27 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
               ],
             ),
             if (!_helpCollapsed) ...[
-              const SizedBox(height: 6),
+              SizedBox(height: compact ? 4 : 6),
               Text(
                 t.complaint_help_body,
-                style: TextStyle(color: textColor, height: 1.35),
+                style: TextStyle(color: textColor, height: 1.35, fontSize: compact ? 12.5 : 13),
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: compact ? 8 : 10),
               Wrap(
-                spacing: 8,
-                runSpacing: 6,
+                spacing: compact ? 6 : 8,
+                runSpacing: compact ? 4 : 6,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Icon(Icons.auto_stories_outlined, size: 20, color: theme.colorScheme.primary),
                   Text(
                     t.complaint_help_hint,
-                    style: TextStyle(color: textColor, fontSize: 12.5, height: 1.3),
+                    style: TextStyle(color: textColor, fontSize: compact ? 12 : 12.5, height: 1.3),
                   ),
                   OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
                       visualDensity: VisualDensity.compact,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      textStyle: const TextStyle(fontSize: 13),
+                      padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 12, vertical: compact ? 7 : 8),
+                      textStyle: TextStyle(fontSize: compact ? 12.5 : 13),
                     ),
                     onPressed: _openHelpLink,
                     icon: const Icon(Icons.library_books_outlined),
