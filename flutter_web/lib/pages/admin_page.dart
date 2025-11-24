@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'dart:html' as html;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:intl/intl.dart';
+import 'package:markdown/markdown.dart' as md;
 import '../api/client.dart';
 import '../models/country.dart';
 import '../models/complaint.dart' show ComplaintUpload;
@@ -4088,6 +4090,64 @@ class _AdminPageState extends State<AdminPage> {
                   minLines: 3,
                   maxLines: 6,
                   decoration: const InputDecoration(labelText: 'Antwort'),
+                ),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Live-Vorschau',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: answerCtrl,
+                  builder: (_, value, __) {
+                    final previewText = value.text.trim().isEmpty
+                        ? '_(Noch keine Antwort eingegeben)_'
+                        : value.text;
+                    final theme = Theme.of(context);
+                    return Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceVariant.withOpacity(0.35),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: theme.colorScheme.outlineVariant.withOpacity(0.6),
+                        ),
+                      ),
+                      child: MarkdownBody(
+                        data: previewText,
+                        softLineBreak: true,
+                        extensionSet: md.ExtensionSet.gitHubFlavored,
+                        inlineSyntaxes: const [
+                          md.TagSyntax('u'),
+                          md.TagSyntax('mark'),
+                        ],
+                        selectable: true,
+                        styleSheet: MarkdownStyleSheet(
+                          p: theme.textTheme.bodyMedium,
+                          strong: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                          em: theme.textTheme.bodyMedium?.copyWith(
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                        builders: {
+                          'u': _UnderlineMarkdownBuilder(theme.textTheme.bodyMedium),
+                          'mark': _MarkMarkdownBuilder(
+                            theme.colorScheme.tertiaryContainer,
+                            theme.colorScheme.onTertiaryContainer,
+                            theme.textTheme.bodyMedium,
+                          ),
+                        },
+                      ),
+                    );
+                  },
                 ),
                 TextField(
                   controller: orderCtrl,
@@ -10737,6 +10797,45 @@ class _AdminTileProState extends State<AdminTilePro> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _UnderlineMarkdownBuilder extends MarkdownElementBuilder {
+  _UnderlineMarkdownBuilder(this.baseStyle);
+
+  final TextStyle? baseStyle;
+
+  @override
+  Widget? visitText(md.Text text, TextStyle? preferredStyle) {
+    return Text(
+      text.text,
+      style: (preferredStyle ?? baseStyle)?.copyWith(
+        decoration: TextDecoration.underline,
+      ),
+    );
+  }
+}
+
+class _MarkMarkdownBuilder extends MarkdownElementBuilder {
+  _MarkMarkdownBuilder(this.backgroundColor, this.textColor, this.baseStyle);
+
+  final Color backgroundColor;
+  final Color textColor;
+  final TextStyle? baseStyle;
+
+  @override
+  Widget? visitText(md.Text text, TextStyle? preferredStyle) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        text.text,
+        style: (preferredStyle ?? baseStyle)?.copyWith(color: textColor),
       ),
     );
   }
