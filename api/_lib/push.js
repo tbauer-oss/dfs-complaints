@@ -2,6 +2,7 @@
 import crypto from 'crypto';
 import { usersList, pushTokensForEmail } from './store.js';
 import { getRepOf, loadRepById, loadRepByEmail } from './repsStore.js';
+import { applyTestPushRouting, loadAppMeta } from './appMeta.js';
 
 export const config = { runtime: 'nodejs' };
 
@@ -111,19 +112,35 @@ export async function sendPushNotification({ tokens = [], title = '', body = '',
     new Set((tokens || []).map(t => (t || '').toString().trim())),
   ).filter(Boolean);
 
+  let meta = null;
+  try { meta = await loadAppMeta(); } catch (e) { console.warn('[push] meta load failed', e?.message || e); }
+  const routing = applyTestPushRouting(meta, flat);
+  const targetTokens = routing.tokens || [];
+
+  if (routing.suppressed) {
+    console.warn('[push] test mode active – suppressing push send', { requested: flat.length });
+    return {
+      ok: false,
+      reason: 'test-mode-suppressed',
+      skipped: flat.length,
+      sent: 0,
+      failed: 0,
+    };
+  }
+
+  if (targetTokens.length === 0) {
+    return { ok: false, reason: 'no-tokens', sent: 0, failed: 0, skipped: flat.length };
+  }
+
   if (!isPushConfigured()) {
     console.warn('[push] Missing FCM service account config – skipping push send');
     return {
       ok: false,
       reason: 'missing-service-account',
-      skipped: flat.length,
+      skipped: targetTokens.length,
       sent: 0,
-      failed: flat.length,
+      failed: targetTokens.length,
     };
-  }
-
-  if (flat.length === 0) {
-    return { ok: false, reason: 'no-tokens', sent: 0, failed: 0 };
   }
 
   let accessToken;
@@ -135,9 +152,13 @@ export async function sendPushNotification({ tokens = [], title = '', body = '',
       ok: false,
       reason: 'auth-failed',
       sent: 0,
-      failed: flat.length,
+      failed: targetTokens.length,
     };
   }
+
+  const prefix = meta?.testMode ? '[TESTSYSTEM] ' : '';
+  const titleOut = prefix && !title.startsWith(prefix) ? `${prefix}${title}` : title;
+  const bodyOut = prefix && !body.startsWith(prefix) ? `${prefix}${body}` : body;
 
   const invalidTokens = new Set();
   const responses = [];
@@ -146,14 +167,14 @@ export async function sendPushNotification({ tokens = [], title = '', body = '',
 
   // Wir schicken jetzt pro Token eine HTTP v1-Nachricht
   // (Broadcast bleibt möglich, nur mit mehr Requests – bei deiner Menge unkritisch)
-  for (const batch of chunk(flat, 100)) {
+  for (const batch of chunk(targetTokens, 100)) {
     for (const token of batch) {
       const payload = {
         message: {
           token,
           notification: {
-            title: String(title || ''),
-            body: String(body || ''),
+            title: String(titleOut || ''),
+            body: String(bodyOut || ''),
           },
           data: {
             ...data,

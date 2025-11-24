@@ -556,10 +556,13 @@ class ApiClient {
     }
   }
 
-  Future<void> setAppMeta({
+  Future<Map<String, dynamic>> setAppMeta({
     required String version,
     String? build,
     String? notes,
+    bool? testMode,
+    String? testEmail,
+    List<String>? testPushTokens,
   }) async {
     final base = _apiBase.isEmpty ? '' : _apiBase;
     final uri = Uri.parse('$base/api/admin/meta');
@@ -567,6 +570,9 @@ class ApiClient {
       'version': version,
       if (build != null) 'build': build,
       if (notes != null) 'notes': notes,
+      if (testMode != null) 'testMode': testMode,
+      if (testEmail != null) 'testEmail': testEmail,
+      if (testPushTokens != null) 'testPushTokens': testPushTokens,
     });
 
     final headers = {
@@ -578,7 +584,25 @@ class ApiClient {
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
+
+    // Die API liefert die frisch gespeicherten Metadaten zurück – direkt
+    // übernehmen, damit nach dem Speichern kein zweiter Fetch nötig ist.
+    Map<String, dynamic> saved = {};
+    try {
+      final decoded = jsonDecode(r.body);
+      if (decoded is Map && decoded['meta'] is Map<String, dynamic>) {
+        saved = Map<String, dynamic>.from(decoded['meta'] as Map);
+      }
+    } catch (_) {}
+
+    if (saved.isNotEmpty) {
+      _appMeta = saved;
+      _appMetaLoadedAt = DateTime.now();
+      return saved;
+    }
+
     _appMetaLoadedAt = null; // Cache invalidieren -> neu laden beim nächsten Zugriff
+    return await getAppMeta(refresh: true) ?? <String, dynamic>{};
   }
 
   Future<Map<String, dynamic>> repMe() async {
