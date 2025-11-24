@@ -1,7 +1,9 @@
 // lib/pages/rep_profile_page.dart
 import 'package:flutter/material.dart';
 import '../api/client.dart';
+import '../data/country_geography.dart';
 import '../l10n/app_localizations.dart';
+import '../models/country.dart';
 import '../services/app_prefs_scope.dart';
 import '../utils/lang_utils.dart';
 import '../widgets/password_field.dart';
@@ -36,6 +38,7 @@ class _RepProfilePageState extends State<RepProfilePage> {
   final _last   = TextEditingController();
   final _region = TextEditingController();
   String _lang = 'de';
+  Country? _countrySel;
 
   // Passwort ändern
   final _pwOld = TextEditingController();
@@ -65,6 +68,7 @@ class _RepProfilePageState extends State<RepProfilePage> {
       _last.text   = me.lastName;
       _region.text = me.region;
       _lang = normalizeLangCode(me.lang.isEmpty ? 'de' : me.lang);
+      _countrySel = _resolveCountry(me.countryCode, me.country) ?? _countrySel ?? kCountries.first;
 
       if (mounted) setState(() {});
     } catch (e) {
@@ -78,6 +82,9 @@ class _RepProfilePageState extends State<RepProfilePage> {
     if (_savingProfile) return;
     setState(() => _savingProfile = true);
     final t = context.t;
+    final selectedCountry = _countrySel ?? _resolveCountry(_me?.countryCode ?? '', _me?.country ?? '') ?? kCountries.first;
+    final countryLabel = selectedCountry.label(context);
+    final countryCode = selectedCountry.code;
 
     try {
       final updated = await widget.api.repUpdateProfile(
@@ -85,12 +92,15 @@ class _RepProfilePageState extends State<RepProfilePage> {
         lastName: _last.text.trim(),
         region: _region.text.trim(),
         lang: _lang,
+        country: countryLabel,
+        countryCode: countryCode,
       );
 
       final newLang = normalizeLangCode(updated.lang.isEmpty ? _lang : updated.lang);
       _first.text  = updated.firstName;
       _last.text   = updated.lastName;
       _region.text = updated.region;
+      _countrySel = _resolveCountry(updated.countryCode, updated.country) ?? selectedCountry;
 
       setState(() {
         _me = updated;
@@ -112,6 +122,15 @@ class _RepProfilePageState extends State<RepProfilePage> {
     } finally {
       if (mounted) setState(() => _savingProfile = false);
     }
+  }
+
+  Country? _resolveCountry(String code, String name) {
+    final resolved = CountryGeography.resolveCode(code.isNotEmpty ? code : name);
+    if (resolved == null) return null;
+    for (final country in kCountries) {
+      if (country.code.toUpperCase() == resolved.toUpperCase()) return country;
+    }
+    return null;
   }
 
   Future<void> _changePassword() async {
@@ -235,6 +254,23 @@ class _RepProfilePageState extends State<RepProfilePage> {
                         labelText: t.region,
                         border: const OutlineInputBorder(),
                       ),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<Country>(
+                      value: _countrySel ?? kCountries.first,
+                      decoration: InputDecoration(
+                        labelText: t.country_label,
+                        border: const OutlineInputBorder(),
+                      ),
+                      items: kCountries
+                          .map(
+                            (country) => DropdownMenuItem<Country>(
+                              value: country,
+                              child: Text(country.label(context)),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (val) => setState(() => _countrySel = val),
                     ),
                     const SizedBox(height: 12),
                     TextFormField(

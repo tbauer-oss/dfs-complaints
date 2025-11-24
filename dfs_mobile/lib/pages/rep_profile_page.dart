@@ -1,7 +1,9 @@
 // lib/pages/rep_profile_page.dart
 import 'package:flutter/material.dart';
 import '../api/client.dart';
+import '../data/country_geography.dart';
 import '../l10n/app_localizations.dart';
+import '../models/country.dart';
 import '../widgets/password_field.dart';
 
 extension _L10nX on BuildContext {
@@ -33,11 +35,14 @@ class _RepProfilePageState extends State<RepProfilePage> {
   final _first  = TextEditingController();
   final _last   = TextEditingController();
   final _region = TextEditingController();
+  String _lang = 'de';
+  Country? _countrySel;
 
   // Passwort ändern
   final _pw1 = TextEditingController();
   final _pw2 = TextEditingController();
   bool _busyPw = false;
+  bool _savingProfile = false;
 
   @override
   void initState() {
@@ -59,6 +64,8 @@ class _RepProfilePageState extends State<RepProfilePage> {
       _first.text  = me.firstName;
       _last.text   = me.lastName;
       _region.text = me.region;
+      _lang = me.lang.isEmpty ? 'de' : me.lang;
+      _countrySel = _resolveCountry(me.countryCode, me.country) ?? _countrySel ?? kCountries.first;
 
       if (mounted) setState(() {});
     } catch (e) {
@@ -68,31 +75,51 @@ class _RepProfilePageState extends State<RepProfilePage> {
     }
   }
 
-  // Platzhalter – bis Server-Endpoint existiert.
   Future<void> _saveProfile() async {
-    if (_me == null) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(context.t.profile_not_active)),
-    );
+    if (_savingProfile) return;
+    final t = context.t;
+    setState(() => _savingProfile = true);
+    final selectedCountry =
+        _countrySel ?? _resolveCountry(_me?.countryCode ?? '', _me?.country ?? '') ?? kCountries.first;
 
-    // Wenn /api/rep/update und ApiClient.repUpdateProfile(...) existieren:
-    // try {
-    //   await widget.api.repUpdateProfile({
-    //     'firstName': _first.text.trim(),
-    //     'lastName' : _last.text.trim(),
-    //     'region'   : _region.text.trim(),
-    //   });
-    //   if (!mounted) return;
-    //   ScaffoldMessenger.of(context).showSnackBar(
-    //     SnackBar(content: Text(context.t.saved ?? 'Gespeichert.')),
-    //   );
-    //   await _load();
-    // } catch (e) {
-    //   if (!mounted) return;
-    //   ScaffoldMessenger.of(context).showSnackBar(
-    //     SnackBar(content: Text(context.t.password_set_failed('$e'))),
-    //   );
-    // }
+    try {
+      final updated = await widget.api.repUpdateProfile(
+        firstName: _first.text.trim(),
+        lastName: _last.text.trim(),
+        region: _region.text.trim(),
+        lang: _lang,
+        country: selectedCountry.label(context),
+        countryCode: selectedCountry.code,
+      );
+
+      _first.text = updated.firstName;
+      _last.text = updated.lastName;
+      _region.text = updated.region;
+      _lang = updated.lang.isEmpty ? _lang : updated.lang;
+      _countrySel = _resolveCountry(updated.countryCode, updated.country) ?? selectedCountry;
+
+      if (!mounted) return;
+      setState(() => _me = updated);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.saved ?? 'Gespeichert.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${t.error ?? 'Fehler'}: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _savingProfile = false);
+    }
+  }
+
+  Country? _resolveCountry(String code, String name) {
+    final resolved = CountryGeography.resolveCode(code.isNotEmpty ? code : name);
+    if (resolved == null) return null;
+    for (final country in kCountries) {
+      if (country.code.toUpperCase() == resolved.toUpperCase()) return country;
+    }
+    return null;
   }
 
   Future<void> _changePassword() async {
@@ -208,9 +235,26 @@ class _RepProfilePageState extends State<RepProfilePage> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    TextField(
-                      enabled: false,
-                      controller: TextEditingController(text: email),
+                    DropdownButtonFormField<Country>(
+                      value: _countrySel ?? kCountries.first,
+                      decoration: InputDecoration(
+                        labelText: t.country_label,
+                        border: const OutlineInputBorder(),
+                      ),
+                      items: kCountries
+                          .map(
+                            (country) => DropdownMenuItem<Country>(
+                              value: country,
+                              child: Text(country.label(context)),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (val) => setState(() => _countrySel = val),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      initialValue: email,
+                      readOnly: true,
                       decoration: InputDecoration(
                         labelText: t.email,
                         border: const OutlineInputBorder(),
@@ -220,9 +264,15 @@ class _RepProfilePageState extends State<RepProfilePage> {
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
-                        onPressed: _saveProfile, // aktuell Info-Toast
-                        icon: const Icon(Icons.save),
-                        label: Text(t.save_profile),
+                        onPressed: _savingProfile ? null : _saveProfile,
+                        icon: _savingProfile
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.save),
+                        label: Text(_savingProfile ? t.save : t.save_profile),
                       ),
                     ),
                   ],
