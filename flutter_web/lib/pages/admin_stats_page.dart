@@ -564,13 +564,19 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
     final out = <_CountryBucket>[];
     for (final entry in raw) {
       if (entry is Map) {
-        final country = (entry['country'] ?? '').toString();
+        final country = (entry['country'] ?? '').toString().trim();
         final count = (entry['count'] as num?)?.toInt() ?? 0;
+        final code = (entry['countryCode'] ?? '').toString().trim();
         if (country.isNotEmpty) {
-          out.add(_CountryBucket(country: country, count: count));
+          out.add(_CountryBucket(
+            country: country,
+            code: code.isEmpty ? null : code,
+            count: count,
+          ));
         }
       }
     }
+    out.sort((a, b) => b.count.compareTo(a.count));
     return out;
   }
 
@@ -938,14 +944,9 @@ class _CountrySection extends StatelessWidget {
           for (final bucket in countries.take(8))
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: CircleAvatar(
-                backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-                child: Text(
-                  bucket.abbreviation,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
+              leading: _CountryAvatar(
+                code: bucket.code ?? CountryGeography.resolveCode(bucket.country),
+                fallback: bucket.abbreviation,
               ),
               title: Text(bucket.country),
               subtitle: total == 0
@@ -1042,7 +1043,7 @@ class _CountryListPanel extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 itemBuilder: (context, index) {
                   final bucket = countries[index];
-                  final code = CountryGeography.resolveCode(bucket.country);
+                  final code = bucket.code ?? CountryGeography.resolveCode(bucket.country);
                   final label = code == null
                       ? bucket.country
                       : CountryGeography.labelForCode(code);
@@ -1721,9 +1722,11 @@ class _CustomerBucket {
 class _CountryBucket {
   final String country;
   final int count;
-  _CountryBucket({required this.country, required this.count});
+  final String? code;
+  _CountryBucket({required this.country, this.code, required this.count});
 
   String get abbreviation {
+    if (code != null && code!.trim().length == 2) return code!.toUpperCase();
     if (country.length == 2) return country.toUpperCase();
     final parts = country.trim().split(' ');
     if (parts.length == 1) return country.substring(0, math.min(2, country.length)).toUpperCase();
