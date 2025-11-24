@@ -17,6 +17,7 @@ import {
   normalizeProvidedUploads,
   processIncomingFiles,
 } from '../_lib/uploads.js';
+import { loadAppMeta } from '../_lib/appMeta.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret';
 
@@ -64,6 +65,8 @@ export default async function handler(req, res) {
     // --- Save first ---
     const ticket = await nextTicket();
     const nowMs  = Date.now();
+    let meta = null;
+    try { meta = await loadAppMeta(); } catch (e) { console.warn('[create] meta load failed', e?.message || e); }
 
     let processedFiles;
     try {
@@ -88,6 +91,7 @@ export default async function handler(req, res) {
       email: u.email,
       createdAt: nowMs,
       updatedAt: nowMs,
+      ...(meta?.testMode ? { testMode: true } : {}),
       status: 1,
       decision: null,
       reportLink: null,

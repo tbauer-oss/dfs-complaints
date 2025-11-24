@@ -217,6 +217,7 @@ class _MyAppState extends State<MyApp> {
   bool _bootDone = false;
   bool _loggedIn = false; // Kundenlogin (token) steuert den Kunden-Flow
   bool _rememberAdmin = true;
+  Map<String, dynamic>? _appMeta;
 
   // ---- Helpers ----
   bool get _customerLoggedIn => (api.token != null && api.token!.isNotEmpty);
@@ -232,9 +233,12 @@ class _MyAppState extends State<MyApp> {
   Future<void> _boot() async {
     await api.restoreSession();
     await api.ensureRepSession(); // invalides repToken nach Deploys o.ä. wegräumen
+    Map<String, dynamic>? meta;
+    try { meta = await api.getAppMeta(refresh: true); } catch (_) {}
     setState(() {
       _loggedIn = _customerLoggedIn; // Kunden-Flow bleibt unabhängig vom Vertreter-Flow
       _bootDone = true;
+      _appMeta = meta;
     });
   }
 
@@ -367,6 +371,53 @@ class _MyAppState extends State<MyApp> {
             themeMode: prefs.themeMode,
             theme: _lightTheme(),
             darkTheme: _darkTheme(),
+
+            builder: (ctx, child) {
+              final c = child ?? const SizedBox();
+              final bannerActive = _appMeta?['testMode'] == true;
+              if (!bannerActive) return c;
+
+              final testMail = (_appMeta?['testEmail'] ?? '').toString().trim();
+              final pushCount = (_appMeta?['testPushTokens'] is List)
+                  ? (_appMeta!['testPushTokens'] as List).length
+                  : 0;
+
+              return Column(
+                children: [
+                  Material(
+                    color: Colors.red.shade900,
+                    elevation: 3,
+                    child: SafeArea(
+                      bottom: false,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.warning_amber_rounded, color: Colors.white),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text(
+                                'TESTSYSTEM aktiv – keine produktiven Aussendungen.',
+                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                            if (testMail.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              Text('Mails: $testMail', style: const TextStyle(color: Colors.white)),
+                            ],
+                            if (pushCount > 0) ...[
+                              const SizedBox(width: 8),
+                              Text('Push-Geräte: $pushCount', style: const TextStyle(color: Colors.white)),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(child: c),
+                ],
+              );
+            },
 
             // ---- Routing ----
             initialRoute: '/',
