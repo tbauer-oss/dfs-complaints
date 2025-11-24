@@ -568,7 +568,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => const KnowledgeBasePage(),
+              builder: (_) => KnowledgeBasePage(api: widget.api),
             ),
           );
         },
