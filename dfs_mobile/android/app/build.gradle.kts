@@ -63,10 +63,12 @@ android {
     }
 }
 
+@Suppress("DEPRECATION")
 android.applicationVariants.all { variant ->
-    variant.outputs.all { output ->
-        val versionName = variant.versionName ?: "unknown"
-        output.outputFileName = "DFS-Complaint_App-$versionName.apk"
+    val versionName = variant.versionName ?: "unknown"
+    variant.outputs.forEach { output ->
+        val apkOutput = output as com.android.build.gradle.api.ApkVariantOutput
+        apkOutput.outputFileName = "DFS-Complaint_App-$versionName.apk"
     }
 }
 
