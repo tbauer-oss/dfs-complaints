@@ -1,6 +1,5 @@
 // android/app/build.gradle.kts
 
-import com.android.build.api.variant.ApkVariantOutput
 import java.util.Properties
 import java.io.FileInputStream
 
@@ -64,14 +63,10 @@ android {
     }
 }
 
-androidComponents {
-    onVariants { variant ->
-        variant.outputs
-            .filterIsInstance<ApkVariantOutput>()
-            .forEach { output ->
-                val versionName = variant.versionName.orNull ?: "unknown"
-                output.outputFileName.set("DFS-Complaint_App-$versionName.apk")
-            }
+android.applicationVariants.all { variant ->
+    variant.outputs.all { output ->
+        val versionName = variant.versionName ?: "unknown"
+        output.outputFileName = "DFS-Complaint_App-$versionName.apk"
     }
 }
 
