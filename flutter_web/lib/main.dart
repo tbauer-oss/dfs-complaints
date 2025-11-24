@@ -300,7 +300,14 @@ class _MyAppState extends State<MyApp> {
 
     api.setAdminSecret(secret, persist: _rememberAdmin);
     if (!mounted) return;
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => AdminPage(api: api)));
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AdminPage(
+          api: api,
+          onMetaUpdated: (meta) => setState(() => _appMeta = meta),
+        ),
+      ),
+    );
   }
 
   void _openRegister(BuildContext context) {

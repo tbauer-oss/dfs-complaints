@@ -18,7 +18,8 @@ import 'admin_stats_page.dart';
 // ===================================================================
 class AdminPage extends StatefulWidget {
   final ApiClient api;
-  const AdminPage({super.key, required this.api});
+  final void Function(Map<String, dynamic> meta)? onMetaUpdated;
+  const AdminPage({super.key, required this.api, this.onMetaUpdated});
 
   @override
   State<AdminPage> createState() => _AdminPageState();
@@ -1045,8 +1046,17 @@ class _AdminPageState extends State<AdminPage> {
     if (ok != true) return;
 
     try {
+      final version = vCtrl.text.trim();
+      if (version.isEmpty) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('Version erforderlich.')));
+        }
+        return;
+      }
+
       await widget.api.setAppMeta(
-        version: vCtrl.text.trim(),
+        version: version,
         build: bCtrl.text.trim().isEmpty ? null : bCtrl.text.trim(),
         notes: nCtrl.text.trim().isEmpty ? null : nCtrl.text.trim(),
         testMode: testMode,
@@ -1060,6 +1070,15 @@ class _AdminPageState extends State<AdminPage> {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert.')));
       }
+
+      // Aktualisierte Metadaten laden und an den Caller weiterreichen, damit das
+      // TESTSYSTEM-Banner unmittelbar sichtbar wird, ohne dass ein Reload nötig ist.
+      try {
+        final refreshed = await widget.api.getAppMeta(refresh: true);
+        if (refreshed != null) {
+          widget.onMetaUpdated?.call(refreshed);
+        }
+      } catch (_) {}
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
