@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:markdown/markdown.dart' as md;
 import '../data/knowledge_base_data.dart';
 import '../l10n/app_localizations.dart';
 
@@ -149,6 +150,15 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
                                 textScaleFactor:
                                     MediaQuery.of(context).textScaler.scale(1.0),
                               ),
+                              builders: {
+                                'mark': _HighlightBuilder(
+                                  baseStyle: theme.textTheme.bodyMedium,
+                                  highlightColor: primary,
+                                ),
+                                'u': _UnderlineBuilder(
+                                  baseStyle: theme.textTheme.bodyMedium,
+                                ),
+                              },
                             ),
                           ),
                         ],
@@ -399,5 +409,34 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
         ),
       ),
     );
+  }
+}
+
+class _UnderlineBuilder extends MarkdownElementBuilder {
+  _UnderlineBuilder({required this.baseStyle});
+
+  final TextStyle? baseStyle;
+
+  @override
+  Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
+    final style = (baseStyle ?? const TextStyle())
+        .merge(preferredStyle)
+        .copyWith(decoration: TextDecoration.underline);
+    return Text.rich(TextSpan(text: element.textContent, style: style));
+  }
+}
+
+class _HighlightBuilder extends MarkdownElementBuilder {
+  _HighlightBuilder({required this.baseStyle, required this.highlightColor});
+
+  final TextStyle? baseStyle;
+  final Color highlightColor;
+
+  @override
+  Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
+    final style = (baseStyle ?? const TextStyle())
+        .merge(preferredStyle)
+        .copyWith(backgroundColor: highlightColor.withOpacity(0.2));
+    return Text.rich(TextSpan(text: element.textContent, style: style));
   }
 }
