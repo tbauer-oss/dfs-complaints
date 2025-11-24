@@ -2797,6 +2797,7 @@ class _AdminPageState extends State<AdminPage> {
       _AdminView.catalogs       => 'Katalog-Konfiguration',
       _AdminView.systemHealth   => 'Systemstatus & Checks',
       _AdminView.createCustomer => 'Neuen Kunden anlegen',
+      _AdminView.activity       => 'Aktivitätsübersicht',
       _AdminView.pushBroadcast  => 'Push-Benachrichtigungen',
     };
 
