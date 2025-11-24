@@ -456,6 +456,7 @@
   "description": "Descripción",
 
   "reportComplaint": "Reportar reclamación",
+  "complaintWizardTile": "Asistente de reclamaciones",
   "openComplaintReport": "Abrir informe de reclamación",
   "myComplaints": "Mis reclamaciones",
   "complaint_help_title": "Base de conocimiento",

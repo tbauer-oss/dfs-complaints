@@ -34,7 +34,8 @@ extension _L10nX on BuildContext {
 
 class ComplaintFormPage extends StatefulWidget {
   final ApiClient api;
-  const ComplaintFormPage({super.key, required this.api});
+  final bool wizardMode;
+  const ComplaintFormPage({super.key, required this.api, this.wizardMode = false});
   @override
   State<ComplaintFormPage> createState() => _ComplaintFormPageState();
 }
@@ -440,6 +441,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
       info = null;
       _dirty = false;
       _autoHelpItem = null;
+      _wizardStep = 0;
     });
   }
 
@@ -898,7 +900,9 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     final isDentist = segment == optDentist;
     final needInjuryDesc = isDentist && applied == optYes && injury == optYes;
 
-    final wizardSteps = _buildWizardSteps(t, isDentist: isDentist);
+    final wizardSteps = widget.wizardMode
+        ? _buildWizardSteps(t, isDentist: isDentist)
+        : const <_WizardStep>[];
 
     final body = SingleChildScrollView(
       controller: _scrollCtrl,
@@ -931,7 +935,8 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                 ),
               ),
 
-              _buildWizardCard(steps: wizardSteps, t: t, compact: compact),
+              if (widget.wizardMode)
+                _buildWizardCard(steps: wizardSteps, t: t, compact: compact),
 
               _buildHelpBox(compact: compact),
 

@@ -83,6 +83,19 @@ class CustomerHomePage extends StatelessWidget {
               style: btnStyle,
               onPressed: () {
                 Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => ComplaintFormPage(
+                    api: api,
+                    wizardMode: true,
+                  ),
+                ));
+              },
+              icon: const Icon(Icons.auto_awesome_outlined),
+              label: Text(t.complaintWizardTile ?? 'Reklamations-Assistent'),
+            ),
+            ElevatedButton.icon(
+              style: btnStyle,
+              onPressed: () {
+                Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => MyComplaintsPage(api: api),
                 ));
               },
