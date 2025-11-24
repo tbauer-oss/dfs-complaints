@@ -9,6 +9,8 @@ import '../models/country.dart';
 import '../models/complaint.dart' show ComplaintUpload;
 import '../models/customer_news_entry.dart';
 import '../models/faq.dart';
+import '../data/knowledge_base_data.dart';
+import '../l10n/app_localizations.dart';
 import '../widgets/dialog_content_scroll.dart';
 import '../widgets/legal_footer.dart';
 import '../utils/lang_utils.dart';
@@ -158,7 +160,9 @@ class _AdminPageState extends State<AdminPage> {
   List<FaqCategory> _faqCategories = [];
   List<FaqEntry> _faqEntries = [];
   bool _faqLoading = false;
+  bool _faqSeeding = false;
   String? _faqErr;
+  String? _faqSeedErr;
   bool _faqShowInactive = true;
   String _faqAudienceFilter = 'both';
   String? _faqCategoryFilter;
@@ -735,6 +739,55 @@ class _AdminPageState extends State<AdminPage> {
       orElse: () => const FaqCategory(id: '', title: ''),
     );
     return found.title.isEmpty ? 'Unbekannte Kategorie' : found.title;
+  }
+
+  String _legacyCategoryId(KnowledgeCategory cat) =>
+      'legacy_${knowledgeCategoryCode(cat)}';
+
+  Future<void> _seedFaqFromLegacyKnowledgeBase() async {
+    if (_faqSeeding) return;
+    final t = AppLocalizations.of(context);
+    if (t == null) return;
+
+    setState(() {
+      _faqSeeding = true;
+      _faqSeedErr = null;
+    });
+
+    try {
+      final Map<KnowledgeCategory, FaqCategory> createdCats = {};
+      for (final cat in KnowledgeCategory.values) {
+        final saved = await _api.saveFaqCategory(
+          id: _legacyCategoryId(cat),
+          title: knowledgeCategoryLabel(cat, t),
+          order: KnowledgeCategory.values.indexOf(cat),
+          active: true,
+        );
+        createdCats[cat] = saved;
+      }
+
+      for (final item in knowledgeItems) {
+        final cat = createdCats[item.category];
+        if (cat == null) continue;
+        await _api.saveFaqEntry(
+          id: 'legacy_item_${item.id}',
+          categoryId: cat.id,
+          question: item.question(t),
+          answer: item.answer(t),
+          audience: 'both',
+          order: item.id,
+          active: true,
+        );
+      }
+
+      await _refreshFaq();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _faqSeedErr = '$e');
+    } finally {
+      if (!mounted) return;
+      setState(() => _faqSeeding = false);
+    }
   }
 
   Future<void> _refreshFaq() async {
@@ -3618,7 +3671,7 @@ class _AdminPageState extends State<AdminPage> {
             const SizedBox(height: 8),
             Expanded(
               child: filteredEntries.isEmpty
-                  ? const Center(child: Text('Keine FAQ-Einträge vorhanden.'))
+                  ? _buildFaqEmptyState(theme)
                   : ListView.builder(
                       itemCount: filteredEntries.length,
                       itemBuilder: (_, idx) {
@@ -3627,6 +3680,87 @@ class _AdminPageState extends State<AdminPage> {
                       },
                     ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFaqEmptyState(ThemeData theme) {
+    final t = AppLocalizations.of(context);
+    final cs = theme.colorScheme;
+    return Center(
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 520),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: cs.surfaceVariant.withOpacity(theme.brightness == Brightness.dark ? 0.25 : 0.45),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: cs.outlineVariant.withOpacity(0.6)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Keine FAQ-Einträge vorhanden',
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Wir haben noch keine Datensätze im neuen Admin-FAQ-Store gefunden.',
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Tipp: Du kannst die bestehende Wissensdatenbank aus der App automatisch übernehmen.',
+              style: theme.textTheme.bodyMedium?.copyWith(color: cs.primary),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                FilledButton.icon(
+                  onPressed: _faqSeeding ? null : _seedFaqFromLegacyKnowledgeBase,
+                  icon: _faqSeeding
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.import_contacts_outlined),
+                  label: Text(
+                    'Wissensdatenbank importieren (${KnowledgeCategory.values.length} Kategorien / ${knowledgeItems.length} Einträge)'
+                        .trim(),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                TextButton(
+                  onPressed: _faqSeeding ? null : _refreshFaq,
+                  child: const Text('Neu laden'),
+                ),
+              ],
+            ),
+            if (_faqSeedErr != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                _faqSeedErr!,
+                style: theme.textTheme.bodySmall?.copyWith(color: cs.error),
+              ),
+            ],
+            if (t != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Aktuelle Inhalte (Auszug):',
+                style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 6),
+              ...knowledgeItems.take(3).map(
+                (item) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text('• ${item.question(t)}'),
+                ),
+              ),
+            ],
           ],
         ),
       ),
