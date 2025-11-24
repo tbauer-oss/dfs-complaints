@@ -7,7 +7,6 @@ import 'reset_password_page.dart';
 import '../services/push_notifications.dart';
 import 'dashboard_page.dart';
 import '../widgets/password_field.dart';
-import '../services/biometric_auth.dart';
 
 // **KEIN direkter dart:html-Import mehr**
 import 'package:dfs_mobile/web_compat/html_stub.dart'
@@ -83,24 +82,10 @@ class _RepLoginPageState extends State<RepLoginPage> {
 
   bool _busy = false;
   String? _err;
-  bool _biometricAvailable = false;
-  bool _hasBiometricCredentials = false;
 
   @override
   void initState() {
     super.initState();
-    _loadBiometricState();
-  }
-
-  Future<void> _loadBiometricState() async {
-    final bio = BiometricAuthService.instance;
-    final available = await bio.isAvailable();
-    final hasCreds = available && await bio.hasCredentials(BiometricProfile.rep);
-    if (!mounted) return;
-    setState(() {
-      _biometricAvailable = available;
-      _hasBiometricCredentials = hasCreds;
-    });
   }
 
   @override
@@ -117,7 +102,6 @@ class _RepLoginPageState extends State<RepLoginPage> {
   Future<void> _login({
     String? email,
     String? password,
-    bool offerBiometricOptIn = true,
     bool showPushOptIn = true,
   }) async {
     final t = context.t;
@@ -195,11 +179,6 @@ class _RepLoginPageState extends State<RepLoginPage> {
         }
       }
 
-      if (offerBiometricOptIn) {
-        await _offerBiometricOptIn(loginEmail, loginPw);
-        if (!mounted) return;
-      }
-
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => DashboardPage(api: widget.api)),
       );
@@ -208,70 +187,6 @@ class _RepLoginPageState extends State<RepLoginPage> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
-  }
-
-  Future<void> _offerBiometricOptIn(String email, String password) async {
-    final bio = BiometricAuthService.instance;
-    if (_hasBiometricCredentials) return;
-    if (!await bio.isAvailable()) return;
-
-    final t = context.t;
-    final enable = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(t.biometric_opt_in_title),
-        content: Text(t.biometric_opt_in_body),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(t.biometric_opt_in_no),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(t.biometric_opt_in_yes),
-          ),
-        ],
-      ),
-    );
-
-    if (enable != true || !mounted) return;
-
-    final saved = await bio.saveCredentials(BiometricProfile.rep, email, password);
-    if (!mounted) return;
-    if (saved) {
-      setState(() => _hasBiometricCredentials = true);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(t.biometric_setup_success)));
-    } else {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(t.biometric_not_available)));
-    }
-  }
-
-  Future<void> _loginWithBiometrics() async {
-    final t = context.t;
-    setState(() => _err = null);
-
-    final bio = BiometricAuthService.instance;
-    final creds = await bio.readCredentials(BiometricProfile.rep);
-    if (creds == null) {
-      setState(() => _err = t.biometric_not_available);
-      await _loadBiometricState();
-      return;
-    }
-
-    final ok = await bio.authenticate(t.biometric_auth_reason);
-    if (!ok) {
-      setState(() => _err = t.biometric_auth_failed);
-      return;
-    }
-
-    await _login(
-      email: creds.$1,
-      password: creds.$2,
-      offerBiometricOptIn: false,
-      showPushOptIn: false,
-    );
   }
 
   Future<void> _showChangePasswordDialog() async {
@@ -513,18 +428,6 @@ class _RepLoginPageState extends State<RepLoginPage> {
                   onChanged: (_) => setState(() {}),
                   onSubmitted: (_) => canLogin ? _login() : null,
                 ),
-
-                if (_biometricAvailable && _hasBiometricCredentials) ...[
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _busy ? null : _loginWithBiometrics,
-                      icon: const Icon(Icons.fingerprint),
-                      label: Text(t.biometric_login_button),
-                    ),
-                  ),
-                ],
 
                 const SizedBox(height: 10),
                 if (_err != null)

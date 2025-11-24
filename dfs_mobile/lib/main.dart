@@ -14,7 +14,6 @@ import 'services/app_prefs.dart';
 import 'services/app_prefs_scope.dart';
 import 'services/push_notifications.dart';
 import 'services/geo_locale_service.dart';
-import 'services/biometric_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:dfs_mobile/web_compat/html_stub.dart'
   if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
@@ -981,24 +980,10 @@ class _LoginScreenState extends State<_LoginScreen> {
   bool _staySignedIn = true;
   int _logoTapCount = 0;
   DateTime? _lastLogoTap;
-  bool _biometricAvailable = false;
-  bool _hasBiometricCredentials = false;
 
   @override
   void initState() {
     super.initState();
-    _loadBiometricState();
-  }
-
-  Future<void> _loadBiometricState() async {
-    final bio = BiometricAuthService.instance;
-    final available = await bio.isAvailable();
-    final hasCreds = available && await bio.hasCredentials(BiometricProfile.customer);
-    if (!mounted) return;
-    setState(() {
-      _biometricAvailable = available;
-      _hasBiometricCredentials = hasCreds;
-    });
   }
 
   // robustes Asset-Checking (SVG → PNG → Text)
@@ -1014,22 +999,16 @@ class _LoginScreenState extends State<_LoginScreen> {
   Future<void> _doLogin({
     String? email,
     String? password,
-    bool offerBiometricOptIn = true,
-    bool enforceStaySignedIn = false,
   }) async {
     setState(() { _busy = true; _err = null; });
     final loginEmail = (email ?? _email.text).trim();
     final loginPw = password ?? _pw.text;
 
     try {
-      widget.api.setCustomerSessionPersistence(enforceStaySignedIn ? true : _staySignedIn);
+      widget.api.setCustomerSessionPersistence(_staySignedIn);
       final result = await widget.api.login(loginEmail, loginPw); // Kunden-Login
       if (!mounted) return;
       if (result.ok) {
-        if (offerBiometricOptIn) {
-          await _offerBiometricOptIn(loginEmail, loginPw);
-          if (!mounted) return;
-        }
         widget.onLoggedIn();
       } else {
         final t = AppLocalizations.of(context)!;
@@ -1048,71 +1027,6 @@ class _LoginScreenState extends State<_LoginScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
-  }
-
-  Future<void> _offerBiometricOptIn(String email, String password) async {
-    final bio = BiometricAuthService.instance;
-    if (_hasBiometricCredentials) return;
-    if (!await bio.isAvailable()) return;
-
-    final t = AppLocalizations.of(context)!;
-    final enable = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(t.biometric_opt_in_title),
-        content: Text(t.biometric_opt_in_body),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(t.biometric_opt_in_no),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(t.biometric_opt_in_yes),
-          ),
-        ],
-      ),
-    );
-
-    if (enable != true || !mounted) return;
-
-    final saved = await bio.saveCredentials(BiometricProfile.customer, email, password);
-    if (!mounted) return;
-    if (saved) {
-      setState(() => _hasBiometricCredentials = true);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(t.biometric_setup_success)));
-    } else {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(t.biometric_not_available)));
-    }
-  }
-
-  Future<void> _loginWithBiometrics() async {
-    final t = AppLocalizations.of(context)!;
-    final bio = BiometricAuthService.instance;
-    setState(() => _err = null);
-
-    final creds = await bio.readCredentials(BiometricProfile.customer);
-    if (creds == null) {
-      setState(() => _err = t.biometric_not_available);
-      await _loadBiometricState();
-      return;
-    }
-
-    final authOk = await bio.authenticate(t.biometric_auth_reason);
-    if (!authOk) {
-      setState(() => _err = t.biometric_auth_failed);
-      return;
-    }
-
-    _staySignedIn = true;
-    await _doLogin(
-      email: creds.$1,
-      password: creds.$2,
-      offerBiometricOptIn: false,
-      enforceStaySignedIn: true,
-    );
   }
 
   void _onLogoTap() {
@@ -1218,18 +1132,6 @@ class _LoginScreenState extends State<_LoginScreen> {
                 controlAffinity: ListTileControlAffinity.leading,
                 title: Text(t.stay_signed_in),
               ),
-
-              if (_biometricAvailable && _hasBiometricCredentials) ...[
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: _busy ? null : _loginWithBiometrics,
-                    icon: const Icon(Icons.fingerprint),
-                    label: Text(t.biometric_login_button),
-                  ),
-                ),
-              ],
 
               if (_err != null) ...[
                 const SizedBox(height: 12),
