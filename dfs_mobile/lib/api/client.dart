@@ -742,7 +742,19 @@ class ApiClient {
     );
   }
 
-  Future<void> registerPushToken(String token, {String? platform, String? locale, String? lang}) async {
+  Future<void> registerPushToken(
+    String token, {
+    String? platform,
+    String? locale,
+    String? lang,
+    String? appVersion,
+    String? appBuild,
+    double? lat,
+    double? lng,
+    String? country,
+    String? city,
+    String? locationLabel,
+  }) async {
     final trimmed = token.trim();
     if (trimmed.isEmpty) return;
     final headers = _pushAuthHeaders();
@@ -757,6 +769,13 @@ class ApiClient {
     if (platform != null && platform.trim().isNotEmpty) body['platform'] = platform.trim();
     if (locale != null && locale.trim().isNotEmpty) body['locale'] = locale.trim();
     if (lang != null && lang.trim().isNotEmpty) body['lang'] = lang.trim();
+    if (appVersion != null && appVersion.trim().isNotEmpty) body['appVersion'] = appVersion.trim();
+    if (appBuild != null && appBuild.trim().isNotEmpty) body['appBuild'] = appBuild.trim();
+    if (lat != null) body['lat'] = lat.toString();
+    if (lng != null) body['lng'] = lng.toString();
+    if (country != null && country.trim().isNotEmpty) body['country'] = country.trim();
+    if (city != null && city.trim().isNotEmpty) body['city'] = city.trim();
+    if (locationLabel != null && locationLabel.trim().isNotEmpty) body['location'] = locationLabel.trim();
 
     final res = await http.post(
       _u('/api/push/register'),

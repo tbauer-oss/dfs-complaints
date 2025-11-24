@@ -116,6 +116,9 @@ function normalizeRep(rep) {
 
   const region = pick(rep.region, rep.area, rep.territory, rep.regionName, rep.regions);
   const lang = normalizeLang(pick(rep.lang, rep.language, rep.locale, rep.langCode));
+  const lastLoginAt = rep.lastLoginAt || rep.lastLogin || null;
+  const lastLoginAppVersion = pick(rep.lastLoginAppVersion, rep.appVersion, rep.version);
+  const lastLoginAppBuild = pick(rep.lastLoginAppBuild, rep.appBuild, rep.build);
 
   return {
     id,
@@ -129,6 +132,9 @@ function normalizeRep(rep) {
     active: (rep.active === undefined ? true : !!rep.active),
     createdAt: rep.createdAt || null,
     updatedAt: rep.updatedAt || null,
+    ...(lastLoginAt ? { lastLoginAt } : {}),
+    ...(lastLoginAppVersion ? { lastLoginAppVersion } : {}),
+    ...(lastLoginAppBuild ? { lastLoginAppBuild } : {}),
   };
 }
 
@@ -372,6 +378,29 @@ export async function getRepOf(email) {
   if (!repId) return null;
   const rep = await loadRepById(repId);
   return rep || null;
+}
+
+export async function recordRepLogin(repId, meta = {}) {
+  await requireRedis();
+  const id = S(repId);
+  if (!id) return null;
+  const rep = await loadRepById(id);
+  if (!rep) return null;
+
+  const now = Date.now();
+  const appVersion = S(meta?.appVersion ?? meta?.version);
+  const appBuild = S(meta?.appBuild ?? meta?.build);
+
+  const updated = normalizeRep({
+    ...rep,
+    lastLoginAt: now,
+    ...(appVersion ? { lastLoginAppVersion: appVersion } : {}),
+    ...(appBuild ? { lastLoginAppBuild: appBuild } : {}),
+  });
+
+  const saved = await saveRep(updated);
+  const customers = await repCustomers(id);
+  return { ...saved, customers: customers || [] };
 }
 
 // --- Passwort-Management ---

@@ -4,7 +4,7 @@ export const config = { runtime: 'nodejs' };
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { setCors } from '../_lib/cors.js';
-import { loadRepByEmail } from '../_lib/repsStore.js';
+import { loadRepByEmail, recordRepLogin } from '../_lib/repsStore.js';
 
 const REP_SECRET = process.env.REP_JWT_SECRET;
 
@@ -25,6 +25,8 @@ export default async function handler(req, res) {
   const email = (body.email || '').toString().trim().toLowerCase();
   const password = (body.password || '').toString();
   const secret = (body.secret || '').toString();
+  const appVersion = (body.appVersion || '').toString().trim();
+  const appBuild = (body.appBuild || '').toString().trim();
 
   if (!email) return res.status(400).json({ error: 'missing email' });
 
@@ -38,6 +40,8 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'bad secret' });
 
     const token = jwt.sign({ repId: rep.id }, REP_SECRET, { expiresIn: '7d' });
+    try { await recordRepLogin(rep.id, { appVersion, appBuild }); }
+    catch (e) { console.warn('[rep/login] recordRepLogin failed', e); }
     return res.status(200).json({ token, mustChangePw: !!rep.mustChangePw, email });
   }
 
@@ -48,5 +52,7 @@ export default async function handler(req, res) {
   if (!ok) return res.status(401).json({ error: 'bad credentials' });
 
   const token = jwt.sign({ repId: rep.id }, REP_SECRET, { expiresIn: '7d' });
+  try { await recordRepLogin(rep.id, { appVersion, appBuild }); }
+  catch (e) { console.warn('[rep/login] recordRepLogin failed', e); }
   return res.status(200).json({ token, mustChangePw: false, email });
 }
