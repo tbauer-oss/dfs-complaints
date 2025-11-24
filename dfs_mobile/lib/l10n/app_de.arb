@@ -487,6 +487,7 @@
   "description": "Beschreibung",
 
   "reportComplaint": "Reklamation melden",
+  "complaintWizardTile": "Reklamations-Assistent",
   "openComplaintReport": "Reklamationsbericht öffnen",
   "myComplaints": "Meine Reklamationen",
   "complaint_help_title": "Wissensdatenbank",
