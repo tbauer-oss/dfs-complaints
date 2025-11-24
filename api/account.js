@@ -9,6 +9,7 @@ import {
   userByEmail, userSave, userDelete, pendingDelete,
   anonymizeUserAndComplaints,
 } from './_lib/store.js';
+import { countryLabelFromCode } from './_lib/countryNames.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || '';
 
@@ -52,6 +53,7 @@ export default async function handler(req, res) {
         zip: u.zip || '',
         city: u.city || '',
         country: u.country || '',
+        countryCode: u.countryCode || '',
         phone: u.phone || '',
         lang: (u.lang || 'de'),
         createdAt: u.createdAt || null,
@@ -73,6 +75,18 @@ export default async function handler(req, res) {
     try {
       const body = readJson(req) || {};
 
+      // Bestehenden Nutzer laden oder Grundgerüst anlegen
+      const cur = (await userByEmail(email)) || { email, createdAt: Date.now() };
+
+      const rawCode = norm(body.countryCode).toUpperCase().slice(0, 2);
+      const countryCode = rawCode || cur.countryCode || undefined;
+      let country = norm(body.country) || cur.country || '';
+
+      // Falls nur ein ISO-Code geliefert wird, einen lesbaren Namen ergänzen
+      if (!country && countryCode) {
+        country = countryLabelFromCode(countryCode) || '';
+      }
+
       // Nur diese Felder dürfen geändert werden (E-Mail bleibt die vom Token!)
       const update = {
         company:  norm(body.company),
@@ -80,7 +94,8 @@ export default async function handler(req, res) {
         street:   norm(body.street),
         zip:      norm(body.zip),
         city:     norm(body.city),
-        country:  norm(body.country),
+        country,
+        countryCode,
         phone:    norm(body.phone),
         lang:     norm(body.lang),
       };
@@ -89,9 +104,6 @@ export default async function handler(req, res) {
       if (!ALLOWED_LANG.has(update.lang.toLowerCase())) {
         update.lang = 'de';
       }
-
-      // Bestehenden Nutzer laden oder Grundgerüst anlegen
-      const cur = (await userByEmail(email)) || { email, createdAt: Date.now() };
 
       const saved = {
         ...cur,
@@ -111,6 +123,7 @@ export default async function handler(req, res) {
         zip: saved.zip || '',
         city: saved.city || '',
         country: saved.country || '',
+        countryCode: saved.countryCode || '',
         phone: saved.phone || '',
         lang: saved.lang || 'de',
         createdAt: saved.createdAt || null,
