@@ -210,6 +210,39 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     });
   }
 
+  Future<void> _showAttachment(({String name, List<int> bytes, String mime, String? preview}) file) async {
+    final isImage = file.mime.toLowerCase().startsWith('image/');
+    await showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(file.name, overflow: TextOverflow.ellipsis),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420, maxHeight: 520),
+          child: isImage
+              ? InteractiveViewer(
+                  child: Image.memory(
+                    Uint8List.fromList(file.bytes),
+                    fit: BoxFit.contain,
+                  ),
+                )
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.insert_drive_file_outlined, size: 48),
+                    const SizedBox(height: 12),
+                    Text(file.mime, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 8),
+                    Text(context.t.attachments_file_unknown, textAlign: TextAlign.center),
+                  ],
+                ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(context.t.close)),
+        ],
+      ),
+    );
+  }
+
   Future<bool> _confirmLeaveIfDirty() async {
     if (!_dirty) return true;
     final t = context.t;
@@ -936,7 +969,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
         title: t.attachments_title,
         compact: compact,
         children: [
-          Text(t.attachments_hint),
+          Text(t.attachments_too_large),
           const SizedBox(height: 10),
           Wrap(
             spacing: 10,
