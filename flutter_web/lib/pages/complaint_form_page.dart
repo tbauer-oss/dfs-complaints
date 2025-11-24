@@ -607,7 +607,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   }
 
   List<Widget> _segmentFields(AppLocalizations t) {
-    final optDentist = t.segment_dentist;
+    final optDentist = t.segment_dentist, optLab = t.segment_lab;
     return [
       DropdownButtonFormField<String>(
         value: segment,
@@ -828,7 +828,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   List<({String id, Widget widget})> _buildSections({
     required AppLocalizations t,
     required bool isDentist,
-    required bool _needInjuryDesc,
+    required bool needInjuryDesc,
     required bool anchored,
   }) {
     Widget wrap(String id, Widget child) => anchored ? _wizardAnchor(id, child) : child;
@@ -897,7 +897,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     final sections = _buildSections(
       t: t,
       isDentist: isDentist,
-      _needInjuryDesc: needInjuryDesc,
+      needInjuryDesc: needInjuryDesc,
       anchored: false,
     );
     final sectionLookup = {for (final entry in sections) entry.id: entry.widget};
@@ -1165,7 +1165,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     final sections = _buildSections(
       t: t,
       isDentist: isDentist,
-      _needInjuryDesc: needInjuryDesc,
+      needInjuryDesc: needInjuryDesc,
       anchored: true,
     );
 
