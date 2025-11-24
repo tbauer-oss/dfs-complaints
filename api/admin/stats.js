@@ -190,6 +190,21 @@ const ARTICLE_KEYS = [
   'artikelnummer',
 ];
 
+const BATCH_KEYS = [
+  'batch',
+  'batch_no',
+  'batchNo',
+  'batchNumber',
+  'lot',
+  'lot_no',
+  'lotNo',
+  'lotNumber',
+  'charge',
+  'charge_no',
+  'chargeNo',
+  'chargenummer',
+];
+
 const SEGMENT_KEYS = [
   'segment',
   'segment_code',
@@ -417,6 +432,16 @@ function pickArticle(complaint) {
   const sources = [complaint, payload, payload?.product];
   for (const source of sources) {
     const value = pickValue(source, ARTICLE_KEYS);
+    if (value) return value;
+  }
+  return '';
+}
+
+function pickBatch(complaint) {
+  const payload = complaint?.payload || {};
+  const sources = [complaint, payload, payload?.product];
+  for (const source of sources) {
+    const value = pickValue(source, BATCH_KEYS);
     if (value) return value;
   }
   return '';
@@ -674,6 +699,18 @@ function buildStats(list, range, repInfo = new Map(), activeDirectory = new Map(
     .sort((a, b) => a.decision.localeCompare(b.decision));
 
   const byCustomer = buildCustomerBuckets(list, activeDirectory);
+
+  const topProducts = Array.from(countBy(list, (c) => norm(pickArticle(c))).entries())
+    .map(([label, count]) => ({ label, count }))
+    .filter((entry) => entry.label)
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
+    .slice(0, 10);
+
+  const topLots = Array.from(countBy(list, (c) => norm(pickBatch(c))).entries())
+    .map(([label, count]) => ({ label, count }))
+    .filter((entry) => entry.label)
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
+    .slice(0, 10);
   const timeToClose = buildTimeToCloseStats(list);
   const temporalLoad = buildTemporalLoad(list);
   const audit = buildAuditEntries(list, repInfo, activeDirectory);
@@ -689,6 +726,8 @@ function buildStats(list, range, repInfo = new Map(), activeDirectory = new Map(
     byCountry,
     byRep,
     byCustomer,
+    topProducts,
+    topLots,
     timeToClose,
     loadByWeekday: temporalLoad.weekdays,
     loadByHour: temporalLoad.hours,

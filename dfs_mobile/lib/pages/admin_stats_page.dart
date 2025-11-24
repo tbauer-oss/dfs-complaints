@@ -162,6 +162,8 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
     final months = _parseMonthBuckets();
     final countries = _parseCountryBuckets();
     final reps = _parseRepBuckets();
+    final products = _parseProductBuckets();
+    final lots = _parseLotBuckets();
 
     final isWide = maxWidth > 900;
 
@@ -239,6 +241,49 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
           const SizedBox(height: 24),
           _RepSection(reps: reps),
         ],
+        const SizedBox(height: 24),
+        if (isWide) ...[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _TopListSection(
+                  title: 'Top-Produkte (nach Reklamationen)',
+                  icon: Icons.inventory_2_outlined,
+                  buckets: products,
+                  total: total,
+                  emptyMessage: 'Keine Produktdaten verfügbar',
+                ),
+              ),
+              const SizedBox(width: 24),
+              Expanded(
+                child: _TopListSection(
+                  title: 'Top-LOTs',
+                  icon: Icons.qr_code_2_outlined,
+                  buckets: lots,
+                  total: total,
+                  emptyMessage: 'Keine LOT-Daten verfügbar',
+                ),
+              ),
+            ],
+          ),
+        ] else ...[
+          _TopListSection(
+            title: 'Top-Produkte (nach Reklamationen)',
+            icon: Icons.inventory_2_outlined,
+            buckets: products,
+            total: total,
+            emptyMessage: 'Keine Produktdaten verfügbar',
+          ),
+          const SizedBox(height: 24),
+          _TopListSection(
+            title: 'Top-LOTs',
+            icon: Icons.qr_code_2_outlined,
+            buckets: lots,
+            total: total,
+            emptyMessage: 'Keine LOT-Daten verfügbar',
+          ),
+        ],
       ],
     );
   }
@@ -313,6 +358,34 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
         if (country.isNotEmpty) {
           out.add(_CountryBucket(country: country, count: count));
         }
+      }
+    }
+    return out;
+  }
+
+  List<_TopBucket> _parseProductBuckets() {
+    final raw = (_stats?['topProducts'] as List?) ?? const [];
+    final out = <_TopBucket>[];
+    for (final entry in raw) {
+      if (entry is Map) {
+        final label = (entry['label'] ?? '').toString().trim();
+        if (label.isEmpty) continue;
+        final count = (entry['count'] as num?)?.toInt() ?? 0;
+        out.add(_TopBucket(label: label, count: count));
+      }
+    }
+    return out;
+  }
+
+  List<_TopBucket> _parseLotBuckets() {
+    final raw = (_stats?['topLots'] as List?) ?? const [];
+    final out = <_TopBucket>[];
+    for (final entry in raw) {
+      if (entry is Map) {
+        final label = (entry['label'] ?? '').toString().trim();
+        if (label.isEmpty) continue;
+        final count = (entry['count'] as num?)?.toInt() ?? 0;
+        out.add(_TopBucket(label: label, count: count));
       }
     }
     return out;
@@ -834,6 +907,57 @@ class _RepSection extends StatelessWidget {
   }
 }
 
+class _TopListSection extends StatelessWidget {
+  final List<_TopBucket> buckets;
+  final int total;
+  final String title;
+  final IconData icon;
+  final String emptyMessage;
+
+  const _TopListSection({
+    required this.buckets,
+    required this.total,
+    required this.title,
+    required this.icon,
+    required this.emptyMessage,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (buckets.isEmpty) {
+      return _SectionCard(
+        title: title,
+        icon: icon,
+        child: _EmptyPlaceholder(message: emptyMessage),
+      );
+    }
+    final theme = Theme.of(context);
+    final formatter = NumberFormat.decimalPercentPattern(locale: 'de', decimalDigits: 1);
+    final top = buckets.take(10).toList(growable: false);
+    return _SectionCard(
+      title: title,
+      icon: icon,
+      child: Column(
+        children: [
+          for (var i = 0; i < top.length; i++) ...[
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(
+                backgroundColor: theme.colorScheme.secondary.withOpacity(0.12),
+                child: Text('${i + 1}'),
+              ),
+              title: Text(top[i].label),
+              subtitle: total == 0 ? null : Text(formatter.format(top[i].count / total)),
+              trailing: Text('${top[i].count}'),
+            ),
+            if (i != top.length - 1) const Divider(height: 1),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _SectionCard extends StatelessWidget {
   final String title;
   final IconData icon;
@@ -1056,4 +1180,10 @@ class _RepBucket {
     }
     return repId.substring(0, math.min(2, repId.length)).toUpperCase();
   }
+}
+
+class _TopBucket {
+  final String label;
+  final int count;
+  const _TopBucket({required this.label, required this.count});
 }
