@@ -4032,6 +4032,57 @@ class _AdminPageState extends State<AdminPage> {
                   maxLines: 2,
                   decoration: const InputDecoration(labelText: 'Frage'),
                 ),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _TextFormatChip(
+                        icon: Icons.format_bold,
+                        label: 'Fett',
+                        onTap: () => _applyTextFormat(
+                          answerCtrl,
+                          prefix: '**',
+                          suffix: '**',
+                          placeholder: 'fetter Text',
+                        ),
+                      ),
+                      _TextFormatChip(
+                        icon: Icons.format_italic,
+                        label: 'Kursiv',
+                        onTap: () => _applyTextFormat(
+                          answerCtrl,
+                          prefix: '_',
+                          suffix: '_',
+                          placeholder: 'kursiver Text',
+                        ),
+                      ),
+                      _TextFormatChip(
+                        icon: Icons.format_underline,
+                        label: 'Unterstrichen',
+                        onTap: () => _applyTextFormat(
+                          answerCtrl,
+                          prefix: '<u>',
+                          suffix: '</u>',
+                          placeholder: 'unterstrichen',
+                        ),
+                      ),
+                      _TextFormatChip(
+                        icon: Icons.format_color_fill,
+                        label: 'Markieren',
+                        onTap: () => _applyTextFormat(
+                          answerCtrl,
+                          prefix: '<mark>',
+                          suffix: '</mark>',
+                          placeholder: 'markierter Text',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
                 TextField(
                   controller: answerCtrl,
                   minLines: 3,
@@ -4107,6 +4158,38 @@ class _AdminPageState extends State<AdminPage> {
     questionCtrl.dispose();
     answerCtrl.dispose();
     orderCtrl.dispose();
+  }
+
+  void _applyTextFormat(
+    TextEditingController controller, {
+    required String prefix,
+    required String suffix,
+    required String placeholder,
+  }) {
+    final text = controller.text;
+    final selection = controller.selection;
+    int start = selection.start;
+    int end = selection.end;
+
+    if (start < 0 || end < 0) {
+      start = end = text.length;
+    }
+
+    final hasSelection = start != end;
+    final selectedText = hasSelection ? text.substring(start, end) : placeholder;
+
+    final newText = text.replaceRange(start, end, '$prefix$selectedText$suffix');
+    final newSelectionStart = start + prefix.length;
+    final newSelectionEnd = newSelectionStart + selectedText.length;
+
+    controller.value = controller.value.copyWith(
+      text: newText,
+      selection: TextSelection(
+        baseOffset: newSelectionStart,
+        extentOffset: newSelectionEnd,
+      ),
+      composing: TextRange.empty,
+    );
   }
 
   Widget _buildPendingPanel() {
@@ -9775,6 +9858,34 @@ class _AdminAttachmentPreviewTileState extends State<_AdminAttachmentPreviewTile
           ],
         ],
       ),
+    );
+  }
+}
+
+class _TextFormatChip extends StatelessWidget {
+  const _TextFormatChip({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return ActionChip(
+      avatar: Icon(icon, size: 18, color: colorScheme.primary),
+      label: Text(label),
+      labelStyle: theme.textTheme.labelLarge,
+      shape: StadiumBorder(
+        side: BorderSide(color: colorScheme.outlineVariant.withOpacity(0.6)),
+      ),
+      backgroundColor: colorScheme.surfaceVariant.withOpacity(0.4),
+      onPressed: onTap,
     );
   }
 }
