@@ -63,6 +63,13 @@ android {
     }
 }
 
+android.applicationVariants.all { variant ->
+    variant.outputs.all { output ->
+        val versionName = variant.versionName ?: "unknown"
+        output.outputFileName = "DFS-Complaint_App-$versionName.apk"
+    }
+}
+
 dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.24")
     implementation(platform("com.google.firebase:firebase-bom:34.5.0"))
