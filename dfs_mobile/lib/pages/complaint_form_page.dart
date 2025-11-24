@@ -83,6 +83,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   KnowledgeItem? _autoHelpItem;
   final ScrollController _scrollCtrl = ScrollController();
   int _wizardStep = 0;
+  bool _wizardOpened = false;
   final Map<String, GlobalKey> _sectionKeys = {
     'segment': GlobalKey(),
     'product': GlobalKey(),
@@ -1095,70 +1096,6 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     return sections;
   }
 
-  Widget _wizardReview({required bool compact, required AppLocalizations t}) {
-    final theme = Theme.of(context);
-    final entries = <String, String>{
-      t.segment: segment,
-      t.article: article.text.trim(),
-      t.batch: batch.text.trim(),
-      t.qty: qty.text.trim(),
-      t.expiry: expiry.text.trim(),
-      if (segment == t.segment_dentist) t.applied_to_patient: applied,
-      if (segment == t.segment_dentist) t.injury_question: injury,
-      t.returned_question: returned,
-      t.handling: handling,
-    };
-
-    return Card(
-      margin: EdgeInsets.only(top: compact ? 8 : 10),
-      color: theme.colorScheme.surfaceContainerHighest,
-      child: Padding(
-        padding: EdgeInsets.all(compact ? 14 : 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.fact_check_outlined, color: theme.colorScheme.primary),
-                const SizedBox(width: 8),
-                Text(t.complaint_wizard_step_finish, style: const TextStyle(fontWeight: FontWeight.w700)),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final entry in entries.entries)
-                  if (entry.value.isNotEmpty)
-                    Chip(
-                      label: Text('${entry.key}: ${entry.value}'),
-                      padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 10, vertical: compact ? 6 : 8),
-                    ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(desc.text.trim().isEmpty ? t.problem_desc : desc.text.trim()),
-            if (files.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final entry in files)
-                    Chip(
-                      avatar: const Icon(Icons.insert_drive_file_outlined),
-                      label: Text(entry.name, overflow: TextOverflow.ellipsis),
-                    ),
-                ],
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _banner({required bool isError, required String text}) {
     final color = isError ? Colors.red : Colors.green;
     final bg = isError ? Colors.red.withOpacity(.06) : Colors.green.withOpacity(.06);
@@ -1261,7 +1198,6 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     if (steps.isEmpty) return;
 
     final sectionLookup = {for (final entry in sections) entry.id: entry.widget};
-    final review = _wizardReview(compact: false, t: t);
 
     await Navigator.of(context).push(
       MaterialPageRoute(
@@ -1269,7 +1205,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
         builder: (_) => _ComplaintWizardOverlay(
           steps: steps,
           sectionLookup: sectionLookup,
-          review: review,
+          review: null,
           busyListenable: _busyNotifier,
           onSubmit: () => _submitComplaint(onSuccess: () => Navigator.of(context).pop()),
           t: t,
@@ -1335,6 +1271,14 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
       optHandlingRework: optHandlingRework,
     );
 
+    if (widget.wizardMode && !_wizardOpened && wizardSteps.isNotEmpty) {
+      _wizardOpened = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _openWizardFlow(steps: wizardSteps, t: t, sections: wizardSections);
+      });
+    }
+
     final body = SingleChildScrollView(
       controller: _scrollCtrl,
       padding: EdgeInsets.fromLTRB(compact ? 12 : 16, 12, compact ? 12 : 16, 24),
@@ -1379,7 +1323,6 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
               Column(
                 children: [
                   for (final section in sections) section.widget,
-                  if (widget.wizardMode) _wizardReview(compact: compact, t: t),
                 ],
               ),
 
@@ -1495,14 +1438,14 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
 class _ComplaintWizardOverlay extends StatefulWidget {
   final List<_WizardStep> steps;
   final Map<String, Widget> sectionLookup;
-  final Widget review;
+  final Widget? review;
   final ValueListenable<bool> busyListenable;
   final Future<void> Function() onSubmit;
   final AppLocalizations t;
   const _ComplaintWizardOverlay({
     required this.steps,
     required this.sectionLookup,
-    required this.review,
+    this.review,
     required this.busyListenable,
     required this.onSubmit,
     required this.t,
@@ -1581,8 +1524,8 @@ class _ComplaintWizardOverlayState extends State<_ComplaintWizardOverlay> {
 
       final content = widget.sectionLookup[s.id];
       final children = <Widget>[if (content != null) content];
-      if (s.id == 'privacy') {
-        children.addAll([const SizedBox(height: 12), widget.review]);
+      if (s.id == 'privacy' && widget.review != null) {
+        children.addAll([const SizedBox(height: 12), widget.review!]);
       }
 
       return SingleChildScrollView(
