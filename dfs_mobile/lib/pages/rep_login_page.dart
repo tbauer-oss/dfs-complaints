@@ -7,7 +7,6 @@ import '../widgets/dialog_content_scroll.dart';
 import '../widgets/legal_footer.dart';
 import '../services/push_notifications.dart';
 import '../widgets/password_field.dart';
-import '../services/biometric_auth.dart';
 
 // L10n-Helper
 extension _L10nX on BuildContext {
@@ -29,8 +28,6 @@ class _RepLoginPageState extends State<RepLoginPage> {
   bool _busy = false;
   String? _err;
   bool _staySignedIn = true;
-  bool _biometricAvailable = false;
-  bool _hasBiometricCredentials = false;
 
   void _setErr(String? msg) => setState(() => _err = msg);
   void _setBusy(bool b) => setState(() => _busy = b);
@@ -38,18 +35,6 @@ class _RepLoginPageState extends State<RepLoginPage> {
   @override
   void initState() {
     super.initState();
-    _loadBiometricState();
-  }
-
-  Future<void> _loadBiometricState() async {
-    final bio = BiometricAuthService.instance;
-    final available = await bio.isAvailable();
-    final hasCreds = available && await bio.hasCredentials(BiometricProfile.rep);
-    if (!mounted) return;
-    setState(() {
-      _biometricAvailable = available;
-      _hasBiometricCredentials = hasCreds;
-    });
   }
 
   // --- Navigation ins Dashboard (ohne dfs_mode) ---
@@ -106,92 +91,12 @@ class _RepLoginPageState extends State<RepLoginPage> {
         return;
       }
       if (res.mustChange) {
-        await _openChangePwDialog(emailForBiometric: email);
+        await _openChangePwDialog();
         return;
       }
-      await _offerBiometricOptIn(email, pw);
-      if (!mounted) return;
       await _goRepDashboard();
     } catch (e) {
       _setErr(t.login_failed_with_error('$e')); // NEU (parametrisierter Key)
-    } finally {
-      _setBusy(false);
-    }
-  }
-
-  Future<void> _offerBiometricOptIn(String email, String password) async {
-    final bio = BiometricAuthService.instance;
-    if (_hasBiometricCredentials) return;
-    if (!await bio.isAvailable()) return;
-
-    final t = context.t;
-    final enable = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(t.biometric_opt_in_title),
-        content: Text(t.biometric_opt_in_body),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(t.biometric_opt_in_no),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(t.biometric_opt_in_yes),
-          ),
-        ],
-      ),
-    );
-
-    if (enable != true || !mounted) return;
-
-    final saved = await bio.saveCredentials(BiometricProfile.rep, email, password);
-    if (!mounted) return;
-    if (saved) {
-      setState(() => _hasBiometricCredentials = true);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(t.biometric_setup_success)));
-    } else {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(t.biometric_not_available)));
-    }
-  }
-
-  Future<void> _loginWithBiometrics() async {
-    final t = context.t;
-    _setErr(null);
-    _setBusy(true);
-
-    final bio = BiometricAuthService.instance;
-    try {
-      final creds = await bio.readCredentials(BiometricProfile.rep);
-      if (creds == null) {
-        _setErr(t.biometric_not_available);
-        await _loadBiometricState();
-        return;
-      }
-
-      final ok = await bio.authenticate(t.biometric_auth_reason);
-      if (!ok) {
-        _setErr(t.biometric_auth_failed);
-        return;
-      }
-
-      _staySignedIn = true;
-      widget.api.setRepSessionPersistence(true);
-      final res = await widget.api.repLogin(creds.$1, creds.$2);
-      if (!mounted) return;
-      if (!res.ok) {
-        _setErr(t.login_failed_check_credentials); // NEU
-        return;
-      }
-      if (res.mustChange) {
-        await _openChangePwDialog(emailForBiometric: creds.$1);
-        return;
-      }
-      await _goRepDashboard();
-    } catch (e) {
-      _setErr(t.login_failed_with_error('$e'));
     } finally {
       _setBusy(false);
     }
@@ -213,12 +118,12 @@ class _RepLoginPageState extends State<RepLoginPage> {
 
     if (result != null && result.ok) {
       _email.text = result.email;
-      await _openChangePwDialog(emailForBiometric: result.email);
+      await _openChangePwDialog();
     }
   }
 
   // Dialog zum Passwort-Ändern (nach Secret-Login oder mustChangePw)
-  Future<void> _openChangePwDialog({String? emailForBiometric}) async {
+  Future<void> _openChangePwDialog() async {
     final t = context.t;
     final aCtrl = TextEditingController();
     final bCtrl = TextEditingController();
@@ -253,7 +158,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
                   ),
                   onSubmitted: (_) async {
                     if (!saving) {
-                      await _submitChangePw(ctx, setS, aCtrl, bCtrl, (s) => locErr = s, () => saving = true, emailForBiometric);
+                      await _submitChangePw(ctx, setS, aCtrl, bCtrl, (s) => locErr = s, () => saving = true);
                     }
                   },
                 ),
@@ -273,7 +178,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
               onPressed: saving
                   ? null
                   : () async {
-                      await _submitChangePw(ctx, setS, aCtrl, bCtrl, (s) => locErr = s, () => saving = true, emailForBiometric);
+                      await _submitChangePw(ctx, setS, aCtrl, bCtrl, (s) => locErr = s, () => saving = true);
                     },
               icon: saving
                   ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
@@ -300,7 +205,6 @@ class _RepLoginPageState extends State<RepLoginPage> {
     TextEditingController bCtrl,
     void Function(String?) setLocErr,
     void Function() markSaving,
-    String? emailForBiometric,
   ) async {
     final t = ctx.t;
     final a = aCtrl.text;
@@ -322,10 +226,6 @@ class _RepLoginPageState extends State<RepLoginPage> {
     try {
       await widget.api.repChangePassword(a);
       if (ctx.mounted) Navigator.pop(ctx, true);
-      final mail = emailForBiometric ?? _email.text.trim();
-      if (mail.isNotEmpty && mounted) {
-        await _offerBiometricOptIn(mail, a);
-      }
     } catch (e) {
       setS(() => setLocErr(t.password_set_failed('$e'))); // NEU (parametrisiert)
     }
@@ -384,17 +284,6 @@ class _RepLoginPageState extends State<RepLoginPage> {
                     controlAffinity: ListTileControlAffinity.leading,
                     title: Text(t.stay_signed_in),
                   ),
-                  if (_biometricAvailable && _hasBiometricCredentials) ...[
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: _busy ? null : _loginWithBiometrics,
-                        icon: const Icon(Icons.fingerprint),
-                        label: Text(t.biometric_login_button),
-                      ),
-                    ),
-                  ],
                   const SizedBox(height: 12),
                   if (_err != null)
                     Padding(

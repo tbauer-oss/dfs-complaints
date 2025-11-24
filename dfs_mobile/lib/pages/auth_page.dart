@@ -8,7 +8,6 @@ import '../models/country.dart';
 import '../services/app_prefs_scope.dart';
 import '../utils/lang_utils.dart';
 import '../widgets/password_field.dart';
-import '../services/biometric_auth.dart';
 
 enum Salutation { mr, ms, diverse }
 
@@ -42,8 +41,6 @@ class _AuthPageState extends State<AuthPage> {
   bool _busy = false;
   String _selectedLang = 'de';
   bool _staySignedIn = true;
-  bool _biometricAvailable = false;
-  bool _hasBiometricCredentials = false;
 
   @override
   void initState() {
@@ -52,7 +49,6 @@ class _AuthPageState extends State<AuthPage> {
       (c) => c.code == 'DE',
       orElse: () => kCountries.first,
     );
-    _loadBiometricState();
   }
 
   @override
@@ -64,17 +60,6 @@ class _AuthPageState extends State<AuthPage> {
     if (_selectedLang != normalized) {
       _selectedLang = normalized;
     }
-  }
-
-  Future<void> _loadBiometricState() async {
-    final bio = BiometricAuthService.instance;
-    final available = await bio.isAvailable();
-    final hasCreds = available && await bio.hasCredentials(BiometricProfile.customer);
-    if (!mounted) return;
-    setState(() {
-      _biometricAvailable = available;
-      _hasBiometricCredentials = hasCreds;
-    });
   }
 
   @override
@@ -149,19 +134,6 @@ class _AuthPageState extends State<AuthPage> {
                 contentPadding: EdgeInsets.zero,
                 controlAffinity: ListTileControlAffinity.leading,
                 title: Text(t.stay_signed_in),
-              ),
-
-            if (isLogin && _biometricAvailable && _hasBiometricCredentials)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: _busy ? null : _loginWithBiometrics,
-                    icon: const Icon(Icons.fingerprint),
-                    label: Text(t.biometric_login_button),
-                  ),
-                ),
               ),
 
             if (!isLogin) ...[
@@ -365,82 +337,6 @@ class _AuthPageState extends State<AuthPage> {
     );
   }
 
-  Future<void> _offerBiometricOptIn(String email, String password) async {
-    final bio = BiometricAuthService.instance;
-    if (_hasBiometricCredentials) return;
-    if (!await bio.isAvailable()) return;
-
-    final t = AppLocalizations.of(context)!;
-    final enable = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(t.biometric_opt_in_title),
-        content: Text(t.biometric_opt_in_body),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t.biometric_opt_in_no)),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(t.biometric_opt_in_yes)),
-        ],
-      ),
-    );
-
-    if (enable != true || !mounted) return;
-
-    final saved = await bio.saveCredentials(BiometricProfile.customer, email, password);
-    if (!mounted) return;
-    if (saved) {
-      setState(() => _hasBiometricCredentials = true);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(t.biometric_setup_success)));
-    } else {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(t.biometric_not_available)));
-    }
-  }
-
-  Future<void> _loginWithBiometrics() async {
-    if (!isLogin) return;
-    final t = AppLocalizations.of(context)!;
-    final bio = BiometricAuthService.instance;
-    setState(() { _err = null; _busy = true; });
-
-    try {
-      final creds = await bio.readCredentials(BiometricProfile.customer);
-      if (creds == null) {
-        setState(() => _err = t.biometric_not_available);
-        await _loadBiometricState();
-        return;
-      }
-
-      final ok = await bio.authenticate(t.biometric_auth_reason);
-      if (!ok) {
-        setState(() => _err = t.biometric_auth_failed);
-        return;
-      }
-
-      _staySignedIn = true;
-      widget.api.setCustomerSessionPersistence(true);
-      final result = await widget.api.login(creds.$1, creds.$2);
-      if (!mounted) return;
-      if (result.ok) {
-        widget.onLoggedIn();
-      } else {
-        final err = result.revoked
-            ? t.account_blocked
-            : (result.statusCode == 401
-                ? t.login_failed_check_credentials
-                : (result.message?.isNotEmpty == true
-                    ? result.message!
-                    : t.login_failed));
-        setState(() => _err = err);
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _err = e.toString());
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
   Future<void> _handlePress(BuildContext context) async {
     final t = AppLocalizations.of(context)!;
 
@@ -456,8 +352,6 @@ class _AuthPageState extends State<AuthPage> {
         final result = await widget.api.login(_email.text.trim(), _pw.text);
         if (!mounted) return;
         if (result.ok) {
-          await _offerBiometricOptIn(_email.text.trim(), _pw.text);
-          if (!mounted) return;
           widget.onLoggedIn();
         } else {
           final err = result.revoked
