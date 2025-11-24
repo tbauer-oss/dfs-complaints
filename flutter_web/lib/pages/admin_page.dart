@@ -230,7 +230,8 @@ class _AdminPageState extends State<AdminPage> {
 
   // Aktivitäts-Check (Kunden & Vertreter)
   final _activityEmailCtrl = TextEditingController();
-  String _activityKind = 'auto';
+  String _activityKind = 'customer';
+  String? _activitySelectedEmail;
   _ActivitySnapshot? _activity;
   bool _activityLoading = false;
   String? _activityErr;
@@ -523,6 +524,7 @@ class _AdminPageState extends State<AdminPage> {
       setState(() {
         _pending = both[0] as List<PendingUser>;
         _users = both[1] as List<ActiveUser>;
+        _syncActivitySelection();
       });
     } catch (e) {
       setState(() => _err = '$e');
@@ -769,11 +771,55 @@ class _AdminPageState extends State<AdminPage> {
         if (!_repRegionOptions.contains(_repRegion)) {
           _repRegion = _repRegionOptions.first;
         }
+        _syncActivitySelection();
       });
     } catch (e) {
       if (mounted) setState(() => _err = '$e');
     } finally {
       if (mounted) setState(() => _loadReps = false);
+    }
+  }
+
+  List<_ActivityChoice> _activityChoicesForKind(String kind) {
+    if (kind == 'rep') {
+      final reps = _reps
+          .where((r) => r.email.trim().isNotEmpty)
+          .map((r) {
+            final name = '${r.firstName} ${r.lastName}'.trim();
+            final label = name.isNotEmpty ? '$name (${r.email})' : r.email;
+            return _ActivityChoice(r.email.trim(), label);
+          })
+          .toList();
+      reps.sort((a, b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
+      return reps;
+    }
+
+    final customers = _users
+        .where((u) => u.email.trim().isNotEmpty)
+        .map((u) {
+          final parts = <String>[];
+          if (u.company.trim().isNotEmpty) parts.add(u.company.trim());
+          if (u.contact.trim().isNotEmpty) parts.add(u.contact.trim());
+          parts.add(u.email.trim());
+          return _ActivityChoice(u.email.trim(), parts.join(' • '));
+        })
+        .toList();
+    customers.sort((a, b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
+    return customers;
+  }
+
+  void _syncActivitySelection() {
+    final options = _activityChoicesForKind(_activityKind);
+    if (options.isEmpty) {
+      _activitySelectedEmail = null;
+      _activityEmailCtrl.clear();
+      return;
+    }
+
+    final current = _activitySelectedEmail;
+    if (current == null || !options.any((o) => o.email == current)) {
+      _activitySelectedEmail = options.first.email;
+      _activityEmailCtrl.text = _activitySelectedEmail!;
     }
   }
 
@@ -2042,10 +2088,10 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   Future<void> _loadActivity() async {
-    final email = _activityEmailCtrl.text.trim();
+    final email = (_activitySelectedEmail ?? _activityEmailCtrl.text).trim();
     if (email.isEmpty) {
       setState(() {
-        _activityErr = 'Bitte E-Mail eingeben.';
+        _activityErr = 'Bitte eine Auswahl treffen.';
         _activity = null;
       });
       return;
@@ -2077,10 +2123,22 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  List<DropdownMenuItem<String>> _activityDropdownItems() {
+    return _activityChoicesForKind(_activityKind)
+        .map(
+          (o) => DropdownMenuItem<String>(
+            value: o.email,
+            child: Text(o.label, overflow: TextOverflow.ellipsis),
+          ),
+        )
+        .toList();
+  }
+
   Widget _buildActivityPanel() {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final result = _activity;
+    final activityItems = _activityDropdownItems();
 
     return Card(
       child: Padding(
@@ -2109,25 +2167,42 @@ class _AdminPageState extends State<AdminPage> {
                       isDense: true,
                     ),
                     items: const [
-                      DropdownMenuItem(value: 'auto', child: Text('Auto (erst Kunde, dann Rep)')),
                       DropdownMenuItem(value: 'customer', child: Text('Kunde')),
                       DropdownMenuItem(value: 'rep', child: Text('Vertreter')),
                     ],
-                    onChanged: (v) => setState(() => _activityKind = v ?? 'auto'),
+                    onChanged: (v) {
+                      final nextKind = v ?? 'customer';
+                      setState(() {
+                        _activityKind = nextKind;
+                        _activitySelectedEmail = null;
+                        _activityEmailCtrl.clear();
+                        final options = _activityChoicesForKind(nextKind);
+                        if (options.isNotEmpty) {
+                          _activitySelectedEmail = options.first.email;
+                          _activityEmailCtrl.text = _activitySelectedEmail!;
+                        }
+                      });
+                    },
                   ),
                 ),
                 const SizedBox(width: 8),
                 SizedBox(
-                  width: 300,
-                  child: TextField(
-                    controller: _activityEmailCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'E-Mail',
-                      hintText: 'kunde@firma.tld',
-                      border: OutlineInputBorder(),
+                  width: 360,
+                  child: DropdownButtonFormField<String>(
+                    value: _activitySelectedEmail,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: _activityKind == 'rep' ? 'Vertreter' : 'Kunde',
+                      border: const OutlineInputBorder(),
                       isDense: true,
                     ),
-                    onSubmitted: (_) => _activityLoading ? null : _loadActivity(),
+                    items: activityItems,
+                    onChanged: _activityLoading || activityItems.isEmpty
+                        ? null
+                        : (v) => setState(() {
+                              _activitySelectedEmail = v;
+                              _activityEmailCtrl.text = v ?? '';
+                            }),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -2150,7 +2225,7 @@ class _AdminPageState extends State<AdminPage> {
             Expanded(
               child: result == null
                   ? const Center(
-                      child: Text('E-Mail eingeben und Abrufen klicken, um Aktivitätsdaten zu sehen.'),
+                      child: Text('Eintrag auswählen und Abrufen klicken, um Aktivitätsdaten zu sehen.'),
                     )
                   : _buildActivityDetails(result, cs),
             ),
@@ -6162,6 +6237,13 @@ class SystemHealthCheck {
     final s = raw.toString().trim();
     return s.isEmpty ? null : s;
   }
+}
+
+class _ActivityChoice {
+  final String email;
+  final String label;
+
+  const _ActivityChoice(this.email, this.label);
 }
 
 class _ActivitySnapshot {
