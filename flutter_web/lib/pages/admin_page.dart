@@ -4123,9 +4123,9 @@ class _AdminPageState extends State<AdminPage> {
                         data: previewText,
                         softLineBreak: true,
                         extensionSet: md.ExtensionSet.gitHubFlavored,
-                        inlineSyntaxes: const [
-                          md.TagSyntax('u'),
-                          md.TagSyntax('mark'),
+                        inlineSyntaxes: [
+                          _UnderlineTagSyntax(),
+                          _MarkTagSyntax(),
                         ],
                         selectable: true,
                         styleSheet: MarkdownStyleSheet(
@@ -10799,6 +10799,26 @@ class _AdminTileProState extends State<AdminTilePro> {
         ),
       ),
     );
+  }
+}
+
+class _UnderlineTagSyntax extends md.InlineSyntax {
+  _UnderlineTagSyntax() : super(r'<u>(.*?)</u>');
+
+  @override
+  bool onMatch(md.InlineParser parser, Match match) {
+    parser.addNode(md.Element.text('u', match[1]!));
+    return true;
+  }
+}
+
+class _MarkTagSyntax extends md.InlineSyntax {
+  _MarkTagSyntax() : super(r'<mark>(.*?)</mark>');
+
+  @override
+  bool onMatch(md.InlineParser parser, Match match) {
+    parser.addNode(md.Element.text('mark', match[1]!));
+    return true;
   }
 }
 
