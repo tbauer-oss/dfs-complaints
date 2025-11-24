@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
+import '../data/knowledge_base_data.dart';
 import '../models/complaint_attachment.dart';
 import '../utils/attachment_preview.dart';
 import '../utils/image_optimizer.dart';
@@ -30,6 +31,17 @@ class ComplaintFormPage extends StatefulWidget {
 
 class _ComplaintFormPageState extends State<ComplaintFormPage> {
   static const _helpPrefKey = 'dfs_complaint_help_collapsed';
+  static const _keywordHints = {
+    'gebrochen': ['bruch', 'gebroch', 'sturz', 'verbieg', 'unbrauchbar'],
+    'abgebrochen': ['bruch', 'gebroch', 'sturz', 'verbieg'],
+    'verbogen': ['verbieg', 'krumm', 'unwucht'],
+    'heiss': ['heiß', 'hitze', 'ueberhitz', 'überhitz'],
+    'heiß': ['heiss', 'hitze', 'ueberhitz', 'überhitz'],
+    'vibration': ['vibri', 'unwucht'],
+    'vibriert': ['vibration', 'unwucht'],
+    'korrosion': ['rost', 'korro', 'verfärb', 'fleck'],
+    'rost': ['korro', 'verfärb'],
+  };
   String segment = 'Zahnmedizin';
   final article = TextEditingController();
   final batch = TextEditingController();
@@ -55,8 +67,57 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
 
   bool _dirty = false;
   final List<TextEditingController> _ctrls = [];
+  KnowledgeItem? _autoHelpItem;
 
   void _markDirty() { if (!_dirty) setState(() => _dirty = true); }
+
+  void _handleDescriptionChanged() {
+    _markDirty();
+    _updateAutoHelp();
+  }
+
+  void _updateAutoHelp() {
+    final t = context.t;
+    final query = desc.text.toLowerCase().trim();
+    if (query.length < 12) {
+      if (_autoHelpItem != null) setState(() => _autoHelpItem = null);
+      return;
+    }
+
+    final tokens = query
+        .split(RegExp(r'[^a-zA-ZäöüÄÖÜß0-9]+'))
+        .map((w) => w.trim())
+        .where((w) => w.length >= 3)
+        .toList();
+
+    KnowledgeItem? best;
+    var bestScore = 0;
+
+    for (final item in knowledgeItems) {
+      final content = '${item.question(t)} ${item.answer(t)}'.toLowerCase();
+      var score = 0;
+
+      if (content.contains(query)) score += 6;
+
+      for (final token in tokens) {
+        final variants = <String>{token};
+        final extra = _keywordHints[token];
+        if (extra != null) variants.addAll(extra);
+        for (final needle in variants) {
+          if (needle.isEmpty) continue;
+          if (content.contains(needle)) score += 2;
+        }
+      }
+
+      if (score == 0) continue;
+      if (score > bestScore) {
+        best = item;
+        bestScore = score;
+      }
+    }
+
+    setState(() => _autoHelpItem = bestScore >= 2 ? best : null);
+  }
 
   Future<bool> _confirmLeaveIfDirty() async {
     if (!_dirty) return true;
@@ -81,8 +142,9 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   @override
   void initState() {
     super.initState();
-    _ctrls.addAll([article, batch, qty, expiry, desc, injuryDesc]);
+    _ctrls.addAll([article, batch, qty, expiry, injuryDesc]);
     for (final c in _ctrls) { c.addListener(_markDirty); }
+    desc.addListener(_handleDescriptionChanged);
     _loadAccount();
     _loadHelpPref();
   }
@@ -90,6 +152,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   @override
   void dispose() {
     for (final c in _ctrls) { c.removeListener(_markDirty); }
+    desc.removeListener(_handleDescriptionChanged);
     super.dispose();
   }
 
@@ -207,6 +270,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
       err = null;
       info = null;
       _dirty = false;
+      _autoHelpItem = null;
     });
   }
 
@@ -248,6 +312,98 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     ));
   }
 
+  List<String> _splitAnswer(String raw) {
+    return raw
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .map((line) => line.replaceFirst(RegExp(r'^[•\-\u2022]\s*'), ''))
+        .toList();
+  }
+
+  void _openSuggestedAnswer(KnowledgeItem item) {
+    final t = context.t;
+    final answers = _splitAnswer(item.answer(t));
+    final theme = Theme.of(context);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) {
+        final bottomPadding = MediaQuery.of(ctx).viewPadding.bottom;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(16, 10, 16, bottomPadding + 16),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.psychology_outlined, color: theme.colorScheme.primary),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        t.complaint_auto_help_title,
+                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  knowledgeCategoryLabel(item.category, t),
+                  style: theme.textTheme.labelMedium,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  item.question(t),
+                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 10),
+                ...answers.map(
+                  (a) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.only(top: 3),
+                          child: Icon(Icons.check_circle_outline, size: 16),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(a, style: const TextStyle(height: 1.35))),
+                      ],
+                    ),
+                  ),
+                ),
+                if (answers.isEmpty)
+                  Text(item.answer(t), style: const TextStyle(height: 1.4)),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      _openHelpLink();
+                    },
+                    icon: const Icon(Icons.open_in_new),
+                    label: Text(t.complaint_help_link),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   List<ComplaintAttachment> _currentAttachments() {
     return files
         .map((f) => ComplaintAttachment(
@@ -256,6 +412,81 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
               mime: f.mime,
             ))
         .toList(growable: false);
+  }
+
+  Widget _buildAutoHelpCard() {
+    final suggestion = _autoHelpItem;
+    if (suggestion == null) return const SizedBox.shrink();
+
+    final t = context.t;
+    final theme = Theme.of(context);
+    final answers = _splitAnswer(suggestion.answer(t));
+    final preview = answers.isNotEmpty ? answers.first : null;
+
+    return Card(
+      color: theme.colorScheme.secondaryContainer.withOpacity(0.7),
+      elevation: 0,
+      margin: const EdgeInsets.only(top: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.psychology_alt_outlined, color: theme.colorScheme.primary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    t.complaint_auto_help_title,
+                    style: TextStyle(fontWeight: FontWeight.w700, color: theme.colorScheme.onSecondaryContainer),
+                  ),
+                ),
+                Chip(
+                  visualDensity: VisualDensity.compact,
+                  label: Text(
+                    knowledgeCategoryLabel(suggestion.category, t),
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  avatar: Icon(Icons.folder_open, size: 18, color: theme.colorScheme.primary),
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              t.complaint_auto_help_intro,
+              style: TextStyle(color: theme.colorScheme.onSecondaryContainer.withOpacity(0.9)),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              suggestion.question(t),
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            if (preview != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                preview,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(height: 1.35),
+              ),
+            ],
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(visualDensity: VisualDensity.comfortable),
+                onPressed: () => _openSuggestedAnswer(suggestion),
+                icon: const Icon(Icons.visibility_outlined),
+                label: Text(t.complaint_auto_help_button),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _showSummary(String ticket, Map<String, dynamic> payload) async {
@@ -438,6 +669,8 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                     maxLines: 4,
                     decoration: _dec(context, t.problem_desc),
                   ),
+                  const SizedBox(height: 4),
+                  _buildAutoHelpCard(),
                 ],
               ),
 
