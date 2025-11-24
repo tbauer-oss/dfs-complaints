@@ -1055,7 +1055,7 @@ class _AdminPageState extends State<AdminPage> {
         return;
       }
 
-      await widget.api.setAppMeta(
+      final saved = await widget.api.setAppMeta(
         version: version,
         build: bCtrl.text.trim().isEmpty ? null : bCtrl.text.trim(),
         notes: nCtrl.text.trim().isEmpty ? null : nCtrl.text.trim(),
@@ -1074,8 +1074,10 @@ class _AdminPageState extends State<AdminPage> {
       // Aktualisierte Metadaten laden und an den Caller weiterreichen, damit das
       // TESTSYSTEM-Banner unmittelbar sichtbar wird, ohne dass ein Reload nötig ist.
       try {
-        final refreshed = await widget.api.getAppMeta(refresh: true);
-        if (refreshed != null) {
+        final refreshed = saved.isNotEmpty
+            ? saved
+            : await widget.api.getAppMeta(refresh: true) ?? <String, dynamic>{};
+        if (refreshed.isNotEmpty) {
           widget.onMetaUpdated?.call(refreshed);
         }
       } catch (_) {}
