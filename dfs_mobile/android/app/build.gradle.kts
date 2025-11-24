@@ -63,10 +63,12 @@ android {
     }
 }
 
-android.applicationVariants.all { variant ->
-    variant.outputs.all { output ->
-        val versionName = variant.versionName ?: "unknown"
-        output.outputFileName = "DFS-Complaint_App-$versionName.apk"
+androidComponents {
+    onVariants { variant ->
+        val versionName = variant.versionName.orElse("unknown")
+        variant.outputs.forEach { output ->
+            output.outputFileName.set("DFS-Complaint_App-${versionName.get()}.apk")
+        }
     }
 }
 
