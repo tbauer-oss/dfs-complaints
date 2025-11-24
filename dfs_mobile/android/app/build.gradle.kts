@@ -63,12 +63,12 @@ android {
     }
 }
 
-androidComponents {
-    onVariants { variant ->
-        val versionName = variant.versionName.orElse("unknown")
-        variant.outputs.forEach { output ->
-            output.outputFileName.set("DFS-Complaint_App-${versionName.get()}.apk")
-        }
+@Suppress("DEPRECATION")
+android.applicationVariants.all { variant ->
+    val versionName = variant.versionName ?: "unknown"
+    variant.outputs.forEach { output ->
+        val apkOutput = output as com.android.build.gradle.api.ApkVariantOutput
+        apkOutput.outputFileName = "DFS-Complaint_App-$versionName.apk"
     }
 }
 
@@ -79,8 +79,3 @@ dependencies {
     implementation("com.google.firebase:firebase-messaging")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 }
-
-
-
-
-
