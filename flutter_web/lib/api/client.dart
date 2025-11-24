@@ -560,6 +560,9 @@ class ApiClient {
     required String version,
     String? build,
     String? notes,
+    bool? testMode,
+    String? testEmail,
+    List<String>? testPushTokens,
   }) async {
     final base = _apiBase.isEmpty ? '' : _apiBase;
     final uri = Uri.parse('$base/api/admin/meta');
@@ -567,6 +570,9 @@ class ApiClient {
       'version': version,
       if (build != null) 'build': build,
       if (notes != null) 'notes': notes,
+      if (testMode != null) 'testMode': testMode,
+      if (testEmail != null) 'testEmail': testEmail,
+      if (testPushTokens != null) 'testPushTokens': testPushTokens,
     });
 
     final headers = {

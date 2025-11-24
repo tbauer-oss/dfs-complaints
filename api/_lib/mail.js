@@ -3,6 +3,7 @@ import nodemailer from 'nodemailer';
 import fs from 'fs';
 import path from 'path';
 import { mailConfigOk, resolveMailConfig } from './mail-config.js';
+import { applyTestMailRouting, loadAppMeta } from './appMeta.js';
 
 // ==== Absender / QM (via ENV übersteuerbar) ====
 const MAIL = resolveMailConfig();
@@ -546,12 +547,22 @@ export async function send(
       ? cleanAddress(replyTo)
       : REPLY_TO;
 
-  const ccList = normalizeAddressList(cc);
+  let meta = null;
+  try { meta = await loadAppMeta(); } catch (_) {}
+  const routing = applyTestMailRouting(meta, { to, cc, subject });
+  const toList = normalizeAddressList(routing.to?.length ? routing.to : to);
+  const ccList = normalizeAddressList(routing.cc?.length ? routing.cc : cc);
+  const subjectOut = routing.subject || subject;
+
+  if (routing.suppressed) {
+    console.warn('[mail] test mode active – suppressing mail send', { to });
+    return { accepted: [], rejected: [], envelope: {}, messageId: null, testMode: true };
+  }
 
   const mailOptions = {
     from: fromAddress,
-    to,
-    subject,
+    to: toList,
+    subject: subjectOut,
     text,
     html,
     attachments: atts,

@@ -1,17 +1,9 @@
 // api/admin/meta.js
+import { loadAppMeta, sanitizeAppMeta, updateAppMeta } from '../_lib/appMeta.js';
+
 export const config = { runtime: 'nodejs' };
 
 // --- Utils ---
-const nowIso = () => new Date().toISOString();
-const envBuild = () => {
-  const fromEnv =
-    process.env.APP_BUILD ||
-    process.env.BUILD_ID ||
-    process.env.VERCEL_GIT_COMMIT_SHA ||
-    process.env.VERCEL_GIT_COMMIT_REF ||
-    '';
-  return fromEnv.toString();
-};
 const json = (res, code, data) => {
   res.statusCode = code;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -34,26 +26,6 @@ function checkAdmin(req) {
   return env && header && header === env;
 }
 
-// --- Upstash Redis Speicherung ---
-async function saveMeta(meta) {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  const key = process.env.APP_META_KEY || 'dfs:app:meta';
-
-  if (!url || !token) {
-    // Dev-Fallback in Memory
-    global.__APP_META__ = meta;
-    return true;
-  }
-
-  const body = JSON.stringify(meta);
-  const r = await fetch(`${url}/set/${encodeURIComponent(key)}/${encodeURIComponent(body)}`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return r.ok;
-}
-
 export default async function handler(req, res) {
   setCors(req, res);
   if (isOptions(req)) return res.status(204).end();
@@ -64,20 +36,27 @@ export default async function handler(req, res) {
   try {
     const data = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
     const version = (data.version ?? '').toString().trim();
-    const build   = (data.build   ?? '').toString().trim() || envBuild();
+    const build   = (data.build   ?? '').toString().trim();
     const notes   = (data.notes   ?? '').toString();
+    const testMode = data.testMode;
+    const testEmail = (data.testEmail ?? '').toString();
+    const testPushTokens = Array.isArray(data.testPushTokens) ? data.testPushTokens : data.testPush;
 
     if (!version) return json(res, 400, { error: 'version required' });
 
-    const meta = {
+    const current = await loadAppMeta({ refresh: true });
+    const meta = sanitizeAppMeta({
+      ...current,
       version,
-      ...(build && { build }),
-      ...(notes && { notes }),
-      updatedAt: nowIso(),
-    };
+      ...(build ? { build } : {}),
+      ...(notes ? { notes } : { notes: '' }),
+      ...(testEmail ? { testEmail } : {}),
+      ...(testPushTokens ? { testPushTokens } : {}),
+      testMode,
+      updatedAt: new Date().toISOString(),
+    });
 
-    const ok = await saveMeta(meta);
-    if (!ok) return json(res, 500, { error: 'persist failed' });
+    await updateAppMeta(meta);
 
     return json(res, 200, { ok: true, meta });
   } catch (e) {
