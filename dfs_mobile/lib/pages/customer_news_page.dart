@@ -470,6 +470,8 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
     final isCompact = MediaQuery.of(context).size.width < 420;
     final accentColor = entry.pinned ? colorScheme.primary : colorScheme.secondary;
     final listDate = DateFormat.MMMd(t.localeName).format(entry.publishedAt);
+    final publishedLabel = _formatDate(t, entry.publishedAt);
+    final updatedLabel = _formatDate(t, entry.updatedAt);
     final backgroundGradient = LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
@@ -586,7 +588,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                     ),
                     alignment: Alignment.center,
                     child: Icon(
-                      Icons.auto_awesome_outlined,
+                      Icons.celebration_outlined,
                       color: accentColor,
                     ),
                   ),
@@ -617,32 +619,37 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                         SizedBox(height: isCompact ? 8 : 10),
                         Container(
                           padding: EdgeInsets.symmetric(
-                            horizontal: isCompact ? 10 : 12,
-                            vertical: isCompact ? 8 : 10,
+                            horizontal: isCompact ? 12 : 14,
+                            vertical: isCompact ? 10 : 12,
                           ),
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            color: accentColor.withOpacity(theme.brightness == Brightness.dark ? 0.18 : 0.14),
+                            borderRadius: BorderRadius.circular(18),
+                            gradient: LinearGradient(
+                              colors: [
+                                accentColor.withOpacity(0.16),
+                                accentColor.withOpacity(0.08),
+                              ],
+                            ),
                           ),
                           child: Row(
                             children: [
-                              Icon(Icons.campaign_rounded, size: 18, color: accentColor),
-                              const SizedBox(width: 8),
+                              Icon(Icons.auto_awesome_rounded, size: 18, color: accentColor),
+                              const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
-                                  entry.summary,
+                                  t.customerNewsMarketingHook,
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: textTheme.bodyMedium?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    height: 1.3,
+                                    fontWeight: FontWeight.w800,
+                                    height: 1.35,
                                   ),
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        SizedBox(height: isCompact ? 8 : 10),
+                        SizedBox(height: isCompact ? 10 : 12),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -679,47 +686,43 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Wrap(
-                      spacing: isCompact ? 6 : 8,
-                      runSpacing: 6,
-                      children: [
-                        _buildPill(
-                          theme,
-                          _categoryLabel(t, entry.category),
-                          accentColor,
-                          icon: Icons.sell_outlined,
-                        ),
-                        if (entry.pinned)
-                          _buildPill(
-                            theme,
-                            t.customerNewsPinned,
-                            colorScheme.primary,
-                            icon: Icons.push_pin_outlined,
-                          ),
-                      ],
-                    ),
-                    SizedBox(height: isCompact ? 12 : 14),
                     Text(
                       entry.summary,
                       style: textTheme.bodyLarge?.copyWith(height: 1.45),
                     ),
                     SizedBox(height: isCompact ? 12 : 16),
                     Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     Row(
                       children: [
-                        Icon(Icons.auto_awesome, size: 18, color: accentColor),
+                        Icon(Icons.event_available_rounded, size: 18, color: accentColor),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            t.customerNewsMarketingHook,
-                            style: textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
+                            publishedLabel,
+                            style: textTheme.bodyMedium,
                           ),
                         ),
                       ],
                     ),
+                    if (entry.updatedAt.isAfter(
+                      entry.publishedAt.add(const Duration(minutes: 1)),
+                    ))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Row(
+                          children: [
+                            Icon(Icons.auto_awesome, size: 18, color: accentColor),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                updatedLabel,
+                                style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     if (entry.linkUrl != null) ...[
                       const SizedBox(height: 12),
                       Align(
