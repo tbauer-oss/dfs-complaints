@@ -2,7 +2,7 @@ export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { randomGateCode, hashGateCode } from '../_lib/gate.js';
-import { gateStoreSet } from '../_lib/store.js';
+import { gateStoreSet, userByEmail } from '../_lib/store.js';
 import { sendMail } from '../_lib/mailer.js';
 
 const INTERNAL_GATE_EMAIL = process.env.GATE_NOTIFY_EMAIL || 'complaint@dfs-diamon.de';
@@ -33,6 +33,15 @@ export default async function handler(req, res) {
 
     if (!email) return bad(res, 'missing email', 400);
     if (!company) return bad(res, 'missing company', 400);
+
+    const existingUser = await userByEmail(email);
+    const isActiveUser =
+      !!existingUser &&
+      !existingUser.revoked &&
+      (existingUser.status === 'active' || existingUser.status == null);
+    if (isActiveUser) {
+      return bad(res, 'email already registered', 409);
+    }
 
     const gateCode = randomGateCode();
     const codeHash = hashGateCode(gateCode);
