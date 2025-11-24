@@ -30,6 +30,8 @@ class _WizardStep {
   const _WizardStep({required this.id, required this.icon, required this.title, required this.hint});
 }
 
+enum _WizardDialogResult { previous, next, close }
+
 class ComplaintFormPage extends StatefulWidget {
   final ApiClient api;
   final bool wizardMode;
@@ -69,6 +71,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
 
   final ScrollController _scrollCtrl = ScrollController();
   int _wizardStep = 0;
+  final Set<String> _wizardVisited = {};
   final Map<String, GlobalKey> _sectionKeys = {
     'segment': GlobalKey(),
     'product': GlobalKey(),
@@ -169,23 +172,6 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
         hint: t.complaint_wizard_step_finish,
       ),
     ];
-  }
-
-  Future<void> _scrollToSection(String id) async {
-    final ctx = _sectionKeys[id]?.currentContext;
-    if (ctx == null) return;
-    await Scrollable.ensureVisible(
-      ctx,
-      duration: const Duration(milliseconds: 350),
-      curve: Curves.easeInOut,
-      alignment: 0.05,
-    );
-  }
-
-  Future<void> _goToStep(List<_WizardStep> steps, int index) async {
-    if (index < 0 || index >= steps.length) return;
-    setState(() => _wizardStep = index);
-    await _scrollToSection(steps[index].id);
   }
 
   Widget _wizardAnchor(String id, Widget child) {
@@ -615,6 +601,202 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     );
   }
 
+  List<Widget> _segmentFields(AppLocalizations t) {
+    final optDentist = t.segment_dentist, optLab = t.segment_lab;
+    return [
+      DropdownButtonFormField<String>(
+        value: segment,
+        items: [
+          DropdownMenuItem(value: optDentist, child: Text(optDentist)),
+          DropdownMenuItem(value: optLab, child: Text(optLab)),
+        ],
+        onChanged: (v) => setState(() {
+          segment = v ?? optDentist;
+          _dirty = true;
+        }),
+        decoration: _dec(context, t.segment),
+      ),
+    ];
+  }
+
+  List<Widget> _productFields(AppLocalizations t) {
+    final isDentist = segment == t.segment_dentist;
+    return [
+      TextField(controller: article, decoration: _dec(context, t.article)),
+      const SizedBox(height: 10),
+      TextField(
+        controller: batch,
+        decoration: _dec(context, isDentist ? '${t.batch} *' : t.batch, hint: isDentist ? t.batch : null),
+      ),
+      const SizedBox(height: 10),
+      Row(children: [
+        Expanded(child: TextField(controller: qty, decoration: _dec(context, t.qty))),
+        const SizedBox(width: 10),
+        Expanded(child: TextField(controller: expiry, decoration: _dec(context, t.expiry))),
+      ]),
+      const SizedBox(height: 10),
+      TextField(
+        controller: desc,
+        maxLines: 4,
+        decoration: _dec(context, t.problem_desc),
+      ),
+      const SizedBox(height: 4),
+      _buildAutoHelpCard(),
+    ];
+  }
+
+  List<Widget> _patientFields(AppLocalizations t) {
+    final optYes = t.yes, optNo = t.no;
+    final needInjuryDesc = applied == optYes && injury == optYes && segment == t.segment_dentist;
+    if (segment != t.segment_dentist) return const [];
+
+    return [
+      DropdownButtonFormField<String>(
+        value: applied,
+        items: [
+          DropdownMenuItem(value: optYes, child: Text(optYes)),
+          DropdownMenuItem(value: optNo, child: Text(optNo)),
+        ],
+        onChanged: (v) => setState(() {
+          applied = v ?? optNo;
+          _dirty = true;
+        }),
+        decoration: _dec(context, t.applied_to_patient),
+      ),
+      const SizedBox(height: 10),
+      DropdownButtonFormField<String>(
+        value: injury,
+        items: [
+          DropdownMenuItem(value: optYes, child: Text(optYes)),
+          DropdownMenuItem(value: optNo, child: Text(optNo)),
+        ],
+        onChanged: (v) => setState(() {
+          injury = v ?? optNo;
+          _dirty = true;
+        }),
+        decoration: _dec(context, t.injury_question),
+      ),
+      if (needInjuryDesc) ...[
+        const SizedBox(height: 10),
+        TextField(controller: injuryDesc, maxLines: 3, decoration: _dec(context, t.injury_desc)),
+      ],
+    ];
+  }
+
+  List<Widget> _attachmentFields(AppLocalizations t) {
+    return [
+      OutlinedButton.icon(
+        onPressed: pickFiles,
+        icon: const Icon(Icons.upload),
+        label: Text(files.isEmpty ? t.add_attachment : t.images_selected(files.length)),
+      ),
+      if (files.isNotEmpty) ...[
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final f in files)
+              InputChip(
+                label: Text(
+                  f.name,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+                avatar: const Icon(Icons.insert_drive_file_outlined),
+                onDeleted: () {
+                  setState(() {
+                    files = files.where((file) => file != f).toList();
+                    _dirty = true;
+                  });
+                },
+                deleteIcon: const Icon(Icons.close),
+              ),
+          ],
+        ),
+      ],
+    ];
+  }
+
+  List<Widget> _resolutionFields(AppLocalizations t) {
+    final optReturnedYes = t.yes, optReturnedNo = t.no;
+    final optHandlingRep = t.handling_replacement, optHandlingCredit = t.handling_credit, optHandlingRework = t.handling_rework;
+
+    return [
+      DropdownButtonFormField<String>(
+        value: returned,
+        items: [
+          DropdownMenuItem(value: optReturnedYes, child: Text(optReturnedYes)),
+          DropdownMenuItem(value: optReturnedNo, child: Text(optReturnedNo)),
+        ],
+        onChanged: (v) => setState(() {
+          returned = v ?? optReturnedNo;
+          _dirty = true;
+        }),
+        decoration: _dec(context, t.returned_question),
+      ),
+      const SizedBox(height: 10),
+      DropdownButtonFormField<String>(
+        value: handling,
+        items: [
+          DropdownMenuItem(value: optHandlingRep, child: Text(optHandlingRep)),
+          DropdownMenuItem(value: optHandlingCredit, child: Text(optHandlingCredit)),
+          DropdownMenuItem(value: optHandlingRework, child: Text(optHandlingRework)),
+        ],
+        onChanged: (v) => setState(() {
+          handling = v ?? optHandlingRep;
+          _dirty = true;
+        }),
+        decoration: _dec(context, t.handling),
+      ),
+    ];
+  }
+
+  List<Widget> _privacyFields(AppLocalizations t) {
+    return [
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Checkbox(
+            value: privacy,
+            onChanged: (v) => setState(() {
+              privacy = v ?? false;
+              _dirty = true;
+            }),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(t.privacy_agree),
+                const SizedBox(height: 4),
+                InkWell(
+                  onTap: () => Navigator.of(context).pushNamed('/legal/privacy'),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.privacy_tip_outlined, size: 18),
+                      const SizedBox(width: 6),
+                      Text(
+                        t.privacy_view,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.primary,
+                          decoration: TextDecoration.underline,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ];
+  }
+
   Widget _section({required IconData icon, required String title, required List<Widget> children}) {
     return Card(
       elevation: 0,
@@ -636,6 +818,166 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
         ),
       ),
     );
+  }
+
+  List<Widget> _stepFieldsFor(String id, AppLocalizations t) {
+    switch (id) {
+      case 'segment':
+        return _segmentFields(t);
+      case 'product':
+        return _productFields(t);
+      case 'patient':
+        return _patientFields(t);
+      case 'attachments':
+        return _attachmentFields(t);
+      case 'resolution':
+        return _resolutionFields(t);
+      case 'privacy':
+        return _privacyFields(t);
+      default:
+        return const [];
+    }
+  }
+
+  bool _isStepComplete(String id, AppLocalizations t, {required bool isDentist, required bool needInjuryDesc}) {
+    switch (id) {
+      case 'segment':
+        return segment.isNotEmpty;
+      case 'product':
+        final hasBasics = article.text.trim().isNotEmpty && desc.text.trim().isNotEmpty;
+        return hasBasics && (!isDentist || batch.text.trim().isNotEmpty);
+      case 'patient':
+        if (!isDentist) return true;
+        final hasBasics = applied.isNotEmpty && injury.isNotEmpty;
+        return hasBasics && (!needInjuryDesc || injuryDesc.text.trim().isNotEmpty);
+      case 'attachments':
+        return files.isNotEmpty || _wizardVisited.contains('attachments');
+      case 'resolution':
+        return returned.isNotEmpty && handling.isNotEmpty;
+      case 'privacy':
+        return privacy;
+      default:
+        return false;
+    }
+  }
+
+  Future<_WizardDialogResult?> _openWizardStepDialog(List<_WizardStep> steps, int index, AppLocalizations t) {
+    final step = steps[index];
+    _wizardVisited.add(step.id);
+    final isFirst = index == 0;
+    final isLast = index == steps.length - 1;
+
+    return showDialog<_WizardDialogResult>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return Dialog(
+          insetPadding: const EdgeInsets.all(18),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 820, minHeight: 420, maxHeight: 760),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      CircleAvatar(
+                        radius: 20,
+                        backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(.12),
+                        child: Icon(step.icon, color: Theme.of(context).colorScheme.primary),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('${index + 1}/${steps.length} · ${step.title}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                            const SizedBox(height: 4),
+                            Text(step.hint, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: t.cancel,
+                        onPressed: () => Navigator.of(ctx).pop(_WizardDialogResult.close),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Column(children: _stepFieldsFor(step.id, t)),
+                          ),
+                          if (step.id != 'privacy')
+                            Padding(
+                              padding: const EdgeInsets.only(top: 12),
+                              child: Text(
+                                t.complaint_wizard_hint,
+                                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12.5),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      TextButton.icon(
+                        onPressed: isFirst ? null : () => Navigator.of(ctx).pop(_WizardDialogResult.previous),
+                        icon: const Icon(Icons.arrow_back),
+                        label: Text(t.complaint_wizard_prev),
+                      ),
+                      FilledButton.icon(
+                        onPressed: () => Navigator.of(ctx).pop(
+                          isLast ? _WizardDialogResult.close : _WizardDialogResult.next,
+                        ),
+                        icon: Icon(isLast ? Icons.check_circle_outline : Icons.arrow_forward),
+                        label: Text(isLast ? t.complaint_wizard_done : t.complaint_wizard_next),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _runWizardFlow(List<_WizardStep> steps, int startIndex, AppLocalizations t) async {
+    if (steps.isEmpty) return;
+    var index = startIndex.clamp(0, steps.length - 1);
+
+    while (mounted) {
+      final action = await _openWizardStepDialog(steps, index, t);
+      if (!mounted || action == null || action == _WizardDialogResult.close) break;
+
+      if (action == _WizardDialogResult.next && index < steps.length - 1) {
+        index++;
+      } else if (action == _WizardDialogResult.previous && index > 0) {
+        index--;
+      } else {
+        break;
+      }
+    }
+
+    if (mounted) setState(() => _wizardStep = index);
   }
 
   Widget _wizardReview(AppLocalizations t) {
@@ -716,33 +1058,50 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     );
   }
 
-  Widget _buildWizardCard({required List<_WizardStep> steps, required AppLocalizations t}) {
+  Widget _buildWizardCard({
+    required List<_WizardStep> steps,
+    required AppLocalizations t,
+    required bool isDentist,
+    required bool needInjuryDesc,
+  }) {
     if (steps.isEmpty) return const SizedBox.shrink();
+
     final active = _wizardStep.clamp(0, steps.length - 1);
     if (active != _wizardStep) _wizardStep = active;
-
     final theme = Theme.of(context);
-    final subtleBg = theme.colorScheme.surfaceContainerHighest;
+    final completed = steps.where((s) => _isStepComplete(s.id, t, isDentist: isDentist, needInjuryDesc: needInjuryDesc)).length;
+    final progress = steps.isEmpty ? 0.0 : completed / steps.length;
 
-    Widget stepChip(int index, _WizardStep step) {
-      final selected = index == active;
-      return ChoiceChip(
-        selected: selected,
-        onSelected: (_) => _goToStep(steps, index),
-        labelPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        avatar: CircleAvatar(
-          radius: 12,
-          backgroundColor: selected ? theme.colorScheme.primary : theme.colorScheme.primary.withOpacity(.15),
-          child: Icon(step.icon, size: 15, color: selected ? theme.colorScheme.onPrimary : theme.colorScheme.primary),
-        ),
-        label: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('${index + 1}. ${step.title}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
-            const SizedBox(height: 2),
-            Text(step.hint, style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
-          ],
+    Widget stepTile(int index, _WizardStep step) {
+      final done = _isStepComplete(step.id, t, isDentist: isDentist, needInjuryDesc: needInjuryDesc);
+      return Card(
+        elevation: 0,
+        color: theme.colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        child: ListTile(
+          leading: CircleAvatar(
+            radius: 20,
+            backgroundColor: done ? theme.colorScheme.primary.withOpacity(.16) : theme.colorScheme.surfaceTint.withOpacity(.12),
+            child: Icon(done ? Icons.check_circle_outline : step.icon, color: done ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant),
+          ),
+          title: Text('${index + 1}. ${step.title}', style: const TextStyle(fontWeight: FontWeight.w700)),
+          subtitle: Text(step.hint),
+          trailing: Wrap(
+            spacing: 8,
+            children: [
+              Chip(
+                avatar: Icon(done ? Icons.auto_awesome : Icons.edit_outlined, size: 16, color: done ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant),
+                label: Text(done ? t.complaint_wizard_done : t.complaint_wizard_next),
+              ),
+              FilledButton.tonalIcon(
+                onPressed: () => _runWizardFlow(steps, index, t),
+                icon: const Icon(Icons.open_in_new),
+                label: Text(done ? t.complaint_wizard_done : t.complaint_wizard_next),
+              ),
+            ],
+          ),
+          onTap: () => _runWizardFlow(steps, index, t),
         ),
       );
     }
@@ -751,62 +1110,45 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
       elevation: 0,
       margin: const EdgeInsets.symmetric(vertical: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      color: subtleBg,
+      color: theme.colorScheme.surfaceContainerHighest,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(Icons.auto_awesome_outlined, color: theme.colorScheme.primary),
-                const SizedBox(width: 10),
+                CircleAvatar(
+                  radius: 22,
+                  backgroundColor: theme.colorScheme.primary.withOpacity(.12),
+                  child: Icon(Icons.auto_fix_high_outlined, color: theme.colorScheme.primary),
+                ),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(t.complaint_wizard_title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                      const SizedBox(height: 4),
-                      Text(
-                        t.complaint_wizard_subtitle,
-                        style: TextStyle(fontSize: 13, color: theme.colorScheme.onSurfaceVariant, height: 1.35),
-                      ),
+                      Text(t.complaint_wizard_title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 2),
+                      Text(t.complaint_wizard_subtitle, style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
                     ],
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [for (final entry in steps.asMap().entries) stepChip(entry.key, entry.value)],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    t.complaint_wizard_hint,
-                    style: TextStyle(fontSize: 12.5, color: theme.colorScheme.onSurfaceVariant),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                OutlinedButton.icon(
-                  onPressed: active > 0 ? () => _goToStep(steps, active - 1) : null,
-                  icon: const Icon(Icons.chevron_left),
-                  label: Text(t.complaint_wizard_prev),
-                ),
-                const SizedBox(width: 8),
                 FilledButton.icon(
-                  onPressed: active < steps.length - 1
-                      ? () => _goToStep(steps, active + 1)
-                      : () => _goToStep(steps, steps.length - 1),
-                  icon: Icon(active < steps.length - 1 ? Icons.navigate_next : Icons.check_circle_outline),
-                  label: Text(active < steps.length - 1 ? t.complaint_wizard_next : t.complaint_wizard_done),
+                  onPressed: () => _runWizardFlow(steps, active, t),
+                  icon: const Icon(Icons.play_arrow),
+                  label: Text(t.complaint_wizard_next),
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            LinearProgressIndicator(value: progress, minHeight: 8, borderRadius: BorderRadius.circular(20)),
+            const SizedBox(height: 8),
+            Text('${completed}/${steps.length} ${t.complaint_wizard_step_finish}', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+            const SizedBox(height: 10),
+            ...List.generate(steps.length, (i) => stepTile(i, steps[i])),
+            const SizedBox(height: 8),
+            Text(t.complaint_wizard_hint, style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
           ],
         ),
       ),
@@ -833,10 +1175,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     final wizardSteps = widget.wizardMode
         ? _buildWizardSteps(t, isDentist: isDentist)
         : const <_WizardStep>[];
-    final activeWizardIndex = widget.wizardMode && wizardSteps.isNotEmpty
-        ? _wizardStep.clamp(0, wizardSteps.length - 1)
-        : 0;
-    final isWizardFinalStep = widget.wizardMode && wizardSteps.isNotEmpty && activeWizardIndex == wizardSteps.length - 1;
+    if (!isDentist) _wizardVisited.remove('patient');
 
     final body = SingleChildScrollView(
       controller: _scrollCtrl,
@@ -870,7 +1209,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
               ),
 
               if (widget.wizardMode)
-                _buildWizardCard(steps: wizardSteps, t: t),
+                _buildWizardCard(steps: wizardSteps, t: t, isDentist: isDentist, needInjuryDesc: needInjuryDesc),
 
               _buildHelpBox(),
 
@@ -881,17 +1220,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                   (id: 'segment', widget: _wizardAnchor('segment', _section(
                     icon: Icons.person_outline,
                     title: t.segment,
-                    children: [
-                      DropdownButtonFormField<String>(
-                        value: segment,
-                        items: [
-                          DropdownMenuItem(value: optDentist, child: Text(optDentist)),
-                          DropdownMenuItem(value: optLab, child: Text(optLab)),
-                        ],
-                        onChanged: (v) => setState(() { segment = v ?? optDentist; _dirty = true; }),
-                        decoration: _dec(context, t.segment),
-                      ),
-                    ],
+                    children: _segmentFields(t),
                   ))),
                 );
 
@@ -899,28 +1228,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                   (id: 'product', widget: _wizardAnchor('product', _section(
                     icon: Icons.build_outlined,
                     title: t.article,
-                    children: [
-                      TextField(controller: article, decoration: _dec(context, t.article)),
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: batch,
-                        decoration: _dec(context, isDentist ? '${t.batch} *' : t.batch, hint: isDentist ? t.batch : null),
-                      ),
-                      const SizedBox(height: 10),
-                      Row(children: [
-                        Expanded(child: TextField(controller: qty, decoration: _dec(context, t.qty))),
-                        const SizedBox(width: 10),
-                        Expanded(child: TextField(controller: expiry, decoration: _dec(context, t.expiry))),
-                      ]),
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: desc,
-                        maxLines: 4,
-                        decoration: _dec(context, t.problem_desc),
-                      ),
-                      const SizedBox(height: 4),
-                      _buildAutoHelpCard(),
-                    ],
+                    children: _productFields(t),
                   ))),
                 );
 
@@ -929,31 +1237,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                     (id: 'patient', widget: _wizardAnchor('patient', _section(
                       icon: Icons.healing_outlined,
                       title: t.applied_to_patient,
-                      children: [
-                        DropdownButtonFormField<String>(
-                          value: applied,
-                          items: [
-                            DropdownMenuItem(value: optYes, child: Text(optYes)),
-                            DropdownMenuItem(value: optNo, child: Text(optNo)),
-                          ],
-                          onChanged: (v) => setState(() { applied = v ?? optNo; _dirty = true; }),
-                          decoration: _dec(context, t.applied_to_patient),
-                        ),
-                        const SizedBox(height: 10),
-                        DropdownButtonFormField<String>(
-                          value: injury,
-                          items: [
-                            DropdownMenuItem(value: optYes, child: Text(optYes)),
-                            DropdownMenuItem(value: optNo, child: Text(optNo)),
-                          ],
-                          onChanged: (v) => setState(() { injury = v ?? optNo; _dirty = true; }),
-                          decoration: _dec(context, t.injury_question),
-                        ),
-                        if (needInjuryDesc) ...[
-                          const SizedBox(height: 10),
-                          TextField(controller: injuryDesc, maxLines: 3, decoration: _dec(context, t.injury_desc)),
-                        ],
-                      ],
+                      children: _patientFields(t),
                     ))),
                   );
                 }
@@ -962,38 +1246,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                   (id: 'attachments', widget: _wizardAnchor('attachments', _section(
                     icon: Icons.photo_library_outlined,
                     title: t.attachments_title,
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: pickFiles,
-                        icon: const Icon(Icons.upload),
-                        label: Text(files.isEmpty ? t.add_attachment : t.images_selected(files.length)),
-                      ),
-                      if (files.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            for (final f in files)
-                              InputChip(
-                                label: Text(
-                                  f.name,
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
-                                ),
-                                avatar: const Icon(Icons.insert_drive_file_outlined),
-                                onDeleted: () {
-                                  setState(() {
-                                    files = files.where((file) => file != f).toList();
-                                    _dirty = true;
-                                  });
-                                },
-                                deleteIcon: const Icon(Icons.close),
-                              ),
-                          ],
-                        ),
-                      ],
-                    ],
+                    children: _attachmentFields(t),
                   ))),
                 );
 
@@ -1001,28 +1254,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                   (id: 'resolution', widget: _wizardAnchor('resolution', _section(
                     icon: Icons.local_shipping_outlined,
                     title: t.returned_question,
-                    children: [
-                      DropdownButtonFormField<String>(
-                        value: returned,
-                        items: [
-                          DropdownMenuItem(value: optReturnedYes, child: Text(optReturnedYes)),
-                          DropdownMenuItem(value: optReturnedNo, child: Text(optReturnedNo)),
-                        ],
-                        onChanged: (v) => setState(() { returned = v ?? optReturnedNo; _dirty = true; }),
-                        decoration: _dec(context, t.returned_question),
-                      ),
-                      const SizedBox(height: 10),
-                      DropdownButtonFormField<String>(
-                        value: handling,
-                        items: [
-                          DropdownMenuItem(value: optHandlingRep, child: Text(optHandlingRep)),
-                          DropdownMenuItem(value: optHandlingCredit, child: Text(optHandlingCredit)),
-                          DropdownMenuItem(value: optHandlingRework, child: Text(optHandlingRework)),
-                        ],
-                        onChanged: (v) => setState(() { handling = v ?? optHandlingRep; _dirty = true; }),
-                        decoration: _dec(context, t.handling),
-                      ),
-                    ],
+                    children: _resolutionFields(t),
                   ))),
                 );
 
@@ -1030,56 +1262,14 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                   (id: 'privacy', widget: _wizardAnchor('privacy', _section(
                     icon: Icons.privacy_tip_outlined,
                     title: t.privacy_view,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Checkbox(
-                            value: privacy,
-                            onChanged: (v) => setState(() { privacy = v ?? false; _dirty = true; }),
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(t.privacy_agree),
-                                const SizedBox(height: 4),
-                                InkWell(
-                                  onTap: () => Navigator.of(context).pushNamed('/legal/privacy'),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.privacy_tip_outlined, size: 18),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        t.privacy_view,
-                                        style: TextStyle(
-                                          color: Theme.of(context).colorScheme.primary,
-                                          decoration: TextDecoration.underline,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                    children: _privacyFields(t),
                   ))),
                 );
 
-                final filtered = !widget.wizardMode || wizardSteps.isEmpty
-                    ? sections
-                    : sections.where((s) => s.id == wizardSteps[activeWizardIndex].id).toList();
-
                 return Column(
                   children: [
-                    for (final section in filtered) section.widget,
-                    if (isWizardFinalStep) _wizardReview(t),
+                    for (final section in sections) section.widget,
+                    if (widget.wizardMode) _wizardReview(t),
                   ],
                 );
               }),
@@ -1095,7 +1285,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                   children: [
                     OutlinedButton(onPressed: _handleCancel, child: Text(t.cancel)),
                     ElevatedButton.icon(
-                      onPressed: busy || (widget.wizardMode && !isWizardFinalStep)
+                      onPressed: busy
                           ? null
                           : () async {
                         setState(() { busy = true; err = null; info = null; });
