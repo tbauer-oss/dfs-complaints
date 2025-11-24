@@ -114,7 +114,7 @@ class CustomerHomePage extends StatelessWidget {
               style: btnStyle,
               onPressed: () {
                 Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const KnowledgeBasePage(),
+                  builder: (_) => KnowledgeBasePage(api: api),
                 ));
               },
               icon: const Icon(Icons.psychology_outlined),

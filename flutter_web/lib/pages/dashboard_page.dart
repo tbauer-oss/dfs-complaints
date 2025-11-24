@@ -659,7 +659,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
         colorB: const Color(0xFF26A69A),
         onTap: () {
           Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => const KnowledgeBasePage(),
+            builder: (_) => KnowledgeBasePage(api: widget.api),
           ));
         },
       ),
