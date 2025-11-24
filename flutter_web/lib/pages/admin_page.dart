@@ -18,7 +18,8 @@ import 'admin_stats_page.dart';
 // ===================================================================
 class AdminPage extends StatefulWidget {
   final ApiClient api;
-  const AdminPage({super.key, required this.api});
+  final void Function(Map<String, dynamic> meta)? onMetaUpdated;
+  const AdminPage({super.key, required this.api, this.onMetaUpdated});
 
   @override
   State<AdminPage> createState() => _AdminPageState();
@@ -946,49 +947,138 @@ class _AdminPageState extends State<AdminPage> {
   }
   
   Future<void> _editAppMeta(BuildContext context) async {
-    final api = widget.api;
     Map<String, dynamic>? meta;
     try { meta = await widget.api.getAppMeta(refresh: true); } catch (_) {}
 
     final vCtrl = TextEditingController(text: meta?['version']?.toString() ?? '');
     final bCtrl = TextEditingController(text: meta?['build']?.toString() ?? '');
     final nCtrl = TextEditingController(text: meta?['notes']?.toString() ?? '');
+    bool testMode = meta?['testMode'] == true;
+    final testMailCtrl = TextEditingController(text: meta?['testEmail']?.toString() ?? '');
+    final testPushCtrl = TextEditingController(
+      text: (meta?['testPushTokens'] is List)
+          ? (meta!['testPushTokens'] as List).join(', ')
+          : '',
+    );
 
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('App-Version bearbeiten'),
-        content: SizedBox(
-          width: 420,
-         child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: vCtrl, decoration: const InputDecoration(labelText: 'Version', border: OutlineInputBorder())),
-              const SizedBox(height: 8),
-              TextField(controller: bCtrl, decoration: const InputDecoration(labelText: 'Build', border: OutlineInputBorder())),
-              const SizedBox(height: 8),
-              TextField(controller: nCtrl, minLines: 2, maxLines: 5, decoration: const InputDecoration(labelText: 'Hinweise', border: OutlineInputBorder())),
-            ],
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setStateDialog) => AlertDialog(
+          title: const Text('App-Version bearbeiten'),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(
+                  controller: vCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Version',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: bCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Build',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: nCtrl,
+                  minLines: 2,
+                  maxLines: 5,
+                  decoration: const InputDecoration(
+                    labelText: 'Hinweise',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const Divider(height: 20),
+                SwitchListTile.adaptive(
+                  value: testMode,
+                  onChanged: (v) => setStateDialog(() => testMode = v),
+                  title: const Text('System im Testmodus'),
+                  subtitle: const Text(
+                    'Aktiv: TESTSYSTEM-Banner, Mails nur an Testadresse, Push nur an Testgeräte.',
+                  ),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: testMailCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Test-Mailadresse',
+                    hintText: 'z. B. qa@example.com',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: testPushCtrl,
+                  minLines: 1,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Test-Push-Geräte (Tokens)',
+                    hintText: 'Kommagetrennt oder Zeilen',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Im Testmodus werden Daten gekennzeichnet und nicht für produktive Analysen genutzt.',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Speichern')),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Speichern')),
-        ],
       ),
     );
 
     if (ok != true) return;
 
     try {
+      final version = vCtrl.text.trim();
+      if (version.isEmpty) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('Version erforderlich.')));
+        }
+        return;
+      }
+
       await widget.api.setAppMeta(
-        version: vCtrl.text.trim(),
+        version: version,
         build: bCtrl.text.trim().isEmpty ? null : bCtrl.text.trim(),
         notes: nCtrl.text.trim().isEmpty ? null : nCtrl.text.trim(),
+        testMode: testMode,
+        testEmail: testMailCtrl.text.trim(),
+        testPushTokens: testPushCtrl.text
+            .split(RegExp('[,\n]'))
+            .map((s) => s.trim())
+            .where((s) => s.isNotEmpty)
+            .toList(),
       );
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert.')));
       }
+
+      // Aktualisierte Metadaten laden und an den Caller weiterreichen, damit das
+      // TESTSYSTEM-Banner unmittelbar sichtbar wird, ohne dass ein Reload nötig ist.
+      try {
+        final refreshed = await widget.api.getAppMeta(refresh: true);
+        if (refreshed != null) {
+          widget.onMetaUpdated?.call(refreshed);
+        }
+      } catch (_) {}
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));

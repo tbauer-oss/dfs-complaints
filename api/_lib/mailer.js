@@ -1,6 +1,7 @@
 // api/_lib/mailer.js
 import nodemailer from 'nodemailer';
 import { mailConfigOk, resolveMailConfig } from './mail-config.js';
+import { applyTestMailRouting, loadAppMeta } from './appMeta.js';
 
 const MAIL = resolveMailConfig();
 const { ok: mailOk, missing: missingMailEnv } = mailConfigOk(MAIL);
@@ -25,11 +26,23 @@ export async function sendMail({ to, subject, html, text, cc }) {
       missing: missingMailEnv,
     };
   }
+  let meta = null;
+  try { meta = await loadAppMeta(); } catch (_) {}
+  const routing = applyTestMailRouting(meta, { to, cc, subject });
+  const toList = routing.to && routing.to.length > 0 ? routing.to : to;
+  const ccList = routing.cc && routing.cc.length > 0 ? routing.cc : undefined;
+  const subjectOut = routing.subject || subject;
+
+  if (routing.suppressed) {
+    console.warn('[mail] test mode active – suppressing mail send', { to });
+    return { ok: false, reason: 'test-mode-suppressed', skipped: true };
+  }
+
   const info = await transporter.sendMail({
     from: FALLBACK_FROM,
-    to,
-    cc,
-    subject,
+    to: toList,
+    cc: ccList,
+    subject: subjectOut,
     html,
     text,
   });

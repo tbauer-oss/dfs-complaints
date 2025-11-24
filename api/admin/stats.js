@@ -805,6 +805,7 @@ export default async function handler(req, res) {
     const activeDirectory = buildActiveUserDirectory(activeUsers);
 
     const filtered = (allComplaints || []).filter((c) => {
+      if (c?.testMode) return false;
       const ts = createdAtMs(c);
       return ts >= range.from.getTime() && ts <= range.to.getTime();
     });
