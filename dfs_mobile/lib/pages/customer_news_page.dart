@@ -469,7 +469,9 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
     final colorScheme = theme.colorScheme;
     final isCompact = MediaQuery.of(context).size.width < 420;
     final accentColor = entry.pinned ? colorScheme.primary : colorScheme.secondary;
-    final listDate = DateFormat.yMMMd(t.localeName).format(entry.publishedAt);
+    final listDate = DateFormat.MMMd(t.localeName).format(entry.publishedAt);
+    final publishedLabel = _formatDate(t, entry.publishedAt);
+    final updatedLabel = _formatDate(t, entry.updatedAt);
     final backgroundGradient = LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
@@ -523,22 +525,39 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                     ),
                   ),
                 ),
-                Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isCompact ? 8 : 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    color: accentColor.withOpacity(0.18),
-                  ),
-                  child: Text(
-                    listDate,
-                    style: textTheme.labelLarge?.copyWith(
-                      color: accentColor,
-                      fontWeight: FontWeight.w700,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isCompact ? 10 : 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        color: accentColor.withOpacity(0.18),
+                      ),
+                      child: Text(
+                        t.customerNewsNewSince(listDate),
+                        style: textTheme.labelLarge?.copyWith(
+                          color: accentColor,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                     ),
-                  ),
+                    if (entry.updatedAt.isAfter(
+                      entry.publishedAt.add(const Duration(minutes: 1)),
+                    ))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: _buildPill(
+                          theme,
+                          t.customerNewsUpdateLabel,
+                          accentColor.withOpacity(0.9),
+                          icon: Icons.bolt_rounded,
+                        ),
+                      ),
+                  ],
                 ),
               ],
             ),
@@ -546,87 +565,109 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
           InkWell(
             borderRadius: BorderRadius.circular(24),
             onTap: onToggle,
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              isCompact ? 14 : 16,
-              isCompact ? 12 : 14,
-              isCompact ? 14 : 16,
-              isCompact ? 6 : 8,
-            ),
-            child: Row(
-              children: [
-                Container(
-                    width: 40,
-                    height: 40,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                isCompact ? 14 : 16,
+                isCompact ? 12 : 14,
+                isCompact ? 14 : 16,
+                isCompact ? 6 : 8,
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      color: accentColor.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(14),
+                      gradient: LinearGradient(
+                        colors: [
+                          accentColor.withOpacity(0.22),
+                          accentColor.withOpacity(0.12),
+                        ],
+                      ),
                     ),
                     alignment: Alignment.center,
                     child: Icon(
-                      Icons.auto_awesome_outlined,
+                      Icons.celebration_outlined,
                       color: accentColor,
                     ),
                   ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Wrap(
-                        spacing: isCompact ? 6 : 8,
-                        runSpacing: 4,
-                        children: [
-                          _buildPill(
-                            theme,
-                            _categoryLabel(t, entry.category),
-                            accentColor,
-                            icon: Icons.sell_outlined,
-                          ),
-                          if (entry.pinned)
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Wrap(
+                          spacing: isCompact ? 6 : 8,
+                          runSpacing: 4,
+                          children: [
                             _buildPill(
                               theme,
-                              t.customerNewsPinned,
-                              colorScheme.primary,
-                              icon: Icons.push_pin_outlined,
+                              _categoryLabel(t, entry.category),
+                              accentColor,
+                              icon: Icons.sell_outlined,
                             ),
-                        ],
-                      ),
-                      SizedBox(height: isCompact ? 8 : 10),
-                      Row(
-                        children: [
-                          Icon(Icons.calendar_today, size: 16, color: accentColor),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              _formatDate(t, entry.publishedAt),
-                              style: textTheme.bodySmall?.copyWith(
-                                fontWeight: FontWeight.w700,
-                                color: colorScheme.onSurface.withOpacity(0.85),
+                            if (entry.pinned)
+                              _buildPill(
+                                theme,
+                                t.customerNewsPinned,
+                                colorScheme.primary,
+                                icon: Icons.push_pin_outlined,
                               ),
+                          ],
+                        ),
+                        SizedBox(height: isCompact ? 8 : 10),
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isCompact ? 12 : 14,
+                            vertical: isCompact ? 10 : 12,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(18),
+                            gradient: LinearGradient(
+                              colors: [
+                                accentColor.withOpacity(0.16),
+                                accentColor.withOpacity(0.08),
+                              ],
                             ),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        t.customerNewsReadMore,
-                        style: textTheme.labelMedium?.copyWith(
-                          color: accentColor.withOpacity(0.9),
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.1,
+                          child: Row(
+                            children: [
+                              Icon(Icons.auto_awesome_rounded, size: 18, color: accentColor),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  t.customerNewsMarketingHook,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                AnimatedRotation(
-                    duration: const Duration(milliseconds: 180),
-                    turns: expanded ? 0.5 : 0,
-                    child: Icon(
-                      Icons.expand_more,
-                      color: accentColor,
+                        SizedBox(height: isCompact ? 10 : 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              t.customerNewsReadMore,
+                              style: textTheme.labelLarge?.copyWith(
+                                color: accentColor.withOpacity(0.95),
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                            Icon(
+                              expanded ? Icons.keyboard_arrow_up_rounded : Icons.chevron_right_rounded,
+                              color: accentColor,
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -645,26 +686,6 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Wrap(
-                      spacing: isCompact ? 6 : 8,
-                      runSpacing: 6,
-                      children: [
-                        _buildPill(
-                          theme,
-                          _categoryLabel(t, entry.category),
-                          accentColor,
-                          icon: Icons.sell_outlined,
-                        ),
-                        if (entry.pinned)
-                          _buildPill(
-                            theme,
-                            t.customerNewsPinned,
-                            colorScheme.primary,
-                            icon: Icons.push_pin_outlined,
-                          ),
-                      ],
-                    ),
-                    SizedBox(height: isCompact ? 12 : 14),
                     Text(
                       entry.summary,
                       style: textTheme.bodyLarge?.copyWith(height: 1.45),
@@ -672,83 +693,51 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                     SizedBox(height: isCompact ? 12 : 16),
                     Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant),
                     const SizedBox(height: 10),
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        final dateRow = Row(
+                    Row(
+                      children: [
+                        Icon(Icons.event_available_rounded, size: 18, color: accentColor),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            publishedLabel,
+                            style: textTheme.bodyMedium,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (entry.updatedAt.isAfter(
+                      entry.publishedAt.add(const Duration(minutes: 1)),
+                    ))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Row(
                           children: [
-                            Icon(Icons.calendar_today, size: 16, color: accentColor),
-                            const SizedBox(width: 6),
+                            Icon(Icons.auto_awesome, size: 18, color: accentColor),
+                            const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                _formatDate(t, entry.publishedAt),
-                                style:
-                                    textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
+                                updatedLabel,
+                                style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
                               ),
                             ),
                           ],
-                        );
-
-                        final updatedRow = entry.updatedAt.isAfter(
-                                entry.publishedAt.add(const Duration(minutes: 1)))
-                            ? Padding(
-                                padding: const EdgeInsets.only(top: 6),
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.update, size: 16, color: accentColor),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: Text(
-                                        _formatDate(t, entry.updatedAt),
-                                        style: textTheme.bodySmall?.copyWith(
-                                          fontWeight: FontWeight.w600,
-                                          color: colorScheme.onSurface.withOpacity(0.8),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              )
-                            : null;
-
-                        final linkButton = entry.linkUrl != null
-                            ? TextButton.icon(
-                                onPressed: () => _openLink(entry.linkUrl!),
-                                icon: const Icon(Icons.arrow_forward),
-                                label: Text(
-                                  entry.linkLabel?.isNotEmpty == true
-                                      ? entry.linkLabel!
-                                      : t.customerNewsReadMore,
-                                ),
-                              )
-                            : null;
-
-                        if (constraints.maxWidth < 420) {
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              dateRow,
-                              if (updatedRow != null) updatedRow,
-                              if (linkButton != null)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 8),
-                                  child: linkButton,
-                                ),
-                            ],
-                          );
-                        }
-
-                        return Row(
-                          children: [
-                            Expanded(child: dateRow),
-                            if (updatedRow != null) ...[
-                              const SizedBox(width: 12),
-                              Expanded(child: updatedRow),
-                            ],
-                            if (linkButton != null) linkButton,
-                          ],
-                        );
-                      },
-                    ),
+                        ),
+                      ),
+                    if (entry.linkUrl != null) ...[
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: FilledButton.tonalIcon(
+                          onPressed: () => _openLink(entry.linkUrl!),
+                          icon: const Icon(Icons.open_in_new_rounded),
+                          label: Text(
+                            entry.linkLabel?.isNotEmpty == true
+                                ? entry.linkLabel!
+                                : t.customerNewsReadMore,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
