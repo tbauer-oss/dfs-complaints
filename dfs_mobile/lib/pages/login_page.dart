@@ -95,7 +95,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
   Future<void> _loadBiometricState() async {
     final bio = BiometricAuthService.instance;
     final available = await bio.isAvailable();
-    final hasCreds = available && await bio.hasCredentials(BiometricProfile.customer);
+    final hasCreds = available && await bio.hasCredentials(BiometricProfile.rep);
     if (!mounted) return;
     setState(() {
       _biometricAvailable = available;
@@ -236,7 +236,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
 
     if (enable != true || !mounted) return;
 
-    final saved = await bio.saveCredentials(BiometricProfile.customer, email, password);
+    final saved = await bio.saveCredentials(BiometricProfile.rep, email, password);
     if (!mounted) return;
     if (saved) {
       setState(() => _hasBiometricCredentials = true);
@@ -253,7 +253,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
     setState(() => _err = null);
 
     final bio = BiometricAuthService.instance;
-    final creds = await bio.readCredentials(BiometricProfile.customer);
+    final creds = await bio.readCredentials(BiometricProfile.rep);
     if (creds == null) {
       setState(() => _err = t.biometric_not_available);
       await _loadBiometricState();

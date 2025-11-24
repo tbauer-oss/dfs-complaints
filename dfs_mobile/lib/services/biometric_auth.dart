@@ -21,7 +21,13 @@ class BiometricAuthService {
   Future<bool> _canUseBiometrics() async {
     if (kIsWeb) return false;
     try {
-      return await _auth.isDeviceSupported() && await _auth.canCheckBiometrics;
+      final supported = await _auth.isDeviceSupported();
+      final canCheck = await _auth.canCheckBiometrics;
+      // Older devices sometimes report `canCheckBiometrics=false` despite having
+      // enrolled biometrics; fall back to the list of available biometrics to
+      // avoid hiding the button in that case.
+      final availableList = await _auth.getAvailableBiometrics();
+      return supported && (canCheck || availableList.isNotEmpty);
     } on PlatformException {
       return false;
     }
@@ -74,6 +80,7 @@ class BiometricAuthService {
       return await _auth.authenticate(
         localizedReason: localizedReason,
         biometricOnly: true,
+        useErrorDialogs: true,
       );
     } on PlatformException {
       return false;
