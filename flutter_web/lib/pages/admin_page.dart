@@ -1076,101 +1076,68 @@ class _AdminPageState extends State<AdminPage> {
       setState(() => _catCfgErr = e.toString());
     }
   }
-  
+
   Future<void> _editAppMeta(BuildContext context) async {
+    final theme = Theme.of(context);
     Map<String, dynamic>? meta;
     try { meta = await widget.api.getAppMeta(refresh: true); } catch (_) {}
 
     final vCtrl = TextEditingController(text: meta?['version']?.toString() ?? '');
     final bCtrl = TextEditingController(text: meta?['build']?.toString() ?? '');
     final nCtrl = TextEditingController(text: meta?['notes']?.toString() ?? '');
-    bool testMode = meta?['testMode'] == true;
-    final testMailCtrl = TextEditingController(text: meta?['testEmail']?.toString() ?? '');
-    final testPushCtrl = TextEditingController(
-      text: (meta?['testPushTokens'] is List)
-          ? (meta!['testPushTokens'] as List).join(', ')
-          : '',
-    );
 
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setStateDialog) => AlertDialog(
-          title: const Text('App-Version bearbeiten'),
-          content: SizedBox(
-            width: 420,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TextField(
-                  controller: vCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Version',
-                    border: OutlineInputBorder(),
-                  ),
+      builder: (_) => AlertDialog(
+        title: const Text('App-Version bearbeiten'),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextField(
+                controller: vCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Version',
+                  border: OutlineInputBorder(),
                 ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: bCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Build',
-                    border: OutlineInputBorder(),
-                  ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: bCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Build',
+                  border: OutlineInputBorder(),
                 ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: nCtrl,
-                  minLines: 2,
-                  maxLines: 5,
-                  decoration: const InputDecoration(
-                    labelText: 'Hinweise',
-                    border: OutlineInputBorder(),
-                  ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: nCtrl,
+                minLines: 2,
+                maxLines: 5,
+                decoration: const InputDecoration(
+                  labelText: 'Hinweise',
+                  border: OutlineInputBorder(),
                 ),
-                const Divider(height: 20),
-                SwitchListTile.adaptive(
-                  value: testMode,
-                  onChanged: (v) => setStateDialog(() => testMode = v),
-                  title: const Text('System im Testmodus'),
-                  subtitle: const Text(
-                    'Aktiv: TESTSYSTEM-Banner, Mails nur an Testadresse, Push nur an Testgeräte.',
-                  ),
-                  contentPadding: EdgeInsets.zero,
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.science_outlined, color: theme.colorScheme.primary),
+                title: const Text('Testmodus separat verwalten'),
+                subtitle: const Text(
+                  'Live/Test-Umschaltung und Routing liegen jetzt in der Kachel "Testmodus & Routing".',
                 ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: testMailCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Test-Mailadresse',
-                    hintText: 'z. B. qa@example.com',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: testPushCtrl,
-                  minLines: 1,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Test-Push-Geräte (Tokens)',
-                    hintText: 'Kommagetrennt oder Zeilen',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Im Testmodus werden Daten gekennzeichnet und nicht für produktive Analysen genutzt.',
-                  style: TextStyle(fontSize: 12),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
-            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Speichern')),
-          ],
         ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Speichern')),
+        ],
       ),
     );
 
@@ -1189,14 +1156,7 @@ class _AdminPageState extends State<AdminPage> {
       final saved = await widget.api.setAppMeta(
         version: version,
         build: bCtrl.text.trim().isEmpty ? null : bCtrl.text.trim(),
-        notes: nCtrl.text.trim().isEmpty ? null : nCtrl.text.trim(),
-        testMode: testMode,
-        testEmail: testMailCtrl.text.trim(),
-        testPushTokens: testPushCtrl.text
-            .split(RegExp('[,\n]'))
-            .map((s) => s.trim())
-            .where((s) => s.isNotEmpty)
-            .toList(),
+        notes: nCtrl.text.trim(),
       );
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert.')));
@@ -1204,6 +1164,196 @@ class _AdminPageState extends State<AdminPage> {
 
       // Aktualisierte Metadaten laden und an den Caller weiterreichen, damit das
       // TESTSYSTEM-Banner unmittelbar sichtbar wird, ohne dass ein Reload nötig ist.
+      try {
+        final refreshed = saved.isNotEmpty
+            ? saved
+            : await widget.api.getAppMeta(refresh: true) ?? <String, dynamic>{};
+        if (refreshed.isNotEmpty) {
+          widget.onMetaUpdated?.call(refreshed);
+        }
+      } catch (_) {}
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+      }
+    }
+  }
+
+  Future<void> _editTestMode(BuildContext context) async {
+    Map<String, dynamic>? meta;
+    try { meta = await widget.api.getAppMeta(refresh: true); } catch (_) {}
+
+    final testMailCtrl = TextEditingController(text: meta?['testEmail']?.toString() ?? '');
+    final testPushCtrl = TextEditingController(
+      text: (meta?['testPushTokens'] is List)
+          ? (meta!['testPushTokens'] as List).join(', ')
+          : '',
+    );
+    bool testMode = meta?['testMode'] == true;
+    bool suppressMails = testMailCtrl.text.trim().isEmpty;
+    bool suppressPush = testPushCtrl.text.trim().isEmpty;
+
+    final version = meta?['version']?.toString().trim() ?? '';
+    final build = meta?['build']?.toString() ?? '';
+    final notes = meta?['notes']?.toString() ?? '';
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setStateDialog) {
+          final theme = Theme.of(ctx);
+          Widget infoRow(IconData icon, String text) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(icon, size: 18, color: theme.colorScheme.primary),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(text)),
+                ],
+              ),
+            );
+          }
+
+          return AlertDialog(
+            title: const Text('Testmodus & Routing'),
+            content: SizedBox(
+              width: 520,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceVariant.withOpacity(0.6),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.shield_outlined, color: theme.colorScheme.primary),
+                              const SizedBox(width: 8),
+                              const Text('Sicherer Testmodus ohne Einfluss auf Live'),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          infoRow(Icons.verified_user_outlined,
+                              'Produktive Daten und Live-Nutzer bleiben unverändert, auch wenn Tests aktiv sind.'),
+                          infoRow(Icons.mark_email_unread_outlined,
+                              'E-Mails werden je nach Einstellung unterdrückt oder nur an Testadressen zugestellt.'),
+                          infoRow(Icons.wifi_tethering_outlined,
+                              'Push-Mitteilungen erreichen ausschließlich freigegebene Testgeräte.'),
+                          infoRow(Icons.label_important_outline,
+                              'Alle Testfälle werden gekennzeichnet und nicht für produktive Analysen verwendet.'),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SwitchListTile.adaptive(
+                      value: testMode,
+                      onChanged: (v) => setStateDialog(() => testMode = v),
+                      title: const Text('System im Testmodus'),
+                      subtitle: const Text('Zeigt TESTSYSTEM-Banner und aktiviert isoliertes Routing.'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    const Divider(height: 18),
+                    Text('Mails im Testmodus', style: theme.textTheme.titleMedium),
+                    CheckboxListTile(
+                      value: suppressMails,
+                      onChanged: (v) {
+                        setStateDialog(() {
+                          suppressMails = v ?? false;
+                          if (suppressMails) testMailCtrl.clear();
+                        });
+                      },
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Keine produktiven Mails versenden'),
+                      subtitle: const Text('Unterdrückt alle E-Mails, sofern keine Testadresse gesetzt ist.'),
+                    ),
+                    TextField(
+                      controller: testMailCtrl,
+                      enabled: !suppressMails,
+                      decoration: const InputDecoration(
+                        labelText: 'Test-Mailadresse',
+                        hintText: 'z. B. qa@example.com',
+                        helperText: 'Leer lassen, um alle Mails während des Tests zu blockieren.',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text('Push im Testmodus', style: theme.textTheme.titleMedium),
+                    CheckboxListTile(
+                      value: suppressPush,
+                      onChanged: (v) {
+                        setStateDialog(() {
+                          suppressPush = v ?? false;
+                          if (suppressPush) testPushCtrl.clear();
+                        });
+                      },
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Push-Benachrichtigungen unterdrücken'),
+                      subtitle: const Text('Ohne Tokens werden keine realen Geräte erreicht.'),
+                    ),
+                    TextField(
+                      controller: testPushCtrl,
+                      enabled: !suppressPush,
+                      minLines: 1,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'Erlaubte Testgeräte (Tokens)',
+                        hintText: 'Kommagetrennt oder Zeilen',
+                        helperText: 'Nur hier angegebene Tokens dürfen Push-Nachrichten erhalten.',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+              FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Speichern')),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (ok != true) return;
+
+    if (version.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Bitte zuerst eine App-Version hinterlegen.')),
+        );
+      }
+      return;
+    }
+
+    try {
+      final saved = await widget.api.setAppMeta(
+        version: version,
+        build: build.trim().isEmpty ? null : build.trim(),
+        notes: notes.trim().isEmpty ? null : notes.trim(),
+        testMode: testMode,
+        testEmail: suppressMails ? '' : testMailCtrl.text.trim(),
+        testPushTokens: suppressPush
+            ? <String>[]
+            : testPushCtrl.text
+                .split(RegExp('[,\n]'))
+                .map((s) => s.trim())
+                .where((s) => s.isNotEmpty)
+                .toList(),
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert.')));
+      }
+
       try {
         final refreshed = saved.isNotEmpty
             ? saved
@@ -3708,8 +3858,8 @@ class _AdminPageState extends State<AdminPage> {
       ),
       const _AdminMenuSectionState(
         title: 'System & Konfiguration',
-        subtitle: 'Kataloge, Versionen und Monitoring',
-        tileIds: ['catalogs', 'appMeta', 'systemHealth', 'activity'],
+        subtitle: 'Kataloge, Versionen, Testmodus und Monitoring',
+        tileIds: ['catalogs', 'appMeta', 'testMode', 'systemHealth', 'activity'],
       ),
     ];
   }
@@ -4423,12 +4573,22 @@ class _AdminPageState extends State<AdminPage> {
       case 'appMeta':
         return AdminTilePro(
           label: 'App-Version',
-          subtitle: 'Version, Build, Hinweise',
+          subtitle: 'Version, Build, Release-Hinweise',
           icon: Icons.app_settings_alt_outlined,
           colorA: AdminPalette.blueA,
           colorB: AdminPalette.blueB,
           compact: compact,
           onTap: isPreview ? () {} : () => _editAppMeta(context),
+        );
+      case 'testMode':
+        return AdminTilePro(
+          label: 'Testmodus & Routing',
+          subtitle: 'Testmails, Push-Filter und Sicherungen',
+          icon: Icons.science_outlined,
+          colorA: AdminPalette.blueA,
+          colorB: AdminPalette.blueB,
+          compact: compact,
+          onTap: isPreview ? () {} : () => _editTestMode(context),
         );
       case 'systemHealth':
         return AdminTilePro(

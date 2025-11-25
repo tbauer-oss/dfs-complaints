@@ -35,24 +35,35 @@ export default async function handler(req, res) {
 
   try {
     const data = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
-    const version = (data.version ?? '').toString().trim();
-    const build   = (data.build   ?? '').toString().trim();
-    const notes   = (data.notes   ?? '').toString();
-    const testMode = data.testMode;
-    const testEmail = (data.testEmail ?? '').toString();
-    const testPushTokens = Array.isArray(data.testPushTokens) ? data.testPushTokens : data.testPush;
+    const current = await loadAppMeta({ refresh: true });
+
+    const fromRequest = (key) => Object.prototype.hasOwnProperty.call(data, key);
+
+    const version = fromRequest('version')
+      ? (data.version ?? '').toString().trim()
+      : (current.version ?? '').toString().trim();
+    const build = fromRequest('build') ? (data.build ?? '').toString().trim() : undefined;
+    const notes = fromRequest('notes') ? (data.notes ?? '').toString() : undefined;
+    const testMode = fromRequest('testMode') ? data.testMode : current.testMode;
+    const testEmail = fromRequest('testEmail') ? (data.testEmail ?? '').toString() : undefined;
+
+    let testPushTokens = undefined;
+    if (fromRequest('testPushTokens')) {
+      testPushTokens = data.testPushTokens;
+    } else if (fromRequest('testPush')) {
+      testPushTokens = data.testPush;
+    }
 
     if (!version) return json(res, 400, { error: 'version required' });
 
-    const current = await loadAppMeta({ refresh: true });
     const meta = sanitizeAppMeta({
       ...current,
       version,
-      ...(build ? { build } : {}),
-      ...(notes ? { notes } : { notes: '' }),
-      ...(testEmail ? { testEmail } : {}),
-      ...(testPushTokens ? { testPushTokens } : {}),
-      testMode,
+      ...(build !== undefined ? { build } : {}),
+      ...(notes !== undefined ? { notes } : {}),
+      ...(testEmail !== undefined ? { testEmail } : {}),
+      ...(testPushTokens !== undefined ? { testPushTokens } : {}),
+      ...(fromRequest('testMode') ? { testMode } : {}),
       updatedAt: new Date().toISOString(),
     });
 
