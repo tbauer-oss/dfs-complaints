@@ -4157,7 +4157,7 @@ class _AdminPageState extends State<AdminPage> {
                                     final lower = e.message.toLowerCase();
                                     if (e.status == 503 || lower.contains('deepl api key')) {
                                       msg =
-                                          'Automatische Übersetzung ist nicht verfügbar (DeepL-API-Schlüssel fehlt auf dem Server).';
+                                          'Automatische Übersetzung ist nicht verfügbar (erfordert einen DeepL-API-Schlüssel – CAT-Tool-Plugin-Keys funktionieren nicht).';
                                     }
                                   }
                                   setModalState(() {

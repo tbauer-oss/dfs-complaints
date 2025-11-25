@@ -26,7 +26,11 @@ export default async function handler(req, res) {
 
   try {
     if (!translationProviderReady()) {
-      return bad(res, 'automatic translation not configured', 503);
+      return bad(
+        res,
+        'automatic translation not configured (needs a DeepL API auth key, CAT-Tool plugin keys are not supported)',
+        503,
+      );
     }
 
     const body = readJson(req) || {};

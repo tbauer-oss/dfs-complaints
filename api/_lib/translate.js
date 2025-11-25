@@ -56,7 +56,7 @@ function deeplLang(code) {
 
 async function translateWithDeepL(textEntries = [], sourceLang = 'de', targetLang = 'en') {
   if (!translationProviderReady()) {
-    const err = new Error('DeepL API key not configured');
+    const err = new Error('DeepL API key not configured (requires a DeepL API subscription; CAT-Tool plugin keys are not supported)');
     err.statusCode = 503;
     throw err;
   }
