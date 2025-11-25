@@ -1256,7 +1256,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                         Icon(Icons.play_arrow_rounded, color: Colors.white, size: 22),
                         SizedBox(width: 6),
                         Text(
-                          'Assistent starten',
+                          t.complaint_assist,
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w700,
