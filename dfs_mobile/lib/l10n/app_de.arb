@@ -20,7 +20,7 @@
   "theme_dark": "Dunkel",
 
   "ticket": "Ticketnummer",
-
+  "complaint_assist": "Assistent starten",
   "attachments_add": "Anhänge senden",
   "attachments_success": "Anhänge wurden erfolgreich übermittelt.",
   "attachments_error": "Anhänge konnten nicht gesendet werden.",
