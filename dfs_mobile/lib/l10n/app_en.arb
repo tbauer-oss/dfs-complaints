@@ -8,7 +8,7 @@
   "langIT": "IT",
 
   "ticket": "Ticket number",
-
+  "complaint_assist": "Start Assistant",
   "we_are_here_for_you": "We are here for you.",
   "complaint_contact_button": "Contact",
   "complaint_contact_title": "Message about ticket {ticket}",
