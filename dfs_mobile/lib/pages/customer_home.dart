@@ -207,23 +207,6 @@ class CustomerHomePage extends StatelessWidget {
                                         SizedBox(
                                           width: targetWidth,
                                           child: buildAction(
-                                            icon: Icons.auto_awesome_outlined,
-                                            label: t.complaintWizardTile ?? 'Reklamations-Assistent',
-                                            onTap: () {
-                                              Navigator.of(context).push(
-                                                MaterialPageRoute(
-                                                  builder: (_) => ComplaintFormPage(
-                                                    api: api,
-                                                    wizardMode: true,
-                                                  ),
-                                                ),
-                                              );
-                                            },
-                                          ),
-                                        ),
-                                        SizedBox(
-                                          width: targetWidth,
-                                          child: buildAction(
                                             icon: Icons.list_alt,
                                             label: t.myComplaints,
                                             onTap: () {
