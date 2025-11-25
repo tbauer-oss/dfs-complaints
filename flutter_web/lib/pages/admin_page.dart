@@ -9569,7 +9569,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   String? _descTranslation;
   String? _descTranslationErr;
   String? _payloadLang;
-  String? _selectedTranslateLang;
 
   static const Map<String, List<String>> _payloadKeyMap = {
     'segment': ['segment', 'customer_segment', 'segment_code'],
@@ -9725,7 +9724,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     _status = widget.c.status;
     _decision = widget.c.decision;
     _payloadLang = _detectPayloadLang(widget.c.payload);
-    _selectedTranslateLang = _payloadLang ?? 'en';
   }
 
   @override
@@ -9843,14 +9841,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   }
 
   Future<void> _translateDescription(String description) async {
-    final src = _selectedTranslateLang;
-    if (src == null || src.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bitte Quellsprache für die Übersetzung auswählen.')),
-      );
-      return;
-    }
-
     setState(() {
       _descTranslating = true;
       _descTranslationErr = null;
@@ -9859,7 +9849,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
 
     try {
       final translations = await widget.api.translateFaqDraft(
-        sourceLang: src,
+        sourceLang: null,
         targetLangs: const ['de'],
         description: description,
       );
@@ -9900,7 +9890,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final detected = _payloadLang;
-    final langItems = supportedLangCodes.where((lc) => lc != 'de').toList();
 
     return Container(
       margin: const EdgeInsets.only(top: 12),
@@ -9959,29 +9948,11 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
             runSpacing: 10,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              SizedBox(
-                width: 240,
-                child: DropdownButtonFormField<String>(
-                  value: _selectedTranslateLang,
-                  decoration: const InputDecoration(
-                    labelText: 'Originalsprache',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: langItems
-                      .map(
-                        (lc) => DropdownMenuItem<String>(
-                          value: lc,
-                          child: Text(_langLabel(lc)),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (v) {
-                    setState(() {
-                      _selectedTranslateLang = v;
-                      _descTranslation = null;
-                      _descTranslationErr = null;
-                    });
-                  },
+              Text(
+                'Quellsprache wird automatisch erkannt.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurfaceVariant.withOpacity(0.9),
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               FilledButton.icon(
@@ -12658,7 +12629,7 @@ class AdminApi {
   }
 
   Future<Map<String, Map<String, String>>> translateFaqDraft({
-    required String sourceLang,
+    String? sourceLang,
     required List<String> targetLangs,
     String? question,
     String? answer,
@@ -12666,9 +12637,12 @@ class AdminApi {
     String? description,
   }) async {
     final payload = <String, dynamic>{
-      'sourceLang': sourceLang,
       'targets': targetLangs,
     };
+
+    if (sourceLang != null && sourceLang.trim().isNotEmpty) {
+      payload['sourceLang'] = sourceLang.trim();
+    }
 
     if (question != null && question.trim().isNotEmpty) {
       payload['question'] = question.trim();
