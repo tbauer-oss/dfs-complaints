@@ -3285,13 +3285,13 @@ class _AdminPageState extends State<AdminPage> {
           message: item.label,
           verticalOffset: 12,
           child: InkWell(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(12),
             onTap: () {
               Scaffold.maybeOf(context)?.closeDrawer();
               _handleNavigation(item.view);
             },
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
+              padding: const EdgeInsets.symmetric(vertical: 4),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -3299,18 +3299,18 @@ class _AdminPageState extends State<AdminPage> {
                     clipBehavior: Clip.none,
                     children: [
                       Container(
-                        height: 46,
-                        width: 46,
+                        height: 40,
+                        width: 40,
                         decoration: BoxDecoration(
                           color: selected
                               ? accent.withOpacity(theme.brightness == Brightness.dark ? 0.18 : 0.16)
-                              : theme.colorScheme.surfaceVariant.withOpacity(0.7),
-                          borderRadius: BorderRadius.circular(14),
+                              : theme.colorScheme.surfaceVariant.withOpacity(0.65),
+                          borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: selected ? accent.withOpacity(0.65) : theme.colorScheme.outlineVariant,
                           ),
                         ),
-                        child: Icon(item.icon, color: selected ? accent : subtle, size: 22),
+                        child: Icon(item.icon, color: selected ? accent : subtle, size: 20),
                       ),
                       if (badgeWidget != null)
                         Positioned(
@@ -3320,10 +3320,10 @@ class _AdminPageState extends State<AdminPage> {
                         ),
                     ],
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   Container(
                     height: 3,
-                    width: 36,
+                    width: 30,
                     decoration: BoxDecoration(
                       color: selected ? accent : theme.colorScheme.outlineVariant.withOpacity(0.5),
                       borderRadius: BorderRadius.circular(999),
@@ -3512,7 +3512,7 @@ class _AdminPageState extends State<AdminPage> {
               radius: const Radius.circular(12),
               child: ListView(
                 primary: false,
-                padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 16, vertical: 8),
+                padding: EdgeInsets.symmetric(horizontal: isCompact ? 6 : 16, vertical: isCompact ? 4 : 8),
                 children: [
                   for (final section in sections) ...[
                     AnimatedSwitcher(
@@ -3524,7 +3524,7 @@ class _AdminPageState extends State<AdminPage> {
                         children: section.items.map(buildTile).toList(),
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: isCompact ? 6 : 8),
                   ],
                 ],
               ),
@@ -6559,7 +6559,7 @@ class _NavigationSection extends StatelessWidget {
     final subtle = theme.colorScheme.onSurfaceVariant;
 
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: isCompact ? 2 : 4, vertical: isCompact ? 6 : 10),
+      padding: EdgeInsets.symmetric(horizontal: isCompact ? 0 : 4, vertical: isCompact ? 4 : 10),
       child: Column(
         crossAxisAlignment: isCompact ? CrossAxisAlignment.center : CrossAxisAlignment.start,
         children: [
@@ -6588,7 +6588,7 @@ class _NavigationSection extends StatelessWidget {
                 ],
               ),
             ),
-          ...children.expand((child) => [child, const SizedBox(height: 10)]),
+          ...children.expand((child) => [child, SizedBox(height: isCompact ? 6 : 10)]),
         ],
       ),
     );
