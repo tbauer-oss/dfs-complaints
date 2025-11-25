@@ -126,20 +126,23 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
     final hasQuery = query.isNotEmpty;
     final hasCategoryFilter = _selectedCategories.isNotEmpty;
     final catById = {for (final cat in _categories) cat.id: cat};
+    final lang = Localizations.localeOf(context).languageCode;
 
     final List<_FaqView> list = [];
     for (final entry in _entries) {
+      final localizedQuestion = entry.localizedQuestion(lang);
+      final localizedAnswer = entry.localizedAnswer(lang);
       final cat = catById[entry.categoryId];
       if (cat == null) continue;
       if (hasCategoryFilter && !_selectedCategories.contains(cat.id)) continue;
 
       if (hasQuery) {
-        final q = entry.question.toLowerCase();
-        final a = entry.answer.toLowerCase();
+        final q = localizedQuestion.toLowerCase();
+        final a = localizedAnswer.toLowerCase();
         if (!q.contains(query) && !a.contains(query)) continue;
       }
 
-      list.add(_FaqView(entry: entry, category: cat));
+      list.add(_FaqView(entry: entry, category: cat, question: localizedQuestion, answer: localizedAnswer));
     }
 
     list.sort((a, b) {
@@ -147,7 +150,7 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
       if (catOrder != 0) return catOrder;
       final entryOrder = a.entry.order.compareTo(b.entry.order);
       if (entryOrder != 0) return entryOrder;
-      return a.entry.question.compareTo(b.entry.question);
+      return a.question.compareTo(b.question);
     });
 
     return list;
@@ -304,8 +307,8 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
                       (context, index) {
                         final item = items[index];
                         return _KnowledgeEntryCard(
-                          question: item.entry.question,
-                          answers: _splitAnswer(item.entry.answer),
+                          question: item.question,
+                          answers: _splitAnswer(item.answer),
                           categoryLabel: item.category.title,
                         );
                       },
@@ -471,8 +474,15 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
 class _FaqView {
   final FaqEntry entry;
   final FaqCategory category;
+  final String question;
+  final String answer;
 
-  const _FaqView({required this.entry, required this.category});
+  const _FaqView({
+    required this.entry,
+    required this.category,
+    required this.question,
+    required this.answer,
+  });
 }
 
 class _KnowledgeEntryCard extends StatelessWidget {
