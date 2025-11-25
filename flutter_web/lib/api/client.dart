@@ -1245,6 +1245,41 @@ class ApiClient {
     return null;
   }
 
+  Future<Map<String, Map<String, String>>> translateFaqDraft({
+    required String sourceLang,
+    required List<String> targetLangs,
+    String? question,
+    String? answer,
+  }) async {
+    final payload = <String, dynamic>{
+      'sourceLang': sourceLang,
+      'targets': targetLangs,
+    };
+    if (question != null && question.trim().isNotEmpty) payload['question'] = question.trim();
+    if (answer != null && answer.trim().isNotEmpty) payload['answer'] = answer.trim();
+
+    final r = await http.post(
+      _u('/api/admin/translate'),
+      headers: _adminHeaders(),
+      body: jsonEncode(payload),
+    );
+
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final translations = <String, Map<String, String>>{};
+    if (decoded is Map && decoded['translations'] is Map) {
+      (decoded['translations'] as Map).forEach((key, value) {
+        if (value is Map) {
+          translations[key.toString()] = value.map((k, v) => MapEntry(k.toString(), (v ?? '').toString()));
+        }
+      });
+    }
+    return translations;
+  }
+
   // ---------- Vertreter (Kundenbereich) ----------
   Future<MyRep?> getMyRep() async {
     final base = _apiBase.isEmpty

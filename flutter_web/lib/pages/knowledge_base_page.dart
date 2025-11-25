@@ -5,6 +5,7 @@ import '../api/client.dart';
 import '../data/knowledge_base_data.dart';
 import '../l10n/app_localizations.dart';
 import '../models/faq.dart';
+import '../utils/lang_utils.dart';
 
 class KnowledgeBasePage extends StatefulWidget {
   final ApiClient api;
@@ -145,6 +146,7 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
 
   List<_FaqItemView> _filteredItems() {
     final query = _searchQuery.trim().toLowerCase();
+    final lang = normalizeLangCode(Localizations.localeOf(context).languageCode);
     final catById = {for (final cat in _categories) cat.id: cat};
 
     final List<_FaqItemView> filtered = [];
@@ -155,13 +157,16 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
         continue;
       }
 
+      final question = entry.localizedQuestion(lang);
+      final answer = entry.localizedAnswer(lang);
+
       if (query.isNotEmpty) {
-        final q = entry.question.toLowerCase();
-        final a = entry.answer.toLowerCase();
+        final q = question.toLowerCase();
+        final a = answer.toLowerCase();
         if (!q.contains(query) && !a.contains(query)) continue;
       }
 
-      filtered.add(_FaqItemView(entry: entry, category: cat));
+      filtered.add(_FaqItemView(entry: entry, category: cat, question: question, answer: answer));
     }
 
     filtered.sort((a, b) {
@@ -169,7 +174,7 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
       if (catOrder != 0) return catOrder;
       final entryOrder = a.entry.order.compareTo(b.entry.order);
       if (entryOrder != 0) return entryOrder;
-      return a.entry.question.compareTo(b.entry.question);
+      return a.question.compareTo(b.question);
     });
 
     return filtered;
@@ -477,15 +482,15 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
                             )
                           : RefreshIndicator(
                               onRefresh: () => _loadFaq(refresh: true),
-                              child: ListView.builder(
+                                  child: ListView.builder(
                                 physics:
                                     const AlwaysScrollableScrollPhysics(),
                                 itemCount: items.length,
                                 itemBuilder: (context, index) {
                                   final item = items[index];
-                                  final question = item.entry.question;
+                                  final question = item.question;
                                   final answerLines =
-                                      _splitAnswer(item.entry.answer);
+                                      _splitAnswer(item.answer);
 
                                   final bool showCategoryHeader;
                                   if (index == 0) {
@@ -546,8 +551,15 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
 class _FaqItemView {
   final FaqEntry entry;
   final FaqCategory category;
+  final String question;
+  final String answer;
 
-  const _FaqItemView({required this.entry, required this.category});
+  const _FaqItemView({
+    required this.entry,
+    required this.category,
+    required this.question,
+    required this.answer,
+  });
 }
 
 class _UnderlineBuilder extends MarkdownElementBuilder {

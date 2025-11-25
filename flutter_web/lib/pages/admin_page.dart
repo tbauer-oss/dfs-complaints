@@ -3520,6 +3520,7 @@ class _AdminPageState extends State<AdminPage> {
       ..sort((a, b) => a.order.compareTo(b.order));
 
     final query = _faqSearch.trim().toLowerCase();
+    final lang = normalizeLangCode(Localizations.localeOf(context).languageCode);
     final filteredEntries = _faqEntries.where((e) {
       if (!_faqShowInactive && !e.active) return false;
       if (_faqCategoryFilter != null && _faqCategoryFilter!.isNotEmpty) {
@@ -3530,8 +3531,8 @@ class _AdminPageState extends State<AdminPage> {
         if (a != 'both' && a != _faqAudienceFilter) return false;
       }
       if (query.isNotEmpty) {
-        final q = e.question.toLowerCase();
-        final a = e.answer.toLowerCase();
+        final q = e.localizedQuestion(lang).toLowerCase();
+        final a = e.localizedAnswer(lang).toLowerCase();
         if (!q.contains(query) && !a.contains(query)) return false;
       }
       if (!_faqShowInactive) {
@@ -3543,7 +3544,7 @@ class _AdminPageState extends State<AdminPage> {
       ..sort((a, b) {
         final cmp = a.order.compareTo(b.order);
         if (cmp != 0) return cmp;
-        return a.question.compareTo(b.question);
+        return a.localizedQuestion(lang).compareTo(b.localizedQuestion(lang));
       });
 
     return Card(
@@ -3771,6 +3772,9 @@ class _AdminPageState extends State<AdminPage> {
 
   Widget _buildFaqEntryCard(FaqEntry entry, ThemeData theme) {
     final catName = _faqCategoryName(entry.categoryId);
+    final lang = normalizeLangCode(Localizations.localeOf(context).languageCode);
+    final question = entry.localizedQuestion(lang);
+    final answer = entry.localizedAnswer(lang);
     final chips = <Widget>[
       Chip(label: Text(catName)),
       Chip(label: Text(_faqAudienceLabel(entry.audience))),
@@ -3792,7 +3796,7 @@ class _AdminPageState extends State<AdminPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        entry.question,
+                        question,
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
@@ -3800,7 +3804,7 @@ class _AdminPageState extends State<AdminPage> {
                       const SizedBox(height: 4),
                       Wrap(spacing: 6, runSpacing: 6, children: chips),
                       const SizedBox(height: 8),
-                      Text(entry.answer),
+                      Text(answer),
                     ],
                   ),
                 ),
@@ -3858,11 +3862,13 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   Future<void> _confirmDeleteEntry(FaqEntry entry) async {
+    final lang = normalizeLangCode(Localizations.localeOf(context).languageCode);
+    final title = entry.localizedQuestion(lang);
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Eintrag löschen?'),
-        content: Text('"${entry.question}" entfernen?'),
+        content: Text('"$title" entfernen?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -3990,12 +3996,23 @@ class _AdminPageState extends State<AdminPage> {
       return;
     }
 
-    final questionCtrl = TextEditingController(text: entry?.question ?? '');
-    final answerCtrl = TextEditingController(text: entry?.answer ?? '');
-    final orderCtrl = TextEditingController(text: entry?.order.toString() ?? '0');
+    final lang = normalizeLangCode(Localizations.localeOf(context).languageCode);
+    final questionCtrls = <String, TextEditingController>{};
+    final answerCtrls = <String, TextEditingController>{};
+    for (final lc in supportedLangCodes) {
+      final qText = entry == null ? '' : entry.localizedQuestion(lc);
+      final aText = entry == null ? '' : entry.localizedAnswer(lc);
+      questionCtrls[lc] = TextEditingController(text: qText);
+      answerCtrls[lc] = TextEditingController(text: aText);
+    }
+    final orderCtrl = TextEditingController(text: entry == null || entry.order == 0 ? '' : entry.order.toString());
     String audience = entry?.audience.isNotEmpty == true ? entry!.audience : 'both';
     String categoryId = entry?.categoryId ?? _faqCategories.first.id;
     bool active = entry?.active ?? true;
+    String previewLang = lang;
+    String translateSource = lang;
+    bool translating = false;
+    String? translateErr;
 
     await showDialog<void>(
       context: context,
@@ -4029,23 +4046,176 @@ class _AdminPageState extends State<AdminPage> {
                   onChanged: (v) => setModalState(() => audience = v ?? 'both'),
                   decoration: const InputDecoration(labelText: 'Zielgruppe'),
                 ),
-                TextField(
-                  controller: questionCtrl,
-                  maxLines: 2,
-                  decoration: const InputDecoration(labelText: 'Frage'),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Fragen und Antworten in allen Sprachen',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                  ),
                 ),
+                const SizedBox(height: 8),
+                ...supportedLangCodes.expand((lc) sync* {
+                  final langLabel = langNameFor(AppLocalizations.of(context), lc);
+                  yield Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('${lc.toUpperCase()} – $langLabel',
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700)),
+                    ),
+                  );
+                  yield const SizedBox(height: 4);
+                  yield TextField(
+                    controller: questionCtrls[lc],
+                    maxLines: 2,
+                    decoration: InputDecoration(labelText: 'Frage (${lc.toUpperCase()})'),
+                  );
+                  yield const SizedBox(height: 6);
+                  yield TextField(
+                    controller: answerCtrls[lc],
+                    minLines: 3,
+                    maxLines: 6,
+                    decoration: InputDecoration(labelText: 'Antwort (${lc.toUpperCase()})'),
+                  );
+                }),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      const Text('Automatisch übersetzen von:'),
+                      DropdownButton<String>(
+                        value: translateSource,
+                        items: supportedLangCodes
+                            .map(
+                              (lc) => DropdownMenuItem(
+                                value: lc,
+                                child: Text('${lc.toUpperCase()} – ${langNameFor(AppLocalizations.of(context), lc)}'),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: translating
+                            ? null
+                            : (v) {
+                                if (v == null || v.isEmpty) return;
+                                setModalState(() => translateSource = v);
+                              },
+                      ),
+                      FilledButton.icon(
+                        icon: const Icon(Icons.auto_mode),
+                        label: Text(translating ? 'Übersetze…' : 'Alle Sprachen automatisch ausfüllen'),
+                        onPressed: translating
+                            ? null
+                            : () async {
+                                final baseQ = questionCtrls[translateSource]?.text.trim() ?? '';
+                                final baseA = answerCtrls[translateSource]?.text.trim() ?? '';
+                                if (baseQ.isEmpty && baseA.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Bitte zunächst Frage oder Antwort in der Quellsprache eingeben.')),
+                                  );
+                                  return;
+                                }
+
+                                setModalState(() {
+                                  translating = true;
+                                  translateErr = null;
+                                });
+
+                                try {
+                                  final translations = await _api.translateFaqDraft(
+                                    sourceLang: translateSource,
+                                    targetLangs:
+                                        supportedLangCodes.where((lc) => lc != translateSource).toList(),
+                                    question: baseQ,
+                                    answer: baseA,
+                                  );
+
+                                  translations.forEach((lc, fields) {
+                                    if (lc == translateSource) return;
+                                    final q = (fields['question'] ?? '').trim();
+                                    final a = (fields['answer'] ?? '').trim();
+                                    if (q.isNotEmpty && questionCtrls.containsKey(lc)) {
+                                      questionCtrls[lc]!.text = q;
+                                    }
+                                    if (a.isNotEmpty && answerCtrls.containsKey(lc)) {
+                                      answerCtrls[lc]!.text = a;
+                                    }
+                                  });
+
+                                  if (translations.isNotEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Übersetzungen für ${translations.length} Sprachen eingefügt.')),
+                                    );
+                                  }
+                                } catch (e) {
+                                  setModalState(() {
+                                    translateErr = e.toString();
+                                  });
+                                } finally {
+                                  if (ctx.mounted) {
+                                    setModalState(() {
+                                      translating = false;
+                                    });
+                                  }
+                                }
+                              },
+                      ),
+                      if (translating)
+                        const Padding(
+                          padding: EdgeInsets.only(left: 4),
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2.2),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                if (translateErr != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        translateErr!,
+                        style: TextStyle(color: Theme.of(context).colorScheme.error),
+                      ),
+                    ),
+                  ),
                 const SizedBox(height: 12),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Wrap(
                     spacing: 8,
                     runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
+                      const Text('Live-Vorschau für Sprache:'),
+                      DropdownButton<String>(
+                        value: previewLang,
+                        items: supportedLangCodes
+                            .map(
+                              (lc) => DropdownMenuItem(
+                                value: lc,
+                                child: Text('${lc.toUpperCase()} – ${langNameFor(AppLocalizations.of(context), lc)}'),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (v) {
+                          if (v == null || v.isEmpty) return;
+                          setModalState(() => previewLang = v);
+                        },
+                      ),
                       _TextFormatChip(
                         icon: Icons.format_bold,
                         label: 'Fett',
                         onTap: () => _applyTextFormat(
-                          answerCtrl,
+                          answerCtrls[previewLang]!,
                           prefix: '**',
                           suffix: '**',
                           placeholder: 'fetter Text',
@@ -4055,7 +4225,7 @@ class _AdminPageState extends State<AdminPage> {
                         icon: Icons.format_italic,
                         label: 'Kursiv',
                         onTap: () => _applyTextFormat(
-                          answerCtrl,
+                          answerCtrls[previewLang]!,
                           prefix: '_',
                           suffix: '_',
                           placeholder: 'kursiver Text',
@@ -4065,7 +4235,7 @@ class _AdminPageState extends State<AdminPage> {
                         icon: Icons.format_underline,
                         label: 'Unterstrichen',
                         onTap: () => _applyTextFormat(
-                          answerCtrl,
+                          answerCtrls[previewLang]!,
                           prefix: '<u>',
                           suffix: '</u>',
                           placeholder: 'unterstrichen',
@@ -4075,7 +4245,7 @@ class _AdminPageState extends State<AdminPage> {
                         icon: Icons.format_color_fill,
                         label: 'Markieren',
                         onTap: () => _applyTextFormat(
-                          answerCtrl,
+                          answerCtrls[previewLang]!,
                           prefix: '<mark>',
                           suffix: '</mark>',
                           placeholder: 'markierter Text',
@@ -4085,25 +4255,8 @@ class _AdminPageState extends State<AdminPage> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                TextField(
-                  controller: answerCtrl,
-                  minLines: 3,
-                  maxLines: 6,
-                  decoration: const InputDecoration(labelText: 'Antwort'),
-                ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Live-Vorschau',
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                ),
-                const SizedBox(height: 6),
                 ValueListenableBuilder<TextEditingValue>(
-                  valueListenable: answerCtrl,
+                  valueListenable: answerCtrls[previewLang]!,
                   builder: (_, value, __) {
                     final previewText = value.text.trim().isEmpty
                         ? '_(Noch keine Antwort eingegeben)_'
@@ -4171,21 +4324,33 @@ class _AdminPageState extends State<AdminPage> {
           ),
           FilledButton(
             onPressed: () async {
-              final question = questionCtrl.text.trim();
-              final answer = answerCtrl.text.trim();
-              final order = int.tryParse(orderCtrl.text.trim());
-              if (question.isEmpty || answer.isEmpty) {
+              final questions = <String, String>{};
+              final answers = <String, String>{};
+              for (final lc in supportedLangCodes) {
+                final q = questionCtrls[lc]?.text.trim() ?? '';
+                final a = answerCtrls[lc]?.text.trim() ?? '';
+                if (q.isNotEmpty) questions[lc] = q;
+                if (a.isNotEmpty) answers[lc] = a;
+              }
+
+              if (questions.length != supportedLangCodes.length || answers.length != supportedLangCodes.length) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Frage und Antwort dürfen nicht leer sein.')),
+                  const SnackBar(content: Text('Bitte alle Sprachen mit Frage und Antwort ausfüllen.')),
                 );
                 return;
               }
+
+              final order = int.tryParse(orderCtrl.text.trim().isEmpty ? '' : orderCtrl.text.trim());
+              final question = questions[lang] ?? questions['de'] ?? questions.values.first;
+              final answer = answers[lang] ?? answers['de'] ?? answers.values.first;
               try {
                 final saved = await _api.saveFaqEntry(
                   id: entry?.id,
                   categoryId: categoryId,
                   question: question,
                   answer: answer,
+                  questionIntl: questions,
+                  answerIntl: answers,
                   audience: audience,
                   order: order,
                   active: active,
@@ -4215,8 +4380,12 @@ class _AdminPageState extends State<AdminPage> {
       ),
     );
 
-    questionCtrl.dispose();
-    answerCtrl.dispose();
+    for (final ctrl in questionCtrls.values) {
+      ctrl.dispose();
+    }
+    for (final ctrl in answerCtrls.values) {
+      ctrl.dispose();
+    }
     orderCtrl.dispose();
   }
 
@@ -10415,6 +10584,8 @@ class AdminApi {
     required String categoryId,
     required String question,
     required String answer,
+    Map<String, String>? questionIntl,
+    Map<String, String>? answerIntl,
     String audience = 'both',
     int? order,
     bool? active,
@@ -10424,6 +10595,8 @@ class AdminApi {
       'categoryId': categoryId,
       'question': question,
       'answer': answer,
+      if (questionIntl != null) 'questionIntl': questionIntl,
+      if (answerIntl != null) 'answerIntl': answerIntl,
       'audience': audience,
       if (id != null && id.isNotEmpty) 'id': id,
       if (order != null) 'order': order,
