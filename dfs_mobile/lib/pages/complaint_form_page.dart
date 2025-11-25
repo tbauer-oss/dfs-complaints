@@ -76,7 +76,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   final ValueNotifier<bool> _busyNotifier = ValueNotifier(false);
 
   Map<String, dynamic>? _account;
-  bool _helpCollapsed = false;
+  bool _helpCollapsed = true;
 
   bool _dirty = false;
   final List<TextEditingController> _ctrls = [];
@@ -483,9 +483,9 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   Future<void> _loadHelpPref() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final collapsed = prefs.getBool(_helpPrefKey) ?? false;
       if (!mounted) return;
-      setState(() => _helpCollapsed = collapsed);
+      setState(() => _helpCollapsed = true);
+      await prefs.setBool(_helpPrefKey, true);
     } catch (_) {}
   }
 
@@ -1219,118 +1219,173 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
             offset: const Offset(-4, -4),
           ),
         ],
-        border: Border.all(color: Colors.white.withOpacity(0.25)),
       ),
       child: Material(
-        type: MaterialType.transparency,
+        color: Colors.transparent,
+        borderRadius: radius,
         child: InkWell(
-          borderRadius: radius,
           onTap: onTap,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.white.withOpacity(0.22),
-                          Colors.white.withOpacity(0.05),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        stops: const [0.0, 0.55],
+          borderRadius: radius,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 420;
+
+              Widget buildCta({required bool fullWidth}) {
+                final button = DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.16),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: Colors.white.withOpacity(0.3)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.15),
+                        blurRadius: 12,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: compact ? 12 : 14,
+                      vertical: compact ? 8 : 10,
+                    ),
+                    child: Row(
+                      mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Icon(Icons.play_arrow_rounded, color: Colors.white, size: 22),
+                        SizedBox(width: 6),
+                        Text(
+                          'Assistent starten',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+
+                return fullWidth ? SizedBox(width: double.infinity, child: button) : button;
+              }
+
+              return Stack(
+                children: [
+                  Positioned(
+                    right: -30,
+                    top: -30,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 420),
+                      width: compact ? 140 : 160,
+                      height: compact ? 140 : 160,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [Colors.white.withOpacity(0.22), Colors.white.withOpacity(0.01)],
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ),
-              Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: compact ? 14 : 18,
-                  vertical: compact ? 14 : 18,
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
+                  Positioned(
+                    left: -40,
+                    bottom: -40,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 420),
+                      width: compact ? 160 : 190,
+                      height: compact ? 160 : 190,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Colors.white.withOpacity(0.12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.18),
-                            blurRadius: 10,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(Icons.auto_awesome, color: Colors.white, size: 26),
-                    ),
-                    SizedBox(width: compact ? 12 : 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            t.complaintWizardTile,
-                            style: textTheme.titleMedium?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.1,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            t.complaint_wizard_hint,
-                            style: textTheme.bodyMedium?.copyWith(
-                              color: Colors.white.withOpacity(0.9),
-                              height: 1.35,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(width: compact ? 10 : 14),
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.16),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: Colors.white.withOpacity(0.3)),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.15),
-                            blurRadius: 12,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: compact ? 12 : 14,
-                          vertical: compact ? 8 : 10,
+                        gradient: RadialGradient(
+                          colors: [Colors.white.withOpacity(0.16), Colors.white.withOpacity(0.0)],
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: const [
-                            Icon(Icons.play_arrow_rounded, color: Colors.white, size: 22),
-                            SizedBox(width: 6),
-                            Text(
-                              'Assistent starten',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.3,
+                      ),
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.white.withOpacity(0.22),
+                              Colors.white.withOpacity(0.05),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            stops: const [0.0, 0.55],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: compact ? 14 : 18,
+                      vertical: compact ? 14 : 18,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white.withOpacity(0.12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.18),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(Icons.auto_awesome, color: Colors.white, size: 26),
+                            ),
+                            SizedBox(width: compact ? 12 : 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    t.complaintWizardTile,
+                                    style: textTheme.titleMedium?.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.1,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    t.complaint_wizard_hint,
+                                    style: textTheme.bodyMedium?.copyWith(
+                                      color: Colors.white.withOpacity(0.92),
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
+                            if (!isNarrow) ...[
+                              SizedBox(width: compact ? 10 : 14),
+                              buildCta(fullWidth: false),
+                            ],
                           ],
                         ),
-                      ),
+                        if (isNarrow) ...[
+                          const SizedBox(height: 14),
+                          buildCta(fullWidth: true),
+                        ],
+                      ],
                     ),
-                  ],
-                ),
-              ),
-            ],
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),
