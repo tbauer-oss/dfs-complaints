@@ -3785,6 +3785,63 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  Future<void> _addMenuSection() async {
+    final titleCtrl = TextEditingController();
+    final subtitleCtrl = TextEditingController();
+
+    final created = await showDialog<_AdminMenuSectionState>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Neue Kategorie hinzufügen'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleCtrl,
+                decoration: const InputDecoration(labelText: 'Titel'),
+                autofocus: true,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: subtitleCtrl,
+                decoration: const InputDecoration(labelText: 'Beschreibung'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final title = titleCtrl.text.trim();
+                final subtitle = subtitleCtrl.text.trim();
+                if (title.isEmpty) return;
+                Navigator.of(context).pop(
+                  _AdminMenuSectionState(
+                    title: title,
+                    subtitle: subtitle,
+                    tileIds: const [],
+                  ),
+                );
+              },
+              child: const Text('Hinzufügen'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (created == null) return;
+
+    setState(() {
+      _menuSections = [..._menuSections, created];
+    });
+    _persistMenuLayout();
+  }
+
   void _persistMenuLayout() {
     html.window.localStorage[_menuLayoutStorageKey] =
         jsonEncode(_menuSections.map((s) => s.toJson()).toList());
@@ -3824,6 +3881,11 @@ class _AdminPageState extends State<AdminPage> {
                   ),
                 ),
                 TextButton.icon(
+                  onPressed: _addMenuSection,
+                  icon: const Icon(Icons.add_outlined),
+                  label: const Text('Kategorie hinzufügen'),
+                ),
+                TextButton.icon(
                   onPressed: _resetMenuLayout,
                   icon: const Icon(Icons.refresh_outlined),
                   label: const Text('Layout zurücksetzen'),
@@ -3834,7 +3896,11 @@ class _AdminPageState extends State<AdminPage> {
         ),
         for (var i = 0; i < sections.length; i++) ...[
           SliverToBoxAdapter(
-            child: _buildMenuSectionHeader(sections[i], isFirst: i == 0),
+            child: _buildMenuSectionHeader(
+              sections[i],
+              isFirst: i == 0,
+              index: i,
+            ),
           ),
           SliverPadding(
             padding: EdgeInsets.fromLTRB(16, 8, 16, i == sections.length - 1 ? 28 : 12),
@@ -4234,18 +4300,164 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
-  Widget _buildMenuSectionHeader(_AdminMenuSectionState section, {required bool isFirst}) {
+  Future<void> _editMenuSection(int index) async {
+    final section = _menuSections[index];
+    final titleCtrl = TextEditingController(text: section.title);
+    final subtitleCtrl = TextEditingController(text: section.subtitle);
+
+    final updated = await showDialog<_AdminMenuSectionState>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Kategorie bearbeiten'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleCtrl,
+                decoration: const InputDecoration(labelText: 'Titel'),
+                autofocus: true,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: subtitleCtrl,
+                decoration: const InputDecoration(labelText: 'Beschreibung'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final newTitle = titleCtrl.text.trim();
+                final newSubtitle = subtitleCtrl.text.trim();
+                if (newTitle.isEmpty) return;
+                Navigator.of(context).pop(
+                  section.copyWith(
+                    title: newTitle,
+                    subtitle: newSubtitle,
+                  ),
+                );
+              },
+              child: const Text('Speichern'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (updated == null) return;
+
+    setState(() {
+      _menuSections[index] = updated;
+    });
+    _persistMenuLayout();
+  }
+
+  Future<void> _confirmDeleteMenuSection(int index) async {
+    if (index < 0 || index >= _menuSections.length) return;
+    final section = _menuSections[index];
+    final tileCount = section.tileIds.length;
+
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Kategorie löschen'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('"${section.title}" entfernen?'),
+              const SizedBox(height: 8),
+              Text(
+                tileCount == 0
+                    ? 'Es sind keine Kacheln in dieser Kategorie enthalten.'
+                    : 'Die ${tileCount == 1 ? 'eine Kachel' : '$tileCount Kacheln'} wird automatisch in Standardbereiche verschoben.',
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Löschen'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldDelete != true) return;
+    _removeMenuSection(index);
+  }
+
+  void _removeMenuSection(int index) {
+    if (index < 0 || index >= _menuSections.length) return;
+    final removed = _menuSections[index];
+    final tilesToReassign = List<String>.from(removed.tileIds);
+
+    setState(() {
+      _menuSections = List<_AdminMenuSectionState>.from(_menuSections)..removeAt(index);
+      if (_menuSections.isEmpty) {
+        _menuSections = _baseMenuSections().map((s) => s.copy()).toList();
+      }
+
+      for (final tileId in tilesToReassign) {
+        final targetTitle = _tileDefaultSection[tileId];
+        final targetSection = targetTitle != null
+            ? _menuSections.firstWhere(
+                (s) => s.title == targetTitle,
+                orElse: () => _menuSections.first,
+              )
+            : _menuSections.first;
+        if (!targetSection.tileIds.contains(tileId)) {
+          targetSection.tileIds.add(tileId);
+        }
+      }
+    });
+    _persistMenuLayout();
+  }
+
+  Widget _buildMenuSectionHeader(
+    _AdminMenuSectionState section, {
+    required bool isFirst,
+    required int index,
+  }) {
     final theme = Theme.of(context);
     final titleStyle = theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700);
     final subtitleStyle = theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant);
     return Padding(
       padding: EdgeInsets.fromLTRB(16, isFirst ? 16 : 8, 16, 4),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(section.title, style: titleStyle),
-          const SizedBox(height: 4),
-          Text(section.subtitle, style: subtitleStyle),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(section.title, style: titleStyle),
+                const SizedBox(height: 4),
+                Text(section.subtitle, style: subtitleStyle),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Kategorie löschen',
+            icon: const Icon(Icons.delete_outline),
+            onPressed: _menuSections.length <= 1 ? null : () => _confirmDeleteMenuSection(index),
+          ),
+          IconButton(
+            tooltip: 'Kategorie bearbeiten',
+            icon: const Icon(Icons.edit_outlined),
+            onPressed: () => _editMenuSection(index),
+          ),
         ],
       ),
     );
@@ -7135,6 +7347,13 @@ class _AdminNavSection {
 
   _AdminMenuSectionState copy() =>
       _AdminMenuSectionState(title: title, subtitle: subtitle, tileIds: List<String>.from(tileIds));
+
+  _AdminMenuSectionState copyWith({String? title, String? subtitle, List<String>? tileIds}) =>
+      _AdminMenuSectionState(
+        title: title ?? this.title,
+        subtitle: subtitle ?? this.subtitle,
+        tileIds: tileIds ?? List<String>.from(this.tileIds),
+      );
 
   Map<String, dynamic> toJson() => {
         'title': title,
