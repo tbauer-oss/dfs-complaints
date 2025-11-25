@@ -41,6 +41,8 @@ class FaqEntry {
   final String categoryId;
   final String question;
   final String answer;
+  final Map<String, String> questionIntl;
+  final Map<String, String> answerIntl;
   final String audience; // customer, rep, both
   final int order;
   final bool active;
@@ -50,17 +52,45 @@ class FaqEntry {
     required this.categoryId,
     required this.question,
     required this.answer,
+    this.questionIntl = const {},
+    this.answerIntl = const {},
     required this.audience,
     this.order = 0,
     this.active = true,
   });
 
   factory FaqEntry.fromJson(Map<String, dynamic> json) {
+    Map<String, String> _intlMap(dynamic raw) {
+      if (raw is Map) {
+        return raw.map((key, value) {
+          final lang = _normLang(key.toString());
+          final text = value?.toString().trim();
+          if (lang.isEmpty || text == null || text.isEmpty) return MapEntry('', '');
+          return MapEntry(lang, text);
+        })..removeWhere((k, v) => k.isEmpty || v.isEmpty);
+      }
+      return const <String, String>{};
+    }
+
+    final qIntl = _intlMap(json['questionIntl']);
+    final aIntl = _intlMap(json['answerIntl']);
+    final preferredLang = _normLang(json['lang']?.toString() ?? json['language']?.toString());
+    final question = _resolveIntl(qIntl, json['question']?.toString() ?? '', preferredLang);
+    final answer = _resolveIntl(aIntl, json['answer']?.toString() ?? '', preferredLang);
+    if (question.isNotEmpty && preferredLang.isNotEmpty && !qIntl.containsKey(preferredLang)) {
+      qIntl[preferredLang] = question;
+    }
+    if (answer.isNotEmpty && preferredLang.isNotEmpty && !aIntl.containsKey(preferredLang)) {
+      aIntl[preferredLang] = answer;
+    }
+
     return FaqEntry(
       id: (json['id'] ?? '').toString(),
       categoryId: (json['categoryId'] ?? '').toString(),
-      question: (json['question'] ?? '').toString(),
-      answer: (json['answer'] ?? '').toString(),
+      question: question,
+      answer: answer,
+      questionIntl: qIntl,
+      answerIntl: aIntl,
       audience: (json['audience'] ?? 'both').toString(),
       order: int.tryParse(json['order']?.toString() ?? '') ?? 0,
       active: json['active'] != false,
@@ -72,10 +102,38 @@ class FaqEntry {
         'categoryId': categoryId,
         'question': question,
         'answer': answer,
+        if (questionIntl.isNotEmpty) 'questionIntl': questionIntl,
+        if (answerIntl.isNotEmpty) 'answerIntl': answerIntl,
         'audience': audience,
         'order': order,
         'active': active,
       };
+
+  String localizedQuestion(String lang) => _resolveIntl(questionIntl, question, lang);
+
+  String localizedAnswer(String lang) => _resolveIntl(answerIntl, answer, lang);
+}
+
+String _normLang(String? code) {
+  final lc = (code ?? '').trim().toLowerCase();
+  switch (lc) {
+    case 'de':
+    case 'en':
+    case 'es':
+    case 'fr':
+    case 'it':
+      return lc;
+    default:
+      return '';
+  }
+}
+
+String _resolveIntl(Map<String, String> map, String fallback, String lang) {
+  final normalized = _normLang(lang);
+  if (normalized.isNotEmpty && map.containsKey(normalized)) return map[normalized]!;
+  if (normalized != 'de' && map.containsKey('de')) return map['de']!;
+  if (map.isNotEmpty) return map.values.first;
+  return fallback;
 }
 
 class FaqData {
