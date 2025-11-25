@@ -7908,6 +7908,11 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   bool _expanded = false;
   bool _historyExpanded = false;
   bool _noteOpen = false;
+  bool _descTranslating = false;
+  String? _descTranslation;
+  String? _descTranslationErr;
+  String? _payloadLang;
+  String? _selectedTranslateLang;
 
   static const Map<String, List<String>> _payloadKeyMap = {
     'segment': ['segment', 'customer_segment', 'segment_code'],
@@ -7924,6 +7929,14 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     'applied': ['applied'],
     'injury': ['injury'],
     'injuryDesc': ['injuryDesc'],
+  };
+
+  static const Map<String, String> _langLabels = {
+    'de': 'Deutsch',
+    'en': 'Englisch',
+    'fr': 'Französisch',
+    'it': 'Italienisch',
+    'es': 'Spanisch',
   };
 
   int? _status; // 1..6
@@ -7944,6 +7957,24 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   String? _detPickOrNull(Map<String, dynamic>? p, List<String> keys) {
     final s = _detPick(p, keys);
     return s.isEmpty ? null : s;
+  }
+
+  String _langLabel(String code) => _langLabels[code.toLowerCase()] ?? code.toUpperCase();
+
+  String? _detectPayloadLang(Map<String, dynamic>? payload) {
+    if (payload == null) return null;
+    const candidates = ['lang', 'language', 'lang_code', 'language_code', 'locale'];
+    for (final key in candidates) {
+      final raw = payload[key];
+      if (raw == null) continue;
+      final value = raw.toString().trim();
+      if (value.isEmpty) continue;
+      final lower = value.toLowerCase();
+      if (supportedLangCodes.contains(lower)) return lower;
+      final short = lower.split(RegExp('[-_]')).first;
+      if (supportedLangCodes.contains(short)) return short;
+    }
+    return null;
   }
 
   Map<String, String> _payloadSnapshot() {
@@ -8036,6 +8067,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     _notesCtrl.text = widget.c.adminNotes ?? '';
     _status = widget.c.status;
     _decision = widget.c.decision;
+    _payloadLang = _detectPayloadLang(widget.c.payload);
+    _selectedTranslateLang = _payloadLang ?? 'en';
   }
 
   @override
@@ -8150,6 +8183,208 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       _noteOpen = false;
       _notesCtrl.text = widget.c.adminNotes ?? '';
     });
+  }
+
+  Future<void> _translateDescription(String description) async {
+    final src = _selectedTranslateLang;
+    if (src == null || src.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bitte Quellsprache für die Übersetzung auswählen.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _descTranslating = true;
+      _descTranslationErr = null;
+      _descTranslation = null;
+    });
+
+    try {
+      final translations = await widget.api.translateFaqDraft(
+        sourceLang: src,
+        targetLangs: const ['de'],
+        description: description,
+      );
+
+      final deMap = translations['de'];
+      String? translated;
+      if (deMap != null) {
+        translated = deMap['description'] ??
+            deMap.values.firstWhere(
+              (v) => v.trim().isNotEmpty,
+              orElse: () => '',
+            );
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _descTranslation = (translated ?? '').trim().isEmpty ? null : translated!.trim();
+      });
+
+      if (_descTranslation == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Keine Übersetzung erhalten.')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _descTranslationErr = e.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _descTranslating = false);
+      }
+    }
+  }
+
+  Widget _buildDescriptionTranslationBox(String description) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final detected = _payloadLang;
+    final langItems = supportedLangCodes.where((lc) => lc != 'de').toList();
+
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: scheme.surfaceVariant.withOpacity(0.42),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: scheme.outlineVariant.withOpacity(0.8)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: scheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.all(8),
+                    child: Icon(Icons.translate, color: scheme.primary),
+                  ),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Beschreibung auf Deutsch anzeigen',
+                        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Original bleibt unverändert – nur zur besseren Lesbarkeit.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant.withOpacity(0.75),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              if (_descTranslating)
+                const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 12,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              SizedBox(
+                width: 240,
+                child: DropdownButtonFormField<String>(
+                  value: _selectedTranslateLang,
+                  decoration: const InputDecoration(
+                    labelText: 'Originalsprache',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: langItems
+                      .map(
+                        (lc) => DropdownMenuItem<String>(
+                          value: lc,
+                          child: Text(_langLabel(lc)),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) {
+                    setState(() {
+                      _selectedTranslateLang = v;
+                      _descTranslation = null;
+                      _descTranslationErr = null;
+                    });
+                  },
+                ),
+              ),
+              FilledButton.icon(
+                onPressed: _descTranslating ? null : () => _translateDescription(description),
+                icon: const Icon(Icons.g_translate),
+                label: const Text('Übersetzung abrufen'),
+              ),
+              if (detected != null)
+                Text(
+                  'Erkannt: ${_langLabel(detected)}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant.withOpacity(0.78),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Hinweis: Übersetzung dient nur der Anzeige. Es wird nichts gespeichert oder überschrieben.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant.withOpacity(0.75),
+            ),
+          ),
+          if (_descTranslationErr != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _descTranslationErr!,
+              style: TextStyle(color: scheme.error),
+            ),
+          ],
+          if (_descTranslation != null) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: scheme.primaryContainer.withOpacity(0.35),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: scheme.primary.withOpacity(0.4)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Übersetzung (Deutsch, nur Anzeige)',
+                    style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 6),
+                  SelectableText(
+                    _descTranslation!,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   Future<void> _saveNotes() async {
@@ -8917,6 +9152,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     final qty          = _detPickOrNull(p, ['qty','quantity','amount','menge']);
     final reason       = _detPickOrNull(p, ['reason','failure_reason','cause']);
     final desc         = _detPickOrNull(p, ['desc','description','comment','details','failure_desc']);
+    final descText     = (desc ?? '').trim();
     final customerWish = _detPickOrNull(p, ['customer_wish','customerWish','wish','treatment_wish']);
     final applied     = _detPickOrNull(p, ['applied']);          // 'Ja' | 'Nein' | ''
     final injury      = _detPickOrNull(p, ['injury']);           // 'Ja' | 'Nein' | ''
@@ -9424,7 +9660,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                       addDetail(primaryColumn, 'Menge', qty);
                       addDetail(primaryColumn, 'Produkte zurückgeschickt?', returned);
 
-                      addDetail(secondaryColumn, 'Fehler / Beschreibung', desc,
+                      addDetail(secondaryColumn, 'Fehler / Beschreibung', descText,
                           maxLines: null);
                       addDetail(secondaryColumn, 'Am Patienten angewendet?', applied);
                       addDetail(
@@ -9568,6 +9804,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                                 ...spaced(secondaryColumn),
                               ],
                             ),
+                          if (descText.isNotEmpty)
+                            _buildDescriptionTranslationBox(descText),
                           if (attachments.isNotEmpty) ...[
                             const SizedBox(height: 16),
                             Text(
