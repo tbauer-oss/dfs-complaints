@@ -1252,12 +1252,16 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                     child: Row(
                       mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        Icon(Icons.play_arrow_rounded, color: Colors.white, size: 22),
-                        SizedBox(width: 6),
+                      children: [
+                        const Icon(
+                          Icons.play_arrow_rounded,
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                        const SizedBox(width: 6),
                         Text(
-                          t.complaint_assist,
-                          style: TextStyle(
+                          context.t.complaint_assist, // <- Lokalisierung über Context
+                          style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.3,
