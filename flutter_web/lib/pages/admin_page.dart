@@ -204,7 +204,7 @@ class _AdminPageState extends State<AdminPage> {
   bool _loadAllComplaints = false;
 
   static const _menuLayoutStorageKey = 'admin_menu_layout_v1';
-  static const double _tileScaleMin = 0.85;
+  static const double _tileScaleMin = 0.6;
   static const double _tileScaleMax = 1.35;
   late final Map<String, String> _tileDefaultSection;
   late final Set<String> _menuTileIds;
