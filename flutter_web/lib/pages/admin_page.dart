@@ -3973,7 +3973,6 @@ class _AdminPageState extends State<AdminPage> {
                         value: _menuTileScale,
                         min: _tileScaleMin,
                         max: _tileScaleMax,
-                        divisions: 10,
                         label: '${(_menuTileScale * 100).round()}%',
                         onChanged: (value) {
                           setState(
@@ -3984,7 +3983,7 @@ class _AdminPageState extends State<AdminPage> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Gilt für alle Kacheln und wird beim Speichern der Dashboard-Anpassung übernommen.',
+                        'Stufenlose Anpassung zwischen 60% und 135%; gilt für alle Kacheln und wird beim Speichern der Dashboard-Anpassung übernommen.',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
