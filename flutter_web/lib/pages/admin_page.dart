@@ -205,6 +205,8 @@ class _AdminPageState extends State<AdminPage> {
   late final Set<String> _menuTileIds;
   late List<_AdminMenuSectionState> _menuSections;
 
+  static const double _sectionReorderHeight = 40;
+
   // Ansicht (Menü / Bereich)
   _AdminView _view = _AdminView.menu;
 
@@ -3894,7 +3896,9 @@ class _AdminPageState extends State<AdminPage> {
             ),
           ),
         ),
+        _buildSectionReorderTarget(index: 0),
         for (var i = 0; i < sections.length; i++) ...[
+          SliverToBoxAdapter(child: const SizedBox(height: 4)),
           SliverToBoxAdapter(
             child: _buildMenuSectionHeader(
               sections[i],
@@ -3916,8 +3920,50 @@ class _AdminPageState extends State<AdminPage> {
               ),
             ),
           ),
+          _buildSectionReorderTarget(index: i + 1),
         ],
       ],
+    );
+  }
+
+  SliverToBoxAdapter _buildSectionReorderTarget({required int index}) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return SliverToBoxAdapter(
+      child: DragTarget<_DraggedSection>(
+        onWillAccept: (_) => true,
+        onAccept: (data) => _handleSectionDrop(data, index),
+        builder: (context, candidate, rejected) {
+          final highlight = candidate.isNotEmpty;
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            height: _sectionReorderHeight,
+            decoration: BoxDecoration(
+              color: highlight ? cs.primary.withOpacity(0.08) : cs.surfaceVariant.withOpacity(0.35),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: highlight ? cs.primary : cs.outlineVariant,
+                width: highlight ? 2 : 1,
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.swap_vert, color: highlight ? cs.primary : cs.onSurfaceVariant),
+                const SizedBox(width: 8),
+                Text(
+                  'Kategorie hier ablegen',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: highlight ? cs.primary : cs.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -4121,6 +4167,22 @@ class _AdminPageState extends State<AdminPage> {
       final targetSection = _menuSections[targetSectionIndex];
       targetInsertIndex = targetInsertIndex.clamp(0, targetSection.tileIds.length);
       targetSection.tileIds.insert(targetInsertIndex, data.tileId);
+    });
+    _persistMenuLayout();
+  }
+
+  void _handleSectionDrop(_DraggedSection data, int targetIndex) {
+    if (targetIndex < 0 || targetIndex > _menuSections.length) return;
+    if (data.sectionIndex < 0 || data.sectionIndex >= _menuSections.length) return;
+
+    setState(() {
+      final moving = _menuSections.removeAt(data.sectionIndex);
+      var insertIndex = targetIndex;
+      if (targetIndex > data.sectionIndex) {
+        insertIndex -= 1;
+      }
+      insertIndex = insertIndex.clamp(0, _menuSections.length);
+      _menuSections.insert(insertIndex, moving);
     });
     _persistMenuLayout();
   }
@@ -4433,32 +4495,116 @@ class _AdminPageState extends State<AdminPage> {
     final theme = Theme.of(context);
     final titleStyle = theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700);
     final subtitleStyle = theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant);
+    final data = _DraggedSection(sectionIndex: index);
+    final dragHandle = _useLongPressDrag()
+        ? LongPressDraggable<_DraggedSection>(
+            data: data,
+            dragAnchorStrategy: pointerDragAnchorStrategy,
+            feedback: _buildSectionDragFeedback(section),
+            childWhenDragging: _buildMenuSectionHeaderContent(
+              section,
+              titleStyle,
+              subtitleStyle,
+              muted: true,
+              index: index,
+            ),
+            child: _buildMenuSectionHeaderContent(section, titleStyle, subtitleStyle, index: index),
+          )
+        : Draggable<_DraggedSection>(
+            data: data,
+            dragAnchorStrategy: pointerDragAnchorStrategy,
+            feedback: _buildSectionDragFeedback(section),
+            childWhenDragging: _buildMenuSectionHeaderContent(
+              section,
+              titleStyle,
+              subtitleStyle,
+              muted: true,
+              index: index,
+            ),
+            child: _buildMenuSectionHeaderContent(section, titleStyle, subtitleStyle, index: index),
+          );
+
     return Padding(
       padding: EdgeInsets.fromLTRB(16, isFirst ? 16 : 8, 16, 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(section.title, style: titleStyle),
-                const SizedBox(height: 4),
-                Text(section.subtitle, style: subtitleStyle),
-              ],
+      child: dragHandle,
+    );
+  }
+
+  Widget _buildMenuSectionHeaderContent(
+    _AdminMenuSectionState section,
+    TextStyle? titleStyle,
+    TextStyle? subtitleStyle, {
+    bool muted = false,
+    required int index,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    final color = muted ? cs.onSurfaceVariant.withOpacity(0.6) : cs.onSurfaceVariant;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 2, right: 12),
+          child: Icon(Icons.drag_indicator, color: color),
+        ),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(section.title, style: titleStyle?.copyWith(color: color)),
+              const SizedBox(height: 4),
+              Text(section.subtitle, style: subtitleStyle?.copyWith(color: color)),
+            ],
+          ),
+        ),
+        IconButton(
+          tooltip: 'Kategorie löschen',
+          icon: const Icon(Icons.delete_outline),
+          onPressed: _menuSections.length <= 1 ? null : () => _confirmDeleteMenuSection(index),
+        ),
+        IconButton(
+          tooltip: 'Kategorie bearbeiten',
+          icon: const Icon(Icons.edit_outlined),
+          onPressed: () => _editMenuSection(index),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSectionDragFeedback(_AdminMenuSectionState section) {
+    final theme = Theme.of(context);
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        width: 320,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.12),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
-          ),
-          IconButton(
-            tooltip: 'Kategorie löschen',
-            icon: const Icon(Icons.delete_outline),
-            onPressed: _menuSections.length <= 1 ? null : () => _confirmDeleteMenuSection(index),
-          ),
-          IconButton(
-            tooltip: 'Kategorie bearbeiten',
-            icon: const Icon(Icons.edit_outlined),
-            onPressed: () => _editMenuSection(index),
-          ),
-        ],
+          ],
+          border: Border.all(color: theme.colorScheme.primary, width: 1.5),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.folder_copy_outlined),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(section.title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 2),
+                  Text(section.subtitle, style: theme.textTheme.bodyMedium),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -7367,6 +7513,12 @@ class _DraggedTile {
   final int sectionIndex;
 
   const _DraggedTile({required this.tileId, required this.sectionIndex});
+}
+
+class _DraggedSection {
+  final int sectionIndex;
+
+  const _DraggedSection({required this.sectionIndex});
 }
 
 class _SystemHealthCheckCard extends StatelessWidget {
