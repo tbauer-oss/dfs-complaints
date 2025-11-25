@@ -3277,27 +3277,6 @@ class _AdminPageState extends State<AdminPage> {
       );
     }
 
-    Widget navStatChip(String label, IconData icon, String value, Color color) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: color.withOpacity(theme.brightness == Brightness.dark ? 0.18 : 0.12),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.45)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 18, color: color),
-            const SizedBox(width: 8),
-            Text(value, style: theme.textTheme.titleMedium?.copyWith(color: color, fontWeight: FontWeight.w800)),
-            const SizedBox(width: 6),
-            Text(label, style: theme.textTheme.labelMedium?.copyWith(color: subtle)),
-          ],
-        ),
-      );
-    }
-
     Widget buildTile(_AdminNavItem item) {
       final selected = _view == item.view;
       final badgeWidget = item.badge == null
@@ -3516,20 +3495,6 @@ class _AdminPageState extends State<AdminPage> {
       child: Column(
         children: [
           buildHeader(),
-          if (!isCompact)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  navStatChip('Offene Fälle', Icons.assignment_late_outlined, '${_openComplaints.length}', theme.colorScheme.error),
-                  navStatChip('Pending', Icons.hourglass_bottom_outlined, '${_pending.length}', theme.colorScheme.tertiary),
-                  navStatChip('Kunden', Icons.people_outline, '${_users.length}', accent),
-                  navStatChip('Vertreter', Icons.support_agent_outlined, '${_reps.length}', theme.colorScheme.secondary),
-                ],
-              ),
-            ),
           Expanded(
             child: Scrollbar(
               thickness: 4,
