@@ -1190,6 +1190,153 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     );
   }
 
+  Widget _buildWizardLaunchButton({
+    required bool compact,
+    required AppLocalizations t,
+    required VoidCallback onTap,
+  }) {
+    final radius = BorderRadius.circular(compact ? 14 : 16);
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      margin: EdgeInsets.only(top: compact ? 8 : 12, bottom: compact ? 2 : 4),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF7C3AED), Color(0xFF9D4EDD), Color(0xFFB388FF)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: radius,
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF7C3AED).withOpacity(0.35),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+          BoxShadow(
+            color: Colors.white.withOpacity(0.18),
+            blurRadius: 12,
+            offset: const Offset(-4, -4),
+          ),
+        ],
+        border: Border.all(color: Colors.white.withOpacity(0.25)),
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          borderRadius: radius,
+          onTap: onTap,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.white.withOpacity(0.22),
+                          Colors.white.withOpacity(0.05),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        stops: const [0.0, 0.55],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: compact ? 14 : 18,
+                  vertical: compact ? 14 : 18,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withOpacity(0.12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.18),
+                            blurRadius: 10,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(Icons.auto_awesome, color: Colors.white, size: 26),
+                    ),
+                    SizedBox(width: compact ? 12 : 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            t.complaintWizardTile,
+                            style: textTheme.titleMedium?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.1,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            t.complaint_wizard_hint,
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: Colors.white.withOpacity(0.9),
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(width: compact ? 10 : 14),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.16),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: Colors.white.withOpacity(0.3)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.15),
+                            blurRadius: 12,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: compact ? 12 : 14,
+                          vertical: compact ? 8 : 10,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Icon(Icons.play_arrow_rounded, color: Colors.white, size: 22),
+                            SizedBox(width: 6),
+                            Text(
+                              'Assistent starten',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _openWizardFlow({
     required List<_WizardStep> steps,
     required AppLocalizations t,
@@ -1233,9 +1380,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     final isDentist = segment == optDentist;
     final needInjuryDesc = isDentist && applied == optYes && injury == optYes;
 
-    final wizardSteps = widget.wizardMode
-        ? _buildWizardSteps(t, isDentist: isDentist)
-        : const <_WizardStep>[];
+    final wizardSteps = _buildWizardSteps(t, isDentist: isDentist);
 
     final sections = _buildSections(
       compact: compact,
@@ -1316,6 +1461,13 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                   t: t,
                   compact: compact,
                   onOpenWizard: () => _openWizardFlow(steps: wizardSteps, t: t, sections: wizardSections),
+                ),
+
+              if (wizardSteps.isNotEmpty)
+                _buildWizardLaunchButton(
+                  compact: compact,
+                  t: t,
+                  onTap: () => _openWizardFlow(steps: wizardSteps, t: t, sections: wizardSections),
                 ),
 
               _buildHelpBox(compact: compact),
