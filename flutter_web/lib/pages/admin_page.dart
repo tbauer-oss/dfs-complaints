@@ -3254,6 +3254,8 @@ class _AdminPageState extends State<AdminPage> {
       child: DefaultTextStyle.merge(
         style: theme.textTheme.bodyMedium?.copyWith(color: navForeground),
         child: ListView(
+          primary: false,
+          shrinkWrap: true,
           padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 14, vertical: 10),
           children: [
             Padding(
