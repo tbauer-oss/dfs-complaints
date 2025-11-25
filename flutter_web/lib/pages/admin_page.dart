@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:html' as html;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:intl/intl.dart';
 import 'package:markdown/markdown.dart' as md;
@@ -3911,29 +3912,78 @@ class _AdminPageState extends State<AdminPage> {
         final tile = SizedBox(
           width: tileWidth,
           height: tileHeight,
-          child: LongPressDraggable<_DraggedTile>(
-            data: _DraggedTile(tileId: tileId, sectionIndex: sectionIndex),
-            feedback: Material(
-              color: Colors.transparent,
-              child: SizedBox(
-                width: tileWidth,
-                height: tileHeight,
-                child: _buildMenuTile(tileId, compact, isPreview: true),
-              ),
-            ),
-            childWhenDragging: Opacity(
-              opacity: 0.3,
-              child: _buildMenuTile(tileId, compact),
-            ),
-            child: _decorateDropCandidate(
-              highlight: highlight,
-              child: _buildMenuTile(tileId, compact),
-            ),
+          child: _buildAdaptiveDraggable(
+            tileId: tileId,
+            sectionIndex: sectionIndex,
+            tileWidth: tileWidth,
+            tileHeight: tileHeight,
+            compact: compact,
+            highlight: highlight,
           ),
         );
         return tile;
       },
     );
+  }
+
+  Widget _buildAdaptiveDraggable({
+    required String tileId,
+    required int sectionIndex,
+    required double tileWidth,
+    required double tileHeight,
+    required bool compact,
+    required bool highlight,
+  }) {
+    final data = _DraggedTile(tileId: tileId, sectionIndex: sectionIndex);
+
+    Widget buildChild(Widget child) => _decorateDropCandidate(
+          highlight: highlight,
+          child: child,
+        );
+
+    Widget buildFeedback() => Material(
+          color: Colors.transparent,
+          child: SizedBox(
+            width: tileWidth,
+            height: tileHeight,
+            child: _buildMenuTile(tileId, compact, isPreview: true),
+          ),
+        );
+
+    final childWhenDragging = Opacity(
+      opacity: 0.3,
+      child: _buildMenuTile(tileId, compact),
+    );
+
+    if (_useLongPressDrag()) {
+      return LongPressDraggable<_DraggedTile>(
+        data: data,
+        feedback: buildFeedback(),
+        dragAnchorStrategy: pointerDragAnchorStrategy,
+        childWhenDragging: childWhenDragging,
+        child: buildChild(_buildMenuTile(tileId, compact)),
+      );
+    }
+
+    return Draggable<_DraggedTile>(
+      data: data,
+      feedback: buildFeedback(),
+      dragAnchorStrategy: pointerDragAnchorStrategy,
+      childWhenDragging: childWhenDragging,
+      child: buildChild(_buildMenuTile(tileId, compact)),
+    );
+  }
+
+  bool _useLongPressDrag() {
+    if (kIsWeb) return false;
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+      case TargetPlatform.iOS:
+      case TargetPlatform.fuchsia:
+        return true;
+      default:
+        return false;
+    }
   }
 
   Widget _buildDropTarget({
