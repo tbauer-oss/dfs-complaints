@@ -16,7 +16,6 @@ import '../data/knowledge_base_data.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/dialog_content_scroll.dart';
 import '../widgets/legal_footer.dart';
-import '../widgets/theme_action.dart' as w;
 import '../utils/lang_utils.dart';
 import 'admin_stats_page.dart';
 
@@ -205,9 +204,12 @@ class _AdminPageState extends State<AdminPage> {
   bool _loadAllComplaints = false;
 
   static const _menuLayoutStorageKey = 'admin_menu_layout_v1';
+  static const double _tileScaleMin = 0.85;
+  static const double _tileScaleMax = 1.35;
   late final Map<String, String> _tileDefaultSection;
   late final Set<String> _menuTileIds;
   late List<_AdminMenuSectionState> _menuSections;
+  double _menuTileScale = 1.0;
 
   static const double _sectionReorderHeight = 40;
 
@@ -3203,13 +3205,6 @@ class _AdminPageState extends State<AdminPage> {
       ),
       actions: [
         IconButton(
-          tooltip: 'Zurück zum Admin-Dashboard',
-          onPressed: () => setState(() => _view = _AdminView.menu),
-          icon: const Icon(Icons.home_outlined),
-        ),
-        w.ThemeAction(),
-        const SizedBox(width: 2),
-        IconButton(
           tooltip: 'Alles neu laden',
           onPressed: () async {
             await _refreshAll();
@@ -3756,6 +3751,7 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   List<_AdminMenuSectionState> _loadMenuLayout({required List<_AdminMenuSectionState> defaults}) {
+    _menuTileScale = 1.0;
     final raw = html.window.localStorage[_menuLayoutStorageKey];
     if (raw == null) {
       return defaults.map((s) => s.copy()).toList();
@@ -3763,12 +3759,25 @@ class _AdminPageState extends State<AdminPage> {
 
     try {
       final parsed = jsonDecode(raw);
-      if (parsed is! List) return defaults.map((s) => s.copy()).toList();
+      List<dynamic>? sectionData;
+
+      if (parsed is Map) {
+        final scale = parsed['tileScale'];
+        if (scale is num) {
+          _menuTileScale = scale.clamp(_tileScaleMin, _tileScaleMax).toDouble();
+        }
+        final sections = parsed['sections'];
+        if (sections is List) sectionData = sections;
+      } else if (parsed is List) {
+        sectionData = parsed;
+      }
+
+      if (sectionData == null) return defaults.map((s) => s.copy()).toList();
 
       final used = <String>{};
       final sections = <_AdminMenuSectionState>[];
 
-      for (final entry in parsed) {
+      for (final entry in sectionData) {
         if (entry is! Map) continue;
         final title = entry['title'] as String?;
         final subtitle = entry['subtitle'] as String? ?? '';
@@ -3794,6 +3803,7 @@ class _AdminPageState extends State<AdminPage> {
 
       return sections;
     } catch (_) {
+      _menuTileScale = 1.0;
       return defaults.map((s) => s.copy()).toList();
     }
   }
@@ -3856,13 +3866,16 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   void _persistMenuLayout() {
-    html.window.localStorage[_menuLayoutStorageKey] =
-        jsonEncode(_menuSections.map((s) => s.toJson()).toList());
+    html.window.localStorage[_menuLayoutStorageKey] = jsonEncode({
+      'sections': _menuSections.map((s) => s.toJson()).toList(),
+      'tileScale': _menuTileScale,
+    });
   }
 
   void _resetMenuLayout() {
     setState(() {
       _menuSections = _baseMenuSections().map((s) => s.copy()).toList();
+      _menuTileScale = 1.0;
     });
     _persistMenuLayout();
   }
@@ -3873,11 +3886,12 @@ class _AdminPageState extends State<AdminPage> {
     final isPhone = w < 640;
     final compact = isPhone;
     final sections = _menuSections;
-    final tileWidth = isPhone ? 200.0 : 240.0;
+    final baseTileWidth = isPhone ? 200.0 : 240.0;
     final aspectRatio = isPhone ? 0.94 : 1.05;
+    final tileWidth = baseTileWidth * _menuTileScale;
     final tileHeight = tileWidth / aspectRatio;
-    final spacing = isPhone ? 14.0 : 28.0;
-    final runSpacing = isPhone ? 20.0 : 32.0;
+    final spacing = (isPhone ? 14.0 : 28.0) * _menuTileScale;
+    final runSpacing = (isPhone ? 20.0 : 32.0) * _menuTileScale;
 
     return CustomScrollView(
       slivers: [
@@ -3930,6 +3944,44 @@ class _AdminPageState extends State<AdminPage> {
             ),
           ),
         ),
+        if (_menuEditMode)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Row(
+              children: [
+                const Icon(Icons.aspect_ratio_outlined),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Kachelgröße anpassen'),
+                      Slider.adaptive(
+                        value: _menuTileScale,
+                        min: _tileScaleMin,
+                        max: _tileScaleMax,
+                        divisions: 10,
+                        label: '${(_menuTileScale * 100).round()}%',
+                        onChanged: (value) {
+                          setState(
+                            () => _menuTileScale = value.clamp(_tileScaleMin, _tileScaleMax),
+                          );
+                          _persistMenuLayout();
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(
+                  width: 64,
+                  child: Text(
+                    '${(_menuTileScale * 100).round()}%',
+                    textAlign: TextAlign.end,
+                  ),
+                ),
+              ],
+            ),
+          ),
         if (_menuEditMode) _buildSectionReorderTarget(index: 0),
         for (var i = 0; i < sections.length; i++) ...[
           SliverToBoxAdapter(child: const SizedBox(height: 4)),
