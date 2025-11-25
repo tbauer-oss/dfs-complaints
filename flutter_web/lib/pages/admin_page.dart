@@ -3106,7 +3106,7 @@ class _AdminPageState extends State<AdminPage> {
                   if (!isNarrow)
                     AnimatedContainer(
                       duration: const Duration(milliseconds: 220),
-                      width: _navCollapsed ? 72 : 260,
+                      width: _navCollapsed ? 82 : 280,
                       margin: const EdgeInsets.fromLTRB(12, 10, 12, 12),
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
@@ -3220,135 +3220,183 @@ class _AdminPageState extends State<AdminPage> {
 
   Widget _buildNavigation({required bool isCompact}) {
     final theme = Theme.of(context);
-    final Color navForeground = theme.colorScheme.onSurface;
-    final Color navSecondary = theme.colorScheme.onSurfaceVariant;
     final Color accent = theme.colorScheme.primary;
+    final Color subtle = theme.colorScheme.onSurfaceVariant;
     final sections = _navSections();
+    final surfaceBlend = Color.alphaBlend(
+      theme.colorScheme.surfaceVariant.withOpacity(theme.brightness == Brightness.dark ? 0.28 : 0.46),
+      theme.colorScheme.surface,
+    );
+
+    Widget navBadge(String label, {required bool selected, required bool compact}) {
+      final baseColor = selected ? accent : subtle;
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 10, vertical: compact ? 4 : 6),
+        decoration: BoxDecoration(
+          color: selected
+              ? accent.withOpacity(theme.brightness == Brightness.dark ? 0.22 : 0.14)
+              : theme.colorScheme.surfaceVariant.withOpacity(0.75),
+          borderRadius: BorderRadius.circular(compact ? 10 : 12),
+          border: Border.all(
+            color: selected ? accent.withOpacity(0.5) : theme.colorScheme.outlineVariant.withOpacity(0.6),
+          ),
+        ),
+        child: Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: baseColor,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.2,
+          ),
+        ),
+      );
+    }
+
+    Widget navStatChip(String label, IconData icon, String value, Color color) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: color.withOpacity(theme.brightness == Brightness.dark ? 0.18 : 0.12),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.45)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18, color: color),
+            const SizedBox(width: 8),
+            Text(value, style: theme.textTheme.titleMedium?.copyWith(color: color, fontWeight: FontWeight.w800)),
+            const SizedBox(width: 6),
+            Text(label, style: theme.textTheme.labelMedium?.copyWith(color: subtle)),
+          ],
+        ),
+      );
+    }
 
     Widget buildTile(_AdminNavItem item) {
       final selected = _view == item.view;
       final badgeWidget = item.badge == null
           ? null
-          : isCompact
-              ? _buildNavBadgeCompact(item.badge!, selected: selected)
-              : _buildNavBadge(item.badge!, selected: selected);
+          : navBadge(item.badge!, selected: selected, compact: isCompact);
 
-      final Color baseColor = selected ? accent : navForeground;
-      final Color iconColor = selected ? accent : navSecondary;
-      final Color tileBorder = selected
-          ? accent.withOpacity(0.55)
-          : theme.colorScheme.outlineVariant.withOpacity(0.4);
-
-      return Tooltip(
-        message: isCompact ? item.label : null,
-        preferBelow: false,
-        child: Material(
-          color: Colors.transparent,
+      if (isCompact) {
+        return Tooltip(
+          message: item.label,
+          verticalOffset: 12,
           child: InkWell(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
             onTap: () {
               Scaffold.maybeOf(context)?.closeDrawer();
               _handleNavigation(item.view);
             },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              padding: EdgeInsets.symmetric(horizontal: isCompact ? 10 : 14, vertical: isCompact ? 8 : 12),
-              margin: const EdgeInsets.symmetric(vertical: 4),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: selected
-                      ? [
-                          theme.colorScheme.primaryContainer.withOpacity(theme.brightness == Brightness.dark ? 0.6 : 0.4),
-                          theme.colorScheme.surface.withOpacity(theme.brightness == Brightness.dark ? 0.6 : 0.72),
-                        ]
-                      : [
-                          theme.colorScheme.surface.withOpacity(theme.brightness == Brightness.dark ? 0.6 : 0.8),
-                          theme.colorScheme.surfaceVariant.withOpacity(theme.brightness == Brightness.dark ? 0.55 : 0.75),
-                        ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: tileBorder),
-                boxShadow: [
-                  BoxShadow(
-                    color: accent.withOpacity(selected ? 0.22 : 0.08),
-                    blurRadius: selected ? 20 : 12,
-                    offset: const Offset(0, 12),
-                  ),
-                ],
-              ),
-              child: Row(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    height: isCompact ? 36 : 42,
-                    width: isCompact ? 36 : 42,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      gradient: LinearGradient(
-                        colors: selected
-                            ? [accent.withOpacity(0.22), accent.withOpacity(0.4)]
-                            : [navSecondary.withOpacity(0.08), navSecondary.withOpacity(0.16)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      border: Border.all(color: tileBorder.withOpacity(0.7)),
-                    ),
-                    child: Icon(item.icon, color: iconColor, size: 22),
-                  ),
-                  if (!isCompact) ...[
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item.label,
-                            style: theme.textTheme.bodyLarge?.copyWith(
-                              fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
-                              color: baseColor,
-                              letterSpacing: 0.15,
-                            ),
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        height: 46,
+                        width: 46,
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? accent.withOpacity(theme.brightness == Brightness.dark ? 0.18 : 0.16)
+                              : theme.colorScheme.surfaceVariant.withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: selected ? accent.withOpacity(0.65) : theme.colorScheme.outlineVariant,
                           ),
-                          const SizedBox(height: 3),
-                          Row(
-                            children: [
-                              Container(
-                                width: 8,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  color: selected ? accent : navSecondary.withOpacity(0.7),
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  selected ? 'Gerade geöffnet' : 'Antippen zum Öffnen',
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: navSecondary,
-                                    letterSpacing: 0.3,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                        ),
+                        child: Icon(item.icon, color: selected ? accent : subtle, size: 22),
                       ),
-                    ),
-                    if (badgeWidget != null) ...[
-                      const SizedBox(width: 10),
-                      badgeWidget,
+                      if (badgeWidget != null)
+                        Positioned(
+                          right: -2,
+                          top: -4,
+                          child: badgeWidget,
+                        ),
                     ],
-                    const SizedBox(width: 6),
-                    Icon(Icons.chevron_right, size: 18, color: navSecondary),
-                  ] else ...[
-                    const Spacer(),
-                    if (badgeWidget != null) badgeWidget,
-                  ],
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    height: 3,
+                    width: 36,
+                    decoration: BoxDecoration(
+                      color: selected ? accent : theme.colorScheme.outlineVariant.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
                 ],
               ),
+            ),
+          ),
+        );
+      }
+
+      return Material(
+        color: selected
+            ? accent.withOpacity(theme.brightness == Brightness.dark ? 0.18 : 0.14)
+            : surfaceBlend,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () {
+            Scaffold.maybeOf(context)?.closeDrawer();
+            _handleNavigation(item.view);
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  height: 44,
+                  width: 44,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    gradient: LinearGradient(
+                      colors: [
+                        accent.withOpacity(selected ? 0.3 : 0.12),
+                        accent.withOpacity(selected ? 0.18 : 0.08),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    border: Border.all(
+                      color: selected ? accent.withOpacity(0.65) : theme.colorScheme.outlineVariant.withOpacity(0.55),
+                    ),
+                  ),
+                  child: Icon(item.icon, color: selected ? accent : subtle, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.label,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: selected ? accent : theme.colorScheme.onSurface,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        selected ? 'Aktuell geöffnet' : 'Tippen zum Wechseln',
+                        style: theme.textTheme.labelSmall?.copyWith(color: subtle),
+                      ),
+                    ],
+                  ),
+                ),
+                if (badgeWidget != null) ...[
+                  badgeWidget,
+                  const SizedBox(width: 10),
+                ],
+                Icon(Icons.arrow_forward_ios_rounded, size: 16, color: subtle),
+              ],
             ),
           ),
         ),
@@ -3357,147 +3405,82 @@ class _AdminPageState extends State<AdminPage> {
 
     Widget buildHeader() {
       return Padding(
-        padding: EdgeInsets.fromLTRB(isCompact ? 10 : 16, 10, isCompact ? 10 : 16, isCompact ? 6 : 14),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            gradient: LinearGradient(
-              colors: [
-                theme.colorScheme.primary.withOpacity(theme.brightness == Brightness.dark ? 0.22 : 0.18),
-                theme.colorScheme.surfaceVariant.withOpacity(theme.brightness == Brightness.dark ? 0.5 : 0.65),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            border: Border.all(color: accent.withOpacity(0.45)),
-            boxShadow: [
-              BoxShadow(
-                color: accent.withOpacity(0.18),
-                blurRadius: 22,
-                offset: const Offset(0, 14),
-              ),
-            ],
-          ),
-          padding: EdgeInsets.symmetric(horizontal: isCompact ? 10 : 14, vertical: 12),
-          child: Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: theme.colorScheme.surface.withOpacity(theme.brightness == Brightness.dark ? 0.3 : 0.9),
-                  border: Border.all(color: accent.withOpacity(0.4)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: accent.withOpacity(0.16),
-                      blurRadius: 14,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Icon(Icons.shield_outlined, color: accent, size: 24),
-                    Positioned(
-                      right: 6,
-                      bottom: 6,
-                      child: Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.lightGreenAccent.withOpacity(0.9),
-                          boxShadow: [BoxShadow(color: Colors.lightGreenAccent.withOpacity(0.6), blurRadius: 10)],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (!isCompact) ...[
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'Admin Command',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              color: navForeground,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: accent.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: accent.withOpacity(0.4)),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: BoxDecoration(
-                                    color: Colors.lightGreenAccent.shade400,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Text('Live', style: theme.textTheme.labelSmall?.copyWith(color: navForeground)),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Schneller Zugriff auf alle Bereiche, klare Badges und dezente Glaseffekte.',
-                        style: theme.textTheme.labelMedium?.copyWith(color: navSecondary),
-                      ),
-                    ],
+        padding: EdgeInsets.fromLTRB(isCompact ? 10 : 16, 14, isCompact ? 10 : 16, isCompact ? 6 : 10),
+        child: Row(
+          children: [
+            Container(
+              height: 48,
+              width: 48,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: theme.colorScheme.surface,
+                border: Border.all(color: accent.withOpacity(0.5)),
+                boxShadow: [
+                  BoxShadow(
+                    color: accent.withOpacity(0.18),
+                    blurRadius: 16,
+                    offset: const Offset(0, 10),
                   ),
+                ],
+              ),
+              child: Icon(Icons.dashboard_customize_outlined, color: accent, size: 24),
+            ),
+            if (!isCompact) ...[
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Admin-Cockpit',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.3,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(Icons.tune_rounded, size: 16, color: subtle),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Strukturierte Navigation, jederzeit einklappbar.',
+                            style: theme.textTheme.labelMedium?.copyWith(color: subtle),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                IconButton.filledTonal(
-                  visualDensity: VisualDensity.compact,
-                  icon: Icon(isCompact ? Icons.chevron_right : Icons.chevron_left),
-                  tooltip: isCompact ? 'Sidebar erweitern' : 'Sidebar einklappen',
-                  onPressed: () => setState(() => _navCollapsed = !_navCollapsed),
-                ),
-              ] else ...[
-                const Spacer(),
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  icon: Icon(isCompact ? Icons.chevron_right : Icons.chevron_left),
-                  tooltip: isCompact ? 'Sidebar erweitern' : 'Sidebar einklappen',
-                  onPressed: () => setState(() => _navCollapsed = !_navCollapsed),
-                ),
-              ],
+              ),
+              IconButton(
+                tooltip: 'Sidebar einklappen',
+                icon: const Icon(Icons.chevron_left),
+                onPressed: () => setState(() => _navCollapsed = true),
+              ),
+            ] else ...[
+              const Spacer(),
+              IconButton(
+                tooltip: 'Sidebar erweitern',
+                icon: const Icon(Icons.chevron_right),
+                onPressed: () => setState(() => _navCollapsed = false),
+              ),
             ],
-          ),
+          ],
         ),
       );
     }
 
     return Container(
       decoration: BoxDecoration(
+        color: surfaceBlend,
         borderRadius: BorderRadius.circular(18),
-        gradient: LinearGradient(
-          colors: [
-            theme.colorScheme.surface.withOpacity(theme.brightness == Brightness.dark ? 0.78 : 0.92),
-            theme.colorScheme.surfaceVariant.withOpacity(theme.brightness == Brightness.dark ? 0.7 : 0.85),
-          ],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
-        border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.45)),
+        border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.55)),
         boxShadow: [
           BoxShadow(
             color: theme.shadowColor.withOpacity(0.14),
@@ -3506,165 +3489,91 @@ class _AdminPageState extends State<AdminPage> {
           ),
         ],
       ),
-      child: IconTheme(
-        data: theme.iconTheme.copyWith(color: navSecondary),
-        child: DefaultTextStyle.merge(
-          style: theme.textTheme.bodyMedium?.copyWith(color: navForeground),
-          child: Column(
-            children: [
-              buildHeader(),
-              if (!isCompact)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 4, 18, 10),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.surfaceVariant.withOpacity(theme.brightness == Brightness.dark ? 0.55 : 0.65),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.blur_on, color: navSecondary, size: 18),
-                            const SizedBox(width: 8),
-                            Text('Glass UI aktiv', style: theme.textTheme.labelSmall?.copyWith(color: navSecondary)),
-                          ],
-                        ),
+      child: Column(
+        children: [
+          buildHeader(),
+          if (!isCompact)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  navStatChip('Offene Fälle', Icons.assignment_late_outlined, '${_openComplaints.length}', theme.colorScheme.error),
+                  navStatChip('Pending', Icons.hourglass_bottom_outlined, '${_pending.length}', theme.colorScheme.tertiary),
+                  navStatChip('Kunden', Icons.people_outline, '${_users.length}', accent),
+                  navStatChip('Vertreter', Icons.support_agent_outlined, '${_reps.length}', theme.colorScheme.secondary),
+                ],
+              ),
+            ),
+          Expanded(
+            child: Scrollbar(
+              thickness: 4,
+              radius: const Radius.circular(12),
+              child: ListView(
+                primary: false,
+                padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 16, vertical: 8),
+                children: [
+                  for (final section in sections) ...[
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: _NavigationSection(
+                        key: ValueKey('${section.title}-$isCompact'),
+                        title: section.title,
+                        isCompact: isCompact,
+                        children: section.items.map(buildTile).toList(),
                       ),
-                      const Spacer(),
-                      Text('Badges bleiben in beiden Modi sichtbar',
-                          style: theme.textTheme.labelSmall?.copyWith(color: navSecondary)),
-                    ],
-                  ),
-                ),
-              Expanded(
-                child: Scrollbar(
-                  thickness: 4,
-                  radius: const Radius.circular(12),
-                  child: ListView(
-                    primary: false,
-                    padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 14, vertical: 8),
-                    children: [
-                      for (final section in sections) ...[
-                        AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 200),
-                          child: _NavigationSection(
-                            key: ValueKey('${section.title}-$isCompact'),
-                            title: section.title,
-                            isCompact: isCompact,
-                            children: section.items.map(buildTile).toList(),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(isCompact ? 8 : 16, 10, isCompact ? 8 : 16, 12),
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: isCompact ? 10 : 14, vertical: isCompact ? 8 : 10),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceVariant.withOpacity(theme.brightness == Brightness.dark ? 0.55 : 0.75),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.5)),
+              ),
+              child: isCompact
+                  ? Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.tips_and_updates_outlined, size: 18, color: subtle),
+                        const SizedBox(width: 10),
+                        IconButton(
+                          tooltip: _navCollapsed ? 'Sidebar erweitern' : 'Sidebar einklappen',
+                          icon: Icon(_navCollapsed ? Icons.chevron_right : Icons.chevron_left, color: subtle),
+                          onPressed: () => setState(() => _navCollapsed = !_navCollapsed),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        Icon(Icons.tips_and_updates_outlined, size: 18, color: subtle),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Navigation anpassbar: einklappen, Badges immer sichtbar, klare Gruppen.',
+                            style: theme.textTheme.labelSmall?.copyWith(color: subtle),
                           ),
                         ),
-                        const SizedBox(height: 10),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              Padding(
-                padding: EdgeInsets.fromLTRB(isCompact ? 8 : 16, 8, isCompact ? 8 : 16, 12),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: EdgeInsets.symmetric(horizontal: isCompact ? 10 : 12, vertical: isCompact ? 8 : 10),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceVariant.withOpacity(theme.brightness == Brightness.dark ? 0.55 : 0.75),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.45)),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.waves_outlined, size: 18, color: navSecondary),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          isCompact
-                              ? 'Kompaktmodus: Badges & Status bleiben klar.'
-                              : 'Pro-Tipp: Einklappen für mehr Platz – Badges bleiben klar sichtbar.',
-                          style: theme.textTheme.labelSmall?.copyWith(color: navSecondary),
-                        ),
-                      ),
-                      if (isCompact)
                         IconButton(
-                          padding: EdgeInsets.zero,
+                          tooltip: _navCollapsed ? 'Sidebar erweitern' : 'Sidebar einklappen',
+                          icon: Icon(_navCollapsed ? Icons.chevron_right : Icons.chevron_left, color: subtle),
+                          onPressed: () => setState(() => _navCollapsed = !_navCollapsed),
                           visualDensity: VisualDensity.compact,
-                          icon: Icon(Icons.chevron_right, color: navSecondary),
-                          tooltip: 'Sidebar erweitern',
-                          onPressed: () => setState(() => _navCollapsed = false),
                         ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavBadge(String label, {required bool selected}) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: selected
-              ? [
-                  theme.colorScheme.primary.withOpacity(0.12),
-                  theme.colorScheme.primary.withOpacity(0.24),
-                ]
-              : [
-                  theme.colorScheme.surfaceVariant.withOpacity(0.8),
-                  theme.colorScheme.surfaceVariant.withOpacity(0.9),
-                ],
-        ),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: selected
-              ? theme.colorScheme.primary.withOpacity(0.45)
-              : theme.dividerColor.withOpacity(0.35),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: theme.shadowColor.withOpacity(0.05),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
+                      ],
+                    ),
+            ),
           ),
         ],
-      ),
-      child: Text(
-        label,
-        style: theme.textTheme.labelMedium?.copyWith(
-          color: selected ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavBadgeCompact(String label, {required bool selected}) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      decoration: BoxDecoration(
-        color: selected
-            ? theme.colorScheme.primary.withOpacity(
-                theme.brightness == Brightness.dark ? 0.24 : 0.16,
-              )
-            : theme.colorScheme.surfaceVariant.withOpacity(0.9),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: selected ? theme.colorScheme.primary.withOpacity(0.5) : theme.dividerColor.withOpacity(0.35),
-        ),
-      ),
-      child: Text(
-        label,
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: selected ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
-          fontWeight: FontWeight.w700,
-        ),
       ),
     );
   }
@@ -6647,52 +6556,41 @@ class _NavigationSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final subtle = theme.colorScheme.onSurfaceVariant.withOpacity(0.86);
+    final subtle = theme.colorScheme.onSurfaceVariant;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (!isCompact)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(2, 10, 2, 8),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceVariant.withOpacity(0.6),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: theme.dividerColor.withOpacity(0.35)),
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: isCompact ? 2 : 4, vertical: isCompact ? 6 : 10),
+      child: Column(
+        crossAxisAlignment: isCompact ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+        children: [
+          if (!isCompact)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10, left: 2, right: 6),
+              child: Row(
+                children: [
+                  Container(
+                    width: 28,
+                    height: 2.5,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary.withOpacity(0.65),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
                   ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.folder_special_rounded, size: 18, color: subtle),
-                      const SizedBox(width: 8),
-                      Text(
-                        title,
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: subtle,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.6,
-                        ),
-                      ),
-                    ],
+                  const SizedBox(width: 10),
+                  Text(
+                    title,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: subtle,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.4,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ...children.expand((child) => [child, const SizedBox(height: 10)]),
-        if (children.isNotEmpty) const SizedBox(height: 2),
-        if (!isCompact)
-          Divider(
-            height: 16,
-            thickness: 0.8,
-            indent: 2,
-            endIndent: 2,
-            color: theme.dividerColor.withOpacity(0.4),
-          ),
-      ],
+          ...children.expand((child) => [child, const SizedBox(height: 10)]),
+        ],
+      ),
     );
   }
 }
