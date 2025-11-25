@@ -14,16 +14,12 @@ const DEEPL_API_URL =
 
 const TRANSLATE_TIMEOUT_MS = Math.max(1500, Number(process.env.TRANSLATE_TIMEOUT_MS || 8000));
 
-function normLang(code) {
-  return normalizeLangValue(code) || 'de';
-}
-
 function normTargetList(list, source) {
-  const src = normLang(source);
+  const src = normalizeLangValue(source);
   const out = [];
   const seen = new Set();
   for (const entry of Array.isArray(list) ? list : []) {
-    const lc = normLang(entry);
+    const lc = normalizeLangValue(entry);
     if (!lc || lc === src || seen.has(lc)) continue;
     if (SUPPORTED_LANGS.has(lc)) {
       seen.add(lc);
@@ -34,7 +30,8 @@ function normTargetList(list, source) {
 }
 
 function deeplLang(code) {
-  switch (normLang(code)) {
+  const normalized = normalizeLangValue(code);
+  switch (normalized) {
     case 'de':
       return 'DE';
     case 'en':
@@ -50,7 +47,7 @@ function deeplLang(code) {
   }
 }
 
-async function translateWithDeepL(textEntries = [], sourceLang = 'de', targetLang = 'en') {
+async function translateWithDeepL(textEntries = [], { sourceLang = null, targetLang = 'en' } = {}) {
   if (!DEEPL_API_KEY || !DEEPL_API_URL) {
     throw new Error('DeepL API key not configured');
   }
@@ -71,7 +68,7 @@ async function translateWithDeepL(textEntries = [], sourceLang = 'de', targetLan
     form.append('text', trimmed);
   }
 
-  if (orderedKeys.length === 0) return {};
+  if (orderedKeys.length === 0) return { mapped: {}, detectedSourceLang: null };
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TRANSLATE_TIMEOUT_MS);
@@ -99,21 +96,27 @@ async function translateWithDeepL(textEntries = [], sourceLang = 'de', targetLan
     }
 
     const mapped = {};
+    let detectedSourceLang = null;
+
     translations.forEach((entry, idx) => {
       const key = orderedKeys[idx];
       const text = (entry?.text ?? '').toString().trim();
+      const detected = normalizeLangValue(entry?.detected_source_language);
+
       if (key && text) mapped[key] = text;
+      if (!detectedSourceLang && detected) detectedSourceLang = detected;
     });
 
-    return mapped;
+    return { mapped, detectedSourceLang };
   } finally {
     clearTimeout(timeout);
   }
 }
 
-export async function translateTexts({ textByKey = {}, sourceLang = 'de', targetLangs = [] }) {
-  const source = normLang(sourceLang);
-  const targets = targetLangs.length > 0 ? normTargetList(targetLangs, source) : normTargetList([...SUPPORTED_LANGS], source);
+export async function translateTexts({ textByKey = {}, sourceLang = null, targetLangs = [] }) {
+  const source = normalizeLangValue(sourceLang);
+  const targets =
+    targetLangs.length > 0 ? normTargetList(targetLangs, source) : normTargetList([...SUPPORTED_LANGS], source);
 
   const entries = Object.entries(textByKey)
     .filter(([key, value]) => key && (value ?? '').toString().trim().length > 0)
@@ -127,10 +130,16 @@ export async function translateTexts({ textByKey = {}, sourceLang = 'de', target
   }
 
   const translations = {};
+  let detectedSourceLang = source;
+
   for (const target of targets) {
-    translations[target] = await translateWithDeepL(entries, source, target);
+    const { mapped, detectedSourceLang: detected } = await translateWithDeepL(entries, { sourceLang: source, targetLang: target });
+    translations[target] = mapped;
+    if (!detectedSourceLang && detected) {
+      detectedSourceLang = detected;
+    }
   }
 
-  return { provider: 'deepl', translations, sourceLang: source };
+  return { provider: 'deepl', translations, sourceLang: detectedSourceLang || source || null };
 }
 

@@ -26,7 +26,7 @@ export default async function handler(req, res) {
 
   try {
     const body = readJson(req) || {};
-    const sourceLang = normalizeLangValue(body.sourceLang) || 'de';
+    const sourceLang = normalizeLangValue(body.sourceLang);
     const targets = Array.isArray(body.targets) ? body.targets : [];
     const textByKey = {};
 
