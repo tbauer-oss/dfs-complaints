@@ -7072,12 +7072,12 @@ class _AdminNavSection {
 // ===================================================================
 // Admin-Menü-Kachel + Busy-Dot (Top-Level Widgets, nicht verschachteln)
 // ===================================================================
-class _AdminMenuSectionState {
-  const _AdminMenuSectionState({
-    required this.title,
-    required this.subtitle,
-    required List<String> tileIds,
-  }) : tileIds = List<String>.from(tileIds);
+  class _AdminMenuSectionState {
+    const _AdminMenuSectionState({
+      required this.title,
+      required this.subtitle,
+      required this.tileIds,
+    });
 
   final String title;
   final String subtitle;
