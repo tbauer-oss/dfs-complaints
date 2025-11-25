@@ -3204,6 +3204,20 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  void _handleNavigation(_AdminView view) {
+    final shouldRefreshFaq = view == _AdminView.faq &&
+        !_faqLoading &&
+        (_faqCategories.isEmpty || _faqEntries.isEmpty);
+
+    if (_view != view) {
+      setState(() => _view = view);
+    }
+
+    if (shouldRefreshFaq) {
+      _refreshFaq();
+    }
+  }
+
   Widget _buildNavigation({required bool isCompact}) {
     final sections = _navSections();
     final theme = Theme.of(context);
@@ -3228,9 +3242,7 @@ class _AdminPageState extends State<AdminPage> {
           borderRadius: BorderRadius.circular(12),
           onTap: () {
             Scaffold.maybeOf(context)?.closeDrawer();
-            if (_view != item.view) {
-              setState(() => _view = item.view);
-            }
+            _handleNavigation(item.view);
           },
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: isCompact ? 10 : 12, vertical: 10),
@@ -3567,8 +3579,7 @@ class _AdminPageState extends State<AdminPage> {
             compact: compact,
             count: _faqEntries.length,
             onTap: () {
-              setState(() => _view = _AdminView.faq);
-              if (_faqEntries.isEmpty) _refreshFaq();
+              _handleNavigation(_AdminView.faq);
             },
           ),
           AdminTilePro(
