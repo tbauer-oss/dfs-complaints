@@ -3207,16 +3207,15 @@ class _AdminPageState extends State<AdminPage> {
   Widget _buildNavigation({required bool isCompact}) {
     final sections = _navSections();
     final theme = Theme.of(context);
-    final navForeground = theme.brightness == Brightness.dark
-        ? Colors.white.withOpacity(0.92)
-        : const Color(0xFF161616);
+    final navForeground = theme.colorScheme.onSurface;
+    final navSecondary = theme.colorScheme.onSurfaceVariant;
 
     Widget buildTile(_AdminNavItem item) {
       final selected = _view == item.view;
       final badge = item.badge;
       final iconColor = selected
           ? theme.colorScheme.primary
-          : theme.iconTheme.color ?? navForeground.withOpacity(0.85);
+          : theme.iconTheme.color ?? navSecondary;
       final textStyle = theme.textTheme.bodyMedium?.copyWith(
         fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
         color: selected ? theme.colorScheme.primary : navForeground,
@@ -3251,7 +3250,7 @@ class _AdminPageState extends State<AdminPage> {
     }
 
     return IconTheme(
-      data: theme.iconTheme.copyWith(color: navForeground.withOpacity(0.9)),
+      data: theme.iconTheme.copyWith(color: navSecondary),
       child: DefaultTextStyle.merge(
         style: theme.textTheme.bodyMedium?.copyWith(color: navForeground),
         child: ListView(
