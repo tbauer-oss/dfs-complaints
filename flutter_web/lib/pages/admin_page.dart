@@ -3437,15 +3437,21 @@ class _AdminPageState extends State<AdminPage> {
                         fontWeight: FontWeight.w900,
                         letterSpacing: 0.3,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
                     Row(
                       children: [
                         Icon(Icons.tune_rounded, size: 16, color: subtle),
                         const SizedBox(width: 6),
-                        Text(
-                          'Strukturierte Navigation, jederzeit einklappbar.',
-                          style: theme.textTheme.labelMedium?.copyWith(color: subtle),
+                        Expanded(
+                          child: Text(
+                            'Strukturierte Navigation, jederzeit einklappbar.',
+                            style: theme.textTheme.labelMedium?.copyWith(color: subtle),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ],
                     ),
@@ -6541,32 +6547,33 @@ class _NavigationSection extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: isCompact ? 2 : 4, vertical: isCompact ? 6 : 10),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: isCompact ? CrossAxisAlignment.center : CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: EdgeInsets.only(bottom: isCompact ? 6 : 10, left: isCompact ? 6 : 2, right: 6),
-            child: Row(
-              children: [
-                Container(
-                  width: 28,
-                  height: 2.5,
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withOpacity(0.65),
-                    borderRadius: BorderRadius.circular(999),
+          if (!isCompact)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10, left: 2, right: 6),
+              child: Row(
+                children: [
+                  Container(
+                    width: 28,
+                    height: 2.5,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary.withOpacity(0.65),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  title,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: subtle,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.4,
+                  const SizedBox(width: 10),
+                  Text(
+                    title,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: subtle,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.4,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
           ...children.expand((child) => [child, const SizedBox(height: 10)]),
         ],
       ),
