@@ -10613,6 +10613,44 @@ class AdminApi {
     return FaqEntry.fromJson(j);
   }
 
+  Future<Map<String, Map<String, String>>> translateFaqDraft({
+    required String sourceLang,
+    required List<String> targetLangs,
+    String? question,
+    String? answer,
+  }) async {
+    final payload = <String, dynamic>{
+      'sourceLang': sourceLang,
+      'targets': targetLangs,
+    };
+
+    if (question != null && question.trim().isNotEmpty) {
+      payload['question'] = question.trim();
+    }
+    if (answer != null && answer.trim().isNotEmpty) {
+      payload['answer'] = answer.trim();
+    }
+
+    final res = await _request('POST', '/api/admin/translate', body: payload);
+    if (res.status != 200) {
+      throw 'admin translate POST: HTTP ${res.status} ${res.responseText}';
+    }
+
+    final txt = res.responseText?.trim() ?? '';
+    if (txt.isEmpty) return <String, Map<String, String>>{};
+    final decoded = jsonDecode(txt);
+    final translations = <String, Map<String, String>>{};
+    if (decoded is Map && decoded['translations'] is Map) {
+      (decoded['translations'] as Map).forEach((key, value) {
+        if (value is Map) {
+          translations[key.toString()] =
+              value.map((k, v) => MapEntry(k.toString(), (v ?? '').toString()));
+        }
+      });
+    }
+    return translations;
+  }
+
   Future<void> deleteFaqCategory(String id) async {
     final res = await _request('DELETE', '/api/admin/faq', body: {
       'type': 'category',
