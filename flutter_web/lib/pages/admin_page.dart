@@ -3154,7 +3154,7 @@ class _AdminPageState extends State<AdminPage> {
     final sections = <_AdminMenuSectionData>[
       _AdminMenuSectionData(
         title: 'Reklamationen',
-        subtitle: 'Offene Fälle und Kennzahlen im Blick',
+        subtitle: 'Offene Fälle, Suche und Kennzahlen',
         tiles: [
           AdminTilePro(
             label: 'Offene Reklamationen',
@@ -3178,7 +3178,7 @@ class _AdminPageState extends State<AdminPage> {
           ),
           AdminTilePro(
             label: 'Statistik & KPIs',
-            subtitle: 'Reklamationsübersicht',
+            subtitle: 'Übersicht & Trends',
             icon: Icons.query_stats_outlined,
             colorA: AdminPalette.blueA,
             colorB: AdminPalette.blueB,
@@ -3192,8 +3192,8 @@ class _AdminPageState extends State<AdminPage> {
         ],
       ),
       _AdminMenuSectionData(
-        title: 'Kunden',
-        subtitle: 'Anträge prüfen und Accounts verwalten',
+        title: 'Kunden & Vertreter',
+        subtitle: 'Anträge prüfen, Accounts und Teams steuern',
         tiles: [
           AdminTilePro(
             label: 'Anträge / Pending',
@@ -3224,12 +3224,6 @@ class _AdminPageState extends State<AdminPage> {
             compact: compact,
             onTap: () => setState(() => _view = _AdminView.createCustomer),
           ),
-        ],
-      ),
-      _AdminMenuSectionData(
-        title: 'Vertreterverwaltung',
-        subtitle: 'Zuordnungen & Regionen steuern',
-        tiles: [
           AdminTilePro(
             label: 'Vertreterverwaltung',
             subtitle: 'Zuordnen & Regionen',
@@ -3245,8 +3239,50 @@ class _AdminPageState extends State<AdminPage> {
         ],
       ),
       _AdminMenuSectionData(
-        title: 'Technischer Bereich',
-        subtitle: 'Kataloge, Versionen & Hinweise pflegen',
+        title: 'Kommunikation & Inhalte',
+        subtitle: 'Informationen und Push-Kanäle pflegen',
+        tiles: [
+          AdminTilePro(
+            label: 'Neuigkeiten & Infoscreen',
+            subtitle: 'Kundenticker pflegen',
+            icon: Icons.campaign_outlined,
+            colorA: AdminPalette.amberA,
+            colorB: AdminPalette.amberB,
+            compact: compact,
+            count: _newsEntries.length,
+            onTap: () {
+              setState(() => _view = _AdminView.news);
+              if (_newsEntries.isEmpty) _refreshNews();
+            },
+          ),
+          AdminTilePro(
+            label: 'Wissensdatenbank (FAQ)',
+            subtitle: 'Artikel & Kategorien verwalten',
+            icon: Icons.library_books_outlined,
+            colorA: AdminPalette.blueA,
+            colorB: AdminPalette.blueB,
+            compact: compact,
+            count: _faqEntries.length,
+            onTap: () {
+              setState(() => _view = _AdminView.faq);
+              if (_faqEntries.isEmpty) _refreshFaq();
+            },
+          ),
+          AdminTilePro(
+            label: 'Push-Mitteilungen',
+            subtitle: 'Broadcast an alle Kunden',
+            icon: Icons.notifications_active_outlined,
+            colorA: AdminPalette.amberA,
+            colorB: AdminPalette.amberB,
+            compact: compact,
+            count: _pushResult?.totalTokens,
+            onTap: () => setState(() => _view = _AdminView.pushBroadcast),
+          ),
+        ],
+      ),
+      _AdminMenuSectionData(
+        title: 'System & Konfiguration',
+        subtitle: 'Kataloge, Versionen und Monitoring',
         tiles: [
           AdminTilePro(
             label: 'Kataloge',
@@ -3287,51 +3323,15 @@ class _AdminPageState extends State<AdminPage> {
             compact: compact,
             onTap: () => setState(() => _view = _AdminView.activity),
           ),
-          AdminTilePro(
-            label: 'Neuigkeiten & Infoscreen',
-            subtitle: 'Kundenticker pflegen',
-            icon: Icons.campaign_outlined,
-            colorA: AdminPalette.amberA,
-            colorB: AdminPalette.amberB,
-            compact: compact,
-            count: _newsEntries.length,
-            onTap: () {
-              setState(() => _view = _AdminView.news);
-              if (_newsEntries.isEmpty) _refreshNews();
-            },
-          ),
-          AdminTilePro(
-            label: 'Wissensdatenbank (FAQ)',
-            subtitle: 'Artikel & Kategorien verwalten',
-            icon: Icons.library_books_outlined,
-            colorA: AdminPalette.blueA,
-            colorB: AdminPalette.blueB,
-            compact: compact,
-            count: _faqEntries.length,
-            onTap: () {
-              setState(() => _view = _AdminView.faq);
-              if (_faqEntries.isEmpty) _refreshFaq();
-            },
-          ),
-          AdminTilePro(
-            label: 'Push-Mitteilungen',
-            subtitle: 'Broadcast an alle Kunden',
-            icon: Icons.notifications_active_outlined,
-            colorA: AdminPalette.amberA,
-            colorB: AdminPalette.amberB,
-            compact: compact,
-            count: _pushResult?.totalTokens,
-            onTap: () => setState(() => _view = _AdminView.pushBroadcast),
-          ),
         ],
       ),
     ];
 
     SliverGridDelegateWithMaxCrossAxisExtent _gridDelegate() => SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: isPhone ? 220 : 260,
-          mainAxisSpacing: isPhone ? 28 : 60,
-          crossAxisSpacing: isPhone ? 20 : 60,
-          childAspectRatio: isPhone ? 0.92 : 1.0,
+          maxCrossAxisExtent: isPhone ? 200 : 240,
+          mainAxisSpacing: isPhone ? 20 : 32,
+          crossAxisSpacing: isPhone ? 14 : 28,
+          childAspectRatio: isPhone ? 0.94 : 1.05,
         );
 
     return CustomScrollView(
@@ -11272,7 +11272,7 @@ class _AdminTileProState extends State<AdminTilePro> {
     final scale = _hovering ? 1.015 : 1.0;
     final elevation = _hovering ? 12.0 : 3.0;
 
-    final iconSize = widget.compact ? 44.0 : 54.0;
+    final iconSize = widget.compact ? 40.0 : 48.0;
 
     final hasAction = widget.onActionTap != null;
 
@@ -11290,23 +11290,24 @@ class _AdminTileProState extends State<AdminTilePro> {
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: widget.onTap,
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: br,
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [bgA, bgB],
-                ),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: br,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [bgA, bgB],
+              ),
                 border: Border.all(
                   color: isDark
                       ? cs.outlineVariant.withOpacity(0.35)
                       : cs.outlineVariant.withOpacity(0.25),
                 ),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Stack(
                     clipBehavior: Clip.none,
@@ -11318,7 +11319,7 @@ class _AdminTileProState extends State<AdminTilePro> {
                           top: -6,
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 9, vertical: 3),
+                                horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
                               color: badgeBg,
                               borderRadius: BorderRadius.circular(999),
@@ -11336,7 +11337,7 @@ class _AdminTileProState extends State<AdminTilePro> {
                               style: TextStyle(
                                 color: badgeFg,
                                 fontWeight: FontWeight.w700,
-                                fontSize: 12.5,
+                                fontSize: 11.5,
                               ),
                             ),
                           ),
@@ -11346,21 +11347,21 @@ class _AdminTileProState extends State<AdminTilePro> {
                   const SizedBox(height: 14),
                   Text(
                     widget.label,
-                    textAlign: TextAlign.center,
+                    textAlign: TextAlign.start,
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
                       color: titleColor,
-                      fontSize: 15.5,
+                      fontSize: 14.5,
                     ),
                   ),
                   if ((widget.subtitle ?? '').isNotEmpty) ...[
                     const SizedBox(height: 8),
                     Text(
                       widget.subtitle!,
-                      textAlign: TextAlign.center,
+                      textAlign: TextAlign.start,
                       style: TextStyle(
                         color: subtitleColor,
-                        fontSize: 13.0,
+                        fontSize: 12.0,
                       ),
                     ),
                   ],
