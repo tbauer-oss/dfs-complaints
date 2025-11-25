@@ -3947,39 +3947,48 @@ class _AdminPageState extends State<AdminPage> {
         if (_menuEditMode)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Row(
-              children: [
-                const Icon(Icons.aspect_ratio_outlined),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Kachelgröße anpassen'),
-                      Slider.adaptive(
-                        value: _menuTileScale,
-                        min: _tileScaleMin,
-                        max: _tileScaleMax,
-                        divisions: 10,
-                        label: '${(_menuTileScale * 100).round()}%',
-                        onChanged: (value) {
-                          setState(
-                            () => _menuTileScale = value.clamp(_tileScaleMin, _tileScaleMax),
-                          );
-                          _persistMenuLayout();
-                        },
-                      ),
-                    ],
-                  ),
+            child: Card(
+              margin: EdgeInsets.zero,
+              color: Theme.of(context).colorScheme.surfaceVariant,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.aspect_ratio_outlined),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Kachelgröße einstellen',
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                        ),
+                        Text('${(_menuTileScale * 100).round()}%'),
+                      ],
+                    ),
+                    Slider.adaptive(
+                      value: _menuTileScale,
+                      min: _tileScaleMin,
+                      max: _tileScaleMax,
+                      divisions: 10,
+                      label: '${(_menuTileScale * 100).round()}%',
+                      onChanged: (value) {
+                        setState(
+                          () => _menuTileScale = value.clamp(_tileScaleMin, _tileScaleMax),
+                        );
+                        _persistMenuLayout();
+                      },
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Gilt für alle Kacheln und wird beim Speichern der Dashboard-Anpassung übernommen.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
                 ),
-                SizedBox(
-                  width: 64,
-                  child: Text(
-                    '${(_menuTileScale * 100).round()}%',
-                    textAlign: TextAlign.end,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         if (_menuEditMode) _buildSectionReorderTarget(index: 0),
