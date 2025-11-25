@@ -188,6 +188,9 @@ class _AdminPageState extends State<AdminPage> {
   bool _showBulkAssignAll = false;
   bool _showBulkAssignOpen = false;
 
+  // Admin-Dashboard-Bearbeitung
+  bool _menuEditMode = false;
+
   bool _navCollapsed = false;
 
   // Mehrfach-Zuordnung interne Nummer
@@ -3875,28 +3878,51 @@ class _AdminPageState extends State<AdminPage> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
             child: Row(
               children: [
-                Icon(Icons.drag_indicator_outlined, color: Theme.of(context).colorScheme.primary),
+                Icon(
+                  _menuEditMode ? Icons.drag_indicator_outlined : Icons.dashboard_customize_outlined,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
                 const SizedBox(width: 8),
-                const Expanded(
-                  child: Text(
-                    'Kacheln per Drag & Drop zwischen Bereichen verschieben oder neu anordnen.',
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _menuEditMode
+                            ? 'Kacheln per Drag & Drop zwischen Bereichen verschieben oder neu anordnen.'
+                            : 'Admin-Dashboard anpassen',
+                      ),
+                      if (_menuEditMode)
+                        Text(
+                          'Zum Beenden unten auf "Bearbeitung schließen" klicken.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                    ],
                   ),
                 ),
-                TextButton.icon(
-                  onPressed: _addMenuSection,
-                  icon: const Icon(Icons.add_outlined),
-                  label: const Text('Kategorie hinzufügen'),
-                ),
-                TextButton.icon(
-                  onPressed: _resetMenuLayout,
-                  icon: const Icon(Icons.refresh_outlined),
-                  label: const Text('Layout zurücksetzen'),
-                ),
+                if (!_menuEditMode)
+                  FilledButton.icon(
+                    onPressed: () => setState(() => _menuEditMode = true),
+                    icon: const Icon(Icons.edit_outlined),
+                    label: const Text('Bearbeiten'),
+                  ),
+                if (_menuEditMode) ...[
+                  TextButton.icon(
+                    onPressed: _addMenuSection,
+                    icon: const Icon(Icons.add_outlined),
+                    label: const Text('Kategorie hinzufügen'),
+                  ),
+                  TextButton.icon(
+                    onPressed: _resetMenuLayout,
+                    icon: const Icon(Icons.refresh_outlined),
+                    label: const Text('Layout zurücksetzen'),
+                  ),
+                ],
               ],
             ),
           ),
         ),
-        _buildSectionReorderTarget(index: 0),
+        if (_menuEditMode) _buildSectionReorderTarget(index: 0),
         for (var i = 0; i < sections.length; i++) ...[
           SliverToBoxAdapter(child: const SizedBox(height: 4)),
           SliverToBoxAdapter(
@@ -3920,8 +3946,22 @@ class _AdminPageState extends State<AdminPage> {
               ),
             ),
           ),
-          _buildSectionReorderTarget(index: i + 1),
+          if (_menuEditMode) _buildSectionReorderTarget(index: i + 1),
         ],
+        if (_menuEditMode)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: OutlinedButton.icon(
+                  onPressed: () => setState(() => _menuEditMode = false),
+                  icon: const Icon(Icons.close_outlined),
+                  label: const Text('Bearbeitung schließen'),
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -3976,6 +4016,21 @@ class _AdminPageState extends State<AdminPage> {
     required double spacing,
     required double runSpacing,
   }) {
+    if (!_menuEditMode) {
+      return Wrap(
+        spacing: spacing,
+        runSpacing: runSpacing,
+        children: [
+          for (final tileId in section.tileIds)
+            SizedBox(
+              width: tileWidth,
+              height: tileHeight,
+              child: _buildMenuTile(tileId, compact),
+            ),
+        ],
+      );
+    }
+
     final tiles = <Widget>[];
     for (var tileIndex = 0; tileIndex < section.tileIds.length; tileIndex++) {
       tiles.add(
@@ -4495,6 +4550,15 @@ class _AdminPageState extends State<AdminPage> {
     final theme = Theme.of(context);
     final titleStyle = theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700);
     final subtitleStyle = theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant);
+    final header = _buildMenuSectionHeaderContent(section, titleStyle, subtitleStyle, index: index);
+
+    if (!_menuEditMode) {
+      return Padding(
+        padding: EdgeInsets.fromLTRB(16, isFirst ? 16 : 8, 16, 4),
+        child: header,
+      );
+    }
+
     final data = _DraggedSection(sectionIndex: index);
     final dragHandle = _useLongPressDrag()
         ? LongPressDraggable<_DraggedSection>(
@@ -4508,7 +4572,7 @@ class _AdminPageState extends State<AdminPage> {
               muted: true,
               index: index,
             ),
-            child: _buildMenuSectionHeaderContent(section, titleStyle, subtitleStyle, index: index),
+            child: header,
           )
         : Draggable<_DraggedSection>(
             data: data,
@@ -4521,7 +4585,7 @@ class _AdminPageState extends State<AdminPage> {
               muted: true,
               index: index,
             ),
-            child: _buildMenuSectionHeaderContent(section, titleStyle, subtitleStyle, index: index),
+            child: header,
           );
 
     return Padding(
@@ -4542,10 +4606,11 @@ class _AdminPageState extends State<AdminPage> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 2, right: 12),
-          child: Icon(Icons.drag_indicator, color: color),
-        ),
+        if (_menuEditMode)
+          Padding(
+            padding: const EdgeInsets.only(top: 2, right: 12),
+            child: Icon(Icons.drag_indicator, color: color),
+          ),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -4556,16 +4621,18 @@ class _AdminPageState extends State<AdminPage> {
             ],
           ),
         ),
-        IconButton(
-          tooltip: 'Kategorie löschen',
-          icon: const Icon(Icons.delete_outline),
-          onPressed: _menuSections.length <= 1 ? null : () => _confirmDeleteMenuSection(index),
-        ),
-        IconButton(
-          tooltip: 'Kategorie bearbeiten',
-          icon: const Icon(Icons.edit_outlined),
-          onPressed: () => _editMenuSection(index),
-        ),
+        if (_menuEditMode) ...[
+          IconButton(
+            tooltip: 'Kategorie löschen',
+            icon: const Icon(Icons.delete_outline),
+            onPressed: _menuSections.length <= 1 ? null : () => _confirmDeleteMenuSection(index),
+          ),
+          IconButton(
+            tooltip: 'Kategorie bearbeiten',
+            icon: const Icon(Icons.edit_outlined),
+            onPressed: () => _editMenuSection(index),
+          ),
+        ],
       ],
     );
   }
