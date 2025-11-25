@@ -3387,7 +3387,7 @@ class _AdminPageState extends State<AdminPage> {
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    Icon(Icons.shield_person_outlined, color: accent, size: 24),
+                    Icon(Icons.shield_outlined, color: accent, size: 24),
                     Positioned(
                       right: 6,
                       bottom: 6,
@@ -6566,6 +6566,7 @@ class _AdminPageState extends State<AdminPage> {
 
 class _NavigationSection extends StatelessWidget {
   const _NavigationSection({
+    super.key,
     required this.title,
     required this.children,
     required this.isCompact,
