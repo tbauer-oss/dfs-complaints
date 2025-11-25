@@ -63,7 +63,7 @@ const mem = {
   faqItems: [],
 };
 
-const SUPPORTED_LANGS = new Set(['de', 'en', 'fr', 'it', 'es']);
+export const SUPPORTED_LANGS = new Set(['de', 'en', 'fr', 'it', 'es']);
 const LANG_ALIASES = {
   german: 'de',
   deutsch: 'de',
@@ -80,7 +80,7 @@ const LANG_ALIASES = {
   espanol: 'es',
 };
 
-function normalizeLangValue(value) {
+export function normalizeLangValue(value) {
   const lc = String(value || '').trim().toLowerCase();
   if (!lc) return null;
   if (LANG_ALIASES[lc]) return LANG_ALIASES[lc];

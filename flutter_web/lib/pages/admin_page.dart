@@ -4010,6 +4010,9 @@ class _AdminPageState extends State<AdminPage> {
     String categoryId = entry?.categoryId ?? _faqCategories.first.id;
     bool active = entry?.active ?? true;
     String previewLang = lang;
+    String translateSource = lang;
+    bool translating = false;
+    String? translateErr;
 
     await showDialog<void>(
       context: context,
@@ -4076,6 +4079,114 @@ class _AdminPageState extends State<AdminPage> {
                     decoration: InputDecoration(labelText: 'Antwort (${lc.toUpperCase()})'),
                   );
                 }),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      const Text('Automatisch übersetzen von:'),
+                      DropdownButton<String>(
+                        value: translateSource,
+                        items: supportedLangCodes
+                            .map(
+                              (lc) => DropdownMenuItem(
+                                value: lc,
+                                child: Text('${lc.toUpperCase()} – ${langNameFor(AppLocalizations.of(context), lc)}'),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: translating
+                            ? null
+                            : (v) {
+                                if (v == null || v.isEmpty) return;
+                                setModalState(() => translateSource = v);
+                              },
+                      ),
+                      FilledButton.icon(
+                        icon: const Icon(Icons.auto_mode),
+                        label: Text(translating ? 'Übersetze…' : 'Alle Sprachen automatisch ausfüllen'),
+                        onPressed: translating
+                            ? null
+                            : () async {
+                                final baseQ = questionCtrls[translateSource]?.text.trim() ?? '';
+                                final baseA = answerCtrls[translateSource]?.text.trim() ?? '';
+                                if (baseQ.isEmpty && baseA.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Bitte zunächst Frage oder Antwort in der Quellsprache eingeben.')),
+                                  );
+                                  return;
+                                }
+
+                                setModalState(() {
+                                  translating = true;
+                                  translateErr = null;
+                                });
+
+                                try {
+                                  final translations = await _api.translateFaqDraft(
+                                    sourceLang: translateSource,
+                                    targetLangs:
+                                        supportedLangCodes.where((lc) => lc != translateSource).toList(),
+                                    question: baseQ,
+                                    answer: baseA,
+                                  );
+
+                                  translations.forEach((lc, fields) {
+                                    if (lc == translateSource) return;
+                                    final q = (fields['question'] ?? '').trim();
+                                    final a = (fields['answer'] ?? '').trim();
+                                    if (q.isNotEmpty && questionCtrls.containsKey(lc)) {
+                                      questionCtrls[lc]!.text = q;
+                                    }
+                                    if (a.isNotEmpty && answerCtrls.containsKey(lc)) {
+                                      answerCtrls[lc]!.text = a;
+                                    }
+                                  });
+
+                                  if (translations.isNotEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Übersetzungen für ${translations.length} Sprachen eingefügt.')),
+                                    );
+                                  }
+                                } catch (e) {
+                                  setModalState(() {
+                                    translateErr = e.toString();
+                                  });
+                                } finally {
+                                  if (ctx.mounted) {
+                                    setModalState(() {
+                                      translating = false;
+                                    });
+                                  }
+                                }
+                              },
+                      ),
+                      if (translating)
+                        const Padding(
+                          padding: EdgeInsets.only(left: 4),
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2.2),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                if (translateErr != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        translateErr!,
+                        style: TextStyle(color: Theme.of(context).colorScheme.error),
+                      ),
+                    ),
+                  ),
                 const SizedBox(height: 12),
                 Align(
                   alignment: Alignment.centerLeft,
