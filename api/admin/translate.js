@@ -30,13 +30,13 @@ export default async function handler(req, res) {
     const targets = Array.isArray(body.targets) ? body.targets : [];
     const textByKey = {};
 
-    for (const key of ['question', 'answer']) {
+    for (const key of ['question', 'answer', 'title', 'description']) {
       const raw = (body[key] ?? '').toString();
       if (raw.trim()) textByKey[key] = raw;
     }
 
     if (Object.keys(textByKey).length === 0) {
-      return bad(res, 'question or answer required', 400);
+      return bad(res, 'question, answer, title or description required', 400);
     }
 
     const result = await translateTexts({ textByKey, sourceLang, targetLangs: targets });

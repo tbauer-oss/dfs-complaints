@@ -159,6 +159,7 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
 
       final question = entry.localizedQuestion(lang);
       final answer = entry.localizedAnswer(lang);
+      final categoryTitle = cat.localizedTitle(lang);
 
       if (query.isNotEmpty) {
         final q = question.toLowerCase();
@@ -166,7 +167,15 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
         if (!q.contains(query) && !a.contains(query)) continue;
       }
 
-      filtered.add(_FaqItemView(entry: entry, category: cat, question: question, answer: answer));
+      filtered.add(
+        _FaqItemView(
+          entry: entry,
+          category: cat,
+          categoryTitle: categoryTitle,
+          question: question,
+          answer: answer,
+        ),
+      );
     }
 
     filtered.sort((a, b) {
@@ -509,7 +518,7 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
                                         padding: const EdgeInsets.only(
                                             top: 16, bottom: 4),
                                         child: Text(
-                                          item.category.title,
+                                          item.categoryTitle,
                                           style: theme.textTheme.titleMedium
                                               ?.copyWith(
                                             color: primary,
@@ -551,12 +560,14 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
 class _FaqItemView {
   final FaqEntry entry;
   final FaqCategory category;
+  final String categoryTitle;
   final String question;
   final String answer;
 
   const _FaqItemView({
     required this.entry,
     required this.category,
+    required this.categoryTitle,
     required this.question,
     required this.answer,
   });
