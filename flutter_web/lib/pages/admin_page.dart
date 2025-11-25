@@ -3106,7 +3106,7 @@ class _AdminPageState extends State<AdminPage> {
                   if (!isNarrow)
                     AnimatedContainer(
                       duration: const Duration(milliseconds: 220),
-                      width: _navCollapsed ? 76 : 280,
+                      width: _navCollapsed ? 72 : 260,
                       margin: const EdgeInsets.fromLTRB(12, 10, 12, 12),
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
@@ -3238,11 +3238,16 @@ class _AdminPageState extends State<AdminPage> {
       final badge = item.badge;
       final baseColor = selected ? accent : navForeground;
       final iconColor = selected ? accent : navSecondary;
+      final badgeWidget = badge == null
+          ? null
+          : isCompact
+              ? _buildNavBadgeCompact(badge, selected: selected)
+              : _buildNavBadge(badge, selected: selected);
 
       final content = AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOutCubic,
-        padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 12, vertical: 10),
+        padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 12, vertical: 8),
         decoration: BoxDecoration(
           color: selected
               ? theme.colorScheme.primary.withOpacity(theme.brightness == Brightness.dark ? 0.12 : 0.08)
@@ -3256,17 +3261,17 @@ class _AdminPageState extends State<AdminPage> {
           children: [
             AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              width: 4,
-              height: 26,
-              margin: EdgeInsets.only(right: isCompact ? 0 : 10),
+              width: 3,
+              height: 24,
+              margin: EdgeInsets.only(right: isCompact ? 4 : 10),
               decoration: BoxDecoration(
                 color: selected ? accent : Colors.transparent,
                 borderRadius: BorderRadius.circular(999),
               ),
             ),
-            Icon(item.icon, size: 22, color: iconColor),
+            Icon(item.icon, size: 21, color: iconColor),
             if (!isCompact) ...[
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -3290,7 +3295,10 @@ class _AdminPageState extends State<AdminPage> {
                   ],
                 ),
               ),
-              if (badge != null) _buildNavBadge(badge, selected: selected),
+              if (badgeWidget != null) badgeWidget,
+            ] else ...[
+              const Spacer(),
+              if (badgeWidget != null) badgeWidget,
             ],
           ],
         ),
@@ -3446,6 +3454,31 @@ class _AdminPageState extends State<AdminPage> {
         style: theme.textTheme.labelMedium?.copyWith(
           color: selected ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
           fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavBadgeCompact(String label, {required bool selected}) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      decoration: BoxDecoration(
+        color: selected
+            ? theme.colorScheme.primary.withOpacity(
+                theme.brightness == Brightness.dark ? 0.24 : 0.16,
+              )
+            : theme.colorScheme.surfaceVariant.withOpacity(0.9),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: selected ? theme.colorScheme.primary.withOpacity(0.5) : theme.dividerColor.withOpacity(0.35),
+        ),
+      ),
+      child: Text(
+        label,
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: selected ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
