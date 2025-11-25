@@ -4940,82 +4940,19 @@ class _AdminPageState extends State<AdminPage> {
               Text('Fehler: $_faqErr', style: const TextStyle(color: Colors.red)),
             ],
             const SizedBox(height: 12),
-            Wrap(
-              spacing: 12,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Switch(
-                      value: _faqShowInactive,
-                      onChanged: (v) => setState(() => _faqShowInactive = v),
-                    ),
-                    const Text('Inaktive anzeigen'),
-                  ],
-                ),
-                DropdownButton<String>(
-                  value: _faqAudienceFilter,
-                  items: const [
-                    DropdownMenuItem(value: 'both', child: Text('Alle Zielgruppen')),
-                    DropdownMenuItem(value: 'customer', child: Text('Nur Kunden')),
-                    DropdownMenuItem(value: 'rep', child: Text('Nur Reps')),
-                  ],
-                  onChanged: (v) => setState(() => _faqAudienceFilter = v ?? 'both'),
-                ),
-                DropdownButton<String?>(
-                  value: _faqCategoryFilter,
-                  hint: const Text('Alle Kategorien'),
-                  items: [
-                    const DropdownMenuItem<String?>(
-                      value: null,
-                      child: Text('Alle Kategorien'),
-                    ),
-                    ...filteredCategories.map(
-                      (c) => DropdownMenuItem<String?>(
-                        value: c.id,
-                        child: Text(c.localizedTitle(lang)),
-                      ),
-                    ),
-                  ],
-                  onChanged: (v) => setState(() => _faqCategoryFilter = v),
-                ),
-                SizedBox(
-                  width: 260,
-                  child: TextField(
-                    decoration: const InputDecoration(
-                      labelText: 'Suche in Frage / Antwort',
-                      prefixIcon: Icon(Icons.search),
-                    ),
-                    onChanged: (v) => setState(() => _faqSearch = v),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
+            _buildFaqFilters(theme, filteredCategories, lang),
+            const SizedBox(height: 20),
             Text(
               'Kategorien (${filteredCategories.length})',
               style: theme.textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
             Wrap(
-              spacing: 8,
-              runSpacing: 8,
+              spacing: 6,
+              runSpacing: 6,
               children: filteredCategories.isEmpty
-                ? [const Text('Keine Kategorien hinterlegt.')]
-                : filteredCategories
-                    .map(
-                      (cat) => InputChip(
-                          label: Text(
-                            '${cat.localizedTitle(lang)}${cat.active ? '' : ' (inaktiv)'}',
-                          ),
-                          avatar: const Icon(Icons.folder_open),
-                          onPressed: () => _openFaqCategoryEditor(cat),
-                          onDeleted: () => _confirmDeleteCategory(cat),
-                        ),
-                      )
-                      .toList(),
+                  ? [const Text('Keine Kategorien hinterlegt.')]
+                  : filteredCategories.map((cat) => _buildFaqCategoryChip(cat, lang)).toList(),
             ),
             const SizedBox(height: 16),
             Text(
@@ -5037,6 +4974,112 @@ class _AdminPageState extends State<AdminPage> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildFaqFilters(ThemeData theme, List<FaqCategory> categories, String lang) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 12,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          FilterChip(
+            label: Text(_faqShowInactive ? 'Aktive anzeigen' : 'Inaktive anzeigen'),
+            selected: _faqShowInactive,
+            onSelected: (v) => setState(() => _faqShowInactive = v),
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            avatar: Icon(
+              _faqShowInactive ? Icons.visibility : Icons.visibility_off,
+              size: 18,
+            ),
+          ),
+          _buildFilterDropdown<String>(
+            label: 'Zielgruppe',
+            value: _faqAudienceFilter,
+            items: const [
+              DropdownMenuItem(value: 'both', child: Text('Alle Zielgruppen')),
+              DropdownMenuItem(value: 'customer', child: Text('Nur Kunden')),
+              DropdownMenuItem(value: 'rep', child: Text('Nur Reps')),
+            ],
+            onChanged: (v) => setState(() => _faqAudienceFilter = v ?? 'both'),
+          ),
+          _buildFilterDropdown<String?>(
+            label: 'Kategorie',
+            value: _faqCategoryFilter,
+            hint: 'Alle Kategorien',
+            items: [
+              const DropdownMenuItem<String?>(
+                value: null,
+                child: Text('Alle Kategorien'),
+              ),
+              ...categories.map(
+                (c) => DropdownMenuItem<String?>(
+                  value: c.id,
+                  child: Text(c.localizedTitle(lang)),
+                ),
+              ),
+            ],
+            onChanged: (v) => setState(() => _faqCategoryFilter = v),
+          ),
+          ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 240, maxWidth: 300),
+            child: TextField(
+              decoration: const InputDecoration(
+                labelText: 'Suche in Frage / Antwort',
+                prefixIcon: Icon(Icons.search),
+                isDense: true,
+              ),
+              onChanged: (v) => setState(() => _faqSearch = v),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterDropdown<T>({
+    required String label,
+    required T? value,
+    required List<DropdownMenuItem<T>> items,
+    String? hint,
+    required void Function(T?) onChanged,
+  }) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 180, maxWidth: 220),
+      child: DropdownButtonFormField<T>(
+        value: value,
+        items: items,
+        isDense: true,
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          border: const OutlineInputBorder(),
+          isDense: true,
+        ),
+        onChanged: onChanged,
+      ),
+    );
+  }
+
+  Widget _buildFaqCategoryChip(FaqCategory cat, String lang) {
+    final label = '${cat.localizedTitle(lang)}${cat.active ? '' : ' (inaktiv)'}';
+    return InputChip(
+      label: Text(label),
+      avatar: const Icon(Icons.folder_open, size: 18),
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      labelPadding: const EdgeInsets.symmetric(horizontal: 10),
+      onPressed: () => _openFaqCategoryEditor(cat),
+      onDeleted: () => _confirmDeleteCategory(cat),
     );
   }
 
@@ -5402,7 +5445,7 @@ class _AdminPageState extends State<AdminPage> {
                 Row(
                   children: [
                     Switch(value: active, onChanged: (v) => setModalState(() => active = v)),
-                    const Text('Aktiv'),
+                    Text(active ? 'Aktiv' : 'Inaktiv'),
                   ],
                 ),
               ],
@@ -5800,7 +5843,7 @@ class _AdminPageState extends State<AdminPage> {
                 Row(
                   children: [
                     Switch(value: active, onChanged: (v) => setModalState(() => active = v)),
-                    const Text('Aktiv'),
+                    Text(active ? 'Aktiv' : 'Inaktiv'),
                   ],
                 ),
               ],
