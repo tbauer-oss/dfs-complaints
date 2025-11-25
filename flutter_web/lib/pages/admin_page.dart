@@ -199,6 +199,11 @@ class _AdminPageState extends State<AdminPage> {
 
   bool _loadAllComplaints = false;
 
+  static const _menuLayoutStorageKey = 'admin_menu_layout_v1';
+  late final Map<String, String> _tileDefaultSection;
+  late final Set<String> _menuTileIds;
+  late List<_AdminMenuSectionState> _menuSections;
+
   // Ansicht (Menü / Bereich)
   _AdminView _view = _AdminView.menu;
 
@@ -320,6 +325,8 @@ class _AdminPageState extends State<AdminPage> {
       secret = html.window.localStorage['dfs_admin'] ?? '';
     }
     _api.setSecret(secret);
+
+    _initMenuLayout();
 
     if (secret.isEmpty) {
       _fatalErr =
@@ -3700,208 +3707,146 @@ class _AdminPageState extends State<AdminPage> {
     return _view == _AdminView.menu ? _buildMenu() : _buildView();
   }
 
+  List<_AdminMenuSectionState> _baseMenuSections() {
+    return [
+      const _AdminMenuSectionState(
+        title: 'Reklamationen',
+        subtitle: 'Offene Fälle, Suche und Kennzahlen',
+        tileIds: ['open', 'all', 'stats'],
+      ),
+      const _AdminMenuSectionState(
+        title: 'Kunden & Vertreter',
+        subtitle: 'Anträge prüfen, Accounts und Teams steuern',
+        tileIds: ['pending', 'users', 'createCustomer', 'reps'],
+      ),
+      const _AdminMenuSectionState(
+        title: 'Kommunikation & Inhalte',
+        subtitle: 'Informationen und Push-Kanäle pflegen',
+        tileIds: ['news', 'faq', 'push'],
+      ),
+      const _AdminMenuSectionState(
+        title: 'System & Konfiguration',
+        subtitle: 'Kataloge, Versionen und Monitoring',
+        tileIds: ['catalogs', 'appMeta', 'systemHealth', 'activity'],
+      ),
+    ];
+  }
+
+  void _initMenuLayout() {
+    final defaults = _baseMenuSections();
+    _tileDefaultSection = {
+      for (final section in defaults) for (final id in section.tileIds) id: section.title,
+    };
+    _menuTileIds = _tileDefaultSection.keys.toSet();
+    _menuSections = _loadMenuLayout(defaults: defaults);
+  }
+
+  List<_AdminMenuSectionState> _loadMenuLayout({required List<_AdminMenuSectionState> defaults}) {
+    final raw = html.window.localStorage[_menuLayoutStorageKey];
+    if (raw == null) {
+      return defaults.map((s) => s.copy()).toList();
+    }
+
+    try {
+      final parsed = jsonDecode(raw);
+      if (parsed is! List) return defaults.map((s) => s.copy()).toList();
+
+      final used = <String>{};
+      final sections = <_AdminMenuSectionState>[];
+
+      for (final entry in parsed) {
+        if (entry is! Map) continue;
+        final title = entry['title'] as String?;
+        final subtitle = entry['subtitle'] as String? ?? '';
+        final tiles = (entry['tiles'] as List?)?.whereType<String>().toList() ?? <String>[];
+        if (title == null) continue;
+
+        final filtered = tiles.where(_menuTileIds.contains).toList();
+        used.addAll(filtered);
+        sections.add(_AdminMenuSectionState(title: title, subtitle: subtitle, tileIds: filtered));
+      }
+
+      if (sections.isEmpty) return defaults.map((s) => s.copy()).toList();
+
+      for (final id in _menuTileIds) {
+        if (used.contains(id)) continue;
+        final targetTitle = _tileDefaultSection[id];
+        final targetSection = sections.firstWhere(
+          (s) => s.title == targetTitle,
+          orElse: () => sections.first,
+        );
+        targetSection.tileIds.add(id);
+      }
+
+      return sections;
+    } catch (_) {
+      return defaults.map((s) => s.copy()).toList();
+    }
+  }
+
+  void _persistMenuLayout() {
+    html.window.localStorage[_menuLayoutStorageKey] =
+        jsonEncode(_menuSections.map((s) => s.toJson()).toList());
+  }
+
+  void _resetMenuLayout() {
+    setState(() {
+      _menuSections = _baseMenuSections();
+    });
+    _persistMenuLayout();
+  }
+
   // ------------------ Kachel-Menü (neues Design) ------------------
   Widget _buildMenu() {
     final w = MediaQuery.of(context).size.width;
     final isPhone = w < 640;
     final compact = isPhone;
-
-    final sections = <_AdminMenuSectionData>[
-      _AdminMenuSectionData(
-        title: 'Reklamationen',
-        subtitle: 'Offene Fälle, Suche und Kennzahlen',
-        tiles: [
-          AdminTilePro(
-            label: 'Offene Reklamationen',
-            subtitle: 'Bearbeiten & Entscheiden',
-            icon: Icons.assignment_late_outlined,
-            colorA: AdminPalette.redA,
-            colorB: AdminPalette.redB,
-            count: _openComplaints.length,
-            compact: compact,
-            onTap: () => setState(() => _view = _AdminView.open),
-          ),
-          AdminTilePro(
-            label: 'Alle Reklamationen',
-            subtitle: 'Suche & Filter',
-            icon: Icons.dashboard_customize_outlined,
-            colorA: AdminPalette.purpleA,
-            colorB: AdminPalette.purpleB,
-            count: _allComplaints.length,
-            compact: compact,
-            onTap: () => setState(() => _view = _AdminView.all),
-          ),
-          AdminTilePro(
-            label: 'Statistik & KPIs',
-            subtitle: 'Übersicht & Trends',
-            icon: Icons.query_stats_outlined,
-            colorA: AdminPalette.blueA,
-            colorB: AdminPalette.blueB,
-            compact: compact,
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => AdminStatsPage(api: widget.api)),
-              );
-            },
-          ),
-        ],
-      ),
-      _AdminMenuSectionData(
-        title: 'Kunden & Vertreter',
-        subtitle: 'Anträge prüfen, Accounts und Teams steuern',
-        tiles: [
-          AdminTilePro(
-            label: 'Anträge / Pending',
-            subtitle: 'Registrierungen prüfen',
-            icon: Icons.verified_user_outlined,
-            colorA: AdminPalette.amberA,
-            colorB: AdminPalette.amberB,
-            count: _pending.length,
-            compact: compact,
-            onTap: () => setState(() => _view = _AdminView.pending),
-          ),
-          AdminTilePro(
-            label: 'Kundendatenbank',
-            subtitle: 'Firmen & Kontakte',
-            icon: Icons.group_outlined,
-            colorA: AdminPalette.tealA,
-            colorB: AdminPalette.tealB,
-            count: _users.length,
-            compact: compact,
-            onTap: () => setState(() => _view = _AdminView.users),
-          ),
-          AdminTilePro(
-            label: 'Neuen Kunden anlegen',
-            subtitle: 'Account direkt erstellen',
-            icon: Icons.person_add_alt_1_outlined,
-            colorA: AdminPalette.tealA,
-            colorB: AdminPalette.tealB,
-            compact: compact,
-            onTap: () => setState(() => _view = _AdminView.createCustomer),
-          ),
-          AdminTilePro(
-            label: 'Vertreterverwaltung',
-            subtitle: 'Zuordnen & Regionen',
-            icon: Icons.badge_outlined,
-            colorA: AdminPalette.blueA,
-            colorB: AdminPalette.blueB,
-            compact: compact,
-            onTap: () {
-              setState(() => _view = _AdminView.reps);
-              if (_reps.isEmpty) _refreshReps();
-            },
-          ),
-        ],
-      ),
-      _AdminMenuSectionData(
-        title: 'Kommunikation & Inhalte',
-        subtitle: 'Informationen und Push-Kanäle pflegen',
-        tiles: [
-          AdminTilePro(
-            label: 'Neuigkeiten & Infoscreen',
-            subtitle: 'Kundenticker pflegen',
-            icon: Icons.campaign_outlined,
-            colorA: AdminPalette.amberA,
-            colorB: AdminPalette.amberB,
-            compact: compact,
-            count: _newsEntries.length,
-            onTap: () {
-              setState(() => _view = _AdminView.news);
-              if (_newsEntries.isEmpty) _refreshNews();
-            },
-          ),
-          AdminTilePro(
-            label: 'Wissensdatenbank (FAQ)',
-            subtitle: 'Artikel & Kategorien verwalten',
-            icon: Icons.library_books_outlined,
-            colorA: AdminPalette.blueA,
-            colorB: AdminPalette.blueB,
-            compact: compact,
-            count: _faqEntries.length,
-            onTap: () {
-              _handleNavigation(_AdminView.faq);
-            },
-          ),
-          AdminTilePro(
-            label: 'Push-Mitteilungen',
-            subtitle: 'Broadcast an alle Kunden',
-            icon: Icons.notifications_active_outlined,
-            colorA: AdminPalette.amberA,
-            colorB: AdminPalette.amberB,
-            compact: compact,
-            count: _pushResult?.totalTokens,
-            onTap: () => setState(() => _view = _AdminView.pushBroadcast),
-          ),
-        ],
-      ),
-      _AdminMenuSectionData(
-        title: 'System & Konfiguration',
-        subtitle: 'Kataloge, Versionen und Monitoring',
-        tiles: [
-          AdminTilePro(
-            label: 'Kataloge',
-            subtitle: 'Links & Sprachen',
-            icon: Icons.menu_book_outlined,
-            colorA: AdminPalette.blueA,
-            colorB: AdminPalette.blueB,
-            compact: compact,
-            onTap: () => setState(() => _view = _AdminView.catalogs),
-          ),
-          AdminTilePro(
-            label: 'App-Version',
-            subtitle: 'Version, Build, Hinweise',
-            icon: Icons.app_settings_alt_outlined,
-            colorA: AdminPalette.blueA,
-            colorB: AdminPalette.blueB,
-            compact: compact,
-            onTap: () => _editAppMeta(context),
-          ),
-          AdminTilePro(
-            label: 'Systemstatus',
-            subtitle: 'Health & Konfiguration',
-            icon: Icons.health_and_safety_outlined,
-            colorA: AdminPalette.tealA,
-            colorB: AdminPalette.tealB,
-            compact: compact,
-            onTap: () {
-              setState(() => _view = _AdminView.systemHealth);
-              _loadSystemHealth(force: true);
-            },
-          ),
-          AdminTilePro(
-            label: 'Aktivitätsübersicht',
-            subtitle: 'Login, Tickets, Push',
-            icon: Icons.query_stats_outlined,
-            colorA: AdminPalette.tealA,
-            colorB: AdminPalette.tealB,
-            compact: compact,
-            onTap: () => setState(() => _view = _AdminView.activity),
-          ),
-        ],
-      ),
-    ];
-
-    SliverGridDelegateWithMaxCrossAxisExtent _gridDelegate() => SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: isPhone ? 200 : 240,
-          mainAxisSpacing: isPhone ? 20 : 32,
-          crossAxisSpacing: isPhone ? 14 : 28,
-          childAspectRatio: isPhone ? 0.94 : 1.05,
-        );
+    final sections = _menuSections;
+    final tileWidth = isPhone ? 200.0 : 240.0;
+    final aspectRatio = isPhone ? 0.94 : 1.05;
+    final tileHeight = tileWidth / aspectRatio;
+    final spacing = isPhone ? 14.0 : 28.0;
+    final runSpacing = isPhone ? 20.0 : 32.0;
 
     return CustomScrollView(
       slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Row(
+              children: [
+                Icon(Icons.drag_indicator_outlined, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Kacheln per Drag & Drop zwischen Bereichen verschieben oder neu anordnen.',
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _resetMenuLayout,
+                  icon: const Icon(Icons.refresh_outlined),
+                  label: const Text('Layout zurücksetzen'),
+                ),
+              ],
+            ),
+          ),
+        ),
         for (var i = 0; i < sections.length; i++) ...[
           SliverToBoxAdapter(
             child: _buildMenuSectionHeader(sections[i], isFirst: i == 0),
           ),
           SliverPadding(
             padding: EdgeInsets.fromLTRB(16, 8, 16, i == sections.length - 1 ? 28 : 12),
-            sliver: SliverGrid(
-              delegate: SliverChildBuilderDelegate(
-                (_, index) => sections[i].tiles[index],
-                childCount: sections[i].tiles.length,
+            sliver: SliverToBoxAdapter(
+              child: _buildSectionGrid(
+                sectionIndex: i,
+                section: sections[i],
+                compact: compact,
+                tileWidth: tileWidth,
+                tileHeight: tileHeight,
+                spacing: spacing,
+                runSpacing: runSpacing,
               ),
-              gridDelegate: _gridDelegate(),
             ),
           ),
         ],
@@ -3909,7 +3854,337 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  Widget _buildMenuSectionHeader(_AdminMenuSectionData section, {required bool isFirst}) {
+  Widget _buildSectionGrid({
+    required int sectionIndex,
+    required _AdminMenuSectionState section,
+    required bool compact,
+    required double tileWidth,
+    required double tileHeight,
+    required double spacing,
+    required double runSpacing,
+  }) {
+    final tiles = <Widget>[];
+    for (var tileIndex = 0; tileIndex < section.tileIds.length; tileIndex++) {
+      tiles.add(
+        _buildDraggableTile(
+          sectionIndex: sectionIndex,
+          tileIndex: tileIndex,
+          tileId: section.tileIds[tileIndex],
+          compact: compact,
+          tileWidth: tileWidth,
+          tileHeight: tileHeight,
+        ),
+      );
+    }
+
+    tiles.add(
+      _buildDropTarget(
+        sectionIndex: sectionIndex,
+        insertIndex: section.tileIds.length,
+        compact: compact,
+        tileWidth: tileWidth,
+        tileHeight: tileHeight,
+        highlightLabel: 'Hierhin verschieben',
+      ),
+    );
+
+    return Wrap(
+      spacing: spacing,
+      runSpacing: runSpacing,
+      children: tiles,
+    );
+  }
+
+  Widget _buildDraggableTile({
+    required int sectionIndex,
+    required int tileIndex,
+    required String tileId,
+    required bool compact,
+    required double tileWidth,
+    required double tileHeight,
+  }) {
+    return DragTarget<_DraggedTile>(
+      onWillAccept: (_) => true,
+      onAccept: (data) => _handleTileDrop(data, sectionIndex, tileIndex),
+      builder: (context, candidate, rejected) {
+        final highlight = candidate.isNotEmpty;
+        final tile = SizedBox(
+          width: tileWidth,
+          height: tileHeight,
+          child: LongPressDraggable<_DraggedTile>(
+            data: _DraggedTile(tileId: tileId, sectionIndex: sectionIndex),
+            feedback: Material(
+              color: Colors.transparent,
+              child: SizedBox(
+                width: tileWidth,
+                height: tileHeight,
+                child: _buildMenuTile(tileId, compact, isPreview: true),
+              ),
+            ),
+            childWhenDragging: Opacity(
+              opacity: 0.3,
+              child: _buildMenuTile(tileId, compact),
+            ),
+            child: _decorateDropCandidate(
+              highlight: highlight,
+              child: _buildMenuTile(tileId, compact),
+            ),
+          ),
+        );
+        return tile;
+      },
+    );
+  }
+
+  Widget _buildDropTarget({
+    required int sectionIndex,
+    required int insertIndex,
+    required bool compact,
+    required double tileWidth,
+    required double tileHeight,
+    String? highlightLabel,
+  }) {
+    return DragTarget<_DraggedTile>(
+      onWillAccept: (_) => true,
+      onAccept: (data) => _handleTileDrop(data, sectionIndex, insertIndex),
+      builder: (context, candidate, rejected) {
+        final highlight = candidate.isNotEmpty;
+        return SizedBox(
+          width: tileWidth,
+          height: tileHeight,
+          child: _decorateDropCandidate(
+            highlight: highlight,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 150),
+              opacity: highlight ? 1 : 0.12,
+              child: AdminTilePro(
+                label: highlightLabel ?? 'Ablegen',
+                subtitle: 'Neue Position',
+                icon: Icons.open_with_outlined,
+                colorA: AdminPalette.blueA,
+                colorB: AdminPalette.blueB,
+                compact: compact,
+                onTap: () {},
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _decorateDropCandidate({required bool highlight, required Widget child}) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 120),
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: highlight ? Theme.of(context).colorScheme.primary : Colors.transparent,
+          width: 2,
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: child,
+    );
+  }
+
+  void _handleTileDrop(_DraggedTile data, int targetSectionIndex, int insertIndex) {
+    if (targetSectionIndex < 0 || targetSectionIndex >= _menuSections.length) return;
+    setState(() {
+      if (data.sectionIndex >= _menuSections.length) return;
+      final sourceSection = _menuSections[data.sectionIndex];
+      final currentIndex = sourceSection.tileIds.indexOf(data.tileId);
+      if (currentIndex == -1) return;
+
+      final isSameSection = data.sectionIndex == targetSectionIndex;
+      var targetInsertIndex = insertIndex;
+      if (isSameSection && insertIndex > currentIndex) {
+        targetInsertIndex -= 1;
+      }
+
+      sourceSection.tileIds.removeAt(currentIndex);
+      final targetSection = _menuSections[targetSectionIndex];
+      targetInsertIndex = targetInsertIndex.clamp(0, targetSection.tileIds.length);
+      targetSection.tileIds.insert(targetInsertIndex, data.tileId);
+    });
+    _persistMenuLayout();
+  }
+
+  Widget _buildMenuTile(String tileId, bool compact, {bool isPreview = false}) {
+    switch (tileId) {
+      case 'open':
+        return AdminTilePro(
+          label: 'Offene Reklamationen',
+          subtitle: 'Bearbeiten & Entscheiden',
+          icon: Icons.assignment_late_outlined,
+          colorA: AdminPalette.redA,
+          colorB: AdminPalette.redB,
+          count: _openComplaints.length,
+          compact: compact,
+          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.open),
+        );
+      case 'all':
+        return AdminTilePro(
+          label: 'Alle Reklamationen',
+          subtitle: 'Suche & Filter',
+          icon: Icons.dashboard_customize_outlined,
+          colorA: AdminPalette.purpleA,
+          colorB: AdminPalette.purpleB,
+          count: _allComplaints.length,
+          compact: compact,
+          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.all),
+        );
+      case 'stats':
+        return AdminTilePro(
+          label: 'Statistik & KPIs',
+          subtitle: 'Übersicht & Trends',
+          icon: Icons.query_stats_outlined,
+          colorA: AdminPalette.blueA,
+          colorB: AdminPalette.blueB,
+          compact: compact,
+          onTap: isPreview
+              ? () {}
+              : () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => AdminStatsPage(api: widget.api)),
+                  );
+                },
+        );
+      case 'pending':
+        return AdminTilePro(
+          label: 'Anträge / Pending',
+          subtitle: 'Registrierungen prüfen',
+          icon: Icons.verified_user_outlined,
+          colorA: AdminPalette.amberA,
+          colorB: AdminPalette.amberB,
+          count: _pending.length,
+          compact: compact,
+          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.pending),
+        );
+      case 'users':
+        return AdminTilePro(
+          label: 'Kundendatenbank',
+          subtitle: 'Firmen & Kontakte',
+          icon: Icons.group_outlined,
+          colorA: AdminPalette.tealA,
+          colorB: AdminPalette.tealB,
+          count: _users.length,
+          compact: compact,
+          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.users),
+        );
+      case 'createCustomer':
+        return AdminTilePro(
+          label: 'Neuen Kunden anlegen',
+          subtitle: 'Account direkt erstellen',
+          icon: Icons.person_add_alt_1_outlined,
+          colorA: AdminPalette.tealA,
+          colorB: AdminPalette.tealB,
+          compact: compact,
+          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.createCustomer),
+        );
+      case 'reps':
+        return AdminTilePro(
+          label: 'Vertreterverwaltung',
+          subtitle: 'Zuordnen & Regionen',
+          icon: Icons.badge_outlined,
+          colorA: AdminPalette.blueA,
+          colorB: AdminPalette.blueB,
+          compact: compact,
+          onTap: isPreview
+              ? () {}
+              : () {
+                  setState(() => _view = _AdminView.reps);
+                  if (_reps.isEmpty) _refreshReps();
+                },
+        );
+      case 'news':
+        return AdminTilePro(
+          label: 'Neuigkeiten & Infoscreen',
+          subtitle: 'Kundenticker pflegen',
+          icon: Icons.campaign_outlined,
+          colorA: AdminPalette.amberA,
+          colorB: AdminPalette.amberB,
+          compact: compact,
+          count: _newsEntries.length,
+          onTap: isPreview
+              ? () {}
+              : () {
+                  setState(() => _view = _AdminView.news);
+                  if (_newsEntries.isEmpty) _refreshNews();
+                },
+        );
+      case 'faq':
+        return AdminTilePro(
+          label: 'Wissensdatenbank (FAQ)',
+          subtitle: 'Artikel & Kategorien verwalten',
+          icon: Icons.library_books_outlined,
+          colorA: AdminPalette.blueA,
+          colorB: AdminPalette.blueB,
+          compact: compact,
+          count: _faqEntries.length,
+          onTap: isPreview ? () {} : () => _handleNavigation(_AdminView.faq),
+        );
+      case 'push':
+        return AdminTilePro(
+          label: 'Push-Mitteilungen',
+          subtitle: 'Broadcast an alle Kunden',
+          icon: Icons.notifications_active_outlined,
+          colorA: AdminPalette.amberA,
+          colorB: AdminPalette.amberB,
+          compact: compact,
+          count: _pushResult?.totalTokens,
+          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.pushBroadcast),
+        );
+      case 'catalogs':
+        return AdminTilePro(
+          label: 'Kataloge',
+          subtitle: 'Links & Sprachen',
+          icon: Icons.menu_book_outlined,
+          colorA: AdminPalette.blueA,
+          colorB: AdminPalette.blueB,
+          compact: compact,
+          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.catalogs),
+        );
+      case 'appMeta':
+        return AdminTilePro(
+          label: 'App-Version',
+          subtitle: 'Version, Build, Hinweise',
+          icon: Icons.app_settings_alt_outlined,
+          colorA: AdminPalette.blueA,
+          colorB: AdminPalette.blueB,
+          compact: compact,
+          onTap: isPreview ? () {} : () => _editAppMeta(context),
+        );
+      case 'systemHealth':
+        return AdminTilePro(
+          label: 'Systemstatus',
+          subtitle: 'Health & Konfiguration',
+          icon: Icons.health_and_safety_outlined,
+          colorA: AdminPalette.tealA,
+          colorB: AdminPalette.tealB,
+          compact: compact,
+          onTap: isPreview
+              ? () {}
+              : () {
+                  setState(() => _view = _AdminView.systemHealth);
+                  _loadSystemHealth(force: true);
+                },
+        );
+      case 'activity':
+        return AdminTilePro(
+          label: 'Aktivitätsübersicht',
+          subtitle: 'Login, Tickets, Push',
+          icon: Icons.query_stats_outlined,
+          colorA: AdminPalette.tealA,
+          colorB: AdminPalette.tealB,
+          compact: compact,
+          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.activity),
+        );
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  Widget _buildMenuSectionHeader(_AdminMenuSectionState section, {required bool isFirst}) {
     final theme = Theme.of(context);
     final titleStyle = theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700);
     final subtitleStyle = theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant);
@@ -6797,16 +7072,32 @@ class _AdminNavSection {
 // ===================================================================
 // Admin-Menü-Kachel + Busy-Dot (Top-Level Widgets, nicht verschachteln)
 // ===================================================================
-class _AdminMenuSectionData {
-  const _AdminMenuSectionData({
-    required this.title,
-    required this.subtitle,
-    required this.tiles,
-  });
+  class _AdminMenuSectionState {
+    const _AdminMenuSectionState({
+      required this.title,
+      required this.subtitle,
+      required this.tileIds,
+    });
 
   final String title;
   final String subtitle;
-  final List<Widget> tiles;
+  final List<String> tileIds;
+
+  _AdminMenuSectionState copy() =>
+      _AdminMenuSectionState(title: title, subtitle: subtitle, tileIds: List<String>.from(tileIds));
+
+  Map<String, dynamic> toJson() => {
+        'title': title,
+        'subtitle': subtitle,
+        'tiles': tileIds,
+      };
+}
+
+class _DraggedTile {
+  final String tileId;
+  final int sectionIndex;
+
+  const _DraggedTile({required this.tileId, required this.sectionIndex});
 }
 
 class _SystemHealthCheckCard extends StatelessWidget {
