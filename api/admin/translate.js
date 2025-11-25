@@ -2,7 +2,6 @@
 export const config = { runtime: 'nodejs' };
 
 import { setCors, handlePreflight, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
-import { normalizeLangValue } from '../_lib/store.js';
 import { translateTexts } from '../_lib/translate.js';
 
 function requireAdmin(req, res) {
@@ -26,8 +25,8 @@ export default async function handler(req, res) {
 
   try {
     const body = readJson(req) || {};
-    const sourceLang = normalizeLangValue(body.sourceLang);
-    const targets = Array.isArray(body.targets) ? body.targets : [];
+    const sourceLang = null; // let DeepL auto-detect the source language
+    const targets = ['de']; // always translate to German
     const textByKey = {};
 
     for (const key of ['question', 'answer', 'title', 'description']) {
