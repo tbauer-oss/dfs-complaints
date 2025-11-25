@@ -63,7 +63,7 @@ const mem = {
   faqItems: [],
 };
 
-const SUPPORTED_LANGS = new Set(['de', 'en', 'fr', 'it', 'es']);
+export const SUPPORTED_LANGS = new Set(['de', 'en', 'fr', 'it', 'es']);
 const LANG_ALIASES = {
   german: 'de',
   deutsch: 'de',
@@ -80,7 +80,7 @@ const LANG_ALIASES = {
   espanol: 'es',
 };
 
-function normalizeLangValue(value) {
+export function normalizeLangValue(value) {
   const lc = String(value || '').trim().toLowerCase();
   if (!lc) return null;
   if (LANG_ALIASES[lc]) return LANG_ALIASES[lc];
@@ -329,6 +329,28 @@ function _text(value, max = 400) {
   return s;
 }
 
+function _normalizeIntlMap(raw, maxLen = 400) {
+  const out = {};
+  if (raw && typeof raw === 'object') {
+    for (const [key, value] of Object.entries(raw)) {
+      const lang = normalizeLangValue(key);
+      const txt = _text(value, maxLen);
+      if (!lang || !txt) continue;
+      out[lang] = txt;
+    }
+  }
+  return out;
+}
+
+function _resolveIntlValue(map = {}, { preferred, fallback }) {
+  if (preferred && map[preferred]) return map[preferred];
+  if (preferred && preferred !== 'de' && map['de']) return map['de'];
+  const first = Object.values(map).find((v) => v && v.trim());
+  if (first) return first;
+  if (fallback && fallback.trim()) return fallback.trim();
+  return '';
+}
+
 function _safeUrl(value) {
   const raw = (value ?? '').toString().trim();
   if (!raw) return '';
@@ -530,9 +552,16 @@ function _normalizeStoredFaqEntry(raw, categories) {
   if (!raw || typeof raw !== 'object') return null;
   const id = (raw.id ?? '').toString().trim();
   const categoryId = (raw.categoryId ?? '').toString().trim();
+  const preferredLang = normLang(raw.lang || raw.language);
   const question = _text(raw.question ?? '', 500);
   const answer = _text(raw.answer ?? '', 8000);
-  if (!id || !categoryId || !question || !answer) return null;
+  const questionIntl = _normalizeIntlMap(raw.questionIntl, 500);
+  const answerIntl = _normalizeIntlMap(raw.answerIntl, 8000);
+  const resolvedQuestion = _resolveIntlValue(questionIntl, { preferred: preferredLang, fallback: question }) || question;
+  const resolvedAnswer = _resolveIntlValue(answerIntl, { preferred: preferredLang, fallback: answer }) || answer;
+  if (resolvedQuestion && !questionIntl[preferredLang]) questionIntl[preferredLang] = resolvedQuestion;
+  if (resolvedAnswer && !answerIntl[preferredLang]) answerIntl[preferredLang] = resolvedAnswer;
+  if (!id || !categoryId || !resolvedQuestion || !resolvedAnswer) return null;
 
   if (Array.isArray(categories) && categories.length > 0) {
     const exists = categories.some((cat) => cat.id === categoryId);
@@ -545,8 +574,10 @@ function _normalizeStoredFaqEntry(raw, categories) {
   return {
     id,
     categoryId,
-    question,
-    answer,
+    question: resolvedQuestion,
+    answer: resolvedAnswer,
+    questionIntl,
+    answerIntl,
     audience: _normalizeFaqAudience(raw.audience),
     order: _orderValue(raw.order, 0),
     active: raw.active === undefined ? true : Boolean(raw.active),
@@ -583,17 +614,40 @@ function _normalizeFaqEntryPayload(input = {}, existing = null, categories = [])
     if (!exists) throw new Error('category not found');
   }
 
-  const question = _text(input.question ?? base.question ?? '', 500);
-  const answer = _text(input.answer ?? base.answer ?? '', 8000);
-  if (!question || !answer) throw new Error('question and answer required');
+  const preferredLang = normLang(input.lang || input.language || input.primaryLang);
+  const questionIntl = {
+    ...(base.questionIntl || {}),
+    ..._normalizeIntlMap(input.questionIntl, 500),
+  };
+  const answerIntl = {
+    ...(base.answerIntl || {}),
+    ..._normalizeIntlMap(input.answerIntl, 8000),
+  };
+
+  const fallbackQuestion = _text(input.question ?? base.question ?? '', 500);
+  const fallbackAnswer = _text(input.answer ?? base.answer ?? '', 8000);
+
+  if (fallbackQuestion && !questionIntl[preferredLang]) {
+    questionIntl[preferredLang] = fallbackQuestion;
+  }
+  if (fallbackAnswer && !answerIntl[preferredLang]) {
+    answerIntl[preferredLang] = fallbackAnswer;
+  }
+
+  const normalizedQuestion = _resolveIntlValue(questionIntl, { preferred: preferredLang, fallback: fallbackQuestion });
+  const normalizedAnswer = _resolveIntlValue(answerIntl, { preferred: preferredLang, fallback: fallbackAnswer });
+
+  if (!normalizedQuestion || !normalizedAnswer) throw new Error('question and answer required');
 
   return {
     id:
       (input.id ?? base.id ?? '').toString().trim() ||
       `faq_${now}_${Math.random().toString(36).slice(2, 8)}`,
     categoryId,
-    question,
-    answer,
+    question: normalizedQuestion,
+    answer: normalizedAnswer,
+    questionIntl,
+    answerIntl,
     audience: _normalizeFaqAudience(input.audience ?? base.audience ?? 'both'),
     order: _orderValue(input.order, base.order ?? 0),
     active: input.active !== undefined ? Boolean(input.active) : Boolean(base.active ?? true),
