@@ -4991,7 +4991,7 @@ class _AdminPageState extends State<AdminPage> {
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           FilterChip(
-            label: const Text('Inaktive anzeigen'),
+            label: Text(_faqShowInactive ? 'Aktive anzeigen' : 'Inaktive anzeigen'),
             selected: _faqShowInactive,
             onSelected: (v) => setState(() => _faqShowInactive = v),
             visualDensity: VisualDensity.compact,
@@ -5445,7 +5445,7 @@ class _AdminPageState extends State<AdminPage> {
                 Row(
                   children: [
                     Switch(value: active, onChanged: (v) => setModalState(() => active = v)),
-                    const Text('Aktiv'),
+                    Text(active ? 'Aktiv' : 'Inaktiv'),
                   ],
                 ),
               ],
@@ -5843,7 +5843,7 @@ class _AdminPageState extends State<AdminPage> {
                 Row(
                   children: [
                     Switch(value: active, onChanged: (v) => setModalState(() => active = v)),
-                    const Text('Aktiv'),
+                    Text(active ? 'Aktiv' : 'Inaktiv'),
                   ],
                 ),
               ],
