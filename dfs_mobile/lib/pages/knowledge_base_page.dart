@@ -142,7 +142,13 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
         if (!q.contains(query) && !a.contains(query)) continue;
       }
 
-      list.add(_FaqView(entry: entry, category: cat, question: localizedQuestion, answer: localizedAnswer));
+      list.add(_FaqView(
+        entry: entry,
+        category: cat,
+        categoryLabel: cat.localizedTitle(lang),
+        question: localizedQuestion,
+        answer: localizedAnswer,
+      ));
     }
 
     list.sort((a, b) {
@@ -159,6 +165,7 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
   Widget _buildCategoryChips(AppLocalizations t) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final lang = Localizations.localeOf(context).languageCode;
 
     ChoiceChip buildChip({required Widget label, required bool selected, required void Function(bool) onSelected}) {
       return ChoiceChip(
@@ -199,7 +206,7 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
     for (final cat in sortedCategories) {
       chips.add(
         buildChip(
-          label: Text(cat.title),
+          label: Text(cat.localizedTitle(lang)),
           selected: _selectedCategories.contains(cat.id),
           onSelected: (value) => _toggleCategory(cat.id, value),
         ),
@@ -304,14 +311,14 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
                   ),
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final item = items[index];
-                        return _KnowledgeEntryCard(
-                          question: item.question,
-                          answers: _splitAnswer(item.answer),
-                          categoryLabel: item.category.title,
-                        );
-                      },
+          (context, index) {
+            final item = items[index];
+            return _KnowledgeEntryCard(
+              question: item.question,
+              answers: _splitAnswer(item.answer),
+              categoryLabel: item.categoryLabel,
+            );
+          },
                       childCount: items.length,
                     ),
                   ),
@@ -474,12 +481,14 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
 class _FaqView {
   final FaqEntry entry;
   final FaqCategory category;
+  final String categoryLabel;
   final String question;
   final String answer;
 
   const _FaqView({
     required this.entry,
     required this.category,
+    required this.categoryLabel,
     required this.question,
     required this.answer,
   });

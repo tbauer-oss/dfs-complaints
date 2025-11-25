@@ -736,11 +736,13 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   String _faqCategoryName(String id) {
+    final lang = normalizeLangCode(Localizations.localeOf(context).languageCode);
     final found = _faqCategories.firstWhere(
       (c) => c.id == id,
       orElse: () => const FaqCategory(id: '', title: ''),
     );
-    return found.title.isEmpty ? 'Unbekannte Kategorie' : found.title;
+    final title = found.localizedTitle(lang);
+    return title.isEmpty ? 'Unbekannte Kategorie' : title;
   }
 
   String _legacyCategoryId(KnowledgeCategory cat) =>
@@ -3626,7 +3628,7 @@ class _AdminPageState extends State<AdminPage> {
                     ...filteredCategories.map(
                       (c) => DropdownMenuItem<String?>(
                         value: c.id,
-                        child: Text(c.title),
+                        child: Text(c.localizedTitle(lang)),
                       ),
                     ),
                   ],
@@ -3654,11 +3656,13 @@ class _AdminPageState extends State<AdminPage> {
               spacing: 8,
               runSpacing: 8,
               children: filteredCategories.isEmpty
-                  ? [const Text('Keine Kategorien hinterlegt.')]
-                  : filteredCategories
-                      .map(
-                        (cat) => InputChip(
-                          label: Text('${cat.title}${cat.active ? '' : ' (inaktiv)'}'),
+                ? [const Text('Keine Kategorien hinterlegt.')]
+                : filteredCategories
+                    .map(
+                      (cat) => InputChip(
+                          label: Text(
+                            '${cat.localizedTitle(lang)}${cat.active ? '' : ' (inaktiv)'}',
+                          ),
                           avatar: const Icon(Icons.folder_open),
                           onPressed: () => _openFaqCategoryEditor(cat),
                           onDeleted: () => _confirmDeleteCategory(cat),
@@ -3895,10 +3899,20 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   Future<void> _openFaqCategoryEditor([FaqCategory? category]) async {
-    final titleCtrl = TextEditingController(text: category?.title ?? '');
-    final descCtrl = TextEditingController(text: category?.description ?? '');
+    final lang = normalizeLangCode(Localizations.localeOf(context).languageCode);
+    final titleCtrls = <String, TextEditingController>{};
+    final descCtrls = <String, TextEditingController>{};
+    for (final lc in supportedLangCodes) {
+      final title = category == null ? '' : category.localizedTitle(lc);
+      final desc = category == null ? '' : category.localizedDescription(lc);
+      titleCtrls[lc] = TextEditingController(text: title);
+      descCtrls[lc] = TextEditingController(text: desc);
+    }
     final orderCtrl = TextEditingController(text: category?.order.toString() ?? '0');
     bool active = category?.active ?? true;
+    String translateSource = lang;
+    bool translating = false;
+    String? translateErr;
 
     await showDialog<void>(
       context: context,
@@ -3909,16 +3923,130 @@ class _AdminPageState extends State<AdminPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(
-                  controller: titleCtrl,
-                  decoration: const InputDecoration(labelText: 'Titel'),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Kategoriename und Beschreibung in allen Sprachen',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                  ),
                 ),
-                TextField(
-                  controller: descCtrl,
-                  minLines: 1,
-                  maxLines: 3,
-                  decoration: const InputDecoration(labelText: 'Beschreibung (optional)'),
+                const SizedBox(height: 8),
+                ...supportedLangCodes.expand((lc) sync* {
+                  final langLabel = langNameFor(AppLocalizations.of(context), lc);
+                  yield Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('${lc.toUpperCase()} – $langLabel',
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700)),
+                    ),
+                  );
+                  yield const SizedBox(height: 4);
+                  yield TextField(
+                    controller: titleCtrls[lc],
+                    decoration: InputDecoration(labelText: 'Titel (${lc.toUpperCase()})'),
+                  );
+                  yield const SizedBox(height: 6);
+                  yield TextField(
+                    controller: descCtrls[lc],
+                    minLines: 1,
+                    maxLines: 3,
+                    decoration: InputDecoration(labelText: 'Beschreibung (${lc.toUpperCase()}, optional)'),
+                  );
+                }),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      const Text('Automatisch übersetzen von:'),
+                      DropdownButton<String>(
+                        value: translateSource,
+                        items: supportedLangCodes
+                            .map(
+                              (lc) => DropdownMenuItem(
+                                value: lc,
+                                child: Text('${lc.toUpperCase()} – ${langNameFor(AppLocalizations.of(context), lc)}'),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: translating
+                            ? null
+                            : (v) {
+                                if (v == null || v.isEmpty) return;
+                                setModalState(() => translateSource = v);
+                              },
+                      ),
+                      FilledButton.icon(
+                        icon: const Icon(Icons.auto_mode),
+                        label: Text(translating ? 'Übersetze…' : 'Alle Sprachen automatisch ausfüllen'),
+                        onPressed: translating
+                            ? null
+                            : () async {
+                                final baseTitle = titleCtrls[translateSource]?.text.trim() ?? '';
+                                final baseDesc = descCtrls[translateSource]?.text.trim() ?? '';
+                                if (baseTitle.isEmpty && baseDesc.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Bitte zuerst Titel oder Beschreibung in der Quellsprache eingeben.')),
+                                  );
+                                  return;
+                                }
+
+                                setModalState(() {
+                                  translating = true;
+                                  translateErr = null;
+                                });
+
+                                try {
+                                  final translations = await _api.translateFaqDraft(
+                                    sourceLang: translateSource,
+                                    targetLangs: supportedLangCodes.where((lc) => lc != translateSource).toList(),
+                                    title: baseTitle,
+                                    description: baseDesc,
+                                  );
+
+                                  translations.forEach((lc, fields) {
+                                    if (lc == translateSource) return;
+                                    final t = (fields['title'] ?? '').trim();
+                                    final d = (fields['description'] ?? '').trim();
+                                    if (t.isNotEmpty && titleCtrls.containsKey(lc)) {
+                                      titleCtrls[lc]!.text = t;
+                                    }
+                                    if (d.isNotEmpty && descCtrls.containsKey(lc)) {
+                                      descCtrls[lc]!.text = d;
+                                    }
+                                  });
+
+                                  if (translations.isNotEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Übersetzungen für ${translations.length} Sprachen eingefügt.')),
+                                    );
+                                  }
+                                } catch (e) {
+                                  setModalState(() {
+                                    translateErr = e.toString();
+                                  });
+                                } finally {
+                                  if (ctx.mounted) {
+                                    setModalState(() {
+                                      translating = false;
+                                    });
+                                  }
+                                }
+                              },
+                      ),
+                      if (translateErr != null)
+                        Text(
+                          translateErr!,
+                          style: TextStyle(color: Theme.of(context).colorScheme.error),
+                        ),
+                    ],
+                  ),
                 ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: orderCtrl,
                   keyboardType: TextInputType.number,
@@ -3941,22 +4069,36 @@ class _AdminPageState extends State<AdminPage> {
           ),
           FilledButton(
             onPressed: () async {
-              final title = titleCtrl.text.trim();
-              final desc = descCtrl.text.trim();
-              final order = int.tryParse(orderCtrl.text.trim());
-              if (title.isEmpty) {
+              final titles = <String, String>{};
+              final descriptions = <String, String>{};
+              for (final lc in supportedLangCodes) {
+                final t = titleCtrls[lc]?.text.trim() ?? '';
+                final d = descCtrls[lc]?.text.trim() ?? '';
+                if (t.isNotEmpty) titles[lc] = t;
+                if (d.isNotEmpty) descriptions[lc] = d;
+              }
+
+              if (titles.length != supportedLangCodes.length) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Titel darf nicht leer sein.')),
+                  const SnackBar(content: Text('Bitte alle Sprachen mit Titel ausfüllen.')),
                 );
                 return;
               }
+
+              final order = int.tryParse(orderCtrl.text.trim());
+              final primaryTitle = titles[translateSource] ?? titles['de'] ?? titles.values.first;
+              final primaryDescription = descriptions[translateSource] ?? descriptions['de'];
+
               try {
                 final saved = await _api.saveFaqCategory(
                   id: category?.id,
-                  title: title,
-                  description: desc.isEmpty ? null : desc,
+                  title: primaryTitle,
+                  titleIntl: titles,
+                  description: primaryDescription?.isEmpty == true ? null : primaryDescription,
+                  descriptionIntl: descriptions,
                   order: order,
                   active: active,
+                  primaryLang: translateSource,
                 );
                 if (!mounted) return;
                 setState(() {
@@ -3983,8 +4125,9 @@ class _AdminPageState extends State<AdminPage> {
       ),
     );
 
-    titleCtrl.dispose();
-    descCtrl.dispose();
+    for (final ctrl in [...titleCtrls.values, ...descCtrls.values]) {
+      ctrl.dispose();
+    }
     orderCtrl.dispose();
   }
 
@@ -4029,7 +4172,7 @@ class _AdminPageState extends State<AdminPage> {
                       .map(
                         (c) => DropdownMenuItem<String>(
                           value: c.id,
-                          child: Text(c.title),
+                          child: Text(c.localizedTitle(lang)),
                         ),
                       )
                       .toList(),
@@ -10556,17 +10699,23 @@ class AdminApi {
   Future<FaqCategory> saveFaqCategory({
     String? id,
     required String title,
+    Map<String, String>? titleIntl,
     String? description,
+    Map<String, String>? descriptionIntl,
     int? order,
     bool? active,
+    String? primaryLang,
   }) async {
     final body = <String, dynamic>{
       'type': 'category',
       if (id != null && id.isNotEmpty) 'id': id,
       'title': title,
+      if (titleIntl != null) 'titleIntl': titleIntl,
       if (description != null) 'description': description,
+      if (descriptionIntl != null) 'descriptionIntl': descriptionIntl,
       if (order != null) 'order': order,
       if (active != null) 'active': active,
+      if (primaryLang != null) 'lang': primaryLang,
     };
     final res = await _request('POST', '/api/admin/faq', body: body);
     if (res.status != 200) {
@@ -10618,6 +10767,8 @@ class AdminApi {
     required List<String> targetLangs,
     String? question,
     String? answer,
+    String? title,
+    String? description,
   }) async {
     final payload = <String, dynamic>{
       'sourceLang': sourceLang,
@@ -10629,6 +10780,12 @@ class AdminApi {
     }
     if (answer != null && answer.trim().isNotEmpty) {
       payload['answer'] = answer.trim();
+    }
+    if (title != null && title.trim().isNotEmpty) {
+      payload['title'] = title.trim();
+    }
+    if (description != null && description.trim().isNotEmpty) {
+      payload['description'] = description.trim();
     }
 
     final res = await _request('POST', '/api/admin/translate', body: payload);

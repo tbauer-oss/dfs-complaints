@@ -3,25 +3,59 @@
 class FaqCategory {
   final String id;
   final String title;
+  final Map<String, String> titleIntl;
   final String? description;
+  final Map<String, String> descriptionIntl;
   final int order;
   final bool active;
 
   const FaqCategory({
     required this.id,
     required this.title,
+    this.titleIntl = const {},
     this.description,
+    this.descriptionIntl = const {},
     this.order = 0,
     this.active = true,
   });
 
   factory FaqCategory.fromJson(Map<String, dynamic> json) {
+    Map<String, String> _intlMap(dynamic raw) {
+      if (raw is Map) {
+        return raw.map((key, value) {
+          final lang = _normLang(key.toString());
+          final text = value?.toString().trim();
+          if (lang.isEmpty || text == null || text.isEmpty) return MapEntry('', '');
+          return MapEntry(lang, text);
+        })..removeWhere((k, v) => k.isEmpty || v.isEmpty);
+      }
+      return const <String, String>{};
+    }
+
+    final titleIntl = _intlMap(json['titleIntl']);
+    final descriptionIntl = _intlMap(json['descriptionIntl']);
+    final preferredLang = _normLang(json['lang']?.toString() ?? json['language']?.toString());
+    final fallbackTitle = (json['title'] ?? json['name'] ?? '').toString();
+    final fallbackDescription = (json['description'] ?? '').toString();
+
+    if (fallbackTitle.isNotEmpty && preferredLang.isNotEmpty && !titleIntl.containsKey(preferredLang)) {
+      titleIntl[preferredLang] = fallbackTitle;
+    }
+    if (fallbackDescription.isNotEmpty && preferredLang.isNotEmpty && !descriptionIntl.containsKey(preferredLang)) {
+      descriptionIntl[preferredLang] = fallbackDescription;
+    }
+
+    final resolvedTitle = _resolveIntl(titleIntl, fallbackTitle, preferredLang).trim();
+    final resolvedDescription = _resolveIntl(descriptionIntl, fallbackDescription, preferredLang).trim();
+    final descriptionValue = resolvedDescription.isNotEmpty ? resolvedDescription : fallbackDescription;
+    final normalizedDescription = descriptionValue.trim();
+
     return FaqCategory(
       id: (json['id'] ?? '').toString(),
-      title: (json['title'] ?? '').toString(),
-      description: json['description'] == null
-          ? null
-          : json['description'].toString(),
+      title: resolvedTitle.isNotEmpty ? resolvedTitle : fallbackTitle,
+      titleIntl: titleIntl,
+      description: normalizedDescription.isEmpty ? null : normalizedDescription,
+      descriptionIntl: descriptionIntl,
       order: int.tryParse(json['order']?.toString() ?? '') ?? 0,
       active: json['active'] != false,
     );
@@ -30,11 +64,17 @@ class FaqCategory {
   Map<String, dynamic> toJson() => {
         'id': id,
         'title': title,
+        if (titleIntl.isNotEmpty) 'titleIntl': titleIntl,
         if (description != null && description!.isNotEmpty)
           'description': description,
+        if (descriptionIntl.isNotEmpty) 'descriptionIntl': descriptionIntl,
         'order': order,
         'active': active,
       };
+
+  String localizedTitle(String lang) => _resolveIntl(titleIntl, title, lang);
+
+  String localizedDescription(String lang) => _resolveIntl(descriptionIntl, description ?? '', lang);
 }
 
 class FaqEntry {

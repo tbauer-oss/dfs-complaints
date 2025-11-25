@@ -536,13 +536,24 @@ function _orderValue(value, fallback = 0) {
 function _normalizeStoredFaqCategory(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const id = (raw.id ?? '').toString().trim();
-  const title = _text(raw.title ?? raw.name ?? '', 200);
+  const preferredLang = normLang(raw.lang || raw.language || raw.primaryLang);
+  const titleIntl = _normalizeIntlMap(raw.titleIntl, 200);
+  const descriptionIntl = _normalizeIntlMap(raw.descriptionIntl, 2000);
+  const fallbackTitle = _text(raw.title ?? raw.name ?? '', 200);
+  const fallbackDescription = _text(raw.description ?? '', 2000);
+
+  if (fallbackTitle && !titleIntl[preferredLang]) titleIntl[preferredLang] = fallbackTitle;
+  if (fallbackDescription && !descriptionIntl[preferredLang]) descriptionIntl[preferredLang] = fallbackDescription;
+
+  const title = _resolveIntlValue(titleIntl, { preferred: preferredLang, fallback: fallbackTitle });
+  const description = _resolveIntlValue(descriptionIntl, { preferred: preferredLang, fallback: fallbackDescription });
   if (!id || !title) return null;
-  const description = _text(raw.description ?? '', 2000);
   return {
     id,
     title,
+    titleIntl,
     description: description || null,
+    descriptionIntl,
     order: _orderValue(raw.order, 0),
     active: raw.active === undefined ? true : Boolean(raw.active),
   };
@@ -589,16 +600,36 @@ function _normalizeStoredFaqEntry(raw, categories) {
 function _normalizeFaqCategoryPayload(input = {}, existing = null) {
   const now = Date.now();
   const base = existing ? { ...existing } : {};
-  const title = _text(input.title ?? input.name ?? base.title ?? '', 200);
-  if (!title) throw new Error('title required');
-  const description = _text(input.description ?? base.description ?? '', 2000);
+
+  const preferredLang = normLang(input.lang || input.language || input.primaryLang);
+  const titleIntl = {
+    ...(base.titleIntl || {}),
+    ..._normalizeIntlMap(input.titleIntl, 200),
+  };
+  const descriptionIntl = {
+    ...(base.descriptionIntl || {}),
+    ..._normalizeIntlMap(input.descriptionIntl, 2000),
+  };
+
+  const fallbackTitle = _text(input.title ?? input.name ?? base.title ?? '', 200);
+  const fallbackDescription = _text(input.description ?? base.description ?? '', 2000);
+
+  if (fallbackTitle && !titleIntl[preferredLang]) titleIntl[preferredLang] = fallbackTitle;
+  if (fallbackDescription && !descriptionIntl[preferredLang]) descriptionIntl[preferredLang] = fallbackDescription;
+
+  const resolvedTitle = _resolveIntlValue(titleIntl, { preferred: preferredLang, fallback: fallbackTitle });
+  const resolvedDescription = _resolveIntlValue(descriptionIntl, { preferred: preferredLang, fallback: fallbackDescription });
+
+  if (!resolvedTitle) throw new Error('title required');
 
   return {
     id:
       (input.id ?? base.id ?? '').toString().trim() ||
       `faq_cat_${now}_${Math.random().toString(36).slice(2, 8)}`,
-    title,
-    description: description || null,
+    title: resolvedTitle,
+    titleIntl,
+    description: resolvedDescription || null,
+    descriptionIntl,
     order: _orderValue(input.order, base.order ?? 0),
     active: input.active !== undefined ? Boolean(input.active) : Boolean(base.active ?? true),
   };
