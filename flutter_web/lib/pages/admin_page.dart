@@ -3110,9 +3110,14 @@ class _AdminPageState extends State<AdminPage> {
                       margin: const EdgeInsets.fromLTRB(12, 10, 12, 12),
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.surfaceVariant.withOpacity(0.35),
+                        color: Color.alphaBlend(
+                          theme.colorScheme.surfaceVariant.withOpacity(
+                            theme.brightness == Brightness.dark ? 0.36 : 0.6,
+                          ),
+                          theme.colorScheme.surface,
+                        ),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: theme.dividerColor.withOpacity(0.35)),
+                        border: Border.all(color: theme.dividerColor.withOpacity(0.4)),
                       ),
                       child: _buildNavigation(isCompact: _navCollapsed),
                     ),
@@ -3202,14 +3207,19 @@ class _AdminPageState extends State<AdminPage> {
   Widget _buildNavigation({required bool isCompact}) {
     final sections = _navSections();
     final theme = Theme.of(context);
+    final navForeground = theme.brightness == Brightness.dark
+        ? Colors.white.withOpacity(0.92)
+        : const Color(0xFF161616);
 
     Widget buildTile(_AdminNavItem item) {
       final selected = _view == item.view;
       final badge = item.badge;
-      final iconColor = selected ? theme.colorScheme.primary : theme.iconTheme.color;
+      final iconColor = selected
+          ? theme.colorScheme.primary
+          : theme.iconTheme.color ?? navForeground.withOpacity(0.85);
       final textStyle = theme.textTheme.bodyMedium?.copyWith(
         fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-        color: selected ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+        color: selected ? theme.colorScheme.primary : navForeground,
       );
 
       return Tooltip(
@@ -3240,49 +3250,58 @@ class _AdminPageState extends State<AdminPage> {
       );
     }
 
-    return ListView(
-      padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 14, vertical: 10),
-      children: [
-        Padding(
-          padding: EdgeInsets.fromLTRB(isCompact ? 4 : 10, 6, 10, 12),
-          child: Row(
-            children: [
-              const Icon(Icons.shield_outlined, size: 22),
-              if (!isCompact) ...[
-                const SizedBox(width: 10),
-                Text(
-                  'Dashboard',
-                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                ),
-              ],
-            ],
-          ),
-        ),
-        for (final section in sections) ...[
-          if (!isCompact)
+    return IconTheme(
+      data: theme.iconTheme.copyWith(color: navForeground.withOpacity(0.9)),
+      child: DefaultTextStyle.merge(
+        style: theme.textTheme.bodyMedium?.copyWith(color: navForeground),
+        child: ListView(
+          padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 14, vertical: 10),
+          children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(10, 12, 10, 6),
-              child: Text(
-                section.title,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: theme.colorScheme.onSurfaceVariant,
-                  letterSpacing: 0.4,
-                ),
+              padding: EdgeInsets.fromLTRB(isCompact ? 4 : 10, 6, 10, 12),
+              child: Row(
+                children: [
+                  Icon(Icons.shield_outlined, size: 22, color: navForeground.withOpacity(0.92)),
+                  if (!isCompact) ...[
+                    const SizedBox(width: 10),
+                    Text(
+                      'Dashboard',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: navForeground,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
-          ...section.items.map(buildTile),
-          const SizedBox(height: 6),
-          if (!isCompact)
-            Divider(
-              height: 0,
-              thickness: 0.7,
-              indent: 10,
-              endIndent: 10,
-              color: theme.dividerColor.withOpacity(0.5),
-            ),
-        ],
-      ],
+            for (final section in sections) ...[
+              if (!isCompact)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 12, 10, 6),
+                  child: Text(
+                    section.title,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: navForeground.withOpacity(0.7),
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+              ...section.items.map(buildTile),
+              const SizedBox(height: 6),
+              if (!isCompact)
+                Divider(
+                  height: 0,
+                  thickness: 0.7,
+                  indent: 10,
+                  endIndent: 10,
+                  color: theme.dividerColor.withOpacity(0.5),
+                ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 
