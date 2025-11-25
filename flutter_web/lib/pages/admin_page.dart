@@ -16,6 +16,7 @@ import '../data/knowledge_base_data.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/dialog_content_scroll.dart';
 import '../widgets/legal_footer.dart';
+import '../widgets/theme_action.dart' as w;
 import '../utils/lang_utils.dart';
 import 'admin_stats_page.dart';
 
@@ -3201,6 +3202,13 @@ class _AdminPageState extends State<AdminPage> {
         ],
       ),
       actions: [
+        IconButton(
+          tooltip: 'Zurück zum Admin-Dashboard',
+          onPressed: () => setState(() => _view = _AdminView.menu),
+          icon: const Icon(Icons.home_outlined),
+        ),
+        w.ThemeAction(),
+        const SizedBox(width: 2),
         IconButton(
           tooltip: 'Alles neu laden',
           onPressed: () async {
