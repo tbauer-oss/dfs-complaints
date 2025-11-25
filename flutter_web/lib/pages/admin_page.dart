@@ -187,6 +187,8 @@ class _AdminPageState extends State<AdminPage> {
   bool _showBulkAssignAll = false;
   bool _showBulkAssignOpen = false;
 
+  bool _navCollapsed = false;
+
   // Mehrfach-Zuordnung interne Nummer
   final Set<String> _selectedAllTickets = <String>{};
   final Set<String> _selectedOpenTickets = <String>{};
@@ -3089,46 +3091,346 @@ class _AdminPageState extends State<AdminPage> {
         }
         return true;
       },
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(title),
-          leading: _view == _AdminView.menu
-              ? IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: () => Navigator.of(context).pop(),
-                )
-              : IconButton(
-                  icon: const Icon(Icons.home_outlined),
-                  tooltip: 'Zurück zum Admin-Menü',
-                  onPressed: () => setState(() => _view = _AdminView.menu),
-                ),
-          actions: [
-          IconButton(
-            tooltip: 'Alles neu laden',
-            onPressed: () async {
-              await _refreshAll();
-              await _refreshAllComplaints();
-              await _refreshOpen();
-              await _refreshNews();
-              await _refreshFaq();
-            },
-            icon: const Icon(Icons.refresh),
-          ),
-          const SizedBox(width: 6),
-        ],
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1200),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: _buildBody(theme),
-          ),
-        ),
-        ),
-        bottomNavigationBar: LegalFooter(api: widget.api),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 960;
+
+          return Scaffold(
+            backgroundColor: theme.colorScheme.surface,
+            drawer: isNarrow ? Drawer(child: _buildNavigation(isCompact: false)) : null,
+            appBar: _buildTopBar(title, isNarrow: isNarrow),
+            body: SafeArea(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (!isNarrow)
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      width: _navCollapsed ? 76 : 280,
+                      margin: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Color.alphaBlend(
+                          theme.colorScheme.surfaceVariant.withOpacity(
+                            theme.brightness == Brightness.dark ? 0.36 : 0.6,
+                          ),
+                          theme.colorScheme.surface,
+                        ),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: theme.dividerColor.withOpacity(0.4)),
+                      ),
+                      child: _buildNavigation(isCompact: _navCollapsed),
+                    ),
+                  Expanded(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1280),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          switchInCurve: Curves.easeOutQuad,
+                          switchOutCurve: Curves.easeInQuad,
+                          child: Padding(
+                            key: ValueKey(_view),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isNarrow ? 12 : 18,
+                              vertical: isNarrow ? 12 : 18,
+                            ),
+                            child: _buildBody(theme),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            bottomNavigationBar: LegalFooter(api: widget.api),
+          );
+        },
       ),
     );
+  }
+
+  PreferredSizeWidget _buildTopBar(String title, {required bool isNarrow}) {
+    final theme = Theme.of(context);
+    final onSurfaceMuted = theme.textTheme.labelMedium?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+      fontWeight: FontWeight.w500,
+      letterSpacing: 0.2,
+    );
+
+    return AppBar(
+      backgroundColor: theme.colorScheme.surface,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      automaticallyImplyLeading: false,
+      leadingWidth: 56,
+      leading: isNarrow
+          ? Builder(
+              builder: (context) => IconButton(
+                icon: const Icon(Icons.menu),
+                tooltip: 'Navigation öffnen',
+                onPressed: () => Scaffold.of(context).openDrawer(),
+              ),
+            )
+          : IconButton(
+              icon: Icon(_navCollapsed ? Icons.chevron_right : Icons.chevron_left),
+              tooltip: _navCollapsed ? 'Sidebar erweitern' : 'Sidebar einklappen',
+              onPressed: () => setState(() => _navCollapsed = !_navCollapsed),
+            ),
+      titleSpacing: isNarrow ? 0 : 12,
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Adminbereich', style: onSurfaceMuted),
+          const SizedBox(height: 2),
+          Text(title, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+        ],
+      ),
+      actions: [
+        IconButton(
+          tooltip: 'Alles neu laden',
+          onPressed: () async {
+            await _refreshAll();
+            await _refreshAllComplaints();
+            await _refreshOpen();
+            await _refreshNews();
+            await _refreshFaq();
+          },
+          icon: const Icon(Icons.refresh),
+        ),
+        const SizedBox(width: 6),
+      ],
+    );
+  }
+
+  Widget _buildNavigation({required bool isCompact}) {
+    final sections = _navSections();
+    final theme = Theme.of(context);
+    final navForeground = theme.brightness == Brightness.dark
+        ? Colors.white.withOpacity(0.92)
+        : const Color(0xFF161616);
+
+    Widget buildTile(_AdminNavItem item) {
+      final selected = _view == item.view;
+      final badge = item.badge;
+      final iconColor = selected
+          ? theme.colorScheme.primary
+          : theme.iconTheme.color ?? navForeground.withOpacity(0.85);
+      final textStyle = theme.textTheme.bodyMedium?.copyWith(
+        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+        color: selected ? theme.colorScheme.primary : navForeground,
+      );
+
+      return Tooltip(
+        message: isCompact ? item.label : null,
+        preferBelow: false,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () {
+            Scaffold.maybeOf(context)?.closeDrawer();
+            if (_view != item.view) {
+              setState(() => _view = item.view);
+            }
+          },
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: isCompact ? 10 : 12, vertical: 10),
+            child: Row(
+              children: [
+                Icon(item.icon, size: 22, color: iconColor),
+                if (!isCompact) ...[
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(item.label, style: textStyle)),
+                  if (badge != null) _buildNavBadge(badge, selected: selected),
+                ],
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return IconTheme(
+      data: theme.iconTheme.copyWith(color: navForeground.withOpacity(0.9)),
+      child: DefaultTextStyle.merge(
+        style: theme.textTheme.bodyMedium?.copyWith(color: navForeground),
+        child: ListView(
+          padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 14, vertical: 10),
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(isCompact ? 4 : 10, 6, 10, 12),
+              child: Row(
+                children: [
+                  Icon(Icons.shield_outlined, size: 22, color: navForeground.withOpacity(0.92)),
+                  if (!isCompact) ...[
+                    const SizedBox(width: 10),
+                    Text(
+                      'Dashboard',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: navForeground,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            for (final section in sections) ...[
+              if (!isCompact)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 12, 10, 6),
+                  child: Text(
+                    section.title,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: navForeground.withOpacity(0.7),
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+              ...section.items.map(buildTile),
+              const SizedBox(height: 6),
+              if (!isCompact)
+                Divider(
+                  height: 0,
+                  thickness: 0.7,
+                  indent: 10,
+                  endIndent: 10,
+                  color: theme.dividerColor.withOpacity(0.5),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavBadge(String label, {required bool selected}) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: selected
+            ? theme.colorScheme.primary.withOpacity(0.14)
+            : theme.colorScheme.surfaceVariant.withOpacity(0.7),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: theme.textTheme.labelMedium?.copyWith(
+          color: selected ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  List<_AdminNavSection> _navSections() {
+    return [
+      _AdminNavSection(
+        title: 'Dashboard',
+        items: [
+          _AdminNavItem(
+            label: 'Dashboard',
+            icon: Icons.dashboard_outlined,
+            view: _AdminView.menu,
+          ),
+        ],
+      ),
+      _AdminNavSection(
+        title: 'Vorgänge',
+        items: [
+          _AdminNavItem(
+            label: 'Offene Reklamationen',
+            icon: Icons.assignment_late_outlined,
+            view: _AdminView.open,
+            badge: _openComplaints.isNotEmpty ? '${_openComplaints.length}' : null,
+          ),
+          _AdminNavItem(
+            label: 'Alle Reklamationen',
+            icon: Icons.dashboard_customize_outlined,
+            view: _AdminView.all,
+            badge: _allComplaints.isNotEmpty ? '${_allComplaints.length}' : null,
+          ),
+          _AdminNavItem(
+            label: 'Pending / Review',
+            icon: Icons.hourglass_bottom_outlined,
+            view: _AdminView.pending,
+            badge: _pending.isNotEmpty ? '${_pending.length}' : null,
+          ),
+        ],
+      ),
+      _AdminNavSection(
+        title: 'Kunden & Reps',
+        items: [
+          _AdminNavItem(
+            label: 'Kundendatenbank',
+            icon: Icons.people_outline,
+            view: _AdminView.users,
+            badge: _users.isNotEmpty ? '${_users.length}' : null,
+          ),
+          _AdminNavItem(
+            label: 'Kunden anlegen',
+            icon: Icons.person_add_alt_1_outlined,
+            view: _AdminView.createCustomer,
+          ),
+          _AdminNavItem(
+            label: 'Vertreterverwaltung',
+            icon: Icons.support_agent_outlined,
+            view: _AdminView.reps,
+            badge: _reps.isNotEmpty ? '${_reps.length}' : null,
+          ),
+          _AdminNavItem(
+            label: 'Aktivität',
+            icon: Icons.query_stats_outlined,
+            view: _AdminView.activity,
+          ),
+        ],
+      ),
+      _AdminNavSection(
+        title: 'Inhalte',
+        items: [
+          _AdminNavItem(
+            label: 'News & Infos',
+            icon: Icons.campaign_outlined,
+            view: _AdminView.news,
+          ),
+          _AdminNavItem(
+            label: 'FAQ / Wissen',
+            icon: Icons.help_outline,
+            view: _AdminView.faq,
+          ),
+          _AdminNavItem(
+            label: 'Kataloge',
+            icon: Icons.menu_book_outlined,
+            view: _AdminView.catalogs,
+          ),
+          _AdminNavItem(
+            label: 'Push-Broadcasts',
+            icon: Icons.wifi_tethering_outlined,
+            view: _AdminView.pushBroadcast,
+            badge: _pushResult?.totalTokens != null && _pushResult!.totalTokens! > 0
+                ? '${_pushResult!.totalTokens}'
+                : null,
+          ),
+        ],
+      ),
+      _AdminNavSection(
+        title: 'System',
+        items: [
+          _AdminNavItem(
+            label: 'Systemstatus',
+            icon: Icons.health_and_safety_outlined,
+            view: _AdminView.systemHealth,
+          ),
+          _AdminNavItem(
+            label: 'Aktivitäts-Checks',
+            icon: Icons.analytics_outlined,
+            view: _AdminView.activity,
+          ),
+        ],
+      ),
+    ];
   }
 
   Widget _buildBody(ThemeData theme) {
@@ -6160,6 +6462,30 @@ class _Field extends StatelessWidget {
       ),
     );
   }
+}
+
+// ===================================================================
+// Navigation (Sidebar)
+// ===================================================================
+class _AdminNavItem {
+  const _AdminNavItem({
+    required this.label,
+    required this.icon,
+    required this.view,
+    this.badge,
+  });
+
+  final String label;
+  final IconData icon;
+  final _AdminView view;
+  final String? badge;
+}
+
+class _AdminNavSection {
+  const _AdminNavSection({required this.title, required this.items});
+
+  final String title;
+  final List<_AdminNavItem> items;
 }
 
 // ===================================================================
