@@ -3792,7 +3792,7 @@ class _AdminPageState extends State<AdminPage> {
 
   void _resetMenuLayout() {
     setState(() {
-      _menuSections = _baseMenuSections();
+      _menuSections = _baseMenuSections().map((s) => s.copy()).toList();
     });
     _persistMenuLayout();
   }
