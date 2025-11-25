@@ -3539,24 +3539,38 @@ class _AdminPageState extends State<AdminPage> {
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.5)),
               ),
-              child: Row(
-                children: [
-                  Icon(Icons.tips_and_updates_outlined, size: 18, color: subtle),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Navigation anpassbar: einklappen, Badges immer sichtbar, klare Gruppen.',
-                      style: theme.textTheme.labelSmall?.copyWith(color: subtle),
+              child: isCompact
+                  ? Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.tips_and_updates_outlined, size: 18, color: subtle),
+                        const SizedBox(width: 10),
+                        IconButton(
+                          tooltip: _navCollapsed ? 'Sidebar erweitern' : 'Sidebar einklappen',
+                          icon: Icon(_navCollapsed ? Icons.chevron_right : Icons.chevron_left, color: subtle),
+                          onPressed: () => setState(() => _navCollapsed = !_navCollapsed),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        Icon(Icons.tips_and_updates_outlined, size: 18, color: subtle),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Navigation anpassbar: einklappen, Badges immer sichtbar, klare Gruppen.',
+                            style: theme.textTheme.labelSmall?.copyWith(color: subtle),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: _navCollapsed ? 'Sidebar erweitern' : 'Sidebar einklappen',
+                          icon: Icon(_navCollapsed ? Icons.chevron_right : Icons.chevron_left, color: subtle),
+                          onPressed: () => setState(() => _navCollapsed = !_navCollapsed),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ],
                     ),
-                  ),
-                  IconButton(
-                    tooltip: _navCollapsed ? 'Sidebar erweitern' : 'Sidebar einklappen',
-                    icon: Icon(_navCollapsed ? Icons.chevron_right : Icons.chevron_left, color: subtle),
-                    onPressed: () => setState(() => _navCollapsed = !_navCollapsed),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ],
-              ),
             ),
           ),
         ],
