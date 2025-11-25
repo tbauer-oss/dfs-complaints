@@ -3110,14 +3110,9 @@ class _AdminPageState extends State<AdminPage> {
                       margin: const EdgeInsets.fromLTRB(12, 10, 12, 12),
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
-                        color: Color.alphaBlend(
-                          theme.colorScheme.surfaceVariant.withOpacity(
-                            theme.brightness == Brightness.dark ? 0.36 : 0.6,
-                          ),
-                          theme.colorScheme.surface,
-                        ),
+                        color: theme.colorScheme.surfaceContainerHigh,
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: theme.dividerColor.withOpacity(0.4)),
+                        border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.7)),
                       ),
                       child: _buildNavigation(isCompact: _navCollapsed),
                     ),
@@ -3207,16 +3202,19 @@ class _AdminPageState extends State<AdminPage> {
   Widget _buildNavigation({required bool isCompact}) {
     final sections = _navSections();
     final theme = Theme.of(context);
-    final navForeground = theme.brightness == Brightness.dark
-        ? Colors.white.withOpacity(0.92)
-        : const Color(0xFF161616);
+    final navForeground = theme.colorScheme.onSurface.withOpacity(
+      theme.brightness == Brightness.dark ? 0.94 : 0.9,
+    );
+    final navSecondary = theme.colorScheme.onSurfaceVariant.withOpacity(
+      theme.brightness == Brightness.dark ? 0.88 : 0.8,
+    );
 
     Widget buildTile(_AdminNavItem item) {
       final selected = _view == item.view;
       final badge = item.badge;
       final iconColor = selected
           ? theme.colorScheme.primary
-          : theme.iconTheme.color ?? navForeground.withOpacity(0.85);
+          : theme.iconTheme.color ?? navSecondary;
       final textStyle = theme.textTheme.bodyMedium?.copyWith(
         fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
         color: selected ? theme.colorScheme.primary : navForeground,
@@ -3251,7 +3249,7 @@ class _AdminPageState extends State<AdminPage> {
     }
 
     return IconTheme(
-      data: theme.iconTheme.copyWith(color: navForeground.withOpacity(0.9)),
+      data: theme.iconTheme.copyWith(color: navSecondary),
       child: DefaultTextStyle.merge(
         style: theme.textTheme.bodyMedium?.copyWith(color: navForeground),
         child: ListView(
