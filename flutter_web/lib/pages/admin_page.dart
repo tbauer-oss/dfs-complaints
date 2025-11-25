@@ -3226,8 +3226,8 @@ class _AdminPageState extends State<AdminPage> {
     final accent = theme.colorScheme.primary;
     final gradient = LinearGradient(
       colors: [
-        theme.colorScheme.surface,
-        Color.alphaBlend(theme.colorScheme.primary.withOpacity(0.04), theme.colorScheme.surface),
+        Color.alphaBlend(theme.colorScheme.surfaceVariant.withOpacity(0.35), theme.colorScheme.surface),
+        Color.alphaBlend(accent.withOpacity(theme.brightness == Brightness.dark ? 0.16 : 0.08), theme.colorScheme.surface),
       ],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
@@ -3245,60 +3245,87 @@ class _AdminPageState extends State<AdminPage> {
               : _buildNavBadge(badge, selected: selected);
 
       final content = AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
+        duration: const Duration(milliseconds: 240),
         curve: Curves.easeOutCubic,
-        padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 12, vertical: 8),
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: EdgeInsets.symmetric(horizontal: isCompact ? 10 : 14, vertical: isCompact ? 10 : 12),
         decoration: BoxDecoration(
           color: selected
-              ? theme.colorScheme.primary.withOpacity(theme.brightness == Brightness.dark ? 0.12 : 0.08)
-              : Colors.transparent,
+              ? accent.withOpacity(theme.brightness == Brightness.dark ? 0.16 : 0.12)
+              : theme.colorScheme.surface.withOpacity(theme.brightness == Brightness.dark ? 0.2 : 0.6),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: selected ? accent.withOpacity(0.25) : theme.dividerColor.withOpacity(0.18),
+            color: selected ? accent.withOpacity(0.35) : theme.colorScheme.outlineVariant.withOpacity(0.4),
           ),
+          boxShadow: [
+            BoxShadow(
+              color: accent.withOpacity(selected ? 0.26 : 0.08),
+              blurRadius: selected ? 16 : 8,
+              offset: const Offset(0, 6),
+            ),
+          ],
         ),
         child: Row(
           children: [
             AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: 3,
-              height: 24,
-              margin: EdgeInsets.only(right: isCompact ? 4 : 10),
+              duration: const Duration(milliseconds: 240),
+              width: 4,
+              height: isCompact ? 24 : 32,
+              margin: EdgeInsets.only(right: isCompact ? 6 : 12),
               decoration: BoxDecoration(
                 color: selected ? accent : Colors.transparent,
+                gradient: selected
+                    ? LinearGradient(
+                        colors: [accent, accent.withOpacity(0.4)],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      )
+                    : null,
                 borderRadius: BorderRadius.circular(999),
               ),
             ),
-            Icon(item.icon, size: 21, color: iconColor),
+            Icon(item.icon, size: 22, color: iconColor),
             if (!isCompact) ...[
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       item.label,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
                         color: baseColor,
                         letterSpacing: 0.1,
                       ),
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      selected ? 'Aktiv' : 'Tippen zum Anzeigen',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: navSecondary,
-                        letterSpacing: 0.2,
+                    AnimatedOpacity(
+                      duration: const Duration(milliseconds: 200),
+                      opacity: selected ? 1 : 0.85,
+                      child: Text(
+                        selected ? 'Gerade geöffnet' : 'Antippen zum Öffnen',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: navSecondary,
+                          letterSpacing: 0.2,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-              if (badgeWidget != null) badgeWidget,
+              if (badgeWidget != null) ...[
+                const SizedBox(width: 8),
+                badgeWidget,
+              ],
+              const SizedBox(width: 6),
+              Icon(Icons.chevron_right, size: 18, color: navSecondary),
             ] else ...[
               const Spacer(),
-              if (badgeWidget != null) badgeWidget,
+              if (badgeWidget != null) ...[
+                const SizedBox(width: 6),
+                badgeWidget,
+              ],
             ],
           ],
         ),
@@ -3321,10 +3348,122 @@ class _AdminPageState extends State<AdminPage> {
       );
     }
 
+    Widget buildHeader() {
+      return Padding(
+        padding: EdgeInsets.fromLTRB(isCompact ? 10 : 16, 8, isCompact ? 10 : 16, isCompact ? 8 : 14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          padding: EdgeInsets.symmetric(horizontal: isCompact ? 10 : 14, vertical: 12),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                accent.withOpacity(theme.brightness == Brightness.dark ? 0.24 : 0.18),
+                theme.colorScheme.surfaceVariant.withOpacity(0.4),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: accent.withOpacity(0.35)),
+            boxShadow: [
+              BoxShadow(
+                color: accent.withOpacity(0.16),
+                blurRadius: 20,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: theme.colorScheme.onSurface.withOpacity(0.06),
+                  border: Border.all(color: accent.withOpacity(0.35)),
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Icon(Icons.shield_person_outlined, color: accent, size: 24),
+                    Positioned(
+                      right: 6,
+                      bottom: 6,
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: Colors.greenAccent.withOpacity(0.9),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(color: Colors.greenAccent.withOpacity(0.6), blurRadius: 8),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (!isCompact) ...[
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Admin Control',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: navForeground,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: const [
+                          _FeatureHighlight(icon: Icons.bolt, label: 'Schnellzugriff'),
+                          _FeatureHighlight(icon: Icons.auto_awesome, label: 'Neues Design'),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton.filledTonal(
+                  visualDensity: VisualDensity.compact,
+                  icon: Icon(isCompact ? Icons.chevron_right : Icons.chevron_left),
+                  tooltip: isCompact ? 'Sidebar erweitern' : 'Sidebar einklappen',
+                  onPressed: () => setState(() => _navCollapsed = !_navCollapsed),
+                ),
+              ] else ...[
+                const Spacer(),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  icon: Icon(isCompact ? Icons.chevron_right : Icons.chevron_left),
+                  tooltip: isCompact ? 'Sidebar erweitern' : 'Sidebar einklappen',
+                  onPressed: () => setState(() => _navCollapsed = !_navCollapsed),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
     return Container(
       decoration: BoxDecoration(
         gradient: gradient,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.4)),
+        boxShadow: [
+          BoxShadow(
+            color: theme.shadowColor.withOpacity(0.12),
+            blurRadius: 18,
+            offset: const Offset(0, 12),
+          ),
+        ],
       ),
       child: IconTheme(
         data: theme.iconTheme.copyWith(color: navSecondary),
@@ -3332,50 +3471,23 @@ class _AdminPageState extends State<AdminPage> {
           style: theme.textTheme.bodyMedium?.copyWith(color: navForeground),
           child: Column(
             children: [
-              Padding(
-                padding: EdgeInsets.fromLTRB(isCompact ? 8 : 14, 4, isCompact ? 8 : 14, 10),
-                child: Row(
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        color: accent.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: accent.withOpacity(0.25)),
-                      ),
-                      padding: const EdgeInsets.all(8),
-                      child: Icon(Icons.shield_outlined, size: 22, color: accent),
-                    ),
-                    if (!isCompact) ...[
-                      const SizedBox(width: 10),
+              buildHeader(),
+              if (!isCompact)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+                  child: Row(
+                    children: [
+                      Icon(Icons.blur_on, color: navSecondary, size: 18),
+                      const SizedBox(width: 8),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Adminbereich',
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.1,
-                              ),
-                            ),
-                            Text(
-                              'Navigation & Übersicht',
-                              style: theme.textTheme.labelSmall?.copyWith(color: navSecondary),
-                            ),
-                          ],
+                        child: Text(
+                          'Smartere Sidebar mit Glaseffekt und Badges – auch eingeklappt.',
+                          style: theme.textTheme.labelSmall?.copyWith(color: navSecondary),
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      IconButton.filledTonal(
-                        visualDensity: VisualDensity.compact,
-                        icon: Icon(isCompact ? Icons.chevron_right : Icons.chevron_left),
-                        tooltip: isCompact ? 'Sidebar erweitern' : 'Sidebar einklappen',
-                        onPressed: () => setState(() => _navCollapsed = !_navCollapsed),
-                      ),
                     ],
-                  ],
+                  ),
                 ),
-              ),
               Expanded(
                 child: Scrollbar(
                   thickness: 4,
@@ -3385,10 +3497,14 @@ class _AdminPageState extends State<AdminPage> {
                     padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 14, vertical: 6),
                     children: [
                       for (final section in sections) ...[
-                        _NavigationSection(
-                          title: section.title,
-                          isCompact: isCompact,
-                          children: section.items.map(buildTile).toList(),
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 180),
+                          child: _NavigationSection(
+                            key: ValueKey('${section.title}-$isCompact'),
+                            title: section.title,
+                            isCompact: isCompact,
+                            children: section.items.map(buildTile).toList(),
+                          ),
                         ),
                         const SizedBox(height: 8),
                       ],
@@ -3396,22 +3512,23 @@ class _AdminPageState extends State<AdminPage> {
                   ),
                 ),
               ),
-              if (!isCompact)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 6, 14, 10),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.info_outline, size: 18),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Tipp: Sidebar lässt sich einklappen und zeigt Badges auch im kompakten Modus.',
-                          style: theme.textTheme.labelSmall?.copyWith(color: navSecondary),
-                        ),
+              Padding(
+                padding: EdgeInsets.fromLTRB(isCompact ? 10 : 16, 6, isCompact ? 10 : 16, 12),
+                child: Row(
+                  children: [
+                    Icon(Icons.waves_outlined, size: 18, color: navSecondary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        isCompact
+                            ? 'Badges & Status bleiben sichtbar.'
+                            : 'Tipp: Sidebar lässt sich einklappen – Badges und Glow bleiben sichtbar.',
+                        style: theme.textTheme.labelSmall?.copyWith(color: navSecondary),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
+              ),
             ],
           ),
         ),
