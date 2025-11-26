@@ -204,7 +204,7 @@ class _AdminPageState extends State<AdminPage> {
   // Admin-Dashboard-Bearbeitung
   bool _menuEditMode = false;
 
-  bool _navCollapsed = false;
+  bool _navCollapsed = true;
 
   // Mehrfach-Zuordnung interne Nummer
   final Set<String> _selectedAllTickets = <String>{};
@@ -3690,8 +3690,11 @@ class _AdminPageState extends State<AdminPage> {
             child: Scrollbar(
               thickness: 4,
               radius: const Radius.circular(12),
+              interactive: true,
+              thumbVisibility: true,
               child: ListView(
                 primary: false,
+                physics: const ClampingScrollPhysics(),
                 padding: EdgeInsets.symmetric(horizontal: isCompact ? 6 : 16, vertical: isCompact ? 4 : 8),
                 children: [
                   for (final section in sections) ...[
