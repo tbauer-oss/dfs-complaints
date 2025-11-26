@@ -654,6 +654,8 @@ class _MyAppState extends State<MyApp> {
                   return ComplaintChatPage(
                     role: args.role,
                     ticket: args.ticket,
+                    contacts: args.contacts,
+                    defaultContact: args.defaultContact,
                   );
                 }
 

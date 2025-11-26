@@ -1226,6 +1226,8 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                   '/internal-chat',
                   arguments: const ComplaintChatPageArgs(
                     role: ComplaintChatRole.rep,
+                    contacts: ['QM / Admin'],
+                    defaultContact: 'QM / Admin',
                   ),
                 );
               },
