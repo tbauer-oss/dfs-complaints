@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../api/client.dart';
 import 'rep_profile_page.dart';
+import '../models/complaint_chat.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:dfs_mobile/web_compat/html_stub.dart'
@@ -17,6 +18,7 @@ import '../widgets/legal_footer.dart';
 import '../services/push_notifications.dart';
 import '../models/country.dart';
 import '../widgets/password_field.dart';
+import 'package:intl/intl.dart';
 
 // ---- L10n-Helper (top-level) ----
 extension _L10nX on BuildContext {
@@ -926,6 +928,27 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     return co.isNotEmpty ? co : em;
   }
 
+  double? _parseSalesValue(Map<String, Object?> c) {
+    final raw = c['sales'] ?? c['salesVolume'] ?? c['revenue'] ?? c['turnover'];
+    if (raw == null) return null;
+
+    final sanitized = raw
+        .toString()
+        .replaceAll('€', '')
+        .replaceAll(' ', '')
+        .replaceAll('.', '')
+        .replaceAll(',', '.')
+        .trim();
+    return double.tryParse(sanitized);
+  }
+
+  String _formatSalesValue(double? v) {
+    if (v == null) return context.t.rep_customer_performance_no_sales ?? context.t.noData;
+    final locale = Localizations.localeOf(context).toLanguageTag();
+    final formatter = NumberFormat.compactCurrency(locale: locale, symbol: '€');
+    return formatter.format(v);
+  }
+
   int? _timestampMs(dynamic value) {
     if (value == null) return null;
     if (value is int) return value > 20000000000 ? value : value * 1000;
@@ -1142,15 +1165,23 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             _view = _RepView.open;
           }),
         ),
-        _MenuCard(
-          color: Colors.purple,
-          icon: Icons.chat_bubble_outline,
-          title: 'Interner Chat',
-          subtitle: 'QM ↔ Vertreter pro Fall',
-          count: null,
-          compact: compact,
-          scale: scale,
-          onTap: () => Navigator.of(context).pushNamed('/internal-chat-demo'),
+        ValueListenableBuilder<int>(
+          valueListenable: ComplaintChatInboxState.unreadForRep,
+          builder: (_, unread, __) {
+            return _MenuCard(
+              color: Colors.purple,
+              icon: Icons.chat_bubble_outline,
+              title: 'Interner Chat',
+              subtitle: 'QM ↔ Vertreter pro Fall',
+              count: unread > 0 ? unread : null,
+              compact: compact,
+              scale: scale,
+              onTap: () => Navigator.of(context).pushNamed(
+                '/internal-chat',
+                arguments: const ComplaintChatPageArgs(role: ComplaintChatRole.rep),
+              ),
+            );
+          },
         ),
         _MenuCard(
           color: Colors.indigo,
@@ -1541,6 +1572,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
               final lastInteraction = lastInteractionMs != null
                   ? _formatCreated(lastInteractionMs)
                   : (t.noData ?? '-');
+              final sales = _formatSalesValue(_parseSalesValue(c));
               final isNew = !_seenCustomers.contains(normalizedEmail);
 
               return SizedBox(
@@ -1551,6 +1583,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                   openCount: openCount,
                   totalCount: totalCount,
                   pendingActions: pendingActions,
+                  salesLabel: sales,
                   lastInteractionLabel: lastInteraction,
                   isNew: isNew,
                   onOpen: () {
@@ -2524,6 +2557,7 @@ class _CustomerPerformanceTile extends StatelessWidget {
   final int openCount;
   final int totalCount;
   final int pendingActions;
+  final String salesLabel;
   final String lastInteractionLabel;
   final bool isNew;
   final VoidCallback onOpen;
@@ -2534,6 +2568,7 @@ class _CustomerPerformanceTile extends StatelessWidget {
     required this.openCount,
     required this.totalCount,
     required this.pendingActions,
+    required this.salesLabel,
     required this.lastInteractionLabel,
     required this.isNew,
     required this.onOpen,
@@ -2681,6 +2716,8 @@ class _CustomerPerformanceTile extends StatelessWidget {
             const SizedBox(height: 12),
             const Divider(height: 1),
             const SizedBox(height: 10),
+            meta(Icons.euro_rounded, context.t.rep_customer_performance_sales ?? 'Verkaufszahlen', salesLabel),
+            const SizedBox(height: 8),
             meta(
               Icons.access_time,
               context.t.rep_customer_performance_last_interaction ?? 'Letzte Interaktion',
