@@ -32,7 +32,8 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
   late List<DfsProduct> _items;
   final Map<String, TextEditingController> _filterCtrls = {};
   String _globalSearch = '';
-  int? _rowsPerPage;
+  int _rowsPerPage = 10;
+  final _tableScrollController = ScrollController();
 
   static const _dropdownKeys = <String>{
     'td_number_and_name',
@@ -69,6 +70,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
 
   @override
   void dispose() {
+    _tableScrollController.dispose();
     for (final ctrl in _filterCtrls.values) {
       ctrl.dispose();
     }
@@ -297,7 +299,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
       onDelete: _deleteProduct,
     );
 
-    var rowsPerPage = _rowsPerPage ?? PaginatedDataTable.defaultRowsPerPage;
+    var rowsPerPage = _rowsPerPage;
     if (filtered.isNotEmpty) {
       rowsPerPage = math.min(rowsPerPage, filtered.length);
     }
@@ -372,18 +374,42 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Wrap(
-              spacing: 12,
-              runSpacing: 12,
+              spacing: 8,
+              runSpacing: 8,
               children: DfsProduct.fieldOrder.map((key) {
                 final label = DfsProduct.fieldLabels[key] ?? key;
                 final ctrl = _filterCtrls[key]!;
+                final options = _dropdownKeys.contains(key) ? _optionsFor(key) : const <String>[];
+
+                if (_dropdownKeys.contains(key)) {
+                  return SizedBox(
+                    width: 200,
+                    child: DropdownMenu<String>(
+                      controller: ctrl,
+                      label: Text(label),
+                      enableFilter: true,
+                      enableSearch: true,
+                      leadingIcon: const Icon(Icons.filter_alt_outlined),
+                      dropdownMenuEntries: options
+                          .map((v) => DropdownMenuEntry<String>(value: v, label: v))
+                          .toList(),
+                      inputDecorationTheme: const InputDecorationTheme(
+                        isDense: true,
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  );
+                }
+
                 return SizedBox(
-                  width: 240,
+                  width: 200,
                   child: TextField(
                     controller: ctrl,
                     decoration: InputDecoration(
-                      labelText: 'Filter: $label',
+                      labelText: label,
                       prefixIcon: const Icon(Icons.filter_alt_outlined),
+                      isDense: true,
+                      border: const OutlineInputBorder(),
                     ),
                   ),
                 );
@@ -403,8 +429,10 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                     child: LayoutBuilder(
                       builder: (context, constraints) {
                         return Scrollbar(
+                          controller: _tableScrollController,
                           thumbVisibility: true,
                           child: SingleChildScrollView(
+                            controller: _tableScrollController,
                             scrollDirection: Axis.horizontal,
                             child: ConstrainedBox(
                               constraints: BoxConstraints(minWidth: math.max(constraints.maxWidth, 1200)),
@@ -429,7 +457,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                                 ],
                                 source: dataSource,
                                 rowsPerPage: effectiveRowsPerPage,
-                                availableRowsPerPage: const [10, 25, 50, 100],
+                                availableRowsPerPage: const [10, 20, 50],
                                 onRowsPerPageChanged: (value) {
                                   if (value != null) {
                                     setState(() => _rowsPerPage = value);
