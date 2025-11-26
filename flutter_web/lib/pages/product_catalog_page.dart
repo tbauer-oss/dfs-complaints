@@ -28,6 +28,13 @@ class ProductCatalogPage extends StatefulWidget {
   State<ProductCatalogPage> createState() => _ProductCatalogPageState();
 }
 
+class _ColumnPickerResult {
+  const _ColumnPickerResult({required this.hidden, required this.order});
+
+  final Set<String> hidden;
+  final List<String> order;
+}
+
 class _ProductCatalogPageState extends State<ProductCatalogPage> {
   final _service = DfsProductService();
   late List<DfsProduct> _items;
@@ -41,6 +48,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
   final _tableScrollController = ScrollController();
   final _verticalTableScrollController = ScrollController();
   final Set<String> _hiddenColumns = <String>{};
+  late List<String> _columnOrder;
 
   static const _tdNumberAndNameOptions = [
     'MDR-TD1 - rot. Dentalinstrumente',
@@ -78,6 +86,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
   void initState() {
     super.initState();
     _items = List.of(widget.products);
+    _columnOrder = List<String>.from(DfsProduct.fieldOrder);
     for (final key in DfsProduct.fieldOrder) {
       _filterCtrls[key] = TextEditingController();
       _filterCtrls[key]!.addListener(() => setState(() => _currentPage = 0));
@@ -118,10 +127,11 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
   }
 
   Future<void> _openColumnPicker() async {
-    final result = await showDialog<Set<String>>(
+    final result = await showDialog<_ColumnPickerResult>(
       context: context,
       builder: (ctx) {
         final tempHidden = Set<String>.from(_hiddenColumns);
+        final tempOrder = List<String>.from(_columnOrder);
 
         void showMustKeepOneMessage() {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -131,7 +141,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
 
         return StatefulBuilder(
           builder: (context, setStateDialog) {
-            int visibleCount() => DfsProduct.fieldOrder.length - tempHidden.length;
+            int visibleCount() => tempOrder.length - tempHidden.length;
 
             void toggle(String key, bool visible) {
               if (!visible && visibleCount() <= 1) {
@@ -149,53 +159,85 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
             }
 
             return AlertDialog(
-              title: const Text('Spalten ein-/ausblenden'),
+              title: const Text('Spalten ein-/ausblenden und sortieren'),
               content: SizedBox(
-                width: 420,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          TextButton.icon(
-                            onPressed: () => setStateDialog(() => tempHidden.clear()),
-                            icon: const Icon(Icons.select_all),
-                            label: const Text('Alle anzeigen'),
-                          ),
-                          const SizedBox(width: 8),
-                          TextButton.icon(
-                            onPressed: () {
-                              if (DfsProduct.fieldOrder.length == 1) {
-                                return;
-                              }
-                              setStateDialog(() {
-                                tempHidden
-                                  ..clear()
-                                  ..addAll(DfsProduct.fieldOrder.skip(1));
-                              });
-                            },
-                            icon: const Icon(Icons.indeterminate_check_box_outlined),
-                            label: const Text('Alle außer erster ausblenden'),
-                          ),
-                        ],
+                width: 460,
+                height: 520,
+                child: Column(
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Spalten auswählen oder per Drag & Drop in die gewünschte Reihenfolge bringen.',
+                        style: Theme.of(ctx)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: Theme.of(ctx).colorScheme.onSurfaceVariant),
                       ),
-                      const Divider(),
-                      ...DfsProduct.fieldOrder.map((key) {
-                        final label = DfsProduct.fieldLabels[key] ?? key;
-                        final visible = !tempHidden.contains(key);
-                        return CheckboxListTile(
-                          dense: true,
-                          title: Text(label),
-                          value: visible,
-                          onChanged: (val) {
-                            if (val == null) return;
-                            toggle(key, val);
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        TextButton.icon(
+                          onPressed: () => setStateDialog(() => tempHidden.clear()),
+                          icon: const Icon(Icons.select_all),
+                          label: const Text('Alle anzeigen'),
+                        ),
+                        const SizedBox(width: 8),
+                        TextButton.icon(
+                          onPressed: () {
+                            if (tempOrder.length == 1) {
+                              return;
+                            }
+                            setStateDialog(() {
+                              tempHidden
+                                ..clear()
+                                ..addAll(tempOrder.skip(1));
+                            });
                           },
-                        );
-                      }),
-                    ],
-                  ),
+                          icon: const Icon(Icons.indeterminate_check_box_outlined),
+                          label: const Text('Alle außer erster ausblenden'),
+                        ),
+                      ],
+                    ),
+                    const Divider(),
+                    Expanded(
+                      child: ReorderableListView.builder(
+                        buildDefaultDragHandles: false,
+                        shrinkWrap: true,
+                        padding: EdgeInsets.zero,
+                        itemCount: tempOrder.length,
+                        onReorder: (oldIndex, newIndex) {
+                          setStateDialog(() {
+                            if (newIndex > oldIndex) newIndex--;
+                            final item = tempOrder.removeAt(oldIndex);
+                            tempOrder.insert(newIndex, item);
+                          });
+                        },
+                        itemBuilder: (context, index) {
+                          final key = tempOrder[index];
+                          final label = DfsProduct.fieldLabels[key] ?? key;
+                          final visible = !tempHidden.contains(key);
+                          return ListTile(
+                            key: ValueKey(key),
+                            leading: ReorderableDragStartListener(
+                              index: index,
+                              child: const Icon(Icons.drag_indicator),
+                            ),
+                            title: Text(label),
+                            trailing: Checkbox(
+                              value: visible,
+                              onChanged: (val) {
+                                if (val == null) return;
+                                toggle(key, val);
+                              },
+                            ),
+                            onTap: () => toggle(key, !visible),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ),
               actions: [
@@ -209,7 +251,13 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                       showMustKeepOneMessage();
                       return;
                     }
-                    Navigator.pop(ctx, tempHidden);
+                    Navigator.pop(
+                      ctx,
+                      _ColumnPickerResult(
+                        hidden: tempHidden,
+                        order: tempOrder,
+                      ),
+                    );
                   },
                   child: const Text('Übernehmen'),
                 ),
@@ -225,7 +273,10 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
     setState(() {
       _hiddenColumns
         ..clear()
-        ..addAll(result);
+        ..addAll(result.hidden);
+      _columnOrder
+        ..clear()
+        ..addAll(result.order);
     });
   }
 
@@ -466,7 +517,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
         ? 0
         : math.min(filteredLength, currentPage * _rowsPerPage + pageItems.length);
     final visibleFields =
-        DfsProduct.fieldOrder.where((key) => !_hiddenColumns.contains(key)).toList();
+        _columnOrder.where((key) => !_hiddenColumns.contains(key)).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
