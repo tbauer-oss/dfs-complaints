@@ -1704,6 +1704,15 @@ export async function activityForRep({ repId, email } = {}) {
   const appVersion = (freshest?.appVersion || rep.lastLoginAppVersion || '').toString();
   const appBuild = (freshest?.appBuild || rep.lastLoginAppBuild || '').toString();
 
+  const customerProfiles = await Promise.all((customers || []).map(async (mail) => {
+    const user = await userByEmail(mail).catch(() => null);
+    return {
+      email: mail,
+      company: user?.company || '',
+      contact: user?.contact || '',
+    };
+  }));
+
   return {
     kind: 'rep',
     repId: rep.id,
@@ -1711,6 +1720,7 @@ export async function activityForRep({ repId, email } = {}) {
     name: `${rep.firstName || ''} ${rep.lastName || ''}`.trim(),
     region: rep.region || '',
     customers: customers || [],
+    customerProfiles,
     lastLoginAt: Number(rep.lastLoginAt) || null,
     lastComplaintAt,
     lastComplaintTicket: lastComplaint?.ticket || null,

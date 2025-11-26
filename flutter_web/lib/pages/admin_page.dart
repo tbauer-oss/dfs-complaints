@@ -2636,6 +2636,8 @@ class _AdminPageState extends State<AdminPage> {
       _activityStatCard('Standort', data.locationLabel, Icons.location_on_outlined, cs.outline),
     ];
 
+    final assignedCustomers = data.customerLabels;
+
     return ListView(
       children: [
         Row(
@@ -2657,8 +2659,8 @@ class _AdminPageState extends State<AdminPage> {
                       if (data.contact.isNotEmpty) Chip(label: Text(data.contact)),
                       if (data.region.isNotEmpty) Chip(label: Text('Region ${data.region}')),
                       Chip(label: Text('${data.tokens} Push-Token')),
-                      if (data.customers.isNotEmpty)
-                        Chip(label: Text('${data.customers.length} zugewiesene Kunden')),
+                      if (assignedCustomers.isNotEmpty)
+                        Chip(label: Text('${assignedCustomers.length} zugewiesene Kunden')),
                     ],
                   ),
                 ],
@@ -2672,17 +2674,18 @@ class _AdminPageState extends State<AdminPage> {
           runSpacing: 12,
           children: stats,
         ),
-        if (data.isRep && data.customers.isNotEmpty) ...[
+        if (data.isRep && assignedCustomers.isNotEmpty) ...[
           const SizedBox(height: 16),
-          Text('Zugeordnete Kunden (${data.customers.length}):', style: const TextStyle(fontWeight: FontWeight.w600)),
+          Text('Zugeordnete Kunden (${assignedCustomers.length}):',
+              style: const TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
-              for (final mail in data.customers.take(20)) Chip(label: Text(mail)),
-              if (data.customers.length > 20)
-                Chip(label: Text('… ${data.customers.length - 20} weitere')),
+              for (final label in assignedCustomers.take(20)) Chip(label: Text(label)),
+              if (assignedCustomers.length > 20)
+                Chip(label: Text('… ${assignedCustomers.length - 20} weitere')),
             ],
           ),
         ],
@@ -9186,6 +9189,32 @@ class _ActivityChoice {
   const _ActivityChoice(this.email, this.label);
 }
 
+class _ActivityCustomer {
+  final String email;
+  final String company;
+  final String contact;
+
+  const _ActivityCustomer({
+    required this.email,
+    required this.company,
+    required this.contact,
+  });
+
+  factory _ActivityCustomer.fromJson(Map<String, dynamic> json) {
+    return _ActivityCustomer(
+      email: (json['email'] ?? '').toString(),
+      company: (json['company'] ?? '').toString(),
+      contact: (json['contact'] ?? '').toString(),
+    );
+  }
+
+  String get label {
+    if (company.trim().isNotEmpty) return company.trim();
+    if (contact.trim().isNotEmpty) return contact.trim();
+    return email;
+  }
+}
+
 class _ActivitySnapshot {
   final String kind;
   final String email;
@@ -9194,6 +9223,7 @@ class _ActivitySnapshot {
   final String contact;
   final String region;
   final List<String> customers;
+  final List<_ActivityCustomer> customerProfiles;
   final int? lastLoginMs;
   final int? lastComplaintMs;
   final String? lastComplaintTicket;
@@ -9214,6 +9244,7 @@ class _ActivitySnapshot {
     required this.contact,
     required this.region,
     required this.customers,
+    required this.customerProfiles,
     required this.lastLoginMs,
     required this.lastComplaintMs,
     required this.lastComplaintTicket,
@@ -9245,6 +9276,16 @@ class _ActivitySnapshot {
       return const [];
     }
 
+    List<_ActivityCustomer> _customerProfiles(dynamic raw) {
+      if (raw is! List) return const [];
+      final parsed = <_ActivityCustomer>[];
+      for (final entry in raw) {
+        if (entry is Map<String, dynamic>) parsed.add(_ActivityCustomer.fromJson(entry));
+        if (entry is Map) parsed.add(_ActivityCustomer.fromJson(entry.cast<String, dynamic>()));
+      }
+      return parsed;
+    }
+
     return _ActivitySnapshot(
       kind: (json['kind'] ?? 'customer').toString(),
       email: (json['email'] ?? '').toString(),
@@ -9253,6 +9294,7 @@ class _ActivitySnapshot {
       contact: (json['contact'] ?? '').toString(),
       region: (json['region'] ?? '').toString(),
       customers: _strList(json['customers']),
+      customerProfiles: _customerProfiles(json['customerProfiles']),
       lastLoginMs: _parseMillis(json['lastLoginAt']),
       lastComplaintMs: _parseMillis(json['lastComplaintAt']),
       lastComplaintTicket: json['lastComplaintTicket']?.toString(),
@@ -9276,6 +9318,36 @@ class _ActivitySnapshot {
     if (base.isNotEmpty) return base;
     if (company.isNotEmpty) return company;
     return email;
+  }
+
+  List<String> get customerLabels {
+    List<String> _labels() {
+      if (customerProfiles.isNotEmpty) return customerProfiles.map((c) => c.label).toList();
+      return customers;
+    }
+
+    List<String> _distinctLabels(List<String> labels) {
+      final counts = <String, int>{};
+      for (final label in labels) {
+        final trimmed = label.trim();
+        if (trimmed.isEmpty) continue;
+        counts[trimmed] = (counts[trimmed] ?? 0) + 1;
+      }
+
+      final seen = <String>{};
+      final result = <String>[];
+      for (final label in labels) {
+        final trimmed = label.trim();
+        if (trimmed.isEmpty || seen.contains(trimmed)) continue;
+        final count = counts[trimmed] ?? 1;
+        result.add(count > 1 ? '$trimmed ($count)' : trimmed);
+        seen.add(trimmed);
+      }
+
+      return result;
+    }
+
+    return _distinctLabels(_labels());
   }
 
   String get appVersionLabel {
