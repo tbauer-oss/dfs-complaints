@@ -89,14 +89,17 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
 
   void _startConversation() {
     final subject = _subjectCtrl.text.trim();
-    final contact = _contactCtrl.text.trim();
-    if (subject.isEmpty || contact.isEmpty) {
+    final contact = _currentRole == ComplaintChatRole.rep
+        ? (_contactCtrl.text.trim().isNotEmpty ? _contactCtrl.text.trim() : 'QM / Admin')
+        : _contactCtrl.text.trim();
+
+    if (subject.isEmpty || (_currentRole != ComplaintChatRole.rep && contact.isEmpty)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             subject.isEmpty
-                ? 'Bitte einen Betreff eingeben und einen Vertreter auswählen.'
-                : 'Bitte einen Vertreter auswählen.',
+                ? 'Bitte einen Betreff eingeben und einen Kontakt auswählen.'
+                : 'Bitte einen Kontakt auswählen.',
           ),
         ),
       );
