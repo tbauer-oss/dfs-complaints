@@ -672,7 +672,8 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
-                      final minWidth = math.max(constraints.maxWidth, 1200.0);
+                      final estimatedWidth = visibleFields.length * 180.0 + 170.0;
+                      final minWidth = math.max(constraints.maxWidth, estimatedWidth);
 
                       return Scrollbar(
                         controller: _tableScrollController,
@@ -689,7 +690,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                               constraints: BoxConstraints(minWidth: minWidth),
                               child: Column(
                                 children: [
-                                  _buildStickyHeader(visibleFields),
+                                  _buildStickyHeader(visibleFields, minWidth),
                                   const Divider(height: 1),
                                   Expanded(
                                     child: Scrollbar(
@@ -707,7 +708,11 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                                           scrollDirection: Axis.vertical,
                                           child: ConstrainedBox(
                                             constraints: BoxConstraints(minWidth: minWidth),
-                                            child: _buildDataTableBody(pageItems, visibleFields),
+                                            child: _buildDataTableBody(
+                                              pageItems,
+                                              visibleFields,
+                                              minWidth,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -744,17 +749,21 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
     );
   }
 
-  Map<int, TableColumnWidth> _columnWidths(int visibleFieldCount) {
+  Map<int, TableColumnWidth> _columnWidths(int visibleFieldCount, double tableWidth) {
+    const actionWidth = 170.0;
+    final available = math.max(tableWidth - actionWidth, visibleFieldCount * 120.0);
+    final cellWidth = available / visibleFieldCount;
+
     final widths = <int, TableColumnWidth>{};
     for (var i = 0; i < visibleFieldCount; i++) {
-      widths[i] = const IntrinsicColumnWidth();
+      widths[i] = FixedColumnWidth(cellWidth);
     }
-    widths[visibleFieldCount] = const FixedColumnWidth(140);
+    widths[visibleFieldCount] = const FixedColumnWidth(actionWidth);
     return widths;
   }
 
-  Widget _buildStickyHeader(List<String> visibleFields) {
-    final widths = _columnWidths(visibleFields.length);
+  Widget _buildStickyHeader(List<String> visibleFields, double tableWidth) {
+    final widths = _columnWidths(visibleFields.length, tableWidth);
     return Container(
       height: 56,
       color: Theme.of(context).colorScheme.surfaceVariant,
@@ -786,8 +795,12 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
     );
   }
 
-  Widget _buildDataTableBody(List<DfsProduct> items, List<String> visibleFields) {
-    final widths = _columnWidths(visibleFields.length);
+  Widget _buildDataTableBody(
+    List<DfsProduct> items,
+    List<String> visibleFields,
+    double tableWidth,
+  ) {
+    final widths = _columnWidths(visibleFields.length, tableWidth);
 
     TableRow buildRow(DfsProduct product) {
       final map = product.toHeaderMap();
