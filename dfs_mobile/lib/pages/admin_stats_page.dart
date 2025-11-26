@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:country_flags/country_flags.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import 'package:dfs_mobile/api/client.dart';
@@ -276,14 +277,16 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
             emptyMessage: 'Keine Produktdaten verfügbar',
           ),
           const SizedBox(height: 24),
-          _TopListSection(
-            title: 'Top-LOTs',
-            icon: Icons.qr_code_2_outlined,
-            buckets: lots,
-            total: total,
-            emptyMessage: 'Keine LOT-Daten verfügbar',
-          ),
-        ],
+        _TopListSection(
+          title: 'Top-LOTs',
+          icon: Icons.qr_code_2_outlined,
+          buckets: lots,
+          total: total,
+          emptyMessage: 'Keine LOT-Daten verfügbar',
+        ),
+      ],
+        const SizedBox(height: 24),
+        const _CustomKpiBuilderPanel(),
       ],
     );
   }
@@ -1186,4 +1189,1185 @@ class _TopBucket {
   final String label;
   final int count;
   const _TopBucket({required this.label, required this.count});
+}
+
+class _CustomKpiBuilderPanel extends StatefulWidget {
+  const _CustomKpiBuilderPanel();
+
+  @override
+  State<_CustomKpiBuilderPanel> createState() => _CustomKpiBuilderPanelState();
+}
+
+class _CustomKpiBuilderPanelState extends State<_CustomKpiBuilderPanel> {
+  final _nameController = TextEditingController(text: 'Reklamationsquote');
+  final _formulaController = TextEditingController(text: 'complaints / sales * 100');
+  final _engine = _FormulaEngine();
+  final Set<String> _selectedFields = {'complaints', 'sales'};
+  final List<_CustomKpiDefinition> _definitions = [];
+
+  String _dimension = 'Land';
+  _KpiChartType _chartType = _KpiChartType.bar;
+  _KpiTimeframe _timeframe = _KpiTimeframe.last12Months;
+  String _region = 'Alle Regionen';
+  String _productGroup = 'Alle Produktgruppen';
+  bool _pinToDashboard = true;
+  bool _publishLive = true;
+  _CustomKpiDefinition? _activeDefinition;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _formulaController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final draftDefinition = _CustomKpiDefinition(
+      name: _nameController.text.trim().isEmpty
+          ? 'Unbenannter KPI'
+          : _nameController.text.trim(),
+      formula: _formulaController.text.trim(),
+      fields: Set.of(_selectedFields),
+      dimension: _dimension,
+      chartType: _chartType,
+      timeframe: _timeframe,
+      region: _region,
+      productGroup: _productGroup,
+      pinned: _pinToDashboard,
+      status: _publishLive ? _KpiStatus.live : _KpiStatus.draft,
+      version: _nextVersionForName(_nameController.text.trim()),
+      updatedAt: DateTime.now(),
+    );
+
+    final previewPoints = _buildPreviewPoints(draftDefinition);
+
+    return _SectionCard(
+      title: 'Custom KPI Builder',
+      icon: Icons.auto_graph_outlined,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Beliebige KPIs kombinieren, validieren und als Widgets oder Exporte bereitstellen.',
+            style: theme.textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 16),
+          _buildFieldSelector(theme),
+          const SizedBox(height: 12),
+          _buildFormulaEditor(theme),
+          const SizedBox(height: 12),
+          _buildFilters(theme),
+          const SizedBox(height: 12),
+          _buildActions(theme, previewPoints),
+          const SizedBox(height: 12),
+          _KpiPreviewBoard(
+            definition: draftDefinition,
+            points: previewPoints,
+            activeDefinition: _activeDefinition,
+          ),
+          const SizedBox(height: 12),
+          if (_definitions.isNotEmpty) _buildSavedDefinitions(theme),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFieldSelector(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Datenfelder',
+          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _availableFields.map((field) {
+            final selected = _selectedFields.contains(field.key);
+            return FilterChip(
+              label: Text(field.label),
+              tooltip: field.description,
+              selected: selected,
+              onSelected: (value) {
+                setState(() {
+                  if (value) {
+                    _selectedFields.add(field.key);
+                  } else {
+                    _selectedFields.remove(field.key);
+                  }
+                });
+              },
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFormulaEditor(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Formel & Darstellung',
+          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'KPI-Name',
+                  hintText: 'z. B. Reklamationsquote',
+                  prefixIcon: Icon(Icons.label_outline),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            DropdownButton<_KpiChartType>(
+              value: _chartType,
+              onChanged: (value) => setState(() => _chartType = value ?? _chartType),
+              items: const [
+                DropdownMenuItem(value: _KpiChartType.bar, child: Text('Bar')),
+                DropdownMenuItem(value: _KpiChartType.line, child: Text('Line')),
+                DropdownMenuItem(value: _KpiChartType.pie, child: Text('Pie')),
+                DropdownMenuItem(value: _KpiChartType.heatmap, child: Text('Heatmap')),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _formulaController,
+          decoration: const InputDecoration(
+            labelText: 'Formel',
+            hintText: 'complaints / sales * 100',
+            prefixIcon: Icon(Icons.functions_outlined),
+            helperText: 'Felder: complaints, sales, revenue, units, returns',
+          ),
+          maxLines: 3,
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 12,
+          children: [
+            DropdownButton<String>(
+              value: _dimension,
+              onChanged: (value) => setState(() => _dimension = value ?? _dimension),
+              items: const [
+                DropdownMenuItem(value: 'Land', child: Text('Land')),
+                DropdownMenuItem(value: 'Produktgruppe', child: Text('Produktgruppe')),
+                DropdownMenuItem(value: 'Kunde', child: Text('Kunde')),
+                DropdownMenuItem(value: 'Monat', child: Text('Zeitraum (Monat)')),
+              ],
+            ),
+            FilterChip(
+              label: const Text('Dashboard-Widget'),
+              selected: _pinToDashboard,
+              onSelected: (value) => setState(() => _pinToDashboard = value),
+            ),
+            FilterChip(
+              label: const Text('Veröffentlichen (Live)'),
+              selected: _publishLive,
+              onSelected: (value) => setState(() => _publishLive = value),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilters(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Filter & Parameter',
+          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            DropdownButton<_KpiTimeframe>(
+              value: _timeframe,
+              onChanged: (value) => setState(() => _timeframe = value ?? _timeframe),
+              items: const [
+                DropdownMenuItem(
+                  value: _KpiTimeframe.last30Days,
+                  child: Text('Letzte 30 Tage'),
+                ),
+                DropdownMenuItem(
+                  value: _KpiTimeframe.last90Days,
+                  child: Text('Letzte 90 Tage'),
+                ),
+                DropdownMenuItem(
+                  value: _KpiTimeframe.last12Months,
+                  child: Text('Letzte 12 Monate'),
+                ),
+                DropdownMenuItem(
+                  value: _KpiTimeframe.all,
+                  child: Text('Alle Daten'),
+                ),
+              ],
+            ),
+            DropdownButton<String>(
+              value: _region,
+              onChanged: (value) => setState(() => _region = value ?? _region),
+              items: const [
+                DropdownMenuItem(value: 'Alle Regionen', child: Text('Alle Regionen')),
+                DropdownMenuItem(value: 'EU', child: Text('Europa')),
+                DropdownMenuItem(value: 'NA', child: Text('Nordamerika')),
+                DropdownMenuItem(value: 'MEA', child: Text('Nahost/Afrika')),
+              ],
+            ),
+            DropdownButton<String>(
+              value: _productGroup,
+              onChanged: (value) => setState(() => _productGroup = value ?? _productGroup),
+              items: const [
+                DropdownMenuItem(value: 'Alle Produktgruppen', child: Text('Alle Produktgruppen')),
+                DropdownMenuItem(value: 'Sensorik', child: Text('Sensorik')),
+                DropdownMenuItem(value: 'Steuerung', child: Text('Steuerung')),
+                DropdownMenuItem(value: 'Sicherheit', child: Text('Sicherheit')),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActions(ThemeData theme, List<_KpiPreviewPoint> previewPoints) {
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      alignment: WrapAlignment.spaceBetween,
+      children: [
+        FilledButton.icon(
+          icon: const Icon(Icons.save_outlined),
+          onPressed: () {
+            final error = _engine.validate(_formulaController.text.trim(), _selectedFields);
+            if (error != null) {
+              ScaffoldMessenger.of(context)
+                  .showSnackBar(SnackBar(content: Text('Formel ungültig: $error')));
+              return;
+            }
+            setState(() {
+              final def = _CustomKpiDefinition(
+                name: _nameController.text.trim().isEmpty
+                    ? 'Unbenannter KPI'
+                    : _nameController.text.trim(),
+                formula: _formulaController.text.trim(),
+                fields: Set.of(_selectedFields),
+                dimension: _dimension,
+                chartType: _chartType,
+                timeframe: _timeframe,
+                region: _region,
+                productGroup: _productGroup,
+                pinned: _pinToDashboard,
+                status: _publishLive ? _KpiStatus.live : _KpiStatus.draft,
+                version: _nextVersionForName(_nameController.text.trim()),
+                updatedAt: DateTime.now(),
+              );
+              _definitions.removeWhere((d) => d.name == def.name);
+              _definitions.add(def);
+              _activeDefinition = def;
+            });
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('KPI gespeichert & bereitgestellt.')),
+            );
+          },
+          label: const Text('Speichern & Versionieren'),
+        ),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.table_view_outlined),
+          onPressed: previewPoints.isEmpty ? null : () => _exportCsv(previewPoints),
+          label: const Text('Export CSV'),
+        ),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.picture_as_pdf_outlined),
+          onPressed: previewPoints.isEmpty ? null : () => _exportPdf(previewPoints),
+          label: const Text('Export PDF'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSavedDefinitions(ThemeData theme) {
+    final sorted = List.of(_definitions)
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 28),
+        Text(
+          'Gespeicherte KPIs',
+          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        ...sorted.map((def) {
+          final isActive = _activeDefinition?.name == def.name;
+          return Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: ListTile(
+              title: Text('${def.name} · v${def.version} (${def.status.label})'),
+              subtitle: Text(
+                '${def.dimension}, ${def.chartType.label} · zuletzt aktualisiert ${DateFormat('dd.MM.yyyy – HH:mm').format(def.updatedAt)}',
+              ),
+              trailing: Wrap(
+                spacing: 8,
+                children: [
+                  if (isActive)
+                    Chip(
+                      label: const Text('Live'),
+                      backgroundColor: theme.colorScheme.primaryContainer,
+                    ),
+                  IconButton(
+                    tooltip: 'Laden',
+                    icon: const Icon(Icons.play_circle_outline),
+                    onPressed: () {
+                      setState(() {
+                        _nameController.text = def.name;
+                        _formulaController.text = def.formula;
+                        _selectedFields
+                          ..clear()
+                          ..addAll(def.fields);
+                        _dimension = def.dimension;
+                        _chartType = def.chartType;
+                        _timeframe = def.timeframe;
+                        _region = def.region;
+                        _productGroup = def.productGroup;
+                        _pinToDashboard = def.pinned;
+                        _publishLive = def.status == _KpiStatus.live;
+                        _activeDefinition = def;
+                      });
+                    },
+                  ),
+                  IconButton(
+                    tooltip: 'Löschen',
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: () {
+                      setState(() {
+                        _definitions.removeWhere((d) => d.name == def.name);
+                        if (_activeDefinition?.name == def.name) {
+                          _activeDefinition = null;
+                        }
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  int _nextVersionForName(String name) {
+    final normalized = name.trim();
+    if (normalized.isEmpty) return 1;
+    final existing = _definitions.where((d) => d.name == normalized);
+    if (existing.isEmpty) return 1;
+    return existing.map((e) => e.version).fold<int>(1, (p, c) => math.max(p, c + 1));
+  }
+
+  List<_KpiPreviewPoint> _buildPreviewPoints(_CustomKpiDefinition def) {
+    final records = _filteredRecords();
+    final grouped = <String, _KpiAccumulator>{};
+
+    for (final record in records) {
+      final label = _dimensionLabel(record, def.dimension);
+      final acc = grouped.putIfAbsent(label, () => _KpiAccumulator());
+      acc.add(record);
+    }
+
+    final List<_KpiPreviewPoint> points = [];
+    grouped.forEach((label, acc) {
+      final variables = acc.toVariableMap();
+      final value = _engine.evaluate(def.formula, variables, def.fields);
+      points.add(_KpiPreviewPoint(label: label, value: value));
+    });
+
+    points.sort((a, b) => b.value.compareTo(a.value));
+    return points;
+  }
+
+  List<_SampleKpiRecord> _filteredRecords() {
+    final now = DateTime.now();
+    final List<_SampleKpiRecord> filtered = [];
+
+    for (final record in _sampleKpiRecords) {
+      if (_region != 'Alle Regionen' && record.region != _region) continue;
+      if (_productGroup != 'Alle Produktgruppen' && record.productGroup != _productGroup) continue;
+
+      final inRange = switch (_timeframe) {
+        _KpiTimeframe.last30Days => record.date.isAfter(now.subtract(const Duration(days: 30))),
+        _KpiTimeframe.last90Days => record.date.isAfter(now.subtract(const Duration(days: 90))),
+        _KpiTimeframe.last12Months => record.date.isAfter(now.subtract(const Duration(days: 365))),
+        _KpiTimeframe.all => true,
+      };
+
+      if (inRange) filtered.add(record);
+    }
+
+    return filtered;
+  }
+
+  String _dimensionLabel(_SampleKpiRecord record, String dimension) {
+    switch (dimension) {
+      case 'Produktgruppe':
+        return record.productGroup;
+      case 'Kunde':
+        return record.customer;
+      case 'Monat':
+        return DateFormat('MMM yy', 'de').format(record.date);
+      case 'Land':
+      default:
+        return record.country;
+    }
+  }
+
+  Future<void> _exportCsv(List<_KpiPreviewPoint> points) async {
+    final buffer = StringBuffer('Label;Wert\n');
+    for (final p in points) {
+      buffer.writeln('${p.label};${p.value.toStringAsFixed(2)}');
+    }
+    await Clipboard.setData(ClipboardData(text: buffer.toString()));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('CSV in Zwischenablage kopiert.')),
+    );
+  }
+
+  Future<void> _exportPdf(List<_KpiPreviewPoint> points) async {
+    final buffer = StringBuffer('KPI Snapshot – ${DateFormat('dd.MM.yyyy').format(DateTime.now())}\n');
+    for (final p in points) {
+      buffer.writeln('${p.label.padRight(18)} ${p.value.toStringAsFixed(2)}');
+    }
+    await Clipboard.setData(ClipboardData(text: buffer.toString()));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('PDF-Snapshot in Zwischenablage kopiert.')),
+    );
+  }
+
+  static const _availableFields = [
+    _KpiField(
+      key: 'complaints',
+      label: 'Reklamationen',
+      description: 'Anzahl Reklamationen im Zeitraum',
+    ),
+    _KpiField(
+      key: 'sales',
+      label: 'Verkäufe',
+      description: 'Verkäufe (Stück)',
+    ),
+    _KpiField(
+      key: 'revenue',
+      label: 'Umsatz',
+      description: 'Umsatz in EUR',
+    ),
+    _KpiField(
+      key: 'units',
+      label: 'Ausgelieferte Einheiten',
+      description: 'Gesamtmenge ausgelieferter Produkte',
+    ),
+    _KpiField(
+      key: 'returns',
+      label: 'Retouren',
+      description: 'Anzahl Retouren / Rücksendungen',
+    ),
+  ];
+}
+
+class _KpiPreviewBoard extends StatelessWidget {
+  final _CustomKpiDefinition definition;
+  final List<_KpiPreviewPoint> points;
+  final _CustomKpiDefinition? activeDefinition;
+  const _KpiPreviewBoard({
+    required this.definition,
+    required this.points,
+    required this.activeDefinition,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.visibility_outlined, color: theme.colorScheme.primary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Live-Vorschau (${points.length} Gruppen) · ${definition.dimension} · ${definition.chartType.label}',
+                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ),
+            if (activeDefinition != null)
+              Chip(
+                label: Text('Aktiv: ${activeDefinition!.name}'),
+                backgroundColor: theme.colorScheme.primaryContainer,
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (points.isEmpty)
+          const _EmptyPlaceholder(
+            message: 'Keine Daten im ausgewählten Filterbereich. Filter anpassen oder Formel prüfen.',
+          )
+        else
+          _KpiChart(points: points, chartType: definition.chartType),
+        const SizedBox(height: 12),
+        if (points.isNotEmpty) _KpiTable(points: points),
+      ],
+    );
+  }
+}
+
+class _KpiChart extends StatelessWidget {
+  final List<_KpiPreviewPoint> points;
+  final _KpiChartType chartType;
+  const _KpiChart({required this.points, required this.chartType});
+
+  @override
+  Widget build(BuildContext context) {
+    switch (chartType) {
+      case _KpiChartType.bar:
+        return _KpiBarChart(points: points);
+      case _KpiChartType.line:
+        return _KpiLineChart(points: points);
+      case _KpiChartType.pie:
+        return _KpiPieChart(points: points);
+      case _KpiChartType.heatmap:
+        return _KpiHeatmap(points: points);
+    }
+  }
+}
+
+class _KpiBarChart extends StatelessWidget {
+  final List<_KpiPreviewPoint> points;
+  const _KpiBarChart({required this.points});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final maxY = points.fold<double>(0, (p, c) => math.max(p, c.value)).clamp(1, double.infinity);
+    final groups = points.asMap().entries.map((entry) {
+      return BarChartGroupData(
+        x: entry.key,
+        barRods: [
+          BarChartRodData(
+            toY: entry.value.value,
+            width: 16,
+            borderRadius: BorderRadius.circular(6),
+            color: theme.colorScheme.primary,
+            backDrawRodData: BackgroundBarChartRodData(
+              show: true,
+              toY: maxY,
+              color: theme.colorScheme.primary.withOpacity(0.08),
+            ),
+          ),
+        ],
+      );
+    }).toList();
+
+    return SizedBox(
+      height: 260,
+      child: BarChart(
+        BarChartData(
+          alignment: BarChartAlignment.spaceAround,
+          titlesData: FlTitlesData(
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(showTitles: true, reservedSize: 42),
+            ),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                getTitlesWidget: (value, meta) {
+                  final idx = value.toInt();
+                  if (idx < 0 || idx >= points.length) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      points[idx].label,
+                      style: Theme.of(context).textTheme.bodySmall,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  );
+                },
+              ),
+            ),
+            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          ),
+          gridData: FlGridData(
+            show: true,
+            getDrawingHorizontalLine: (value) => FlLine(
+              color: theme.dividerColor.withOpacity(0.2),
+              strokeWidth: 1,
+            ),
+          ),
+          barGroups: groups,
+          borderData: FlBorderData(show: false),
+          maxY: maxY,
+        ),
+      ),
+    );
+  }
+}
+
+class _KpiLineChart extends StatelessWidget {
+  final List<_KpiPreviewPoint> points;
+  const _KpiLineChart({required this.points});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final spots = points.asMap().entries
+        .map((e) => FlSpot(e.key.toDouble(), e.value.value))
+        .toList();
+    return SizedBox(
+      height: 260,
+      child: LineChart(
+        LineChartData(
+          lineBarsData: [
+            LineChartBarData(
+              spots: spots,
+              isCurved: true,
+              color: theme.colorScheme.primary,
+              barWidth: 3,
+              dotData: const FlDotData(show: true),
+              belowBarData: BarAreaData(
+                show: true,
+                color: theme.colorScheme.primary.withOpacity(0.12),
+              ),
+            ),
+          ],
+          gridData: FlGridData(show: true),
+          titlesData: FlTitlesData(
+            leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 42)),
+            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                getTitlesWidget: (value, meta) {
+                  final idx = value.toInt();
+                  if (idx < 0 || idx >= points.length) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(points[idx].label, style: Theme.of(context).textTheme.bodySmall),
+                  );
+                },
+              ),
+            ),
+          ),
+          borderData: FlBorderData(show: false),
+        ),
+      ),
+    );
+  }
+}
+
+class _KpiPieChart extends StatelessWidget {
+  final List<_KpiPreviewPoint> points;
+  const _KpiPieChart({required this.points});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final total = points.fold<double>(0, (p, c) => p + c.value).clamp(1, double.infinity);
+    return SizedBox(
+      height: 260,
+      child: PieChart(
+        PieChartData(
+          sectionsSpace: 2,
+          centerSpaceRadius: 36,
+          sections: points.map((p) {
+            final percent = p.value / total * 100;
+            return PieChartSectionData(
+              value: p.value,
+              color: _pieColorForLabel(p.label, theme),
+              radius: 80,
+              title: '${percent.toStringAsFixed(1)}%\n${p.label}',
+              titleStyle: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: theme.colorScheme.onPrimary, fontWeight: FontWeight.bold),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  Color _pieColorForLabel(String label, ThemeData theme) {
+    final hash = label.codeUnits.fold<int>(0, (p, c) => p + c);
+    final hue = (hash * 37) % 360;
+    return HSLColor.fromAHSL(1, hue.toDouble(), 0.55, 0.55).toColor();
+  }
+}
+
+class _KpiHeatmap extends StatelessWidget {
+  final List<_KpiPreviewPoint> points;
+  const _KpiHeatmap({required this.points});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final max = points.fold<double>(0, (p, c) => math.max(p, c.value)).clamp(1, double.infinity);
+    return SizedBox(
+      height: 260,
+      child: GridView.builder(
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          childAspectRatio: 3,
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
+        ),
+        itemCount: points.length,
+        itemBuilder: (context, index) {
+          final point = points[index];
+          final intensity = (point.value / max).clamp(0.0, 1.0);
+          final color = Color.lerp(
+            theme.colorScheme.surfaceVariant,
+            theme.colorScheme.primary,
+            intensity,
+          );
+          return Container(
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(point.label, style: theme.textTheme.labelMedium),
+                const Spacer(),
+                Text(point.value.toStringAsFixed(2),
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _KpiTable extends StatelessWidget {
+  final List<_KpiPreviewPoint> points;
+  const _KpiTable({required this.points});
+
+  @override
+  Widget build(BuildContext context) {
+    final formatter = NumberFormat('#,##0.00', 'de');
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text('Segment', style: Theme.of(context).textTheme.labelLarge),
+                ),
+                Text('Wert', style: Theme.of(context).textTheme.labelLarge),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ...points.map((p) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Row(
+                    children: [
+                      Expanded(child: Text(p.label)),
+                      Text(formatter.format(p.value)),
+                    ],
+                  ),
+                )),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CustomKpiDefinition {
+  final String name;
+  final String formula;
+  final Set<String> fields;
+  final String dimension;
+  final _KpiChartType chartType;
+  final _KpiTimeframe timeframe;
+  final String region;
+  final String productGroup;
+  final bool pinned;
+  final _KpiStatus status;
+  final int version;
+  final DateTime updatedAt;
+
+  const _CustomKpiDefinition({
+    required this.name,
+    required this.formula,
+    required this.fields,
+    required this.dimension,
+    required this.chartType,
+    required this.timeframe,
+    required this.region,
+    required this.productGroup,
+    required this.pinned,
+    required this.status,
+    required this.version,
+    required this.updatedAt,
+  });
+}
+
+class _KpiPreviewPoint {
+  final String label;
+  final double value;
+  const _KpiPreviewPoint({required this.label, required this.value});
+}
+
+class _KpiField {
+  final String key;
+  final String label;
+  final String description;
+  const _KpiField({required this.key, required this.label, required this.description});
+}
+
+class _KpiAccumulator {
+  double complaints = 0;
+  double sales = 0;
+  double revenue = 0;
+  double units = 0;
+  double returns = 0;
+
+  void add(_SampleKpiRecord record) {
+    complaints += record.complaints;
+    sales += record.sales;
+    revenue += record.revenue;
+    units += record.units;
+    returns += record.returns;
+  }
+
+  Map<String, double> toVariableMap() {
+    return {
+      'complaints': complaints,
+      'sales': sales,
+      'revenue': revenue,
+      'units': units,
+      'returns': returns,
+    };
+  }
+}
+
+class _SampleKpiRecord {
+  final String country;
+  final String region;
+  final String productGroup;
+  final String customer;
+  final DateTime date;
+  final double complaints;
+  final double sales;
+  final double revenue;
+  final double units;
+  final double returns;
+
+  const _SampleKpiRecord({
+    required this.country,
+    required this.region,
+    required this.productGroup,
+    required this.customer,
+    required this.date,
+    required this.complaints,
+    required this.sales,
+    required this.revenue,
+    required this.units,
+    required this.returns,
+  });
+}
+
+const _sampleKpiRecords = [
+  _SampleKpiRecord(
+    country: 'DE',
+    region: 'EU',
+    productGroup: 'Sensorik',
+    customer: 'AutoSys GmbH',
+    date: DateTime(2024, 11, 12),
+    complaints: 18,
+    sales: 480,
+    revenue: 72000,
+    units: 520,
+    returns: 6,
+  ),
+  _SampleKpiRecord(
+    country: 'FR',
+    region: 'EU',
+    productGroup: 'Sensorik',
+    customer: 'Fournier SA',
+    date: DateTime(2024, 12, 2),
+    complaints: 9,
+    sales: 320,
+    revenue: 51000,
+    units: 340,
+    returns: 4,
+  ),
+  _SampleKpiRecord(
+    country: 'US',
+    region: 'NA',
+    productGroup: 'Steuerung',
+    customer: 'NorthTech',
+    date: DateTime(2025, 1, 16),
+    complaints: 22,
+    sales: 610,
+    revenue: 91000,
+    units: 690,
+    returns: 11,
+  ),
+  _SampleKpiRecord(
+    country: 'CA',
+    region: 'NA',
+    productGroup: 'Steuerung',
+    customer: 'Apex Dynamics',
+    date: DateTime(2025, 2, 1),
+    complaints: 7,
+    sales: 210,
+    revenue: 36000,
+    units: 230,
+    returns: 3,
+  ),
+  _SampleKpiRecord(
+    country: 'AE',
+    region: 'MEA',
+    productGroup: 'Sicherheit',
+    customer: 'Gulf Secure',
+    date: DateTime(2025, 3, 11),
+    complaints: 11,
+    sales: 260,
+    revenue: 44000,
+    units: 280,
+    returns: 4,
+  ),
+  _SampleKpiRecord(
+    country: 'DE',
+    region: 'EU',
+    productGroup: 'Sicherheit',
+    customer: 'Meyer Industrie',
+    date: DateTime(2025, 4, 4),
+    complaints: 5,
+    sales: 180,
+    revenue: 32000,
+    units: 200,
+    returns: 2,
+  ),
+  _SampleKpiRecord(
+    country: 'PL',
+    region: 'EU',
+    productGroup: 'Sensorik',
+    customer: 'Baltic Machines',
+    date: DateTime(2025, 5, 9),
+    complaints: 6,
+    sales: 240,
+    revenue: 37000,
+    units: 255,
+    returns: 2,
+  ),
+  _SampleKpiRecord(
+    country: 'US',
+    region: 'NA',
+    productGroup: 'Sensorik',
+    customer: 'West Coast Labs',
+    date: DateTime(2025, 5, 21),
+    complaints: 14,
+    sales: 420,
+    revenue: 68000,
+    units: 450,
+    returns: 5,
+  ),
+  _SampleKpiRecord(
+    country: 'ES',
+    region: 'EU',
+    productGroup: 'Steuerung',
+    customer: 'Iberia Automation',
+    date: DateTime(2025, 6, 2),
+    complaints: 4,
+    sales: 170,
+    revenue: 25000,
+    units: 185,
+    returns: 1,
+  ),
+  _SampleKpiRecord(
+    country: 'ZA',
+    region: 'MEA',
+    productGroup: 'Sicherheit',
+    customer: 'Cape Robotics',
+    date: DateTime(2025, 6, 18),
+    complaints: 8,
+    sales: 195,
+    revenue: 30000,
+    units: 215,
+    returns: 2,
+  ),
+  _SampleKpiRecord(
+    country: 'DE',
+    region: 'EU',
+    productGroup: 'Steuerung',
+    customer: 'Hahn AG',
+    date: DateTime(2025, 7, 5),
+    complaints: 12,
+    sales: 340,
+    revenue: 56000,
+    units: 365,
+    returns: 6,
+  ),
+  _SampleKpiRecord(
+    country: 'US',
+    region: 'NA',
+    productGroup: 'Sicherheit',
+    customer: 'Eagle Defense',
+    date: DateTime(2025, 7, 11),
+    complaints: 10,
+    sales: 305,
+    revenue: 52000,
+    units: 330,
+    returns: 3,
+  ),
+];
+
+class _FormulaEngine {
+  final _tokenizer = RegExp(r'[A-Za-z_][A-Za-z0-9_]*|\d+(?:\.\d+)?|[()+\-*/]');
+
+  double evaluate(String expression, Map<String, double> variables, Set<String> allowedFields) {
+    final error = validate(expression, allowedFields);
+    if (error != null) throw FormatException(error);
+    final tokens = _tokenizer
+        .allMatches(expression.replaceAll(' ', ''))
+        .map((m) => m.group(0)!)
+        .toList();
+    final rpn = _toRpn(tokens);
+    return _evalRpn(rpn, variables);
+  }
+
+  String? validate(String expression, Set<String> allowedFields) {
+    if (expression.trim().isEmpty) return 'Formel fehlt';
+    final tokens = _tokenizer
+        .allMatches(expression.replaceAll(' ', ''))
+        .map((m) => m.group(0)!)
+        .toList();
+    for (final token in tokens) {
+      if (_isIdentifier(token) &&
+          !allowedFields.contains(token) &&
+          !_numericFields.contains(token)) {
+        return 'Unbekanntes Feld "$token"';
+      }
+    }
+    return null;
+  }
+
+  bool _isIdentifier(String token) => RegExp(r'^[A-Za-z_]').hasMatch(token);
+
+  List<String> _toRpn(List<String> tokens) {
+    final output = <String>[];
+    final stack = <String>[];
+    final precedence = {'+': 1, '-': 1, '*': 2, '/': 2};
+
+    for (final token in tokens) {
+      if (_isIdentifier(token) || double.tryParse(token) != null) {
+        output.add(token);
+      } else if (token == '(') {
+        stack.add(token);
+      } else if (token == ')') {
+        while (stack.isNotEmpty && stack.last != '(') {
+          output.add(stack.removeLast());
+        }
+        if (stack.isNotEmpty && stack.last == '(') stack.removeLast();
+      } else {
+        while (stack.isNotEmpty && precedence[stack.last] != null &&
+            precedence[stack.last]! >= (precedence[token] ?? 0)) {
+          output.add(stack.removeLast());
+        }
+        stack.add(token);
+      }
+    }
+    output.addAll(stack.reversed);
+    return output;
+  }
+
+  double _evalRpn(List<String> rpn, Map<String, double> variables) {
+    final stack = <double>[];
+    for (final token in rpn) {
+      final number = double.tryParse(token);
+      if (number != null) {
+        stack.add(number);
+        continue;
+      }
+      if (_isIdentifier(token)) {
+        final value = variables[token] ?? 0;
+        stack.add(value);
+        continue;
+      }
+      if (stack.length < 2) throw const FormatException('Ungültige Formel');
+      final b = stack.removeLast();
+      final a = stack.removeLast();
+      switch (token) {
+        case '+':
+          stack.add(a + b);
+          break;
+        case '-':
+          stack.add(a - b);
+          break;
+        case '*':
+          stack.add(a * b);
+          break;
+        case '/':
+          stack.add(b == 0 ? double.nan : a / b);
+          break;
+        default:
+          throw FormatException('Operator $token nicht unterstützt');
+      }
+    }
+    return stack.isEmpty ? 0 : stack.single;
+  }
+
+  static const _numericFields = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'};
+}
+
+enum _KpiChartType { bar, line, pie, heatmap }
+
+extension on _KpiChartType {
+  String get label {
+    switch (this) {
+      case _KpiChartType.bar:
+        return 'Bar';
+      case _KpiChartType.line:
+        return 'Line';
+      case _KpiChartType.pie:
+        return 'Pie';
+      case _KpiChartType.heatmap:
+        return 'Heatmap';
+    }
+  }
+}
+
+enum _KpiTimeframe { last30Days, last90Days, last12Months, all }
+
+enum _KpiStatus { draft, live }
+
+extension on _KpiStatus {
+  String get label => this == _KpiStatus.live ? 'Live' : 'Entwurf';
 }
