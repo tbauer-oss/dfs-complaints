@@ -1143,6 +1143,16 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
           }),
         ),
         _MenuCard(
+          color: Colors.purple,
+          icon: Icons.chat_bubble_outline,
+          title: 'Interner Chat',
+          subtitle: 'QM ↔ Vertreter pro Fall',
+          count: null,
+          compact: compact,
+          scale: scale,
+          onTap: () => Navigator.of(context).pushNamed('/internal-chat-demo'),
+        ),
+        _MenuCard(
           color: Colors.indigo,
           icon: Icons.all_inbox_outlined,
           title: t.rep_menu_all_title,
