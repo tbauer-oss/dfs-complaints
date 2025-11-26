@@ -2262,7 +2262,8 @@ class _KpiBarChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final maxY = points.fold<double>(0, (p, c) => math.max(p, c.value)).clamp(1, double.infinity);
+    final double maxY =
+        points.fold<double>(0, (p, c) => math.max(p, c.value)).clamp(1, double.infinity).toDouble();
     final groups = points.asMap().entries.map((entry) {
       return BarChartGroupData(
         x: entry.key,
@@ -2387,7 +2388,8 @@ class _KpiPieChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final total = points.fold<double>(0, (p, c) => p + c.value).clamp(1, double.infinity);
+    final double total =
+        points.fold<double>(0, (p, c) => p + c.value).clamp(1, double.infinity).toDouble();
     return SizedBox(
       height: 260,
       child: PieChart(
@@ -2417,7 +2419,10 @@ class _KpiHeatmap extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final maxValue = points.fold<double>(0, (p, c) => math.max(p, c.value)).clamp(1, double.infinity);
+    final double maxValue = points
+        .fold<double>(0, (p, c) => math.max(p, c.value))
+        .clamp(1, double.infinity)
+        .toDouble();
     final minValue = points.fold<double>(maxValue, (p, c) => math.min(p, c.value));
     final range = maxValue - minValue;
 
@@ -2666,7 +2671,7 @@ class _FormulaEngine {
   }
 }
 
-const _sampleKpiRecords = [
+final _sampleKpiRecords = [
   _SampleKpiRecord(
     date: DateTime(2024, 1, 15),
     country: 'Deutschland',
