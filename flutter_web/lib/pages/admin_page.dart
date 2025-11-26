@@ -3265,7 +3265,7 @@ class _AdminPageState extends State<AdminPage> {
                   if (!isNarrow)
                     AnimatedContainer(
                       duration: const Duration(milliseconds: 220),
-                      width: _navCollapsed ? 82 : 280,
+                      width: _navCollapsed ? 112 : 280,
                       margin: const EdgeInsets.fromLTRB(12, 10, 12, 12),
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
@@ -3332,8 +3332,8 @@ class _AdminPageState extends State<AdminPage> {
                 onPressed: () => Scaffold.of(context).openDrawer(),
               ),
             )
-          : IconButton(
-              icon: Icon(_navCollapsed ? Icons.chevron_right : Icons.chevron_left),
+          : _navToggleButton(
+              icon: _navCollapsed ? Icons.chevron_right : Icons.chevron_left,
               tooltip: _navCollapsed ? 'Sidebar erweitern' : 'Sidebar einklappen',
               onPressed: () => setState(() => _navCollapsed = !_navCollapsed),
             ),
@@ -3550,7 +3550,7 @@ class _AdminPageState extends State<AdminPage> {
 
     Widget buildHeader() {
       return Padding(
-        padding: EdgeInsets.fromLTRB(isCompact ? 10 : 16, 14, isCompact ? 10 : 16, isCompact ? 6 : 10),
+        padding: EdgeInsets.fromLTRB(isCompact ? 8 : 16, 14, isCompact ? 8 : 16, isCompact ? 6 : 10),
         child: Row(
           children: [
             Container(
@@ -3603,16 +3603,16 @@ class _AdminPageState extends State<AdminPage> {
                   ],
                 ),
               ),
-              IconButton(
+              _navToggleButton(
                 tooltip: 'Sidebar einklappen',
-                icon: const Icon(Icons.chevron_left),
+                icon: Icons.chevron_left,
                 onPressed: () => setState(() => _navCollapsed = true),
               ),
             ] else ...[
               const Spacer(),
-              IconButton(
+              _navToggleButton(
                 tooltip: 'Sidebar erweitern',
-                icon: const Icon(Icons.chevron_right),
+                icon: Icons.chevron_right,
                 onPressed: () => setState(() => _navCollapsed = false),
               ),
             ],
@@ -3676,11 +3676,11 @@ class _AdminPageState extends State<AdminPage> {
                       children: [
                         Icon(Icons.tips_and_updates_outlined, size: 18, color: subtle),
                         const SizedBox(width: 10),
-                        IconButton(
+                        _navToggleButton(
                           tooltip: _navCollapsed ? 'Sidebar erweitern' : 'Sidebar einklappen',
-                          icon: Icon(_navCollapsed ? Icons.chevron_right : Icons.chevron_left, color: subtle),
+                          icon: _navCollapsed ? Icons.chevron_right : Icons.chevron_left,
                           onPressed: () => setState(() => _navCollapsed = !_navCollapsed),
-                          visualDensity: VisualDensity.compact,
+                          color: subtle,
                         ),
                       ],
                     )
@@ -3694,17 +3694,36 @@ class _AdminPageState extends State<AdminPage> {
                             style: theme.textTheme.labelSmall?.copyWith(color: subtle),
                           ),
                         ),
-                        IconButton(
+                        _navToggleButton(
                           tooltip: _navCollapsed ? 'Sidebar erweitern' : 'Sidebar einklappen',
-                          icon: Icon(_navCollapsed ? Icons.chevron_right : Icons.chevron_left, color: subtle),
+                          icon: _navCollapsed ? Icons.chevron_right : Icons.chevron_left,
                           onPressed: () => setState(() => _navCollapsed = !_navCollapsed),
-                          visualDensity: VisualDensity.compact,
+                          color: subtle,
                         ),
                       ],
                     ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _navToggleButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+    Color? color,
+  }) {
+    return SizedBox(
+      width: 44,
+      height: 44,
+      child: IconButton(
+        tooltip: tooltip,
+        icon: Icon(icon, color: color),
+        onPressed: onPressed,
+        padding: const EdgeInsets.all(10),
+        splashRadius: 24,
       ),
     );
   }
