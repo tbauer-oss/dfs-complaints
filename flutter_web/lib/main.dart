@@ -647,6 +647,20 @@ class _MyAppState extends State<MyApp> {
               '/rep': (_) => RepDashboardPage(api: api),
               '/internal-chat-demo':
                   (_) => const ComplaintChatPage(ticket: 'DFS-24-1042'),
+              '/internal-chat': (ctx) {
+                final args = ModalRoute.of(ctx)?.settings.arguments;
+
+                if (args is ComplaintChatPageArgs) {
+                  return ComplaintChatPage(
+                    role: args.role,
+                    ticket: args.ticket,
+                    contacts: args.contacts,
+                    defaultContact: args.defaultContact,
+                  );
+                }
+
+                return const ComplaintChatPage();
+              },
               '/reset-password': (_) => ResetPasswordPage(api: api),
               // Datenschutz-Seite
               '/legal/privacy': (_) => const LegalPrivacyPage(),

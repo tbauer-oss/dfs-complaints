@@ -5,15 +5,31 @@ import '../models/complaint_chat.dart';
 class ComplaintChatPageArgs {
   final ComplaintChatRole role;
   final String? ticket;
-  const ComplaintChatPageArgs({required this.role, this.ticket});
+  final List<String> contacts;
+  final String? defaultContact;
+
+  const ComplaintChatPageArgs({
+    required this.role,
+    this.ticket,
+    this.contacts = const [],
+    this.defaultContact,
+  });
 }
 
 class ComplaintChatPage extends StatefulWidget {
   final ComplaintChatRole role;
   final String? ticket;
+  final List<String> contacts;
+  final String? defaultContact;
 
-  const ComplaintChatPage({super.key, this.ticket, ComplaintChatRole? role})
-      : role = role ?? ComplaintChatRole.rep;
+  const ComplaintChatPage({
+    super.key,
+    this.ticket,
+    ComplaintChatRole? role,
+    List<String>? contacts,
+    this.defaultContact,
+  })  : role = role ?? ComplaintChatRole.rep,
+        contacts = contacts ?? const [];
 
   @override
   State<ComplaintChatPage> createState() => _ComplaintChatPageState();
@@ -28,6 +44,7 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
   final TextEditingController _messageCtrl = TextEditingController();
 
   late ComplaintChatRole _currentRole;
+  late List<String> _contactOptions;
   List<ComplaintChatConversation> _conversations = [];
   String? _activeConversationId;
 
@@ -35,7 +52,15 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
   void initState() {
     super.initState();
     _currentRole = widget.role;
+    _contactOptions = widget.contacts;
     if (widget.ticket != null) _ticketCtrl.text = widget.ticket!;
+    if (_currentRole == ComplaintChatRole.rep) {
+      _contactCtrl.text = widget.defaultContact ?? 'QM / Admin';
+    } else if (widget.defaultContact != null && widget.defaultContact!.isNotEmpty) {
+      _contactCtrl.text = widget.defaultContact!;
+    } else if (_contactOptions.isNotEmpty) {
+      _contactCtrl.text = _contactOptions.first;
+    }
     _syncUnread();
   }
 
@@ -350,6 +375,7 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
 
   Widget _buildComposer() {
     final theme = Theme.of(context);
+    final isRep = _currentRole == ComplaintChatRole.rep;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -365,15 +391,7 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
-              child: TextField(
-                controller: _contactCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Kontakt',
-                  hintText: 'Name oder Team',
-                ),
-              ),
-            ),
+            Expanded(child: _buildContactField(isRep)),
           ],
         ),
         const SizedBox(height: 10),
@@ -434,12 +452,47 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
         ),
         const SizedBox(height: 8),
         Text(
-          _currentRole == ComplaintChatRole.admin
-              ? 'Sie antworten als QM/Admin'
-              : 'Sie antworten als Vertreter',
+          isRep ? 'Sie antworten als Vertreter' : 'Sie antworten als QM/Admin',
           style: theme.textTheme.labelMedium,
         ),
       ],
+    );
+  }
+
+  Widget _buildContactField(bool isRep) {
+    if (isRep) {
+      return TextField(
+        controller: _contactCtrl,
+        readOnly: true,
+        decoration: const InputDecoration(
+          labelText: 'Kontakt',
+          helperText: 'Interne Chats gehen immer an QM/Admin',
+          prefixIcon: Icon(Icons.verified_user_outlined),
+        ),
+      );
+    }
+
+    if (_contactOptions.isNotEmpty) {
+      return DropdownButtonFormField<String>(
+        value: _contactCtrl.text.isNotEmpty ? _contactCtrl.text : null,
+        items: _contactOptions
+            .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
+            .toList(),
+        onChanged: (val) => setState(() => _contactCtrl.text = val ?? ''),
+        decoration: const InputDecoration(
+          labelText: 'Kontakt',
+          prefixIcon: Icon(Icons.badge_outlined),
+        ),
+      );
+    }
+
+    return TextField(
+      controller: _contactCtrl,
+      decoration: const InputDecoration(
+        labelText: 'Kontakt',
+        hintText: 'Name des Vertreters',
+        prefixIcon: Icon(Icons.badge_outlined),
+      ),
     );
   }
 

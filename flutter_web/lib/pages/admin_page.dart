@@ -3407,8 +3407,11 @@ class _AdminPageState extends State<AdminPage> {
               child: TextButton.icon(
                 onPressed: () => Navigator.of(context, rootNavigator: true).pushNamed(
                   '/internal-chat',
-                  arguments:
-                      const ComplaintChatPageArgs(role: ComplaintChatRole.admin),
+                  arguments: ComplaintChatPageArgs(
+                    role: ComplaintChatRole.admin,
+                    contacts: _reps.map((r) => r.displayName).where((s) => s.isNotEmpty).toList(),
+                    defaultContact: _reps.isNotEmpty ? _reps.first.displayName : null,
+                  ),
                 ),
                 style: TextButton.styleFrom(
                   foregroundColor: theme.colorScheme.onSurface,
