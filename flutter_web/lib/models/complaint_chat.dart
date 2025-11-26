@@ -27,7 +27,6 @@ class ComplaintChatMessage {
   final List<ComplaintChatAttachment> attachments;
   final List<ComplaintChatMessage> replies;
   final Set<ComplaintChatRole> readBy;
-  final bool acknowledged;
 
   const ComplaintChatMessage({
     required this.id,
@@ -37,7 +36,6 @@ class ComplaintChatMessage {
     this.attachments = const [],
     this.replies = const [],
     this.readBy = const {},
-    this.acknowledged = false,
   });
 
   ComplaintChatMessage copyWith({
@@ -48,7 +46,6 @@ class ComplaintChatMessage {
     List<ComplaintChatAttachment>? attachments,
     List<ComplaintChatMessage>? replies,
     Set<ComplaintChatRole>? readBy,
-    bool? acknowledged,
   }) {
     return ComplaintChatMessage(
       id: id ?? this.id,
@@ -58,29 +55,73 @@ class ComplaintChatMessage {
       attachments: attachments ?? this.attachments,
       replies: replies ?? this.replies,
       readBy: readBy ?? this.readBy,
-      acknowledged: acknowledged ?? this.acknowledged,
     );
   }
 }
 
-class ComplaintChatCase {
-  final String ticket;
-  final String product;
-  final String customer;
-  final String statusLabel;
+class ComplaintChatConversation {
+  final String id;
+  final String subject;
+  final String contactLabel;
+  final String? ticketNumber;
+  final String? internalNumber;
   final DateTime createdAt;
-  final DateTime updatedAt;
-  final String channelLabel;
-  final Color accentColor;
+  final List<ComplaintChatMessage> messages;
 
-  const ComplaintChatCase({
-    required this.ticket,
-    required this.product,
-    required this.customer,
-    required this.statusLabel,
+  const ComplaintChatConversation({
+    required this.id,
+    required this.subject,
+    required this.contactLabel,
     required this.createdAt,
-    required this.updatedAt,
-    required this.channelLabel,
-    required this.accentColor,
+    this.ticketNumber,
+    this.internalNumber,
+    this.messages = const [],
   });
+
+  ComplaintChatConversation copyWith({
+    String? id,
+    String? subject,
+    String? contactLabel,
+    String? ticketNumber,
+    String? internalNumber,
+    DateTime? createdAt,
+    List<ComplaintChatMessage>? messages,
+  }) {
+    return ComplaintChatConversation(
+      id: id ?? this.id,
+      subject: subject ?? this.subject,
+      contactLabel: contactLabel ?? this.contactLabel,
+      ticketNumber: ticketNumber ?? this.ticketNumber,
+      internalNumber: internalNumber ?? this.internalNumber,
+      createdAt: createdAt ?? this.createdAt,
+      messages: messages ?? this.messages,
+    );
+  }
+
+  int unreadCount(ComplaintChatRole role) {
+    return messages
+        .where((m) => m.author != role && !m.readBy.contains(role))
+        .length;
+  }
+
+  DateTime get lastActivity =>
+      messages.isEmpty ? createdAt : messages.last.createdAt;
+}
+
+class ComplaintChatInboxState {
+  static final ValueNotifier<int> unreadForRep = ValueNotifier<int>(0);
+  static final ValueNotifier<int> unreadForAdmin = ValueNotifier<int>(0);
+
+  static void syncUnread(List<ComplaintChatConversation> conversations) {
+    int rep = 0;
+    int admin = 0;
+
+    for (final c in conversations) {
+      rep += c.unreadCount(ComplaintChatRole.rep);
+      admin += c.unreadCount(ComplaintChatRole.admin);
+    }
+
+    if (unreadForRep.value != rep) unreadForRep.value = rep;
+    if (unreadForAdmin.value != admin) unreadForAdmin.value = admin;
+  }
 }
