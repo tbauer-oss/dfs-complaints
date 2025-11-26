@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:html' as html;
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -31,6 +32,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
   late List<DfsProduct> _items;
   final Map<String, TextEditingController> _filterCtrls = {};
   String _globalSearch = '';
+  int? _rowsPerPage;
 
   static const _dropdownKeys = <String>{
     'td_number_and_name',
@@ -289,6 +291,17 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
   @override
   Widget build(BuildContext context) {
     final filtered = _applyFilters();
+    final dataSource = _ProductDataSource(
+      products: filtered,
+      onEdit: _openEditor,
+      onDelete: _deleteProduct,
+    );
+
+    var rowsPerPage = _rowsPerPage ?? PaginatedDataTable.defaultRowsPerPage;
+    if (filtered.isNotEmpty) {
+      rowsPerPage = math.min(rowsPerPage, filtered.length);
+    }
+    final effectiveRowsPerPage = rowsPerPage.clamp(1, math.max(1, rowsPerPage)).toInt();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -386,65 +399,51 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Row(
-                    children: [
-                      Text('${filtered.length} von ${_items.length} Artikeln',
-                          style: Theme.of(context).textTheme.titleMedium),
-                      const Spacer(),
-                      if (widget.loading)
-                        const Padding(
-                          padding: EdgeInsets.only(right: 8),
-                          child: SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2)),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
                   Expanded(
-                    child: Scrollbar(
-                      thumbVisibility: true,
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(minWidth: 1200),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        return Scrollbar(
+                          thumbVisibility: true,
                           child: SingleChildScrollView(
-                            child: DataTable(
-                              headingTextStyle: const TextStyle(fontWeight: FontWeight.bold),
-                              columns: [
-                                ...DfsProduct.fieldOrder.map((key) => DataColumn(label: Text(DfsProduct.fieldLabels[key] ?? key))),
-                                const DataColumn(label: Text('Aktionen')),
-                              ],
-                              rows: filtered.map((p) {
-                                final map = p.toHeaderMap();
-                                return DataRow(
-                                  cells: [
-                                    ...DfsProduct.fieldOrder.map((k) => DataCell(Text(map[k] ?? ''))),
-                                    DataCell(
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          IconButton(
-                                            tooltip: 'Bearbeiten',
-                                            icon: const Icon(Icons.edit_outlined),
-                                            onPressed: () => _openEditor(product: p),
-                                          ),
-                                          IconButton(
-                                            tooltip: 'Löschen',
-                                            icon: const Icon(Icons.delete_outline),
-                                            onPressed: () => _deleteProduct(p),
-                                          ),
-                                        ],
+                            scrollDirection: Axis.horizontal,
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(minWidth: math.max(constraints.maxWidth, 1200)),
+                              child: PaginatedDataTable(
+                                header: Row(
+                                  children: [
+                                    Text('${filtered.length} von ${_items.length} Artikeln',
+                                        style: Theme.of(context).textTheme.titleMedium),
+                                    const Spacer(),
+                                    if (widget.loading)
+                                      const Padding(
+                                        padding: EdgeInsets.only(right: 8),
+                                        child: SizedBox(
+                                            width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
                                       ),
-                                    ),
                                   ],
-                                );
-                              }).toList(),
+                                ),
+                                columns: [
+                                  ...DfsProduct.fieldOrder
+                                      .map((key) => DataColumn(label: Text(DfsProduct.fieldLabels[key] ?? key))),
+                                  const DataColumn(label: Text('Aktionen')),
+                                ],
+                                source: dataSource,
+                                rowsPerPage: effectiveRowsPerPage,
+                                availableRowsPerPage: const [10, 25, 50, 100],
+                                onRowsPerPageChanged: (value) {
+                                  if (value != null) {
+                                    setState(() => _rowsPerPage = value);
+                                  }
+                                },
+                                showFirstLastButtons: true,
+                                horizontalMargin: 12,
+                                columnSpacing: 28,
+                                showCheckboxColumn: false,
+                              ),
                             ),
                           ),
-                        ),
-                      ),
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -455,4 +454,51 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
       ],
     );
   }
+}
+
+class _ProductDataSource extends DataTableSource {
+  final List<DfsProduct> products;
+  final Future<void> Function({DfsProduct? product}) onEdit;
+  final Future<void> Function(DfsProduct product) onDelete;
+
+  _ProductDataSource({required this.products, required this.onEdit, required this.onDelete});
+
+  @override
+  DataRow? getRow(int index) {
+    if (index >= products.length) return null;
+    final product = products[index];
+    final map = product.toHeaderMap();
+    return DataRow.byIndex(
+      index: index,
+      cells: [
+        ...DfsProduct.fieldOrder.map((k) => DataCell(Text(map[k] ?? ''))),
+        DataCell(
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                tooltip: 'Bearbeiten',
+                icon: const Icon(Icons.edit_outlined),
+                onPressed: () => onEdit(product: product),
+              ),
+              IconButton(
+                tooltip: 'Löschen',
+                icon: const Icon(Icons.delete_outline),
+                onPressed: () => onDelete(product),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  bool get isRowCountApproximate => false;
+
+  @override
+  int get rowCount => products.length;
+
+  @override
+  int get selectedRowCount => 0;
 }
