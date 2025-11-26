@@ -34,6 +34,7 @@
 
   "firstName": "First name",
   "lastName": "Last name",
+  "customer_email": "Customer email",
 
   "complaint_sub": "Thank you for helping us continuously improve our quality.",
 
