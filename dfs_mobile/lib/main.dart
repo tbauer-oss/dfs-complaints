@@ -811,68 +811,190 @@ class _LoginLanding extends StatelessWidget {
                             ),
 
                             const SizedBox(height: 10),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: scheme.surfaceContainerHighest.withOpacity(isDark ? 0.65 : 0.55),
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: scheme.outlineVariant.withOpacity(isDark ? 0.5 : 0.4),
-                                ),
-                                boxShadow: [
-                                  if (!isDark)
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.05),
-                                      blurRadius: 16,
-                                      offset: const Offset(0, 8),
-                                    ),
-                                ],
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(18),
+                              child: Stack(
                                 children: [
-                                  Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Icon(
-                                        Icons.handshake,
-                                        color: scheme.primary,
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              t.quick_access_title,
-                                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                                    fontWeight: FontWeight.w700,
-                                                    color: scheme.onSurface,
-                                                  ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              t.quick_access_subtitle,
-                                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                                    color: scheme.onSurfaceVariant,
-                                                  ),
-                                            ),
+                                  Positioned(
+                                    top: -60,
+                                    left: -40,
+                                    child: Container(
+                                      width: 180,
+                                      height: 180,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        gradient: RadialGradient(
+                                          colors: [
+                                            scheme.primary.withOpacity(isDark ? 0.24 : 0.32),
+                                            scheme.surface.withOpacity(0),
                                           ],
                                         ),
                                       ),
-                                    ],
+                                    ),
                                   ),
-                                  const SizedBox(height: 10),
-                                  Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: OutlinedButton.icon(
-                                      icon: const Icon(Icons.login_rounded, size: 18),
-                                      label: Text(t.rep_area ?? t.rep_area),
-                                      onPressed: onOpenRep,
-                                      style: OutlinedButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                                        visualDensity: VisualDensity.compact,
+                                  Positioned(
+                                    bottom: -80,
+                                    right: -70,
+                                    child: Container(
+                                      width: 220,
+                                      height: 220,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        gradient: RadialGradient(
+                                          colors: [
+                                            scheme.secondary.withOpacity(isDark ? 0.18 : 0.28),
+                                            scheme.surface.withOpacity(0),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  BackdropFilter(
+                                    filter: ui.ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                                    child: Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(18),
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                          colors: [
+                                            scheme.surface.withOpacity(isDark ? 0.48 : 0.82),
+                                            scheme.primaryContainer.withOpacity(isDark ? 0.24 : 0.52),
+                                          ],
+                                        ),
+                                        borderRadius: BorderRadius.circular(18),
+                                        border: Border.all(
+                                          color: scheme.outlineVariant.withOpacity(isDark ? 0.35 : 0.55),
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: scheme.primary.withOpacity(isDark ? 0.24 : 0.22),
+                                            blurRadius: 26,
+                                            spreadRadius: -6,
+                                            offset: const Offset(0, 18),
+                                          ),
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(isDark ? 0.35 : 0.08),
+                                            blurRadius: 18,
+                                            offset: const Offset(0, 10),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Wrap(
+                                            spacing: 14,
+                                            runSpacing: 10,
+                                            crossAxisAlignment: WrapCrossAlignment.start,
+                                            alignment: WrapAlignment.start,
+                                            children: [
+                                              Container(
+                                                padding: const EdgeInsets.all(12),
+                                                decoration: BoxDecoration(
+                                                  shape: BoxShape.circle,
+                                                  gradient: LinearGradient(
+                                                    colors: [
+                                                      scheme.primary,
+                                                      scheme.secondary,
+                                                    ],
+                                                    begin: Alignment.topLeft,
+                                                    end: Alignment.bottomRight,
+                                                  ),
+                                                  boxShadow: [
+                                                    BoxShadow(
+                                                      color: scheme.primary.withOpacity(0.35),
+                                                      blurRadius: 20,
+                                                      spreadRadius: 1,
+                                                      offset: const Offset(0, 10),
+                                                    ),
+                                                  ],
+                                                ),
+                                                child: Icon(
+                                                  Icons.handshake_rounded,
+                                                  color: scheme.onPrimary,
+                                                  size: 22,
+                                                ),
+                                              ),
+                                              SizedBox(
+                                                width: math.max(0.0, math.min(constraints.maxWidth, 720) - 14 - 24),
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Wrap(
+                                                      spacing: 8,
+                                                      runSpacing: 6,
+                                                      crossAxisAlignment: WrapCrossAlignment.center,
+                                                      children: [
+                                                        Text(
+                                                          t.quick_access_title,
+                                                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                                                fontWeight: FontWeight.w800,
+                                                                letterSpacing: 0.1,
+                                                                color: scheme.onSurface,
+                                                              ),
+                                                        ),
+                                                        DecoratedBox(
+                                                          decoration: BoxDecoration(
+                                                            color: scheme.primary.withOpacity(0.12),
+                                                            borderRadius: BorderRadius.circular(12),
+                                                            border: Border.all(color: scheme.primary.withOpacity(0.28)),
+                                                          ),
+                                                          child: Padding(
+                                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                            child: Text(
+                                                              'Premium',
+                                                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                                                    color: scheme.primary,
+                                                                    fontWeight: FontWeight.w700,
+                                                                  ),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    const SizedBox(height: 6),
+                                                    Text(
+                                                      t.quick_access_subtitle,
+                                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                                            color: scheme.onSurfaceVariant,
+                                                            height: 1.4,
+                                                          ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 14),
+                                          Wrap(
+                                            spacing: 12,
+                                            runSpacing: 10,
+                                            crossAxisAlignment: WrapCrossAlignment.center,
+                                            children: [
+                                              FilledButton.icon(
+                                                icon: const Icon(Icons.login_rounded, size: 18),
+                                                label: Text(t.rep_area ?? t.rep_area),
+                                                onPressed: onOpenRep,
+                                                style: FilledButton.styleFrom(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                                  textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                                                ),
+                                              ),
+                                              SizedBox(
+                                                width: math.max(0.0, math.min(constraints.maxWidth, 720) - 12 - 24),
+                                                child: Text(
+                                                  t.opening_rep_area,
+                                                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                                        color: scheme.onSurfaceVariant,
+                                                      ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ),
