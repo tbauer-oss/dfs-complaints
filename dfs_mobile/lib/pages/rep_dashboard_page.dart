@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../api/client.dart';
 import 'rep_profile_page.dart';
+import '../models/complaint_chat.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:dfs_mobile/web_compat/html_stub.dart'
@@ -1163,6 +1164,24 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             _filter = _RepFilter.open;
             _view = _RepView.open;
           }),
+        ),
+        ValueListenableBuilder<int>(
+          valueListenable: ComplaintChatInboxState.unreadForRep,
+          builder: (_, unread, __) {
+            return _MenuCard(
+              color: Colors.purple,
+              icon: Icons.chat_bubble_outline,
+              title: 'Interner Chat',
+              subtitle: 'QM ↔ Vertreter pro Fall',
+              count: unread > 0 ? unread : null,
+              compact: compact,
+              scale: scale,
+              onTap: () => Navigator.of(context).pushNamed(
+                '/internal-chat',
+                arguments: const ComplaintChatPageArgs(role: ComplaintChatRole.rep),
+              ),
+            );
+          },
         ),
         _MenuCard(
           color: Colors.indigo,

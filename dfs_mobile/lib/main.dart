@@ -28,6 +28,7 @@ import 'pages/legal_privacy_page.dart';
 import 'pages/legal_imprint_page.dart';
 import 'widgets/legal_footer.dart';
 import 'pages/reset_password_page.dart';
+import 'pages/complaint_chat_page.dart';
 
 // Widgets
 import 'widgets/lang_action.dart';
@@ -538,6 +539,22 @@ class _MyAppState extends State<MyApp> {
               '/repLogin': (_) => RepLoginPage(api: api),
               // Vertreter-Dashboard
               '/rep': (_) => RepDashboardPage(api: api),
+              '/internal-chat': (ctx) {
+                final args = ModalRoute.of(ctx)?.settings.arguments;
+                ComplaintChatPageArgs parsed;
+                if (args is ComplaintChatPageArgs) {
+                  parsed = args;
+                } else {
+                  parsed = ComplaintChatPageArgs(
+                    role: ComplaintChatRole.rep,
+                    ticket: args is String ? args : null,
+                  );
+                }
+                return ComplaintChatPage(
+                  role: parsed.role,
+                  ticket: parsed.ticket,
+                );
+              },
               // Passwort-Reset
               '/reset-password': (_) => ResetPasswordPage(api: api),
               // Datenschutz-Seite

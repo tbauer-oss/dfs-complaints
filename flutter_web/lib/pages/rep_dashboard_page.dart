@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../api/client.dart';
 import 'rep_profile_page.dart';
+import '../models/complaint_chat.dart';
 import 'rep_support_contact_form.dart';
 import 'dart:html' as html;
 import '../l10n/app_localizations.dart';
@@ -1268,6 +1269,30 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
               _filter = _RepFilter.open;
               _view = _RepView.open;
             });
+          },
+        ),
+        ValueListenableBuilder<int>(
+          valueListenable: ComplaintChatInboxState.unreadForRep,
+          builder: (_, unread, __) {
+            return _MenuCard(
+              color: Colors.purple,
+              icon: Icons.chat_bubble_outline,
+              title: 'Interner Chat',
+              subtitle: 'QM ↔ Vertreter pro Fall',
+              count: unread > 0 ? unread : null,
+              compact: compact,
+              scale: scale,
+              onTap: () async {
+                if (!await _confirmLeaveCurrentView()) return;
+                if (!mounted) return;
+                await Navigator.of(context).pushNamed(
+                  '/internal-chat',
+                  arguments: const ComplaintChatPageArgs(
+                    role: ComplaintChatRole.rep,
+                  ),
+                );
+              },
+            );
           },
         ),
         _MenuCard(
