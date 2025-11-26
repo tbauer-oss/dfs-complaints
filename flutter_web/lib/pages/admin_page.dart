@@ -9741,6 +9741,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   bool _busy = false;
   bool _expanded = false;
   bool _historyExpanded = false;
+  bool _showProductInfo = false;
   bool _noteOpen = false;
   bool _descTranslating = false;
   String? _descTranslation;
@@ -9911,6 +9912,19 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _productInfoToggleButton() {
+    return FilledButton.tonalIcon(
+      onPressed: () => setState(() => _showProductInfo = !_showProductInfo),
+      icon: Icon(_showProductInfo ? Icons.expand_less : Icons.unfold_more),
+      label: Text(
+        _showProductInfo ? 'Artikelliste ausblenden' : 'Artikelliste anzeigen',
+      ),
+      style: FilledButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       ),
     );
   }
@@ -11584,6 +11598,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                           deriveProductType(productArea ?? segment);
                       final productDetails =
                           matchedProduct == null ? null : _buildProductInfoCard(matchedProduct);
+                      final hasProductInfo = productDetails != null;
 
                       final primaryColumn = <Widget>[];
                       final secondaryColumn = <Widget>[];
@@ -11634,13 +11649,16 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                                   ),
                                 ),
                                 const SizedBox(width: 10),
-                                Text(
-                                  'Details der Reklamation',
-                                  style: textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 0.15,
+                                Expanded(
+                                  child: Text(
+                                    'Details der Reklamation',
+                                    style: textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.15,
+                                    ),
                                   ),
                                 ),
+                                if (hasProductInfo) _productInfoToggleButton(),
                               ],
                             ),
                             const SizedBox(height: 10),
@@ -11653,7 +11671,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                             ),
                             if (productDetails != null) ...[
                               const SizedBox(height: 12),
-                              productDetails,
+                              if (_showProductInfo) productDetails,
                             ],
                           ],
                         );
@@ -11684,26 +11702,29 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                                 ),
                               ),
                               const SizedBox(width: 10),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Details der Reklamation',
-                                    style: textTheme.titleMedium?.copyWith(
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 0.15,
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Details der Reklamation',
+                                      style: textTheme.titleMedium?.copyWith(
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0.15,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    'Wichtigste Angaben kompakt und geordnet.',
-                                    style: textTheme.bodySmall?.copyWith(
-                                      color: colorScheme.onSurfaceVariant
-                                          .withOpacity(0.78),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Wichtigste Angaben kompakt und geordnet.',
+                                      style: textTheme.bodySmall?.copyWith(
+                                        color: colorScheme.onSurfaceVariant
+                                            .withOpacity(0.78),
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
+                              if (hasProductInfo) _productInfoToggleButton(),
                             ],
                           ),
                           const SizedBox(height: 14),
@@ -11747,7 +11768,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                             ),
                           if (productDetails != null) ...[
                             const SizedBox(height: 12),
-                            productDetails,
+                            if (_showProductInfo) productDetails,
                           ],
                           if (descText.isNotEmpty)
                             _buildDescriptionTranslationBox(descText),
