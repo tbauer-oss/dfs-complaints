@@ -805,25 +805,20 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
     TableRow buildRow(DfsProduct product) {
       final map = product.toHeaderMap();
       return TableRow(
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.5)),
+          ),
+        ),
         children: [
           ...visibleFields.map((key) {
-            return Container(
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.5)),
-                ),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Text(map[key] ?? ''),
             );
           }),
-          Container(
-            decoration: BoxDecoration(
-              border: Border(
-                bottom: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.5)),
-              ),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
