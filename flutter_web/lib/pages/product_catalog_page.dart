@@ -329,6 +329,17 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
   Widget build(BuildContext context) {
     final filtered = _applyFilters();
 
+    final filteredLength = filtered.length;
+    final totalPages = filteredLength == 0 ? 1 : (filteredLength / _rowsPerPage).ceil();
+    final currentPage = filteredLength == 0
+        ? 0
+        : _currentPage.clamp(0, math.max(0, totalPages - 1)).toInt();
+    final pageItems = filtered.skip(currentPage * _rowsPerPage).take(_rowsPerPage).toList();
+    final startIndex = filteredLength == 0 ? 0 : currentPage * _rowsPerPage + 1;
+    final endIndex = filteredLength == 0
+        ? 0
+        : math.min(filteredLength, currentPage * _rowsPerPage + pageItems.length);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -494,114 +505,98 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
         const SizedBox(height: 12),
         Expanded(
           child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final filteredLength = filtered.length;
-                        final totalPages = filteredLength == 0
-                            ? 1
-                            : (filteredLength / _rowsPerPage).ceil();
-                        final currentPage = filteredLength == 0
-                            ? 0
-                            : _currentPage
-                                .clamp(0, math.max(0, totalPages - 1))
-                                .toInt();
-                        final pageItems = filtered
-                            .skip(currentPage * _rowsPerPage)
-                            .take(_rowsPerPage)
-                            .toList();
-                        final startIndex = filteredLength == 0 ? 0 : currentPage * _rowsPerPage + 1;
-                        final endIndex = filteredLength == 0
-                            ? 0
-                            : math.min(filteredLength, currentPage * _rowsPerPage + pageItems.length);
-
-                        return Scrollbar(
-                          controller: _tableScrollController,
-                          thumbVisibility: true,
-                          trackVisibility: true,
-                          interactive: true,
-                          child: ScrollConfiguration(
-                            behavior: const MaterialScrollBehavior()
-                                .copyWith(dragDevices: _scrollDragDevices),
-                            child: SingleChildScrollView(
-                              controller: _tableScrollController,
-                              scrollDirection: Axis.horizontal,
-                              child: Scrollbar(
-                                controller: _verticalTableScrollController,
-                                thumbVisibility: true,
-                                trackVisibility: true,
-                                interactive: true,
-                                notificationPredicate: (notif) => notif.metrics.axis == Axis.vertical,
-                                child: ScrollConfiguration(
-                                  behavior: const MaterialScrollBehavior()
-                                      .copyWith(dragDevices: _scrollDragDevices),
-                                  child: SingleChildScrollView(
-                                    controller: _verticalTableScrollController,
-                                    scrollDirection: Axis.vertical,
-                                    child: ConstrainedBox(
-                                      constraints:
-                                          BoxConstraints(minWidth: math.max(constraints.maxWidth, 1200)),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                                        children: [
-                                          Padding(
-                                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                                            child: Row(
-                                              children: [
-                                                Text('$startIndex–$endIndex von ${filtered.length} Artikeln',
-                                                    style: Theme.of(context).textTheme.titleMedium),
-                                                const Spacer(),
-                                                if (widget.loading)
-                                                  const Padding(
-                                                    padding: EdgeInsets.only(right: 8),
-                                                    child: SizedBox(
-                                                        width: 18,
-                                                        height: 18,
-                                                        child: CircularProgressIndicator(strokeWidth: 2)),
-                                                  ),
-                                              ],
-                                            ),
-                                          ),
-                                          DataTable(
-                                            columns: [
-                                              ...DfsProduct.fieldOrder
-                                                  .map((key) =>
-                                                      DataColumn(label: Text(DfsProduct.fieldLabels[key] ?? key))),
-                                              const DataColumn(label: Text('Aktionen')),
-                                            ],
-                                            rows: pageItems.map(_buildDataRow).toList(),
-                                            headingRowHeight: 56,
-                                            dataRowMinHeight: 44,
-                                            dataRowMaxHeight: 64,
-                                            horizontalMargin: 12,
-                                            columnSpacing: 28,
-                                            showCheckboxColumn: false,
-                                          ),
-                                          const SizedBox(height: 8),
-                                          _buildPagination(
-                                            totalPages: totalPages,
-                                            currentPage: currentPage,
-                                            totalItems: filteredLength,
-                                          ),
-                                        ],
-                                      ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                  child: Row(
+                    children: [
+                      Text('$startIndex–$endIndex von ${filtered.length} Artikeln',
+                          style: Theme.of(context).textTheme.titleMedium),
+                      const Spacer(),
+                      if (widget.loading)
+                        const Padding(
+                          padding: EdgeInsets.only(right: 8),
+                          child: SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      return Scrollbar(
+                        controller: _tableScrollController,
+                        thumbVisibility: true,
+                        trackVisibility: true,
+                        interactive: true,
+                        child: ScrollConfiguration(
+                          behavior:
+                              const MaterialScrollBehavior().copyWith(dragDevices: _scrollDragDevices),
+                          child: SingleChildScrollView(
+                            controller: _tableScrollController,
+                            scrollDirection: Axis.horizontal,
+                            child: Scrollbar(
+                              controller: _verticalTableScrollController,
+                              thumbVisibility: true,
+                              trackVisibility: true,
+                              interactive: true,
+                              notificationPredicate: (notif) => notif.metrics.axis == Axis.vertical,
+                              child: ScrollConfiguration(
+                                behavior: const MaterialScrollBehavior()
+                                    .copyWith(dragDevices: _scrollDragDevices),
+                                child: SingleChildScrollView(
+                                  controller: _verticalTableScrollController,
+                                  scrollDirection: Axis.vertical,
+                                  child: ConstrainedBox(
+                                    constraints:
+                                        BoxConstraints(minWidth: math.max(constraints.maxWidth, 1200)),
+                                    child: DataTable(
+                                      columns: [
+                                        ...DfsProduct.fieldOrder
+                                            .map((key) =>
+                                                DataColumn(label: Text(DfsProduct.fieldLabels[key] ?? key))),
+                                        const DataColumn(label: Text('Aktionen')),
+                                      ],
+                                      rows: pageItems.map(_buildDataRow).toList(),
+                                      headingRowHeight: 56,
+                                      dataRowMinHeight: 44,
+                                      dataRowMaxHeight: 64,
+                                      horizontalMargin: 12,
+                                      columnSpacing: 28,
+                                      showCheckboxColumn: false,
                                     ),
                                   ),
                                 ),
                               ),
                             ),
                           ),
-                        );
-                      },
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceVariant,
+                    border: Border(
+                      top: BorderSide(color: Theme.of(context).dividerColor),
                     ),
                   ),
-                ],
-              ),
+                  child: _buildPagination(
+                    totalPages: totalPages,
+                    currentPage: currentPage,
+                    totalItems: filteredLength,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
