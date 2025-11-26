@@ -18,6 +18,7 @@
   "theme_system": "System",
   "theme_light": "Hell",
   "theme_dark": "Dunkel",
+  "customer_email": "Kunden-E-Mail",
 
   "ticket": "Ticketnummer",
   "complaint_assist": "Assistent starten",
