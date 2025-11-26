@@ -3265,7 +3265,7 @@ class _AdminPageState extends State<AdminPage> {
                   if (!isNarrow)
                     AnimatedContainer(
                       duration: const Duration(milliseconds: 220),
-                      width: _navCollapsed ? 82 : 280,
+                      width: _navCollapsed ? 112 : 280,
                       margin: const EdgeInsets.fromLTRB(12, 10, 12, 12),
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
@@ -3550,7 +3550,7 @@ class _AdminPageState extends State<AdminPage> {
 
     Widget buildHeader() {
       return Padding(
-        padding: EdgeInsets.fromLTRB(isCompact ? 10 : 16, 14, isCompact ? 10 : 16, isCompact ? 6 : 10),
+        padding: EdgeInsets.fromLTRB(isCompact ? 8 : 16, 14, isCompact ? 8 : 16, isCompact ? 6 : 10),
         child: Row(
           children: [
             Container(
