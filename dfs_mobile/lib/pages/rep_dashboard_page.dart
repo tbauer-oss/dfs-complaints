@@ -1482,13 +1482,21 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
           onPressed: _createCustomerDialog,
           icon: const Icon(Icons.add_business),
           label: Text(t.rep_create_customer ?? t.addCustomer),
+          style: FilledButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            minimumSize: const Size(0, 40),
+            textStyle: Theme.of(context).textTheme.labelLarge,
+            shape: const StadiumBorder(),
+          ),
         ),
         FilledButton.tonalIcon(
           onPressed: _assignCustomerDialog,
           icon: const Icon(Icons.person_add_alt_1),
           label: Text(t.addCustomer),
           style: FilledButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            minimumSize: const Size(0, 40),
+            textStyle: Theme.of(context).textTheme.labelLarge,
             shape: const StadiumBorder(),
           ),
         ),
@@ -2401,24 +2409,22 @@ class _CustomerTile extends StatelessWidget {
     final city    = pick('city');
     final country = pick('country');
 
-    final contactLabel = (contact.isNotEmpty ? contact : (company.isNotEmpty ? company : email)).trim();
-    final location = [
-      [zip, city].where((e) => e.trim().isNotEmpty).join(' ').trim(),
-      country.trim(),
-    ].where((e) => e.isNotEmpty).join(' · ');
+    final displayName = (company.isNotEmpty ? company : contact.isNotEmpty ? contact : email).trim();
+    final countryLabel = [country.trim(), [zip, city].where((e) => e.trim().isNotEmpty).join(' ').trim()]
+        .where((e) => e.isNotEmpty)
+        .firstWhere((_) => true, orElse: () => '');
 
     final accent = isNew ? cs.primary : cs.secondary;
-    final initialsSource = contactLabel.isNotEmpty ? contactLabel : email;
+    final initialsSource = displayName.isNotEmpty ? displayName : email;
     final initials = initialsSource.isNotEmpty ? initialsSource[0].toUpperCase() : 'C';
     final t = context.t;
 
     // Gemeinsame Kopfzeile (links Avatar + Titel, rechts optional NEW)
     final nameStyle = (isPhone ? theme.textTheme.titleSmall : theme.textTheme.titleMedium)
         ?.copyWith(fontWeight: FontWeight.w800);
-    final companyStyle = (isPhone ? theme.textTheme.bodySmall : theme.textTheme.bodyMedium)
+    final countryStyle = (isPhone ? theme.textTheme.bodySmall : theme.textTheme.bodyMedium)
         ?.copyWith(color: cs.onSurfaceVariant, height: 1.05);
-    final emailStyle = theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant, height: 1.05);
-    
+
     Widget header() => Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -2443,29 +2449,19 @@ class _CustomerTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Name/Überschrift groß, max. 2 Zeilen
+                  // Nur Firmenname und Land anzeigen (kompakt)
                   Text(
-                    contactLabel,
+                    displayName,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: nameStyle,
                   ),
-                  if (company.isNotEmpty && company != contactLabel) ...[
-                    SizedBox(height: isPhone ? 1.5 : 3),
-                    Text(
-                      company,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: companyStyle,
-                    ),
-                  ],
-                  SizedBox(height: isPhone ? 1.5 : 3),
-                  // Email in kleiner, ruhiger Farbe, 1 Zeile
+                  SizedBox(height: isPhone ? 4 : 6),
                   Text(
-                    email,
+                    countryLabel,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: emailStyle,
+                    style: countryStyle,
                   ),
                 ],
               ),
@@ -2493,60 +2489,38 @@ class _CustomerTile extends StatelessWidget {
           ],
         );
 
-    // Sekundärinfos als Chips (Telefon/Ort), umbrechend
-    final List<Widget> chipWidgets = [
-      if (phone.isNotEmpty)
-        _CustomerInfoChip(icon: Icons.phone_outlined, label: phone),
-      if (address.isNotEmpty)
-        _CustomerInfoChip(icon: Icons.location_on_outlined, label: address),
-      if (location.isNotEmpty)
-        _CustomerInfoChip(icon: Icons.map_outlined, label: location),
-    ];
-
-    Widget infoChips() => Wrap(
-          spacing: 10,
-          runSpacing: 8,
-          children: chipWidgets,
+    ButtonStyle removeStyle = OutlinedButton.styleFrom(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      minimumSize: const Size(0, 36),
+      textStyle: theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w700),
+      foregroundColor: cs.error,
+      side: BorderSide(color: cs.error),
+      shape: const StadiumBorder(),
     );
 
-    Widget mobileActions() => Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            OutlinedButton.icon(
-              icon: const Icon(Icons.link_off),
-              onPressed: onRemove,
-              label: Text(t.deleteAdd),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                minimumSize: const Size.fromHeight(42),
-                shape: const StadiumBorder(),
-                foregroundColor: cs.error,
-                side: BorderSide(color: cs.error),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Align(
-              alignment: Alignment.centerRight,
-              child: IconButton(
-                tooltip: t.showDetails ?? t.showDetails,
-                icon: const Icon(Icons.chevron_right),
-                onPressed: onOpen,
-              ),
-            ),
-          ],
-        );
+    ButtonStyle detailsStyle = TextButton.styleFrom(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      minimumSize: const Size(0, 36),
+      textStyle: theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w600),
+      shape: const StadiumBorder(),
+    );
 
-    Widget desktopActions() => Column(
-          mainAxisAlignment: MainAxisAlignment.start,
+    Widget actionButtons() => Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          alignment: WrapAlignment.end,
           children: [
             OutlinedButton.icon(
-              icon: const Icon(Icons.link_off),
+              icon: const Icon(Icons.link_off, size: 18),
               onPressed: onRemove,
               label: Text(t.deleteAdd),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: cs.error,
-                side: BorderSide(color: cs.error),
-              ),
+              style: removeStyle,
+            ),
+            TextButton.icon(
+              icon: const Icon(Icons.unfold_more, size: 18),
+              onPressed: onOpen,
+              label: Text(t.showDetails ?? t.showDetails),
+              style: detailsStyle,
             ),
           ],
         );
@@ -2569,66 +2543,21 @@ class _CustomerTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     header(),
-                    if (chipWidgets.isNotEmpty) ...[
-                      SizedBox(height: isPhone ? 10 : 12),
-                      infoChips(),
-                    ],
-                    SizedBox(height: chipWidgets.isNotEmpty ? 12 : 8),
-                    mobileActions(),
+                    const SizedBox(height: 10),
+                    actionButtons(),
                   ],
                 )
               : Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Links: Header + Chips
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          header(),
-                          const SizedBox(height: 12),
-                          infoChips(),
-                        ],
-                      ),
-                    ),
+                    // Links: Header
+                    Expanded(child: header()),
                     const SizedBox(width: 12),
                     // Rechts: Aktionen
-                    desktopActions(),
+                    actionButtons(),
                   ],
                 ),
         ),
-      ),
-    );
-  }
-}
-
-class _CustomerInfoChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-
-  const _CustomerInfoChip({required this.icon, required this.label, super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: cs.surfaceVariant.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: cs.onSurfaceVariant),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: theme.textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant),
-          ),
-        ],
       ),
     );
   }
