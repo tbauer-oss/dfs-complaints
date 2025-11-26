@@ -203,12 +203,11 @@ class _AdminPageState extends State<AdminPage> {
 
   // Admin-Dashboard-Bearbeitung
   bool _menuEditMode = false;
-
+  
   bool _navCollapsed = true;
-  static const _navLayoutStorageKey = 'admin_nav_layout_v1';
-  late final Map<String, String> _navItemDefaultSection;
-  late final Set<String> _navItemIds;
-  late List<_AdminNavSectionState> _navLayout;
+  final ScrollController _navScrollController = ScrollController();
+  Timer? _navTooltipResumeTimer;
+  bool _navTooltipsEnabled = true;
 
   // Mehrfach-Zuordnung interne Nummer
   final Set<String> _selectedAllTickets = <String>{};
@@ -386,6 +385,8 @@ class _AdminPageState extends State<AdminPage> {
     _activityEmailCtrl.dispose();
     _bulkInternalAllCtrl.dispose();
     _bulkInternalOpenCtrl.dispose();
+    _navScrollController.dispose();
+    _navTooltipResumeTimer?.cancel();
     super.dispose();
   }
 
@@ -3438,6 +3439,21 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  void _pauseNavTooltips() {
+    _navTooltipResumeTimer?.cancel();
+    if (_navTooltipsEnabled) {
+      setState(() => _navTooltipsEnabled = false);
+    }
+  }
+
+  void _resumeNavTooltips({Duration delay = const Duration(milliseconds: 260)}) {
+    _navTooltipResumeTimer?.cancel();
+    _navTooltipResumeTimer = Timer(delay, () {
+      if (!mounted) return;
+      setState(() => _navTooltipsEnabled = true);
+    });
+  }
+
   Widget _buildNavigation({required bool isCompact}) {
     final theme = Theme.of(context);
     final Color accent = theme.colorScheme.primary;
@@ -3481,6 +3497,7 @@ class _AdminPageState extends State<AdminPage> {
 
       if (isCompact) {
         return Tooltip(
+          enabled: _navTooltipsEnabled,
           message: item.label,
           verticalOffset: 12,
           child: InkWell(
@@ -3692,29 +3709,45 @@ class _AdminPageState extends State<AdminPage> {
         children: [
           buildHeader(),
           Expanded(
-            child: Scrollbar(
-              thickness: 4,
-              radius: const Radius.circular(12),
-              interactive: true,
-              thumbVisibility: true,
-              child: ListView(
-                primary: false,
-                physics: const ClampingScrollPhysics(),
-                padding: EdgeInsets.symmetric(horizontal: isCompact ? 6 : 16, vertical: isCompact ? 4 : 8),
-                children: [
-                  for (final section in sections) ...[
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      child: _NavigationSection(
-                        key: ValueKey('${section.title}-$isCompact'),
-                        title: section.title,
-                        isCompact: isCompact,
-                        children: section.items.map(buildTile).toList(),
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification is UserScrollNotification) {
+                  if (notification.direction == ScrollDirection.idle) {
+                    _resumeNavTooltips();
+                  } else {
+                    _pauseNavTooltips();
+                  }
+                } else if (notification is ScrollEndNotification) {
+                  _resumeNavTooltips();
+                }
+                return false;
+              },
+              child: Scrollbar(
+                controller: _navScrollController,
+                thickness: 4,
+                radius: const Radius.circular(12),
+                interactive: true,
+                thumbVisibility: true,
+                child: ListView(
+                  controller: _navScrollController,
+                  primary: false,
+                  physics: const ClampingScrollPhysics(),
+                  padding: EdgeInsets.symmetric(horizontal: isCompact ? 6 : 16, vertical: isCompact ? 4 : 8),
+                  children: [
+                    for (final section in sections) ...[
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        child: _NavigationSection(
+                          key: ValueKey('${section.title}-$isCompact'),
+                          title: section.title,
+                          isCompact: isCompact,
+                          children: section.items.map(buildTile).toList(),
+                        ),
                       ),
-                    ),
-                    SizedBox(height: isCompact ? 6 : 8),
+                      SizedBox(height: isCompact ? 6 : 8),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
