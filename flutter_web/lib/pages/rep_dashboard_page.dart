@@ -1286,7 +1286,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
               onTap: () async {
                 if (!await _confirmLeaveCurrentView()) return;
                 if (!mounted) return;
-                await Navigator.of(context).pushNamed(
+                await Navigator.of(context, rootNavigator: true).pushNamed(
                   '/internal-chat',
                   arguments: const ComplaintChatPageArgs(
                     role: ComplaintChatRole.rep,
