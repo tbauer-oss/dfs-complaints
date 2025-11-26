@@ -926,6 +926,48 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     return co.isNotEmpty ? co : em;
   }
 
+  int? _timestampMs(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value > 20000000000 ? value : value * 1000;
+    if (value is double) return value > 20000000000 ? value.toInt() : (value * 1000).toInt();
+    if (value is DateTime) return value.millisecondsSinceEpoch;
+    if (value is String) {
+      final trimmed = value.trim();
+      if (trimmed.isEmpty) return null;
+      final n = int.tryParse(trimmed);
+      if (n != null) return n > 20000000000 ? n : n * 1000;
+      try {
+        final dt = DateTime.parse(trimmed).toLocal();
+        return dt.millisecondsSinceEpoch;
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  int? _latestInteractionFor(
+    Map<String, Object?> customer,
+    List<Map<String, dynamic>> relatedComplaints,
+  ) {
+    final values = <int>[];
+    void add(dynamic v) {
+      final ms = _timestampMs(v);
+      if (ms != null) values.add(ms);
+    }
+
+    add(customer['lastInteraction']);
+    for (final c in relatedComplaints) {
+      add(c['updatedAt']);
+      add(c['createdAt']);
+      add(c['created']);
+    }
+
+    if (values.isEmpty) return null;
+    values.sort();
+    return values.last;
+  }
+
   String _formatCreated(dynamic v) {
     final s = v?.toString() ?? '';
     if (s.isEmpty) return s;
@@ -1440,6 +1482,78 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     }
 
     final filtered = _customers.where(matches).toList(growable: false);
+    final focusCustomers = query.isEmpty ? _customers : filtered;
+
+    Widget buildPerformance() {
+      if (focusCustomers.isEmpty) {
+        return _EmptyState(
+          icon: Icons.monitor_heart_outlined,
+          title: t.rep_customer_performance_empty ?? t.noData,
+        );
+      }
+
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final maxWidth = constraints.maxWidth;
+          final columns = maxWidth < 560
+              ? 1
+              : maxWidth < 960
+                  ? 2
+                  : 3;
+          const spacing = 12.0;
+          final tileWidth = math.max((maxWidth - spacing * (columns - 1)) / columns, 260.0);
+
+          return Wrap(
+            spacing: spacing,
+            runSpacing: spacing,
+            children: focusCustomers.map((c) {
+              final email = (c['email'] ?? '').toString();
+              final normalizedEmail = email.toLowerCase();
+              final company = (c['company'] ?? '').toString();
+              final name = (c['name'] ?? '').toString();
+              final display = company.isNotEmpty
+                  ? company
+                  : name.isNotEmpty
+                      ? name
+                      : email;
+
+              final relatedComplaints = _complaints.where((comp) {
+                final em = (comp['customerEmail'] ?? comp['email'] ?? '').toString().toLowerCase();
+                return em == normalizedEmail;
+              }).toList(growable: false);
+
+              final totalCount = relatedComplaints.length;
+              final openCount = relatedComplaints.where((rc) => !_isClosed(rc)).length;
+              final pendingActions = relatedComplaints
+                  .where((rc) => !_isClosed(rc) && ((rc['repDecision'] ?? '').toString().isEmpty))
+                  .length;
+              final lastInteractionMs = _latestInteractionFor(c, relatedComplaints);
+              final lastInteraction = lastInteractionMs != null
+                  ? _formatCreated(lastInteractionMs)
+                  : (t.noData ?? '-');
+              final isNew = !_seenCustomers.contains(normalizedEmail);
+
+              return SizedBox(
+                width: tileWidth,
+                child: _CustomerPerformanceTile(
+                  title: display,
+                  email: email,
+                  openCount: openCount,
+                  totalCount: totalCount,
+                  pendingActions: pendingActions,
+                  lastInteractionLabel: lastInteraction,
+                  isNew: isNew,
+                  onOpen: () {
+                    _markCustomerSeen(email);
+                    _showCustomerDetails(c);
+                  },
+                ),
+              );
+            }).toList(growable: false),
+          );
+        },
+      );
+    }
 
     Widget buildList() {
       if (_customers.isEmpty) {
@@ -1475,49 +1589,70 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       );
     }
 
-    return _Card(
-      title: t.myCustomers,
-      actions: [
-        FilledButton.icon(
-          onPressed: _createCustomerDialog,
-          icon: const Icon(Icons.add_business),
-          label: Text(t.rep_create_customer ?? t.addCustomer),
-          style: FilledButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            minimumSize: const Size(0, 40),
-            textStyle: Theme.of(context).textTheme.labelLarge,
-            shape: const StadiumBorder(),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _Card(
+          title: t.rep_customer_performance_title ?? 'Meine Kunden – Performance & Status',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                t.rep_customer_performance_subtitle ??
+                    'Alle zugewiesenen Kunden inklusive Reklamationen, Maßnahmen und letzter Aktivität.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 12),
+              buildPerformance(),
+            ],
           ),
         ),
-        FilledButton.tonalIcon(
-          onPressed: _assignCustomerDialog,
-          icon: const Icon(Icons.person_add_alt_1),
-          label: Text(t.addCustomer),
-          style: FilledButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            minimumSize: const Size(0, 40),
-            textStyle: Theme.of(context).textTheme.labelLarge,
-            shape: const StadiumBorder(),
+        const SizedBox(height: 12),
+        _Card(
+          title: t.myCustomers,
+          actions: [
+            FilledButton.icon(
+              onPressed: _createCustomerDialog,
+              icon: const Icon(Icons.add_business),
+              label: Text(t.rep_create_customer ?? t.addCustomer),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                minimumSize: const Size(0, 40),
+                textStyle: Theme.of(context).textTheme.labelLarge,
+                shape: const StadiumBorder(),
+              ),
+            ),
+            FilledButton.tonalIcon(
+              onPressed: _assignCustomerDialog,
+              icon: const Icon(Icons.person_add_alt_1),
+              label: Text(t.addCustomer),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                minimumSize: const Size(0, 40),
+                textStyle: Theme.of(context).textTheme.labelLarge,
+                shape: const StadiumBorder(),
+              ),
+            ),
+          ],
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: _customerSearchCtrl,
+                onChanged: (value) => setState(() => _customerQuery = value),
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.search),
+                  hintText: t.search,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                  isDense: true,
+                ),
+              ),
+              const SizedBox(height: 14),
+              buildList(),
+            ],
           ),
         ),
       ],
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextField(
-            controller: _customerSearchCtrl,
-            onChanged: (value) => setState(() => _customerQuery = value),
-            decoration: InputDecoration(
-              prefixIcon: const Icon(Icons.search),
-              hintText: t.search,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-              isDense: true,
-            ),
-          ),
-          const SizedBox(height: 14),
-          buildList(),
-        ],
-      ),
     );
   }
 
@@ -2371,6 +2506,181 @@ Color _blend(Color base, Color top, double t) {
 Color _bestOnColor(Color c) {
   final brightness = ThemeData.estimateBrightnessForColor(c);
   return brightness == Brightness.dark ? Colors.white : Colors.black;
+}
+
+class _CustomerPerformanceTile extends StatelessWidget {
+  final String title;
+  final String email;
+  final int openCount;
+  final int totalCount;
+  final int pendingActions;
+  final String lastInteractionLabel;
+  final bool isNew;
+  final VoidCallback onOpen;
+
+  const _CustomerPerformanceTile({
+    required this.title,
+    required this.email,
+    required this.openCount,
+    required this.totalCount,
+    required this.pendingActions,
+    required this.lastInteractionLabel,
+    required this.isNew,
+    required this.onOpen,
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    Widget pill({required IconData icon, required String label, Color? color}) {
+      final tint = color ?? cs.primary;
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: tint.withOpacity(0.10),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: tint.withOpacity(0.35)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: tint),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: theme.textTheme.labelMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: tint,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    Widget meta(IconData icon, String label, String value) {
+      return Row(
+        children: [
+          Icon(icon, size: 18, color: cs.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    final headerEmail = email.isNotEmpty ? email : context.t.customer_email ?? '';
+
+    return InkWell(
+      onTap: onOpen,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: cs.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: cs.outlineVariant.withOpacity(.60)),
+          boxShadow: [
+            BoxShadow(
+              color: cs.shadow.withOpacity(.08),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          if (isNew) const SizedBox(width: 8),
+                          if (isNew) const _PulseNewBadge(),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        headerEmail,
+                        style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: onOpen,
+                  icon: const Icon(Icons.open_in_new),
+                  tooltip: context.t.details ?? 'Details',
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                pill(
+                  icon: Icons.bar_chart_rounded,
+                  label: '${openCount}/${totalCount} ${context.t.rep_customer_performance_complaints ?? ''}'.trim(),
+                  color: Colors.indigo,
+                ),
+                pill(
+                  icon: Icons.playlist_add_check_circle_outlined,
+                  label: '${pendingActions} ${context.t.rep_customer_performance_open_actions ?? ''}'.trim(),
+                  color: Colors.orange,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 10),
+            meta(
+              Icons.access_time,
+              context.t.rep_customer_performance_last_interaction ?? 'Letzte Interaktion',
+              lastInteractionLabel,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _CustomerTile extends StatelessWidget {
