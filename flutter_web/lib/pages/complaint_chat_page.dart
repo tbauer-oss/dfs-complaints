@@ -55,7 +55,10 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
     _contactOptions = widget.contacts;
     if (widget.ticket != null) _ticketCtrl.text = widget.ticket!;
     if (_currentRole == ComplaintChatRole.rep) {
-      _contactCtrl.text = widget.defaultContact ?? 'QM / Admin';
+      _contactOptions = const ['QM / Admin'];
+      _contactCtrl.text = widget.defaultContact?.isNotEmpty == true
+          ? widget.defaultContact!
+          : 'QM / Admin';
     } else if (widget.defaultContact != null && widget.defaultContact!.isNotEmpty) {
       _contactCtrl.text = widget.defaultContact!;
     } else if (_contactOptions.isNotEmpty) {
@@ -87,7 +90,18 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
   void _startConversation() {
     final subject = _subjectCtrl.text.trim();
     final contact = _contactCtrl.text.trim();
-    if (subject.isEmpty || contact.isEmpty) return;
+    if (subject.isEmpty || contact.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            subject.isEmpty
+                ? 'Bitte einen Betreff eingeben und einen Vertreter auswählen.'
+                : 'Bitte einen Vertreter auswählen.',
+          ),
+        ),
+      );
+      return;
+    }
 
     final conv = ComplaintChatConversation(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -468,6 +482,18 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
           labelText: 'Kontakt',
           helperText: 'Interne Chats gehen immer an QM/Admin',
           prefixIcon: Icon(Icons.verified_user_outlined),
+        ),
+      );
+    }
+
+    if (_contactOptions.isEmpty) {
+      return TextField(
+        controller: _contactCtrl,
+        readOnly: true,
+        decoration: const InputDecoration(
+          labelText: 'Kontakt',
+          helperText: 'Keine Vertreter verfügbar. Bitte zuerst anlegen.',
+          prefixIcon: Icon(Icons.badge_outlined),
         ),
       );
     }
