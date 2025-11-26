@@ -884,8 +884,11 @@ class _LoginLanding extends StatelessWidget {
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          Row(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                          Wrap(
+                                            spacing: 14,
+                                            runSpacing: 10,
+                                            crossAxisAlignment: WrapCrossAlignment.start,
+                                            alignment: WrapAlignment.start,
                                             children: [
                                               Container(
                                                 padding: const EdgeInsets.all(12),
@@ -914,12 +917,15 @@ class _LoginLanding extends StatelessWidget {
                                                   size: 22,
                                                 ),
                                               ),
-                                              const SizedBox(width: 14),
-                                              Expanded(
+                                              SizedBox(
+                                                width: math.max(0.0, math.min(constraints.maxWidth, 720) - 14 - 24),
                                                 child: Column(
                                                   crossAxisAlignment: CrossAxisAlignment.start,
                                                   children: [
-                                                    Row(
+                                                    Wrap(
+                                                      spacing: 8,
+                                                      runSpacing: 6,
+                                                      crossAxisAlignment: WrapCrossAlignment.center,
                                                       children: [
                                                         Text(
                                                           t.quick_access_title,
@@ -929,7 +935,6 @@ class _LoginLanding extends StatelessWidget {
                                                                 color: scheme.onSurface,
                                                               ),
                                                         ),
-                                                        const SizedBox(width: 8),
                                                         DecoratedBox(
                                                           decoration: BoxDecoration(
                                                             color: scheme.primary.withOpacity(0.12),
@@ -963,8 +968,10 @@ class _LoginLanding extends StatelessWidget {
                                             ],
                                           ),
                                           const SizedBox(height: 14),
-                                          Row(
-                                            mainAxisAlignment: MainAxisAlignment.start,
+                                          Wrap(
+                                            spacing: 12,
+                                            runSpacing: 10,
+                                            crossAxisAlignment: WrapCrossAlignment.center,
                                             children: [
                                               FilledButton.icon(
                                                 icon: const Icon(Icons.login_rounded, size: 18),
@@ -976,12 +983,14 @@ class _LoginLanding extends StatelessWidget {
                                                   textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
                                                 ),
                                               ),
-                                              const SizedBox(width: 12),
-                                              Text(
-                                                t.opening_rep_area,
-                                                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                                                      color: scheme.onSurfaceVariant,
-                                                    ),
+                                              SizedBox(
+                                                width: math.max(0.0, math.min(constraints.maxWidth, 720) - 12 - 24),
+                                                child: Text(
+                                                  t.opening_rep_area,
+                                                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                                        color: scheme.onSurfaceVariant,
+                                                      ),
+                                                ),
                                               ),
                                             ],
                                           ),
