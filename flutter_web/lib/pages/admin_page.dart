@@ -3563,7 +3563,21 @@ class _AdminPageState extends State<AdminPage> {
           ),
         );
       }
-,
+      return navTooltip(
+        message: item.label,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () {
+            Scaffold.maybeOf(context)?.closeDrawer();
+            _handleNavigation(item.view);
+          },
+          onHover: (hovering) {
+            if (hovering) {
+              _pauseNavTooltips();
+            } else {
+              _resumeNavTooltips();
+            }
+          },
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Row(
