@@ -203,7 +203,7 @@ class _AdminPageState extends State<AdminPage> {
 
   // Admin-Dashboard-Bearbeitung
   bool _menuEditMode = false;
-  
+
   bool _navCollapsed = true;
   final ScrollController _navScrollController = ScrollController();
   Timer? _navTooltipResumeTimer;
@@ -385,7 +385,6 @@ class _AdminPageState extends State<AdminPage> {
     _activityEmailCtrl.dispose();
     _bulkInternalAllCtrl.dispose();
     _bulkInternalOpenCtrl.dispose();
-    _navScrollController.dispose();
     _navTooltipResumeTimer?.cancel();
     super.dispose();
   }
@@ -4221,7 +4220,7 @@ class _AdminPageState extends State<AdminPage> {
                                       child: TextField(
                                         controller: TextEditingController(text: layout[sectionIndex].title)
                                           ..selection = TextSelection.collapsed(
-                                              length: layout[sectionIndex].title.length),
+                                              offset: layout[sectionIndex].title.length),
                                         decoration: const InputDecoration(labelText: 'Kategorie-Titel'),
                                         onChanged: (value) => setDialogState(() => layout[sectionIndex] =
                                             layout[sectionIndex].copyWith(title: value.trim())),
@@ -8372,7 +8371,7 @@ class _AdminNavItemDefinition {
   final String label;
   final IconData icon;
   final _AdminView view;
-  final String Function()? badgeBuilder;
+  final String? Function()? badgeBuilder;
 }
 
 class _AdminNavSectionState {
