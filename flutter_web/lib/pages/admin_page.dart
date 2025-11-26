@@ -9321,8 +9321,33 @@ class _ActivitySnapshot {
   }
 
   List<String> get customerLabels {
-    if (customerProfiles.isNotEmpty) return customerProfiles.map((c) => c.label).toList();
-    return customers;
+    List<String> _labels() {
+      if (customerProfiles.isNotEmpty) return customerProfiles.map((c) => c.label).toList();
+      return customers;
+    }
+
+    List<String> _distinctLabels(List<String> labels) {
+      final counts = <String, int>{};
+      for (final label in labels) {
+        final trimmed = label.trim();
+        if (trimmed.isEmpty) continue;
+        counts[trimmed] = (counts[trimmed] ?? 0) + 1;
+      }
+
+      final seen = <String>{};
+      final result = <String>[];
+      for (final label in labels) {
+        final trimmed = label.trim();
+        if (trimmed.isEmpty || seen.contains(trimmed)) continue;
+        final count = counts[trimmed] ?? 1;
+        result.add(count > 1 ? '$trimmed ($count)' : trimmed);
+        seen.add(trimmed);
+      }
+
+      return result;
+    }
+
+    return _distinctLabels(_labels());
   }
 
   String get appVersionLabel {
