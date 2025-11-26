@@ -34,6 +34,7 @@
 
   "firstName": "Nombre",
   "lastName": "Apellido",
+  "customer_email": "Correo electrónico del cliente",
 
   "complaint_sub": "Gracias por ayudarnos a mejorar continuamente nuestra calidad.",
 
