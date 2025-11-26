@@ -1245,6 +1245,21 @@ class ApiClient {
     return null;
   }
 
+  Future<List<Map<String, dynamic>>> adminComplaints({bool details = true}) async {
+    final suffix = details ? '?details=1' : '';
+    final r = await http.get(_u('/api/admin/complaints$suffix'), headers: _adminHeaders());
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+
+    if (r.body.trim().isEmpty) return const <Map<String, dynamic>>[];
+    final decoded = jsonDecode(r.body);
+    if (decoded is List) {
+      return decoded.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList(growable: false);
+    }
+    return const <Map<String, dynamic>>[];
+  }
+
   Future<Map<String, Map<String, String>>> translateFaqDraft({
     String? sourceLang,
     required List<String> targetLangs,
