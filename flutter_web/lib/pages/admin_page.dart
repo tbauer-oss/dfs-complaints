@@ -182,6 +182,7 @@ class _AdminPageState extends State<AdminPage> {
   String _faqAudienceFilter = 'both';
   String? _faqCategoryFilter;
   String _faqSearch = '';
+  bool _faqShowCategories = true;
 
   // Email -> detaillierte Reklamationen (für Users/Pending)
   final Map<String, _ComplaintsResult> _complaints = {};
@@ -5180,18 +5181,29 @@ class _AdminPageState extends State<AdminPage> {
             const SizedBox(height: 12),
             _buildFaqFilters(theme, filteredCategories, lang),
             const SizedBox(height: 20),
-            Text(
-              'Kategorien (${filteredCategories.length})',
-              style: theme.textTheme.titleMedium,
+            Row(
+              children: [
+                Text(
+                  'Kategorien (${filteredCategories.length})',
+                  style: theme.textTheme.titleMedium,
+                ),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: () => setState(() => _faqShowCategories = !_faqShowCategories),
+                  icon: Icon(_faqShowCategories ? Icons.visibility_off : Icons.visibility),
+                  label: Text(_faqShowCategories ? 'Ausblenden' : 'Einblenden'),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: filteredCategories.isEmpty
-                  ? [const Text('Keine Kategorien hinterlegt.')]
-                  : filteredCategories.map((cat) => _buildFaqCategoryChip(cat, lang)).toList(),
-            ),
+            if (_faqShowCategories)
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: filteredCategories.isEmpty
+                    ? [const Text('Keine Kategorien hinterlegt.')]
+                    : filteredCategories.map((cat) => _buildFaqCategoryChip(cat, lang)).toList(),
+              ),
             const SizedBox(height: 16),
             Text(
               'Artikel (${filteredEntries.length})',

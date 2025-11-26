@@ -32,6 +32,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
   final _service = DfsProductService();
   late List<DfsProduct> _items;
   final Map<String, TextEditingController> _filterCtrls = {};
+  final _globalSearchCtrl = TextEditingController();
   String _globalSearch = '';
   int _rowsPerPage = 10;
   int _currentPage = 0;
@@ -39,6 +40,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
   bool _showFilters = true;
   final _tableScrollController = ScrollController();
   final _verticalTableScrollController = ScrollController();
+  final Set<String> _hiddenColumns = <String>{};
 
   static const _tdNumberAndNameOptions = [
     'MDR-TD1 - rot. Dentalinstrumente',
@@ -100,7 +102,131 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
     for (final ctrl in _filterCtrls.values) {
       ctrl.dispose();
     }
+    _globalSearchCtrl.dispose();
     super.dispose();
+  }
+
+  void _resetFilters() {
+    setState(() {
+      _globalSearchCtrl.clear();
+      _globalSearch = '';
+      _currentPage = 0;
+      for (final ctrl in _filterCtrls.values) {
+        ctrl.clear();
+      }
+    });
+  }
+
+  Future<void> _openColumnPicker() async {
+    final result = await showDialog<Set<String>>(
+      context: context,
+      builder: (ctx) {
+        final tempHidden = Set<String>.from(_hiddenColumns);
+
+        void showMustKeepOneMessage() {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Mindestens eine Spalte muss sichtbar bleiben.')),
+          );
+        }
+
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            int visibleCount() => DfsProduct.fieldOrder.length - tempHidden.length;
+
+            void toggle(String key, bool visible) {
+              if (!visible && visibleCount() <= 1) {
+                showMustKeepOneMessage();
+                return;
+              }
+
+              setStateDialog(() {
+                if (visible) {
+                  tempHidden.remove(key);
+                } else {
+                  tempHidden.add(key);
+                }
+              });
+            }
+
+            return AlertDialog(
+              title: const Text('Spalten ein-/ausblenden'),
+              content: SizedBox(
+                width: 420,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          TextButton.icon(
+                            onPressed: () => setStateDialog(() => tempHidden.clear()),
+                            icon: const Icon(Icons.select_all),
+                            label: const Text('Alle anzeigen'),
+                          ),
+                          const SizedBox(width: 8),
+                          TextButton.icon(
+                            onPressed: () {
+                              if (DfsProduct.fieldOrder.length == 1) {
+                                return;
+                              }
+                              setStateDialog(() {
+                                tempHidden
+                                  ..clear()
+                                  ..addAll(DfsProduct.fieldOrder.skip(1));
+                              });
+                            },
+                            icon: const Icon(Icons.indeterminate_check_box_outlined),
+                            label: const Text('Alle außer erster ausblenden'),
+                          ),
+                        ],
+                      ),
+                      const Divider(),
+                      ...DfsProduct.fieldOrder.map((key) {
+                        final label = DfsProduct.fieldLabels[key] ?? key;
+                        final visible = !tempHidden.contains(key);
+                        return CheckboxListTile(
+                          dense: true,
+                          title: Text(label),
+                          value: visible,
+                          onChanged: (val) {
+                            if (val == null) return;
+                            toggle(key, val);
+                          },
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Abbrechen'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    if (tempHidden.length == DfsProduct.fieldOrder.length) {
+                      showMustKeepOneMessage();
+                      return;
+                    }
+                    Navigator.pop(ctx, tempHidden);
+                  },
+                  child: const Text('Übernehmen'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (result == null) return;
+
+    setState(() {
+      _hiddenColumns
+        ..clear()
+        ..addAll(result);
+    });
   }
 
   List<DfsProduct> _applyFilters() {
@@ -339,6 +465,8 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
     final endIndex = filteredLength == 0
         ? 0
         : math.min(filteredLength, currentPage * _rowsPerPage + pageItems.length);
+    final visibleFields =
+        DfsProduct.fieldOrder.where((key) => !_hiddenColumns.contains(key)).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -352,6 +480,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
             SizedBox(
               width: 260,
               child: TextField(
+                controller: _globalSearchCtrl,
                 decoration: const InputDecoration(
                   prefixIcon: Icon(Icons.search),
                   labelText: 'Suchen (alle Felder)',
@@ -361,6 +490,12 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                   _currentPage = 0;
                 }),
               ),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: _openColumnPicker,
+              icon: const Icon(Icons.view_column_outlined),
+              label: const Text('Spalten'),
             ),
             const SizedBox(width: 8),
             IconButton(
@@ -420,6 +555,12 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                     const SizedBox(width: 8),
                     Text('Filter', style: Theme.of(context).textTheme.titleSmall),
                     const Spacer(),
+                    TextButton.icon(
+                      onPressed: _resetFilters,
+                      icon: const Icon(Icons.restart_alt),
+                      label: const Text('Zurücksetzen'),
+                    ),
+                    const SizedBox(width: 6),
                     TextButton.icon(
                       onPressed: () => setState(() => _showFilters = !_showFilters),
                       icon: Icon(_showFilters ? Icons.expand_less : Icons.expand_more),
@@ -531,6 +672,8 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
+                      final minWidth = math.max(constraints.maxWidth, 1200.0);
+
                       return Scrollbar(
                         controller: _tableScrollController,
                         thumbVisibility: true,
@@ -542,38 +685,35 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                           child: SingleChildScrollView(
                             controller: _tableScrollController,
                             scrollDirection: Axis.horizontal,
-                            child: Scrollbar(
-                              controller: _verticalTableScrollController,
-                              thumbVisibility: true,
-                              trackVisibility: true,
-                              interactive: true,
-                              notificationPredicate: (notif) => notif.metrics.axis == Axis.vertical,
-                              child: ScrollConfiguration(
-                                behavior: const MaterialScrollBehavior()
-                                    .copyWith(dragDevices: _scrollDragDevices),
-                                child: SingleChildScrollView(
-                                  controller: _verticalTableScrollController,
-                                  scrollDirection: Axis.vertical,
-                                  child: ConstrainedBox(
-                                    constraints:
-                                        BoxConstraints(minWidth: math.max(constraints.maxWidth, 1200)),
-                                    child: DataTable(
-                                      columns: [
-                                        ...DfsProduct.fieldOrder
-                                            .map((key) =>
-                                                DataColumn(label: Text(DfsProduct.fieldLabels[key] ?? key))),
-                                        const DataColumn(label: Text('Aktionen')),
-                                      ],
-                                      rows: pageItems.map(_buildDataRow).toList(),
-                                      headingRowHeight: 56,
-                                      dataRowMinHeight: 44,
-                                      dataRowMaxHeight: 64,
-                                      horizontalMargin: 12,
-                                      columnSpacing: 28,
-                                      showCheckboxColumn: false,
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(minWidth: minWidth),
+                              child: Column(
+                                children: [
+                                  _buildStickyHeader(visibleFields),
+                                  const Divider(height: 1),
+                                  Expanded(
+                                    child: Scrollbar(
+                                      controller: _verticalTableScrollController,
+                                      thumbVisibility: true,
+                                      trackVisibility: true,
+                                      interactive: true,
+                                      notificationPredicate: (notif) =>
+                                          notif.metrics.axis == Axis.vertical,
+                                      child: ScrollConfiguration(
+                                        behavior: const MaterialScrollBehavior()
+                                            .copyWith(dragDevices: _scrollDragDevices),
+                                        child: SingleChildScrollView(
+                                          controller: _verticalTableScrollController,
+                                          scrollDirection: Axis.vertical,
+                                          child: ConstrainedBox(
+                                            constraints: BoxConstraints(minWidth: minWidth),
+                                            child: _buildDataTableBody(pageItems, visibleFields),
+                                          ),
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                ),
+                                ],
                               ),
                             ),
                           ),
@@ -604,29 +744,97 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
     );
   }
 
-  DataRow _buildDataRow(DfsProduct product) {
-    final map = product.toHeaderMap();
-    return DataRow(
-      cells: [
-        ...DfsProduct.fieldOrder.map((k) => DataCell(Text(map[k] ?? ''))),
-        DataCell(
-          Row(
-            mainAxisSize: MainAxisSize.min,
+  Map<int, TableColumnWidth> _columnWidths(int visibleFieldCount) {
+    final widths = <int, TableColumnWidth>{};
+    for (var i = 0; i < visibleFieldCount; i++) {
+      widths[i] = const IntrinsicColumnWidth();
+    }
+    widths[visibleFieldCount] = const FixedColumnWidth(140);
+    return widths;
+  }
+
+  Widget _buildStickyHeader(List<String> visibleFields) {
+    final widths = _columnWidths(visibleFields.length);
+    return Container(
+      height: 56,
+      color: Theme.of(context).colorScheme.surfaceVariant,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      alignment: Alignment.centerLeft,
+      child: Table(
+        columnWidths: widths,
+        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+        children: [
+          TableRow(
             children: [
-              IconButton(
-                tooltip: 'Bearbeiten',
-                icon: const Icon(Icons.edit_outlined),
-                onPressed: () => _openEditor(product: product),
+              ...visibleFields.map(
+                (key) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    DfsProduct.fieldLabels[key] ?? key,
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                ),
               ),
-              IconButton(
-                tooltip: 'Löschen',
-                icon: const Icon(Icons.delete_outline),
-                onPressed: () => _deleteProduct(product),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text('Aktionen', style: Theme.of(context).textTheme.titleSmall),
               ),
             ],
           ),
-        ),
-      ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDataTableBody(List<DfsProduct> items, List<String> visibleFields) {
+    final widths = _columnWidths(visibleFields.length);
+
+    TableRow buildRow(DfsProduct product) {
+      final map = product.toHeaderMap();
+      return TableRow(
+        children: [
+          ...visibleFields.map((key) {
+            return Container(
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.5)),
+                ),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Text(map[key] ?? ''),
+            );
+          }),
+          Container(
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.5)),
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: 'Bearbeiten',
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () => _openEditor(product: product),
+                ),
+                IconButton(
+                  tooltip: 'Löschen',
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: () => _deleteProduct(product),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Table(
+      columnWidths: widths,
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+      children: items.map(buildRow).toList(),
     );
   }
 
