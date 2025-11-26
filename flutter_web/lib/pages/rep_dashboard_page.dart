@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../api/client.dart';
 import 'rep_profile_page.dart';
 import '../models/complaint_chat.dart';
+import 'complaint_chat_page.dart';
 import 'rep_support_contact_form.dart';
 import 'dart:html' as html;
 import '../l10n/app_localizations.dart';

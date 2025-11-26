@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import '../api/client.dart';
 import 'rep_profile_page.dart';
 import '../models/complaint_chat.dart';
+import 'complaint_chat_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:dfs_mobile/web_compat/html_stub.dart'
