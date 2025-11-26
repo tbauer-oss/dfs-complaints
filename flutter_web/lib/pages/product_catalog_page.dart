@@ -34,6 +34,8 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
   final Map<String, TextEditingController> _filterCtrls = {};
   String _globalSearch = '';
   int _rowsPerPage = 10;
+  int _currentPage = 0;
+  static const _rowsPerPageOptions = [10, 20, 50];
   bool _showFilters = true;
   final _tableScrollController = ScrollController();
   final _verticalTableScrollController = ScrollController();
@@ -76,7 +78,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
     _items = List.of(widget.products);
     for (final key in DfsProduct.fieldOrder) {
       _filterCtrls[key] = TextEditingController();
-      _filterCtrls[key]!.addListener(() => setState(() {}));
+      _filterCtrls[key]!.addListener(() => setState(() => _currentPage = 0));
     }
   }
 
@@ -84,7 +86,10 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
   void didUpdateWidget(covariant ProductCatalogPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.products != widget.products) {
-      setState(() => _items = List.of(widget.products));
+      setState(() {
+        _items = List.of(widget.products);
+        _currentPage = 0;
+      });
     }
   }
 
@@ -323,17 +328,6 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
   @override
   Widget build(BuildContext context) {
     final filtered = _applyFilters();
-    final dataSource = _ProductDataSource(
-      products: filtered,
-      onEdit: _openEditor,
-      onDelete: _deleteProduct,
-    );
-
-    var rowsPerPage = _rowsPerPage;
-    if (filtered.isNotEmpty) {
-      rowsPerPage = math.min(rowsPerPage, filtered.length);
-    }
-    final effectiveRowsPerPage = rowsPerPage.clamp(1, math.max(1, rowsPerPage)).toInt();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -351,7 +345,10 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                   prefixIcon: Icon(Icons.search),
                   labelText: 'Suchen (alle Felder)',
                 ),
-                onChanged: (v) => setState(() => _globalSearch = v),
+                onChanged: (v) => setState(() {
+                  _globalSearch = v;
+                  _currentPage = 0;
+                }),
               ),
             ),
             const SizedBox(width: 8),
@@ -505,6 +502,22 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                   Expanded(
                     child: LayoutBuilder(
                       builder: (context, constraints) {
+                        final filteredLength = filtered.length;
+                        final totalPages = filteredLength == 0
+                            ? 1
+                            : (filteredLength / _rowsPerPage).ceil();
+                        final currentPage = filteredLength == 0
+                            ? 0
+                            : _currentPage.clamp(0, math.max(0, totalPages - 1));
+                        final pageItems = filtered
+                            .skip(currentPage * _rowsPerPage)
+                            .take(_rowsPerPage)
+                            .toList();
+                        final startIndex = filteredLength == 0 ? 0 : currentPage * _rowsPerPage + 1;
+                        final endIndex = filteredLength == 0
+                            ? 0
+                            : math.min(filteredLength, currentPage * _rowsPerPage + pageItems.length);
+
                         return Scrollbar(
                           controller: _tableScrollController,
                           thumbVisibility: true,
@@ -531,40 +544,49 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                                     child: ConstrainedBox(
                                       constraints:
                                           BoxConstraints(minWidth: math.max(constraints.maxWidth, 1200)),
-                                      child: PaginatedDataTable(
-                                        header: Row(
-                                          children: [
-                                            Text('${filtered.length} von ${_items.length} Artikeln',
-                                                style: Theme.of(context).textTheme.titleMedium),
-                                            const Spacer(),
-                                            if (widget.loading)
-                                              const Padding(
-                                                padding: EdgeInsets.only(right: 8),
-                                                child: SizedBox(
-                                                    width: 18,
-                                                    height: 18,
-                                                    child: CircularProgressIndicator(strokeWidth: 2)),
-                                              ),
-                                          ],
-                                        ),
-                                        columns: [
-                                          ...DfsProduct.fieldOrder
-                                              .map((key) =>
-                                                  DataColumn(label: Text(DfsProduct.fieldLabels[key] ?? key))),
-                                          const DataColumn(label: Text('Aktionen')),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                                        children: [
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                                            child: Row(
+                                              children: [
+                                                Text('$startIndex–$endIndex von ${filtered.length} Artikeln',
+                                                    style: Theme.of(context).textTheme.titleMedium),
+                                                const Spacer(),
+                                                if (widget.loading)
+                                                  const Padding(
+                                                    padding: EdgeInsets.only(right: 8),
+                                                    child: SizedBox(
+                                                        width: 18,
+                                                        height: 18,
+                                                        child: CircularProgressIndicator(strokeWidth: 2)),
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                          DataTable(
+                                            columns: [
+                                              ...DfsProduct.fieldOrder
+                                                  .map((key) =>
+                                                      DataColumn(label: Text(DfsProduct.fieldLabels[key] ?? key))),
+                                              const DataColumn(label: Text('Aktionen')),
+                                            ],
+                                            rows: pageItems.map(_buildDataRow).toList(),
+                                            headingRowHeight: 56,
+                                            dataRowMinHeight: 44,
+                                            dataRowMaxHeight: 64,
+                                            horizontalMargin: 12,
+                                            columnSpacing: 28,
+                                            showCheckboxColumn: false,
+                                          ),
+                                          const SizedBox(height: 8),
+                                          _buildPagination(
+                                            totalPages: totalPages,
+                                            currentPage: currentPage,
+                                            totalItems: filteredLength,
+                                          ),
                                         ],
-                                        source: dataSource,
-                                        rowsPerPage: effectiveRowsPerPage,
-                                        availableRowsPerPage: const [10, 20, 50],
-                                        onRowsPerPageChanged: (value) {
-                                          if (value != null) {
-                                            setState(() => _rowsPerPage = value);
-                                          }
-                                        },
-                                        showFirstLastButtons: true,
-                                        horizontalMargin: 12,
-                                        columnSpacing: 28,
-                                        showCheckboxColumn: false,
                                       ),
                                     ),
                                   ),
@@ -584,22 +606,10 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
       ],
     );
   }
-}
 
-class _ProductDataSource extends DataTableSource {
-  final List<DfsProduct> products;
-  final Future<void> Function({DfsProduct? product}) onEdit;
-  final Future<void> Function(DfsProduct product) onDelete;
-
-  _ProductDataSource({required this.products, required this.onEdit, required this.onDelete});
-
-  @override
-  DataRow? getRow(int index) {
-    if (index >= products.length) return null;
-    final product = products[index];
+  DataRow _buildDataRow(DfsProduct product) {
     final map = product.toHeaderMap();
-    return DataRow.byIndex(
-      index: index,
+    return DataRow(
       cells: [
         ...DfsProduct.fieldOrder.map((k) => DataCell(Text(map[k] ?? ''))),
         DataCell(
@@ -609,12 +619,12 @@ class _ProductDataSource extends DataTableSource {
               IconButton(
                 tooltip: 'Bearbeiten',
                 icon: const Icon(Icons.edit_outlined),
-                onPressed: () => onEdit(product: product),
+                onPressed: () => _openEditor(product: product),
               ),
               IconButton(
                 tooltip: 'Löschen',
                 icon: const Icon(Icons.delete_outline),
-                onPressed: () => onDelete(product),
+                onPressed: () => _deleteProduct(product),
               ),
             ],
           ),
@@ -623,12 +633,108 @@ class _ProductDataSource extends DataTableSource {
     );
   }
 
-  @override
-  bool get isRowCountApproximate => false;
+  Widget _buildPagination({
+    required int totalPages,
+    required int currentPage,
+    required int totalItems,
+  }) {
+    if (totalItems == 0) {
+      return const SizedBox.shrink();
+    }
 
-  @override
-  int get rowCount => products.length;
+    List<Widget> buildPageButtons() {
+      const maxButtons = 9;
+      int start = math.max(0, currentPage - 4);
+      int end = math.min(totalPages - 1, start + maxButtons - 1);
+      start = math.max(0, end - maxButtons + 1);
 
-  @override
-  int get selectedRowCount => 0;
+      final buttons = <Widget>[];
+
+      void addPageButton(int page) {
+        final isActive = page == currentPage;
+        buttons.add(OutlinedButton(
+          style: isActive
+              ? OutlinedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primaryContainer)
+              : null,
+          onPressed: isActive
+              ? null
+              : () => setState(() {
+                    _currentPage = page;
+                  }),
+          child: Text('${page + 1}'),
+        ));
+      }
+
+      addPageButton(0);
+      if (start > 1) {
+        buttons.add(const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 4),
+          child: Text('…'),
+        ));
+      }
+
+      for (var i = start; i <= end; i++) {
+        if (i == 0 || i == totalPages - 1) continue;
+        addPageButton(i);
+      }
+
+      if (end < totalPages - 2) {
+        buttons.add(const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 4),
+          child: Text('…'),
+        ));
+      }
+
+      if (totalPages > 1) {
+        addPageButton(totalPages - 1);
+      }
+
+      return buttons;
+    }
+
+    return Row(
+      children: [
+        DropdownButton<int>(
+          value: _rowsPerPage,
+          onChanged: (value) {
+            if (value != null) {
+              setState(() {
+                _rowsPerPage = value;
+                _currentPage = 0;
+              });
+            }
+          },
+          items: _rowsPerPageOptions
+              .map((v) => DropdownMenuItem<int>(
+                    value: v,
+                    child: Text('$v pro Seite'),
+                  ))
+              .toList(),
+        ),
+        const Spacer(),
+        IconButton(
+          tooltip: 'Zurück',
+          icon: const Icon(Icons.chevron_left),
+          onPressed: currentPage > 0
+              ? () => setState(() {
+                    _currentPage = currentPage - 1;
+                  })
+              : null,
+        ),
+        Wrap(
+          spacing: 4,
+          children: buildPageButtons(),
+        ),
+        IconButton(
+          tooltip: 'Weiter',
+          icon: const Icon(Icons.chevron_right),
+          onPressed: currentPage < totalPages - 1
+              ? () => setState(() {
+                    _currentPage = currentPage + 1;
+                  })
+              : null,
+        ),
+      ],
+    );
+  }
 }
