@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:html' as html;
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../models/dfs_product.dart';
@@ -36,6 +37,23 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
   bool _showFilters = true;
   final _tableScrollController = ScrollController();
   final _verticalTableScrollController = ScrollController();
+
+  static const _tdNumberAndNameOptions = [
+    'MDR-TD1 - rot. Dentalinstrumente',
+    'MDR-TD2 - Knochenfräser',
+    'MDR-TD3 - Dentalpolierer',
+    'TD4 - PreciCut',
+    'TD5 - Dentallegierungen',
+    'SET',
+  ];
+
+  static const _scrollDragDevices = <PointerDeviceKind>{
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.stylus,
+    PointerDeviceKind.trackpad,
+    PointerDeviceKind.unknown,
+  };
 
   static const _dropdownKeys = <String>{
     'td_number_and_name',
@@ -102,6 +120,10 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
   }
 
   Iterable<String> _optionsFor(String key) {
+    if (key == 'td_number_and_name') {
+      return _tdNumberAndNameOptions;
+    }
+
     final values = _items
         .map((p) =>
             p.fieldValue(key).replaceAll('\n', ' ').replaceAll(RegExp(' +'), ' ').trim())
@@ -403,11 +425,14 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                       ? const SizedBox.shrink()
                       : Padding(
                           padding: const EdgeInsets.only(top: 8),
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(minWidth: 720),
-                              child: Wrap(
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final isCompact = constraints.maxWidth < 760;
+                              final fieldWidth = isCompact
+                                  ? math.max(160.0, constraints.maxWidth / 2 - 12)
+                                  : 200.0;
+
+                              return Wrap(
                                 spacing: 8,
                                 runSpacing: 8,
                                 children: DfsProduct.fieldOrder.map((key) {
@@ -423,13 +448,13 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                                     prefixIcon: const Icon(Icons.filter_alt_outlined, size: 18),
                                     isDense: true,
                                     contentPadding:
-                                        const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                        const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                                     border: const OutlineInputBorder(),
                                   );
 
                                   if (_dropdownKeys.contains(key)) {
                                     return SizedBox(
-                                      width: 190,
+                                      width: fieldWidth,
                                       child: DropdownMenu<String>(
                                         controller: ctrl,
                                         label: Text(label, style: Theme.of(context).textTheme.bodySmall),
@@ -452,7 +477,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                                   }
 
                                   return SizedBox(
-                                    width: 190,
+                                    width: fieldWidth,
                                     child: TextField(
                                       controller: ctrl,
                                       style: Theme.of(context).textTheme.bodySmall,
@@ -460,8 +485,8 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                                     ),
                                   );
                                 }).toList(),
-                              ),
-                            ),
+                              );
+                            },
                           ),
                         ),
                 ),
@@ -484,40 +509,49 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                           controller: _tableScrollController,
                           thumbVisibility: true,
                           trackVisibility: true,
-                          child: SingleChildScrollView(
-                            controller: _tableScrollController,
-                            scrollDirection: Axis.horizontal,
-                            child: Scrollbar(
-                              controller: _verticalTableScrollController,
-                              thumbVisibility: true,
-                              trackVisibility: true,
-                              notificationPredicate: (notif) => notif.metrics.axis == Axis.vertical,
-                              child: SingleChildScrollView(
+                          interactive: true,
+                          child: ScrollConfiguration(
+                            behavior: const MaterialScrollBehavior()
+                                .copyWith(dragDevices: _scrollDragDevices),
+                            child: SingleChildScrollView(
+                              controller: _tableScrollController,
+                              scrollDirection: Axis.horizontal,
+                              child: Scrollbar(
                                 controller: _verticalTableScrollController,
-                                scrollDirection: Axis.vertical,
-                                child: ConstrainedBox(
-                                  constraints:
-                                      BoxConstraints(minWidth: math.max(constraints.maxWidth, 1200)),
-                                  child: PaginatedDataTable(
-                                    header: Row(
-                                      children: [
-                                        Text('${filtered.length} von ${_items.length} Artikeln',
-                                            style: Theme.of(context).textTheme.titleMedium),
-                                        const Spacer(),
-                                        if (widget.loading)
-                                          const Padding(
-                                            padding: EdgeInsets.only(right: 8),
-                                            child: SizedBox(
-                                                width: 18,
-                                                height: 18,
-                                                child: CircularProgressIndicator(strokeWidth: 2)),
-                                          ),
-                                      ],
-                                    ),
-                                    columns: [
-                                      ...DfsProduct.fieldOrder
-                                          .map((key) => DataColumn(label: Text(DfsProduct.fieldLabels[key] ?? key))),
-                                      const DataColumn(label: Text('Aktionen')),
+                                thumbVisibility: true,
+                                trackVisibility: true,
+                                interactive: true,
+                                notificationPredicate: (notif) => notif.metrics.axis == Axis.vertical,
+                                child: ScrollConfiguration(
+                                  behavior: const MaterialScrollBehavior()
+                                      .copyWith(dragDevices: _scrollDragDevices),
+                                  child: SingleChildScrollView(
+                                    controller: _verticalTableScrollController,
+                                    scrollDirection: Axis.vertical,
+                                    child: ConstrainedBox(
+                                      constraints:
+                                          BoxConstraints(minWidth: math.max(constraints.maxWidth, 1200)),
+                                      child: PaginatedDataTable(
+                                        header: Row(
+                                          children: [
+                                            Text('${filtered.length} von ${_items.length} Artikeln',
+                                                style: Theme.of(context).textTheme.titleMedium),
+                                            const Spacer(),
+                                            if (widget.loading)
+                                              const Padding(
+                                                padding: EdgeInsets.only(right: 8),
+                                                child: SizedBox(
+                                                    width: 18,
+                                                    height: 18,
+                                                    child: CircularProgressIndicator(strokeWidth: 2)),
+                                              ),
+                                          ],
+                                        ),
+                                        columns: [
+                                          ...DfsProduct.fieldOrder
+                                              .map((key) =>
+                                                  DataColumn(label: Text(DfsProduct.fieldLabels[key] ?? key))),
+                                          const DataColumn(label: Text('Aktionen')),
                                     ],
                                     source: dataSource,
                                     rowsPerPage: effectiveRowsPerPage,
