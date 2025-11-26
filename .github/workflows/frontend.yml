@@ -35,8 +35,8 @@ jobs:
           flutter config --enable-web
           if [ ! -d "web" ]; then flutter create . --platforms=web; fi
 
-      - name: Ensure intl 0.19.0
-        run: flutter pub add intl:^0.19.0
+      - name: Ensure intl 0.20.2
+        run: flutter pub add intl:^0.20.2
 
       - name: Pub get
         run: flutter pub get
