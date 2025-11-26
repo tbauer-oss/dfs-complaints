@@ -203,6 +203,7 @@ class _AdminPageState extends State<AdminPage> {
 
   // Admin-Dashboard-Bearbeitung
   bool _menuEditMode = false;
+  final Set<String> _archivedTileIds = <String>{};
 
   bool _navCollapsed = true;
 
@@ -3944,6 +3945,7 @@ class _AdminPageState extends State<AdminPage> {
 
   List<_AdminMenuSectionState> _loadMenuLayout({required List<_AdminMenuSectionState> defaults}) {
     _menuTileScale = 1.0;
+    _archivedTileIds.clear();
     final raw = html.window.localStorage[_menuLayoutStorageKey];
     if (raw == null) {
       return defaults.map((s) => s.copy()).toList();
@@ -3960,6 +3962,12 @@ class _AdminPageState extends State<AdminPage> {
         }
         final sections = parsed['sections'];
         if (sections is List) sectionData = sections;
+        final archived = parsed['archived'];
+        if (archived is List) {
+          _archivedTileIds.addAll(
+            archived.whereType<String>().where(_menuTileIds.contains),
+          );
+        }
       } else if (parsed is List) {
         sectionData = parsed;
       }
@@ -3976,7 +3984,8 @@ class _AdminPageState extends State<AdminPage> {
         final tiles = (entry['tiles'] as List?)?.whereType<String>().toList() ?? <String>[];
         if (title == null) continue;
 
-        final filtered = tiles.where(_menuTileIds.contains).toList();
+        final filtered =
+            tiles.where((id) => _menuTileIds.contains(id) && !_archivedTileIds.contains(id)).toList();
         used.addAll(filtered);
         sections.add(_AdminMenuSectionState(title: title, subtitle: subtitle, tileIds: filtered));
       }
@@ -3984,7 +3993,7 @@ class _AdminPageState extends State<AdminPage> {
       if (sections.isEmpty) return defaults.map((s) => s.copy()).toList();
 
       for (final id in _menuTileIds) {
-        if (used.contains(id)) continue;
+        if (used.contains(id) || _archivedTileIds.contains(id)) continue;
         final targetTitle = _tileDefaultSection[id];
         final targetSection = sections.firstWhere(
           (s) => s.title == targetTitle,
@@ -3996,6 +4005,7 @@ class _AdminPageState extends State<AdminPage> {
       return sections;
     } catch (_) {
       _menuTileScale = 1.0;
+      _archivedTileIds.clear();
       return defaults.map((s) => s.copy()).toList();
     }
   }
@@ -4061,6 +4071,7 @@ class _AdminPageState extends State<AdminPage> {
     html.window.localStorage[_menuLayoutStorageKey] = jsonEncode({
       'sections': _menuSections.map((s) => s.toJson()).toList(),
       'tileScale': _menuTileScale,
+      'archived': _archivedTileIds.toList(),
     });
   }
 
@@ -4068,6 +4079,7 @@ class _AdminPageState extends State<AdminPage> {
     setState(() {
       _menuSections = _baseMenuSections().map((s) => s.copy()).toList();
       _menuTileScale = 1.0;
+      _archivedTileIds.clear();
     });
     _persistMenuLayout();
   }
@@ -4109,6 +4121,11 @@ class _AdminPageState extends State<AdminPage> {
                       if (_menuEditMode)
                         Text(
                           'Zum Beenden unten auf "Bearbeitung schließen" klicken.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      if (_menuEditMode)
+                        Text(
+                          'Kacheln können ausgeblendet und im Archiv später wieder eingeblendet werden.',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                     ],
@@ -4210,6 +4227,19 @@ class _AdminPageState extends State<AdminPage> {
           ),
           if (_menuEditMode) _buildSectionReorderTarget(index: i + 1),
         ],
+        if (_menuEditMode)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: _buildArchivedTilesPanel(
+                compact: compact,
+                tileWidth: tileWidth,
+                tileHeight: tileHeight,
+                spacing: spacing,
+                runSpacing: runSpacing,
+              ),
+            ),
+          ),
         if (_menuEditMode)
           SliverToBoxAdapter(
             child: Padding(
@@ -4325,6 +4355,78 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  Widget _buildArchivedTilesPanel({
+    required bool compact,
+    required double tileWidth,
+    required double tileHeight,
+    required double spacing,
+    required double runSpacing,
+  }) {
+    final archived = _archivedTileIds.toList()..sort();
+
+    return Card(
+      color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.4),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.inventory_outlined, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Ausgeblendete Kacheln',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        archived.isEmpty
+                            ? 'Hier erscheinen Kacheln, die aus dem Dashboard ausgeblendet wurden.'
+                            : 'Kacheln können jederzeit wieder eingeblendet und automatisch zugeordnet werden.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            if (archived.isEmpty)
+              Text(
+                'Aktuell sind keine Kacheln archiviert.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              )
+            else
+              Wrap(
+                spacing: spacing,
+                runSpacing: runSpacing,
+                children: [
+                  for (final id in archived)
+                    SizedBox(
+                      width: tileWidth,
+                      height: tileHeight,
+                      child: _buildMenuTile(
+                        id,
+                        compact,
+                        isPreview: true,
+                        onActionTap: () => _restoreArchivedTile(id),
+                        actionLabel: 'Kachel einblenden',
+                        actionIcon: Icons.unarchive_outlined,
+                      ),
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildDraggableTile({
     required int sectionIndex,
     required int tileIndex,
@@ -4341,13 +4443,34 @@ class _AdminPageState extends State<AdminPage> {
         final tile = SizedBox(
           width: tileWidth,
           height: tileHeight,
-          child: _buildAdaptiveDraggable(
-            tileId: tileId,
-            sectionIndex: sectionIndex,
-            tileWidth: tileWidth,
-            tileHeight: tileHeight,
-            compact: compact,
-            highlight: highlight,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: _buildAdaptiveDraggable(
+                  tileId: tileId,
+                  sectionIndex: sectionIndex,
+                  tileWidth: tileWidth,
+                  tileHeight: tileHeight,
+                  compact: compact,
+                  highlight: highlight,
+                ),
+              ),
+              Positioned(
+                top: 6,
+                right: 6,
+                child: Tooltip(
+                  message: 'Kachel ausblenden/archivieren',
+                  child: IconButton.filledTonal(
+                    icon: const Icon(Icons.visibility_off_outlined),
+                    style: IconButton.styleFrom(
+                      minimumSize: const Size(36, 36),
+                      padding: const EdgeInsets.all(8),
+                    ),
+                    onPressed: () => _archiveTile(tileId, sectionIndex),
+                  ),
+                ),
+              ),
+            ],
           ),
         );
         return tile;
@@ -4504,7 +4627,58 @@ class _AdminPageState extends State<AdminPage> {
     _persistMenuLayout();
   }
 
-  Widget _buildMenuTile(String tileId, bool compact, {bool isPreview = false}) {
+  void _archiveTile(String tileId, int sectionIndex) {
+    if (!_menuTileIds.contains(tileId)) return;
+
+    setState(() {
+      if (sectionIndex >= 0 && sectionIndex < _menuSections.length) {
+        _menuSections[sectionIndex].tileIds.remove(tileId);
+      } else {
+        for (final section in _menuSections) {
+          section.tileIds.remove(tileId);
+        }
+      }
+      _archivedTileIds.add(tileId);
+    });
+    _persistMenuLayout();
+  }
+
+  void _restoreArchivedTile(String tileId) {
+    if (!_archivedTileIds.contains(tileId)) return;
+
+    setState(() {
+      if (_menuSections.isEmpty) {
+        _menuSections = _baseMenuSections().map((s) => s.copy()).toList();
+      }
+
+      _archivedTileIds.remove(tileId);
+      final targetTitle = _tileDefaultSection[tileId];
+      final targetSection = targetTitle != null
+          ? _menuSections.firstWhere(
+              (s) => s.title == targetTitle,
+              orElse: () => _menuSections.first,
+            )
+          : _menuSections.first;
+
+      if (!targetSection.tileIds.contains(tileId)) {
+        targetSection.tileIds.add(tileId);
+      }
+    });
+
+    _persistMenuLayout();
+  }
+
+  Widget _buildMenuTile(
+    String tileId,
+    bool compact, {
+    bool isPreview = false,
+    VoidCallback? onActionTap,
+    String? actionLabel,
+    IconData? actionIcon,
+  }) {
+    final resolvedActionLabel =
+        onActionTap == null ? null : (actionLabel ?? 'Kachel einblenden');
+    final resolvedActionIcon = onActionTap == null ? null : (actionIcon ?? Icons.unarchive_outlined);
     switch (tileId) {
       case 'open':
         return AdminTilePro(
@@ -4516,6 +4690,9 @@ class _AdminPageState extends State<AdminPage> {
           count: _openComplaints.length,
           compact: compact,
           onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.open),
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
         );
       case 'all':
         return AdminTilePro(
@@ -4527,6 +4704,9 @@ class _AdminPageState extends State<AdminPage> {
           count: _allComplaints.length,
           compact: compact,
           onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.all),
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
         );
       case 'stats':
         return AdminTilePro(
@@ -4543,6 +4723,9 @@ class _AdminPageState extends State<AdminPage> {
                     MaterialPageRoute(builder: (_) => AdminStatsPage(api: widget.api)),
                   );
                 },
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
         );
       case 'pending':
         return AdminTilePro(
@@ -4554,6 +4737,9 @@ class _AdminPageState extends State<AdminPage> {
           count: _pending.length,
           compact: compact,
           onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.pending),
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
         );
       case 'users':
         return AdminTilePro(
@@ -4565,6 +4751,9 @@ class _AdminPageState extends State<AdminPage> {
           count: _users.length,
           compact: compact,
           onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.users),
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
         );
       case 'createCustomer':
         return AdminTilePro(
@@ -4575,6 +4764,9 @@ class _AdminPageState extends State<AdminPage> {
           colorB: AdminPalette.tealB,
           compact: compact,
           onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.createCustomer),
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
         );
       case 'reps':
         return AdminTilePro(
@@ -4590,6 +4782,9 @@ class _AdminPageState extends State<AdminPage> {
                   setState(() => _view = _AdminView.reps);
                   if (_reps.isEmpty) _refreshReps();
                 },
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
         );
       case 'news':
         return AdminTilePro(
@@ -4606,6 +4801,9 @@ class _AdminPageState extends State<AdminPage> {
                   setState(() => _view = _AdminView.news);
                   if (_newsEntries.isEmpty) _refreshNews();
                 },
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
         );
       case 'faq':
         return AdminTilePro(
@@ -4617,6 +4815,9 @@ class _AdminPageState extends State<AdminPage> {
           compact: compact,
           count: _faqEntries.length,
           onTap: isPreview ? () {} : () => _handleNavigation(_AdminView.faq),
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
         );
       case 'products':
         return AdminTilePro(
@@ -4628,6 +4829,9 @@ class _AdminPageState extends State<AdminPage> {
           compact: compact,
           count: _products.length,
           onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.products),
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
         );
       case 'push':
         return AdminTilePro(
@@ -4639,6 +4843,9 @@ class _AdminPageState extends State<AdminPage> {
           compact: compact,
           count: _pushResult?.totalTokens,
           onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.pushBroadcast),
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
         );
       case 'catalogs':
         return AdminTilePro(
@@ -4649,6 +4856,9 @@ class _AdminPageState extends State<AdminPage> {
           colorB: AdminPalette.blueB,
           compact: compact,
           onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.catalogs),
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
         );
       case 'appMeta':
         return AdminTilePro(
@@ -4659,6 +4869,9 @@ class _AdminPageState extends State<AdminPage> {
           colorB: AdminPalette.blueB,
           compact: compact,
           onTap: isPreview ? () {} : () => _editAppMeta(context),
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
         );
       case 'testMode':
         return AdminTilePro(
@@ -4669,6 +4882,9 @@ class _AdminPageState extends State<AdminPage> {
           colorB: AdminPalette.blueB,
           compact: compact,
           onTap: isPreview ? () {} : () => _editTestMode(context),
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
         );
       case 'systemHealth':
         return AdminTilePro(
@@ -4684,6 +4900,9 @@ class _AdminPageState extends State<AdminPage> {
                   setState(() => _view = _AdminView.systemHealth);
                   _loadSystemHealth(force: true);
                 },
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
         );
       case 'activity':
         return AdminTilePro(
@@ -4694,6 +4913,9 @@ class _AdminPageState extends State<AdminPage> {
           colorB: AdminPalette.tealB,
           compact: compact,
           onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.activity),
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
         );
       default:
         return const SizedBox.shrink();
