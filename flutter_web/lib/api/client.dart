@@ -1246,15 +1246,17 @@ class ApiClient {
   }
 
   Future<Map<String, Map<String, String>>> translateFaqDraft({
-    required String sourceLang,
+    String? sourceLang,
     required List<String> targetLangs,
     String? question,
     String? answer,
   }) async {
     final payload = <String, dynamic>{
-      'sourceLang': sourceLang,
       'targets': targetLangs,
     };
+    if (sourceLang != null && sourceLang.trim().isNotEmpty) {
+      payload['sourceLang'] = sourceLang.trim();
+    }
     if (question != null && question.trim().isNotEmpty) payload['question'] = question.trim();
     if (answer != null && answer.trim().isNotEmpty) payload['answer'] = answer.trim();
 

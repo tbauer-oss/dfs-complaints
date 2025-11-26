@@ -232,15 +232,7 @@ class _AdminPageState extends State<AdminPage> {
     'general': 'Allgemein',
   };
 
-  static const Map<String, String> _langLabels = {
-    'de': 'Deutsch',
-    'en': 'Englisch',
-    'fr': 'Französisch',
-    'it': 'Italienisch',
-    'es': 'Spanisch',
-  };
-
-  String _langLabel(String code) => _langLabels[code.toLowerCase()] ?? code.toUpperCase();
+  String _langLabel(String code) => deeplLangLabel(code);
 
   String _newsCategoryLabel(String code) {
     final key = code.trim().toLowerCase();
@@ -9568,6 +9560,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   bool _descTranslating = false;
   String? _descTranslation;
   String? _descTranslationErr;
+  bool _descAutoDetectSource = true;
+  String _descSourceLang = 'en';
   String? _payloadLang;
 
   static const Map<String, List<String>> _payloadKeyMap = {
@@ -9585,14 +9579,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     'applied': ['applied'],
     'injury': ['injury'],
     'injuryDesc': ['injuryDesc'],
-  };
-
-  static const Map<String, String> _langLabels = {
-    'de': 'Deutsch',
-    'en': 'Englisch',
-    'fr': 'Französisch',
-    'it': 'Italienisch',
-    'es': 'Spanisch',
   };
 
   int? _status; // 1..6
@@ -9615,7 +9601,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     return s.isEmpty ? null : s;
   }
 
-  String _langLabel(String code) => _langLabels[code.toLowerCase()] ?? code.toUpperCase();
+  String _langLabel(String code) => deeplLangLabel(code);
 
   String? _detectPayloadLang(Map<String, dynamic>? payload) {
     if (payload == null) return null;
@@ -9626,9 +9612,9 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
       final value = raw.toString().trim();
       if (value.isEmpty) continue;
       final lower = value.toLowerCase();
-      if (supportedLangCodes.contains(lower)) return lower;
+      if (deeplLangCodes.contains(lower)) return lower;
       final short = lower.split(RegExp('[-_]')).first;
-      if (supportedLangCodes.contains(short)) return short;
+      if (deeplLangCodes.contains(short)) return short;
     }
     return null;
   }
@@ -9724,6 +9710,10 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     _status = widget.c.status;
     _decision = widget.c.decision;
     _payloadLang = _detectPayloadLang(widget.c.payload);
+    final detected = _payloadLang;
+    if (detected != null && deeplLangCodes.contains(detected)) {
+      _descSourceLang = detected;
+    }
   }
 
   @override
@@ -9849,7 +9839,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
 
     try {
       final translations = await widget.api.translateFaqDraft(
-        sourceLang: null,
+        sourceLang: _descAutoDetectSource ? null : _descSourceLang,
         targetLangs: const ['de'],
         description: description,
       );
@@ -9948,17 +9938,46 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
             runSpacing: 10,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Text(
-                'Quellsprache wird automatisch erkannt.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: scheme.onSurfaceVariant.withOpacity(0.9),
-                  fontWeight: FontWeight.w600,
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Checkbox.adaptive(
+                    value: _descAutoDetectSource,
+                    onChanged: (v) {
+                      setState(() {
+                        _descAutoDetectSource = v ?? true;
+                      });
+                    },
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Quellsprache automatisch erkennen',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: scheme.onSurfaceVariant.withOpacity(0.9),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
-              FilledButton.icon(
-                onPressed: _descTranslating ? null : () => _translateDescription(description),
-                icon: const Icon(Icons.g_translate),
-                label: const Text('Übersetzung abrufen'),
+              DropdownButton<String>(
+                value: deeplLangCodes.contains(_descSourceLang) ? _descSourceLang : 'en',
+                onChanged: _descAutoDetectSource
+                    ? null
+                    : (v) {
+                        if (v == null) return;
+                        setState(() => _descSourceLang = v);
+                      },
+                items: deeplLangCodes
+                    .map(
+                      (code) => DropdownMenuItem<String>(
+                        value: code,
+                        child: Text(
+                          _langLabel(code),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
+                    .toList(),
               ),
               if (detected != null)
                 Text(
@@ -9968,6 +9987,11 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+              FilledButton.icon(
+                onPressed: _descTranslating ? null : () => _translateDescription(description),
+                icon: const Icon(Icons.g_translate),
+                label: const Text('Übersetzung abrufen'),
+              ),
             ],
           ),
           const SizedBox(height: 8),

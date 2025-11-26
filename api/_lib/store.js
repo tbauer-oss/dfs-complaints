@@ -63,7 +63,38 @@ const mem = {
   faqItems: [],
 };
 
-export const SUPPORTED_LANGS = new Set(['de', 'en', 'fr', 'it', 'es']);
+export const SUPPORTED_LANGS = new Set([
+  'bg', // Bulgarian
+  'cs', // Czech
+  'da', // Danish
+  'de', // German
+  'el', // Greek
+  'en', // English
+  'es', // Spanish
+  'et', // Estonian
+  'fi', // Finnish
+  'fr', // French
+  'hu', // Hungarian
+  'id', // Indonesian
+  'it', // Italian
+  'ja', // Japanese
+  'ko', // Korean
+  'lt', // Lithuanian
+  'lv', // Latvian
+  'nb', // Norwegian (Bokmål)
+  'nl', // Dutch
+  'pl', // Polish
+  'pt-pt', // Portuguese (European)
+  'pt-br', // Portuguese (Brazilian)
+  'ro', // Romanian
+  'ru', // Russian
+  'sk', // Slovak
+  'sl', // Slovenian
+  'sv', // Swedish
+  'tr', // Turkish
+  'uk', // Ukrainian
+  'zh', // Chinese (simplified)
+]);
 const LANG_ALIASES = {
   german: 'de',
   deutsch: 'de',
@@ -78,6 +109,68 @@ const LANG_ALIASES = {
   spanisch: 'es',
   español: 'es',
   espanol: 'es',
+  dutch: 'nl',
+  niederländisch: 'nl',
+  niederlaendisch: 'nl',
+  portuguese: 'pt-pt',
+  português: 'pt-pt',
+  portugiesisch: 'pt-pt',
+  'pt': 'pt-pt',
+  'pt-br': 'pt-br',
+  brasilianisch: 'pt-br',
+  brazilian: 'pt-br',
+  brazilianportuguese: 'pt-br',
+  chinese: 'zh',
+  chinesisch: 'zh',
+  'zh-cn': 'zh',
+  'zh-hans': 'zh',
+  'zh-hant': 'zh',
+  japanese: 'ja',
+  japanisch: 'ja',
+  korean: 'ko',
+  koreanisch: 'ko',
+  russian: 'ru',
+  russisch: 'ru',
+  polish: 'pl',
+  polnisch: 'pl',
+  swedish: 'sv',
+  schwedisch: 'sv',
+  norwegian: 'nb',
+  norwegisch: 'nb',
+  danish: 'da',
+  dänisch: 'da',
+  daenisch: 'da',
+  finnish: 'fi',
+  finnisch: 'fi',
+  greek: 'el',
+  griechisch: 'el',
+  turkish: 'tr',
+  türkisch: 'tr',
+  ukraine: 'uk',
+  ukrainian: 'uk',
+  ukrainisch: 'uk',
+  romanian: 'ro',
+  rumänisch: 'ro',
+  rumaenisch: 'ro',
+  hungarian: 'hu',
+  ungarisch: 'hu',
+  czech: 'cs',
+  tschechisch: 'cs',
+  slovak: 'sk',
+  slowakisch: 'sk',
+  slovenian: 'sl',
+  slowenisch: 'sl',
+  bulgarian: 'bg',
+  bulgarisch: 'bg',
+  estonian: 'et',
+  estnisch: 'et',
+  lithuanian: 'lt',
+  litauisch: 'lt',
+  latvian: 'lv',
+  lettisch: 'lv',
+  indonesian: 'id',
+  indonesisch: 'id',
+  romanisch: 'ro',
 };
 
 export function normalizeLangValue(value) {
