@@ -36,8 +36,8 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
   String _globalSearch = '';
   int _rowsPerPage = 10;
   int _currentPage = 0;
-  static const _rowsPerPageOptions = [10, 20, 50];
-  bool _showFilters = true;
+  static const _rowsPerPageOptions = [10, 20, 50, 100];
+  bool _showFilters = false;
   final _tableScrollController = ScrollController();
   final _verticalTableScrollController = ScrollController();
   final Set<String> _hiddenColumns = <String>{};
