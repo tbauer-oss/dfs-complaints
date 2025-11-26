@@ -3405,14 +3405,40 @@ class _AdminPageState extends State<AdminPage> {
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: TextButton.icon(
-                onPressed: () => Navigator.of(context, rootNavigator: true).pushNamed(
-                  '/internal-chat',
-                  arguments: ComplaintChatPageArgs(
-                    role: ComplaintChatRole.admin,
-                    contacts: _reps.map((r) => r.displayName).where((s) => s.isNotEmpty).toList(),
-                    defaultContact: _reps.isNotEmpty ? _reps.first.displayName : null,
-                  ),
-                ),
+                onPressed: () async {
+                  if (_loadReps) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Vertreter werden geladen …')),
+                    );
+                    return;
+                  }
+
+                  if (_reps.isEmpty) {
+                    await _refreshReps();
+                    if (!mounted) return;
+                  }
+
+                  final contacts = _reps
+                      .map((r) => r.displayName)
+                      .where((s) => s.isNotEmpty)
+                      .toList();
+
+                  if (contacts.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Keine Vertreter vorhanden. Bitte zuerst anlegen.')),
+                    );
+                    return;
+                  }
+
+                  await Navigator.of(context, rootNavigator: true).pushNamed(
+                    '/internal-chat',
+                    arguments: ComplaintChatPageArgs(
+                      role: ComplaintChatRole.admin,
+                      contacts: contacts,
+                      defaultContact: contacts.first,
+                    ),
+                  );
+                },
                 style: TextButton.styleFrom(
                   foregroundColor: theme.colorScheme.onSurface,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
