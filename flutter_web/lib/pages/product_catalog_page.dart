@@ -508,7 +508,9 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                             : (filteredLength / _rowsPerPage).ceil();
                         final currentPage = filteredLength == 0
                             ? 0
-                            : _currentPage.clamp(0, math.max(0, totalPages - 1));
+                            : _currentPage
+                                .clamp(0, math.max(0, totalPages - 1))
+                                .toInt();
                         final pageItems = filtered
                             .skip(currentPage * _rowsPerPage)
                             .take(_rowsPerPage)
