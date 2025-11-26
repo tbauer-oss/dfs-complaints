@@ -1700,6 +1700,7 @@ class _CustomKpiBuilderPanel extends StatefulWidget {
 class _CustomKpiBuilderPanelState extends State<_CustomKpiBuilderPanel> {
   final _nameController = TextEditingController(text: 'Reklamationsquote');
   final _formulaController = TextEditingController(text: 'complaints / sales * 100');
+  final _manualSalesController = TextEditingController();
   final _engine = _FormulaEngine();
   final Set<String> _selectedFields = {'complaints', 'sales'};
   final List<_CustomKpiDefinition> _definitions = [];
@@ -1717,6 +1718,7 @@ class _CustomKpiBuilderPanelState extends State<_CustomKpiBuilderPanel> {
   void dispose() {
     _nameController.dispose();
     _formulaController.dispose();
+    _manualSalesController.dispose();
     super.dispose();
   }
 
@@ -1808,6 +1810,7 @@ class _CustomKpiBuilderPanelState extends State<_CustomKpiBuilderPanel> {
   }
 
   Widget _buildFormulaEditor(ThemeData theme) {
+    final manualSales = _manualSalesValue();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1851,6 +1854,51 @@ class _CustomKpiBuilderPanelState extends State<_CustomKpiBuilderPanel> {
             helperText: 'Felder: complaints, sales, revenue, units, returns',
           ),
           maxLines: 3,
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _formulaSuggestions.map((suggestion) {
+              return ActionChip(
+                avatar: const Icon(Icons.lightbulb_outline, size: 18),
+                label: Text(suggestion.name),
+                tooltip: suggestion.description,
+                onPressed: () {
+                  setState(() {
+                    _nameController.text = suggestion.name;
+                    _formulaController.text = suggestion.formula;
+                    _selectedFields
+                      ..clear()
+                      ..addAll(suggestion.fields);
+                  });
+                },
+              );
+            }).toList(),
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _manualSalesController,
+          decoration: InputDecoration(
+            labelText: 'Eigene Verkäufe (optional)',
+            hintText: 'z. B. 1250',
+            prefixIcon: const Icon(Icons.edit_outlined),
+            helperText: 'Überschreibt die sales-Variable in der Formel mit einem eigenen Wert.',
+            suffixIcon: manualSales != null
+                ? Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: Chip(
+                      label: Text('${manualSales.toStringAsFixed(0)}'),
+                      avatar: const Icon(Icons.check_circle_outline, size: 16),
+                    ),
+                  )
+                : null,
+          ),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: 8),
         Wrap(
@@ -2082,6 +2130,7 @@ class _CustomKpiBuilderPanelState extends State<_CustomKpiBuilderPanel> {
   List<_KpiPreviewPoint> _buildPreviewPoints(_CustomKpiDefinition def) {
     final records = _filteredRecords();
     final grouped = <String, _KpiAccumulator>{};
+    final manualSales = _manualSalesValue();
 
     for (final record in records) {
       final label = _dimensionLabel(record, def.dimension);
@@ -2092,12 +2141,22 @@ class _CustomKpiBuilderPanelState extends State<_CustomKpiBuilderPanel> {
     final List<_KpiPreviewPoint> points = [];
     grouped.forEach((label, acc) {
       final variables = acc.toVariableMap();
+      if (manualSales != null) {
+        variables['sales'] = manualSales;
+      }
       final value = _engine.evaluate(def.formula, variables, def.fields);
       points.add(_KpiPreviewPoint(label: label, value: value));
     });
 
     points.sort((a, b) => b.value.compareTo(a.value));
     return points;
+  }
+
+  double? _manualSalesValue() {
+    final raw = _manualSalesController.text.trim();
+    if (raw.isEmpty) return null;
+    final normalized = raw.replaceAll(',', '.');
+    return double.tryParse(normalized);
   }
 
   List<_SampleKpiRecord> _filteredRecords() {
@@ -2184,6 +2243,33 @@ class _CustomKpiBuilderPanelState extends State<_CustomKpiBuilderPanel> {
       key: 'returns',
       label: 'Retouren',
       description: 'Anzahl Retouren / Rücksendungen',
+    ),
+  ];
+
+  static const _formulaSuggestions = [
+    _FormulaSuggestion(
+      name: 'Reklamationsquote %',
+      formula: 'complaints / sales * 100',
+      fields: {'complaints', 'sales'},
+      description: 'Reklamationen geteilt durch Verkäufe – prozentuale Quote.',
+    ),
+    _FormulaSuggestion(
+      name: 'Retourenquote %',
+      formula: 'returns / sales * 100',
+      fields: {'returns', 'sales'},
+      description: 'Anteil Retouren an den Verkäufen.',
+    ),
+    _FormulaSuggestion(
+      name: 'Umsatz pro Einheit',
+      formula: 'revenue / units',
+      fields: {'revenue', 'units'},
+      description: 'Durchschnittlicher Umsatz pro ausgelieferter Einheit.',
+    ),
+    _FormulaSuggestion(
+      name: 'Reklamationen pro Kunde',
+      formula: 'complaints / 1000',
+      fields: {'complaints'},
+      description: 'Absolute Reklamationen skaliert auf 1.000 Kundenbasis.',
     ),
   ];
 }
@@ -2515,6 +2601,20 @@ class _KpiField {
   final String label;
   final String description;
   const _KpiField({required this.key, required this.label, required this.description});
+}
+
+class _FormulaSuggestion {
+  final String name;
+  final String formula;
+  final Set<String> fields;
+  final String description;
+
+  const _FormulaSuggestion({
+    required this.name,
+    required this.formula,
+    required this.fields,
+    required this.description,
+  });
 }
 
 class _CustomKpiDefinition {
