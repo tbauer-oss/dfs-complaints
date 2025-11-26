@@ -1271,6 +1271,20 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
           },
         ),
         _MenuCard(
+          color: Colors.purple,
+          icon: Icons.chat_bubble_outline,
+          title: 'Interner Chat',
+          subtitle: 'QM ↔ Vertreter pro Fall',
+          count: null,
+          compact: compact,
+          scale: scale,
+          onTap: () async {
+            if (!await _confirmLeaveCurrentView()) return;
+            if (!mounted) return;
+            await Navigator.of(context).pushNamed('/internal-chat-demo');
+          },
+        ),
+        _MenuCard(
           color: Colors.indigo,
           icon: Icons.all_inbox_outlined,
           title: ctx.t.rep_menu_all_title,
