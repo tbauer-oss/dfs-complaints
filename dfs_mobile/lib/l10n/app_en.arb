@@ -46,6 +46,7 @@
   "theme_system": "System",
   "theme_light": "Light",
   "theme_dark": "Dark",
+  "customer_email": "Customer email",
 
   "attachments_add": "Send attachments",
   "attachments_success": "Attachments were sent successfully.",
