@@ -18,7 +18,6 @@ class DfsProduct {
   final String certificationNo;
   final String material;
   final String surfaceInfo;
-  final String otherFeatures;
   final String firstPlacingOnMarketDate;
   final String legacyDevice;
 
@@ -42,7 +41,6 @@ class DfsProduct {
     required this.certificationNo,
     required this.material,
     required this.surfaceInfo,
-    required this.otherFeatures,
     required this.firstPlacingOnMarketDate,
     required this.legacyDevice,
   });
@@ -67,7 +65,6 @@ class DfsProduct {
     String? certificationNo,
     String? material,
     String? surfaceInfo,
-    String? otherFeatures,
     String? firstPlacingOnMarketDate,
     String? legacyDevice,
   }) {
@@ -91,7 +88,6 @@ class DfsProduct {
       certificationNo: certificationNo ?? this.certificationNo,
       material: material ?? this.material,
       surfaceInfo: surfaceInfo ?? this.surfaceInfo,
-      otherFeatures: otherFeatures ?? this.otherFeatures,
       firstPlacingOnMarketDate:
           firstPlacingOnMarketDate ?? this.firstPlacingOnMarketDate,
       legacyDevice: legacyDevice ?? this.legacyDevice,
@@ -118,7 +114,6 @@ class DfsProduct {
     'certification_no',
     'material',
     'surface_info',
-    'other_features',
     'first_placing_on_market_date',
     'legacy_device',
   ];
@@ -143,7 +138,6 @@ class DfsProduct {
     'certification_no': 'Certification no.',
     'material': 'Material',
     'surface_info': 'Zusätzliche Information: Oberfläche',
-    'other_features': 'Weitere Merkmale',
     'first_placing_on_market_date':
         'Datum des ersten Inverkehrbringens',
     'legacy_device': 'Legacy device? (x/leer)',
@@ -171,7 +165,6 @@ class DfsProduct {
       certificationNo: pick('certification_no'),
       material: pick('material'),
       surfaceInfo: pick('surface_info'),
-      otherFeatures: pick('other_features'),
       firstPlacingOnMarketDate: pick('first_placing_on_market_date'),
       legacyDevice: pick('legacy_device'),
     );
@@ -197,7 +190,6 @@ class DfsProduct {
         'certification_no': certificationNo,
         'material': material,
         'surface_info': surfaceInfo,
-        'other_features': otherFeatures,
         'first_placing_on_market_date': firstPlacingOnMarketDate,
         'legacy_device': legacyDevice,
       };
