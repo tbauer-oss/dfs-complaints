@@ -33,7 +33,9 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
   final Map<String, TextEditingController> _filterCtrls = {};
   String _globalSearch = '';
   int _rowsPerPage = 10;
+  bool _showFilters = true;
   final _tableScrollController = ScrollController();
+  final _verticalTableScrollController = ScrollController();
 
   static const _dropdownKeys = <String>{
     'td_number_and_name',
@@ -71,6 +73,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
   @override
   void dispose() {
     _tableScrollController.dispose();
+    _verticalTableScrollController.dispose();
     for (final ctrl in _filterCtrls.values) {
       ctrl.dispose();
     }
@@ -99,7 +102,12 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
   }
 
   Iterable<String> _optionsFor(String key) {
-    final values = _items.map((p) => p.fieldValue(key).trim()).where((v) => v.isNotEmpty).toSet().toList();
+    final values = _items
+        .map((p) =>
+            p.fieldValue(key).replaceAll('\n', ' ').replaceAll(RegExp(' +'), ' ').trim())
+        .where((v) => v.isNotEmpty)
+        .toSet()
+        .toList();
     values.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     return values;
   }
@@ -372,48 +380,92 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
           ),
         Card(
           child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: DfsProduct.fieldOrder.map((key) {
-                final label = DfsProduct.fieldLabels[key] ?? key;
-                final ctrl = _filterCtrls[key]!;
-                final options = _dropdownKeys.contains(key) ? _optionsFor(key) : const <String>[];
-
-                if (_dropdownKeys.contains(key)) {
-                  return SizedBox(
-                    width: 200,
-                    child: DropdownMenu<String>(
-                      controller: ctrl,
-                      label: Text(label),
-                      enableFilter: true,
-                      enableSearch: true,
-                      leadingIcon: const Icon(Icons.filter_alt_outlined),
-                      dropdownMenuEntries: options
-                          .map((v) => DropdownMenuEntry<String>(value: v, label: v))
-                          .toList(),
-                      inputDecorationTheme: const InputDecorationTheme(
-                        isDense: true,
-                        border: OutlineInputBorder(),
-                      ),
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.filter_alt_outlined),
+                    const SizedBox(width: 8),
+                    Text('Filter', style: Theme.of(context).textTheme.titleSmall),
+                    const Spacer(),
+                    TextButton.icon(
+                      onPressed: () => setState(() => _showFilters = !_showFilters),
+                      icon: Icon(_showFilters ? Icons.expand_less : Icons.expand_more),
+                      label: Text(_showFilters ? 'Einklappen' : 'Ausklappen'),
                     ),
-                  );
-                }
+                  ],
+                ),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: !_showFilters
+                      ? const SizedBox.shrink()
+                      : Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(minWidth: 720),
+                              child: Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: DfsProduct.fieldOrder.map((key) {
+                                  final label = DfsProduct.fieldLabels[key] ?? key;
+                                  final ctrl = _filterCtrls[key]!;
+                                  final options =
+                                      _dropdownKeys.contains(key) ? _optionsFor(key) : const <String>[];
 
-                return SizedBox(
-                  width: 200,
-                  child: TextField(
-                    controller: ctrl,
-                    decoration: InputDecoration(
-                      labelText: label,
-                      prefixIcon: const Icon(Icons.filter_alt_outlined),
-                      isDense: true,
-                      border: const OutlineInputBorder(),
-                    ),
-                  ),
-                );
-              }).toList(),
+                                  final baseDecoration = InputDecoration(
+                                    labelText: label,
+                                    labelStyle: Theme.of(context).textTheme.bodySmall,
+                                    floatingLabelStyle: Theme.of(context).textTheme.bodySmall,
+                                    prefixIcon: const Icon(Icons.filter_alt_outlined, size: 18),
+                                    isDense: true,
+                                    contentPadding:
+                                        const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                    border: const OutlineInputBorder(),
+                                  );
+
+                                  if (_dropdownKeys.contains(key)) {
+                                    return SizedBox(
+                                      width: 190,
+                                      child: DropdownMenu<String>(
+                                        controller: ctrl,
+                                        label: Text(label, style: Theme.of(context).textTheme.bodySmall),
+                                        enableFilter: true,
+                                        enableSearch: true,
+                                        textStyle: Theme.of(context).textTheme.bodySmall,
+                                        leadingIcon: const Icon(Icons.filter_alt_outlined, size: 18),
+                                        dropdownMenuEntries: options
+                                            .map((v) => DropdownMenuEntry<String>(value: v, label: v))
+                                            .toList(),
+                                        inputDecorationTheme: InputDecorationTheme(
+                                          isDense: true,
+                                          contentPadding: baseDecoration.contentPadding,
+                                          border: baseDecoration.border as OutlineInputBorder?,
+                                          labelStyle: baseDecoration.labelStyle,
+                                          floatingLabelStyle: baseDecoration.floatingLabelStyle,
+                                        ),
+                                      ),
+                                    );
+                                  }
+
+                                  return SizedBox(
+                                    width: 190,
+                                    child: TextField(
+                                      controller: ctrl,
+                                      style: Theme.of(context).textTheme.bodySmall,
+                                      decoration: baseDecoration,
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ),
+                          ),
+                        ),
+                ),
+              ],
             ),
           ),
         ),
@@ -431,42 +483,56 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                         return Scrollbar(
                           controller: _tableScrollController,
                           thumbVisibility: true,
+                          trackVisibility: true,
                           child: SingleChildScrollView(
                             controller: _tableScrollController,
                             scrollDirection: Axis.horizontal,
-                            child: ConstrainedBox(
-                              constraints: BoxConstraints(minWidth: math.max(constraints.maxWidth, 1200)),
-                              child: PaginatedDataTable(
-                                header: Row(
-                                  children: [
-                                    Text('${filtered.length} von ${_items.length} Artikeln',
-                                        style: Theme.of(context).textTheme.titleMedium),
-                                    const Spacer(),
-                                    if (widget.loading)
-                                      const Padding(
-                                        padding: EdgeInsets.only(right: 8),
-                                        child: SizedBox(
-                                            width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-                                      ),
-                                  ],
+                            child: Scrollbar(
+                              controller: _verticalTableScrollController,
+                              thumbVisibility: true,
+                              trackVisibility: true,
+                              notificationPredicate: (notif) => notif.metrics.axis == Axis.vertical,
+                              child: SingleChildScrollView(
+                                controller: _verticalTableScrollController,
+                                scrollDirection: Axis.vertical,
+                                child: ConstrainedBox(
+                                  constraints:
+                                      BoxConstraints(minWidth: math.max(constraints.maxWidth, 1200)),
+                                  child: PaginatedDataTable(
+                                    header: Row(
+                                      children: [
+                                        Text('${filtered.length} von ${_items.length} Artikeln',
+                                            style: Theme.of(context).textTheme.titleMedium),
+                                        const Spacer(),
+                                        if (widget.loading)
+                                          const Padding(
+                                            padding: EdgeInsets.only(right: 8),
+                                            child: SizedBox(
+                                                width: 18,
+                                                height: 18,
+                                                child: CircularProgressIndicator(strokeWidth: 2)),
+                                          ),
+                                      ],
+                                    ),
+                                    columns: [
+                                      ...DfsProduct.fieldOrder
+                                          .map((key) => DataColumn(label: Text(DfsProduct.fieldLabels[key] ?? key))),
+                                      const DataColumn(label: Text('Aktionen')),
+                                    ],
+                                    source: dataSource,
+                                    rowsPerPage: effectiveRowsPerPage,
+                                    availableRowsPerPage: const [10, 20, 50],
+                                    onRowsPerPageChanged: (value) {
+                                      if (value != null) {
+                                        setState(() => _rowsPerPage = value);
+                                      }
+                                    },
+                                    showFirstLastButtons: true,
+                                    horizontalMargin: 12,
+                                    columnSpacing: 28,
+                                    showCheckboxColumn: false,
+                                  ),
                                 ),
-                                columns: [
-                                  ...DfsProduct.fieldOrder
-                                      .map((key) => DataColumn(label: Text(DfsProduct.fieldLabels[key] ?? key))),
-                                  const DataColumn(label: Text('Aktionen')),
-                                ],
-                                source: dataSource,
-                                rowsPerPage: effectiveRowsPerPage,
-                                availableRowsPerPage: const [10, 20, 50],
-                                onRowsPerPageChanged: (value) {
-                                  if (value != null) {
-                                    setState(() => _rowsPerPage = value);
-                                  }
-                                },
-                                showFirstLastButtons: true,
-                                horizontalMargin: 12,
-                                columnSpacing: 28,
-                                showCheckboxColumn: false,
                               ),
                             ),
                           ),
