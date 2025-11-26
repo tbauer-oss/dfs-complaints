@@ -13,6 +13,7 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../api/client.dart';
 import '../data/country_geography.dart';
+import '../models/country.dart';
 import '../widgets/legal_footer.dart';
 
 class AdminStatsPage extends StatefulWidget {
@@ -31,11 +32,15 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
   DateTime? _manualFrom;
   DateTime? _manualTo;
   bool _exporting = false;
+  List<_KpiRecord> _kpiRecords = [];
+  bool _kpiLoading = true;
+  String? _kpiError;
 
   @override
   void initState() {
     super.initState();
     _loadStats();
+    _loadKpiRecords();
   }
 
   Future<void> _loadStats({DateTime? from, DateTime? to}) async {
@@ -68,6 +73,186 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
         _loading = false;
       });
     }
+  }
+
+  Future<void> _loadKpiRecords() async {
+    setState(() {
+      _kpiLoading = true;
+      _kpiError = null;
+    });
+
+    try {
+      final raw = await widget.api.adminComplaints(details: true);
+      final parsed = raw.map(_parseKpiRecord).whereType<_KpiRecord>().toList();
+      if (!mounted) return;
+      setState(() {
+        _kpiRecords = parsed;
+        _kpiLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _kpiError = e.toString();
+        _kpiLoading = false;
+      });
+    }
+  }
+
+  _KpiRecord? _parseKpiRecord(Map<String, dynamic> raw) {
+    final date = _parseDate(raw['createdAt']);
+    if (date == null) return null;
+
+    final payload = _coercePayload(raw['payload']);
+    final countryCode = _string(raw['countryCode']) ?? _string(raw['country_code']);
+    final country = _firstNonEmpty([
+          _string(raw['country']),
+          _countryFromCode(countryCode),
+          _string(payload['country']),
+          countryCode,
+        ]) ??
+        'Unbekannt';
+
+    final productGroup = _firstNonEmpty([
+          _string(raw['segment']),
+          _string(payload['segment']),
+          _string(payload['productType']),
+        ]) ??
+        'Unbekannt';
+
+    final customer = _firstNonEmpty([
+          _string(raw['customer']),
+          _string(raw['customerEmail']),
+          _string(raw['customerNumber']),
+        ]) ??
+        'Unbekannt';
+
+    final representative = _firstNonEmpty([
+          _string(raw['repName']),
+          _string(raw['repEmail']),
+        ]) ??
+        '';
+
+    final article = _firstNonEmpty([
+          _string(raw['article']),
+          _string(payload['article']),
+        ]) ??
+        '';
+
+    final quantity = _numeric(payload['qty']);
+    final returns = _numeric(payload['returned']);
+    final revenue = _numeric(payload['revenue']);
+    final repRegion = _string(raw['repRegion']);
+
+    return _KpiRecord(
+      date: date,
+      country: country,
+      productGroup: productGroup,
+      customer: customer,
+      region: _regionFor(countryCode, repRegion: repRegion),
+      representative: representative,
+      article: article,
+      complaints: 1,
+      sales: quantity,
+      revenue: revenue,
+      units: quantity,
+      returns: returns,
+    );
+  }
+
+  String _regionFor(String? countryCode, {String? repRegion}) {
+    if (repRegion != null && repRegion.trim().isNotEmpty) return repRegion.trim();
+    final code = (countryCode ?? '').toUpperCase();
+    final mapped = kCountryRegions[code];
+    if (mapped == null) return 'Unbekannt';
+    switch (mapped) {
+      case 'europe':
+        return 'Europa';
+      case 'north_america':
+        return 'Nordamerika';
+      case 'south_america':
+        return 'Südamerika';
+      case 'asia':
+        return 'Asien';
+      case 'africa':
+        return 'Afrika';
+      case 'middle_east':
+        return 'Nahost';
+      case 'oceania':
+        return 'Ozeanien';
+      default:
+        return mapped;
+    }
+  }
+
+  String? _countryFromCode(String? code) {
+    final normalized = (code ?? '').trim().toUpperCase();
+    if (normalized.isEmpty) return null;
+    for (final country in kCountries) {
+      if (country.code.toUpperCase() == normalized) return country.names['en'];
+    }
+    return null;
+  }
+
+  DateTime? _parseDate(dynamic value) {
+    if (value == null) return null;
+    if (value is int) {
+      if (value <= 0) return null;
+      return DateTime.fromMillisecondsSinceEpoch(value, isUtc: true).toLocal();
+    }
+    if (value is num) {
+      final ms = value.toInt();
+      if (ms <= 0) return null;
+      return DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true).toLocal();
+    }
+    if (value is String && value.trim().isNotEmpty) {
+      final n = int.tryParse(value.trim());
+      if (n != null) {
+        if (n <= 0) return null;
+        return DateTime.fromMillisecondsSinceEpoch(n, isUtc: true).toLocal();
+      }
+      try {
+        return DateTime.parse(value.trim()).toLocal();
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  String? _string(dynamic value) {
+    if (value == null) return null;
+    final s = value.toString().trim();
+    return s.isEmpty ? null : s;
+  }
+
+  Map<String, dynamic> _coercePayload(dynamic value) {
+    if (value is Map) {
+      try {
+        return value.cast<String, dynamic>();
+      } catch (_) {
+        final out = <String, dynamic>{};
+        value.forEach((key, val) => out['$key'] = val);
+        return out;
+      }
+    }
+    return const <String, dynamic>{};
+  }
+
+  String? _firstNonEmpty(List<String?> values) {
+    for (final value in values) {
+      if (value != null && value.trim().isNotEmpty) return value.trim();
+    }
+    return null;
+  }
+
+  double _numeric(dynamic value) {
+    if (value is num) return value.toDouble();
+    if (value is bool) return value ? 1 : 0;
+    if (value is String && value.trim().isNotEmpty) {
+      final normalized = value.replaceAll(',', '.').trim();
+      return double.tryParse(normalized) ?? 0;
+    }
+    return 0;
   }
 
   DateTimeRange? _parseRange(Map<String, dynamic> data) {
@@ -479,7 +664,12 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
         const SizedBox(height: 24),
         _LoadPatternSection(weekdays: weekdays, hours: hours),
         const SizedBox(height: 24),
-        const _CustomKpiBuilderPanel(),
+        _CustomKpiBuilderPanel(
+          records: _kpiRecords,
+          loading: _kpiLoading,
+          error: _kpiError,
+          onReload: _loadKpiRecords,
+        ),
       ],
     );
   }
@@ -1691,7 +1881,16 @@ class _HourChart extends StatelessWidget {
 }
 
 class _CustomKpiBuilderPanel extends StatefulWidget {
-  const _CustomKpiBuilderPanel();
+  final List<_KpiRecord> records;
+  final bool loading;
+  final String? error;
+  final VoidCallback onReload;
+  const _CustomKpiBuilderPanel({
+    required this.records,
+    required this.loading,
+    required this.error,
+    required this.onReload,
+  });
 
   @override
   State<_CustomKpiBuilderPanel> createState() => _CustomKpiBuilderPanelState();
@@ -1725,6 +1924,10 @@ class _CustomKpiBuilderPanelState extends State<_CustomKpiBuilderPanel> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final regions = _regionOptions();
+    final productGroups = _productGroupOptions();
+    final regionValue = regions.contains(_region) ? _region : regions.first;
+    final productValue = productGroups.contains(_productGroup) ? _productGroup : productGroups.first;
     final draftDefinition = _CustomKpiDefinition(
       name: _nameController.text.trim().isEmpty
           ? 'Unbenannter KPI'
@@ -1734,15 +1937,17 @@ class _CustomKpiBuilderPanelState extends State<_CustomKpiBuilderPanel> {
       dimension: _dimension,
       chartType: _chartType,
       timeframe: _timeframe,
-      region: _region,
-      productGroup: _productGroup,
+      region: regionValue,
+      productGroup: productValue,
       pinned: _pinToDashboard,
       status: _publishLive ? _KpiStatus.live : _KpiStatus.draft,
       version: _nextVersionForName(_nameController.text.trim()),
       updatedAt: DateTime.now(),
     );
 
-    final previewPoints = _buildPreviewPoints(draftDefinition);
+    final previewPoints = widget.loading || widget.error != null
+        ? const <_KpiPreviewPoint>[]
+        : _buildPreviewPoints(draftDefinition, regionValue, productValue);
 
     return _SectionCard(
       title: 'Custom KPI Builder',
@@ -1754,12 +1959,45 @@ class _CustomKpiBuilderPanelState extends State<_CustomKpiBuilderPanel> {
             'Beliebige KPIs kombinieren, validieren und als Widgets oder Exporte bereitstellen.',
             style: theme.textTheme.bodyMedium,
           ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              if (widget.loading)
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                Icon(
+                  widget.error == null ? Icons.dataset_outlined : Icons.error_outline,
+                  color: widget.error == null
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.error,
+                ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  widget.error != null
+                      ? 'Echte Kunden-, Vertreter- und Reklamationsdaten konnten nicht geladen werden: ${widget.error}'
+                      : 'Basis: ${widget.records.length} Reklamationen inkl. Kundendaten, Vertreterzuordnung und Artikeln.',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
+              if (widget.error != null)
+                TextButton.icon(
+                  onPressed: widget.onReload,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Erneut laden'),
+                ),
+            ],
+          ),
           const SizedBox(height: 16),
           _buildFieldSelector(theme),
           const SizedBox(height: 12),
           _buildFormulaEditor(theme),
           const SizedBox(height: 12),
-          _buildFilters(theme),
+          _buildFilters(theme, regions, productGroups, regionValue, productValue),
           const SizedBox(height: 12),
           _buildActions(theme, previewPoints),
           const SizedBox(height: 12),
@@ -1930,7 +2168,13 @@ class _CustomKpiBuilderPanelState extends State<_CustomKpiBuilderPanel> {
     );
   }
 
-  Widget _buildFilters(ThemeData theme) {
+  Widget _buildFilters(
+    ThemeData theme,
+    List<String> regions,
+    List<String> productGroups,
+    String regionValue,
+    String productValue,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1966,24 +2210,18 @@ class _CustomKpiBuilderPanelState extends State<_CustomKpiBuilderPanel> {
               ],
             ),
             DropdownButton<String>(
-              value: _region,
-              onChanged: (value) => setState(() => _region = value ?? _region),
-              items: const [
-                DropdownMenuItem(value: 'Alle Regionen', child: Text('Alle Regionen')),
-                DropdownMenuItem(value: 'EU', child: Text('Europa')),
-                DropdownMenuItem(value: 'NA', child: Text('Nordamerika')),
-                DropdownMenuItem(value: 'MEA', child: Text('Nahost/Afrika')),
-              ],
+              value: regionValue,
+              onChanged: (value) => setState(() => _region = value ?? regionValue),
+              items: regions
+                  .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+                  .toList(growable: false),
             ),
             DropdownButton<String>(
-              value: _productGroup,
-              onChanged: (value) => setState(() => _productGroup = value ?? _productGroup),
-              items: const [
-                DropdownMenuItem(value: 'Alle Produktgruppen', child: Text('Alle Produktgruppen')),
-                DropdownMenuItem(value: 'Sensorik', child: Text('Sensorik')),
-                DropdownMenuItem(value: 'Steuerung', child: Text('Steuerung')),
-                DropdownMenuItem(value: 'Sicherheit', child: Text('Sicherheit')),
-              ],
+              value: productValue,
+              onChanged: (value) => setState(() => _productGroup = value ?? productValue),
+              items: productGroups
+                  .map((p) => DropdownMenuItem(value: p, child: Text(p)))
+                  .toList(growable: false),
             ),
           ],
         ),
@@ -2119,6 +2357,26 @@ class _CustomKpiBuilderPanelState extends State<_CustomKpiBuilderPanel> {
     );
   }
 
+  List<String> _regionOptions() {
+    final values = <String>{};
+    for (final record in widget.records) {
+      final value = record.region.trim();
+      if (value.isNotEmpty) values.add(value);
+    }
+    final sorted = values.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return ['Alle Regionen', ...sorted];
+  }
+
+  List<String> _productGroupOptions() {
+    final values = <String>{};
+    for (final record in widget.records) {
+      final value = record.productGroup.trim();
+      if (value.isNotEmpty) values.add(value);
+    }
+    final sorted = values.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return ['Alle Produktgruppen', ...sorted];
+  }
+
   int _nextVersionForName(String name) {
     final normalized = name.trim();
     if (normalized.isEmpty) return 1;
@@ -2127,8 +2385,12 @@ class _CustomKpiBuilderPanelState extends State<_CustomKpiBuilderPanel> {
     return existing.map((e) => e.version).fold<int>(1, (p, c) => math.max(p, c + 1));
   }
 
-  List<_KpiPreviewPoint> _buildPreviewPoints(_CustomKpiDefinition def) {
-    final records = _filteredRecords();
+  List<_KpiPreviewPoint> _buildPreviewPoints(
+    _CustomKpiDefinition def,
+    String regionFilter,
+    String productFilter,
+  ) {
+    final records = _filteredRecords(regionFilter, productFilter);
     final grouped = <String, _KpiAccumulator>{};
     final manualSales = _manualSalesValue();
 
@@ -2159,13 +2421,13 @@ class _CustomKpiBuilderPanelState extends State<_CustomKpiBuilderPanel> {
     return double.tryParse(normalized);
   }
 
-  List<_SampleKpiRecord> _filteredRecords() {
+  List<_KpiRecord> _filteredRecords(String regionFilter, String productFilter) {
     final now = DateTime.now();
-    final List<_SampleKpiRecord> filtered = [];
+    final List<_KpiRecord> filtered = [];
 
-    for (final record in _sampleKpiRecords) {
-      if (_region != 'Alle Regionen' && record.region != _region) continue;
-      if (_productGroup != 'Alle Produktgruppen' && record.productGroup != _productGroup) continue;
+    for (final record in widget.records) {
+      if (regionFilter != 'Alle Regionen' && record.region != regionFilter) continue;
+      if (productFilter != 'Alle Produktgruppen' && record.productGroup != productFilter) continue;
 
       final inRange = switch (_timeframe) {
         _KpiTimeframe.last30Days => record.date.isAfter(now.subtract(const Duration(days: 30))),
@@ -2180,7 +2442,7 @@ class _CustomKpiBuilderPanelState extends State<_CustomKpiBuilderPanel> {
     return filtered;
   }
 
-  String _dimensionLabel(_SampleKpiRecord record, String dimension) {
+  String _dimensionLabel(_KpiRecord record, String dimension) {
     switch (dimension) {
       case 'Produktgruppe':
         return record.productGroup;
@@ -2679,7 +2941,7 @@ class _KpiAccumulator {
   double units = 0;
   double returns = 0;
 
-  void add(_SampleKpiRecord record) {
+  void add(_KpiRecord record) {
     complaints += record.complaints;
     sales += record.sales;
     revenue += record.revenue;
@@ -2696,24 +2958,28 @@ class _KpiAccumulator {
       };
 }
 
-class _SampleKpiRecord {
+class _KpiRecord {
   final DateTime date;
   final String country;
   final String productGroup;
   final String customer;
   final String region;
+  final String representative;
+  final String article;
   final double complaints;
   final double sales;
   final double revenue;
   final double units;
   final double returns;
 
-  const _SampleKpiRecord({
+  const _KpiRecord({
     required this.date,
     required this.country,
     required this.productGroup,
     required this.customer,
     required this.region,
+    required this.representative,
+    required this.article,
     required this.complaints,
     required this.sales,
     required this.revenue,
@@ -2771,159 +3037,6 @@ class _FormulaEngine {
   }
 }
 
-List<_SampleKpiRecord> _buildSampleKpiRecords() {
-  final now = DateTime.now();
-  DateTime m(int monthsAgo, int day) => DateTime(now.year, now.month - monthsAgo, day);
-
-  return [
-    _SampleKpiRecord(
-      date: m(11, 15),
-      country: 'Deutschland',
-      productGroup: 'Sensorik',
-      customer: 'ACME GmbH',
-      region: 'EU',
-      complaints: 24,
-      sales: 1200,
-      revenue: 240000,
-      units: 1500,
-      returns: 12,
-    ),
-    _SampleKpiRecord(
-      date: m(10, 10),
-      country: 'Frankreich',
-      productGroup: 'Sensorik',
-      customer: 'Securité SARL',
-      region: 'EU',
-      complaints: 18,
-      sales: 980,
-      revenue: 186000,
-      units: 1200,
-      returns: 10,
-    ),
-    _SampleKpiRecord(
-      date: m(9, 5),
-      country: 'USA',
-      productGroup: 'Steuerung',
-      customer: 'Northwind Inc.',
-      region: 'NA',
-      complaints: 32,
-      sales: 1500,
-      revenue: 310000,
-      units: 1800,
-      returns: 16,
-    ),
-    _SampleKpiRecord(
-      date: m(9, 28),
-      country: 'Kanada',
-      productGroup: 'Steuerung',
-      customer: 'Maple Automation',
-      region: 'NA',
-      complaints: 14,
-      sales: 620,
-      revenue: 118000,
-      units: 800,
-      returns: 6,
-    ),
-    _SampleKpiRecord(
-      date: m(8, 12),
-      country: 'VAE',
-      productGroup: 'Sicherheit',
-      customer: 'SafeTech MEA',
-      region: 'MEA',
-      complaints: 8,
-      sales: 420,
-      revenue: 95000,
-      units: 540,
-      returns: 3,
-    ),
-    _SampleKpiRecord(
-      date: m(8, 25),
-      country: 'Südafrika',
-      productGroup: 'Sicherheit',
-      customer: 'Cape Industries',
-      region: 'MEA',
-      complaints: 10,
-      sales: 380,
-      revenue: 82000,
-      units: 460,
-      returns: 4,
-    ),
-    _SampleKpiRecord(
-      date: m(7, 3),
-      country: 'Deutschland',
-      productGroup: 'Sensorik',
-      customer: 'ACME GmbH',
-      region: 'EU',
-      complaints: 12,
-      sales: 700,
-      revenue: 160000,
-      units: 900,
-      returns: 8,
-    ),
-    _SampleKpiRecord(
-      date: m(7, 18),
-      country: 'Frankreich',
-      productGroup: 'Sensorik',
-      customer: 'Securité SARL',
-      region: 'EU',
-      complaints: 9,
-      sales: 540,
-      revenue: 120000,
-      units: 660,
-      returns: 5,
-    ),
-    _SampleKpiRecord(
-      date: m(6, 2),
-      country: 'USA',
-      productGroup: 'Steuerung',
-      customer: 'Northwind Inc.',
-      region: 'NA',
-      complaints: 22,
-      sales: 1100,
-      revenue: 240000,
-      units: 1400,
-      returns: 11,
-    ),
-    _SampleKpiRecord(
-      date: m(6, 20),
-      country: 'Kanada',
-      productGroup: 'Steuerung',
-      customer: 'Maple Automation',
-      region: 'NA',
-      complaints: 11,
-      sales: 500,
-      revenue: 105000,
-      units: 620,
-      returns: 5,
-    ),
-    _SampleKpiRecord(
-      date: m(5, 7),
-      country: 'VAE',
-      productGroup: 'Sicherheit',
-      customer: 'SafeTech MEA',
-      region: 'MEA',
-      complaints: 6,
-      sales: 390,
-      revenue: 88000,
-      units: 500,
-      returns: 2,
-    ),
-    _SampleKpiRecord(
-      date: m(5, 19),
-      country: 'Südafrika',
-      productGroup: 'Sicherheit',
-      customer: 'Cape Industries',
-      region: 'MEA',
-      complaints: 7,
-      sales: 340,
-      revenue: 76000,
-      units: 430,
-      returns: 3,
-    ),
-  ];
-}
-
-final _sampleKpiRecords = _buildSampleKpiRecords();
 
 class _SectionCard extends StatelessWidget {
   final String title;
