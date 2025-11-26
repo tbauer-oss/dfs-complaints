@@ -2,8 +2,8 @@
 export const config = { runtime: 'nodejs' };
 
 import { setCors, handlePreflight, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
-import { normalizeLangValue } from '../_lib/store.js';
 import { translateTexts } from '../_lib/translate.js';
+import { normalizeLangValue } from '../_lib/store.js';
 
 function requireAdmin(req, res) {
   const sec = (req.headers?.['x-admin-secret'] || '').toString().trim();
@@ -26,8 +26,10 @@ export default async function handler(req, res) {
 
   try {
     const body = readJson(req) || {};
-    const sourceLang = normalizeLangValue(body.sourceLang);
-    const targets = Array.isArray(body.targets) ? body.targets : [];
+    const sourceLang = normalizeLangValue(body.sourceLang) || null; // let DeepL auto-detect when missing
+    const targets = Array.isArray(body.targets)
+      ? body.targets.map((t) => normalizeLangValue(t)).filter(Boolean)
+      : [];
     const textByKey = {};
 
     for (const key of ['question', 'answer', 'title', 'description']) {
@@ -39,7 +41,11 @@ export default async function handler(req, res) {
       return bad(res, 'question, answer, title or description required', 400);
     }
 
-    const result = await translateTexts({ textByKey, sourceLang, targetLangs: targets });
+    const result = await translateTexts({
+      textByKey,
+      sourceLang,
+      targetLangs: targets.length > 0 ? targets : ['de'],
+    });
     return ok(res, result);
   } catch (e) {
     const msg = e?.message || 'translation failed';

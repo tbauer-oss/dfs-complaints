@@ -29,22 +29,43 @@ function normTargetList(list, source) {
   return out;
 }
 
+const DEEPL_CODES = {
+  bg: 'BG',
+  cs: 'CS',
+  da: 'DA',
+  de: 'DE',
+  el: 'EL',
+  en: 'EN',
+  es: 'ES',
+  et: 'ET',
+  fi: 'FI',
+  fr: 'FR',
+  hu: 'HU',
+  id: 'ID',
+  it: 'IT',
+  ja: 'JA',
+  ko: 'KO',
+  lt: 'LT',
+  lv: 'LV',
+  nb: 'NB',
+  nl: 'NL',
+  pl: 'PL',
+  'pt-pt': 'PT-PT',
+  'pt-br': 'PT-BR',
+  ro: 'RO',
+  ru: 'RU',
+  sk: 'SK',
+  sl: 'SL',
+  sv: 'SV',
+  tr: 'TR',
+  uk: 'UK',
+  zh: 'ZH',
+};
+
 function deeplLang(code) {
   const normalized = normalizeLangValue(code);
-  switch (normalized) {
-    case 'de':
-      return 'DE';
-    case 'en':
-      return 'EN';
-    case 'fr':
-      return 'FR';
-    case 'it':
-      return 'IT';
-    case 'es':
-      return 'ES';
-    default:
-      return '';
-  }
+  if (!normalized) return '';
+  return DEEPL_CODES[normalized] || '';
 }
 
 async function translateWithDeepL(textEntries = [], { sourceLang = null, targetLang = 'en' } = {}) {
