@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/services.dart';
 
 import '../models/dfs_product.dart';
@@ -8,8 +9,20 @@ class DfsProductService {
   static const assetPath = 'lib/data/dfs_products.csv';
 
   Future<List<DfsProduct>> loadProducts() async {
-    final csv = await rootBundle.loadString(assetPath);
-    return parse(csv);
+    final data = await rootBundle.load(assetPath);
+    final bytes = data.buffer.asUint8List();
+
+    // CSVs exported from Excel are often encoded in Latin-1. Try UTF-8 first and
+    // gracefully fall back to Latin-1 instead of crashing with a FormatException
+    // when the encoding is not UTF-8.
+    String content;
+    try {
+      content = utf8.decode(bytes);
+    } on FormatException {
+      content = latin1.decode(bytes);
+    }
+
+    return parse(content);
   }
 
   List<DfsProduct> parse(String content) {
