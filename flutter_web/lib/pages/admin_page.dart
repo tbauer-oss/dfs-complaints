@@ -205,6 +205,10 @@ class _AdminPageState extends State<AdminPage> {
   bool _menuEditMode = false;
 
   bool _navCollapsed = true;
+  static const _navLayoutStorageKey = 'admin_nav_layout_v1';
+  late final Map<String, String> _navItemDefaultSection;
+  late final Set<String> _navItemIds;
+  late List<_AdminNavSectionState> _navLayout;
 
   // Mehrfach-Zuordnung interne Nummer
   final Set<String> _selectedAllTickets = <String>{};
@@ -341,6 +345,7 @@ class _AdminPageState extends State<AdminPage> {
     _api.setSecret(secret);
 
     _initMenuLayout();
+    _initNavLayout();
 
     if (secret.isEmpty) {
       _fatalErr =
@@ -3723,16 +3728,43 @@ class _AdminPageState extends State<AdminPage> {
                 border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.5)),
               ),
               child: isCompact
-                  ? Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Icon(Icons.tips_and_updates_outlined, size: 18, color: subtle),
-                        const SizedBox(width: 10),
-                        _navToggleButton(
-                          tooltip: _navCollapsed ? 'Sidebar erweitern' : 'Sidebar einklappen',
-                          icon: _navCollapsed ? Icons.chevron_right : Icons.chevron_left,
-                          onPressed: () => setState(() => _navCollapsed = !_navCollapsed),
-                          color: subtle,
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.tips_and_updates_outlined, size: 18, color: subtle),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Navigation anpassen oder einklappen.',
+                                style: theme.textTheme.labelSmall?.copyWith(color: subtle),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            IconButton(
+                              tooltip: 'Sidebar bearbeiten',
+                              icon: Icon(Icons.tune_rounded, color: subtle),
+                              onPressed: _openNavLayoutEditor,
+                            ),
+                            IconButton(
+                              tooltip: 'Standard wiederherstellen',
+                              icon: Icon(Icons.refresh_outlined, color: subtle),
+                              onPressed: _resetNavLayout,
+                            ),
+                            _navToggleButton(
+                              tooltip: _navCollapsed ? 'Sidebar erweitern' : 'Sidebar einklappen',
+                              icon: _navCollapsed ? Icons.chevron_right : Icons.chevron_left,
+                              onPressed: () => setState(() => _navCollapsed = !_navCollapsed),
+                              color: subtle,
+                            ),
+                          ],
                         ),
                       ],
                     )
@@ -3742,10 +3774,23 @@ class _AdminPageState extends State<AdminPage> {
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            'Navigation anpassbar: einklappen, Badges immer sichtbar, klare Gruppen.',
+                            'Navigation anpassbar: Kategorien umsortieren, ausblenden oder einklappen.',
                             style: theme.textTheme.labelSmall?.copyWith(color: subtle),
                           ),
                         ),
+                        TextButton.icon(
+                          onPressed: _resetNavLayout,
+                          icon: const Icon(Icons.refresh_outlined),
+                          label: const Text('Standard'),
+                          style: TextButton.styleFrom(foregroundColor: subtle),
+                        ),
+                        const SizedBox(width: 4),
+                        FilledButton.tonalIcon(
+                          onPressed: _openNavLayoutEditor,
+                          icon: const Icon(Icons.tune_outlined),
+                          label: const Text('Sidebar anpassen'),
+                        ),
+                        const SizedBox(width: 6),
                         _navToggleButton(
                           tooltip: _navCollapsed ? 'Sidebar erweitern' : 'Sidebar einklappen',
                           icon: _navCollapsed ? Icons.chevron_right : Icons.chevron_left,
@@ -3781,117 +3826,502 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   List<_AdminNavSection> _navSections() {
-    return [
-      _AdminNavSection(
-        title: 'Dashboard',
-        items: [
-          _AdminNavItem(
-            label: 'Dashboard',
-            icon: Icons.dashboard_outlined,
-            view: _AdminView.menu,
-          ),
-        ],
+    final definitions = _navItemDefinitions();
+    final sections = <_AdminNavSection>[];
+
+    for (final section in _navLayout) {
+      final items = section.itemIds
+          .map((id) => definitions[id])
+          .whereType<_AdminNavItemDefinition>()
+          .map(
+            (def) => _AdminNavItem(
+              label: def.label,
+              icon: def.icon,
+              view: def.view,
+              badge: def.badgeBuilder?.call(),
+            ),
+          )
+          .toList();
+
+      if (items.isEmpty) continue;
+      sections.add(_AdminNavSection(title: section.title, items: items));
+    }
+
+    return sections;
+  }
+
+  Map<String, _AdminNavItemDefinition> _navItemDefinitions() {
+    return {
+      'dashboard': const _AdminNavItemDefinition(
+        label: 'Dashboard',
+        icon: Icons.dashboard_outlined,
+        view: _AdminView.menu,
       ),
-      _AdminNavSection(
-        title: 'Vorgänge',
-        items: [
-          _AdminNavItem(
-            label: 'Offene Reklamationen',
-            icon: Icons.assignment_late_outlined,
-            view: _AdminView.open,
-            badge: _openComplaints.isNotEmpty ? '${_openComplaints.length}' : null,
-          ),
-          _AdminNavItem(
-            label: 'Alle Reklamationen',
-            icon: Icons.dashboard_customize_outlined,
-            view: _AdminView.all,
-            badge: _allComplaints.isNotEmpty ? '${_allComplaints.length}' : null,
-          ),
-          _AdminNavItem(
-            label: 'Pending / Review',
-            icon: Icons.hourglass_bottom_outlined,
-            view: _AdminView.pending,
-            badge: _pending.isNotEmpty ? '${_pending.length}' : null,
-          ),
-        ],
+      'open': _AdminNavItemDefinition(
+        label: 'Offene Reklamationen',
+        icon: Icons.assignment_late_outlined,
+        view: _AdminView.open,
+        badgeBuilder: () => _openComplaints.isNotEmpty ? '${_openComplaints.length}' : null,
       ),
-      _AdminNavSection(
+      'all': _AdminNavItemDefinition(
+        label: 'Alle Reklamationen',
+        icon: Icons.dashboard_customize_outlined,
+        view: _AdminView.all,
+        badgeBuilder: () => _allComplaints.isNotEmpty ? '${_allComplaints.length}' : null,
+      ),
+      'pending': _AdminNavItemDefinition(
+        label: 'Pending / Review',
+        icon: Icons.hourglass_bottom_outlined,
+        view: _AdminView.pending,
+        badgeBuilder: () => _pending.isNotEmpty ? '${_pending.length}' : null,
+      ),
+      'users': _AdminNavItemDefinition(
+        label: 'Kundendatenbank',
+        icon: Icons.people_outline,
+        view: _AdminView.users,
+        badgeBuilder: () => _users.isNotEmpty ? '${_users.length}' : null,
+      ),
+      'createCustomer': const _AdminNavItemDefinition(
+        label: 'Kunden anlegen',
+        icon: Icons.person_add_alt_1_outlined,
+        view: _AdminView.createCustomer,
+      ),
+      'reps': _AdminNavItemDefinition(
+        label: 'Vertreterverwaltung',
+        icon: Icons.support_agent_outlined,
+        view: _AdminView.reps,
+        badgeBuilder: () => _reps.isNotEmpty ? '${_reps.length}' : null,
+      ),
+      'activity': const _AdminNavItemDefinition(
+        label: 'Aktivität',
+        icon: Icons.query_stats_outlined,
+        view: _AdminView.activity,
+      ),
+      'news': const _AdminNavItemDefinition(
+        label: 'News & Infos',
+        icon: Icons.campaign_outlined,
+        view: _AdminView.news,
+      ),
+      'faq': const _AdminNavItemDefinition(
+        label: 'FAQ / Wissen',
+        icon: Icons.help_outline,
+        view: _AdminView.faq,
+      ),
+      'products': _AdminNavItemDefinition(
+        label: 'Artikelliste',
+        icon: Icons.inventory_2_outlined,
+        view: _AdminView.products,
+        badgeBuilder: () => _products.isNotEmpty ? '${_products.length}' : null,
+      ),
+      'catalogs': const _AdminNavItemDefinition(
+        label: 'Kataloge',
+        icon: Icons.menu_book_outlined,
+        view: _AdminView.catalogs,
+      ),
+      'push': _AdminNavItemDefinition(
+        label: 'Push-Broadcasts',
+        icon: Icons.wifi_tethering_outlined,
+        view: _AdminView.pushBroadcast,
+        badgeBuilder: () {
+          final tokens = _pushResult?.totalTokens;
+          if (tokens == null || tokens <= 0) return null;
+          return '$tokens';
+        },
+      ),
+      'systemHealth': const _AdminNavItemDefinition(
+        label: 'Systemstatus',
+        icon: Icons.health_and_safety_outlined,
+        view: _AdminView.systemHealth,
+      ),
+      'activityChecks': const _AdminNavItemDefinition(
+        label: 'Aktivitäts-Checks',
+        icon: Icons.analytics_outlined,
+        view: _AdminView.activity,
+      ),
+    };
+  }
+
+  List<_AdminNavSectionState> _baseNavLayout() {
+    return const [
+      _AdminNavSectionState(title: 'Dashboard', itemIds: ['dashboard']),
+      _AdminNavSectionState(title: 'Vorgänge', itemIds: ['open', 'all', 'pending']),
+      _AdminNavSectionState(
         title: 'Kunden & Reps',
-        items: [
-          _AdminNavItem(
-            label: 'Kundendatenbank',
-            icon: Icons.people_outline,
-            view: _AdminView.users,
-            badge: _users.isNotEmpty ? '${_users.length}' : null,
-          ),
-          _AdminNavItem(
-            label: 'Kunden anlegen',
-            icon: Icons.person_add_alt_1_outlined,
-            view: _AdminView.createCustomer,
-          ),
-          _AdminNavItem(
-            label: 'Vertreterverwaltung',
-            icon: Icons.support_agent_outlined,
-            view: _AdminView.reps,
-            badge: _reps.isNotEmpty ? '${_reps.length}' : null,
-          ),
-          _AdminNavItem(
-            label: 'Aktivität',
-            icon: Icons.query_stats_outlined,
-            view: _AdminView.activity,
-          ),
-        ],
+        itemIds: ['users', 'createCustomer', 'reps', 'activity'],
       ),
-      _AdminNavSection(
+      _AdminNavSectionState(
         title: 'Inhalte',
-        items: [
-          _AdminNavItem(
-            label: 'News & Infos',
-            icon: Icons.campaign_outlined,
-            view: _AdminView.news,
-          ),
-          _AdminNavItem(
-            label: 'FAQ / Wissen',
-            icon: Icons.help_outline,
-            view: _AdminView.faq,
-          ),
-          _AdminNavItem(
-            label: 'Artikelliste',
-            icon: Icons.inventory_2_outlined,
-            view: _AdminView.products,
-            badge: _products.isNotEmpty ? '${_products.length}' : null,
-          ),
-          _AdminNavItem(
-            label: 'Kataloge',
-            icon: Icons.menu_book_outlined,
-            view: _AdminView.catalogs,
-          ),
-          _AdminNavItem(
-            label: 'Push-Broadcasts',
-            icon: Icons.wifi_tethering_outlined,
-            view: _AdminView.pushBroadcast,
-            badge: _pushResult?.totalTokens != null && _pushResult!.totalTokens! > 0
-                ? '${_pushResult!.totalTokens}'
-                : null,
-          ),
-        ],
+        itemIds: ['news', 'faq', 'products', 'catalogs', 'push'],
       ),
-      _AdminNavSection(
-        title: 'System',
-        items: [
-          _AdminNavItem(
-            label: 'Systemstatus',
-            icon: Icons.health_and_safety_outlined,
-            view: _AdminView.systemHealth,
-          ),
-          _AdminNavItem(
-            label: 'Aktivitäts-Checks',
-            icon: Icons.analytics_outlined,
-            view: _AdminView.activity,
-          ),
-        ],
-      ),
+      _AdminNavSectionState(title: 'System', itemIds: ['systemHealth', 'activityChecks']),
     ];
+  }
+
+  void _initNavLayout() {
+    final defaults = _baseNavLayout();
+    _navItemDefaultSection = {
+      for (final section in defaults) for (final id in section.itemIds) id: section.title,
+    };
+    _navItemIds = _navItemDefinitions().keys.toSet();
+    _navLayout = _loadNavLayout(defaults: defaults);
+  }
+
+  List<_AdminNavSectionState> _loadNavLayout({required List<_AdminNavSectionState> defaults}) {
+    final raw = html.window.localStorage[_navLayoutStorageKey];
+    if (raw == null) return defaults.map((s) => s.copy()).toList();
+
+    try {
+      final parsed = jsonDecode(raw);
+      List<dynamic>? sectionData;
+
+      if (parsed is Map) {
+        final sections = parsed['sections'];
+        if (sections is List) sectionData = sections;
+      } else if (parsed is List) {
+        sectionData = parsed;
+      }
+
+      if (sectionData == null) return defaults.map((s) => s.copy()).toList();
+
+      final used = <String>{};
+      final sections = <_AdminNavSectionState>[];
+
+      for (final entry in sectionData) {
+        if (entry is! Map) continue;
+        final title = entry['title'] as String?;
+        final items = (entry['items'] as List?)?.whereType<String>().toList() ?? <String>[];
+        if (title == null) continue;
+
+        final filtered = items.where(_navItemIds.contains).toList();
+        used.addAll(filtered);
+        sections.add(_AdminNavSectionState(title: title, itemIds: filtered));
+      }
+
+      if (sections.isEmpty) return defaults.map((s) => s.copy()).toList();
+
+      for (final id in _navItemIds) {
+        if (used.contains(id)) continue;
+        final targetTitle = _navItemDefaultSection[id];
+        final targetSection = sections.firstWhere(
+          (s) => s.title == targetTitle,
+          orElse: () => sections.first,
+        );
+        targetSection.itemIds.add(id);
+      }
+
+      return sections;
+    } catch (_) {
+      return defaults.map((s) => s.copy()).toList();
+    }
+  }
+
+  void _persistNavLayout() {
+    html.window.localStorage[_navLayoutStorageKey] = jsonEncode(
+      _navLayout.map((s) => s.toJson()).toList(),
+    );
+  }
+
+  void _resetNavLayout() {
+    setState(() {
+      _navLayout = _baseNavLayout().map((s) => s.copy()).toList();
+    });
+    _persistNavLayout();
+  }
+
+  Future<void> _openNavLayoutEditor() async {
+    final definitions = _navItemDefinitions();
+    final layout = _navLayout.map((s) => s.copy()).toList();
+
+    final updated = await showDialog<List<_AdminNavSectionState>>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            void moveSection(int from, int to) {
+              if (to < 0 || to >= layout.length) return;
+              final section = layout.removeAt(from);
+              layout.insert(to, section);
+            }
+
+            void moveItem({required int fromSection, required int toSection, required String itemId, int? insertAt}) {
+              final sourceItems = layout[fromSection].itemIds;
+              if (!sourceItems.remove(itemId)) return;
+              final targetItems = layout[toSection].itemIds;
+              final targetIndex = (insertAt ?? targetItems.length).clamp(0, targetItems.length);
+              targetItems.insert(targetIndex, itemId);
+            }
+
+            List<String> missingItems() {
+              final used = layout.expand((s) => s.itemIds).toSet();
+              return definitions.keys.where((id) => !used.contains(id)).toList();
+            }
+
+            void addSection() {
+              layout.add(const _AdminNavSectionState(title: 'Neue Kategorie', itemIds: []));
+            }
+
+            void removeSection(int index) {
+              if (layout.length <= 1) return;
+              final removed = layout.removeAt(index);
+              layout.first.itemIds.addAll(removed.itemIds);
+            }
+
+            void resetToDefaults() {
+              layout
+                ..clear()
+                ..addAll(_baseNavLayout().map((s) => s.copy()));
+            }
+
+            Widget buildItemRow({required int sectionIndex, required String itemId, required int itemIndex}) {
+              final def = definitions[itemId];
+              if (def == null) return const SizedBox.shrink();
+              final canMoveUp = itemIndex > 0;
+              final canMoveDown = itemIndex < layout[sectionIndex].itemIds.length - 1;
+
+              return Container(
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.8)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(def.icon, size: 18, color: Theme.of(context).colorScheme.primary),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(def.label, style: Theme.of(context).textTheme.bodyMedium),
+                    ),
+                    IconButton(
+                      tooltip: 'Nach oben',
+                      icon: const Icon(Icons.keyboard_arrow_up),
+                      onPressed: canMoveUp
+                          ? () => setDialogState(() {
+                                final items = layout[sectionIndex].itemIds;
+                                items.removeAt(itemIndex);
+                                items.insert(itemIndex - 1, itemId);
+                              })
+                          : null,
+                    ),
+                    IconButton(
+                      tooltip: 'Nach unten',
+                      icon: const Icon(Icons.keyboard_arrow_down),
+                      onPressed: canMoveDown
+                          ? () => setDialogState(() {
+                                final items = layout[sectionIndex].itemIds;
+                                items.removeAt(itemIndex);
+                                items.insert(itemIndex + 1, itemId);
+                              })
+                          : null,
+                    ),
+                    PopupMenuButton<int>(
+                      tooltip: 'In andere Kategorie verschieben',
+                      position: PopupMenuPosition.under,
+                      onSelected: (targetSection) {
+                        setDialogState(() {
+                          moveItem(fromSection: sectionIndex, toSection: targetSection, itemId: itemId);
+                        });
+                      },
+                      itemBuilder: (context) {
+                        return [
+                          for (int i = 0; i < layout.length; i++)
+                            PopupMenuItem(
+                              value: i,
+                              enabled: i != sectionIndex,
+                              child: Text(i == sectionIndex
+                                  ? '${layout[i].title} (aktuell)'
+                                  : 'Zu "${layout[i].title}"'),
+                            ),
+                        ];
+                      },
+                      icon: const Icon(Icons.swap_horiz_outlined),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return AlertDialog(
+              title: const Text('Sidebar anpassen'),
+              content: SizedBox(
+                width: 680,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.6),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.tune_rounded),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Kategorien, Reihenfolge und Zuordnung der Navigation beliebig anpassen. Änderungen werden lokal im Browser gespeichert.',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ),
+                            TextButton.icon(
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('Standard'),
+                              onPressed: () => setDialogState(resetToDefaults),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      for (int sectionIndex = 0; sectionIndex < layout.length; sectionIndex++) ...[
+                        Card(
+                          margin: const EdgeInsets.symmetric(vertical: 6),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextField(
+                                        controller: TextEditingController(text: layout[sectionIndex].title)
+                                          ..selection = TextSelection.collapsed(
+                                              length: layout[sectionIndex].title.length),
+                                        decoration: const InputDecoration(labelText: 'Kategorie-Titel'),
+                                        onChanged: (value) => setDialogState(() => layout[sectionIndex] =
+                                            layout[sectionIndex].copyWith(title: value.trim())),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Column(
+                                      children: [
+                                        IconButton(
+                                          tooltip: 'Kategorie nach oben',
+                                          icon: const Icon(Icons.keyboard_arrow_up),
+                                          onPressed: sectionIndex > 0
+                                              ? () => setDialogState(() => moveSection(sectionIndex, sectionIndex - 1))
+                                              : null,
+                                        ),
+                                        IconButton(
+                                          tooltip: 'Kategorie nach unten',
+                                          icon: const Icon(Icons.keyboard_arrow_down),
+                                          onPressed: sectionIndex < layout.length - 1
+                                              ? () => setDialogState(() => moveSection(sectionIndex, sectionIndex + 1))
+                                              : null,
+                                        ),
+                                      ],
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Kategorie löschen',
+                                      icon: const Icon(Icons.delete_outline),
+                                      onPressed: layout.length > 1
+                                          ? () => setDialogState(() => removeSection(sectionIndex))
+                                          : null,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                if (layout[sectionIndex].itemIds.isEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 6),
+                                    child: Text('Keine Einträge zugeordnet',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .labelMedium
+                                            ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                                  )
+                                else
+                                  Column(
+                                    children: [
+                                      for (int i = 0; i < layout[sectionIndex].itemIds.length; i++)
+                                        buildItemRow(
+                                          sectionIndex: sectionIndex,
+                                          itemId: layout[sectionIndex].itemIds[i],
+                                          itemIndex: i,
+                                        ),
+                                    ],
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (missingItems().isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text('Noch nicht zugeordnet:', style: Theme.of(context).textTheme.titleSmall),
+                        ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (final id in missingItems())
+                              ActionChip(
+                                label: Text(definitions[id]?.label ?? id),
+                                avatar: definitions[id] != null ? Icon(definitions[id]!.icon, size: 18) : null,
+                                onPressed: () => setDialogState(() {
+                                  layout.first.itemIds.add(id);
+                                }),
+                              ),
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          icon: const Icon(Icons.add),
+                          label: const Text('Kategorie hinzufügen'),
+                          onPressed: () => setDialogState(addSection),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Abbrechen'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final cleaned = layout
+                        .map(
+                          (s) => _AdminNavSectionState(
+                            title: s.title.trim().isEmpty ? 'Kategorie' : s.title.trim(),
+                            itemIds: s.itemIds.where(_navItemIds.contains).toList(),
+                          ),
+                        )
+                        .where((s) => s.itemIds.isNotEmpty)
+                        .toList();
+
+                    if (cleaned.isEmpty) {
+                      Navigator.of(context).pop(_baseNavLayout());
+                      return;
+                    }
+
+                    Navigator.of(context).pop(cleaned);
+                  },
+                  child: const Text('Speichern'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (updated == null) return;
+
+    setState(() {
+      _navLayout = updated;
+    });
+    _persistNavLayout();
   }
 
   Widget _buildBody(ThemeData theme) {
@@ -7896,6 +8326,41 @@ class _AdminNavSection {
 
   final String title;
   final List<_AdminNavItem> items;
+}
+
+class _AdminNavItemDefinition {
+  const _AdminNavItemDefinition({
+    required this.label,
+    required this.icon,
+    required this.view,
+    this.badgeBuilder,
+  });
+
+  final String label;
+  final IconData icon;
+  final _AdminView view;
+  final String Function()? badgeBuilder;
+}
+
+class _AdminNavSectionState {
+  const _AdminNavSectionState({required this.title, required this.itemIds});
+
+  final String title;
+  final List<String> itemIds;
+
+  _AdminNavSectionState copy() =>
+      _AdminNavSectionState(title: title, itemIds: List<String>.from(itemIds));
+
+  _AdminNavSectionState copyWith({String? title, List<String>? itemIds}) =>
+      _AdminNavSectionState(
+        title: title ?? this.title,
+        itemIds: itemIds ?? List<String>.from(this.itemIds),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'title': title,
+        'items': itemIds,
+      };
 }
 
 // ===================================================================
