@@ -1,8 +1,10 @@
 // lib/pages/admin_page.dart
+import 'dart:async';
 import 'dart:convert';
 import 'dart:html' as html;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:intl/intl.dart';
@@ -208,6 +210,10 @@ class _AdminPageState extends State<AdminPage> {
   final ScrollController _navScrollController = ScrollController();
   Timer? _navTooltipResumeTimer;
   bool _navTooltipsEnabled = true;
+  static const String _navLayoutStorageKey = 'admin_nav_layout_v1';
+  late final Map<String, String> _navItemDefaultSection;
+  late final Set<String> _navItemIds;
+  late List<_AdminNavSectionState> _navLayout;
 
   // Mehrfach-Zuordnung interne Nummer
   final Set<String> _selectedAllTickets = <String>{};
@@ -3488,6 +3494,15 @@ class _AdminPageState extends State<AdminPage> {
       );
     }
 
+    Widget navTooltip({required String message, required Widget child}) {
+      if (!_navTooltipsEnabled) return child;
+      return Tooltip(
+        message: message,
+        verticalOffset: 12,
+        child: child,
+      );
+    }
+
     Widget buildTile(_AdminNavItem item) {
       final selected = _view == item.view;
       final badgeWidget = item.badge == null
@@ -3495,10 +3510,8 @@ class _AdminPageState extends State<AdminPage> {
           : navBadge(item.badge!, selected: selected, compact: isCompact);
 
       if (isCompact) {
-        return Tooltip(
-          enabled: _navTooltipsEnabled,
+        return navTooltip(
           message: item.label,
-          verticalOffset: 12,
           child: InkWell(
             borderRadius: BorderRadius.circular(12),
             onTap: () {
@@ -3529,19 +3542,19 @@ class _AdminPageState extends State<AdminPage> {
                       ),
                       if (badgeWidget != null)
                         Positioned(
-                          right: -2,
                           top: -4,
+                          right: -6,
                           child: badgeWidget,
                         ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Container(
-                    height: 3,
-                    width: 30,
-                    decoration: BoxDecoration(
-                      color: selected ? accent : theme.colorScheme.outlineVariant.withOpacity(0.5),
-                      borderRadius: BorderRadius.circular(999),
+                  const SizedBox(height: 6),
+                  Text(
+                    item.label,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: selected ? accent : subtle,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ],
@@ -3550,17 +3563,20 @@ class _AdminPageState extends State<AdminPage> {
           ),
         );
       }
-
-      return Material(
-        color: selected
-            ? accent.withOpacity(theme.brightness == Brightness.dark ? 0.18 : 0.14)
-            : surfaceBlend,
-        borderRadius: BorderRadius.circular(14),
+      return navTooltip(
+        message: item.label,
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
           onTap: () {
             Scaffold.maybeOf(context)?.closeDrawer();
             _handleNavigation(item.view);
+          },
+          onHover: (hovering) {
+            if (hovering) {
+              _pauseNavTooltips();
+            } else {
+              _resumeNavTooltips();
+            }
           },
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
