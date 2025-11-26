@@ -32,6 +32,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
   final _service = DfsProductService();
   late List<DfsProduct> _items;
   final Map<String, TextEditingController> _filterCtrls = {};
+  final _globalSearchCtrl = TextEditingController();
   String _globalSearch = '';
   int _rowsPerPage = 10;
   int _currentPage = 0;
@@ -39,6 +40,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
   bool _showFilters = true;
   final _tableScrollController = ScrollController();
   final _verticalTableScrollController = ScrollController();
+  final Set<String> _hiddenColumns = <String>{};
 
   static const _tdNumberAndNameOptions = [
     'MDR-TD1 - rot. Dentalinstrumente',
@@ -100,7 +102,39 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
     for (final ctrl in _filterCtrls.values) {
       ctrl.dispose();
     }
+    _globalSearchCtrl.dispose();
     super.dispose();
+  }
+
+  void _resetFilters() {
+    setState(() {
+      _globalSearchCtrl.clear();
+      _globalSearch = '';
+      _currentPage = 0;
+      for (final ctrl in _filterCtrls.values) {
+        ctrl.clear();
+      }
+    });
+  }
+
+  void _toggleColumnVisibility(String key) {
+    final isHidden = _hiddenColumns.contains(key);
+    final visibleCount = DfsProduct.fieldOrder.length - _hiddenColumns.length;
+
+    if (!isHidden && visibleCount <= 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Mindestens eine Spalte muss sichtbar bleiben.')),
+      );
+      return;
+    }
+
+    setState(() {
+      if (isHidden) {
+        _hiddenColumns.remove(key);
+      } else {
+        _hiddenColumns.add(key);
+      }
+    });
   }
 
   List<DfsProduct> _applyFilters() {
@@ -339,6 +373,8 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
     final endIndex = filteredLength == 0
         ? 0
         : math.min(filteredLength, currentPage * _rowsPerPage + pageItems.length);
+    final visibleFields =
+        DfsProduct.fieldOrder.where((key) => !_hiddenColumns.contains(key)).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -352,6 +388,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
             SizedBox(
               width: 260,
               child: TextField(
+                controller: _globalSearchCtrl,
                 decoration: const InputDecoration(
                   prefixIcon: Icon(Icons.search),
                   labelText: 'Suchen (alle Felder)',
@@ -360,6 +397,28 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                   _globalSearch = v;
                   _currentPage = 0;
                 }),
+              ),
+            ),
+            const SizedBox(width: 8),
+            PopupMenuButton<String>(
+              tooltip: 'Spalten ein-/ausblenden',
+              position: PopupMenuPosition.under,
+              onSelected: _toggleColumnVisibility,
+              itemBuilder: (context) => DfsProduct.fieldOrder
+                  .map(
+                    (key) => CheckedPopupMenuItem<String>(
+                      value: key,
+                      checked: !_hiddenColumns.contains(key),
+                      child: Text(DfsProduct.fieldLabels[key] ?? key),
+                    ),
+                  )
+                  .toList(),
+              child: IgnorePointer(
+                child: OutlinedButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.view_column_outlined),
+                  label: const Text('Spalten'),
+                ),
               ),
             ),
             const SizedBox(width: 8),
@@ -420,6 +479,12 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                     const SizedBox(width: 8),
                     Text('Filter', style: Theme.of(context).textTheme.titleSmall),
                     const Spacer(),
+                    TextButton.icon(
+                      onPressed: _resetFilters,
+                      icon: const Icon(Icons.restart_alt),
+                      label: const Text('Zurücksetzen'),
+                    ),
+                    const SizedBox(width: 6),
                     TextButton.icon(
                       onPressed: () => setState(() => _showFilters = !_showFilters),
                       icon: Icon(_showFilters ? Icons.expand_less : Icons.expand_more),
@@ -559,12 +624,12 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                                         BoxConstraints(minWidth: math.max(constraints.maxWidth, 1200)),
                                     child: DataTable(
                                       columns: [
-                                        ...DfsProduct.fieldOrder
+                                        ...visibleFields
                                             .map((key) =>
                                                 DataColumn(label: Text(DfsProduct.fieldLabels[key] ?? key))),
                                         const DataColumn(label: Text('Aktionen')),
                                       ],
-                                      rows: pageItems.map(_buildDataRow).toList(),
+                                      rows: pageItems.map((item) => _buildDataRow(item, visibleFields)).toList(),
                                       headingRowHeight: 56,
                                       dataRowMinHeight: 44,
                                       dataRowMaxHeight: 64,
@@ -604,11 +669,11 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
     );
   }
 
-  DataRow _buildDataRow(DfsProduct product) {
+  DataRow _buildDataRow(DfsProduct product, List<String> visibleFields) {
     final map = product.toHeaderMap();
     return DataRow(
       cells: [
-        ...DfsProduct.fieldOrder.map((k) => DataCell(Text(map[k] ?? ''))),
+        ...visibleFields.map((k) => DataCell(Text(map[k] ?? ''))),
         DataCell(
           Row(
             mainAxisSize: MainAxisSize.min,
