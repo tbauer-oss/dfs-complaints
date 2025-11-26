@@ -552,19 +552,21 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                                               .map((key) =>
                                                   DataColumn(label: Text(DfsProduct.fieldLabels[key] ?? key))),
                                           const DataColumn(label: Text('Aktionen')),
-                                    ],
-                                    source: dataSource,
-                                    rowsPerPage: effectiveRowsPerPage,
-                                    availableRowsPerPage: const [10, 20, 50],
-                                    onRowsPerPageChanged: (value) {
-                                      if (value != null) {
-                                        setState(() => _rowsPerPage = value);
-                                      }
-                                    },
-                                    showFirstLastButtons: true,
-                                    horizontalMargin: 12,
-                                    columnSpacing: 28,
-                                    showCheckboxColumn: false,
+                                        ],
+                                        source: dataSource,
+                                        rowsPerPage: effectiveRowsPerPage,
+                                        availableRowsPerPage: const [10, 20, 50],
+                                        onRowsPerPageChanged: (value) {
+                                          if (value != null) {
+                                            setState(() => _rowsPerPage = value);
+                                          }
+                                        },
+                                        showFirstLastButtons: true,
+                                        horizontalMargin: 12,
+                                        columnSpacing: 28,
+                                        showCheckboxColumn: false,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
