@@ -11,14 +11,17 @@ import '../api/client.dart';
 import '../models/country.dart';
 import '../models/complaint.dart' show ComplaintUpload;
 import '../models/customer_news_entry.dart';
+import '../models/dfs_product.dart';
 import '../models/faq.dart';
 import '../data/knowledge_base_data.dart';
 import '../l10n/app_localizations.dart';
+import '../services/dfs_product_service.dart';
 import '../widgets/dialog_content_scroll.dart';
 import '../widgets/legal_footer.dart';
 import '../widgets/theme_action.dart' as w;
 import '../utils/lang_utils.dart';
 import 'admin_stats_page.dart';
+import 'product_catalog_page.dart';
 
 // ===================================================================
 // Admin Page – mit Kachel-Menü (wie Kunden-Dashboard)
@@ -40,6 +43,7 @@ enum _AdminView {
   open,
   reps,
   news,
+  products,
   faq,
   catalogs,
   systemHealth,
@@ -159,6 +163,13 @@ class _AdminPageState extends State<AdminPage> {
   List<CustomerNewsEntry> _newsEntries = [];
   bool _newsLoading = false;
   String? _newsErr;
+
+  // Artikelliste (CSV)
+  final DfsProductService _productService = DfsProductService();
+  List<DfsProduct> _products = [];
+  Map<String, DfsProduct> _productIndex = {};
+  bool _productsLoading = false;
+  String? _productErr;
 
   // FAQ / Wissensdatenbank
   List<FaqCategory> _faqCategories = [];
@@ -342,6 +353,7 @@ class _AdminPageState extends State<AdminPage> {
     _refreshOpen();
     _refreshReps();
     _loadCatalogConfigAdmin();
+    _loadProducts();
     _refreshFaq();
   }
 
@@ -610,6 +622,38 @@ class _AdminPageState extends State<AdminPage> {
       if (!mounted) return;
       setState(() => _loadAllComplaints = false);
     }
+  }
+
+  Future<void> _loadProducts() async {
+    setState(() {
+      _productsLoading = true;
+      _productErr = null;
+    });
+
+    try {
+      final list = await _productService.loadProducts();
+      if (!mounted) return;
+      setState(() => _applyProducts(list));
+    } catch (e) {
+      setState(() => _productErr = '$e');
+    } finally {
+      if (!mounted) return;
+      setState(() => _productsLoading = false);
+    }
+  }
+
+  void _applyProducts(List<DfsProduct> list) {
+    _products = List.unmodifiable(list);
+    _productIndex = {
+      for (final p in _products)
+        if (p.articleNumber.trim().isNotEmpty) p.articleNumber.trim(): p,
+    };
+  }
+
+  DfsProduct? _productByArticle(String? article) {
+    final key = (article ?? '').trim();
+    if (key.isEmpty) return null;
+    return _productIndex[key];
   }
 
   void _syncComplaint(AdminComplaint updated) {
@@ -3237,6 +3281,7 @@ class _AdminPageState extends State<AdminPage> {
       _AdminView.open           => 'Offene Reklamationen',
       _AdminView.reps           => 'Vertreterverwaltung',
       _AdminView.faq            => 'Wissensdatenbank (FAQ)',
+      _AdminView.products       => 'Artikelliste',
       _AdminView.news           => 'Neuigkeiten & Infoscreen',
       _AdminView.catalogs       => 'Katalog-Konfiguration',
       _AdminView.systemHealth   => 'Systemstatus & Checks',
@@ -3807,6 +3852,12 @@ class _AdminPageState extends State<AdminPage> {
             view: _AdminView.faq,
           ),
           _AdminNavItem(
+            label: 'Artikelliste',
+            icon: Icons.inventory_2_outlined,
+            view: _AdminView.products,
+            badge: _products.isNotEmpty ? '${_products.length}' : null,
+          ),
+          _AdminNavItem(
             label: 'Kataloge',
             icon: Icons.menu_book_outlined,
             view: _AdminView.catalogs,
@@ -3868,7 +3919,7 @@ class _AdminPageState extends State<AdminPage> {
       const _AdminMenuSectionState(
         title: 'Kommunikation & Inhalte',
         subtitle: 'Informationen und Push-Kanäle pflegen',
-        tileIds: ['news', 'faq', 'push'],
+        tileIds: ['news', 'faq', 'products', 'push'],
       ),
       const _AdminMenuSectionState(
         title: 'System & Konfiguration',
@@ -4563,6 +4614,17 @@ class _AdminPageState extends State<AdminPage> {
           count: _faqEntries.length,
           onTap: isPreview ? () {} : () => _handleNavigation(_AdminView.faq),
         );
+      case 'products':
+        return AdminTilePro(
+          label: 'Artikelliste',
+          subtitle: 'Produktdaten filtern & pflegen',
+          icon: Icons.inventory_2_outlined,
+          colorA: AdminPalette.blueA,
+          colorB: AdminPalette.blueB,
+          compact: compact,
+          count: _products.length,
+          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.products),
+        );
       case 'push':
         return AdminTilePro(
           label: 'Push-Mitteilungen',
@@ -4910,6 +4972,8 @@ class _AdminPageState extends State<AdminPage> {
         return _buildRepsPanel();
       case _AdminView.news:
         return _buildNewsPanel();
+      case _AdminView.products:
+        return _buildProductsPanel();
       case _AdminView.faq:
         return _buildFaqPanel();
       case _AdminView.catalogs:
@@ -6809,6 +6873,7 @@ class _AdminPageState extends State<AdminPage> {
                           key: ValueKey('complaint-${c.ticket}'),
                           api: _api,
                           c: c,
+                          productLookup: _productByArticle,
                           companyHint: _companyByEmail(c.email),
                           hasRep: _customerHasRep(c.email),
                           selectable: true,
@@ -6832,6 +6897,19 @@ class _AdminPageState extends State<AdminPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildProductsPanel() {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: ProductCatalogPage(
+        products: _products,
+        loading: _productsLoading,
+        error: _productErr,
+        onReload: _productsLoading ? null : _loadProducts,
+        onProductsChanged: (items) => setState(() => _applyProducts(items)),
       ),
     );
   }
@@ -6895,6 +6973,7 @@ class _AdminPageState extends State<AdminPage> {
                           key: ValueKey('complaint-${c.ticket}'),
                           api: _api,
                           c: c,
+                          productLookup: _productByArticle,
                           companyHint: _companyByEmail(c.email),
                           hasRep: _customerHasRep(c.email), // ← NEU
                           selectable: true,
@@ -8643,6 +8722,7 @@ class _ComplaintsDetailList extends StatelessWidget {
                     key: ValueKey('complaint-${c.ticket}'),
                     api: api,
                     c: c,
+                    productLookup: parent?._productByArticle,
                     onChanged: parent?._syncComplaint,
                     onClosed: onClosed,
                     companyHint: companyHint,
@@ -9616,6 +9696,7 @@ class _ComplaintEditor extends StatefulWidget {
   final AdminApi api;
   final AdminComplaint c;
   final VoidCallback onClosed;
+  final DfsProduct? Function(String articleNumber)? productLookup;
   final String? companyHint;
   final bool hasRep;
   final bool selectable;
@@ -9628,6 +9709,7 @@ class _ComplaintEditor extends StatefulWidget {
     required this.api,
     required this.c,
     required this.onClosed,
+    this.productLookup,
     this.companyHint,
     this.hasRep = false,
     this.selectable = false,
@@ -9781,6 +9863,96 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
           child: content,
         );
       },
+    );
+  }
+
+  Widget _productInfoTile(String label, String value) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return SizedBox(
+      width: 340,
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: scheme.surfaceVariant.withOpacity(0.35),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: scheme.outlineVariant.withOpacity(0.6)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label.toUpperCase(),
+              style: theme.textTheme.labelMedium?.copyWith(
+                letterSpacing: 0.4,
+                fontWeight: FontWeight.w700,
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: scheme.onSurface,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProductInfoCard(DfsProduct product) {
+    final scheme = Theme.of(context).colorScheme;
+    final entries = <Widget>[];
+    final map = product.toHeaderMap();
+
+    for (final key in DfsProduct.fieldOrder) {
+      final value = (map[key] ?? '').trim();
+      if (value.isEmpty) continue;
+      final label = DfsProduct.fieldLabels[key] ?? key;
+      entries.add(_productInfoTile(label, value));
+    }
+
+    if (entries.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: scheme.primaryContainer.withOpacity(0.35),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: scheme.primary.withOpacity(0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: scheme.primary,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.all(6),
+                child: Icon(Icons.inventory_2_outlined, color: scheme.onPrimary),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Produktinformationen (Artikelliste)',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 12,
+            runSpacing: 10,
+            children: entries,
+          ),
+        ],
+      ),
     );
   }
 
@@ -10902,6 +11074,13 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     final injuryDesc  = _detPickOrNull(p, ['injuryDesc']);       // Freitext
     final returned    = _detPickOrNull(p, ['returned']);         // 'Ja' | 'Nein'
     final attachments = c.uploads;
+    final matchedProduct = widget.productLookup?.call(articleNo ?? '');
+    final articleLabel = matchedProduct == null
+        ? articleNo
+        : [
+            (articleNo ?? '').trim().isNotEmpty ? articleNo!.trim() : matchedProduct.articleNumber,
+            matchedProduct.productName,
+          ].where((v) => v.trim().isNotEmpty).join(' – ');
 
     Color _statusColor(int s) {
       // gleiche Logik/Farben wie im Kundenbereich
@@ -11391,6 +11570,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                       final productArea = normalizeSegment(segment);
                       final derivedProductType =
                           deriveProductType(productArea ?? segment);
+                      final productDetails =
+                          matchedProduct == null ? null : _buildProductInfoCard(matchedProduct);
 
                       final primaryColumn = <Widget>[];
                       final secondaryColumn = <Widget>[];
@@ -11398,7 +11579,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                       addDetail(primaryColumn, 'Produktbereich', productArea ?? segment);
                       addDetail(primaryColumn, 'Produkttyp',
                           derivedProductType ?? productType);
-                      addDetail(primaryColumn, 'Artikelnummer', articleNo);
+                      addDetail(primaryColumn, 'Artikelnummer', articleLabel);
                       addDetail(primaryColumn, 'Charge / Lot', batch);
                       addDetail(primaryColumn, 'Menge', qty);
                       addDetail(primaryColumn, 'Produkte zurückgeschickt?', returned);
@@ -11419,7 +11600,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                           maxLines: 3);
 
                       final hasDetails = primaryColumn.isNotEmpty ||
-                          secondaryColumn.isNotEmpty;
+                          secondaryColumn.isNotEmpty ||
+                          productDetails != null;
 
                       if (!hasDetails) {
                         return Column(
@@ -11457,6 +11639,10 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                                     colorScheme.onSurfaceVariant.withOpacity(0.74),
                               ),
                             ),
+                            if (productDetails != null) ...[
+                              const SizedBox(height: 12),
+                              productDetails,
+                            ],
                           ],
                         );
                       }
@@ -11547,6 +11733,10 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                                 ...spaced(secondaryColumn),
                               ],
                             ),
+                          if (productDetails != null) ...[
+                            const SizedBox(height: 12),
+                            productDetails,
+                          ],
                           if (descText.isNotEmpty)
                             _buildDescriptionTranslationBox(descText),
                           if (attachments.isNotEmpty) ...[
