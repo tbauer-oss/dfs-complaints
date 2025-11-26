@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import 'package:markdown/markdown.dart' as md;
 import '../api/client.dart';
 import '../data/knowledge_base_data.dart';
 import '../l10n/app_localizations.dart';
 import '../models/faq.dart';
-import '../utils/lang_utils.dart';
+
+/// Alle 48 Einträge, verknüpft mit den ARB-Keys
+final List<KnowledgeItem> _knowledgeItems = knowledgeItems;
 
 class KnowledgeBasePage extends StatefulWidget {
   final ApiClient api;
@@ -17,8 +18,8 @@ class KnowledgeBasePage extends StatefulWidget {
 
 class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
   final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = "";
-  String? _selectedCategory;
+  final Set<String> _selectedCategories = <String>{};
+
   bool _loading = true;
   String? _error;
   bool _usingLegacyFallback = false;
@@ -28,7 +29,7 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadFaq());
+    _loadFaq();
   }
 
   @override
@@ -37,56 +38,30 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
     super.dispose();
   }
 
-  KnowledgeCategory? _legacyCategoryForId(String categoryId) {
-    final normalized = categoryId.replaceFirst(RegExp(r'^legacy_'), '');
-    for (final cat in KnowledgeCategory.values) {
-      if (knowledgeCategoryCode(cat) == normalized) return cat;
-    }
-    return null;
-  }
-
-  IconData _categoryIcon(String categoryId) {
-    final legacy = _legacyCategoryForId(categoryId);
-    switch (legacy) {
-      case KnowledgeCategory.aGeneral:
-        return Icons.info_outline;
-      case KnowledgeCategory.bDiamond:
-        return Icons.diamond_outlined;
-      case KnowledgeCategory.cCarbide:
-        return Icons.construction_outlined;
-      case KnowledgeCategory.dCeramic:
-        return Icons.blur_on_outlined;
-      case KnowledgeCategory.ePolishers:
-        return Icons.brush_outlined;
-      case KnowledgeCategory.fReprocessing:
-        return Icons.autorenew_outlined;
-      case KnowledgeCategory.gApp:
-        return Icons.app_shortcut_outlined;
-      case KnowledgeCategory.hAnalysis:
-        return Icons.analytics_outlined;
-      case KnowledgeCategory.iPhotos:
-        return Icons.photo_camera_outlined;
-      case KnowledgeCategory.jMisconceptions:
-        return Icons.help_outline;
-      default:
-        return Icons.psychology_outlined;
-    }
-  }
-
   Future<void> _loadFaq({bool refresh = false}) async {
     setState(() {
-      _loading = true;
       if (!refresh) _error = null;
       _usingLegacyFallback = false;
+      _loading = true;
     });
 
     try {
       final data = await widget.api.fetchFaq(refresh: refresh);
       if (!mounted) return;
+      final filteredEntries = data.entries
+          .where((e) => e.active)
+          .where((e) {
+            final a = e.audience.toLowerCase();
+            return a.isEmpty || a == 'both' || a == 'customer';
+          })
+          .toList();
+
       setState(() {
-        _categories = data.categories;
-        _entries = data.entries;
-        _error = null;
+        final activeCategories = data.categories.where((c) => c.active).toList();
+        final validIds = activeCategories.map((c) => c.id).toSet();
+        _selectedCategories.removeWhere((id) => !validIds.contains(id));
+        _categories = activeCategories;
+        _entries = filteredEntries;
       });
     } catch (e) {
       if (!mounted) return;
@@ -101,8 +76,9 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
         }
       });
     } finally {
-      if (!mounted) return;
-      setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -135,50 +111,47 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
     return FaqData(categories: cats, entries: entries, audience: 'customer');
   }
 
-  List<String> _splitAnswer(String raw) {
-    return raw
-        .split('\n')
-        .map((line) => line.trim())
-        .where((line) => line.isNotEmpty)
-        .map((line) => line.replaceFirst(RegExp(r'^[•\-\u2022]\s*'), ''))
-        .toList();
+  void _toggleCategory(String categoryId, bool selected) {
+    setState(() {
+      if (selected) {
+        _selectedCategories.add(categoryId);
+      } else {
+        _selectedCategories.remove(categoryId);
+      }
+    });
   }
 
-  List<_FaqItemView> _filteredItems() {
-    final query = _searchQuery.trim().toLowerCase();
-    final lang = normalizeLangCode(Localizations.localeOf(context).languageCode);
+  List<_FaqView> _filteredItems() {
+    final query = _searchController.text.trim().toLowerCase();
+    final hasQuery = query.isNotEmpty;
+    final hasCategoryFilter = _selectedCategories.isNotEmpty;
     final catById = {for (final cat in _categories) cat.id: cat};
+    final lang = Localizations.localeOf(context).languageCode;
 
-    final List<_FaqItemView> filtered = [];
+    final List<_FaqView> list = [];
     for (final entry in _entries) {
+      final localizedQuestion = entry.localizedQuestion(lang);
+      final localizedAnswer = entry.localizedAnswer(lang);
       final cat = catById[entry.categoryId];
       if (cat == null) continue;
-      if (_selectedCategory != null && entry.categoryId != _selectedCategory) {
-        continue;
-      }
+      if (hasCategoryFilter && !_selectedCategories.contains(cat.id)) continue;
 
-      final question = entry.localizedQuestion(lang);
-      final answer = entry.localizedAnswer(lang);
-      final categoryTitle = cat.localizedTitle(lang);
-
-      if (query.isNotEmpty) {
-        final q = question.toLowerCase();
-        final a = answer.toLowerCase();
+      if (hasQuery) {
+        final q = localizedQuestion.toLowerCase();
+        final a = localizedAnswer.toLowerCase();
         if (!q.contains(query) && !a.contains(query)) continue;
       }
 
-      filtered.add(
-        _FaqItemView(
-          entry: entry,
-          category: cat,
-          categoryTitle: categoryTitle,
-          question: question,
-          answer: answer,
-        ),
-      );
+      list.add(_FaqView(
+        entry: entry,
+        category: cat,
+        categoryLabel: cat.localizedTitle(lang),
+        question: localizedQuestion,
+        answer: localizedAnswer,
+      ));
     }
 
-    filtered.sort((a, b) {
+    list.sort((a, b) {
       final catOrder = a.category.order.compareTo(b.category.order);
       if (catOrder != 0) return catOrder;
       final entryOrder = a.entry.order.compareTo(b.entry.order);
@@ -186,23 +159,363 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
       return a.question.compareTo(b.question);
     });
 
-    return filtered;
+    return list;
   }
 
-  Widget _buildQuestionCard({
-    required BuildContext context,
-    required String question,
-    required List<String> answers,
-    required String categoryId,
-    required Color primary,
-  }) {
+  Widget _buildCategoryChips(AppLocalizations t) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final lang = Localizations.localeOf(context).languageCode;
+
+    ChoiceChip buildChip({required Widget label, required bool selected, required void Function(bool) onSelected}) {
+      return ChoiceChip(
+        label: label,
+        selected: selected,
+        onSelected: onSelected,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        selectedColor: cs.primaryContainer.withOpacity(0.8),
+        backgroundColor: cs.surfaceVariant.withOpacity(theme.brightness == Brightness.dark ? 0.5 : 0.7),
+        labelStyle: theme.textTheme.bodyMedium?.copyWith(
+          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: cs.outlineVariant.withOpacity(0.45)),
+        ),
+      );
+    }
+
+    final sortedCategories = [..._categories]
+      ..sort((a, b) => a.order.compareTo(b.order));
+
+    final chips = <Widget>[
+      buildChip(
+        label: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.all_inclusive, size: 18),
+            const SizedBox(width: 6),
+            Text(t.kb_filter_all),
+          ],
+        ),
+        selected: _selectedCategories.isEmpty,
+        onSelected: (_) => setState(() => _selectedCategories.clear()),
+      ),
+    ];
+
+    for (final cat in sortedCategories) {
+      chips.add(
+        buildChip(
+          label: Text(cat.localizedTitle(lang)),
+          selected: _selectedCategories.contains(cat.id),
+          onSelected: (value) => _toggleCategory(cat.id, value),
+        ),
+      );
+    }
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: chips,
+    );
+  }
+
+  List<String> _splitAnswer(String raw) {
+    return raw
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .map((line) => line.replaceFirst(RegExp(r'^[•\-\u2022]\s*'), ''))
+        .toList(growable: false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final items = _filteredItems();
+    final visibleResults = items.length;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(t.knowledgeBaseTile ?? 'Knowledge base (FAQ)'),
+      ),
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: () => _loadFaq(refresh: true),
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 12),
+                  child: Column(
+                    children: [
+                      _buildHeaderCard(t, theme, visibleResults),
+                      if (_error != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Card(
+                            color: theme.colorScheme.errorContainer,
+                            child: ListTile(
+                              leading: Icon(Icons.warning_amber_rounded,
+                                  color: theme.colorScheme.onErrorContainer),
+                              title: Text(
+                                _usingLegacyFallback
+                                    ? 'Aktuelle FAQ konnten nicht geladen werden. Zeige Offline-Version.'
+                                    : 'Aktuelle FAQ konnten nicht geladen werden.',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onErrorContainer,
+                                ),
+                              ),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.refresh),
+                                color: theme.colorScheme.onErrorContainer,
+                                onPressed: () => _loadFaq(refresh: true),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              if (_loading)
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (items.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Text(
+                        t.kb_empty_message,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    0,
+                    16,
+                    16 + MediaQuery.of(context).padding.bottom,
+                  ),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final item = items[index];
+            return _KnowledgeEntryCard(
+              question: item.question,
+              answers: _splitAnswer(item.answer),
+              categoryLabel: item.categoryLabel,
+            );
+          },
+                      childCount: items.length,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderCard(
+    AppLocalizations t,
+    ThemeData theme,
+    int visibleResults,
+  ) {
+    final cs = theme.colorScheme;
+    final baseText = theme.textTheme;
+
+    final totalEntries = _entries.length;
+    final totalCategories = _categories.length;
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            cs.primary.withOpacity(theme.brightness == Brightness.dark ? 0.14 : 0.18),
+            cs.surfaceVariant.withOpacity(0.45),
+          ],
+        ),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.4)),
+        boxShadow: [
+          BoxShadow(
+            color: cs.shadow.withOpacity(0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  height: 54,
+                  width: 54,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: cs.onPrimary.withOpacity(0.06),
+                    border: Border.all(color: cs.outlineVariant.withOpacity(0.4)),
+                  ),
+                  child: Icon(
+                    Icons.menu_book_rounded,
+                    color: cs.primary,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        t.kb_title,
+                        style: baseText.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        t.kb_intro,
+                        style: baseText.bodyMedium?.copyWith(
+                          height: 1.5,
+                          color: baseText.bodyMedium?.color?.withOpacity(0.9),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _InfoPill(
+                  icon: Icons.category_outlined,
+                  label: t.kb_filter_all,
+                  value: '$totalCategories Kategorien',
+                ),
+                _InfoPill(
+                  icon: Icons.library_books_outlined,
+                  label: 'Einträge',
+                  value: '$totalEntries Artikel',
+                ),
+                _InfoPill(
+                  icon: Icons.auto_awesome,
+                  label: 'Aktuelle Ansicht',
+                  value: '$visibleResults Ergebnisse',
+                  emphasize: true,
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                color: cs.surface.withOpacity(theme.brightness == Brightness.dark ? 0.75 : 0.92),
+                border: Border.all(color: cs.outlineVariant.withOpacity(0.5)),
+              ),
+              child: TextField(
+                controller: _searchController,
+                textInputAction: TextInputAction.search,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  labelText: t.search,
+                  hintText: t.kb_search_hint,
+                  labelStyle: baseText.labelLarge,
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _searchController.text.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.close_rounded),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() {});
+                          },
+                        ),
+                  border: InputBorder.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Schnellfilter',
+              style: baseText.labelLarge?.copyWith(
+                color: cs.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            _buildCategoryChips(t),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FaqView {
+  final FaqEntry entry;
+  final FaqCategory category;
+  final String categoryLabel;
+  final String question;
+  final String answer;
+
+  const _FaqView({
+    required this.entry,
+    required this.category,
+    required this.categoryLabel,
+    required this.question,
+    required this.answer,
+  });
+}
+
+class _KnowledgeEntryCard extends StatelessWidget {
+  final String question;
+  final List<String> answers;
+  final String categoryLabel;
+
+  const _KnowledgeEntryCard({
+    required this.question,
+    required this.answers,
+    required this.categoryLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Card(
-      elevation: 3,
-      margin: const EdgeInsets.symmetric(vertical: 6),
+      elevation: 2,
+      margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: colorScheme.outlineVariant.withOpacity(0.6)),
       ),
       child: Theme(
         data: Theme.of(context).copyWith(
@@ -210,28 +523,32 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
           splashFactory: InkRipple.splashFactory,
         ),
         child: ExpansionTile(
-          tilePadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          childrenPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          leading: Icon(
-            _categoryIcon(categoryId),
-            color: primary,
-          ),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+          iconColor: colorScheme.primary,
+          collapsedIconColor: colorScheme.primary,
           title: Text(
             question,
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w600,
             ),
           ),
-          iconColor: primary,
-          collapsedIconColor: primary,
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              categoryLabel,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
           children: [
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: answers
                   .map(
-                    (a) => Padding(
+                    (line) => Padding(
                       padding: const EdgeInsets.only(bottom: 10),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -242,7 +559,7 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
                               width: 12,
                               height: 3,
                               decoration: BoxDecoration(
-                                color: primary,
+                                color: colorScheme.primary,
                                 borderRadius: BorderRadius.circular(2),
                               ),
                             ),
@@ -250,30 +567,21 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: MarkdownBody(
-                              data: a,
+                              data: line,
                               styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
-                                p: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
+                                p: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
                                 strong: theme.textTheme.bodyMedium?.copyWith(
                                   fontWeight: FontWeight.w700,
-                                  height: 1.4,
+                                  height: 1.45,
                                 ),
                                 em: theme.textTheme.bodyMedium?.copyWith(
                                   fontStyle: FontStyle.italic,
-                                  height: 1.4,
+                                  height: 1.45,
                                 ),
                                 pPadding: EdgeInsets.zero,
                                 textScaleFactor:
                                     MediaQuery.of(context).textScaler.scale(1.0),
                               ),
-                              builders: {
-                                'mark': _HighlightBuilder(
-                                  baseStyle: theme.textTheme.bodyMedium,
-                                  highlightColor: primary,
-                                ),
-                                'u': _UnderlineBuilder(
-                                  baseStyle: theme.textTheme.bodyMedium,
-                                ),
-                              },
                             ),
                           ),
                         ],
@@ -287,317 +595,61 @@ class _KnowledgeBasePageState extends State<KnowledgeBasePage> {
       ),
     );
   }
+}
+
+class _InfoPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool emphasize;
+
+  const _InfoPill({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.emphasize = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final t = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-    final primary = isDark ? colorScheme.secondary : const Color(0xFF0865A2);
-    final gradient = LinearGradient(
-      colors: isDark
-          ? const [Color(0xFF0B1525), Color(0xFF111C2E)]
-          : const [Color(0xFFE7F3FB), Colors.white],
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-    );
+    final cs = theme.colorScheme;
 
-    final items = _filteredItems();
-    final sortedCategories = [..._categories]
-      ..sort((a, b) => a.order.compareTo(b.order));
-
-    final canPop = Navigator.of(context).canPop();
-
-    return Scaffold(
-      backgroundColor: colorScheme.background,
-      appBar: AppBar(
-        title: Text(t.knowledgeBaseTile ?? 'Knowledge base (FAQ)'),
-        leading: canPop
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => Navigator.of(context).maybePop(),
-              )
-            : null,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: emphasize
+            ? cs.primaryContainer.withOpacity(0.3)
+            : cs.surfaceVariant.withOpacity(theme.brightness == Brightness.dark ? 0.35 : 0.55),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.4)),
       ),
-      body: Container(
-        decoration: BoxDecoration(gradient: gradient),
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header / Hero
-                Card(
-                  elevation: 4,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  color: theme.cardColor,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: LinearGradient(
-                              colors: [
-                                primary,
-                                primary.withOpacity(0.7),
-                              ],
-                            ),
-                          ),
-                          child: const Icon(
-                            Icons.psychology_outlined,
-                            color: Colors.white,
-                            size: 28,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                t.kb_title,
-                                style: theme.textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: primary,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                t.kb_intro,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: colorScheme.onSurface.withOpacity(0.8),
-                                  height: 1.35,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: emphasize ? cs.primary : cs.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: cs.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
                 ),
-
-                const SizedBox(height: 12),
-
-                // Suchfeld
-                TextField(
-                  controller: _searchController,
-                  onChanged: (value) {
-                    setState(() {
-                      _searchQuery = value.toLowerCase();
-                    });
-                  },
-                  decoration: InputDecoration(
-                    hintText: t.kb_search_hint,
-                    prefixIcon: const Icon(Icons.search),
-                    filled: true,
-                    fillColor: theme.cardColor,
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 10),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      borderSide:
-                          BorderSide(color: colorScheme.outlineVariant),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      borderSide: BorderSide(
-                        color: colorScheme.outlineVariant.withOpacity(0.6),
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      borderSide: BorderSide(color: primary, width: 1.5),
-                    ),
-                  ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
                 ),
-
-                const SizedBox(height: 10),
-
-                // Kategorie-Filter (Chips)
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    ChoiceChip(
-                      label: Text(t.kb_filter_all),
-                      selected: _selectedCategory == null,
-                      onSelected: (_) {
-                        setState(() => _selectedCategory = null);
-                      },
-                    ),
-                    ...sortedCategories.map((cat) {
-                      return ChoiceChip(
-                        label: Text(cat.title),
-                        selected: _selectedCategory == cat.id,
-                        onSelected: (sel) {
-                          setState(() {
-                            _selectedCategory = sel ? cat.id : null;
-                          });
-                        },
-                      );
-                    }),
-                  ],
-                ),
-
-                const SizedBox(height: 10),
-
-                if (_error != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Card(
-                      color: colorScheme.errorContainer,
-                      child: ListTile(
-                        leading: Icon(Icons.warning_amber_rounded,
-                            color: colorScheme.onErrorContainer),
-                        title: Text(
-                          _usingLegacyFallback
-                              ? 'Aktuelle FAQ konnten nicht geladen werden. Zeige Offline-Version.'
-                              : 'Aktuelle FAQ konnten nicht geladen werden.',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: colorScheme.onErrorContainer,
-                          ),
-                        ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.refresh),
-                          color: colorScheme.onErrorContainer,
-                          onPressed: () => _loadFaq(refresh: true),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                // Liste der Einträge
-                Expanded(
-                  child: _loading
-                      ? const Center(child: CircularProgressIndicator())
-                      : items.isEmpty
-                          ? Center(
-                              child: Text(
-                                t.kb_empty_message,
-                                textAlign: TextAlign.center,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            )
-                          : RefreshIndicator(
-                              onRefresh: () => _loadFaq(refresh: true),
-                                  child: ListView.builder(
-                                physics:
-                                    const AlwaysScrollableScrollPhysics(),
-                                itemCount: items.length,
-                                itemBuilder: (context, index) {
-                                  final item = items[index];
-                                  final question = item.question;
-                                  final answerLines =
-                                      _splitAnswer(item.answer);
-
-                                  final bool showCategoryHeader;
-                                  if (index == 0) {
-                                    showCategoryHeader = true;
-                                  } else {
-                                    showCategoryHeader =
-                                        items[index - 1].category.id !=
-                                            item.category.id;
-                                  }
-
-                                  final widgets = <Widget>[];
-
-                                  if (showCategoryHeader) {
-                                    widgets.add(
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                            top: 16, bottom: 4),
-                                        child: Text(
-                                          item.categoryTitle,
-                                          style: theme.textTheme.titleMedium
-                                              ?.copyWith(
-                                            color: primary,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  }
-
-                                  widgets.add(
-                                    _buildQuestionCard(
-                                      context: context,
-                                      question: question,
-                                      answers: answerLines,
-                                      categoryId: item.category.id,
-                                      primary: primary,
-                                    ),
-                                  );
-
-                                  return Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: widgets,
-                                  );
-                                },
-                              ),
-                            ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ),
+        ],
       ),
     );
-  }
-}
-
-class _FaqItemView {
-  final FaqEntry entry;
-  final FaqCategory category;
-  final String categoryTitle;
-  final String question;
-  final String answer;
-
-  const _FaqItemView({
-    required this.entry,
-    required this.category,
-    required this.categoryTitle,
-    required this.question,
-    required this.answer,
-  });
-}
-
-class _UnderlineBuilder extends MarkdownElementBuilder {
-  _UnderlineBuilder({required this.baseStyle});
-
-  final TextStyle? baseStyle;
-
-  @override
-  Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
-    final style = (baseStyle ?? const TextStyle())
-        .merge(preferredStyle)
-        .copyWith(decoration: TextDecoration.underline);
-    return Text.rich(TextSpan(text: element.textContent, style: style));
-  }
-}
-
-class _HighlightBuilder extends MarkdownElementBuilder {
-  _HighlightBuilder({required this.baseStyle, required this.highlightColor});
-
-  final TextStyle? baseStyle;
-  final Color highlightColor;
-
-  @override
-  Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
-    final style = (baseStyle ?? const TextStyle())
-        .merge(preferredStyle)
-        .copyWith(backgroundColor: highlightColor.withOpacity(0.2));
-    return Text.rich(TextSpan(text: element.textContent, style: style));
   }
 }
