@@ -3405,7 +3405,7 @@ class _AdminPageState extends State<AdminPage> {
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: TextButton.icon(
-                onPressed: () => Navigator.of(context).pushNamed(
+                onPressed: () => Navigator.of(context, rootNavigator: true).pushNamed(
                   '/internal-chat',
                   arguments:
                       const ComplaintChatPageArgs(role: ComplaintChatRole.admin),

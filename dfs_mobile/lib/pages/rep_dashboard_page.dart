@@ -1177,7 +1177,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
               count: unread > 0 ? unread : null,
               compact: compact,
               scale: scale,
-              onTap: () => Navigator.of(context).pushNamed(
+              onTap: () => Navigator.of(context, rootNavigator: true).pushNamed(
                 '/internal-chat',
                 arguments: const ComplaintChatPageArgs(role: ComplaintChatRole.rep),
               ),
