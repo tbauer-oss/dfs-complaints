@@ -18,6 +18,8 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
   String? _err;
   List<WikiArticle> _articles = const [];
 
+  final ScrollController _scrollCtrl = ScrollController();
+
   String? _category;
   String? _productGroup;
   String? _type;
@@ -31,6 +33,7 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
 
   @override
   void dispose() {
+    _scrollCtrl.dispose();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -87,19 +90,11 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
 
   Widget _badge(String label, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [color.withOpacity(.18), color.withOpacity(.07)]),
-        border: Border.all(color: color.withOpacity(0.55)),
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(.14),
-            blurRadius: 12,
-            spreadRadius: 1,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        color: color.withOpacity(.08),
+        border: Border.all(color: color.withOpacity(.5)),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -110,7 +105,7 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
             margin: const EdgeInsets.only(right: 6),
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
-          Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w700, letterSpacing: .3)),
+          Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w700, letterSpacing: .2)),
         ],
       ),
     );
@@ -255,7 +250,14 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
       );
     }
 
-    Widget buildList() {
+    Widget buildList(double width) {
+      final grouped = <String, List<WikiArticle>>{};
+      for (final a in _articles) {
+        final key = a.categoryName ?? a.categoryId ?? 'Allgemein';
+        grouped.putIfAbsent(key, () => []).add(a);
+      }
+      final sortedCategories = grouped.keys.toList()..sort();
+
       if (_loading) {
         return const Padding(
           padding: EdgeInsets.symmetric(vertical: 48),
@@ -285,84 +287,161 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
         return const Center(child: Text('Keine Artikel gefunden'));
       }
 
-      return LayoutBuilder(
-        builder: (_, cons) {
-          final width = cons.maxWidth;
-          if (width < 720) {
-            return ListView.separated(
+      final crossAxisCount = width >= 1400
+          ? 4
+          : width >= 1150
+              ? 3
+              : width >= 760
+                  ? 2
+                  : 1;
+      final aspectRatio = width >= 1400
+          ? 2.4
+          : width >= 1150
+              ? 2.1
+              : width >= 760
+                  ? 1.75
+                  : 1.2;
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final category in sortedCategories) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  Icon(Icons.folder_special_rounded, color: cs.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    category,
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(width: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: cs.surfaceVariant.withOpacity(.5),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text('${grouped[category]!.length} Artikel',
+                        style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
+                  ),
+                ],
+              ),
+            ),
+            GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemBuilder: (_, i) => buildCard(_articles[i]),
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemCount: _articles.length,
-            );
-          }
-          final crossAxisCount = width > 1100 ? 3 : 2;
-          return GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: crossAxisCount,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 1.2,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: aspectRatio,
+              ),
+              itemCount: grouped[category]!.length,
+              itemBuilder: (_, i) => buildCard(grouped[category]![i]),
             ),
-            itemCount: _articles.length,
-            itemBuilder: (_, i) => buildCard(_articles[i]),
-          );
-        },
+            const SizedBox(height: 18),
+          ],
+        ],
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: double.infinity,
-          margin: const EdgeInsets.only(bottom: 14),
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [cs.primaryContainer, cs.surface],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [BoxShadow(color: cs.shadow.withOpacity(.15), blurRadius: 26, offset: const Offset(0, 12))],
-            border: Border.all(color: cs.primary.withOpacity(.18)),
+    final header = Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [cs.primaryContainer, cs.surface],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: cs.shadow.withOpacity(.15), blurRadius: 26, offset: const Offset(0, 12))],
+        border: Border.all(color: cs.primary.withOpacity(.18)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            backgroundColor: cs.primary,
+            foregroundColor: cs.onPrimary,
+            child: const Icon(Icons.menu_book_rounded),
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              CircleAvatar(
-                backgroundColor: cs.primary,
-                foregroundColor: cs.onPrimary,
-                child: const Icon(Icons.menu_book_rounded),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Vertreter-Wiki', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Aktuelle Produkt- und Sicherheitsinfos in einem modernen, klaren Layout. Filtern Sie Inhalte blitzschnell und öffnen Sie Details mit sanften Übergängen.',
-                      style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
-                    ),
-                  ],
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Vertreter-Wiki', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 6),
+                Text(
+                  'Aktuelle Produkt- und Sicherheitsinfos in einem modernen, klaren Layout. Filtern Sie Inhalte blitzschnell und öffnen Sie Details mit sanften Übergängen.',
+                  style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        filters,
-        const SizedBox(height: 16),
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 250),
-          child: buildList(),
-        ),
-      ],
+        ],
+      ),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth - 32; // account for horizontal padding below
+        final slivers = <Widget>[
+          SliverToBoxAdapter(child: header),
+          SliverToBoxAdapter(child: filters),
+          const SliverToBoxAdapter(child: SizedBox(height: 16)),
+        ];
+
+        Widget status(Widget child) => SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: child),
+              ),
+            );
+
+        if (_loading) {
+          slivers.add(
+            status(const Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(width: 80, height: 80, child: CircularProgressIndicator(strokeWidth: 5)),
+                SizedBox(height: 16),
+                Text('Wissensdatenbank wird geladen...'),
+              ],
+            )),
+          );
+        } else if (_err != null) {
+          slivers.add(
+            status(Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(_err!, style: TextStyle(color: cs.error)),
+                const SizedBox(height: 8),
+                ElevatedButton(onPressed: _load, child: const Text('Erneut versuchen')),
+              ],
+            )),
+          );
+        } else if (_articles.isEmpty) {
+          slivers.add(status(const Text('Keine Artikel gefunden')));
+        } else {
+          final list = buildList(width);
+          slivers.add(SliverToBoxAdapter(child: list));
+        }
+
+        return Scrollbar(
+          thumbVisibility: true,
+          controller: _scrollCtrl,
+          child: CustomScrollView(
+            controller: _scrollCtrl,
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            slivers: slivers,
+          ),
+        );
+      },
     );
   }
 }
@@ -399,28 +478,24 @@ class _ArticleCardState extends State<_ArticleCard> {
         curve: Curves.easeOut,
         transform: Matrix4.identity()..translate(0.0, _hovered ? -4 : 0.0),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [cs.surfaceContainerHighest, cs.surface],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(18),
+          color: cs.surface,
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: cs.shadow.withOpacity(_hovered ? .2 : .12),
-              blurRadius: _hovered ? 24 : 14,
-              offset: const Offset(0, 12),
+              color: cs.shadow.withOpacity(_hovered ? .18 : .10),
+              blurRadius: _hovered ? 16 : 10,
+              offset: const Offset(0, 10),
             ),
           ],
-          border: Border.all(color: cs.outlineVariant.withOpacity(.6)),
+          border: Border.all(color: cs.outlineVariant.withOpacity(.5)),
         ),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(16),
             onTap: widget.onTap,
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -428,10 +503,10 @@ class _ArticleCardState extends State<_ArticleCard> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(10),
+                        padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
                           color: cs.primaryContainer,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(10),
                         ),
                         child: Icon(Icons.menu_book_rounded, color: cs.onPrimaryContainer),
                       ),
@@ -440,12 +515,16 @@ class _ArticleCardState extends State<_ArticleCard> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(a.title,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium
-                                    ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: .2)),
-                            const SizedBox(height: 4),
+                            Text(
+                              a.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: .1),
+                            ),
+                            const SizedBox(height: 1),
                             Row(
                               children: [
                                 Icon(Icons.folder_outlined, size: 18, color: cs.onSurfaceVariant),
@@ -471,31 +550,50 @@ class _ArticleCardState extends State<_ArticleCard> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 6),
                   if (a.productGroups.isNotEmpty)
                     Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: a.productGroups
-                          .map((p) => Chip(
+                      spacing: 4,
+                      runSpacing: 4,
+                      children: [
+                        ...a.productGroups.take(2).map(
+                              (p) => Chip(
                                 label: Text(p),
-                                backgroundColor: cs.surfaceVariant,
+                                labelStyle: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(color: cs.onSurfaceVariant),
+                                backgroundColor: cs.surfaceVariant.withOpacity(.5),
                                 visualDensity: VisualDensity.compact,
-                                side: BorderSide(color: cs.outlineVariant),
-                              ))
-                          .toList(),
+                                padding: const EdgeInsets.symmetric(horizontal: 6),
+                                side: BorderSide(color: cs.outlineVariant.withOpacity(.7)),
+                              ),
+                            ),
+                        if (a.productGroups.length > 2)
+                          Chip(
+                            label: Text('+${a.productGroups.length - 2}'),
+                            labelStyle: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: cs.onSurfaceVariant),
+                            backgroundColor: cs.surfaceVariant.withOpacity(.5),
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            side: BorderSide(color: cs.outlineVariant.withOpacity(.7)),
+                          ),
+                      ],
                     ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 6),
                   Text(
                     a.teaser,
-                    maxLines: 3,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context)
                         .textTheme
                         .bodyMedium
-                        ?.copyWith(height: 1.5, color: cs.onSurfaceVariant.withOpacity(.9)),
+                        ?.copyWith(height: 1.4, color: cs.onSurfaceVariant.withOpacity(.9)),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   Row(
                     children: [
                       Icon(Icons.arrow_outward_rounded, size: 18, color: cs.primary),
