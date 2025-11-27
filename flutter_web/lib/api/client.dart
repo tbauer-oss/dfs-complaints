@@ -8,6 +8,7 @@ import '../models/customer_news_entry.dart';
 import '../models/faq.dart';
 import '../models/wiki_article.dart';
 import '../models/wiki_category.dart';
+import '../models/wiki_overview.dart';
 import 'config.dart';
 
 class ApiError implements Exception {
@@ -1519,6 +1520,51 @@ class ApiClient {
         .whereType<Map<String, dynamic>>()
         .map((e) => WikiArticle.fromJson(e))
         .toList();
+  }
+
+  Future<WikiOverview> fetchWikiOverview({
+    String? category,
+    String? productGroup,
+    String? type,
+    String? search,
+    String? lang,
+  }) async {
+    final params = <String, String>{};
+    if (category != null && category.isNotEmpty) params['category'] = category;
+    if (productGroup != null && productGroup.isNotEmpty) params['productGroup'] = productGroup;
+    if (type != null && type.isNotEmpty) params['type'] = type;
+    if (search != null && search.isNotEmpty) params['search'] = search;
+    if (lang != null && lang.isNotEmpty) params['lang'] = lang;
+    final query = params.entries
+        .map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
+        .join('&');
+    final url = query.isEmpty ? '/api/wiki' : '/api/wiki?$query';
+
+    final r = await http.get(_u(url));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    final articleList = decoded is List
+        ? decoded
+        : decoded is Map && decoded['articles'] is List
+            ? decoded['articles'] as List
+            : decoded is Map && decoded['items'] is List
+                ? decoded['items'] as List
+                : const [];
+    final categoryList = decoded is Map && decoded['categories'] is List
+        ? decoded['categories'] as List
+        : const [];
+    return WikiOverview(
+      categories: categoryList
+          .whereType<Map<String, dynamic>>()
+          .map((e) => WikiCategory.fromJson(e))
+          .toList(),
+      articles: articleList
+          .whereType<Map<String, dynamic>>()
+          .map((e) => WikiArticle.fromJson(e))
+          .toList(),
+    );
   }
 
   Future<WikiArticle> fetchWikiArticle(String id, {String? lang}) async {
