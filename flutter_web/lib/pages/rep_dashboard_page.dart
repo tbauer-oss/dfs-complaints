@@ -1,8 +1,9 @@
 // lib/pages/rep_dashboard_page.dart
+import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import 'dart:math' as math;
 import '../api/client.dart';
 import 'rep_profile_page.dart';
 import 'rep_support_contact_form.dart';
@@ -35,6 +36,84 @@ enum _RepView { menu, earlyWarning, open, all, customers, support, account, wiki
 enum _RepPasswordMode { manual, generated }
 
 enum _DownloadsView { grid, list }
+
+enum _RepMenuTileSize { small, medium, large }
+
+class _RepMenuTileState {
+  final String id;
+  _RepMenuTileSize size;
+  bool visible;
+
+  _RepMenuTileState({required this.id, this.size = _RepMenuTileSize.medium, this.visible = true});
+
+  _RepMenuTileState copy() => _RepMenuTileState(id: id, size: size, visible: visible);
+
+  Map<String, Object> toJson() => {
+        'id': id,
+        'size': size.name,
+        'visible': visible,
+      };
+
+  static _RepMenuTileState fromJson(Map<String, Object?> data) {
+    final rawSize = (data['size'] ?? 'medium').toString();
+    final size = _RepMenuTileSize.values.firstWhere(
+      (s) => s.name == rawSize,
+      orElse: () => _RepMenuTileSize.medium,
+    );
+    return _RepMenuTileState(
+      id: (data['id'] ?? '').toString(),
+      size: size,
+      visible: data['visible'] != false,
+    );
+  }
+}
+
+class _RepMenuSectionState {
+  final bool protected;
+  String title;
+  List<_RepMenuTileState> tiles;
+
+  _RepMenuSectionState({required this.title, required this.tiles, this.protected = false});
+
+  _RepMenuSectionState copy() => _RepMenuSectionState(
+        title: title,
+        tiles: tiles.map((t) => t.copy()).toList(),
+        protected: protected,
+      );
+
+  Map<String, Object> toJson() => {
+        'title': title,
+        'tiles': tiles.map((e) => e.toJson()).toList(),
+        'protected': protected,
+      };
+
+  static _RepMenuSectionState fromJson(Map<String, Object?> raw) {
+    final tiles = (raw['tiles'] as List?)?.whereType<Map>().map((e) => e.cast<String, Object?>()).toList();
+    return _RepMenuSectionState(
+      title: (raw['title'] ?? '').toString(),
+      protected: raw['protected'] == true,
+      tiles: tiles == null ? <_RepMenuTileState>[] : tiles.map(_RepMenuTileState.fromJson).toList(),
+    );
+  }
+}
+
+class _RepMenuTileDescriptor {
+  final String id;
+  final Color color;
+  final IconData icon;
+  const _RepMenuTileDescriptor({required this.id, required this.color, required this.icon});
+}
+
+class _RepDraggedTile {
+  final String tileId;
+  final int sectionIndex;
+  const _RepDraggedTile({required this.tileId, required this.sectionIndex});
+}
+
+class _RepDraggedSection {
+  final int sectionIndex;
+  const _RepDraggedSection({required this.sectionIndex});
+}
 
 class RepDashboardPage extends StatefulWidget {
   final ApiClient api;
@@ -94,6 +173,23 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   // "NEU"-Badges: lokal gemerkte "schon gesehen" Kunden (E-Mails als Key)
   static const _seenKey = 'rep_seen_customers_v1';
   final Set<String> _seenCustomers = <String>{};
+
+  // Dashboard-Layout
+  static const _menuStoragePrefix = 'rep_menu_layout_v2_';
+  final Map<String, _RepMenuTileDescriptor> _tileDescriptors = const {
+    'earlyWarning': _RepMenuTileDescriptor(id: 'earlyWarning', color: Colors.orange, icon: Icons.warning_amber_outlined),
+    'open': _RepMenuTileDescriptor(id: 'open', color: Colors.red, icon: Icons.report_gmailerrorred_outlined),
+    'all': _RepMenuTileDescriptor(id: 'all', color: Colors.indigo, icon: Icons.all_inbox_outlined),
+    'customers': _RepMenuTileDescriptor(id: 'customers', color: Colors.teal, icon: Icons.apartment_outlined),
+    'account': _RepMenuTileDescriptor(id: 'account', color: Colors.blueGrey, icon: Icons.person_outline),
+    'support': _RepMenuTileDescriptor(id: 'support', color: Colors.deepOrange, icon: Icons.support_agent_outlined),
+    'downloads': _RepMenuTileDescriptor(id: 'downloads', color: Colors.deepPurple, icon: Icons.download_outlined),
+    'wiki': _RepMenuTileDescriptor(id: 'wiki', color: Colors.green, icon: Icons.menu_book_outlined),
+  };
+  List<_RepMenuSectionState> _menuSections = [];
+  bool _menuEditMode = false;
+  List<_RepMenuSectionState>? _menuBackup;
+  bool _menuLayoutLoaded = false;
   
   @override
   void initState() {
@@ -128,6 +224,447 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       _persistSeen();
       if (mounted) setState(() {});
     }
+  }
+
+  String get _menuStorageKey {
+    final id = (_me?['id'] ?? _me?['email'] ?? 'default').toString();
+    return '$_menuStoragePrefix$id';
+  }
+
+  List<_RepMenuSectionState> _defaultMenuSections() {
+    return [
+      _RepMenuSectionState(
+        title: 'Reklamationen',
+        protected: true,
+        tiles: [
+          _RepMenuTileState(id: 'earlyWarning', size: _RepMenuTileSize.large),
+          _RepMenuTileState(id: 'open', size: _RepMenuTileSize.medium),
+          _RepMenuTileState(id: 'all', size: _RepMenuTileSize.medium),
+        ],
+      ),
+      _RepMenuSectionState(
+        title: 'Kunden & Support',
+        protected: true,
+        tiles: [
+          _RepMenuTileState(id: 'customers', size: _RepMenuTileSize.medium),
+          _RepMenuTileState(id: 'support', size: _RepMenuTileSize.medium),
+          _RepMenuTileState(id: 'account', size: _RepMenuTileSize.small),
+        ],
+      ),
+      _RepMenuSectionState(
+        title: 'Wissen & Dokumente',
+        protected: true,
+        tiles: [
+          _RepMenuTileState(id: 'downloads', size: _RepMenuTileSize.medium),
+          _RepMenuTileState(id: 'wiki', size: _RepMenuTileSize.medium),
+        ],
+      ),
+    ];
+  }
+
+  void _initMenuLayout() {
+    if (_menuLayoutLoaded) return;
+    _menuLayoutLoaded = true;
+    final defaults = _defaultMenuSections();
+    final loaded = _loadMenuLayout(defaults: defaults);
+    setState(() => _menuSections = loaded);
+  }
+
+  List<_RepMenuSectionState> _loadMenuLayout({required List<_RepMenuSectionState> defaults}) {
+    final raw = html.window.localStorage[_menuStorageKey];
+    final known = _tileDescriptors.keys.toSet();
+    if (raw == null) return defaults.map((e) => e.copy()).toList();
+
+    try {
+      final parsed = jsonDecode(raw);
+      if (parsed is! List) return defaults.map((e) => e.copy()).toList();
+
+      final sections = <_RepMenuSectionState>[];
+      final used = <String>{};
+
+      for (final entry in parsed) {
+        if (entry is! Map) continue;
+        final section = _RepMenuSectionState.fromJson(entry.cast<String, Object?>());
+        if (section.title.trim().isEmpty) continue;
+        section.tiles = section.tiles.where((t) => known.contains(t.id)).toList();
+        used.addAll(section.tiles.map((e) => e.id));
+        sections.add(section);
+      }
+
+      for (final def in defaults) {
+        final existing = sections.firstWhere(
+          (s) => s.title == def.title,
+          orElse: () => _RepMenuSectionState(title: '', tiles: []),
+        );
+        if (existing.title.isEmpty) continue;
+        for (final tile in def.tiles) {
+          if (used.contains(tile.id)) continue;
+          existing.tiles.add(tile.copy());
+          used.add(tile.id);
+        }
+      }
+
+      for (final id in known) {
+        final already = used.contains(id);
+        if (already) continue;
+        final target = sections.isNotEmpty ? sections.first : null;
+        if (target != null) {
+          target.tiles.add(_RepMenuTileState(id: id));
+        }
+      }
+
+      return sections.isEmpty ? defaults.map((e) => e.copy()).toList() : sections;
+    } catch (_) {
+      return defaults.map((e) => e.copy()).toList();
+    }
+  }
+
+  void _persistMenuLayout() {
+    try {
+      html.window.localStorage[_menuStorageKey] = jsonEncode(
+        _menuSections.map((s) => s.toJson()).toList(),
+      );
+    } catch (_) {}
+  }
+
+  void _resetMenuLayout() {
+    setState(() {
+      _menuSections = _defaultMenuSections();
+      _menuEditMode = false;
+    });
+    _persistMenuLayout();
+  }
+
+  void _enterMenuEditMode() {
+    setState(() {
+      _menuBackup = _menuSections.map((e) => e.copy()).toList();
+      _menuEditMode = true;
+    });
+  }
+
+  void _cancelMenuEdit() {
+    setState(() {
+      if (_menuBackup != null) {
+        _menuSections = _menuBackup!.map((e) => e.copy()).toList();
+      }
+      _menuEditMode = false;
+    });
+  }
+
+  void _saveMenuEdit() {
+    setState(() => _menuEditMode = false);
+    _persistMenuLayout();
+  }
+
+  void _addMenuCategory() async {
+    final titleCtrl = TextEditingController();
+    final created = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Neue Kategorie'),
+          content: TextField(
+            controller: titleCtrl,
+            decoration: const InputDecoration(labelText: 'Titel'),
+            autofocus: true,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final title = titleCtrl.text.trim();
+                if (title.isEmpty) return;
+                Navigator.of(context).pop(title);
+              },
+              child: const Text('Hinzufügen'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (created == null || created.trim().isEmpty) return;
+
+    setState(() {
+      _menuSections = [
+        ..._menuSections,
+        _RepMenuSectionState(title: created.trim(), tiles: []),
+      ];
+    });
+    _persistMenuLayout();
+  }
+
+  void _handleTileDrop(_RepDraggedTile data, int targetSection, int insertIndex) {
+    if (targetSection < 0 || targetSection >= _menuSections.length) return;
+    setState(() {
+      if (data.sectionIndex < 0 || data.sectionIndex >= _menuSections.length) return;
+      final fromSection = _menuSections[data.sectionIndex];
+      final tileIndex = fromSection.tiles.indexWhere((t) => t.id == data.tileId);
+      if (tileIndex == -1) return;
+      final moving = fromSection.tiles.removeAt(tileIndex);
+
+      final isSameSection = data.sectionIndex == targetSection;
+      var targetIndex = insertIndex;
+      if (isSameSection && insertIndex > tileIndex) targetIndex -= 1;
+
+      final dest = _menuSections[targetSection];
+      targetIndex = targetIndex.clamp(0, dest.tiles.length);
+      dest.tiles.insert(targetIndex, moving);
+    });
+    _persistMenuLayout();
+  }
+
+  void _handleSectionDrop(_RepDraggedSection data, int targetIndex) {
+    if (targetIndex < 0 || targetIndex > _menuSections.length) return;
+    if (data.sectionIndex < 0 || data.sectionIndex >= _menuSections.length) return;
+    setState(() {
+      final moving = _menuSections.removeAt(data.sectionIndex);
+      var insertIndex = targetIndex;
+      if (targetIndex > data.sectionIndex) insertIndex -= 1;
+      insertIndex = insertIndex.clamp(0, _menuSections.length);
+      _menuSections.insert(insertIndex, moving);
+    });
+    _persistMenuLayout();
+  }
+
+  void _updateTileSize(String id, _RepMenuTileSize size) {
+    setState(() {
+      for (final section in _menuSections) {
+        for (final tile in section.tiles) {
+          if (tile.id == id) tile.size = size;
+        }
+      }
+    });
+    _persistMenuLayout();
+  }
+
+  void _toggleTileVisibility(String id, bool visible) {
+    setState(() {
+      _ensureTilePresent(id);
+      for (final section in _menuSections) {
+        for (final tile in section.tiles) {
+          if (tile.id == id) tile.visible = visible;
+        }
+      }
+    });
+    _persistMenuLayout();
+  }
+
+  void _ensureTilePresent(String id) {
+    if (!_tileDescriptors.containsKey(id)) return;
+    for (final section in _menuSections) {
+      if (section.tiles.any((t) => t.id == id)) return;
+    }
+    if (_menuSections.isEmpty) {
+      _menuSections = _defaultMenuSections();
+    }
+    _menuSections.first.tiles.add(_RepMenuTileState(id: id));
+  }
+
+  List<_RepMenuTileState> _hiddenTiles() {
+    final list = <_RepMenuTileState>[];
+    for (final s in _menuSections) {
+      list.addAll(s.tiles.where((t) => !t.visible));
+    }
+    return list;
+  }
+
+  Future<void> _openTileVisibilityDialog() async {
+    final descriptors = _tileDescriptors.values.toList();
+    final result = await showDialog<Set<String>>(
+      context: context,
+      builder: (context) {
+        final selected = {
+          for (final section in _menuSections)
+            for (final tile in section.tiles)
+              if (tile.visible) tile.id,
+        };
+        return StatefulBuilder(builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Kacheln ein- oder ausblenden'),
+            content: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480, maxHeight: 520),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: descriptors.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final desc = descriptors[index];
+                  final checked = selected.contains(desc.id);
+                  return CheckboxListTile(
+                    value: checked,
+                    onChanged: (value) {
+                      setDialogState(() {
+                        if (value == true) {
+                          selected.add(desc.id);
+                        } else {
+                          selected.remove(desc.id);
+                        }
+                      });
+                    },
+                    title: Text(_tileTitle(context, desc.id)),
+                    secondary: Icon(desc.icon, color: desc.color),
+                  );
+                },
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Abbrechen'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(selected),
+                child: const Text('Übernehmen'),
+              ),
+            ],
+          );
+        });
+      },
+    );
+
+    if (result == null) return;
+
+    for (final id in _tileDescriptors.keys) {
+      _toggleTileVisibility(id, result.contains(id));
+    }
+  }
+
+  String _tileTitle(BuildContext context, String id) {
+    final t = context.t;
+    switch (id) {
+      case 'earlyWarning':
+        return t.repMenuEarlyWarningTitle;
+      case 'open':
+        return t.rep_menu_open_title;
+      case 'all':
+        return t.rep_menu_all_title;
+      case 'customers':
+        return t.rep_menu_customers_title;
+      case 'account':
+        return t.rep_menu_account_title;
+      case 'support':
+        return t.rep_menu_support_title;
+      case 'downloads':
+        return t.rep_downloads_title;
+      case 'wiki':
+        return t.repwiki;
+    }
+    return id;
+  }
+
+  String _tileSubtitle(BuildContext context, String id) {
+    final t = context.t;
+    switch (id) {
+      case 'earlyWarning':
+        return t.repMenuEarlyWarningSubtitle;
+      case 'open':
+        return t.rep_menu_open_subtitle;
+      case 'all':
+        return t.rep_menu_all_subtitle;
+      case 'customers':
+        return t.rep_menu_customers_subtitle;
+      case 'account':
+        return t.rep_menu_account_subtitle;
+      case 'support':
+        return t.rep_menu_support_subtitle;
+      case 'downloads':
+        return t.rep_menu_downloads_subtitle;
+      case 'wiki':
+        return t.customer_knowledge;
+    }
+    return '';
+  }
+
+  int? _tileCount(String id, int allCount, int openCount) {
+    switch (id) {
+      case 'earlyWarning':
+        return _warningsLoading ? null : _warnings.length;
+      case 'open':
+        return openCount;
+      case 'all':
+        return allCount;
+      case 'customers':
+        return _customers.length;
+      case 'downloads':
+        final downloadBadgeCount = _downloads.where((d) => d.badge.isNotEmpty).length;
+        return downloadBadgeCount > 0 ? downloadBadgeCount : _downloads.length;
+      default:
+        return null;
+    }
+  }
+
+  double _tileScale(_RepMenuTileSize size) {
+    switch (size) {
+      case _RepMenuTileSize.small:
+        return 0.9;
+      case _RepMenuTileSize.medium:
+        return 1.05;
+      case _RepMenuTileSize.large:
+        return 1.3;
+    }
+  }
+
+  Size _tileBoxSize(_RepMenuTileSize size, double baseWidth, double baseHeight) {
+    final factor = _tileScale(size);
+    return Size(baseWidth * factor, baseHeight * factor);
+  }
+
+  Widget _buildMenuTile(String id, bool compact, double scale, {
+    required VoidCallback onTap,
+    required int allCount,
+    required int openCount,
+    bool isPreview = false,
+  }) {
+    final desc = _tileDescriptors[id];
+    if (desc == null) return const SizedBox.shrink();
+    return _MenuCard(
+      color: desc.color,
+      icon: desc.icon,
+      title: _tileTitle(context, id),
+      subtitle: _tileSubtitle(context, id),
+      count: _tileCount(id, allCount, openCount),
+      compact: compact,
+      scale: scale,
+      onTap: _menuEditMode || isPreview ? () {} : onTap,
+    );
+  }
+
+  void _handleTileAction(String id) async {
+    if (!await _confirmLeaveCurrentView()) return;
+    if (!mounted) return;
+    setState(() {
+      switch (id) {
+        case 'earlyWarning':
+          _view = _RepView.earlyWarning;
+          break;
+        case 'open':
+          _filter = _RepFilter.open;
+          _view = _RepView.open;
+          break;
+        case 'all':
+          _view = _RepView.all;
+          break;
+        case 'customers':
+          _view = _RepView.customers;
+          break;
+        case 'account':
+          _view = _RepView.account;
+          break;
+        case 'support':
+          _view = _RepView.support;
+          break;
+        case 'downloads':
+          _view = _RepView.downloads;
+          break;
+        case 'wiki':
+          _view = _RepView.wiki;
+          break;
+      }
+    });
   }
 
   Future<bool> _confirmLeaveCurrentView() async {
@@ -284,6 +821,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         _downloadsErr = downloadsErr;
         _downloadsLoading = false;
       });
+      _initMenuLayout();
 
     } catch (e) {
       final handled = await _handleUnauthorized(e);
@@ -1298,167 +1836,525 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
   }
 
   // ---- Menü (kompakt skaliert) ----
-  Widget _buildMenu(int allCount, int openCount, int rejectedCount, int finishedCount) {
+  Widget _buildMenu(int allCount, int openCount, int _rejectedCount, int _finishedCount) {
     return LayoutBuilder(builder: (ctx, c) {
       final width = c.maxWidth;
-      final isPhone = width < 520;
-      final isTablet = width < 1020;
-      final scale = width >= 1500
-          ? 1.08
-          : width >= 1260
-              ? 1.04
-              : width >= 960
-                  ? 1.00
-                  : width >= 760
-                      ? 0.97
-                      : 0.93;
-      final compact = width < 760;
-      final gridPadding = EdgeInsets.fromLTRB(
-        isPhone ? 12 : 20,
-        isPhone ? 16 : 26,
-        isPhone ? 12 : 20,
-        isPhone ? 22 : 36,
-      );
-      final maxExtent = isPhone
-          ? 240.0
+      final isPhone = width < 640;
+      final isTablet = width < 1180;
+      final baseWidth = isPhone
+          ? 170.0
           : isTablet
-              ? 280.0
-              : 320.0;
-      final mainSpacing = isPhone ? 26.0 : isTablet ? 34.0 : 42.0;
-      final crossSpacing = isPhone ? 16.0 : isTablet ? 24.0 : 32.0;
-      final aspect = isPhone ? 0.96 : isTablet ? 1.04 : 1.10;
-      final downloadBadgeCount = _downloads.where((d) => d.badge.isNotEmpty).length;
+              ? 210.0
+              : 240.0;
+      final aspect = isPhone ? 0.95 : isTablet ? 1.04 : 1.1;
+      final baseHeight = baseWidth / aspect;
+      final spacing = isPhone ? 14.0 : 20.0;
+      final runSpacing = isPhone ? 18.0 : 26.0;
+      final compact = isPhone;
+      final sections = _menuSections.isEmpty ? _defaultMenuSections() : _menuSections;
+      final hidden = _hiddenTiles();
 
-      final tiles = [
-        _MenuCard(
-          color: Colors.orange,
-          icon: Icons.warning_amber_outlined,
-          title: ctx.t.repMenuEarlyWarningTitle,
-          subtitle: ctx.t.repMenuEarlyWarningSubtitle,
-          count: _warningsLoading ? null : _warnings.length,
-          compact: compact,
-          scale: scale,
-          onTap: () async {
-            if (!await _confirmLeaveCurrentView()) return;
-            if (!mounted) return;
-            setState(() => _view = _RepView.earlyWarning);
-          },
-        ),
-        _MenuCard(
-          color: Colors.red,
-          icon: Icons.report_gmailerrorred_outlined,
-          title: ctx.t.rep_menu_open_title,
-          subtitle: ctx.t.rep_menu_open_subtitle,
-          count: openCount,
-          compact: compact,
-          scale: scale,
-          onTap: () async {
-            if (!await _confirmLeaveCurrentView()) return;
-            if (!mounted) return;
-            setState(() {
-              _filter = _RepFilter.open;
-              _view = _RepView.open;
-            });
-          },
-        ),
-        _MenuCard(
-          color: Colors.indigo,
-          icon: Icons.all_inbox_outlined,
-          title: ctx.t.rep_menu_all_title,
-          subtitle: ctx.t.rep_menu_all_subtitle,
-          count: allCount,
-          compact: compact,
-          scale: scale,
-          onTap: () async {
-            if (!await _confirmLeaveCurrentView()) return;
-            if (!mounted) return;
-            setState(() => _view = _RepView.all);
-          },
-        ),
-        _MenuCard(
-          color: Colors.teal,
-          icon: Icons.apartment_outlined,
-          title: ctx.t.rep_menu_customers_title,
-          subtitle: ctx.t.rep_menu_customers_subtitle,
-          count: _customers.length,
-          compact: compact,
-          scale: scale,
-          onTap: () async {
-            if (!await _confirmLeaveCurrentView()) return;
-            if (!mounted) return;
-            setState(() => _view = _RepView.customers);
-          },
-        ),
-        _MenuCard(
-          color: Colors.blueGrey,
-          icon: Icons.person_outline,
-          title: ctx.t.rep_menu_account_title,
-          subtitle: ctx.t.rep_menu_account_subtitle,
-          count: null,
-          compact: compact,
-          scale: scale,
-          onTap: () async {
-            if (!await _confirmLeaveCurrentView()) return;
-            if (!mounted) return;
-            setState(() => _view = _RepView.account);
-          },
-        ),
-        _MenuCard(
-          color: Colors.deepOrange,
-          icon: Icons.support_agent_outlined,
-          title: ctx.t.rep_menu_support_title,
-          subtitle: ctx.t.rep_menu_support_subtitle,
-          count: null,
-          compact: compact,
-          scale: scale,
-          onTap: () async {
-            if (!await _confirmLeaveCurrentView()) return;
-            if (!mounted) return;
-            setState(() => _view = _RepView.support);
-          },
-        ),
-        _MenuCard(
-          color: Colors.deepPurple,
-          icon: Icons.download_outlined,
-          title: ctx.t.rep_downloads_title,
-          subtitle: ctx.t.rep_menu_downloads_subtitle,
-          count: downloadBadgeCount > 0 ? downloadBadgeCount : _downloads.length,
-          compact: compact,
-          scale: scale,
-          onTap: () async {
-            if (!await _confirmLeaveCurrentView()) return;
-            if (!mounted) return;
-            setState(() => _view = _RepView.downloads);
-          },
-        ),
-        _MenuCard(
-          color: Colors.green,
-          icon: Icons.menu_book_outlined,
-          title: ctx.t.repwiki,
-          subtitle: ctx.t.customer_knowledge,
-          count: null,
-          compact: compact,
-          scale: scale,
-          onTap: () async {
-            if (!await _confirmLeaveCurrentView()) return;
-            if (!mounted) return;
-            setState(() => _view = _RepView.wiki);
-          },
-        ),
-      ];
-
-      return GridView.builder(
-        padding: gridPadding,
-        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: maxExtent,
-          mainAxisSpacing: mainSpacing,
-          crossAxisSpacing: crossSpacing,
-          childAspectRatio: aspect,
-        ),
-        itemCount: tiles.length,
-        itemBuilder: (_, i) => tiles[i],
+      return CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Row(
+                children: [
+                  Text(
+                    'Vertreter-Dashboard',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const Spacer(),
+                  if (_menuEditMode)
+                    ...[
+                      OutlinedButton.icon(
+                        onPressed: _cancelMenuEdit,
+                        icon: const Icon(Icons.close_outlined),
+                        label: const Text('Abbrechen'),
+                      ),
+                      const SizedBox(width: 10),
+                      FilledButton.icon(
+                        onPressed: _saveMenuEdit,
+                        icon: const Icon(Icons.check_circle_outline),
+                        label: const Text('Speichern'),
+                      ),
+                    ]
+                  else
+                    FilledButton.icon(
+                      onPressed: _enterMenuEditMode,
+                      icon: const Icon(Icons.dashboard_customize_outlined),
+                      label: const Text('Dashboard anpassen'),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          if (_menuEditMode)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                child: Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.end,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: _addMenuCategory,
+                      icon: const Icon(Icons.add_box_outlined),
+                      label: const Text('Kategorie hinzufügen'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _openTileVisibilityDialog,
+                      icon: const Icon(Icons.checklist_rtl),
+                      label: const Text('Kacheln auswählen'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _resetMenuLayout,
+                      icon: const Icon(Icons.refresh_outlined),
+                      label: const Text('Standardlayout wiederherstellen'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          if (_menuEditMode) _buildSectionDropZone(index: 0),
+          for (var i = 0; i < sections.length; i++) ...[
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+                child: _buildSectionHeader(sections[i], i),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(16, 0, 16, i == sections.length - 1 ? 24 : 10),
+                child: _buildSectionGrid(
+                  section: sections[i],
+                  sectionIndex: i,
+                  baseWidth: baseWidth,
+                  baseHeight: baseHeight,
+                  spacing: spacing,
+                  runSpacing: runSpacing,
+                  compact: compact,
+                  allCount: allCount,
+                  openCount: openCount,
+                ),
+              ),
+            ),
+            if (_menuEditMode) _buildSectionDropZone(index: i + 1),
+          ],
+          if (_menuEditMode && hidden.isNotEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
+                child: _buildHiddenTilesBanner(hidden, baseWidth, baseHeight, spacing, compact, allCount, openCount),
+              ),
+            ),
+        ],
       );
     });
+  }
+
+  Widget _buildSectionHeader(_RepMenuSectionState section, int index) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        if (_menuEditMode)
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: LongPressDraggable<_RepDraggedSection>(
+              data: _RepDraggedSection(sectionIndex: index),
+              feedback: Material(
+                color: Colors.transparent,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.18),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Text(section.title, style: theme.textTheme.titleMedium),
+                ),
+              ),
+              child: const Icon(Icons.drag_indicator, color: Colors.grey),
+            ),
+          ),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(section.title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              Container(height: 2, width: 48, color: theme.colorScheme.primary.withOpacity(0.35)),
+            ],
+          ),
+        ),
+        if (_menuEditMode)
+          Row(
+            children: [
+              IconButton.filledTonal(
+                tooltip: 'Kategorie umbenennen',
+                icon: const Icon(Icons.edit_outlined),
+                onPressed: () => _renameSection(section),
+              ),
+              const SizedBox(width: 4),
+              IconButton.filledTonal(
+                tooltip: 'Kategorie löschen',
+                icon: const Icon(Icons.delete_outline),
+                onPressed: section.protected ? null : () => _removeSection(index),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  void _renameSection(_RepMenuSectionState section) async {
+    final ctrl = TextEditingController(text: section.title);
+    final updated = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Kategorie umbenennen'),
+          content: TextField(
+            controller: ctrl,
+            autofocus: true,
+            decoration: const InputDecoration(labelText: 'Titel'),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Abbrechen')),
+            FilledButton(
+              onPressed: () {
+                final v = ctrl.text.trim();
+                if (v.isEmpty) return;
+                Navigator.of(context).pop(v);
+              },
+              child: const Text('Speichern'),
+            ),
+          ],
+        );
+      },
+    );
+    if (updated == null) return;
+    setState(() => section.title = updated.trim());
+    _persistMenuLayout();
+  }
+
+  void _removeSection(int index) {
+    if (index < 0 || index >= _menuSections.length) return;
+    final section = _menuSections[index];
+    if (section.protected) return;
+    setState(() {
+      final target = index > 0 ? _menuSections[index - 1] : (_menuSections.length > 1 ? _menuSections[1] : null);
+      if (target != null) {
+        target.tiles.addAll(section.tiles);
+      }
+      _menuSections.removeAt(index);
+    });
+    _persistMenuLayout();
+  }
+
+  Widget _buildSectionGrid({
+    required _RepMenuSectionState section,
+    required int sectionIndex,
+    required double baseWidth,
+    required double baseHeight,
+    required double spacing,
+    required double runSpacing,
+    required bool compact,
+    required int allCount,
+    required int openCount,
+  }) {
+    final visibleTiles = section.tiles.where((t) => _menuEditMode || t.visible).toList();
+    if (visibleTiles.isEmpty && !_menuEditMode) {
+      return const SizedBox.shrink();
+    }
+
+    final children = <Widget>[];
+
+    if (_menuEditMode) {
+      children.add(_buildTileDropTarget(
+        sectionIndex: sectionIndex,
+        insertIndex: 0,
+        size: _tileBoxSize(_RepMenuTileSize.medium, baseWidth, baseHeight),
+        spacing: spacing,
+      ));
+    }
+
+    for (var i = 0; i < visibleTiles.length; i++) {
+      final tile = visibleTiles[i];
+      children.add(_buildDraggableTile(
+        tile: tile,
+        sectionIndex: sectionIndex,
+        tileIndex: i,
+        baseWidth: baseWidth,
+        baseHeight: baseHeight,
+        spacing: spacing,
+        compact: compact,
+        allCount: allCount,
+        openCount: openCount,
+      ));
+      if (_menuEditMode) {
+        children.add(_buildTileDropTarget(
+          sectionIndex: sectionIndex,
+          insertIndex: i + 1,
+          size: _tileBoxSize(tile.size, baseWidth, baseHeight),
+          spacing: spacing,
+        ));
+      }
+    }
+
+    return Wrap(
+      spacing: spacing,
+      runSpacing: runSpacing,
+      children: children,
+    );
+  }
+
+  Widget _buildTileDropTarget({
+    required int sectionIndex,
+    required int insertIndex,
+    required Size size,
+    required double spacing,
+  }) {
+    return DragTarget<_RepDraggedTile>(
+      onWillAccept: (_) => true,
+      onAccept: (data) => _handleTileDrop(data, sectionIndex, insertIndex),
+      builder: (context, candidate, _) {
+        final highlight = candidate.isNotEmpty;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          width: size.width,
+          height: size.height,
+          margin: EdgeInsets.only(right: spacing / 2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: highlight ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outlineVariant,
+              width: highlight ? 2.4 : 1.2,
+            ),
+            color: highlight ? Theme.of(context).colorScheme.primary.withOpacity(0.08) : null,
+          ),
+          child: Center(
+            child: Icon(Icons.open_with_outlined, color: Theme.of(context).colorScheme.onSurfaceVariant),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDraggableTile({
+    required _RepMenuTileState tile,
+    required int sectionIndex,
+    required int tileIndex,
+    required double baseWidth,
+    required double baseHeight,
+    required double spacing,
+    required bool compact,
+    required int allCount,
+    required int openCount,
+  }) {
+    final size = _tileBoxSize(tile.size, baseWidth, baseHeight);
+    final scale = _tileScale(tile.size);
+    final card = SizedBox(
+      width: size.width,
+      height: size.height,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: _buildMenuTile(
+              tile.id,
+              compact,
+              scale,
+              allCount: allCount,
+              openCount: openCount,
+              onTap: () => _handleTileAction(tile.id),
+            ),
+          ),
+          if (_menuEditMode)
+            Positioned(
+              top: 10,
+              right: 10,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  SizedBox(
+                    height: 38,
+                    child: DropdownButton<_RepMenuTileSize>(
+                      value: tile.size,
+                      underline: const SizedBox.shrink(),
+                      onChanged: (v) {
+                        if (v != null) _updateTileSize(tile.id, v);
+                      },
+                      items: _RepMenuTileSize.values
+                          .map(
+                            (s) => DropdownMenuItem(
+                              value: s,
+                              child: Text(
+                                switch (s) {
+                                  _RepMenuTileSize.small => 'Klein',
+                                  _RepMenuTileSize.medium => 'Standard',
+                                  _RepMenuTileSize.large => 'Groß',
+                                },
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  IconButton.filledTonal(
+                    tooltip: tile.visible ? 'Kachel ausblenden' : 'Kachel einblenden',
+                    icon: Icon(tile.visible ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                    onPressed: () => _toggleTileVisibility(tile.id, !tile.visible),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+
+    if (!_menuEditMode) return card;
+
+    return LongPressDraggable<_RepDraggedTile>(
+      data: _RepDraggedTile(tileId: tile.id, sectionIndex: sectionIndex),
+      feedback: Material(
+        color: Colors.transparent,
+        child: SizedBox(
+          width: size.width,
+          height: size.height,
+          child: _buildMenuTile(
+            tile.id,
+            compact,
+            scale,
+            allCount: allCount,
+            openCount: openCount,
+            isPreview: true,
+            onTap: () {},
+          ),
+        ),
+      ),
+      dragAnchorStrategy: pointerDragAnchorStrategy,
+      childWhenDragging: Opacity(opacity: 0.35, child: card),
+      child: DragTarget<_RepDraggedTile>(
+        onWillAccept: (_) => true,
+        onAccept: (data) => _handleTileDrop(data, sectionIndex, tileIndex),
+        builder: (context, candidate, _) {
+          final highlight = candidate.isNotEmpty;
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: highlight ? Theme.of(context).colorScheme.primary : Colors.transparent,
+                width: highlight ? 2 : 0,
+              ),
+            ),
+            child: card,
+          );
+        },
+      ),
+    );
+  }
+
+  SliverToBoxAdapter _buildSectionDropZone({required int index}) {
+    final theme = Theme.of(context);
+    return SliverToBoxAdapter(
+      child: DragTarget<_RepDraggedSection>(
+        onWillAccept: (_) => true,
+        onAccept: (data) => _handleSectionDrop(data, index),
+        builder: (context, candidate, rejected) {
+          final highlight = candidate.isNotEmpty;
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            margin: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+            height: 46,
+            decoration: BoxDecoration(
+              color: highlight ? theme.colorScheme.primary.withOpacity(0.08) : theme.colorScheme.surfaceVariant.withOpacity(0.35),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: highlight ? theme.colorScheme.primary : theme.colorScheme.outlineVariant,
+                width: highlight ? 2 : 1,
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.swap_vert, color: highlight ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant),
+                const SizedBox(width: 8),
+                Text(
+                  'Kategorie hier ablegen',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: highlight ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildHiddenTilesBanner(List<_RepMenuTileState> hidden, double baseWidth, double baseHeight, double spacing, bool compact, int allCount, int openCount) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.archive_outlined),
+            const SizedBox(width: 8),
+            Text('Ausgeblendete Kacheln', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: hidden
+              .map(
+                (t) => SizedBox(
+                  width: _tileBoxSize(t.size, baseWidth, baseHeight).width,
+                  height: _tileBoxSize(t.size, baseWidth, baseHeight).height,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: _buildMenuTile(
+                          t.id,
+                          compact,
+                          _tileScale(t.size),
+                          allCount: allCount,
+                          openCount: openCount,
+                          isPreview: true,
+                          onTap: () {},
+                        ),
+                      ),
+                      Positioned(
+                        top: 10,
+                        right: 10,
+                        child: IconButton.filled(
+                          tooltip: 'Einblenden',
+                          icon: const Icon(Icons.visibility_outlined),
+                          onPressed: () => _toggleTileVisibility(t.id, true),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+              .toList(),
+        ),
+      ],
+    );
   }
 
   Color _levelColor(String level, ColorScheme cs) {
