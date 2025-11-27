@@ -326,38 +326,37 @@ export const wikiSeedArticles = [
       it: 'Guida rapida su raffreddamento, velocità, pressione e sostituzione per MDR-TD1.',
     },
     importance: 'normal',
-    contentMarkdown:
-      '- Immer ausreichende Wasserkühlung nutzen
+    contentMarkdown: `- Immer ausreichende Wasserkühlung nutzen
 - Leichten Anpressdruck, Instrument schneiden lassen
 - Drehzahl gemäß Herstellerangabe konstant halten
 - Verschlissene oder beschädigte Instrumente frühzeitig austauschen
 
-**Erklärhilfe:** „Kühlung, wenig Druck, richtige Drehzahl – dann halten die Instrumente länger und liefern bessere Oberflächen.“',
+**Erklärhilfe:** „Kühlung, wenig Druck, richtige Drehzahl – dann halten die Instrumente länger und liefern bessere Oberflächen.“`,
     contentIntl: {
-      en: '- Always use sufficient water cooling
+      en: `- Always use sufficient water cooling
 - Apply light pressure; let the tool cut
 - Keep speed per manufacturer specification
 - Replace worn or damaged tools early
 
-**How to explain:** “Cooling, low pressure, correct speed – instruments last longer and give better surfaces.”',
-      es: '- Usar siempre refrigeración con agua suficiente
+**How to explain:** “Cooling, low pressure, correct speed – instruments last longer and give better surfaces.”`,
+      es: `- Usar siempre refrigeración con agua suficiente
 - Presión ligera, dejar que la fresa corte
 - Mantener la velocidad indicada por el fabricante
 - Sustituir a tiempo instrumentos desgastados o dañados
 
-**Cómo explicarlo:** “Refrigeración, poca presión, velocidad correcta: más durabilidad y mejores superficies.”',
-      fr: '- Toujours utiliser un refroidissement à l’eau suffisant
+**Cómo explicarlo:** “Refrigeración, poca presión, velocidad correcta: más durabilidad y mejores superficies.”`,
+      fr: `- Toujours utiliser un refroidissement à l’eau suffisant
 - Pression légère, laisser l’instrument travailler
 - Vitesse conforme aux indications fabricant
 - Remplacer tôt les instruments usés ou endommagés
 
-**Comment l’expliquer :** « Refroidissement, faible pression, bonne vitesse : durée de vie prolongée et meilleures surfaces. »',
-      it: '- Usare sempre adeguato raffreddamento ad acqua
+**Comment l’expliquer :** « Refroidissement, faible pression, bonne vitesse : durée de vie prolongée et meilleures surfaces. »`,
+      it: `- Usare sempre adeguato raffreddamento ad acqua
 - Pressione leggera, lasciare che lo strumento tagli
 - Mantenere la velocità indicata dal produttore
 - Sostituire precocemente strumenti usurati o danneggiati
 
-**Come spiegarlo:** “Raffreddamento, poca pressione, velocità corretta: più durata e migliori superfici.”',
+**Come spiegarlo:** “Raffreddamento, poca pressione, velocità corretta: più durata e migliori superfici.”`,
     },
     isActive: true,
     createdAt: defaultTimestamp,
@@ -385,28 +384,27 @@ export const wikiSeedArticles = [
       it: 'Panoramica sui tipi di lucidatori, impieghi tipici e indicazioni d’uso.',
     },
     importance: 'normal',
-    contentMarkdown:
-      '- Festkörperpolierer (Gummi): Vor- und Hochglanzpolitur an Komposit/Keramik
+    contentMarkdown: `- Festkörperpolierer (Gummi): Vor- und Hochglanzpolitur an Komposit/Keramik
 - Uporal (Bürstenpolierer): sanfte Anpassung und Politur, auch an sensiblen Flächen
 - Diafix-Oral (Filzpolierer): Hochglanzfinish für Metall/Keramik
-Hinweise: empfohlene Drehzahl einhalten, moderater Druck, falls vorgesehen nicht trocken fahren; Einmal-/Mehrfachgebrauch je Produkt beachten.',
+Hinweise: empfohlene Drehzahl einhalten, moderater Druck, falls vorgesehen nicht trocken fahren; Einmal-/Mehrfachgebrauch je Produkt beachten.`,
     contentIntl: {
-      en: '- Solid rubber polishers: pre- and high-gloss polish on composite/ceramic
+      en: `- Solid rubber polishers: pre- and high-gloss polish on composite/ceramic
 - Uporal brush polishers: gentle adjustment and polishing, including delicate areas
 - Diafix-Oral felt polishers: high-gloss finish for metal/ceramic
-Notes: use recommended speed, moderate pressure, avoid dry use if cooling required; check single- vs. multi-use.',
-      es: '- Pulidores de goma: pre y alto brillo en composite/cerámica
+Notes: use recommended speed, moderate pressure, avoid dry use if cooling required; check single- vs. multi-use.`,
+      es: `- Pulidores de goma: pre y alto brillo en composite/cerámica
 - Pulidores de cepillo Uporal: ajuste y pulido suaves, incluso en zonas delicadas
 - Pulidores de fieltro Diafix-Oral: acabado de alto brillo para metal/cerámica
-Notas: respetar velocidad recomendada, presión moderada, evitar uso en seco si se requiere refrigeración; comprobar si son de un solo uso o reutilizables.',
-      fr: '- Polissoirs en caoutchouc : pré- et haute brillance sur composite/céramique
+Notas: respetar velocidad recomendada, presión moderada, evitar uso en seco si se requiere refrigeración; comprobar si son de un solo uso o reutilizables.`,
+      fr: `- Polissoirs en caoutchouc : pré- et haute brillance sur composite/céramique
 - Polissoirs brosse Uporal : ajustement doux, même sur zones sensibles
 - Polissoirs feutre Diafix-Oral : finition haute brillance métal/céramique
-Notes : respecter la vitesse recommandée, pression modérée, pas d’utilisation à sec si refroidissement requis ; vérifier usage unique/réutilisable.',
-      it: '- Lucidatori in gomma: pre e alta lucentezza su composito/ceramica
+Notes : respecter la vitesse recommandée, pression modérée, pas d’utilisation à sec si refroidissement requis ; vérifier usage unique/réutilisable.`,
+      it: `- Lucidatori in gomma: pre e alta lucentezza su composito/ceramica
 - Lucidatori a spazzola Uporal: regolazione e lucidatura delicata, anche su superfici sensibili
 - Lucidatori in feltro Diafix-Oral: finitura a specchio per metallo/ceramica
-Note: rispettare la velocità consigliata, pressione moderata, evitare uso a secco se serve raffreddamento; controllare monouso o riutilizzo.',
+Note: rispettare la velocità consigliata, pressione moderata, evitare uso a secco se serve raffreddamento; controllare monouso o riutilizzo.`,
     },
     isActive: true,
     createdAt: defaultTimestamp,
