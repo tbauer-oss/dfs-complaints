@@ -9,6 +9,7 @@ import '../models/faq.dart';
 import '../models/wiki_article.dart';
 import '../models/wiki_category.dart';
 import '../models/wiki_overview.dart';
+import '../models/rep_download_item.dart';
 import 'config.dart';
 
 class ApiError implements Exception {
@@ -732,6 +733,37 @@ class ApiClient {
     return const [];
   }
 
+  Future<List<RepDownloadItem>> repDownloads() async {
+    final r = await _repFetch('/api/rep/downloads');
+    if (!_ok2xx(r.statusCode)) {
+      throw Exception('GET /api/rep/downloads failed: ${r.statusCode} ${r.body}');
+    }
+    final body = r.body.trim();
+    if (body.isEmpty) return const <RepDownloadItem>[];
+    final decoded = jsonDecode(body);
+    final list = decoded is Map && decoded['items'] is List
+        ? decoded['items'] as List
+        : decoded is List
+            ? decoded
+            : <dynamic>[];
+    return list
+        .whereType<Map>()
+        .map((e) => RepDownloadItem.fromJson(e.cast<String, dynamic>()))
+        .toList(growable: false);
+  }
+
+  Future<void> repMarkDownloadSeen(String id) async {
+    final trimmed = id.trim();
+    if (trimmed.isEmpty) return;
+    try {
+      await _repFetch(
+        '/api/rep/downloads/seen',
+        method: 'POST',
+        body: {'id': trimmed},
+      );
+    } catch (_) {}
+  }
+
   // ---------- NEU: Vertreter – zuweisbare Kunden (free oder all) ----------
   Future<List<Map<String, dynamic>>> repAssignableCustomers({bool all = false}) async {
     final q = all ? '?all=1' : '';
@@ -1246,6 +1278,65 @@ class ApiClient {
     final decoded = jsonDecode(r.body);
     if (decoded is Map) return decoded.cast<String, dynamic>();
     return null;
+  }
+
+  Future<List<RepDownloadItem>> adminDownloads() async {
+    final r = await http.get(_u('/api/admin/downloads'), headers: _adminHeaders());
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final list = decoded is Map && decoded['items'] is List
+        ? decoded['items'] as List
+        : decoded is List
+            ? decoded
+            : <dynamic>[];
+    return list
+        .whereType<Map>()
+        .map((e) => RepDownloadItem.fromJson(e.cast<String, dynamic>()))
+        .toList(growable: false);
+  }
+
+  Future<RepDownloadItem> adminSaveDownload({
+    String? id,
+    required String title,
+    String? description,
+    String? category,
+    String? badge,
+    bool? active,
+    Map<String, dynamic>? file,
+  }) async {
+    final body = <String, dynamic>{
+      if (id != null) 'id': id,
+      'title': title,
+      if (description != null) 'description': description,
+      if (category != null) 'category': category,
+      if (badge != null) 'badge': badge,
+      if (active != null) 'active': active,
+      if (file != null) 'files': [file],
+    };
+    final r = await http.post(
+      _u('/api/admin/downloads'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(body),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    if (decoded is Map) return RepDownloadItem.fromJson(decoded.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'invalid response for admin download save');
+  }
+
+  Future<void> adminDeleteDownload(String id) async {
+    final r = await http.delete(
+      _u('/api/admin/downloads'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode({'id': id}),
+    );
+    if (!_ok2xx(r.statusCode) && r.statusCode != 204) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
   }
 
   Future<Map<String, Map<String, String>>> translateFaqDraft({

@@ -14,6 +14,7 @@ import '../models/country.dart';
 import '../utils/lang_utils.dart';
 import '../widgets/password_field.dart';
 import 'rep_wiki_list_page.dart';
+import '../models/rep_download_item.dart';
 
 // ---- L10n-Helper (top-level) ----
 extension _L10nX on BuildContext {
@@ -24,7 +25,7 @@ extension _L10nX on BuildContext {
 enum _RepFilter { all, open, rejected, finished }
 
 // Menü-Views
-enum _RepView { menu, open, all, customers, support, account, wiki }
+enum _RepView { menu, open, all, customers, support, account, wiki, downloads }
 
 enum _RepPasswordMode { manual, generated }
 
@@ -47,6 +48,11 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   
   /// Reklamationen (aus Backend)
   List<Map<String, dynamic>> _complaints = [];
+
+  // Downloads (Admin-gesteuert)
+  List<RepDownloadItem> _downloads = const [];
+  bool _downloadsLoading = false;
+  String? _downloadsErr;
 
   bool _loading = true;
   String? _err;
@@ -219,11 +225,26 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         }
       }
 
+      List<RepDownloadItem> downloads = _downloads;
+      String? downloadsErr;
+      try {
+        setState(() {
+          _downloadsLoading = true;
+          _downloadsErr = null;
+        });
+        downloads = await widget.api.repDownloads();
+      } catch (e) {
+        downloadsErr = e.toString();
+      }
+
       if (!mounted) return;
       setState(() {
         _me = me;
         _customers  = customers;
         _complaints = comp;
+        _downloads = downloads;
+        _downloadsErr = downloadsErr;
+        _downloadsLoading = false;
       });
 
     } catch (e) {
@@ -1072,6 +1093,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
       _RepView.support   => t.rep_support_contact_title,
       _RepView.account   => t.profilePW,
       _RepView.wiki      => t.repwiki,
+      _RepView.downloads => t.rep_downloads_title,
     };
 
     final body = _loading
@@ -1086,6 +1108,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                 _RepView.support   => _scrollWrap(_buildSupportContactCard()),
                 _RepView.account   => _scrollWrap(_buildAccountCard()),
                 _RepView.wiki      => RepWikiListPage(api: widget.api),
+                _RepView.downloads => _scrollWrap(_buildDownloadsView()),
               };
 
     final canGoBack = _view != _RepView.menu;
@@ -1190,6 +1213,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
       final mainSpacing = isPhone ? 26.0 : isTablet ? 34.0 : 42.0;
       final crossSpacing = isPhone ? 16.0 : isTablet ? 24.0 : 32.0;
       final aspect = isPhone ? 0.96 : isTablet ? 1.04 : 1.10;
+      final downloadBadgeCount = _downloads.where((d) => d.badge.isNotEmpty).length;
 
       final tiles = [
         _MenuCard(
@@ -1266,6 +1290,20 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
           },
         ),
         _MenuCard(
+          color: Colors.deepPurple,
+          icon: Icons.download_outlined,
+          title: ctx.t.rep_downloads_title,
+          subtitle: ctx.t.rep_menu_downloads_subtitle,
+          count: downloadBadgeCount > 0 ? downloadBadgeCount : _downloads.length,
+          compact: compact,
+          scale: scale,
+          onTap: () async {
+            if (!await _confirmLeaveCurrentView()) return;
+            if (!mounted) return;
+            setState(() => _view = _RepView.downloads);
+          },
+        ),
+        _MenuCard(
           color: Colors.green,
           icon: Icons.menu_book_outlined,
           title: ctx.t.repwiki,
@@ -1325,6 +1363,120 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
           },
         ),
       ),
+    );
+  }
+
+  RepDownloadItem _clearDownloadBadge(RepDownloadItem item) {
+    return RepDownloadItem(
+      id: item.id,
+      title: item.title,
+      description: item.description,
+      category: item.category,
+      badge: '',
+      downloadUrl: item.downloadUrl,
+      fileName: item.fileName,
+      mime: item.mime,
+      size: item.size,
+      updatedAt: item.updatedAt,
+      version: item.version,
+    );
+  }
+
+  Future<void> _openDownload(RepDownloadItem item) async {
+    await widget.api.repMarkDownloadSeen(item.id);
+    if (!mounted) return;
+    setState(() {
+      _downloads = _downloads
+          .map((d) => d.id == item.id ? _clearDownloadBadge(d) : d)
+          .toList(growable: false);
+    });
+    html.window.open(item.downloadUrl, '_blank');
+  }
+
+  Widget _buildDownloadsView() {
+    final t = context.t;
+    if (_downloadsLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_downloadsErr != null) {
+      return Center(
+        child: Text(
+          _downloadsErr!,
+          style: const TextStyle(color: Colors.red),
+        ),
+      );
+    }
+    if (_downloads.isEmpty) {
+      return Center(child: Text(t.rep_downloads_empty));
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: _downloads.map((item) {
+            final badgeLabel = item.badge == 'change'
+                ? t.rep_downloads_change
+                : item.badge == 'new'
+                    ? t.rep_downloads_new
+                    : '';
+            return ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 380),
+              child: Card(
+                elevation: 3,
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.insert_drive_file_outlined),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              item.title,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                          if (badgeLabel.isNotEmpty)
+                            Chip(
+                              label: Text(badgeLabel),
+                              avatar: const Icon(Icons.fiber_manual_record, size: 14),
+                            ),
+                        ],
+                      ),
+                      if (item.description.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(item.description),
+                      ],
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          if (item.category.isNotEmpty)
+                            Chip(label: Text(item.category)),
+                          Text('v${item.version}'),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: FilledButton.icon(
+                          onPressed: () => _openDownload(item),
+                          icon: const Icon(Icons.download_outlined),
+                          label: Text(t.download ?? 'Download'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 
