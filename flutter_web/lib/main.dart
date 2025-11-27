@@ -656,6 +656,8 @@ class _MyAppState extends State<MyApp> {
                     ticket: args.ticket,
                     contacts: args.contacts,
                     defaultContact: args.defaultContact,
+                    repLabel: args.repLabel,
+                    adminLabel: args.adminLabel,
                   );
                 }
 

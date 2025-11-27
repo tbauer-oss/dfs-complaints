@@ -1222,12 +1222,23 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
               onTap: () async {
                 if (!await _confirmLeaveCurrentView()) return;
                 if (!mounted) return;
+                String s(Object? v) => (v ?? '').toString().trim();
+                final repName =
+                    [s(_me?['firstName']), s(_me?['lastName'])].where((e) => e.isNotEmpty).join(' ');
+                final repLabel = repName.isNotEmpty
+                    ? repName
+                    : s(_me?['email']).isNotEmpty
+                        ? s(_me?['email'])
+                        : 'Vertreter';
+                const adminLabel = 'QM / Admin';
                 await Navigator.of(context, rootNavigator: true).pushNamed(
                   '/internal-chat',
-                  arguments: const ComplaintChatPageArgs(
+                  arguments: ComplaintChatPageArgs(
                     role: ComplaintChatRole.rep,
-                    contacts: ['QM / Admin'],
-                    defaultContact: 'QM / Admin',
+                    contacts: const [adminLabel],
+                    defaultContact: adminLabel,
+                    repLabel: repLabel,
+                    adminLabel: adminLabel,
                   ),
                 );
               },
