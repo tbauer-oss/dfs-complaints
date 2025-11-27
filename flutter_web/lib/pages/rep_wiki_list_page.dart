@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../api/client.dart';
+import '../l10n/app_localizations.dart';
 import '../models/wiki_article.dart';
 import '../utils/lang_utils.dart';
 import 'rep_wiki_detail_page.dart';
@@ -17,10 +18,10 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
   bool _loading = true;
   String? _err;
   List<WikiArticle> _articles = const [];
+  String? _lastLocale;
 
   final ScrollController _scrollCtrl = ScrollController();
 
-  String? _category;
   String? _productGroup;
   String? _type;
   final TextEditingController _searchCtrl = TextEditingController();
@@ -30,6 +31,20 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final locale = normalizeLangCode(Localizations.localeOf(context).languageCode);
+    if (_lastLocale == null) {
+      _lastLocale = locale;
+      return;
+    }
+    if (_lastLocale != locale) {
+      _lastLocale = locale;
+      _load();
+    }
   }
 
   @override
@@ -48,7 +63,6 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
     try {
       final lang = normalizeLangCode(Localizations.localeOf(context).languageCode);
       final items = await widget.api.fetchWikiArticles(
-        category: _category,
         productGroup: _productGroup,
         type: _type,
         search: _searchCtrl.text.trim(),
@@ -62,16 +76,6 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
-  }
-
-  List<String> _categoryOptions() {
-    final set = <String>{};
-    for (final a in _articles) {
-      set.add(a.categoryName ?? a.categoryId);
-    }
-    final list = set.toList();
-    list.sort();
-    return list;
   }
 
   List<String> _productGroupOptions() {
@@ -117,6 +121,7 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final t = AppLocalizations.of(context)!;
 
     final filters = Container(
       width: double.infinity,
@@ -144,12 +149,13 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
             children: [
               Icon(Icons.tune_rounded, color: cs.primary),
               const SizedBox(width: 8),
-              Text('Feinjustierung', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+              Text(t.repWikiFiltersTitle,
+                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
               const Spacer(),
               FilledButton.icon(
                 onPressed: _loading ? null : _load,
                 icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Filter anwenden'),
+                label: Text(t.repWikiApplyFilters),
               ),
             ],
           ),
@@ -159,32 +165,13 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
             runSpacing: 12,
             children: [
               SizedBox(
-                width: 220,
-                child: DropdownButtonFormField<String?>(
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Kategorie'),
-                  value: _category,
-                  items: <DropdownMenuItem<String?>>[
-                    const DropdownMenuItem<String?>(value: null, child: Text('Alle Kategorien')),
-                  ]
-                      .followedBy(_categoryOptions().map(
-                        (c) => DropdownMenuItem<String?>(value: c, child: Text(c)),
-                      ))
-                      .toList(),
-                  onChanged: (v) {
-                    setState(() => _category = v);
-                    _load();
-                  },
-                ),
-              ),
-              SizedBox(
                 width: 200,
                 child: DropdownButtonFormField<String?>(
                   isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Produktgruppe'),
+                  decoration: InputDecoration(labelText: t.repWikiFilterProductGroupLabel),
                   value: _productGroup,
                   items: <DropdownMenuItem<String?>>[
-                    const DropdownMenuItem<String?>(value: null, child: Text('Alle')),
+                    DropdownMenuItem<String?>(value: null, child: Text(t.repWikiFilterProductGroupAll)),
                   ]
                       .followedBy(_productGroupOptions().map(
                         (p) => DropdownMenuItem<String?>(value: p, child: Text(p)),
@@ -200,14 +187,14 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
                 width: 160,
                 child: DropdownButtonFormField<String?>(
                   isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Typ'),
+                  decoration: InputDecoration(labelText: t.repWikiFilterTypeLabel),
                   value: _type,
-                  items: const <DropdownMenuItem<String?>>[
-                    DropdownMenuItem<String?>(value: null, child: Text('Alle Typen')),
-                    DropdownMenuItem<String?>(value: 'faq', child: Text('FAQ')),
-                    DropdownMenuItem<String?>(value: 'safety', child: Text('Sicherheit')),
-                    DropdownMenuItem<String?>(value: 'error', child: Text('Fehler')),
-                    DropdownMenuItem<String?>(value: 'prevention', child: Text('Vermeidung')),
+                  items: <DropdownMenuItem<String?>>[
+                    DropdownMenuItem<String?>(value: null, child: Text(t.repWikiFilterTypeAll)),
+                    DropdownMenuItem<String?>(value: 'faq', child: Text(t.repWikiFilterTypeFaq)),
+                    DropdownMenuItem<String?>(value: 'safety', child: Text(t.repWikiFilterTypeSafety)),
+                    DropdownMenuItem<String?>(value: 'error', child: Text(t.repWikiFilterTypeError)),
+                    DropdownMenuItem<String?>(value: 'prevention', child: Text(t.repWikiFilterTypePrevention)),
                   ],
                   onChanged: (v) {
                     setState(() => _type = v);
@@ -220,7 +207,7 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
                 child: TextField(
                   controller: _searchCtrl,
                   decoration: InputDecoration(
-                    labelText: 'Suche (Titel, Teaser, Inhalt)',
+                    labelText: t.repWikiSearchLabel,
                     suffixIcon: IconButton(
                       icon: const Icon(Icons.search_rounded),
                       onPressed: _load,
@@ -255,7 +242,7 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
     Widget buildList(double width) {
       final grouped = <String, List<WikiArticle>>{};
       for (final a in _articles) {
-        final key = a.categoryName ?? a.categoryId ?? 'Allgemein';
+        final key = a.categoryName ?? a.categoryId ?? t.repWikiCategoryFallback;
         grouped.putIfAbsent(key, () => []).add(a);
       }
       final sortedCategories = grouped.keys.toList()
@@ -266,14 +253,14 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
         });
 
       if (_loading) {
-        return const Padding(
-          padding: EdgeInsets.symmetric(vertical: 48),
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 48),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              SizedBox(width: 80, height: 80, child: CircularProgressIndicator(strokeWidth: 5)),
-              SizedBox(height: 16),
-              Text('Wissensdatenbank wird geladen...'),
+              const SizedBox(width: 80, height: 80, child: CircularProgressIndicator(strokeWidth: 5)),
+              const SizedBox(height: 16),
+              Text(t.repWikiLoading),
             ],
           ),
         );
@@ -285,13 +272,13 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
             children: [
               Text(_err!, style: TextStyle(color: cs.error)),
               const SizedBox(height: 8),
-              ElevatedButton(onPressed: _load, child: const Text('Erneut versuchen')),
+              ElevatedButton(onPressed: _load, child: Text(t.repWikiRetry)),
             ],
           ),
         );
       }
       if (_articles.isEmpty) {
-        return const Center(child: Text('Keine Artikel gefunden'));
+        return Center(child: Text(t.repWikiEmpty));
       }
 
       final crossAxisCount = width >= 1400
@@ -359,7 +346,7 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
                                         ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: .1),
                                   ),
                                   Text(
-                                    'Tippe für Details',
+                                    t.repWikiCategoryHint,
                                     style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
                                   ),
                                 ],
@@ -371,8 +358,10 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
                                 color: cs.surfaceVariant.withOpacity(.5),
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: Text('${grouped[category]!.length} Artikel',
-                                  style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
+                              child: Text(
+                                t.repWikiCategoryArticleCount(grouped[category]!.length),
+                                style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                              ),
                             ),
                             const SizedBox(width: 12),
                             AnimatedRotation(
@@ -442,10 +431,11 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Vertreter-Wiki', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+                Text(t.repWikiHeaderTitle,
+                    style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 6),
                 Text(
-                  'Aktuelle Produkt- und Sicherheitsinfos in einem modernen, klaren Layout. Filtern Sie Inhalte blitzschnell und öffnen Sie Details mit sanften Übergängen.',
+                  t.repWikiHeaderSubtitle,
                   style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
                 ),
               ],
@@ -473,12 +463,12 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
 
         if (_loading) {
           slivers.add(
-            status(const Column(
+            status(Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                SizedBox(width: 80, height: 80, child: CircularProgressIndicator(strokeWidth: 5)),
-                SizedBox(height: 16),
-                Text('Wissensdatenbank wird geladen...'),
+                const SizedBox(width: 80, height: 80, child: CircularProgressIndicator(strokeWidth: 5)),
+                const SizedBox(height: 16),
+                Text(t.repWikiLoading),
               ],
             )),
           );
@@ -489,12 +479,12 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
               children: [
                 Text(_err!, style: TextStyle(color: cs.error)),
                 const SizedBox(height: 8),
-                ElevatedButton(onPressed: _load, child: const Text('Erneut versuchen')),
+                ElevatedButton(onPressed: _load, child: Text(t.repWikiRetry)),
               ],
             )),
           );
         } else if (_articles.isEmpty) {
-          slivers.add(status(const Text('Keine Artikel gefunden')));
+          slivers.add(status(Text(t.repWikiEmpty)));
         } else {
           final list = buildList(width);
           slivers.add(SliverToBoxAdapter(child: list));
@@ -539,6 +529,7 @@ class _ArticleCardState extends State<_ArticleCard> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final t = AppLocalizations.of(context)!;
     final a = widget.article;
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -613,9 +604,11 @@ class _ArticleCardState extends State<_ArticleCard> {
                         spacing: 8,
                         runSpacing: 6,
                         children: [
-                          if (a.importance.toLowerCase() == 'high') widget.badgeBuilder('WICHTIG', cs.error),
-                          if (a.type == 'safety') widget.badgeBuilder('SICHERHEIT', cs.primary),
-                          if (widget.isNew) widget.badgeBuilder('NEU', cs.tertiary),
+                          if (a.importance.toLowerCase() == 'high')
+                            widget.badgeBuilder(t.repWikiBadgeImportant, cs.error),
+                          if (a.type == 'safety')
+                            widget.badgeBuilder(t.repWikiBadgeSafety, cs.primary),
+                          if (widget.isNew) widget.badgeBuilder(t.repWikiBadgeNew, cs.tertiary),
                         ],
                       ),
                     ],
@@ -668,7 +661,8 @@ class _ArticleCardState extends State<_ArticleCard> {
                     children: [
                       Icon(Icons.arrow_outward_rounded, size: 18, color: cs.primary),
                       const SizedBox(width: 6),
-                      Text('Details öffnen', style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700)),
+                      Text(t.repWikiDetailsOpen,
+                          style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700)),
                       const Spacer(),
                       AnimatedOpacity(
                         duration: const Duration(milliseconds: 200),
