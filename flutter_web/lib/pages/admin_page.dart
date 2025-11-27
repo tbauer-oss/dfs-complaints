@@ -22,6 +22,8 @@ import '../widgets/theme_action.dart' as w;
 import '../utils/lang_utils.dart';
 import 'admin_stats_page.dart';
 import 'product_catalog_page.dart';
+import 'admin_wiki_categories_page.dart';
+import 'admin_wiki_articles_page.dart';
 
 // ===================================================================
 // Admin Page – mit Kachel-Menü (wie Kunden-Dashboard)
@@ -50,6 +52,8 @@ enum _AdminView {
   activity,
   createCustomer,
   pushBroadcast,
+  wikiCategories,
+  wikiArticles,
 }
 
 enum _CustPasswordMode { adminSecret, generated }
@@ -3290,6 +3294,8 @@ class _AdminPageState extends State<AdminPage> {
       _AdminView.createCustomer => 'Neuen Kunden anlegen',
       _AdminView.activity       => 'Aktivitätsübersicht',
       _AdminView.pushBroadcast  => 'Push-Benachrichtigungen',
+      _AdminView.wikiCategories => 'Vertreter-Wiki Kategorien',
+      _AdminView.wikiArticles   => 'Vertreter-Wiki Artikel',
     };
 
     return WillPopScope(
@@ -3874,6 +3880,21 @@ class _AdminPageState extends State<AdminPage> {
             badge: _pushResult?.totalTokens != null && _pushResult!.totalTokens! > 0
                 ? '${_pushResult!.totalTokens}'
                 : null,
+          ),
+        ],
+      ),
+      _AdminNavSection(
+        title: 'Vertreter-Wiki',
+        items: [
+          _AdminNavItem(
+            label: 'Kategorien verwalten',
+            icon: Icons.category_outlined,
+            view: _AdminView.wikiCategories,
+          ),
+          _AdminNavItem(
+            label: 'Artikel verwalten',
+            icon: Icons.menu_book_outlined,
+            view: _AdminView.wikiArticles,
           ),
         ],
       ),
@@ -5212,6 +5233,10 @@ class _AdminPageState extends State<AdminPage> {
         return _buildCreateCustomerPanel();
       case _AdminView.pushBroadcast:
         return _buildPushBroadcastPanel();
+      case _AdminView.wikiCategories:
+        return AdminWikiCategoriesPage(api: _api);
+      case _AdminView.wikiArticles:
+        return AdminWikiArticlesPage(api: _api);
     }
   }
 

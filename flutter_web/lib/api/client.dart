@@ -6,6 +6,8 @@ import '../models/complaint.dart';
 import '../models/catalog_link.dart';
 import '../models/customer_news_entry.dart';
 import '../models/faq.dart';
+import '../models/wiki_article.dart';
+import '../models/wiki_category.dart';
 import 'config.dart';
 
 class ApiError implements Exception {
@@ -1478,6 +1480,165 @@ class ApiClient {
   Future<void> repLogout() async {
     repToken = null;
     _saveSession();
+  }
+
+  // ---------- Vertreter-Wiki ----------
+  Future<List<WikiArticle>> fetchWikiArticles({
+    String? category,
+    String? productGroup,
+    String? type,
+    String? search,
+  }) async {
+    final params = <String, String>{};
+    if (category != null && category.isNotEmpty) params['category'] = category;
+    if (productGroup != null && productGroup.isNotEmpty) {
+      params['productGroup'] = productGroup;
+    }
+    if (type != null && type.isNotEmpty) params['type'] = type;
+    if (search != null && search.isNotEmpty) params['search'] = search;
+    final query = params.entries
+        .map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
+        .join('&');
+    final url = query.isEmpty ? '/api/wiki' : '/api/wiki?$query';
+
+    final r = await http.get(_u(url));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    if (decoded is List) {
+      return decoded
+          .whereType<Map<String, dynamic>>()
+          .map((e) => WikiArticle.fromJson(e))
+          .toList();
+    }
+    if (decoded is Map && decoded['items'] is List) {
+      return (decoded['items'] as List)
+          .whereType<Map<String, dynamic>>()
+          .map((e) => WikiArticle.fromJson(e))
+          .toList();
+    }
+    return const [];
+  }
+
+  Future<WikiArticle> fetchWikiArticle(String id) async {
+    final r = await http.get(_u('/api/wiki/$id'));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    if (decoded is Map<String, dynamic>) return WikiArticle.fromJson(decoded);
+    throw ApiError(500, 'Ungültige Antwort für Wiki-Artikel');
+  }
+
+  Future<List<WikiCategory>> adminFetchWikiCategories({String? status}) async {
+    final query = (status != null && status.isNotEmpty)
+        ? '?status=${Uri.encodeQueryComponent(status)}'
+        : '';
+    final r = await http.get(
+      _u('/api/wiki/admin/categories$query'),
+      headers: _adminHeaders(auth: true),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    final list = decoded is List
+        ? decoded
+        : decoded is Map && decoded['items'] is List
+            ? decoded['items'] as List
+            : const [];
+    return list
+        .whereType<Map<String, dynamic>>()
+        .map((e) => WikiCategory.fromJson(e))
+        .toList();
+  }
+
+  Future<WikiCategory> adminSaveWikiCategory(Map<String, dynamic> data,
+      {String? id}) async {
+    final path = id == null
+        ? '/api/wiki/admin/categories'
+        : '/api/wiki/admin/categories/$id';
+    final r = await (id == null
+        ? http.post(_u(path), headers: _adminHeaders(auth: true), body: jsonEncode(data))
+        : http.put(_u(path), headers: _adminHeaders(auth: true), body: jsonEncode(data)));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    if (decoded is Map<String, dynamic>) return WikiCategory.fromJson(decoded);
+    throw ApiError(500, 'Ungültige Antwort für Kategorie');
+  }
+
+  Future<void> adminDeleteWikiCategory(String id) async {
+    final r = await http.delete(
+      _u('/api/wiki/admin/categories/$id'),
+      headers: _adminHeaders(auth: true),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+  }
+
+  Future<List<WikiArticle>> adminFetchWikiArticles({
+    String? category,
+    String? productGroup,
+    String? type,
+    String? status,
+    String? search,
+  }) async {
+    final params = <String, String>{};
+    if (category != null && category.isNotEmpty) params['category'] = category;
+    if (productGroup != null && productGroup.isNotEmpty) {
+      params['productGroup'] = productGroup;
+    }
+    if (type != null && type.isNotEmpty) params['type'] = type;
+    if (status != null && status.isNotEmpty) params['status'] = status;
+    if (search != null && search.isNotEmpty) params['search'] = search;
+    final query = params.entries
+        .map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
+        .join('&');
+    final url = query.isEmpty ? '/api/wiki/admin/articles' : '/api/wiki/admin/articles?$query';
+    final r = await http.get(_u(url), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    final list = decoded is List
+        ? decoded
+        : decoded is Map && decoded['items'] is List
+            ? decoded['items'] as List
+            : const [];
+    return list
+        .whereType<Map<String, dynamic>>()
+        .map((e) => WikiArticle.fromJson(e))
+        .toList();
+  }
+
+  Future<WikiArticle> adminSaveWikiArticle(Map<String, dynamic> data,
+      {String? id}) async {
+    final path = id == null
+        ? '/api/wiki/admin/articles'
+        : '/api/wiki/admin/articles/$id';
+    final r = await (id == null
+        ? http.post(_u(path), headers: _adminHeaders(auth: true), body: jsonEncode(data))
+        : http.put(_u(path), headers: _adminHeaders(auth: true), body: jsonEncode(data)));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    if (decoded is Map<String, dynamic>) return WikiArticle.fromJson(decoded);
+    throw ApiError(500, 'Ungültige Antwort für Artikel');
+  }
+
+  Future<void> adminDeleteWikiArticle(String id) async {
+    final r = await http.delete(
+      _u('/api/wiki/admin/articles/$id'),
+      headers: _adminHeaders(auth: true),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
   }
   
   // === Kataloge: GET ===
