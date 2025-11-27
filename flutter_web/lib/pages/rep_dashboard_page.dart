@@ -37,6 +37,7 @@ class RepDashboardPage extends StatefulWidget {
 }
 
 class _RepDashboardPageState extends State<RepDashboardPage> {
+  final t = context.t;
   Map<String, dynamic>? _me;
 
   /// Kundenliste (aus Backend normalisiert) – zugewiesene Kunden dieses Vertreters
