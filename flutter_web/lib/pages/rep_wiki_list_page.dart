@@ -266,20 +266,20 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
       }
 
       final sortedCategories = hasCategoryData
-          ? _categories
+          ? (_categories
               .where((c) => grouped[c.id]?.isNotEmpty == true)
               .toList()
             ..sort((a, b) {
               final diff = a.sortOrder.compareTo(b.sortOrder);
               if (diff != 0) return diff;
               return a.name.compareTo(b.name);
-            })
-          : grouped.keys.toList()
+            }))
+          : (grouped.keys.toList()
             ..sort((a, b) {
               final diff = grouped[b]!.length.compareTo(grouped[a]!.length);
               if (diff != 0) return diff;
               return a.compareTo(b);
-            });
+            }));
 
       if (_loading) {
         return Padding(
