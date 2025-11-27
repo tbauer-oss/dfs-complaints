@@ -1248,6 +1248,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       size: item.size,
       updatedAt: item.updatedAt,
       version: item.version,
+      active: item.active,
+      allowedRepresentatives: item.allowedRepresentatives,
     );
   }
 
