@@ -20,6 +20,7 @@ import '../models/rep_download_item.dart';
 import '../widgets/password_field.dart';
 import 'rep_wiki_list_page.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../data/download_categories.dart';
 
 // ---- L10n-Helper (top-level) ----
 extension _L10nX on BuildContext {
@@ -58,6 +59,11 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   List<RepDownloadItem> _downloads = const [];
   bool _downloadsLoading = true;
   String? _downloadsErr;
+  final TextEditingController _downloadSearchCtrl = TextEditingController();
+  String _downloadQuery = '';
+  String _downloadCategory = 'all';
+  String _downloadBadge = 'all';
+  String _downloadSort = 'recent';
 
   bool _loading = true;
   String? _err;
@@ -101,6 +107,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   @override
   void dispose() {
     _customerSearchCtrl.dispose();
+    _downloadSearchCtrl.dispose();
     super.dispose();
   }
   
@@ -1244,6 +1251,85 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     );
   }
 
+  List<RepDownloadItem> _filteredDownloads() {
+    final query = _downloadQuery.trim().toLowerCase();
+    final badge = _downloadBadge.toLowerCase();
+    final category = _downloadCategory.toLowerCase();
+
+    final List<RepDownloadItem> items = _downloads.where((d) {
+      final matchesQuery = query.isEmpty ||
+          d.title.toLowerCase().contains(query) ||
+          d.description.toLowerCase().contains(query) ||
+          d.fileName.toLowerCase().contains(query);
+      final matchesCategory = category == 'all' ||
+          d.category.toLowerCase() == category;
+      final matchesBadge = badge == 'all' || d.badge.toLowerCase() == badge;
+      return matchesQuery && matchesCategory && matchesBadge;
+    }).toList(growable: false);
+
+    items.sort((a, b) {
+      switch (_downloadSort) {
+        case 'title':
+          return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+        case 'category':
+          final c = a.category.toLowerCase().compareTo(b.category.toLowerCase());
+          if (c != 0) return c;
+          return b.updatedAt.compareTo(a.updatedAt);
+        default:
+          return b.updatedAt.compareTo(a.updatedAt);
+      }
+    });
+
+    return items;
+  }
+
+  List<String> _orderedCategories(Iterable<RepDownloadItem> items) {
+    final fromData = items
+        .map((d) => d.category.trim())
+        .where((c) => c.isNotEmpty)
+        .toSet();
+
+    final List<String> ordered = <String>[];
+    for (final c in defaultDownloadCategories) {
+      if (fromData.contains(c) && !ordered.contains(c)) {
+        ordered.add(c);
+      }
+    }
+    for (final c in fromData) {
+      if (!ordered.contains(c)) ordered.add(c);
+    }
+
+    if (items.any((d) => d.category.trim().isEmpty)) {
+      ordered.add('');
+    }
+
+    return ordered;
+  }
+
+  String _badgeLabel(BuildContext context, RepDownloadItem item) {
+    if (item.badge == 'change') return context.t.rep_downloads_change;
+    if (item.badge == 'new') return context.t.rep_downloads_new;
+    return '';
+  }
+
+  Color? _badgeColor(RepDownloadItem item) {
+    if (item.badge == 'change') return const Color(0xFF8548FF);
+    if (item.badge == 'new') return const Color(0xFF27AE60);
+    return null;
+  }
+
+  String _formatFileSize(int bytes) {
+    if (bytes <= 0) return '';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    double size = bytes.toDouble();
+    int unitIndex = 0;
+    while (size >= 1024 && unitIndex < units.length - 1) {
+      size /= 1024;
+      unitIndex++;
+    }
+    return '${size.toStringAsFixed(size >= 10 ? 0 : 1)} ${units[unitIndex]}';
+  }
+
   Future<void> _openDownload(RepDownloadItem item) async {
     await widget.api.repMarkDownloadSeen(item.id);
     if (!mounted) return;
@@ -1303,81 +1389,210 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: _downloads.map((item) {
-              final badgeLabel = item.badge == 'change'
-                  ? t.rep_downloads_change
-                  : item.badge == 'new'
-                      ? t.rep_downloads_new
-                      : '';
-              return SizedBox(
-                width: 380,
-                child: Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.insert_drive_file_outlined),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                item.title,
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                            ),
-                            if (badgeLabel.isNotEmpty)
-                              Chip(
-                                label: Text(badgeLabel),
-                                avatar: const Icon(Icons.fiber_manual_record, size: 14),
-                              ),
-                          ],
-                        ),
-                        if (item.description.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Text(item.description),
-                        ],
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 4,
-                          children: [
-                            if (item.category.isNotEmpty)
-                              Chip(label: Text(item.category)),
-                            Text('v${item.version}'),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: FilledButton.icon(
-                            onPressed: () => _openDownload(item),
-                            icon: const Icon(Icons.download_outlined),
-                            label: Text(t.download),
-                          ),
-                        ),
-                      ],
-                    ),
+    final filtered = _filteredDownloads();
+    final categories = _orderedCategories(filtered.isEmpty ? _downloads : filtered);
+
+    return LayoutBuilder(builder: (ctx, cons) {
+      Widget buildFilterChips() {
+        final List<Widget> chips = <Widget>[
+          _DownloadChoiceChip(
+            label: t.rep_downloads_all_categories ?? 'Alle',
+            selected: _downloadCategory == 'all',
+            onSelected: () => setState(() => _downloadCategory = 'all'),
+          ),
+          ...categories.map((c) {
+            final display = c.isEmpty ? t.rep_downloads_uncategorized ?? 'Ohne Kategorie' : c;
+            return _DownloadChoiceChip(
+              label: display,
+              selected: _downloadCategory.toLowerCase() == c.toLowerCase(),
+              onSelected: () => setState(() => _downloadCategory = c.isEmpty ? '' : c),
+            );
+          }),
+        ];
+
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Wrap(spacing: 8, runSpacing: 8, children: chips),
+        );
+      }
+
+      Widget buildBadgeFilters() {
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _DownloadChoiceChip(
+              label: t.rep_downloads_badge_all ?? 'Alle Stati',
+              selected: _downloadBadge == 'all',
+              onSelected: () => setState(() => _downloadBadge = 'all'),
+            ),
+            _DownloadChoiceChip(
+              label: t.rep_downloads_new,
+              selected: _downloadBadge == 'new',
+              onSelected: () => setState(() => _downloadBadge = 'new'),
+              color: const Color(0xFF27AE60),
+            ),
+            _DownloadChoiceChip(
+              label: t.rep_downloads_change,
+              selected: _downloadBadge == 'change',
+              onSelected: () => setState(() => _downloadBadge = 'change'),
+              color: const Color(0xFF8548FF),
+            ),
+          ],
+        );
+      }
+
+      Widget buildSortControl() {
+        return DropdownButtonFormField<String>(
+          value: _downloadSort,
+          onChanged: (v) => setState(() => _downloadSort = v ?? 'recent'),
+          items: [
+            DropdownMenuItem(value: 'recent', child: Text(t.rep_downloads_sort_recent ?? 'Neueste zuerst')),
+            DropdownMenuItem(value: 'title', child: Text(t.rep_downloads_sort_title ?? 'Titel A-Z')),
+            DropdownMenuItem(value: 'category', child: Text(t.rep_downloads_sort_category ?? 'Kategorie')),
+          ],
+          decoration: InputDecoration(
+            labelText: t.rep_downloads_sort_label ?? 'Sortierung',
+            prefixIcon: const Icon(Icons.sort_outlined),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+
+      Widget buildFiltersCard() {
+        return Card(
+          elevation: 3,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: _downloadSearchCtrl,
+                  onChanged: (v) => setState(() => _downloadQuery = v),
+                  decoration: InputDecoration(
+                    labelText: t.rep_downloads_search_hint ?? 'Titel, Kategorie oder Dateiname suchen',
+                    prefixIcon: const Icon(Icons.search),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    isDense: true,
                   ),
                 ),
-              );
-            }).toList(),
+                const SizedBox(height: 12),
+                Text(t.rep_downloads_filter_label ?? 'Kategorien', style: Theme.of(context).textTheme.labelLarge),
+                const SizedBox(height: 8),
+                buildFilterChips(),
+                const SizedBox(height: 8),
+                Text(t.rep_downloads_badge_label ?? 'Status', style: Theme.of(context).textTheme.labelLarge),
+                const SizedBox(height: 8),
+                buildBadgeFilters(),
+                const SizedBox(height: 12),
+                buildSortControl(),
+              ],
+            ),
           ),
-        ],
-      ),
-    );
+        );
+      }
+
+      Widget buildSection(String categoryLabel, List<RepDownloadItem> items) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      categoryLabel,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.blueGrey.shade50,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text('${items.length}'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              LayoutBuilder(builder: (_, sectionCons) {
+                final sectionWidth = sectionCons.maxWidth;
+                final columns = sectionWidth >= 1100
+                    ? 3
+                    : sectionWidth >= 720
+                        ? 2
+                        : 1;
+                final cardWidth = (sectionWidth - ((columns - 1) * 12)) / columns;
+                return Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: items
+                      .map((item) => SizedBox(width: cardWidth, child: _DownloadCard(item: item, badgeLabel: _badgeLabel(context, item), badgeColor: _badgeColor(item), onDownload: () => _openDownload(item), fileSize: _formatFileSize(item.size))))
+                      .toList(),
+                );
+              }),
+            ],
+          ),
+        );
+      }
+
+      final sections = <Widget>[];
+      for (final c in categories) {
+        final items = filtered.where((d) => d.category.trim().toLowerCase() == c.toLowerCase()).toList(growable: false);
+        if (items.isEmpty) continue;
+        final label = c.isEmpty ? t.rep_downloads_uncategorized ?? 'Ohne Kategorie' : c;
+        sections.add(buildSection(label, items));
+      }
+
+      final headerCard = Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF0A7BC1), Color(0xFF0E4E8F)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 6))],
+        ),
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(t.rep_downloads_title, style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            Text(
+              t.rep_downloads_intro ?? 'Alle aktuellen Dokumente nach Kategorien sortiert – immer handlich und mobilfreundlich.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white.withOpacity(0.9)),
+            ),
+          ],
+        ),
+      );
+
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(8, 8, 8, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            headerCard,
+            const SizedBox(height: 14),
+            buildFiltersCard(),
+            const SizedBox(height: 12),
+            if (filtered.isEmpty)
+              _EmptyState(icon: Icons.inbox_outlined, title: t.rep_downloads_empty)
+            else
+              ...sections,
+            const SizedBox(height: 8),
+          ],
+        ),
+      );
+    });
   }
 
   // ---- Seite: Offene Reklamationen (mit Firmen-Dropdown) ----
@@ -4405,6 +4620,169 @@ class _RepCreateCustomerDialogState extends State<_RepCreateCustomerDialog> {
           label: Text(t.save),
         ),
       ],
+    );
+  }
+}
+
+class _DownloadCard extends StatelessWidget {
+  final RepDownloadItem item;
+  final String badgeLabel;
+  final Color? badgeColor;
+  final VoidCallback onDownload;
+  final String fileSize;
+  const _DownloadCard({
+    required this.item,
+    required this.badgeLabel,
+    required this.badgeColor,
+    required this.onDownload,
+    required this.fileSize,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final metaStyle = Theme.of(context)
+        .textTheme
+        .bodySmall
+        ?.copyWith(color: cs.onSurfaceVariant);
+
+    return Material(
+      elevation: 2,
+      borderRadius: BorderRadius.circular(14),
+      color: cs.surface,
+      child: InkWell(
+        onTap: onDownload,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: cs.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.folder_outlined, color: cs.primary),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        if (item.description.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            item.description,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(color: cs.onSurfaceVariant),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (badgeLabel.isNotEmpty) ...[
+                    const SizedBox(width: 10),
+                    Chip(
+                      label: Text(badgeLabel, style: const TextStyle(color: Colors.white)),
+                      backgroundColor: badgeColor ?? cs.primary,
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  if (item.category.trim().isNotEmpty)
+                    Chip(
+                      label: Text(item.category),
+                      side: BorderSide(color: cs.outlineVariant),
+                      backgroundColor: cs.surfaceVariant.withOpacity(0.4),
+                    ),
+                  if (fileSize.isNotEmpty)
+                    Text(fileSize, style: metaStyle),
+                  Text('v${item.version}', style: metaStyle),
+                  if (item.fileName.isNotEmpty)
+                    Text(item.fileName, style: metaStyle, overflow: TextOverflow.ellipsis),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: onDownload,
+                      icon: const Icon(Icons.download_outlined),
+                      label: Text(context.t.download),
+                      style: ElevatedButton.styleFrom(
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(Icons.arrow_forward_ios_rounded, size: 16, color: cs.onSurfaceVariant),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DownloadChoiceChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onSelected;
+  final Color? color;
+  const _DownloadChoiceChip({
+    required this.label,
+    required this.selected,
+    required this.onSelected,
+    this.color,
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final chipColor = color ?? cs.primary;
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      showCheckmark: false,
+      onSelected: (_) => onSelected(),
+      selectedColor: chipColor.withOpacity(0.16),
+      side: BorderSide(color: selected ? chipColor : cs.outlineVariant),
+      labelStyle: TextStyle(
+        color: selected ? chipColor : cs.onSurface,
+        fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
   }
 }
