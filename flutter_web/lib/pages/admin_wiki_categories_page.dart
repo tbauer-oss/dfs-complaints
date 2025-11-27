@@ -180,6 +180,7 @@ class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('"${cat.name}" ist jetzt ${updated.isActive ? 'aktiv' : 'inaktiv'}')),
       );
+      _load();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
