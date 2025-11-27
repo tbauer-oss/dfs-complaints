@@ -226,7 +226,7 @@ class _AdminPageState extends State<AdminPage> {
   final Set<String> _archivedTileIds = <String>{};
 
   bool _navCollapsed = true;
-  late List<_AdminView> _navOrder;
+  List<_AdminView> _navOrder = const [];
 
   // Mehrfach-Zuordnung interne Nummer
   final Set<String> _selectedAllTickets = <String>{};
@@ -364,7 +364,7 @@ class _AdminPageState extends State<AdminPage> {
     _api.setSecret(secret);
 
     _initMenuLayout();
-    _navOrder = _defaultNavOrder();
+    _applyNavOrder(_defaultNavOrder());
     _loadNavOrder();
     _view = widget.initialView;
 
@@ -3940,12 +3940,15 @@ class _AdminPageState extends State<AdminPage> {
     return SizedBox(
       width: 44,
       height: 44,
-      child: IconButton(
-        tooltip: tooltip,
-        icon: Icon(icon, color: color ?? Theme.of(context).colorScheme.primary),
-        onPressed: onPressed,
-        padding: const EdgeInsets.all(10),
-        splashRadius: 24,
+      child: Material(
+        type: MaterialType.transparency,
+        child: IconButton(
+          tooltip: tooltip,
+          icon: Icon(icon, color: color ?? Theme.of(context).colorScheme.primary),
+          onPressed: onPressed,
+          padding: const EdgeInsets.all(10),
+          splashRadius: 24,
+        ),
       ),
     );
   }
@@ -3959,12 +3962,15 @@ class _AdminPageState extends State<AdminPage> {
     return SizedBox(
       width: 44,
       height: 44,
-      child: IconButton(
-        tooltip: tooltip,
-        icon: Icon(icon, color: color),
-        onPressed: onPressed,
-        padding: const EdgeInsets.all(10),
-        splashRadius: 24,
+      child: Material(
+        type: MaterialType.transparency,
+        child: IconButton(
+          tooltip: tooltip,
+          icon: Icon(icon, color: color),
+          onPressed: onPressed,
+          padding: const EdgeInsets.all(10),
+          splashRadius: 24,
+        ),
       ),
     );
   }
@@ -4159,7 +4165,7 @@ class _AdminPageState extends State<AdminPage> {
               .whereNotNull()
               .toList();
           if (views.isNotEmpty) {
-            next = _mergeNavOrder(views);
+            next = views;
           }
         }
       } catch (_) {
@@ -4167,17 +4173,26 @@ class _AdminPageState extends State<AdminPage> {
       }
     }
 
-    if (!listEquals(_navOrder, next)) {
-      if (mounted) {
-        setState(() => _navOrder = next);
-      } else {
-        _navOrder = next;
-      }
-    }
+    _applyNavOrder(next, persist: true);
   }
 
-  void _persistNavOrder() {
-    html.window.localStorage[_navOrderStorageKey] = jsonEncode(_navOrder.map((v) => v.name).toList());
+  void _applyNavOrder(List<_AdminView> order, {bool persist = false}) {
+    final merged = _mergeNavOrder(order);
+    final changed = !listEquals(_navOrder, merged);
+
+    if (changed) {
+      if (mounted) {
+        setState(() => _navOrder = merged);
+      } else {
+        _navOrder = merged;
+      }
+    } else {
+      _navOrder = merged;
+    }
+
+    if (persist) {
+      html.window.localStorage[_navOrderStorageKey] = jsonEncode(merged.map((v) => v.name).toList());
+    }
   }
 
   List<_AdminView> _mergeNavOrder(List<_AdminView> candidate) {
@@ -4204,7 +4219,7 @@ class _AdminPageState extends State<AdminPage> {
   Future<void> _showNavOrderDialog() async {
     final lookup = _navItemLookup();
     final theme = Theme.of(context);
-    var workingOrder = List<_AdminView>.from(_navOrder);
+    var workingOrder = List<_AdminView>.from(_mergeNavOrder(_navOrder));
 
     await showDialog<void>(
       context: context,
@@ -4254,14 +4269,7 @@ class _AdminPageState extends State<AdminPage> {
                 ),
                 FilledButton(
                   onPressed: () {
-                    if (mounted) {
-                      setState(() {
-                        _navOrder = _mergeNavOrder(workingOrder);
-                      });
-                    } else {
-                      _navOrder = _mergeNavOrder(workingOrder);
-                    }
-                    _persistNavOrder();
+                    _applyNavOrder(workingOrder, persist: true);
                     Navigator.of(ctx).pop();
                   },
                   child: const Text('Speichern'),
