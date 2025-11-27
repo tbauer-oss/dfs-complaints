@@ -173,8 +173,11 @@
   "rep_menu_all_subtitle": "Filtrar y buscar",
   "rep_menu_customers_title": "Base de datos de clientes",
   "rep_menu_customers_subtitle": "Empresas y contactos",
+  "download": "Download",
   "rep_menu_account_title": "Mi cuenta",
   "rep_menu_account_subtitle": "Perfil y contraseña",
+  "rep_downloads_title": "Descargas",
+  "rep_menu_downloads_subtitle": "Documentos y material",
   "rep_contact_title": "Contacto con el representante",
   "rep_contact_intro": "Está escribiendo a {firstName} {lastName}. Complete los siguientes campos.",
   "@rep_contact_intro": {
@@ -201,6 +204,9 @@
     }
   },
   "rep_support_contact_no_email": "No hay ninguna dirección de correo válida guardada para su perfil.",
+  "rep_downloads_empty": "No hay documentos disponibles.",
+  "rep_downloads_new": "New",
+  "rep_downloads_change": "Change",
   "rep_filter_company_label": "Filtrar por empresa",
   "rep_filter_show_closed": "Mostrar finalizadas",
   "rep_filter_only_rejected": "Solo rechazadas",

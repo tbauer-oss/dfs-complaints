@@ -61,6 +61,8 @@ const mem = {
   customerNews: [],
   faqCategories: [],
   faqItems: [],
+  downloads: [],
+  repDownloadSeen: new Map(),
 };
 
 export const SUPPORTED_LANGS = new Set([
@@ -296,6 +298,8 @@ export const CUSTOMER_NEWS_CATEGORY_CODES = [...NEWS_CATEGORY_CODES];
 const FAQ_AUDIENCE_CODES = ['customer', 'rep', 'both'];
 const KEY_FAQ_CATEGORIES = `${P}faq:categories`;
 const KEY_FAQ_ITEMS = `${P}faq:items`;
+const KEY_DOWNLOADS = `${P}downloads`;
+const KEY_REP_DOWNLOAD_SEEN = (repId) => `${P}rep:${repId}:downloads:seen`;
 const PUSH_TOKEN_FRESH_MS = Math.max(
   60 * 60 * 1000,
   Number(process.env.PUSH_TOKEN_FRESH_MS || 1000 * 60 * 60 * 24 * 45)
@@ -1768,6 +1772,169 @@ export async function anonymizeUserAndComplaints(email) {
   const complaints = Array.isArray(list) ? list.length : 0;
 
   return { user: anonymizedUser, complaints, placeholderEmail };
+}
+
+/* ============== Downloads für Vertreter ============== */
+function _normalizeDownloadBadge(value) {
+  const raw = (value ?? '').toString().trim().toLowerCase();
+  if (raw === 'new' || raw === 'change') return raw;
+  return '';
+}
+
+function _normalizeDownload(input = {}, existing = null, { bumpVersion = true } = {}) {
+  const now = Date.now();
+  const base = existing || {};
+  const title = _text(input.title ?? base.title ?? '', 240);
+  if (!title) throw new Error('title required');
+  const description = _text(input.description ?? base.description ?? '', 1000);
+  const category = _text(input.category ?? base.category ?? '', 120);
+  const badge = _normalizeDownloadBadge(input.badge ?? base.badge ?? '');
+  const active = input.active !== undefined ? Boolean(input.active) : Boolean(base.active ?? true);
+
+  const fileName = _text(input.fileName ?? input.name ?? base.fileName ?? '', 240);
+  const downloadUrl = _safeUrl(input.downloadUrl ?? base.downloadUrl ?? '') || null;
+  const mime = _text(input.mime ?? base.mime ?? '', 120) || null;
+  const size = Number.isFinite(input.size) ? Math.max(0, Number(input.size))
+    : Number.isFinite(base.size) ? Math.max(0, Number(base.size))
+    : 0;
+  const uploadedAt = _parseTs(input.uploadedAt ?? base.uploadedAt, now) ?? now;
+
+  if (!downloadUrl) throw new Error('downloadUrl required');
+
+  const prevVersion = Number.isFinite(base.version) ? Number(base.version) : 0;
+  const version = bumpVersion ? Math.max(prevVersion + 1, 1) : Math.max(prevVersion || 1, 1);
+
+  return {
+    id: (input.id ?? base.id ?? '').toString().trim() || `dl_${now}_${Math.random().toString(36).slice(2, 8)}`,
+    title,
+    description: description || '',
+    category: category || '',
+    badge,
+    active,
+    fileName: fileName || '',
+    downloadUrl,
+    mime,
+    size,
+    uploadedAt,
+    createdAt: Number.isFinite(base.createdAt) ? Number(base.createdAt) : now,
+    updatedAt: now,
+    version,
+  };
+}
+
+async function _loadDownloads() {
+  if (Array.isArray(mem.downloads) && mem.downloads.length) return mem.downloads.map((d) => ({ ...d }));
+  const r = getRedis();
+  let list = null;
+  if (r) {
+    const raw = await rget(KEY_DOWNLOADS);
+    if (Array.isArray(raw)) list = raw;
+    else if (typeof raw === 'string' && raw.trim()) {
+      try { list = JSON.parse(raw); }
+      catch { list = []; }
+    } else if (raw && typeof raw === 'object') {
+      list = raw.items || raw.list || [];
+    }
+  }
+  if (!Array.isArray(list)) list = [];
+  const normalized = [];
+  for (const item of list) {
+    try {
+      const norm = _normalizeDownload(item, { ...item, version: Number(item?.version) || 0 }, { bumpVersion: false });
+      normalized.push(norm);
+    } catch (_) { /* ignore */ }
+  }
+  mem.downloads = normalized.map((d) => ({ ...d }));
+  return normalized;
+}
+
+async function _persistDownloads(list) {
+  const safe = list.map((d) => ({ ...d }));
+  mem.downloads = safe.map((d) => ({ ...d }));
+  const r = getRedis();
+  if (r) await rset(KEY_DOWNLOADS, safe);
+  else global.__DFS_DOWNLOADS__ = safe;
+  return safe;
+}
+
+export async function downloadsList({ includeInactive = false } = {}) {
+  const list = await _loadDownloads();
+  const filtered = includeInactive ? list : list.filter((d) => d.active !== false);
+  return [...filtered].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+}
+
+export async function downloadsUpsert(payload = {}) {
+  const list = await _loadDownloads();
+  const targetId = (payload?.id ?? '').toString().trim();
+  const idx = targetId ? list.findIndex((d) => d.id === targetId) : -1;
+  const existing = idx >= 0 ? list[idx] : null;
+  const normalized = _normalizeDownload(payload, existing);
+  if (idx >= 0) list[idx] = normalized; else list.push(normalized);
+  await _persistDownloads(list);
+  return normalized;
+}
+
+export async function downloadsDelete(id) {
+  const target = (id ?? '').toString().trim();
+  if (!target) return false;
+  const list = await _loadDownloads();
+  const next = list.filter((d) => d.id !== target);
+  await _persistDownloads(next);
+  return next.length !== list.length;
+}
+
+async function _loadRepDownloadSeen(repId) {
+  const key = KEY_REP_DOWNLOAD_SEEN(repId);
+  const fromMem = mem.repDownloadSeen.get(repId);
+  if (fromMem) return { ...fromMem };
+  const r = getRedis();
+  let data = null;
+  if (r) {
+    const raw = await rget(key);
+    if (raw && typeof raw === 'object') data = raw;
+    else if (typeof raw === 'string' && raw.trim()) {
+      try { data = JSON.parse(raw); }
+      catch { data = {}; }
+    }
+  }
+  if (!data || typeof data !== 'object') data = {};
+  mem.repDownloadSeen.set(repId, { ...data });
+  return data;
+}
+
+async function _persistRepDownloadSeen(repId, map) {
+  mem.repDownloadSeen.set(repId, { ...map });
+  const r = getRedis();
+  if (r) await rset(KEY_REP_DOWNLOAD_SEEN(repId), map);
+  else {
+    if (!global.__DFS_REP_DOWNLOAD_SEEN__) global.__DFS_REP_DOWNLOAD_SEEN__ = new Map();
+    global.__DFS_REP_DOWNLOAD_SEEN__.set(repId, { ...map });
+  }
+  return map;
+}
+
+export async function markDownloadsSeen(repId, ids = []) {
+  const list = await downloadsList({ includeInactive: true });
+  const map = await _loadRepDownloadSeen(repId);
+  const idSet = new Set(ids.map((x) => (x || '').toString().trim()).filter(Boolean));
+  if (!idSet.size) return map;
+  for (const item of list) {
+    if (idSet.has(item.id)) {
+      map[item.id] = item.version;
+    }
+  }
+  await _persistRepDownloadSeen(repId, map);
+  return map;
+}
+
+export async function repDownloadsWithBadges(repId, { includeInactive = false } = {}) {
+  const list = await downloadsList({ includeInactive });
+  const seen = await _loadRepDownloadSeen(repId);
+  return list.map((item) => {
+    const seenVersion = Number(seen?.[item.id] ?? 0);
+    const showBadge = item.badge && (!seenVersion || seenVersion < item.version);
+    return { ...item, badge: showBadge ? item.badge : '' };
+  });
 }
 
 /* ============== Gate Codes ============== */
