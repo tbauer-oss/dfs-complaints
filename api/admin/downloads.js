@@ -1,7 +1,13 @@
 // api/admin/downloads.js
-export const config = { runtime: 'nodejs' };
+export const config = {
+  runtime: 'nodejs',
+  api: {
+    // Wir lesen den Body selbst (siehe complaints), damit große Uploads sicher verarbeitet werden.
+    bodyParser: false,
+  },
+};
 
-import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson, noContent } from '../_lib/http.js';
+import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson, readJsonBody, noContent } from '../_lib/http.js';
 import { downloadsList, downloadsUpsert, downloadsDelete } from '../_lib/store.js';
 import { processIncomingFiles, normalizeProvidedUploads } from '../_lib/uploads.js';
 
@@ -19,9 +25,16 @@ function requireAdmin(req, res) {
 async function parseUpload(body) {
   const provided = normalizeProvidedUploads(body?.uploads || body?.files || []);
   if (provided.length) return provided[0];
-  const files = Array.isArray(body?.files) ? body.files : body?.file ? [body.file] : [];
+
+  const files = Array.isArray(body?.files)
+    ? body.files
+    : body?.file
+      ? [body.file]
+      : [];
   if (!files.length) return null;
+
   const processed = await processIncomingFiles(files, {
+    // identische Fallbacks wie bei Reklamations-Uploads
     allowPreviewFallback: true,
     allowDataUrlFallback: true,
     maxTotalBytes: 25 * 1024 * 1024,
@@ -41,8 +54,25 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST' || req.method === 'PUT') {
-      const body = readJson(req) || {};
-      const upload = await parseUpload(body);
+      let body;
+      try {
+        body = await readJsonBody(req);
+      } catch (err) {
+        const code = err?.statusCode || (err?.message === 'body too large' ? 413 : 400);
+        return bad(res, err?.message || 'invalid body', code);
+      }
+
+      let upload = null;
+      try {
+        upload = await parseUpload(body);
+      } catch (err) {
+        const msg = err?.message === 'files too large'
+          ? 'files too large'
+          : err?.message === 'invalid file encoding'
+            ? 'invalid file encoding'
+            : 'file upload failed';
+        return bad(res, msg, 400);
+      }
       const payload = {
         id: body.id,
         title: body.title,
@@ -60,8 +90,13 @@ export default async function handler(req, res) {
             }
           : {}),
       };
-      const saved = await downloadsUpsert(payload);
-      return ok(res, saved);
+      try {
+        const saved = await downloadsUpsert(payload);
+        return ok(res, saved);
+      } catch (err) {
+        const msg = err?.message || 'invalid download payload';
+        return bad(res, msg, 400);
+      }
     }
 
     if (req.method === 'DELETE') {
