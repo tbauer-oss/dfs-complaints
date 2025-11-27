@@ -1466,7 +1466,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                         child: FilledButton.icon(
                           onPressed: () => _openDownload(item),
                           icon: const Icon(Icons.download_outlined),
-                          label: Text(t.download ?? 'Download'),
+                          label: Text(t.download),
                         ),
                       ),
                     ],

@@ -3405,6 +3405,7 @@ class _AdminPageState extends State<AdminPage> {
       _AdminView.users          => 'Kundendatenbank',
       _AdminView.open           => 'Offene Reklamationen',
       _AdminView.reps           => 'Vertreterverwaltung',
+      _AdminView.downloads      => 'Vertreter-Downloads',
       _AdminView.faq            => 'Wissensdatenbank (FAQ)',
       _AdminView.wiki           => 'Vertreter-Wiki',
       _AdminView.products       => 'Artikelliste',
@@ -13859,6 +13860,8 @@ class AdminPalette {
   static const tealB  = Color(0xFF00897B);
   static const blueA  = Color(0xFFE7F0FF);
   static const blueB  = Color(0xFF1E88E5);
+  static const indigoA = Color(0xFFE8EAF6);
+  static const indigoB = Color(0xFF3949AB);
   static const purpleA = Color(0xFFF1E8FF);
   static const purpleB = Color(0xFF7E57C2);
 }
