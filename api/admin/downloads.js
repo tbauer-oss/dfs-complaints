@@ -21,7 +21,11 @@ async function parseUpload(body) {
   if (provided.length) return provided[0];
   const files = Array.isArray(body?.files) ? body.files : body?.file ? [body.file] : [];
   if (!files.length) return null;
-  const processed = await processIncomingFiles(files, { allowPreviewFallback: true, maxTotalBytes: 25 * 1024 * 1024 });
+  const processed = await processIncomingFiles(files, {
+    allowPreviewFallback: true,
+    allowDataUrlFallback: true,
+    maxTotalBytes: 25 * 1024 * 1024,
+  });
   return processed.uploads[0] || null;
 }
 
