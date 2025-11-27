@@ -11,6 +11,7 @@ import 'package:http/http.dart' as http;
 import '../models/complaint.dart';
 import '../models/customer_news_entry.dart';
 import '../models/faq.dart';
+import '../models/rep_download_item.dart';
 import '../models/wiki_article.dart';
 
 class ApiError implements Exception {
@@ -734,6 +735,37 @@ class ApiClient {
       return (body['items'] as List).cast<Map<String, dynamic>>();
     }
     return const [];
+  }
+
+  Future<List<RepDownloadItem>> repDownloads() async {
+    final r = await _repFetch('/api/rep/downloads');
+    if (!_ok2xx(r.statusCode)) {
+      throw Exception('GET /api/rep/downloads failed: ${r.statusCode} ${r.body}');
+    }
+    final body = r.body.trim();
+    if (body.isEmpty) return const <RepDownloadItem>[];
+    final decoded = jsonDecode(body);
+    final list = decoded is Map && decoded['items'] is List
+        ? decoded['items'] as List
+        : decoded is List
+            ? decoded
+            : <dynamic>[];
+    return list
+        .whereType<Map>()
+        .map((e) => RepDownloadItem.fromJson(e.cast<String, dynamic>()))
+        .toList(growable: false);
+  }
+
+  Future<void> repMarkDownloadSeen(String id) async {
+    final trimmed = id.trim();
+    if (trimmed.isEmpty) return;
+    try {
+      await _repFetch(
+        '/api/rep/downloads/seen',
+        method: 'POST',
+        body: {'id': trimmed},
+      );
+    } catch (_) {}
   }
 
   // ---------- NEU: Vertreter – zuweisbare Kunden (free oder all) ----------
