@@ -11,6 +11,7 @@ import 'package:http/http.dart' as http;
 import '../models/complaint.dart';
 import '../models/customer_news_entry.dart';
 import '../models/faq.dart';
+import '../models/wiki_article.dart';
 
 class ApiError implements Exception {
   final int status;
@@ -1470,6 +1471,58 @@ class ApiClient {
   Future<void> repLogout() async {
     repToken = null;
     await _saveSession();
+  }
+
+  // ---------- Vertreter-Wiki (öffentlich) ----------
+  Future<List<WikiArticle>> fetchWikiArticles({
+    String? category,
+    String? productGroup,
+    String? type,
+    String? search,
+  }) async {
+    final params = <String, String>{};
+    if (category != null && category.isNotEmpty) params['category'] = category;
+    if (productGroup != null && productGroup.isNotEmpty) {
+      params['productGroup'] = productGroup;
+    }
+    if (type != null && type.isNotEmpty) params['type'] = type;
+    if (search != null && search.isNotEmpty) params['search'] = search;
+
+    final query = params.entries
+        .map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
+        .join('&');
+
+    final url = query.isEmpty ? '/api/wiki' : '/api/wiki?$query';
+    final r = await http.get(_u(url));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    if (decoded is List) {
+      return decoded
+          .whereType<Map<String, dynamic>>()
+          .map((e) => WikiArticle.fromJson(e))
+          .toList();
+    }
+    if (decoded is Map && decoded['items'] is List) {
+      return (decoded['items'] as List)
+          .whereType<Map<String, dynamic>>()
+          .map((e) => WikiArticle.fromJson(e))
+          .toList();
+    }
+    return const [];
+  }
+
+  Future<WikiArticle> fetchWikiArticle(String id) async {
+    final r = await http.get(_u('/api/wiki/$id'));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    if (decoded is Map<String, dynamic>) {
+      return WikiArticle.fromJson(decoded);
+    }
+    throw ApiError(500, 'Ungültige Antwort für Wiki-Artikel');
   }
 
   // Ende ApiClient
