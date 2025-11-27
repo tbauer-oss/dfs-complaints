@@ -17,6 +17,7 @@ import '../widgets/legal_footer.dart';
 import '../services/push_notifications.dart';
 import '../models/country.dart';
 import '../widgets/password_field.dart';
+import 'rep_wiki_list_page.dart';
 
 // ---- L10n-Helper (top-level) ----
 extension _L10nX on BuildContext {
@@ -27,7 +28,7 @@ extension _L10nX on BuildContext {
 enum _RepFilter { all, open, rejected, finished }
 
 // Menü-Views
-enum _RepView { menu, open, all, customers, support, account }
+enum _RepView { menu, open, all, customers, support, account, wiki }
 
 enum _RepPasswordMode { manual, generated }
 
@@ -965,6 +966,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       _RepView.customers => t.myCustomers,
       _RepView.support   => t.rep_support_contact_title,
       _RepView.account   => t.profilePW,
+      _RepView.wiki      => 'Kundenwissen & Produktinfos',
     };
 
     final body = _loading
@@ -978,6 +980,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                 _RepView.customers => _scrollWrap(_buildCustomersCard()),
                 _RepView.support   => _scrollWrap(_buildSupportContactCard()),
                 _RepView.account   => _scrollWrap(_buildAccountCard()),
+                _RepView.wiki      => _scrollWrap(RepWikiListPage(api: widget.api)),
               };
 
     final canGoBack = _view != _RepView.menu;
@@ -1139,6 +1142,16 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
           compact: compact,
           scale: scale,
           onTap: () => setState(() => _view = _RepView.support),
+        ),
+        _MenuCard(
+          color: Colors.green,
+          icon: Icons.menu_book_outlined,
+          title: 'Kundenwissen & Produktinfos',
+          subtitle: 'Vertreter-Wiki',
+          count: null,
+          compact: compact,
+          scale: scale,
+          onTap: () => setState(() => _view = _RepView.wiki),
         ),
       ];
 
