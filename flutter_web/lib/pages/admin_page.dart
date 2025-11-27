@@ -5294,75 +5294,185 @@ class _AdminPageState extends State<AdminPage> {
       case _AdminView.pushBroadcast:
         return _buildPushBroadcastPanel();
       case _AdminView.wikiCategories:
-        return AdminWikiCategoriesPage(api: widget.api);
+        return AdminWikiCategoriesPage(
+          api: widget.api,
+          onBack: () => setState(() => _view = _AdminView.wiki),
+        );
       case _AdminView.wikiArticles:
-        return AdminWikiArticlesPage(api: widget.api);
+        return AdminWikiArticlesPage(
+          api: widget.api,
+          onBack: () => setState(() => _view = _AdminView.wiki),
+        );
     }
   }
 
   Widget _buildWikiOverview() {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    Widget tile({
+      required IconData icon,
+      required String title,
+      required String desc,
+      required VoidCallback onTap,
+      Color? accent,
+      Widget? footer,
+    }) {
+      return InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Container(
+          width: 320,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: cs.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: cs.outlineVariant.withOpacity(.7)),
+            boxShadow: [
+              BoxShadow(
+                color: cs.shadow.withOpacity(.06),
+                blurRadius: 10,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: accent ?? cs.primaryContainer,
+                    foregroundColor: accent != null ? cs.onPrimaryContainer : cs.primary,
+                    child: Icon(icon),
+                  ),
+                  const Spacer(),
+                  Icon(Icons.arrow_forward_ios_rounded, color: cs.onSurfaceVariant, size: 16),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 8),
+              Text(desc, style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
+              if (footer != null) ...[const SizedBox(height: 12), footer],
+            ],
+          ),
+        ),
+      );
+    }
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.menu_book_rounded, color: cs.primary),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Text(
-                          'Vertreter-Wiki',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Kategorien und Artikel für Kundenwissen & Produktinfos verwalten.',
-                    style: TextStyle(fontSize: 15),
-                  ),
-                  const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      FilledButton.icon(
-                        icon: const Icon(Icons.category_outlined),
-                        label: const Text('Kategorien verwalten'),
-                        onPressed: () => setState(() => _view = _AdminView.wikiCategories),
-                      ),
-                      FilledButton.icon(
-                        icon: const Icon(Icons.article_outlined),
-                        label: const Text('Artikel verwalten'),
-                        onPressed: () => setState(() => _view = _AdminView.wikiArticles),
-                      ),
-                      OutlinedButton.icon(
-                        icon: const Icon(Icons.preview_outlined),
-                        label: const Text('Vertreteransicht öffnen'),
-                        onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => Scaffold(
-                              appBar: AppBar(title: const Text('Vertreter-Wiki Vorschau')),
-                              body: RepWikiListPage(api: widget.api),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [cs.primaryContainer, cs.surface, cs.surfaceVariant],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(color: cs.shadow.withOpacity(.08), blurRadius: 18, offset: const Offset(0, 10)),
+              ],
+              border: Border.all(color: cs.primary.withOpacity(.2)),
             ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: cs.primary,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [BoxShadow(color: cs.primary.withOpacity(.25), blurRadius: 16, offset: const Offset(0, 10))],
+                  ),
+                  child: Icon(Icons.menu_book_rounded, color: cs.onPrimary, size: 32),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Vertreter-Wiki',
+                          style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800, letterSpacing: .2)),
+                      const SizedBox(height: 6),
+                      Text(
+                          'Gestalte die Wissensbasis mit klaren Kategorien, gepflegten Artikeln und einer hochwertigen Vertreteransicht.',
+                          style: theme.textTheme.bodyLarge?.copyWith(color: cs.onSurfaceVariant)),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: const [
+                          Chip(label: Text('Kachelübersicht')),
+                          Chip(label: Text('Schnellzugriff')),
+                          Chip(label: Text('Vertreteransicht in Sekunden')),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Wrap(
+            spacing: 16,
+            runSpacing: 16,
+            children: [
+              tile(
+                icon: Icons.category_outlined,
+                title: 'Kategorien verwalten',
+                desc: 'Struktur, Sortierung und Aktivierung der Wissensbereiche im Blick behalten.',
+                accent: cs.primaryContainer,
+                onTap: () => setState(() => _view = _AdminView.wikiCategories),
+                footer: Wrap(
+                  spacing: 8,
+                  children: const [
+                    Chip(label: Text('Status-Badges')),
+                    Chip(label: Text('Sortierung')),
+                  ],
+                ),
+              ),
+              tile(
+                icon: Icons.article_outlined,
+                title: 'Artikel verwalten',
+                desc: 'Markdown-Inhalte pflegen, Produktgruppen zuordnen und Veröffentlichungen steuern.',
+                accent: cs.secondaryContainer,
+                onTap: () => setState(() => _view = _AdminView.wikiArticles),
+                footer: Wrap(
+                  spacing: 8,
+                  children: const [
+                    Chip(label: Text('Teaser & Tags')),
+                    Chip(label: Text('Produktgruppen')),
+                  ],
+                ),
+              ),
+              tile(
+                icon: Icons.open_in_new_rounded,
+                title: 'Vertreteransicht öffnen',
+                desc: 'So sehen Vertriebsteams die Inhalte: sofortige Vorschau in einem neuen Fenster.',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => Scaffold(
+                      appBar: AppBar(title: const Text('Vertreter-Wiki Vorschau')),
+                      body: RepWikiListPage(api: widget.api),
+                    ),
+                  ),
+                ),
+                footer: Wrap(
+                  spacing: 8,
+                  children: const [
+                    Chip(label: Text('Live-Vorschau')),
+                    Chip(label: Text('Responsiv')),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
