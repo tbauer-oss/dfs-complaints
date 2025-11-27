@@ -4119,6 +4119,47 @@ class _AdminPageState extends State<AdminPage> {
     };
     _menuTileIds = _tileDefaultSection.keys.toSet();
     _menuSections = _loadMenuLayout(defaults: defaults);
+
+    // Ensure newly added tiles (e.g. Downloads) appear even if an older
+    // layout is stored without them.
+    _ensureMenuTilePresent('downloads');
+  }
+
+  void _ensureMenuTilePresent(String tileId) {
+    if (!_menuTileIds.contains(tileId)) return;
+
+    final alreadyVisible = _menuSections.any((s) => s.tileIds.contains(tileId));
+    if (alreadyVisible) return;
+
+    var changed = false;
+
+    // If the tile was archived previously, restore it automatically for
+    // required items so new features don't stay hidden.
+    if (_archivedTileIds.remove(tileId)) {
+      changed = true;
+    }
+
+    final targetTitle = _tileDefaultSection[tileId];
+    final targetSection = targetTitle != null
+        ? _menuSections.firstWhere(
+            (s) => s.title == targetTitle,
+            orElse: () => _menuSections.isNotEmpty ? _menuSections.first : _AdminMenuSectionState(title: 'Allgemein', subtitle: '', tileIds: []),
+          )
+        : (_menuSections.isNotEmpty
+            ? _menuSections.first
+            : _AdminMenuSectionState(title: 'Allgemein', subtitle: '', tileIds: []));
+
+    if (!_menuSections.contains(targetSection)) {
+      _menuSections = [..._menuSections, targetSection];
+      changed = true;
+    }
+
+    targetSection.tileIds.add(tileId);
+    changed = true;
+
+    if (changed) {
+      _persistMenuLayout();
+    }
   }
 
   List<_AdminMenuSectionState> _loadMenuLayout({required List<_AdminMenuSectionState> defaults}) {
