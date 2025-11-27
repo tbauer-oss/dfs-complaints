@@ -169,7 +169,7 @@ export const wikiSeedArticles = [
     id: 'art_mdr_td1_overview',
     categoryId: 'cat_productgroups',
     productGroups: [
-      'MDR-TD1 - rot. Dentalinstrumente (Diamantinstrumente & Hartmetallinstrumente)',
+      'MDR-TD1 - rot. Dentalinstrumente',
     ],
     type: 'faq',
     title: 'Was gehört zur Produktgruppe MDR-TD1 – rotierende Diamant- und Hartmetallinstrumente?',
@@ -203,7 +203,7 @@ export const wikiSeedArticles = [
   {
     id: 'art_mdr_td2_overview',
     categoryId: 'cat_productgroups',
-    productGroups: ['MDR-TD2 - Knochenfräser (Stahl- und Hartmetallknochenfräser)'],
+    productGroups: ['MDR-TD2 - Knochenfräser'],
     type: 'faq',
     title: 'MDR-TD2 – Knochenfräser: Einsatzbereiche und Besonderheiten',
     titleIntl: {
@@ -237,8 +237,8 @@ export const wikiSeedArticles = [
     id: 'art_material_hartmetall_vs_stahl',
     categoryId: 'cat_material',
     productGroups: [
-      'MDR-TD1 - rot. Dentalinstrumente (Diamantinstrumente & Hartmetallinstrumente)',
-      'MDR-TD2 - Knochenfräser (Stahl- und Hartmetallknochenfräser)',
+      'MDR-TD1 - rot. Dentalinstrumente',
+      'MDR-TD2 - Knochenfräser',
     ],
     type: 'faq',
     title: 'Unterschied Hartmetall vs. Stahl – Biege- und Bruchverhalten',
@@ -273,8 +273,8 @@ export const wikiSeedArticles = [
     id: 'art_errors_hartmetall_bruch',
     categoryId: 'cat_errors',
     productGroups: [
-      'MDR-TD1 - rot. Dentalinstrumente (Diamantinstrumente & Hartmetallinstrumente)',
-      'MDR-TD2 - Knochenfräser (Stahl- und Hartmetallknochenfräser)',
+      'MDR-TD1 - rot. Dentalinstrumente',
+      'MDR-TD2 - Knochenfräser',
     ],
     type: 'error',
     title: 'Typische Fehlerursachen für Brüche bei Hartmetallinstrumenten',
@@ -308,7 +308,7 @@ export const wikiSeedArticles = [
     id: 'art_prevention_td1',
     categoryId: 'cat_prevention',
     productGroups: [
-      'MDR-TD1 - rot. Dentalinstrumente (Diamantinstrumente & Hartmetallinstrumente)',
+      'MDR-TD1 - rot. Dentalinstrumente',
     ],
     type: 'prevention',
     title: 'Reklamationsvermeidung bei MDR-TD1 – richtige Anwendung von Diamant- und Hartmetallinstrumenten',
@@ -366,7 +366,7 @@ export const wikiSeedArticles = [
     id: 'art_mdr_td3_polishers',
     categoryId: 'cat_productgroups',
     productGroups: [
-      'MDR-TD3 - Dentalpolierer (Festkörperpolierer (Gummi), Uporal (Bürstenpolierer), Diafix-Oral (Filzpolierer))',
+      'MDR-TD3 - Dentalpolierer',
     ],
     type: 'faq',
     title: 'MDR-TD3 – Dentalpolierer: Festkörperpolierer, Uporal und Diafix-Oral',
@@ -445,7 +445,7 @@ Note: rispettare la velocità consigliata, pressione moderata, evitare uso a sec
   {
     id: 'art_mdr_td5_alloy',
     categoryId: 'cat_material',
-    productGroups: ['MDR-TD5 - Dentallegierungen (Diadur CoCr-Legierung)'],
+    productGroups: ['MDR-TD5 - Dentallegierungen'],
     type: 'faq',
     title: 'MDR-TD5 – Dentallegierungen: Diadur CoCr-Legierung im Überblick',
     titleIntl: {
@@ -478,9 +478,9 @@ Note: rispettare la velocità consigliata, pressione moderata, evitare uso a sec
     id: 'art_faq_lifespan',
     categoryId: 'cat_faq',
     productGroups: [
-      'MDR-TD1 - rot. Dentalinstrumente (Diamantinstrumente & Hartmetallinstrumente)',
-      'MDR-TD2 - Knochenfräser (Stahl- und Hartmetallknochenfräser)',
-      'MDR-TD3 - Dentalpolierer (Festkörperpolierer (Gummi), Uporal (Bürstenpolierer), Diafix-Oral (Filzpolierer))',
+      'MDR-TD1 - rot. Dentalinstrumente',
+      'MDR-TD2 - Knochenfräser',
+      'MDR-TD3 - Dentalpolierer',
     ],
     type: 'faq',
     title: 'FAQ – Wie lange dürfen DFS-Instrumente verwendet werden?',
@@ -514,9 +514,9 @@ Note: rispettare la velocità consigliata, pressione moderata, evitare uso a sec
     id: 'art_reprocessing',
     categoryId: 'cat_reprocessing',
     productGroups: [
-      'MDR-TD1 - rot. Dentalinstrumente (Diamantinstrumente & Hartmetallinstrumente)',
-      'MDR-TD2 - Knochenfräser (Stahl- und Hartmetallknochenfräser)',
-      'MDR-TD3 - Dentalpolierer (Festkörperpolierer (Gummi), Uporal (Bürstenpolierer), Diafix-Oral (Filzpolierer))',
+      'MDR-TD1 - rot. Dentalinstrumente',
+      'MDR-TD2 - Knochenfräser',
+      'MDR-TD3 - Dentalpolierer)',
       'MDR-TD4 - PreciCut',
     ],
     type: 'prevention',
