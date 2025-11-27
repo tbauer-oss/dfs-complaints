@@ -1978,7 +1978,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
               child: Row(
                 children: [
                   Text(
-                    'Vertreter-Dashboard',
+                    t.rep_dashboard_sub,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
                   ),
                   const Spacer(),
