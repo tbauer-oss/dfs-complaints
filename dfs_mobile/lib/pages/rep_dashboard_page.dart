@@ -35,6 +35,8 @@ enum _RepView { menu, open, all, customers, support, downloads, account, wiki }
 
 enum _RepPasswordMode { manual, generated }
 
+enum _DownloadView { grid, list }
+
 class RepDashboardPage extends StatefulWidget {
   final ApiClient api;
   const RepDashboardPage({super.key, required this.api});
@@ -64,6 +66,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   String _downloadCategory = 'all';
   String _downloadBadge = 'all';
   String _downloadSort = 'recent';
+  _DownloadView _downloadView = _DownloadView.grid;
 
   bool _loading = true;
   String? _err;
@@ -1393,6 +1396,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
     final filtered = _filteredDownloads();
     final categories = _orderedCategories(filtered.isEmpty ? _downloads : filtered);
+    final isListView = _downloadView == _DownloadView.list;
 
     return LayoutBuilder(builder: (ctx, cons) {
       Widget buildFilterChips() {
@@ -1414,15 +1418,15 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Wrap(spacing: 8, runSpacing: 8, children: chips),
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Wrap(spacing: 6, runSpacing: 6, children: chips),
         );
       }
 
       Widget buildBadgeFilters() {
         return Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: 6,
+          runSpacing: 6,
           children: [
             _DownloadChoiceChip(
               label: t.rep_downloads_badge_all ?? 'Alle Stati',
@@ -1457,7 +1461,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
           decoration: InputDecoration(
             labelText: t.rep_downloads_sort_label ?? 'Sortierung',
             prefixIcon: const Icon(Icons.sort_outlined),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
@@ -1465,10 +1469,10 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
       Widget buildFiltersCard() {
         return Card(
-          elevation: 3,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 16),
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1482,16 +1486,116 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                     isDense: true,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 Text(t.rep_downloads_filter_label ?? 'Kategorien', style: Theme.of(context).textTheme.labelLarge),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 buildFilterChips(),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Text(t.rep_downloads_badge_label ?? 'Status', style: Theme.of(context).textTheme.labelLarge),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 buildBadgeFilters(),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 buildSortControl(),
+              ],
+            ),
+          ),
+        );
+      }
+
+      Widget buildViewToggle() {
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _DownloadChoiceChip(
+              label: t.rep_downloads_view_grid ?? 'Kachelansicht',
+              icon: Icons.grid_view_rounded,
+              selected: _downloadView == _DownloadView.grid,
+              onSelected: () => setState(() => _downloadView = _DownloadView.grid),
+            ),
+            _DownloadChoiceChip(
+              label: t.rep_downloads_view_list ?? 'Listenansicht',
+              icon: Icons.table_rows_rounded,
+              selected: _downloadView == _DownloadView.list,
+              onSelected: () => setState(() => _downloadView = _DownloadView.list),
+            ),
+          ],
+        );
+      }
+
+      Widget buildList(List<RepDownloadItem> items) {
+        if (items.isEmpty) {
+          return _EmptyState(icon: Icons.search_off, title: t.rep_downloads_empty);
+        }
+
+        final showWide = cons.maxWidth >= 660;
+
+        return Card(
+          elevation: 1,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Column(
+              children: [
+                if (showWide)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: Text(
+                            t.rep_downloads_column_title ?? 'Titel',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 2,
+                          child: Text(
+                            t.rep_downloads_column_category ?? 'Kategorie',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 80,
+                          child: Text(
+                            t.rep_downloads_column_size ?? 'Größe',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 110,
+                          child: Text(
+                            t.rep_downloads_column_date ?? 'Datum',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        const SizedBox(width: 42),
+                      ],
+                    ),
+                  ),
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: items.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (_, i) {
+                    final item = items[i];
+                    final badgeLabel = _badgeLabel(context, item);
+                    final badgeColor = _badgeColor(item);
+                    final fileSize = _formatFileSize(item.size);
+                    final dateLabel = _formatCreated(item.updatedAt);
+                    return _DownloadListTile(
+                      item: item,
+                      onDownload: () => _openDownload(item),
+                      badgeLabel: badgeLabel,
+                      badgeColor: badgeColor,
+                      fileSize: fileSize,
+                      dateLabel: dateLabel,
+                      showWide: showWide,
+                    );
+                  },
+                ),
               ],
             ),
           ),
@@ -1525,17 +1629,28 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
               const SizedBox(height: 12),
               LayoutBuilder(builder: (_, sectionCons) {
                 final sectionWidth = sectionCons.maxWidth;
-                final columns = sectionWidth >= 1100
-                    ? 3
-                    : sectionWidth >= 720
-                        ? 2
-                        : 1;
-                final cardWidth = (sectionWidth - ((columns - 1) * 12)) / columns;
+                final minCardWidth = sectionWidth >= 1200
+                    ? 260.0
+                    : sectionWidth >= 900
+                        ? 240.0
+                        : 220.0;
+                final columns = math.max(1, math.min(4, (sectionWidth / minCardWidth).floor()));
+                const spacing = 10.0;
+                final cardWidth = (sectionWidth - ((columns - 1) * spacing)) / columns;
                 return Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
+                  spacing: spacing,
+                  runSpacing: spacing,
                   children: items
-                      .map((item) => SizedBox(width: cardWidth, child: _DownloadCard(item: item, badgeLabel: _badgeLabel(context, item), badgeColor: _badgeColor(item), onDownload: () => _openDownload(item), fileSize: _formatFileSize(item.size))))
+                      .map((item) => SizedBox(
+                            width: cardWidth,
+                            child: _DownloadCard(
+                              item: item,
+                              badgeLabel: _badgeLabel(context, item),
+                              badgeColor: _badgeColor(item),
+                              onDownload: () => _openDownload(item),
+                              fileSize: _formatFileSize(item.size),
+                            ),
+                          ))
                       .toList(),
                 );
               }),
@@ -1560,15 +1675,15 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 6))],
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 4))],
         ),
-        padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(t.rep_downloads_title, style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             Text(
               t.rep_downloads_intro ?? 'Alle aktuellen Dokumente nach Kategorien sortiert – immer handlich und mobilfreundlich.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white.withOpacity(0.9)),
@@ -1578,19 +1693,25 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       );
 
       return Padding(
-        padding: const EdgeInsets.fromLTRB(8, 8, 8, 24),
+        padding: const EdgeInsets.fromLTRB(8, 8, 8, 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             headerCard,
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
+            buildViewToggle(),
+            const SizedBox(height: 10),
             buildFiltersCard(),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             if (filtered.isEmpty)
               _EmptyState(icon: Icons.inbox_outlined, title: t.rep_downloads_empty)
-            else
-              ...sections,
-            const SizedBox(height: 8),
+            else ...[
+              if (isListView)
+                buildList(filtered)
+              else
+                ...sections,
+            ],
+            const SizedBox(height: 6),
           ],
         ),
       );
@@ -4647,16 +4768,17 @@ class _DownloadCard extends StatelessWidget {
         .textTheme
         .bodySmall
         ?.copyWith(color: cs.onSurfaceVariant);
+    final dateLabel = _formatCreated(item.updatedAt);
 
     return Material(
-      elevation: 2,
-      borderRadius: BorderRadius.circular(14),
+      elevation: 1,
+      borderRadius: BorderRadius.circular(12),
       color: cs.surface,
       child: InkWell(
         onTap: onDownload,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -4664,52 +4786,232 @@ class _DownloadCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(10),
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: cs.primary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
+                      color: cs.primary.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(Icons.folder_outlined, color: cs.primary),
+                    child: Icon(Icons.folder_outlined, color: cs.primary, size: 22),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          item.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w700),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                item.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                            if (badgeLabel.isNotEmpty) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: (badgeColor ?? cs.primary).withOpacity(0.16),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: badgeColor ?? cs.primary, width: 0.5),
+                                ),
+                                child: Text(
+                                  badgeLabel,
+                                  style: TextStyle(
+                                    color: badgeColor ?? cs.primary,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                         if (item.description.isNotEmpty) ...[
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 4),
                           Text(
                             item.description,
-                            maxLines: 3,
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context)
                                 .textTheme
                                 .bodyMedium
-                                ?.copyWith(color: cs.onSurfaceVariant),
+                                ?.copyWith(color: cs.onSurfaceVariant, height: 1.2),
                           ),
                         ],
                       ],
                     ),
                   ),
-                  if (badgeLabel.isNotEmpty) ...[
-                    const SizedBox(width: 10),
-                    Chip(
-                      label: Text(badgeLabel, style: const TextStyle(color: Colors.white)),
-                      backgroundColor: badgeColor ?? cs.primary,
-                    ),
-                  ],
                 ],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  if (item.category.trim().isNotEmpty)
+                    Chip(
+                      label: Text(item.category),
+                      side: BorderSide(color: cs.outlineVariant),
+                      backgroundColor: cs.surfaceVariant.withOpacity(0.35),
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  if (fileSize.isNotEmpty)
+                    Text(fileSize, style: metaStyle),
+                  Text('v${item.version}', style: metaStyle),
+                  if (item.fileName.isNotEmpty)
+                    Text(item.fileName, style: metaStyle, overflow: TextOverflow.ellipsis),
+                  if (dateLabel.isNotEmpty)
+                    Text(dateLabel.split(' ').first, style: metaStyle),
+                ],
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: onDownload,
+                  icon: const Icon(Icons.download_outlined, size: 18),
+                  label: Text(context.t.download),
+                  style: ElevatedButton.styleFrom(
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    textStyle: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DownloadListTile extends StatelessWidget {
+  final RepDownloadItem item;
+  final String badgeLabel;
+  final Color? badgeColor;
+  final String fileSize;
+  final String dateLabel;
+  final bool showWide;
+  final VoidCallback onDownload;
+
+  const _DownloadListTile({
+    required this.item,
+    required this.badgeLabel,
+    required this.badgeColor,
+    required this.fileSize,
+    required this.dateLabel,
+    required this.showWide,
+    required this.onDownload,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final metaStyle = Theme.of(context).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant);
+
+    Widget badge() {
+      if (badgeLabel.isEmpty) return const SizedBox.shrink();
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: (badgeColor ?? cs.primary).withOpacity(0.16),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: badgeColor ?? cs.primary, width: 0.5),
+        ),
+        child: Text(
+          badgeLabel,
+          style: TextStyle(color: badgeColor ?? cs.primary, fontSize: 12, fontWeight: FontWeight.w700),
+        ),
+      );
+    }
+
+    return InkWell(
+      onTap: onDownload,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              item.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                          if (badgeLabel.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            badge(),
+                          ],
+                        ],
+                      ),
+                      if (item.description.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          item.description,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(color: cs.onSurfaceVariant, height: 1.2),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (showWide) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      item.category.isEmpty ? '-' : item.category,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: metaStyle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(width: 80, child: Text(fileSize.isEmpty ? '-' : fileSize, style: metaStyle)),
+                  const SizedBox(width: 8),
+                  SizedBox(width: 110, child: Text(dateLabel, style: metaStyle)),
+                ],
+                IconButton(
+                  onPressed: onDownload,
+                  icon: const Icon(Icons.download_outlined),
+                  tooltip: context.t.download,
+                ),
+              ],
+            ),
+            if (!showWide) ...[
+              const SizedBox(height: 6),
               Wrap(
                 spacing: 8,
                 runSpacing: 6,
@@ -4719,36 +5021,20 @@ class _DownloadCard extends StatelessWidget {
                     Chip(
                       label: Text(item.category),
                       side: BorderSide(color: cs.outlineVariant),
-                      backgroundColor: cs.surfaceVariant.withOpacity(0.4),
+                      backgroundColor: cs.surfaceVariant.withOpacity(0.35),
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                   if (fileSize.isNotEmpty)
                     Text(fileSize, style: metaStyle),
+                  if (dateLabel.isNotEmpty)
+                    Text(dateLabel, style: metaStyle),
                   Text('v${item.version}', style: metaStyle),
-                  if (item.fileName.isNotEmpty)
-                    Text(item.fileName, style: metaStyle, overflow: TextOverflow.ellipsis),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: onDownload,
-                      icon: const Icon(Icons.download_outlined),
-                      label: Text(context.t.download),
-                      style: ElevatedButton.styleFrom(
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Icon(Icons.arrow_forward_ios_rounded, size: 16, color: cs.onSurfaceVariant),
                 ],
               ),
             ],
-          ),
+          ],
         ),
       ),
     );
@@ -4760,11 +5046,13 @@ class _DownloadChoiceChip extends StatelessWidget {
   final bool selected;
   final VoidCallback onSelected;
   final Color? color;
+  final IconData? icon;
   const _DownloadChoiceChip({
     required this.label,
     required this.selected,
     required this.onSelected,
     this.color,
+    this.icon,
     super.key,
   });
 
@@ -4772,8 +5060,18 @@ class _DownloadChoiceChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final chipColor = color ?? cs.primary;
+    final labelWidget = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (icon != null) ...[
+          Icon(icon, size: 16, color: selected ? chipColor : cs.onSurfaceVariant),
+          const SizedBox(width: 6),
+        ],
+        Text(label),
+      ],
+    );
     return ChoiceChip(
-      label: Text(label),
+      label: labelWidget,
       selected: selected,
       showCheckmark: false,
       onSelected: (_) => onSelected(),
@@ -4783,7 +5081,7 @@ class _DownloadChoiceChip extends StatelessWidget {
         color: selected ? chipColor : cs.onSurface,
         fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
   }
