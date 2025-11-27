@@ -3419,14 +3419,14 @@ class _AdminPageState extends State<AdminPage> {
       ),
       actions: [
         IconButton(
-          tooltip: t.logoutTitle,
-          onPressed: _logoutAdmin,
-          icon: const Icon(Icons.logout),
-        ),
-        IconButton(
           tooltip: 'Zurück zum Admin-Dashboard',
           onPressed: () => setState(() => _view = _AdminView.menu),
           icon: const Icon(Icons.home_outlined),
+        ),
+        IconButton(
+          tooltip: t.logoutTitle,
+          onPressed: _logoutAdmin,
+          icon: const Icon(Icons.logout),
         ),
         w.ThemeAction(),
         const SizedBox(width: 2),
