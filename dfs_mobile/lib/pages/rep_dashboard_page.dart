@@ -16,8 +16,10 @@ import '../services/app_prefs_scope.dart';
 import '../widgets/legal_footer.dart';
 import '../services/push_notifications.dart';
 import '../models/country.dart';
+import '../models/rep_download_item.dart';
 import '../widgets/password_field.dart';
 import 'rep_wiki_list_page.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // ---- L10n-Helper (top-level) ----
 extension _L10nX on BuildContext {
@@ -28,7 +30,7 @@ extension _L10nX on BuildContext {
 enum _RepFilter { all, open, rejected, finished }
 
 // Menü-Views
-enum _RepView { menu, open, all, customers, support, account, wiki }
+enum _RepView { menu, open, all, customers, support, downloads, account, wiki }
 
 enum _RepPasswordMode { manual, generated }
 
@@ -51,6 +53,11 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
   /// Reklamationen (aus Backend)
   List<Map<String, dynamic>> _complaints = [];
+
+  /// Downloads (aus Backend)
+  List<RepDownloadItem> _downloads = const [];
+  bool _downloadsLoading = true;
+  String? _downloadsErr;
 
   bool _loading = true;
   String? _err;
@@ -179,6 +186,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     setState(() {
       _loading = true;
       _err = null;
+      _downloadsLoading = true;
+      _downloadsErr = null;
     });
 
     try {
@@ -187,6 +196,13 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
       final me   = await widget.api.repMe();
       final comp = await widget.api.repComplaints();
+      String? downloadsErr;
+      List<RepDownloadItem> downloads = const [];
+      try {
+        downloads = await widget.api.repDownloads();
+      } catch (e) {
+        downloadsErr = '$e';
+      }
 
       // Kunden – tolerant: Details (neu) ODER Strings (alt)
       List<dynamic> rawCustomers;
@@ -245,16 +261,26 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         _me = me;
         _customers  = customers;
         _complaints = comp;
+        _downloads = downloads;
+        _downloadsErr = downloadsErr;
+        _downloadsLoading = false;
       });
 
     } catch (e) {
       final handled = await _handleUnauthorized(e);
       if (!mounted) return;
       if (handled) return;
-      setState(() => _err = '$e');
+      setState(() {
+        _err = '$e';
+        _downloadsLoading = false;
+        _downloadsErr ??= '$e';
+      });
     } finally {
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _downloadsLoading = false;
+      });
     }
   }
 
@@ -965,6 +991,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       _RepView.all       => t.rep_menu_all_title,
       _RepView.customers => t.myCustomers,
       _RepView.support   => t.rep_support_contact_title,
+      _RepView.downloads => t.rep_downloads_title,
       _RepView.account   => t.profilePW,
       _RepView.wiki      => 'Kundenwissen & Produktinfos',
     };
@@ -979,6 +1006,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                 _RepView.all       => _scrollWrap(_buildAllComplaints()),
                 _RepView.customers => _scrollWrap(_buildCustomersCard()),
                 _RepView.support   => _scrollWrap(_buildSupportContactCard()),
+                _RepView.downloads => _scrollWrap(_buildDownloadsView()),
                 _RepView.account   => _scrollWrap(_buildAccountCard()),
                 _RepView.wiki      => _scrollWrap(RepWikiListPage(api: widget.api)),
               };
@@ -1088,6 +1116,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
               ? 1.01
               : 1.06;
       final t = context.t;
+      final downloadBadgeCount = _downloads.where((d) => d.badge.isNotEmpty).length;
+      final downloadTileCount =
+          _downloadsLoading ? null : (downloadBadgeCount > 0 ? downloadBadgeCount : _downloads.length);
 
       final tiles = [
         _MenuCard(
@@ -1144,6 +1175,16 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
           onTap: () => setState(() => _view = _RepView.support),
         ),
         _MenuCard(
+          color: Colors.deepPurple,
+          icon: Icons.download_outlined,
+          title: t.rep_downloads_title,
+          subtitle: t.rep_menu_downloads_subtitle,
+          count: downloadTileCount,
+          compact: compact,
+          scale: scale,
+          onTap: () => setState(() => _view = _RepView.downloads),
+        ),
+        _MenuCard(
           color: Colors.green,
           icon: Icons.menu_book_outlined,
           title: 'Kundenwissen & Produktinfos',
@@ -1185,6 +1226,158 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         ],
       );
     });
+  }
+
+  RepDownloadItem _clearDownloadBadge(RepDownloadItem item) {
+    return RepDownloadItem(
+      id: item.id,
+      title: item.title,
+      description: item.description,
+      category: item.category,
+      badge: '',
+      downloadUrl: item.downloadUrl,
+      fileName: item.fileName,
+      mime: item.mime,
+      size: item.size,
+      updatedAt: item.updatedAt,
+      version: item.version,
+    );
+  }
+
+  Future<void> _openDownload(RepDownloadItem item) async {
+    await widget.api.repMarkDownloadSeen(item.id);
+    if (!mounted) return;
+    setState(() {
+      _downloads = _downloads
+          .map((d) => d.id == item.id ? _clearDownloadBadge(d) : d)
+          .toList(growable: false);
+    });
+
+    final url = item.downloadUrl.trim();
+    if (url.isEmpty) return;
+
+    if (kIsWeb) {
+      html.window.open(url, '_blank');
+      return;
+    }
+
+    final uri = Uri.tryParse(url);
+    if (uri == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.t.complaint_help_error)),
+      );
+      return;
+    }
+
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.t.complaint_help_error)),
+      );
+    }
+  }
+
+  Widget _buildDownloadsView() {
+    final t = context.t;
+
+    if (_downloadsLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_downloadsErr != null) {
+      return Center(
+        child: Text(
+          _downloadsErr!,
+          style: const TextStyle(color: Colors.red),
+        ),
+      );
+    }
+
+    if (_downloads.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 32),
+          child: Text(t.rep_downloads_empty),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: _downloads.map((item) {
+              final badgeLabel = item.badge == 'change'
+                  ? t.rep_downloads_change
+                  : item.badge == 'new'
+                      ? t.rep_downloads_new
+                      : '';
+              return SizedBox(
+                width: 380,
+                child: Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.insert_drive_file_outlined),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                item.title,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                            ),
+                            if (badgeLabel.isNotEmpty)
+                              Chip(
+                                label: Text(badgeLabel),
+                                avatar: const Icon(Icons.fiber_manual_record, size: 14),
+                              ),
+                          ],
+                        ),
+                        if (item.description.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(item.description),
+                        ],
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          children: [
+                            if (item.category.isNotEmpty)
+                              Chip(label: Text(item.category)),
+                            Text('v${item.version}'),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: FilledButton.icon(
+                            onPressed: () => _openDownload(item),
+                            icon: const Icon(Icons.download_outlined),
+                            label: Text(t.download),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
   }
 
   // ---- Seite: Offene Reklamationen (mit Firmen-Dropdown) ----
