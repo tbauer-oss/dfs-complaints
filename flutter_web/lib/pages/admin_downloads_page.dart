@@ -1,8 +1,8 @@
 // lib/pages/admin_downloads_page.dart
 import 'dart:convert';
 import 'dart:html' as html;
-import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../models/rep_download_item.dart';
@@ -89,30 +89,45 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
     });
   }
 
+  String _guessMime(String name) {
+    final ext = name.split('.').last.toLowerCase();
+    switch (ext) {
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'webp':
+        return 'image/webp';
+      case 'pdf':
+        return 'application/pdf';
+      default:
+        return 'application/octet-stream';
+    }
+  }
+
   Future<void> _pickFile() async {
-    final input = html.FileUploadInputElement();
-    input.accept = '*/*';
-    input.multiple = false;
-    input.click();
-    input.onChange.first.then((_) {
-      final file = input.files?.first;
-      if (file == null) return;
-      final reader = html.FileReader();
-      reader.readAsArrayBuffer(file);
-      reader.onLoadEnd.first.then((_) {
-        final buffer = reader.result;
-        if (buffer is! ByteBuffer) return;
-        final bytes = Uint8List.view(buffer);
-        final b64 = base64Encode(bytes);
-        setState(() {
-          _filePayload = {
-            'name': file.name,
-            'mime': file.type.isEmpty ? 'application/octet-stream' : file.type,
-            'bytes': b64,
-            'size': file.size,
-          };
-        });
-      });
+    final res = await FilePicker.platform.pickFiles(allowMultiple: false, withData: true);
+    if (res == null || res.files.isEmpty) return;
+    final file = res.files.first;
+    final bytes = file.bytes;
+    if (bytes == null || bytes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Datei konnte nicht gelesen werden.')),
+      );
+      return;
+    }
+
+    final mime = (file.mimeType ?? '').trim().isEmpty ? _guessMime(file.name) : file.mimeType!.trim();
+    setState(() {
+      _filePayload = {
+        'name': file.name,
+        'mime': mime,
+        'bytes': base64Encode(bytes),
+        'size': bytes.length,
+      };
     });
   }
 
