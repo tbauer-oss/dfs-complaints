@@ -8685,38 +8685,31 @@ class _SidebarTooltipState extends State<_SidebarTooltip> {
     final colorScheme = theme.colorScheme;
 
     _entry = OverlayEntry(
-      builder: (context) => Positioned.fill(
+      builder: (context) => CompositedTransformFollower(
+        link: _link,
+        showWhenUnlinked: false,
+        targetAnchor: Alignment.centerRight,
+        followerAnchor: Alignment.centerLeft,
+        offset: const Offset(18, 0),
         child: IgnorePointer(
-          child: CompositedTransformFollower(
-            link: _link,
-            showWhenUnlinked: false,
-            offset: const Offset(56, -6),
-            child: Material(
-              color: Colors.transparent,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: colorScheme.surface.withOpacity(
-                    theme.brightness == Brightness.dark ? 0.92 : 0.98,
-                  ),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.6)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: theme.shadowColor.withOpacity(0.18),
-                      blurRadius: 14,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
+          child: Material(
+            color: Colors.transparent,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: colorScheme.surface.withOpacity(
+                  theme.brightness == Brightness.dark ? 0.86 : 0.94,
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  child: Text(
-                    widget.message,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: colorScheme.onSurface,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.2,
-                    ),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.7)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Text(
+                  widget.message,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colorScheme.onSurface,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.1,
                   ),
                 ),
               ),
