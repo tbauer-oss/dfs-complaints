@@ -29,14 +29,14 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
   late final VoidCallback _horizontalOffsetListener;
   static const double _headerHeight = 56;
   Map<String, double> _columnWidths = const {
-    'title': 240,
-    'category': 180,
-    'productGroups': 220,
-    'type': 120,
-    'importance': 140,
-    'status': 140,
-    'updated': 200,
-    'actions': 160,
+    'title': 200,
+    'category': 150,
+    'productGroups': 170,
+    'type': 110,
+    'importance': 120,
+    'status': 120,
+    'updated': 180,
+    'actions': 140,
   };
 
   String? _categoryFilter;
@@ -104,41 +104,57 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                 _WidthSlider(
                   label: 'Titel',
                   value: temp['title']!,
+                  min: 160,
+                  max: 260,
                   onChanged: (v) => setDialogState(() => temp['title'] = v),
                 ),
                 _WidthSlider(
                   label: 'Kategorie',
                   value: temp['category']!,
+                  min: 130,
+                  max: 220,
                   onChanged: (v) => setDialogState(() => temp['category'] = v),
                 ),
                 _WidthSlider(
                   label: 'Produktgruppen',
                   value: temp['productGroups']!,
+                  min: 140,
+                  max: 240,
                   onChanged: (v) => setDialogState(() => temp['productGroups'] = v),
                 ),
                 _WidthSlider(
                   label: 'Typ',
                   value: temp['type']!,
+                  min: 100,
+                  max: 180,
                   onChanged: (v) => setDialogState(() => temp['type'] = v),
                 ),
                 _WidthSlider(
                   label: 'Wichtigkeit',
                   value: temp['importance']!,
+                  min: 110,
+                  max: 180,
                   onChanged: (v) => setDialogState(() => temp['importance'] = v),
                 ),
                 _WidthSlider(
                   label: 'Status',
                   value: temp['status']!,
+                  min: 110,
+                  max: 180,
                   onChanged: (v) => setDialogState(() => temp['status'] = v),
                 ),
                 _WidthSlider(
                   label: 'Geändert',
                   value: temp['updated']!,
+                  min: 150,
+                  max: 240,
                   onChanged: (v) => setDialogState(() => temp['updated'] = v),
                 ),
                 _WidthSlider(
                   label: 'Aktionen',
                   value: temp['actions']!,
+                  min: 120,
+                  max: 200,
                   onChanged: (v) => setDialogState(() => temp['actions'] = v),
                 ),
               ],
@@ -205,16 +221,36 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
     }
   }
 
+  Map<String, double> _resolvedWidths() {
+    return {
+      'title': _widthFor('title', min: 160, max: 260),
+      'category': _widthFor('category', min: 130, max: 220),
+      'productGroups': _widthFor('productGroups', min: 140, max: 240),
+      'type': _widthFor('type', min: 100, max: 180),
+      'importance': _widthFor('importance', min: 110, max: 180),
+      'status': _widthFor('status', min: 110, max: 180),
+      'updated': _widthFor('updated', min: 150, max: 240),
+      'actions': _widthFor('actions', min: 120, max: 200),
+    };
+  }
+
+  double _widthFor(String key, {required double min, required double max}) {
+    final value = _columnWidths[key] ?? min;
+    return value.clamp(min, max).toDouble();
+  }
+
   double _tableWidth() {
-    const double columnSpacing = 18;
-    const double horizontalMargin = 14;
-    final double baseWidth = _columnWidths.values.fold(0, (sum, v) => sum + v);
-    return baseWidth + columnSpacing * (_columnWidths.length - 1) + horizontalMargin * 2;
+    const double columnSpacing = 12;
+    const double horizontalMargin = 12;
+    final widths = _resolvedWidths();
+    final double baseWidth = widths.values.fold(0, (sum, v) => sum + v);
+    return baseWidth + columnSpacing * (widths.length - 1) + horizontalMargin * 2;
   }
 
   Widget _buildStickyHeader(ColorScheme cs, TextTheme textTheme) {
-    const double columnSpacing = 18;
-    const double horizontalMargin = 14;
+    const double columnSpacing = 12;
+    const double horizontalMargin = 12;
+    final widths = _resolvedWidths();
     final tableWidth = _tableWidth();
 
     Widget buildCell(String label, double width) {
@@ -244,21 +280,21 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              buildCell('Titel', _columnWidths['title']!),
+              buildCell('Titel', widths['title']!),
               const SizedBox(width: columnSpacing),
-              buildCell('Kategorie', _columnWidths['category']!),
+              buildCell('Kategorie', widths['category']!),
               const SizedBox(width: columnSpacing),
-              buildCell('Produktgruppen', _columnWidths['productGroups']!),
+              buildCell('Produktgruppen', widths['productGroups']!),
               const SizedBox(width: columnSpacing),
-              buildCell('Typ', _columnWidths['type']!),
+              buildCell('Typ', widths['type']!),
               const SizedBox(width: columnSpacing),
-              buildCell('Wichtigkeit', _columnWidths['importance']!),
+              buildCell('Wichtigkeit', widths['importance']!),
               const SizedBox(width: columnSpacing),
-              buildCell('Status', _columnWidths['status']!),
+              buildCell('Status', widths['status']!),
               const SizedBox(width: columnSpacing),
-              buildCell('Geändert', _columnWidths['updated']!),
+              buildCell('Geändert', widths['updated']!),
               const SizedBox(width: columnSpacing),
-              buildCell('Aktionen', _columnWidths['actions']!),
+              buildCell('Aktionen', widths['actions']!),
             ],
           ),
         ),
@@ -904,6 +940,7 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                   child: LayoutBuilder(
                     builder: (context, constraints) {
                       final tableWidth = _tableWidth();
+                      final widths = _resolvedWidths();
                       final double bodyHeight = constraints.maxHeight > _headerHeight
                           ? constraints.maxHeight - _headerHeight
                           : 0;
@@ -949,10 +986,10 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                                                     : cs.surface,
                                               ),
                                               dividerThickness: 0.5,
-                                              horizontalMargin: 14,
-                                              columnSpacing: 18,
-                                              dataRowMinHeight: 56,
-                                              dataRowMaxHeight: 220,
+                                              horizontalMargin: 10,
+                                              columnSpacing: 12,
+                                              dataRowMinHeight: 52,
+                                              dataRowMaxHeight: 160,
                                               headingRowHeight: 0,
                                             ),
                                             child: DataTable(
@@ -971,7 +1008,7 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                                                     (a) => DataRow(cells: [
                                                       DataCell(
                                                         SizedBox(
-                                                          width: _columnWidths['title'],
+                                                          width: widths['title'],
                                                           child: Text(
                                                             a.title,
                                                             softWrap: true,
@@ -981,7 +1018,7 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                                                       ),
                                                       DataCell(
                                                         SizedBox(
-                                                          width: _columnWidths['category'],
+                                                          width: widths['category'],
                                                           child: Text(
                                                             _categoryLabel(a.categoryId),
                                                             softWrap: true,
@@ -990,7 +1027,7 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                                                       ),
                                                       DataCell(
                                                         SizedBox(
-                                                          width: _columnWidths['productGroups'],
+                                                          width: widths['productGroups'],
                                                           child: Text(
                                                             a.productGroups.join(', '),
                                                             softWrap: true,
@@ -999,7 +1036,7 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                                                       ),
                                                       DataCell(
                                                         SizedBox(
-                                                          width: _columnWidths['type'],
+                                                          width: widths['type'],
                                                           child: Text(
                                                             a.type,
                                                             softWrap: true,
@@ -1008,7 +1045,7 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                                                       ),
                                                       DataCell(
                                                         SizedBox(
-                                                          width: _columnWidths['importance'],
+                                                          width: widths['importance'],
                                                           child: Text(
                                                             a.importance,
                                                             softWrap: true,
@@ -1017,7 +1054,7 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                                                       ),
                                                       DataCell(
                                                         SizedBox(
-                                                          width: _columnWidths['status'],
+                                                          width: widths['status'],
                                                           child: Chip(
                                                             label: Text(a.isActive ? 'Aktiv' : 'Inaktiv'),
                                                             backgroundColor:
@@ -1027,7 +1064,7 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                                                       ),
                                                       DataCell(
                                                         SizedBox(
-                                                          width: _columnWidths['updated'],
+                                                          width: widths['updated'],
                                                           child: Text(
                                                             a.updatedAt.toLocal().toString().split('.').first,
                                                             softWrap: true,
@@ -1036,7 +1073,7 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                                                       ),
                                                       DataCell(
                                                         SizedBox(
-                                                          width: _columnWidths['actions'],
+                                                          width: widths['actions'],
                                                           child: Row(
                                                             children: [
                                                               IconButton(
@@ -1090,11 +1127,15 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
 class _WidthSlider extends StatelessWidget {
   final String label;
   final double value;
+  final double min;
+  final double max;
   final ValueChanged<double> onChanged;
 
   const _WidthSlider({
     required this.label,
     required this.value,
+    required this.min,
+    required this.max,
     required this.onChanged,
   });
 
@@ -1112,8 +1153,8 @@ class _WidthSlider extends StatelessWidget {
         ),
         Slider(
           value: value,
-          min: 50,
-          max: 500,
+          min: min,
+          max: max,
           onChanged: onChanged,
         ),
       ],
