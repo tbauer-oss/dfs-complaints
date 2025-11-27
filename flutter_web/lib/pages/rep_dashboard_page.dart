@@ -1953,6 +1953,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
 
   // ---- Menü (kompakt skaliert) ----
   Widget _buildMenu(int allCount, int openCount, int _rejectedCount, int _finishedCount) {
+    final t = context.t;
     return LayoutBuilder(builder: (ctx, c) {
       final width = c.maxWidth;
       final isPhone = width < 640;
