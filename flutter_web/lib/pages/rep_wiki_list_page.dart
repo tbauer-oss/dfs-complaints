@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 import '../models/wiki_article.dart';
+import '../models/wiki_category.dart';
 import '../utils/lang_utils.dart';
 import 'rep_wiki_detail_page.dart';
 
@@ -18,6 +19,7 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
   bool _loading = true;
   String? _err;
   List<WikiArticle> _articles = const [];
+  List<WikiCategory> _categories = const [];
   String? _lastLocale;
 
   final ScrollController _scrollCtrl = ScrollController();
@@ -62,14 +64,17 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
     });
     try {
       final lang = normalizeLangCode(Localizations.localeOf(context).languageCode);
-      final items = await widget.api.fetchWikiArticles(
+      final overview = await widget.api.fetchWikiOverview(
         productGroup: _productGroup,
         type: _type,
         search: _searchCtrl.text.trim(),
         lang: lang,
       );
       if (!mounted) return;
-      setState(() => _articles = items);
+      setState(() {
+        _articles = overview.articles.where((a) => a.isActive).toList(growable: false);
+        _categories = overview.categories.where((c) => c.isActive).toList(growable: false);
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _err = e.toString());
@@ -240,17 +245,41 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
     }
 
     Widget buildList(double width) {
+      final hasCategoryData = _categories.isNotEmpty;
       final grouped = <String, List<WikiArticle>>{};
-      for (final a in _articles) {
-        final key = a.categoryName ?? a.categoryId ?? t.repWikiCategoryFallback;
-        grouped.putIfAbsent(key, () => []).add(a);
+      if (hasCategoryData) {
+        final catMap = {for (final c in _categories) c.id: c};
+        for (final cat in _categories) {
+          grouped[cat.id] = [];
+        }
+        for (final a in _articles) {
+          final key = catMap.containsKey(a.categoryId) ? a.categoryId : a.categoryName ?? a.categoryId;
+          if (key != null) {
+            grouped.putIfAbsent(key, () => []).add(a);
+          }
+        }
+      } else {
+        for (final a in _articles) {
+          final key = a.categoryName ?? a.categoryId ?? t.repWikiCategoryFallback;
+          grouped.putIfAbsent(key, () => []).add(a);
+        }
       }
-      final sortedCategories = grouped.keys.toList()
-        ..sort((a, b) {
-          final diff = grouped[b]!.length.compareTo(grouped[a]!.length);
-          if (diff != 0) return diff;
-          return a.compareTo(b);
-        });
+
+      final sortedCategories = hasCategoryData
+          ? (_categories
+              .where((c) => grouped[c.id]?.isNotEmpty == true)
+              .toList()
+            ..sort((a, b) {
+              final diff = a.sortOrder.compareTo(b.sortOrder);
+              if (diff != 0) return diff;
+              return a.name.compareTo(b.name);
+            }))
+          : (grouped.keys.toList()
+            ..sort((a, b) {
+              final diff = grouped[b]!.length.compareTo(grouped[a]!.length);
+              if (diff != 0) return diff;
+              return a.compareTo(b);
+            }));
 
       if (_loading) {
         return Padding(
@@ -296,6 +325,11 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
                   ? 1.75
                   : 1.2;
 
+      String categoryKey(dynamic category) =>
+          hasCategoryData ? (category as WikiCategory).id : category as String;
+      String categoryLabel(dynamic category) =>
+          hasCategoryData ? (category as WikiCategory).name : category as String;
+
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -320,10 +354,11 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
                   borderRadius: BorderRadius.circular(16),
                   onTap: () {
                     setState(() {
-                      if (_expandedCategories.contains(category)) {
-                        _expandedCategories.remove(category);
+                      final key = categoryKey(category);
+                      if (_expandedCategories.contains(key)) {
+                        _expandedCategories.remove(key);
                       } else {
-                        _expandedCategories.add(category);
+                        _expandedCategories.add(key);
                       }
                     });
                   },
@@ -341,7 +376,7 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    category,
+                                    categoryLabel(category),
                                     style: theme.textTheme.titleMedium
                                         ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: .1),
                                   ),
@@ -359,14 +394,14 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
-                                t.repWikiCategoryArticleCount(grouped[category]!.length),
+                                t.repWikiCategoryArticleCount(grouped[categoryKey(category)]!.length),
                                 style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
                               ),
                             ),
                             const SizedBox(width: 12),
                             AnimatedRotation(
                               duration: const Duration(milliseconds: 180),
-                              turns: _expandedCategories.contains(category) ? .5 : 0,
+                              turns: _expandedCategories.contains(categoryKey(category)) ? .5 : 0,
                               child: Icon(Icons.keyboard_arrow_down_rounded, color: cs.onSurfaceVariant),
                             ),
                           ],
@@ -384,11 +419,11 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
                                 crossAxisSpacing: 10,
                                 childAspectRatio: aspectRatio,
                               ),
-                              itemCount: grouped[category]!.length,
-                              itemBuilder: (_, i) => buildCard(grouped[category]![i]),
+                              itemCount: grouped[categoryKey(category)]!.length,
+                              itemBuilder: (_, i) => buildCard(grouped[categoryKey(category)]![i]),
                             ),
                           ),
-                          crossFadeState: _expandedCategories.contains(category)
+                          crossFadeState: _expandedCategories.contains(categoryKey(category))
                               ? CrossFadeState.showSecond
                               : CrossFadeState.showFirst,
                           duration: const Duration(milliseconds: 200),
