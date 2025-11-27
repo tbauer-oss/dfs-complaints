@@ -100,6 +100,7 @@ export async function processIncomingFiles(filesInput, {
   ticket,
   includeMailAttachments = false,
   allowPreviewFallback = !blobUploadsEnabled,
+  allowDataUrlFallback = !blobUploadsEnabled,
   maxTotalBytes = DEFAULT_MAX_TOTAL_BYTES,
 } = {}) {
   const files = Array.isArray(filesInput) ? filesInput : [];
@@ -142,13 +143,18 @@ export async function processIncomingFiles(filesInput, {
       if (blob?.blobPath) entry.blobPath = blob.blobPath;
     } catch (err) {
       console.error('[uploads] blob upload failed', err?.message || err);
-      throw new Error('blob upload failed');
+      // Erlaube einen Fallback, damit Admin-Uploads nicht mit 500 enden, wenn
+      // das Blob-Backend nicht erreichbar oder falsch konfiguriert ist.
+      if (!allowDataUrlFallback) {
+        throw new Error('blob upload failed');
+      }
     }
 
-    // Fallback für Umgebungen ohne Blob-Storage: stelle einen Data-URL-Download
-    // bereit, damit Admin-Uploads dennoch funktionieren. Die Upload-Größe wird
-    // upstream durch maxTotalBytes begrenzt, sodass die Data-URL handhabbar bleibt.
-    if (!blobUploadsEnabled && !entry.downloadUrl) {
+    // Fallback für Umgebungen ohne oder mit defektem Blob-Storage: stelle einen
+    // Data-URL-Download bereit, damit Admin-Uploads dennoch funktionieren. Die
+    // Upload-Größe wird upstream durch maxTotalBytes begrenzt, sodass die Data-URL
+    // handhabbar bleibt.
+    if (allowDataUrlFallback && !entry.downloadUrl) {
       entry.downloadUrl = `data:${entry.mime};base64,${base64}`;
     }
 
