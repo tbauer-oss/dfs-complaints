@@ -10,6 +10,7 @@ import '../models/wiki_article.dart';
 import '../models/wiki_category.dart';
 import '../models/wiki_overview.dart';
 import '../models/rep_download_item.dart';
+import '../models/download_category.dart';
 import 'config.dart';
 
 class ApiError implements Exception {
@@ -1337,6 +1338,53 @@ class ApiClient {
     if (!_ok2xx(r.statusCode) && r.statusCode != 204) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
+  }
+
+  Future<List<DownloadCategory>> adminDownloadCategories() async {
+    final r = await http.get(_u('/api/admin/download-categories'), headers: _adminHeaders());
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final list = decoded is Map && decoded['items'] is List ? decoded['items'] as List : <dynamic>[];
+    return list
+        .whereType<Map>()
+        .map((e) => DownloadCategory.fromJson(e.cast<String, dynamic>()))
+        .toList(growable: false);
+  }
+
+  Future<List<DownloadCategory>> adminAddDownloadCategory(String name) async {
+    final r = await http.post(
+      _u('/api/admin/download-categories'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode({'name': name}),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final list = decoded is Map && decoded['items'] is List ? decoded['items'] as List : <dynamic>[];
+    return list
+        .whereType<Map>()
+        .map((e) => DownloadCategory.fromJson(e.cast<String, dynamic>()))
+        .toList(growable: false);
+  }
+
+  Future<List<DownloadCategory>> adminDeleteDownloadCategory(String name, {bool force = false}) async {
+    final r = await http.delete(
+      _u('/api/admin/download-categories'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode({'name': name, 'force': force}),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final list = decoded is Map && decoded['items'] is List ? decoded['items'] as List : <dynamic>[];
+    return list
+        .whereType<Map>()
+        .map((e) => DownloadCategory.fromJson(e.cast<String, dynamic>()))
+        .toList(growable: false);
   }
 
   Future<Map<String, Map<String, String>>> translateFaqDraft({
