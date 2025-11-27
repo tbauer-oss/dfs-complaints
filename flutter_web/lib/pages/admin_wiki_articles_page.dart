@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:html' as html;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import '../api/client.dart';
@@ -19,6 +22,16 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
   List<WikiCategory> _categories = const [];
   final ScrollController _verticalController = ScrollController();
   final ScrollController _horizontalController = ScrollController();
+  Map<String, double> _columnWidths = const {
+    'title': 240,
+    'category': 180,
+    'productGroups': 220,
+    'type': 120,
+    'importance': 140,
+    'status': 140,
+    'updated': 200,
+    'actions': 160,
+  };
 
   String? _categoryFilter;
   String? _productGroupFilter;
@@ -30,6 +43,7 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
   void initState() {
     super.initState();
     _load();
+    _restoreColumnWidths();
   }
 
   @override
@@ -38,6 +52,105 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
     _horizontalController.dispose();
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  void _restoreColumnWidths() {
+    final raw = html.window.localStorage['adminWikiTableColumnWidths'];
+    if (raw == null) return;
+    try {
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      final restored = <String, double>{};
+      for (final entry in decoded.entries) {
+        final value = entry.value;
+        if (value is num) restored[entry.key] = value.toDouble();
+      }
+      setState(() {
+        _columnWidths = {
+          ..._columnWidths,
+          ...restored,
+        };
+      });
+    } catch (_) {}
+  }
+
+  void _persistColumnWidths() {
+    html.window.localStorage['adminWikiTableColumnWidths'] = jsonEncode(_columnWidths);
+  }
+
+  Future<void> _openColumnWidthDialog() async {
+    final temp = Map<String, double>.from(_columnWidths);
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Spaltenbreiten anpassen'),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _WidthSlider(
+                  label: 'Titel',
+                  value: temp['title']!,
+                  onChanged: (v) => setDialogState(() => temp['title'] = v),
+                ),
+                _WidthSlider(
+                  label: 'Kategorie',
+                  value: temp['category']!,
+                  onChanged: (v) => setDialogState(() => temp['category'] = v),
+                ),
+                _WidthSlider(
+                  label: 'Produktgruppen',
+                  value: temp['productGroups']!,
+                  onChanged: (v) => setDialogState(() => temp['productGroups'] = v),
+                ),
+                _WidthSlider(
+                  label: 'Typ',
+                  value: temp['type']!,
+                  onChanged: (v) => setDialogState(() => temp['type'] = v),
+                ),
+                _WidthSlider(
+                  label: 'Wichtigkeit',
+                  value: temp['importance']!,
+                  onChanged: (v) => setDialogState(() => temp['importance'] = v),
+                ),
+                _WidthSlider(
+                  label: 'Status',
+                  value: temp['status']!,
+                  onChanged: (v) => setDialogState(() => temp['status'] = v),
+                ),
+                _WidthSlider(
+                  label: 'Geändert',
+                  value: temp['updated']!,
+                  onChanged: (v) => setDialogState(() => temp['updated'] = v),
+                ),
+                _WidthSlider(
+                  label: 'Aktionen',
+                  value: temp['actions']!,
+                  onChanged: (v) => setDialogState(() => temp['actions'] = v),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton(
+              onPressed: () {
+                setState(() {
+                  _columnWidths = temp;
+                });
+                _persistColumnWidths();
+                Navigator.pop(ctx);
+              },
+              child: const Text('Speichern'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _load() async {
@@ -649,6 +762,11 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                         onPressed: _loading ? null : _load,
                         icon: const Icon(Icons.refresh_rounded),
                       ),
+                      FilledButton.tonalIcon(
+                        onPressed: _openColumnWidthDialog,
+                        icon: const Icon(Icons.view_column_rounded),
+                        label: const Text('Spaltenbreite'),
+                      ),
                     ],
                   ),
                 ),
@@ -680,72 +798,174 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                         child: SingleChildScrollView(
                           controller: _horizontalController,
                           scrollDirection: Axis.horizontal,
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(minWidth: cons.maxWidth - 32),
-                            child: DataTableTheme(
-                              data: DataTableThemeData(
-                                headingRowColor: WidgetStatePropertyAll(cs.surfaceContainerHigh),
-                                headingTextStyle: theme.textTheme.labelLarge
-                                    ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: .2),
-                                dataRowColor: WidgetStateProperty.resolveWith(
-                                  (states) => states.contains(WidgetState.hovered)
-                                      ? cs.surfaceContainerHighest
-                                      : cs.surface,
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(minWidth: cons.maxWidth - 32),
+                              child: DataTableTheme(
+                                data: DataTableThemeData(
+                                  headingRowColor: WidgetStatePropertyAll(cs.surfaceContainerHigh),
+                                  headingTextStyle: theme.textTheme.labelLarge
+                                      ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: .2),
+                                  dataRowColor: WidgetStateProperty.resolveWith(
+                                    (states) => states.contains(WidgetState.hovered)
+                                        ? cs.surfaceContainerHighest
+                                        : cs.surface,
+                                  ),
+                                  dividerThickness: 0.5,
+                                  horizontalMargin: 14,
+                                  columnSpacing: 18,
+                                  dataRowMinHeight: 56,
+                                  dataRowMaxHeight: 220,
                                 ),
-                                dividerThickness: 0.5,
-                                horizontalMargin: 14,
-                                columnSpacing: 18,
-                              ),
-                              child: DataTable(
-                                columns: const [
-                                  DataColumn(label: Text('Titel')),
-                                  DataColumn(label: Text('Kategorie')),
-                                  DataColumn(label: Text('Produktgruppen')),
-                                  DataColumn(label: Text('Typ')),
-                                  DataColumn(label: Text('Wichtigkeit')),
-                                  DataColumn(label: Text('Status')),
-                                  DataColumn(label: Text('Geändert')),
-                                  DataColumn(label: Text('Aktionen')),
-                                ],
-                                rows: _articles
-                                    .map(
-                                      (a) => DataRow(cells: [
-                                        DataCell(Text(a.title, style: const TextStyle(fontWeight: FontWeight.w700))),
-                                        DataCell(Text(_categoryLabel(a.categoryId))),
-                                        DataCell(Text(a.productGroups.join(', '))),
-                                        DataCell(Text(a.type)),
-                                        DataCell(Text(a.importance)),
-                                        DataCell(Chip(
-                                          label: Text(a.isActive ? 'Aktiv' : 'Inaktiv'),
-                                          backgroundColor: a.isActive ? cs.primaryContainer : cs.surfaceVariant,
-                                        )),
-                                        DataCell(Text(a.updatedAt.toLocal().toString().split('.').first)),
-                                        DataCell(Row(
-                                          children: [
-                                            IconButton(
-                                              tooltip: 'Vorschau',
-                                              icon: const Icon(Icons.visibility_outlined),
-                                              onPressed: () => _openPreview(a),
+                                child: DataTable(
+                                  columns: [
+                                    DataColumn(
+                                      label: SizedBox(
+                                        width: _columnWidths['title'],
+                                        child: const Text('Titel'),
+                                      ),
+                                    ),
+                                    DataColumn(
+                                      label: SizedBox(
+                                        width: _columnWidths['category'],
+                                        child: const Text('Kategorie'),
+                                      ),
+                                    ),
+                                    DataColumn(
+                                      label: SizedBox(
+                                        width: _columnWidths['productGroups'],
+                                        child: const Text('Produktgruppen'),
+                                      ),
+                                    ),
+                                    DataColumn(
+                                      label: SizedBox(
+                                        width: _columnWidths['type'],
+                                        child: const Text('Typ'),
+                                      ),
+                                    ),
+                                    DataColumn(
+                                      label: SizedBox(
+                                        width: _columnWidths['importance'],
+                                        child: const Text('Wichtigkeit'),
+                                      ),
+                                    ),
+                                    DataColumn(
+                                      label: SizedBox(
+                                        width: _columnWidths['status'],
+                                        child: const Text('Status'),
+                                      ),
+                                    ),
+                                    DataColumn(
+                                      label: SizedBox(
+                                        width: _columnWidths['updated'],
+                                        child: const Text('Geändert'),
+                                      ),
+                                    ),
+                                    DataColumn(
+                                      label: SizedBox(
+                                        width: _columnWidths['actions'],
+                                        child: const Text('Aktionen'),
+                                      ),
+                                    ),
+                                  ],
+                                  rows: _articles
+                                      .map(
+                                        (a) => DataRow(cells: [
+                                          DataCell(
+                                            SizedBox(
+                                              width: _columnWidths['title'],
+                                              child: Text(
+                                                a.title,
+                                                softWrap: true,
+                                                style: const TextStyle(fontWeight: FontWeight.w700),
+                                              ),
                                             ),
-                                            IconButton(
-                                              tooltip: 'Bearbeiten',
-                                              icon: const Icon(Icons.edit_outlined),
-                                              onPressed: () => _openForm(article: a),
+                                          ),
+                                          DataCell(
+                                            SizedBox(
+                                              width: _columnWidths['category'],
+                                              child: Text(
+                                                _categoryLabel(a.categoryId),
+                                                softWrap: true,
+                                              ),
                                             ),
-                                            IconButton(
-                                              tooltip: 'Löschen',
-                                              icon: const Icon(Icons.delete_outline),
-                                              onPressed: () => _delete(a),
+                                          ),
+                                          DataCell(
+                                            SizedBox(
+                                              width: _columnWidths['productGroups'],
+                                              child: Text(
+                                                a.productGroups.join(', '),
+                                                softWrap: true,
+                                              ),
                                             ),
-                                          ],
-                                        )),
-                                      ]),
-                                    )
-                                    .toList(),
+                                          ),
+                                          DataCell(
+                                            SizedBox(
+                                              width: _columnWidths['type'],
+                                              child: Text(
+                                                a.type,
+                                                softWrap: true,
+                                              ),
+                                            ),
+                                          ),
+                                          DataCell(
+                                            SizedBox(
+                                              width: _columnWidths['importance'],
+                                              child: Text(
+                                                a.importance,
+                                                softWrap: true,
+                                              ),
+                                            ),
+                                          ),
+                                          DataCell(
+                                            SizedBox(
+                                              width: _columnWidths['status'],
+                                              child: Chip(
+                                                label: Text(a.isActive ? 'Aktiv' : 'Inaktiv'),
+                                                backgroundColor:
+                                                    a.isActive ? cs.primaryContainer : cs.surfaceVariant,
+                                              ),
+                                            ),
+                                          ),
+                                          DataCell(
+                                            SizedBox(
+                                              width: _columnWidths['updated'],
+                                              child: Text(
+                                                a.updatedAt.toLocal().toString().split('.').first,
+                                                softWrap: true,
+                                              ),
+                                            ),
+                                          ),
+                                          DataCell(
+                                            SizedBox(
+                                              width: _columnWidths['actions'],
+                                              child: Row(
+                                                children: [
+                                                  IconButton(
+                                                    tooltip: 'Vorschau',
+                                                    icon: const Icon(Icons.visibility_outlined),
+                                                    onPressed: () => _openPreview(a),
+                                                  ),
+                                                  IconButton(
+                                                    tooltip: 'Bearbeiten',
+                                                    icon: const Icon(Icons.edit_outlined),
+                                                    onPressed: () => _openForm(article: a),
+                                                  ),
+                                                  IconButton(
+                                                    tooltip: 'Löschen',
+                                                    icon: const Icon(Icons.delete_outline),
+                                                    onPressed: () => _delete(a),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ]),
+                                      )
+                                      .toList(),
+                                ),
                               ),
                             ),
                           ),
-                        ),
                       ),
                     ),
                   ),
@@ -755,6 +975,40 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
           ),
         );
       },
+    );
+  }
+}
+
+class _WidthSlider extends StatelessWidget {
+  final String label;
+  final double value;
+  final ValueChanged<double> onChanged;
+
+  const _WidthSlider({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: Theme.of(context).textTheme.labelMedium),
+            Text('${value.toStringAsFixed(0)} px', style: Theme.of(context).textTheme.labelSmall),
+          ],
+        ),
+        Slider(
+          value: value,
+          min: 120,
+          max: 500,
+          onChanged: onChanged,
+        ),
+      ],
     );
   }
 }
