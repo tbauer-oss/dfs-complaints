@@ -1072,7 +1072,7 @@ class _WidthSlider extends StatelessWidget {
         ),
         Slider(
           value: value,
-          min: 120,
+          min: 50,
           max: 500,
           onChanged: onChanged,
         ),
