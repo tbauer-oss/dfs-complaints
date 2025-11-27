@@ -1,5 +1,7 @@
 // api/_lib/wikiStore.js
 import { Redis } from '@upstash/redis';
+import { wikiSeedArticles, wikiSeedCategories } from './wikiSeeds.js';
+import { normalizeLangValue } from './store.js';
 
 const redisUrl =
   process.env.REDIS_URL ||
@@ -74,6 +76,8 @@ function normalizeCategory(payload, existing = null) {
   const id = (payload?.id ?? existing?.id ?? '').toString().trim() || normalizeId('wiki_cat_');
   const name = (payload?.name ?? existing?.name ?? '').toString().trim();
   const description = (payload?.description ?? existing?.description ?? '').toString();
+  const nameIntl = normalizeIntlMap(payload?.nameIntl ?? existing?.nameIntl);
+  const descriptionIntl = normalizeIntlMap(payload?.descriptionIntl ?? existing?.descriptionIntl);
   const icon = (payload?.icon ?? existing?.icon ?? '').toString().trim();
   const sortOrderRaw = Number(payload?.sortOrder ?? existing?.sortOrder ?? 0);
   const sortOrder = Number.isFinite(sortOrderRaw) ? sortOrderRaw : 0;
@@ -82,6 +86,8 @@ function normalizeCategory(payload, existing = null) {
     id,
     name,
     description,
+    nameIntl,
+    descriptionIntl,
     icon,
     sortOrder,
     isActive,
@@ -100,8 +106,11 @@ function normalizeArticle(payload, existing = null) {
   const type = (payload?.type ?? existing?.type ?? 'faq').toString().trim();
   const title = (payload?.title ?? existing?.title ?? '').toString();
   const teaser = (payload?.teaser ?? existing?.teaser ?? '').toString();
+  const titleIntl = normalizeIntlMap(payload?.titleIntl ?? existing?.titleIntl);
+  const teaserIntl = normalizeIntlMap(payload?.teaserIntl ?? existing?.teaserIntl);
   const importance = (payload?.importance ?? existing?.importance ?? 'normal').toString().trim();
   const contentMarkdown = (payload?.contentMarkdown ?? existing?.contentMarkdown ?? '').toString();
+  const contentIntl = normalizeIntlMap(payload?.contentIntl ?? existing?.contentIntl);
   const tags = Array.isArray(payload?.tags)
     ? payload.tags.map((t) => t.toString().trim()).filter(Boolean)
     : Array.isArray(existing?.tags)
@@ -118,12 +127,58 @@ function normalizeArticle(payload, existing = null) {
     type,
     title,
     teaser,
+    titleIntl,
+    teaserIntl,
     importance,
     contentMarkdown,
+    contentIntl,
     tags,
     isActive,
     createdAt: createdAt.toISOString(),
     updatedAt: updatedAt.toISOString(),
+  };
+}
+
+function normalizeIntlMap(value) {
+  const out = {};
+  if (value && typeof value === 'object') {
+    for (const [key, val] of Object.entries(value)) {
+      const lang = normalizeLangValue(key);
+      const text = (val ?? '').toString();
+      if (lang && text.trim()) {
+        out[lang] = text;
+      }
+    }
+  }
+  return out;
+}
+
+function pickIntl(base, intlMap, lang) {
+  const normalized = normalizeLangValue(lang);
+  if (!normalized) return base;
+  const localized = intlMap?.[normalized];
+  return localized ?? base;
+}
+
+function categoryWithLang(cat, lang) {
+  if (!lang) return cat;
+  return {
+    ...cat,
+    name: pickIntl(cat.name, cat.nameIntl, lang),
+    description: pickIntl(cat.description, cat.descriptionIntl, lang),
+  };
+}
+
+function articleWithLang(article, lang, categories = []) {
+  if (!lang) return article;
+  const catMap = new Map(categories.map((c) => [c.id, c]));
+  const category = catMap.get(article.categoryId);
+  return {
+    ...article,
+    title: pickIntl(article.title, article.titleIntl, lang),
+    teaser: pickIntl(article.teaser, article.teaserIntl, lang),
+    contentMarkdown: pickIntl(article.contentMarkdown, article.contentIntl, lang),
+    categoryName: category ? pickIntl(category.name, category.nameIntl, lang) : article.categoryName,
   };
 }
 
@@ -136,8 +191,8 @@ async function loadCategories() {
   }
   const raw = await rget(KEY_CATEGORIES);
   const normalized = Array.isArray(raw) ? raw.map((c) => normalizeCategory(c)) : [];
-  mem.categories = normalized;
-  return normalized;
+  mem.categories = normalized.length ? normalized : wikiSeedCategories.map((c) => normalizeCategory(c));
+  return mem.categories;
 }
 
 async function loadArticles(categories = null) {
@@ -149,8 +204,10 @@ async function loadArticles(categories = null) {
   }
   const raw = await rget(KEY_ARTICLES);
   const normalized = Array.isArray(raw) ? raw.map((c) => normalizeArticle(c)) : [];
-  mem.articles = normalized;
-  return normalized;
+  mem.articles = normalized.length
+    ? normalized
+    : wikiSeedArticles.map((c) => normalizeArticle(c));
+  return mem.articles;
 }
 
 async function persistCategories(list) {
@@ -171,13 +228,16 @@ async function persistArticles(list) {
   return normalized;
 }
 
-export async function wikiCategories({ includeInactive = true } = {}) {
+export async function wikiCategories({ includeInactive = true, lang = null } = {}) {
+  const langNorm = normalizeLangValue(lang);
   const cats = await loadCategories();
-  return includeInactive ? cats : cats.filter((c) => c.isActive);
+  const filtered = includeInactive ? cats : cats.filter((c) => c.isActive);
+  return langNorm ? filtered.map((c) => categoryWithLang(c, langNorm)) : filtered;
 }
 
-export async function wikiArticles({ includeInactive = false, filters = {} } = {}) {
-  const cats = await wikiCategories({ includeInactive });
+export async function wikiArticles({ includeInactive = false, filters = {}, lang = null } = {}) {
+  const langNorm = normalizeLangValue(filters.lang || lang);
+  const cats = await wikiCategories({ includeInactive, lang: langNorm });
   const allowedCats = new Set(cats.map((c) => c.id));
   const all = await loadArticles(cats);
   const onlyActive = includeInactive ? all : all.filter((a) => a.isActive);
@@ -187,7 +247,7 @@ export async function wikiArticles({ includeInactive = false, filters = {} } = {
   const type = (filters.type ?? '').toString().trim().toLowerCase();
   const search = (filters.search ?? '').toString().trim().toLowerCase();
 
-  return onlyActive.filter((a) => {
+  const filtered = onlyActive.filter((a) => {
     if (!allowedCats.has(a.categoryId)) return false;
     if (category && a.categoryId !== category) return false;
     if (type && a.type.toLowerCase() !== type) return false;
@@ -202,24 +262,30 @@ export async function wikiArticles({ includeInactive = false, filters = {} } = {
     }
     return true;
   });
+
+  if (!langNorm) return filtered;
+  return filtered.map((a) => articleWithLang(a, langNorm, cats));
 }
 
 export async function wikiPublicList(params = {}) {
-  const cats = await wikiCategories({ includeInactive: false });
-  const items = await wikiArticles({ includeInactive: false, filters: params });
+  const lang = normalizeLangValue(params.lang || params.locale);
+  const cats = await wikiCategories({ includeInactive: false, lang });
+  const items = await wikiArticles({ includeInactive: false, filters: params, lang });
   return { categories: cats, articles: items };
 }
 
-export async function wikiGetPublic(id) {
+export async function wikiGetPublic(id, { lang = null } = {}) {
   const target = (id ?? '').toString().trim();
   if (!target) return null;
-  const cats = await wikiCategories({ includeInactive: false });
+  const langNorm = normalizeLangValue(lang);
+  const cats = await wikiCategories({ includeInactive: false, lang: langNorm });
   const allowed = new Set(cats.map((c) => c.id));
-  const items = await wikiArticles({ includeInactive: false });
+  const items = await wikiArticles({ includeInactive: false, lang: langNorm });
   const found = items.find((a) => a.id === target);
   if (!found) return null;
   if (!allowed.has(found.categoryId)) return null;
-  return found;
+  if (!langNorm) return found;
+  return articleWithLang(found, langNorm, cats);
 }
 
 export async function wikiAdminList(params = {}) {

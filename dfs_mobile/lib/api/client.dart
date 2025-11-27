@@ -1479,6 +1479,7 @@ class ApiClient {
     String? productGroup,
     String? type,
     String? search,
+    String? lang,
   }) async {
     final params = <String, String>{};
     if (category != null && category.isNotEmpty) params['category'] = category;
@@ -1487,6 +1488,7 @@ class ApiClient {
     }
     if (type != null && type.isNotEmpty) params['type'] = type;
     if (search != null && search.isNotEmpty) params['search'] = search;
+    if (lang != null && lang.isNotEmpty) params['lang'] = lang;
 
     final query = params.entries
         .map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
@@ -1513,8 +1515,11 @@ class ApiClient {
     return const [];
   }
 
-  Future<WikiArticle> fetchWikiArticle(String id) async {
-    final r = await http.get(_u('/api/wiki/$id'));
+  Future<WikiArticle> fetchWikiArticle(String id, {String? lang}) async {
+    final suffix = (lang != null && lang.isNotEmpty)
+        ? '?lang=${Uri.encodeQueryComponent(lang)}'
+        : '';
+    final r = await http.get(_u('/api/wiki/$id$suffix'));
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
