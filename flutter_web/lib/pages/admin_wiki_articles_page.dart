@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:html' as html;
+import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
@@ -22,6 +23,9 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
   List<WikiCategory> _categories = const [];
   final ScrollController _verticalController = ScrollController();
   final ScrollController _horizontalController = ScrollController();
+  double _horizontalOffset = 0;
+  late final VoidCallback _horizontalOffsetListener;
+  static const double _headerHeight = 56;
   Map<String, double> _columnWidths = const {
     'title': 240,
     'category': 180,
@@ -44,12 +48,18 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
     super.initState();
     _load();
     _restoreColumnWidths();
+    _horizontalOffsetListener = () {
+      if (!mounted) return;
+      setState(() => _horizontalOffset = _horizontalController.offset);
+    };
+    _horizontalController.addListener(_horizontalOffsetListener);
   }
 
   @override
   void dispose() {
-    _verticalController.dispose();
+    _horizontalController.removeListener(_horizontalOffsetListener);
     _horizontalController.dispose();
+    _verticalController.dispose();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -178,6 +188,80 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  void _handlePanDrag(DragUpdateDetails details) {
+    if (_horizontalController.hasClients) {
+      final maxH = _horizontalController.position.maxScrollExtent;
+      final newH = (_horizontalController.offset - details.delta.dx).clamp(0.0, maxH);
+      _horizontalController.jumpTo(newH);
+    }
+    if (_verticalController.hasClients) {
+      final maxV = _verticalController.position.maxScrollExtent;
+      final newV = (_verticalController.offset - details.delta.dy).clamp(0.0, maxV);
+      _verticalController.jumpTo(newV);
+    }
+  }
+
+  double _tableWidth() {
+    const double columnSpacing = 18;
+    const double horizontalMargin = 14;
+    final double baseWidth = _columnWidths.values.fold(0, (sum, v) => sum + v);
+    return baseWidth + columnSpacing * (_columnWidths.length - 1) + horizontalMargin * 2;
+  }
+
+  Widget _buildStickyHeader(ColorScheme cs, TextTheme textTheme) {
+    const double columnSpacing = 18;
+    const double horizontalMargin = 14;
+    final tableWidth = _tableWidth();
+
+    Widget buildCell(String label, double width) {
+      return SizedBox(
+        width: width,
+        child: Text(label, style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800, letterSpacing: .2)),
+      );
+    }
+
+    return ClipRect(
+      child: Transform.translate(
+        offset: Offset(-_horizontalOffset, 0),
+        child: Container(
+          width: tableWidth,
+          height: _headerHeight,
+          padding: const EdgeInsets.symmetric(horizontal: horizontalMargin),
+          decoration: BoxDecoration(
+            color: cs.surfaceContainerHigh,
+            boxShadow: [
+              BoxShadow(
+                color: cs.shadow.withOpacity(0.08),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              buildCell('Titel', _columnWidths['title']!),
+              const SizedBox(width: columnSpacing),
+              buildCell('Kategorie', _columnWidths['category']!),
+              const SizedBox(width: columnSpacing),
+              buildCell('Produktgruppen', _columnWidths['productGroups']!),
+              const SizedBox(width: columnSpacing),
+              buildCell('Typ', _columnWidths['type']!),
+              const SizedBox(width: columnSpacing),
+              buildCell('Wichtigkeit', _columnWidths['importance']!),
+              const SizedBox(width: columnSpacing),
+              buildCell('Status', _columnWidths['status']!),
+              const SizedBox(width: columnSpacing),
+              buildCell('Geändert', _columnWidths['updated']!),
+              const SizedBox(width: columnSpacing),
+              buildCell('Aktionen', _columnWidths['actions']!),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   List<String> _productGroupOptions() {
@@ -779,195 +863,179 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                   ),
                 const SizedBox(height: 8),
                 Expanded(
-                  child: Scrollbar(
-                    controller: _verticalController,
-                    thumbVisibility: true,
-                    trackVisibility: true,
-                    notificationPredicate: (notification) =>
-                        notification.metrics.axis == Axis.vertical,
-                    scrollbarOrientation: ScrollbarOrientation.right,
-                    child: SingleChildScrollView(
-                      controller: _verticalController,
-                      child: Scrollbar(
-                        controller: _horizontalController,
-                        thumbVisibility: true,
-                        trackVisibility: true,
-                        notificationPredicate: (notification) =>
-                            notification.metrics.axis == Axis.horizontal,
-                        scrollbarOrientation: ScrollbarOrientation.bottom,
-                        child: SingleChildScrollView(
-                          controller: _horizontalController,
-                          scrollDirection: Axis.horizontal,
-                            child: ConstrainedBox(
-                              constraints: BoxConstraints(minWidth: cons.maxWidth - 32),
-                              child: DataTableTheme(
-                                data: DataTableThemeData(
-                                  headingRowColor: WidgetStatePropertyAll(cs.surfaceContainerHigh),
-                                  headingTextStyle: theme.textTheme.labelLarge
-                                      ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: .2),
-                                  dataRowColor: WidgetStateProperty.resolveWith(
-                                    (states) => states.contains(WidgetState.hovered)
-                                        ? cs.surfaceContainerHighest
-                                        : cs.surface,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final tableWidth = _tableWidth();
+                      final double bodyHeight = constraints.maxHeight > _headerHeight
+                          ? constraints.maxHeight - _headerHeight
+                          : 0;
+                      return ScrollConfiguration(
+                        behavior: _TableDragScrollBehavior(),
+                        child: GestureDetector(
+                          onPanUpdate: _handlePanDrag,
+                          child: Stack(
+                            children: [
+                              _buildStickyHeader(cs, theme.textTheme),
+                              Padding(
+                                padding: EdgeInsets.only(top: _headerHeight),
+                                child: Scrollbar(
+                                  controller: _verticalController,
+                                  thumbVisibility: true,
+                                  trackVisibility: true,
+                                  notificationPredicate: (notification) =>
+                                      notification.metrics.axis == Axis.vertical,
+                                  scrollbarOrientation: ScrollbarOrientation.right,
+                                  child: SingleChildScrollView(
+                                    controller: _verticalController,
+                                    child: Scrollbar(
+                                      controller: _horizontalController,
+                                      thumbVisibility: true,
+                                      trackVisibility: true,
+                                      notificationPredicate: (notification) =>
+                                          notification.metrics.axis == Axis.horizontal,
+                                      scrollbarOrientation: ScrollbarOrientation.bottom,
+                                      child: SingleChildScrollView(
+                                        controller: _horizontalController,
+                                        scrollDirection: Axis.horizontal,
+                                        child: ConstrainedBox(
+                                          constraints: BoxConstraints(
+                                            minWidth: tableWidth,
+                                            maxWidth: tableWidth,
+                                            minHeight: bodyHeight,
+                                          ),
+                                          child: DataTableTheme(
+                                            data: DataTableThemeData(
+                                              dataRowColor: WidgetStateProperty.resolveWith(
+                                                (states) => states.contains(WidgetState.hovered)
+                                                    ? cs.surfaceContainerHighest
+                                                    : cs.surface,
+                                              ),
+                                              dividerThickness: 0.5,
+                                              horizontalMargin: 14,
+                                              columnSpacing: 18,
+                                              dataRowMinHeight: 56,
+                                              dataRowMaxHeight: 220,
+                                              headingRowHeight: 0,
+                                            ),
+                                            child: DataTable(
+                                              columns: const [
+                                                DataColumn(label: SizedBox.shrink()),
+                                                DataColumn(label: SizedBox.shrink()),
+                                                DataColumn(label: SizedBox.shrink()),
+                                                DataColumn(label: SizedBox.shrink()),
+                                                DataColumn(label: SizedBox.shrink()),
+                                                DataColumn(label: SizedBox.shrink()),
+                                                DataColumn(label: SizedBox.shrink()),
+                                                DataColumn(label: SizedBox.shrink()),
+                                              ],
+                                              rows: _articles
+                                                  .map(
+                                                    (a) => DataRow(cells: [
+                                                      DataCell(
+                                                        SizedBox(
+                                                          width: _columnWidths['title'],
+                                                          child: Text(
+                                                            a.title,
+                                                            softWrap: true,
+                                                            style: const TextStyle(fontWeight: FontWeight.w700),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      DataCell(
+                                                        SizedBox(
+                                                          width: _columnWidths['category'],
+                                                          child: Text(
+                                                            _categoryLabel(a.categoryId),
+                                                            softWrap: true,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      DataCell(
+                                                        SizedBox(
+                                                          width: _columnWidths['productGroups'],
+                                                          child: Text(
+                                                            a.productGroups.join(', '),
+                                                            softWrap: true,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      DataCell(
+                                                        SizedBox(
+                                                          width: _columnWidths['type'],
+                                                          child: Text(
+                                                            a.type,
+                                                            softWrap: true,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      DataCell(
+                                                        SizedBox(
+                                                          width: _columnWidths['importance'],
+                                                          child: Text(
+                                                            a.importance,
+                                                            softWrap: true,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      DataCell(
+                                                        SizedBox(
+                                                          width: _columnWidths['status'],
+                                                          child: Chip(
+                                                            label: Text(a.isActive ? 'Aktiv' : 'Inaktiv'),
+                                                            backgroundColor:
+                                                                a.isActive ? cs.primaryContainer : cs.surfaceVariant,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      DataCell(
+                                                        SizedBox(
+                                                          width: _columnWidths['updated'],
+                                                          child: Text(
+                                                            a.updatedAt.toLocal().toString().split('.').first,
+                                                            softWrap: true,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      DataCell(
+                                                        SizedBox(
+                                                          width: _columnWidths['actions'],
+                                                          child: Row(
+                                                            children: [
+                                                              IconButton(
+                                                                tooltip: 'Vorschau',
+                                                                icon: const Icon(Icons.visibility_outlined),
+                                                                onPressed: () => _openPreview(a),
+                                                              ),
+                                                              IconButton(
+                                                                tooltip: 'Bearbeiten',
+                                                                icon: const Icon(Icons.edit_outlined),
+                                                                onPressed: () => _openForm(article: a),
+                                                              ),
+                                                              IconButton(
+                                                                tooltip: 'Löschen',
+                                                                icon: const Icon(Icons.delete_outline),
+                                                                onPressed: () => _delete(a),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ]),
+                                                  )
+                                                  .toList(),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
                                   ),
-                                  dividerThickness: 0.5,
-                                  horizontalMargin: 14,
-                                  columnSpacing: 18,
-                                  dataRowMinHeight: 56,
-                                  dataRowMaxHeight: 220,
-                                ),
-                                child: DataTable(
-                                  columns: [
-                                    DataColumn(
-                                      label: SizedBox(
-                                        width: _columnWidths['title'],
-                                        child: const Text('Titel'),
-                                      ),
-                                    ),
-                                    DataColumn(
-                                      label: SizedBox(
-                                        width: _columnWidths['category'],
-                                        child: const Text('Kategorie'),
-                                      ),
-                                    ),
-                                    DataColumn(
-                                      label: SizedBox(
-                                        width: _columnWidths['productGroups'],
-                                        child: const Text('Produktgruppen'),
-                                      ),
-                                    ),
-                                    DataColumn(
-                                      label: SizedBox(
-                                        width: _columnWidths['type'],
-                                        child: const Text('Typ'),
-                                      ),
-                                    ),
-                                    DataColumn(
-                                      label: SizedBox(
-                                        width: _columnWidths['importance'],
-                                        child: const Text('Wichtigkeit'),
-                                      ),
-                                    ),
-                                    DataColumn(
-                                      label: SizedBox(
-                                        width: _columnWidths['status'],
-                                        child: const Text('Status'),
-                                      ),
-                                    ),
-                                    DataColumn(
-                                      label: SizedBox(
-                                        width: _columnWidths['updated'],
-                                        child: const Text('Geändert'),
-                                      ),
-                                    ),
-                                    DataColumn(
-                                      label: SizedBox(
-                                        width: _columnWidths['actions'],
-                                        child: const Text('Aktionen'),
-                                      ),
-                                    ),
-                                  ],
-                                  rows: _articles
-                                      .map(
-                                        (a) => DataRow(cells: [
-                                          DataCell(
-                                            SizedBox(
-                                              width: _columnWidths['title'],
-                                              child: Text(
-                                                a.title,
-                                                softWrap: true,
-                                                style: const TextStyle(fontWeight: FontWeight.w700),
-                                              ),
-                                            ),
-                                          ),
-                                          DataCell(
-                                            SizedBox(
-                                              width: _columnWidths['category'],
-                                              child: Text(
-                                                _categoryLabel(a.categoryId),
-                                                softWrap: true,
-                                              ),
-                                            ),
-                                          ),
-                                          DataCell(
-                                            SizedBox(
-                                              width: _columnWidths['productGroups'],
-                                              child: Text(
-                                                a.productGroups.join(', '),
-                                                softWrap: true,
-                                              ),
-                                            ),
-                                          ),
-                                          DataCell(
-                                            SizedBox(
-                                              width: _columnWidths['type'],
-                                              child: Text(
-                                                a.type,
-                                                softWrap: true,
-                                              ),
-                                            ),
-                                          ),
-                                          DataCell(
-                                            SizedBox(
-                                              width: _columnWidths['importance'],
-                                              child: Text(
-                                                a.importance,
-                                                softWrap: true,
-                                              ),
-                                            ),
-                                          ),
-                                          DataCell(
-                                            SizedBox(
-                                              width: _columnWidths['status'],
-                                              child: Chip(
-                                                label: Text(a.isActive ? 'Aktiv' : 'Inaktiv'),
-                                                backgroundColor:
-                                                    a.isActive ? cs.primaryContainer : cs.surfaceVariant,
-                                              ),
-                                            ),
-                                          ),
-                                          DataCell(
-                                            SizedBox(
-                                              width: _columnWidths['updated'],
-                                              child: Text(
-                                                a.updatedAt.toLocal().toString().split('.').first,
-                                                softWrap: true,
-                                              ),
-                                            ),
-                                          ),
-                                          DataCell(
-                                            SizedBox(
-                                              width: _columnWidths['actions'],
-                                              child: Row(
-                                                children: [
-                                                  IconButton(
-                                                    tooltip: 'Vorschau',
-                                                    icon: const Icon(Icons.visibility_outlined),
-                                                    onPressed: () => _openPreview(a),
-                                                  ),
-                                                  IconButton(
-                                                    tooltip: 'Bearbeiten',
-                                                    icon: const Icon(Icons.edit_outlined),
-                                                    onPressed: () => _openForm(article: a),
-                                                  ),
-                                                  IconButton(
-                                                    tooltip: 'Löschen',
-                                                    icon: const Icon(Icons.delete_outline),
-                                                    onPressed: () => _delete(a),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                        ]),
-                                      )
-                                      .toList(),
                                 ),
                               ),
-                            ),
+                            ],
                           ),
-                      ),
-                    ),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ],
@@ -1011,6 +1079,16 @@ class _WidthSlider extends StatelessWidget {
       ],
     );
   }
+}
+
+class _TableDragScrollBehavior extends MaterialScrollBehavior {
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.stylus,
+        PointerDeviceKind.unknown,
+      };
 }
 
 class _ArticlePreview extends StatelessWidget {
