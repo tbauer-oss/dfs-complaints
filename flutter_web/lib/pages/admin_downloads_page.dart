@@ -120,7 +120,7 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
       return;
     }
 
-    final mime = (file.mimeType ?? '').trim().isEmpty ? _guessMime(file.name) : file.mimeType!.trim();
+    final mime = _guessMime(file.name);
     setState(() {
       _filePayload = {
         'name': file.name,
