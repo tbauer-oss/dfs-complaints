@@ -1525,7 +1525,8 @@ class ApiClient {
     final suffix = (lang != null && lang.isNotEmpty)
         ? '?lang=${Uri.encodeQueryComponent(lang)}'
         : '';
-    final r = await http.get(_u('/api/wiki/$id$suffix'));
+    final safeId = Uri.encodeComponent(id);
+    final r = await http.get(_u('/api/wiki/$safeId$suffix'));
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }

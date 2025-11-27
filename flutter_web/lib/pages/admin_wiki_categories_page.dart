@@ -160,100 +160,129 @@ class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    return LayoutBuilder(
+      builder: (context, cons) {
+        final isCompact = cons.maxWidth < 840;
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.category_outlined),
-                const SizedBox(width: 8),
-                Text('Kategorien verwalten', style: theme.textTheme.titleLarge),
-                const Spacer(),
-                DropdownButton<String>(
-                  value: _statusFilter,
-                  onChanged: (v) => setState(() => _statusFilter = v ?? 'alle'),
-                  items: const [
-                    DropdownMenuItem(value: 'alle', child: Text('Alle')), 
-                    DropdownMenuItem(value: 'active', child: Text('Aktiv')), 
-                    DropdownMenuItem(value: 'inactive', child: Text('Inaktiv')),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.category_outlined),
+                        const SizedBox(width: 8),
+                        Text('Kategorien verwalten', style: theme.textTheme.titleLarge),
+                      ],
+                    ),
+                    SizedBox(
+                      width: isCompact ? 180 : 220,
+                      child: DropdownButtonFormField<String>(
+                        value: _statusFilter,
+                        decoration: const InputDecoration(labelText: 'Status'),
+                        onChanged: (v) {
+                          setState(() => _statusFilter = v ?? 'alle');
+                          _load();
+                        },
+                        items: const [
+                          DropdownMenuItem(value: 'alle', child: Text('Alle')),
+                          DropdownMenuItem(value: 'active', child: Text('Aktiv')),
+                          DropdownMenuItem(value: 'inactive', child: Text('Inaktiv')),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Aktualisieren',
+                      onPressed: _loading ? null : _load,
+                      icon: const Icon(Icons.refresh),
+                    ),
+                    FilledButton.icon(
+                      onPressed: _loading ? null : () => _openForm(),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Neu'),
+                    ),
                   ],
                 ),
-                const SizedBox(width: 12),
-                IconButton(
-                  tooltip: 'Aktualisieren',
-                  onPressed: _loading ? null : _load,
-                  icon: const Icon(Icons.refresh),
-                ),
-                const SizedBox(width: 12),
-                FilledButton.icon(
-                  onPressed: _loading ? null : () => _openForm(),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Neu'),
+                const SizedBox(height: 12),
+                if (_loading) const LinearProgressIndicator(),
+                if (_err != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(_err!, style: TextStyle(color: cs.error)),
+                  ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: Scrollbar(
+                    child: SingleChildScrollView(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(minWidth: cons.maxWidth - 32),
+                          child: DataTable(
+                            columns: const [
+                              DataColumn(label: Text('Name')),
+                              DataColumn(label: Text('Beschreibung')),
+                              DataColumn(label: Text('Icon')),
+                              DataColumn(label: Text('Sortierung')),
+                              DataColumn(label: Text('Status')),
+                              DataColumn(label: Text('Aktionen')),
+                            ],
+                            rows: _categories
+                                .map(
+                                  (c) => DataRow(cells: [
+                                    DataCell(Text(c.name)),
+                                    DataCell(Text(c.description.length > 60
+                                        ? '${c.description.substring(0, 57)}...'
+                                        : c.description)),
+                                    DataCell(Row(
+                                      children: [
+                                        Icon(Icons.circle, size: 14, color: cs.primary),
+                                        const SizedBox(width: 6),
+                                        Text(c.icon),
+                                      ],
+                                    )),
+                                    DataCell(Text(c.sortOrder.toString())),
+                                    DataCell(Chip(
+                                      label: Text(c.isActive ? 'Aktiv' : 'Inaktiv'),
+                                      backgroundColor: c.isActive
+                                          ? cs.primaryContainer
+                                          : cs.surfaceVariant,
+                                    )),
+                                    DataCell(Row(
+                                      children: [
+                                        IconButton(
+                                          tooltip: 'Bearbeiten',
+                                          icon: const Icon(Icons.edit_outlined),
+                                          onPressed: () => _openForm(cat: c),
+                                        ),
+                                        IconButton(
+                                          tooltip: 'Löschen',
+                                          icon: const Icon(Icons.delete_outline),
+                                          onPressed: () => _delete(c),
+                                        ),
+                                      ],
+                                    )),
+                                  ]),
+                                )
+                                .toList(),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            if (_loading) const LinearProgressIndicator(),
-            if (_err != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text(_err!, style: TextStyle(color: cs.error)),
-              ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: SingleChildScrollView(
-                child: DataTable(
-                  columns: const [
-                    DataColumn(label: Text('Name')),
-                    DataColumn(label: Text('Beschreibung')),
-                    DataColumn(label: Text('Icon')),
-                    DataColumn(label: Text('Sortierung')),
-                    DataColumn(label: Text('Status')),
-                    DataColumn(label: Text('Aktionen')),
-                  ],
-                  rows: _categories
-                      .map(
-                        (c) => DataRow(cells: [
-                          DataCell(Text(c.name)),
-                          DataCell(Text(c.description.length > 60
-                              ? '${c.description.substring(0, 57)}...'
-                              : c.description)),
-                          DataCell(Row(
-                            children: [Icon(Icons.circle, size: 14, color: cs.primary), const SizedBox(width: 6), Text(c.icon)],
-                          )),
-                          DataCell(Text(c.sortOrder.toString())),
-                          DataCell(Chip(
-                            label: Text(c.isActive ? 'Aktiv' : 'Inaktiv'),
-                            backgroundColor: c.isActive
-                                ? cs.primaryContainer
-                                : cs.surfaceVariant,
-                          )),
-                          DataCell(Row(
-                            children: [
-                              IconButton(
-                                tooltip: 'Bearbeiten',
-                                icon: const Icon(Icons.edit_outlined),
-                                onPressed: () => _openForm(cat: c),
-                              ),
-                              IconButton(
-                                tooltip: 'Löschen',
-                                icon: const Icon(Icons.delete_outline),
-                                onPressed: () => _delete(c),
-                              ),
-                            ],
-                          )),
-                        ]),
-                      )
-                      .toList(),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
