@@ -29,21 +29,26 @@ export default async function handler(req, res) {
   setCors(req, res);
   if (!requireAdmin(req, res)) return;
 
-  if (req.method === 'GET') {
-    const data = await wikiCategories({ includeInactive: true });
-    return ok(res, data);
-  }
-
-  if (req.method === 'POST') {
-    const body = readJson(req);
-    try {
-      const payload = categorySchema.parse(body || {});
-      const saved = await wikiSaveCategory(payload);
-      return ok(res, saved);
-    } catch (e) {
-      return bad(res, e?.message || 'invalid payload', 400);
+  try {
+    if (req.method === 'GET') {
+      const data = await wikiCategories({ includeInactive: true });
+      return ok(res, data);
     }
-  }
 
-  return methodNotAllowed(res);
+    if (req.method === 'POST') {
+      const body = readJson(req);
+      try {
+        const payload = categorySchema.parse(body || {});
+        const saved = await wikiSaveCategory(payload);
+        return ok(res, saved);
+      } catch (e) {
+        return bad(res, e?.message || 'invalid payload', 400);
+      }
+    }
+
+    return methodNotAllowed(res);
+  } catch (err) {
+    console.error('[api/wiki/admin/categories] failed', err);
+    return bad(res, 'internal server error', 500);
+  }
 }
