@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api/client.dart';
 import '../models/wiki_article.dart';
+import '../utils/lang_utils.dart';
 import 'rep_wiki_detail_page.dart';
 
 class RepWikiListPage extends StatefulWidget {
@@ -40,11 +41,13 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
       _err = null;
     });
     try {
+      final lang = normalizeLangCode(Localizations.localeOf(context).languageCode);
       final items = await widget.api.fetchWikiArticles(
         category: _category,
         productGroup: _productGroup,
         type: _type,
         search: _searchCtrl.text.trim(),
+        lang: lang,
       );
       if (!mounted) return;
       setState(() => _articles = items);
