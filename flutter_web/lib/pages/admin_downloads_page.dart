@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:html' as html;
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -47,6 +48,14 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
   Set<String> _allowedRepIds = <String>{};
   RepDownloadItem? _editing;
   Map<String, dynamic>? _filePayload;
+  final ScrollController _tableScrollCtrl = ScrollController();
+  final ScrollBehavior _tableScrollBehavior =
+      const ScrollBehavior().copyWith(dragDevices: {
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.trackpad,
+    PointerDeviceKind.stylus,
+  });
 
   @override
   void initState() {
@@ -59,6 +68,7 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
     _searchCtrl.dispose();
     _titleCtrl.dispose();
     _descCtrl.dispose();
+    _tableScrollCtrl.dispose();
     super.dispose();
   }
 
@@ -115,6 +125,58 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
       _allowedRepIds = item.allowedRepresentatives.toSet();
       _filePayload = null;
     });
+  }
+
+  Widget _buildTitleCell(RepDownloadItem item, ThemeData theme) {
+    final titleStyle = theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700);
+    final secondaryStyle = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurface.withOpacity(0.65),
+      height: 1.2,
+    );
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 240, maxWidth: 380),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Tooltip(
+            message: item.title,
+            child: Text(
+              item.title,
+              style: titleStyle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+            ),
+          ),
+          if (item.description.isNotEmpty) ...[
+            const SizedBox(height: 3),
+            Tooltip(
+              message: item.description,
+              child: Text(
+                item.description,
+                style: secondaryStyle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                softWrap: false,
+              ),
+            ),
+          ],
+          const SizedBox(height: 3),
+          Tooltip(
+            message: item.fileName,
+            child: Text(
+              'Datei: ${item.fileName}',
+              style: secondaryStyle?.copyWith(color: secondaryStyle.color?.withOpacity(0.7)),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   String _guessMime(String name) {
@@ -920,6 +982,7 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
     }
 
     final theme = Theme.of(context);
+    final minTableWidth = (MediaQuery.of(context).size.width - 48).clamp(960.0, 1600.0);
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       elevation: 2,
@@ -943,61 +1006,87 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
             ),
           ),
           const Divider(height: 1),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minWidth: 960),
-              child: DataTable(
-                columns: const [
-                  DataColumn(label: Text('Titel')),
-                  DataColumn(label: Text('Kategorie')),
-                  DataColumn(label: Text('Badge')),
-                  DataColumn(label: Text('Sichtbarkeit')),
-                  DataColumn(label: Text('Version')),
-                  DataColumn(label: Text('Aktualisiert')),
-                  DataColumn(label: Text('Status')),
-                  DataColumn(label: Text('Aktionen')),
-                ],
-                rows: _filteredItems.map((item) {
-                  return DataRow(cells: [
-                    DataCell(Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(item.title, style: const TextStyle(fontWeight: FontWeight.w600)),
-                        if (item.description.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Text(item.description, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+          ScrollConfiguration(
+            behavior: _tableScrollBehavior,
+            child: Scrollbar(
+              controller: _tableScrollCtrl,
+              thumbVisibility: true,
+              interactive: true,
+              scrollbarOrientation: ScrollbarOrientation.bottom,
+              child: SingleChildScrollView(
+                controller: _tableScrollCtrl,
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.only(bottom: 2),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minWidth: minTableWidth),
+                  child: DataTable(
+                  columnSpacing: 24,
+                  horizontalMargin: 16,
+                  headingRowHeight: 48,
+                  dataRowMinHeight: 64,
+                  dataRowMaxHeight: 86,
+                  dividerThickness: 0.7,
+                  headingTextStyle: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.onSurface.withOpacity(0.72),
+                    letterSpacing: 0.2,
+                  ),
+                  dataTextStyle: theme.textTheme.bodyMedium,
+                  headingRowColor: MaterialStatePropertyAll(theme.colorScheme.surfaceVariant.withOpacity(0.45)),
+                  dataRowColor: MaterialStateProperty.resolveWith((states) {
+                    if (states.contains(MaterialState.hovered)) {
+                      return theme.colorScheme.surfaceVariant.withOpacity(0.25);
+                    }
+                    return Colors.transparent;
+                  }),
+                  columns: const [
+                    DataColumn(label: Text('Titel')),
+                    DataColumn(label: Text('Kategorie')),
+                    DataColumn(label: Text('Badge')),
+                    DataColumn(label: Text('Sichtbarkeit')),
+                    DataColumn(label: Text('Version')),
+                    DataColumn(label: Text('Aktualisiert')),
+                    DataColumn(label: Text('Status')),
+                    DataColumn(label: Text('Aktionen')),
+                  ],
+                  rows: _filteredItems.map((item) {
+                    return DataRow(cells: [
+                      DataCell(_buildTitleCell(item, theme)),
+                      DataCell(
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(minWidth: 120, maxWidth: 180),
+                          child: Tooltip(
+                            message: item.category.isNotEmpty ? item.category : 'Keine Kategorie',
+                            child: Text(
+                              item.category.isNotEmpty ? item.category : '–',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text('Datei: ${item.fileName}', style: const TextStyle(fontSize: 12, color: Colors.black45)),
                         ),
-                      ],
-                    )),
-                    DataCell(item.category.isNotEmpty ? Text(item.category) : const Text('–')),
-                    DataCell(_buildBadgeChip(item.badge)),
-                    DataCell(_buildVisibilityInfo(item)),
-                    DataCell(Text('v${item.version}')),
-                    DataCell(Text(_formatDate(item.updatedAt))),
-                    DataCell(_buildStatusChip(item.active)),
-                    DataCell(Row(
-                      children: [
-                        IconButton(
-                          tooltip: 'Öffnen',
-                          icon: const Icon(Icons.open_in_new_outlined),
-                          onPressed: () => html.window.open(item.downloadUrl, '_blank'),
-                        ),
-                        IconButton(
-                          tooltip: 'Bearbeiten',
-                          icon: const Icon(Icons.edit_outlined),
-                          onPressed: () => _editItem(item),
-                        ),
-                      ],
-                    )),
-                  ]);
-                }).toList(),
+                      ),
+                      DataCell(_buildBadgeChip(item.badge)),
+                      DataCell(_buildVisibilityInfo(item)),
+                      DataCell(Text('v${item.version}')),
+                      DataCell(Text(_formatDate(item.updatedAt))),
+                      DataCell(_buildStatusChip(item.active)),
+                      DataCell(Row(
+                        children: [
+                          IconButton(
+                            tooltip: 'Öffnen',
+                            icon: const Icon(Icons.open_in_new_outlined),
+                            onPressed: () => html.window.open(item.downloadUrl, '_blank'),
+                          ),
+                          IconButton(
+                            tooltip: 'Bearbeiten',
+                            icon: const Icon(Icons.edit_outlined),
+                            onPressed: () => _editItem(item),
+                          ),
+                        ],
+                      )),
+                    ]);
+                  }).toList(),
+                ),
               ),
             ),
           ),
