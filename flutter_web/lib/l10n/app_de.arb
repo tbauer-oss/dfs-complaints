@@ -177,6 +177,8 @@
   "rep_menu_customers_subtitle": "Firmen & Kontakte",
   "rep_menu_account_title": "Mein Account",
   "rep_menu_account_subtitle": "Profil & Passwort",
+  "rep_downloads_title": "Downloads",
+  "rep_menu_downloads_subtitle": "Dokumente & Unterlagen",
   "rep_contact_title": "Kontakt zum Vertreter",
   "rep_contact_intro": "Sie schreiben an {firstName} {lastName}. Bitte füllen Sie die folgenden Felder aus.",
   "@rep_contact_intro": {
@@ -203,6 +205,9 @@
     }
   },
   "rep_support_contact_no_email": "Für Ihr Profil ist keine gültige E-Mail-Adresse hinterlegt.",
+  "rep_downloads_empty": "Keine Dokumente verfügbar.",
+  "rep_downloads_new": "New",
+  "rep_downloads_change": "Change",
   "rep_filter_company_label": "Firmenname filtern",
   "rep_filter_show_closed": "Abgeschlossen anzeigen",
   "rep_filter_only_rejected": "Nur abgelehnte",

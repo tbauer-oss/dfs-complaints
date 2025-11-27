@@ -176,6 +176,8 @@
   "rep_menu_customers_subtitle": "Aziende e contatti",
   "rep_menu_account_title": "Il mio account",
   "rep_menu_account_subtitle": "Profilo e password",
+  "rep_downloads_title": "Download",
+  "rep_menu_downloads_subtitle": "Documenti e materiali",
   "rep_contact_title": "Contatta il rappresentante",
   "rep_contact_intro": "Stai scrivendo a {firstName} {lastName}. Compila i seguenti campi.",
   "@rep_contact_intro": {
@@ -202,6 +204,9 @@
     }
   },
   "rep_support_contact_no_email": "Per il tuo profilo non è memorizzato alcun indirizzo e-mail valido.",
+  "rep_downloads_empty": "Nessun documento disponibile.",
+  "rep_downloads_new": "New",
+  "rep_downloads_change": "Change",
   "rep_filter_company_label": "Filtra per azienda",
   "rep_filter_show_closed": "Mostra completati",
   "rep_filter_only_rejected": "Solo rifiutati",
