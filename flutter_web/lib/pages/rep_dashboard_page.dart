@@ -37,7 +37,6 @@ class RepDashboardPage extends StatefulWidget {
 }
 
 class _RepDashboardPageState extends State<RepDashboardPage> {
-  final t = context.t;
   Map<String, dynamic>? _me;
 
   /// Kundenliste (aus Backend normalisiert) – zugewiesene Kunden dieses Vertreters
@@ -1269,8 +1268,8 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
         _MenuCard(
           color: Colors.green,
           icon: Icons.menu_book_outlined,
-          title: t.repwiki,
-          subtitle: t.customer_knowledge,
+          title: ctx.t.repwiki,
+          subtitle: ctx.t.customer_knowledge,
           count: null,
           compact: compact,
           scale: scale,
