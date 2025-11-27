@@ -123,6 +123,12 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
       );
       return;
     }
+    if (_editing == null && _filePayload == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bitte eine Datei hochladen.')),
+      );
+      return;
+    }
     setState(() => _saving = true);
     try {
       await widget.api.adminSaveDownload(
