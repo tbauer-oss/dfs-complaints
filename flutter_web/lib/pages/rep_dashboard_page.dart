@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../api/client.dart';
 import 'rep_profile_page.dart';
-import '../models/complaint_chat.dart';
-import 'complaint_chat_page.dart';
 import 'rep_support_contact_form.dart';
 import 'dart:html' as html;
 import '../l10n/app_localizations.dart';
@@ -1206,43 +1204,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
               _filter = _RepFilter.open;
               _view = _RepView.open;
             });
-          },
-        ),
-        ValueListenableBuilder<int>(
-          valueListenable: ComplaintChatInboxState.unreadForRep,
-          builder: (_, unread, __) {
-            return _MenuCard(
-              color: Colors.purple,
-              icon: Icons.chat_bubble_outline,
-              title: 'Interner Chat',
-              subtitle: 'QM ↔ Vertreter pro Fall',
-              count: unread > 0 ? unread : null,
-              compact: compact,
-              scale: scale,
-              onTap: () async {
-                if (!await _confirmLeaveCurrentView()) return;
-                if (!mounted) return;
-                String s(Object? v) => (v ?? '').toString().trim();
-                final repName =
-                    [s(_me?['firstName']), s(_me?['lastName'])].where((e) => e.isNotEmpty).join(' ');
-                final repLabel = repName.isNotEmpty
-                    ? repName
-                    : s(_me?['email']).isNotEmpty
-                        ? s(_me?['email'])
-                        : 'Vertreter';
-                const adminLabel = 'QM / Admin';
-                await Navigator.of(context, rootNavigator: true).pushNamed(
-                  '/internal-chat',
-                  arguments: ComplaintChatPageArgs(
-                    role: ComplaintChatRole.rep,
-                    contacts: const [adminLabel],
-                    defaultContact: adminLabel,
-                    repLabel: repLabel,
-                    adminLabel: adminLabel,
-                  ),
-                );
-              },
-            );
           },
         ),
         _MenuCard(

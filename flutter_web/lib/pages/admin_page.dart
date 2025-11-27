@@ -13,7 +13,6 @@ import '../models/complaint.dart' show ComplaintUpload;
 import '../models/customer_news_entry.dart';
 import '../models/dfs_product.dart';
 import '../models/faq.dart';
-import '../models/complaint_chat.dart';
 import '../data/knowledge_base_data.dart';
 import '../l10n/app_localizations.dart';
 import '../services/dfs_product_service.dart';
@@ -23,7 +22,6 @@ import '../widgets/theme_action.dart' as w;
 import '../utils/lang_utils.dart';
 import 'admin_stats_page.dart';
 import 'product_catalog_page.dart';
-import 'complaint_chat_page.dart';
 
 // ===================================================================
 // Admin Page – mit Kachel-Menü (wie Kunden-Dashboard)
@@ -3399,80 +3397,6 @@ class _AdminPageState extends State<AdminPage> {
         ],
       ),
       actions: [
-        ValueListenableBuilder<int>(
-          valueListenable: ComplaintChatInboxState.unreadForAdmin,
-          builder: (_, unread, __) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: TextButton.icon(
-                onPressed: () async {
-                  if (_loadReps) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Vertreter werden geladen …')),
-                    );
-                    return;
-                  }
-
-                  if (_reps.isEmpty) {
-                    await _refreshReps();
-                    if (!mounted) return;
-                  }
-
-                  final contacts = _reps
-                      .map((r) => r.displayName)
-                      .where((s) => s.isNotEmpty)
-                      .toList();
-
-                  contacts.sort(
-                      (a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-
-                  if (contacts.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Keine Vertreter vorhanden. Bitte zuerst anlegen.')),
-                    );
-                    return;
-                  }
-
-                  await Navigator.of(context, rootNavigator: true).pushNamed(
-                    '/internal-chat',
-                    arguments: ComplaintChatPageArgs(
-                      role: ComplaintChatRole.admin,
-                      contacts: contacts,
-                      defaultContact: contacts.first,
-                      adminLabel: 'QM / Admin',
-                    ),
-                  );
-                },
-                style: TextButton.styleFrom(
-                  foregroundColor: theme.colorScheme.onSurface,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                ),
-                icon: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    const Icon(Icons.chat_bubble_outline),
-                    if (unread > 0)
-                      Positioned(
-                        right: -6,
-                        top: -6,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.secondaryContainer,
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text('$unread',
-                              style: theme.textTheme.labelSmall),
-                        ),
-                      ),
-                  ],
-                ),
-                label: const Text('Interner Chat'),
-              ),
-            );
-          },
-        ),
         IconButton(
           tooltip: 'Zurück zum Admin-Dashboard',
           onPressed: () => setState(() => _view = _AdminView.menu),

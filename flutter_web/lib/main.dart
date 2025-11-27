@@ -21,7 +21,6 @@ import 'pages/legal_privacy_page.dart';
 import 'pages/legal_imprint_page.dart';
 import 'widgets/legal_footer.dart';
 import 'pages/reset_password_page.dart';
-import 'pages/complaint_chat_page.dart';
 
 // Widgets
 import 'widgets/lang_action.dart';
@@ -645,24 +644,6 @@ class _MyAppState extends State<MyApp> {
               '/repLogin': (_) => RepLoginPage(api: api),
               // Vertreter-Dashboard
               '/rep': (_) => RepDashboardPage(api: api),
-              '/internal-chat-demo':
-                  (_) => const ComplaintChatPage(ticket: 'DFS-24-1042'),
-              '/internal-chat': (ctx) {
-                final args = ModalRoute.of(ctx)?.settings.arguments;
-
-                if (args is ComplaintChatPageArgs) {
-                  return ComplaintChatPage(
-                    role: args.role,
-                    ticket: args.ticket,
-                    contacts: args.contacts,
-                    defaultContact: args.defaultContact,
-                    repLabel: args.repLabel,
-                    adminLabel: args.adminLabel,
-                  );
-                }
-
-                return const ComplaintChatPage();
-              },
               '/reset-password': (_) => ResetPasswordPage(api: api),
               // Datenschutz-Seite
               '/legal/privacy': (_) => const LegalPrivacyPage(),
