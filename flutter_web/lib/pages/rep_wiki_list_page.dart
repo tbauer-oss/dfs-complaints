@@ -24,6 +24,7 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
   String? _productGroup;
   String? _type;
   final TextEditingController _searchCtrl = TextEditingController();
+  final Set<String> _expandedCategories = {};
 
   @override
   void initState() {
@@ -42,6 +43,7 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
     setState(() {
       _loading = true;
       _err = null;
+      _expandedCategories.clear();
     });
     try {
       final lang = normalizeLangCode(Localizations.localeOf(context).languageCode);
@@ -256,7 +258,12 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
         final key = a.categoryName ?? a.categoryId ?? 'Allgemein';
         grouped.putIfAbsent(key, () => []).add(a);
       }
-      final sortedCategories = grouped.keys.toList()..sort();
+      final sortedCategories = grouped.keys.toList()
+        ..sort((a, b) {
+          final diff = grouped[b]!.length.compareTo(grouped[a]!.length);
+          if (diff != 0) return diff;
+          return a.compareTo(b);
+        });
 
       if (_loading) {
         return const Padding(
@@ -306,42 +313,103 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           for (final category in sortedCategories) ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Row(
-                children: [
-                  Icon(Icons.folder_special_rounded, color: cs.primary),
-                  const SizedBox(width: 8),
-                  Text(
-                    category,
-                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(width: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: cs.surfaceVariant.withOpacity(.5),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text('${grouped[category]!.length} Artikel',
-                        style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: cs.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: cs.outlineVariant.withOpacity(.5)),
+                boxShadow: [
+                  BoxShadow(
+                    color: cs.shadow.withOpacity(.10),
+                    blurRadius: 14,
+                    offset: const Offset(0, 10),
                   ),
                 ],
               ),
-            ),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: crossAxisCount,
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
-                childAspectRatio: aspectRatio,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () {
+                    setState(() {
+                      if (_expandedCategories.contains(category)) {
+                        _expandedCategories.remove(category);
+                      } else {
+                        _expandedCategories.add(category);
+                      }
+                    });
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.folder_special_rounded, color: cs.primary),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    category,
+                                    style: theme.textTheme.titleMedium
+                                        ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: .1),
+                                  ),
+                                  Text(
+                                    'Tippe für Details',
+                                    style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: cs.surfaceVariant.withOpacity(.5),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text('${grouped[category]!.length} Artikel',
+                                  style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
+                            ),
+                            const SizedBox(width: 12),
+                            AnimatedRotation(
+                              duration: const Duration(milliseconds: 180),
+                              turns: _expandedCategories.contains(category) ? .5 : 0,
+                              child: Icon(Icons.keyboard_arrow_down_rounded, color: cs.onSurfaceVariant),
+                            ),
+                          ],
+                        ),
+                        AnimatedCrossFade(
+                          firstChild: const SizedBox.shrink(),
+                          secondChild: Padding(
+                            padding: const EdgeInsets.only(top: 14),
+                            child: GridView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: crossAxisCount,
+                                mainAxisSpacing: 10,
+                                crossAxisSpacing: 10,
+                                childAspectRatio: aspectRatio,
+                              ),
+                              itemCount: grouped[category]!.length,
+                              itemBuilder: (_, i) => buildCard(grouped[category]![i]),
+                            ),
+                          ),
+                          crossFadeState: _expandedCategories.contains(category)
+                              ? CrossFadeState.showSecond
+                              : CrossFadeState.showFirst,
+                          duration: const Duration(milliseconds: 200),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-              itemCount: grouped[category]!.length,
-              itemBuilder: (_, i) => buildCard(grouped[category]![i]),
             ),
-            const SizedBox(height: 18),
           ],
         ],
       );
