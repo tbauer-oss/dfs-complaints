@@ -3382,6 +3382,7 @@ class _AdminPageState extends State<AdminPage> {
 
   PreferredSizeWidget _buildTopBar(String title, {required bool isNarrow}) {
     final theme = Theme.of(context);
+    final t = AppLocalizations.of(context)!;
     final onSurfaceMuted = theme.textTheme.labelMedium?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
       fontWeight: FontWeight.w500,
@@ -3418,6 +3419,11 @@ class _AdminPageState extends State<AdminPage> {
       ),
       actions: [
         IconButton(
+          tooltip: t.logoutTitle,
+          onPressed: _logoutAdmin,
+          icon: const Icon(Icons.logout),
+        ),
+        IconButton(
           tooltip: 'Zurück zum Admin-Dashboard',
           onPressed: () => setState(() => _view = _AdminView.menu),
           icon: const Icon(Icons.home_outlined),
@@ -3451,6 +3457,26 @@ class _AdminPageState extends State<AdminPage> {
 
     if (shouldRefreshFaq) {
       _refreshFaq();
+    }
+  }
+
+    Future<void> _logoutAdmin() async {
+    final t = AppLocalizations.of(context)!;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(t.logoutTitle),
+        content: Text(t.logoutConfirm),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t.cancel)),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(t.logout)),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      widget.api.clearAdminSecret();
+      if (mounted) Navigator.of(context).pop();
     }
   }
 
