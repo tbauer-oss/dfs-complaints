@@ -163,26 +163,40 @@ class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
   Future<void> _toggleActive(WikiCategory cat) async {
     if (_busyIds.contains(cat.id)) return;
     setState(() => _busyIds.add(cat.id));
+    final optimistic = cat.copyWith(isActive: !cat.isActive);
+    setState(() {
+      _categories = _categories
+          .map((c) => c.id == cat.id ? optimistic : c)
+          .where((c) {
+        if (_statusFilter == 'active') return c.isActive;
+        if (_statusFilter == 'inactive') return !c.isActive;
+        return true;
+      }).toList(growable: false);
+    });
     try {
       final updated = await widget.api.adminSaveWikiCategory({
         'name': cat.name,
         'description': cat.description,
         'icon': cat.icon,
         'sortOrder': cat.sortOrder,
-        'isActive': !cat.isActive,
+        'isActive': optimistic.isActive,
       }, id: cat.id);
       if (!mounted) return;
-      setState(() {
-        _categories = _categories
-            .map((c) => c.id == cat.id ? updated : c)
-            .toList(growable: false);
-      });
+      await _load();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('"${cat.name}" ist jetzt ${updated.isActive ? 'aktiv' : 'inaktiv'}')),
       );
-      _load();
     } catch (e) {
       if (!mounted) return;
+      setState(() {
+        _categories = _categories
+            .map((c) => c.id == cat.id ? cat : c)
+            .where((c) {
+          if (_statusFilter == 'active') return c.isActive;
+          if (_statusFilter == 'inactive') return !c.isActive;
+          return true;
+        }).toList(growable: false);
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Fehler beim Aktualisieren: $e')),
       );

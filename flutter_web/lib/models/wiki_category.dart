@@ -15,6 +15,24 @@ class WikiCategory {
     required this.isActive,
   });
 
+  WikiCategory copyWith({
+    String? id,
+    String? name,
+    String? description,
+    String? icon,
+    int? sortOrder,
+    bool? isActive,
+  }) {
+    return WikiCategory(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      icon: icon ?? this.icon,
+      sortOrder: sortOrder ?? this.sortOrder,
+      isActive: isActive ?? this.isActive,
+    );
+  }
+
   factory WikiCategory.fromJson(Map<String, dynamic> json) => WikiCategory(
         id: json['id'] as String,
         name: json['name'] as String? ?? '',
