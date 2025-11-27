@@ -435,10 +435,12 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
         return Scrollbar(
           thumbVisibility: true,
           controller: _scrollCtrl,
-          child: CustomScrollView(
-            controller: _scrollCtrl,
+          child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-            slivers: slivers,
+            child: CustomScrollView(
+              controller: _scrollCtrl,
+              slivers: slivers,
+            ),
           ),
         );
       },
