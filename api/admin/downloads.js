@@ -48,6 +48,7 @@ export default async function handler(req, res) {
   if (!requireAdmin(req, res)) return;
 
   try {
+    console.log('[admin/downloads] enter', { method: req.method, query: req.query });
     if (req.method === 'GET') {
       const items = await downloadsList({ includeInactive: true });
       return ok(res, { items });
@@ -62,6 +63,12 @@ export default async function handler(req, res) {
         return bad(res, err?.message || 'invalid body', code);
       }
 
+      console.log('[admin/downloads] body', JSON.stringify({
+        keys: body ? Object.keys(body) : [],
+        hasFiles: Boolean(body?.files),
+        hasUploads: Boolean(body?.uploads),
+      }));
+
       let upload = null;
       try {
         upload = await parseUpload(body);
@@ -73,6 +80,19 @@ export default async function handler(req, res) {
             : 'file upload failed';
         return bad(res, msg, 400);
       }
+
+      const existing = body?.id
+        ? (await downloadsList({ includeInactive: true })).find((d) => d.id === body.id)
+        : null;
+
+      if (!body?.title || !body.title.toString().trim()) {
+        return bad(res, 'title required', 400);
+      }
+
+      if (!upload && !body?.downloadUrl && !existing?.downloadUrl) {
+        return bad(res, 'file or downloadUrl required', 400);
+      }
+
       const payload = {
         id: body.id,
         title: body.title,
@@ -94,6 +114,7 @@ export default async function handler(req, res) {
         const saved = await downloadsUpsert(payload);
         return ok(res, saved);
       } catch (err) {
+        console.error('[admin/downloads] payload invalid', err);
         const msg = err?.message || 'invalid download payload';
         return bad(res, msg, 400);
       }
