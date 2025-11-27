@@ -2,8 +2,8 @@
 export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson, noContent } from '../../../_lib/http.js';
-import { wikiSaveCategory, wikiDeleteCategory } from '../../../_lib/wikiStore.js';
-import { validateCategoryPayload } from '../../../_lib/wikiValidation.js';
+import { wikiSaveCategory, wikiDeleteCategory, wikiSetCategoryStatus } from '../../../_lib/wikiStore.js';
+import { validateCategoryPayload, validateCategoryStatusPayload } from '../../../_lib/wikiValidation.js';
 
 function requireAdmin(req, res) {
   const sec = (req.headers?.['x-admin-secret'] || '').toString().trim();
@@ -28,6 +28,17 @@ export default async function handler(req, res) {
     try {
       const payload = validateCategoryPayload(body || {});
       const saved = await wikiSaveCategory({ ...payload, id });
+      return ok(res, saved);
+    } catch (e) {
+      return bad(res, e?.message || 'invalid payload', 400);
+    }
+  }
+
+  if (req.method === 'PATCH') {
+    const body = readJson(req);
+    try {
+      const payload = validateCategoryStatusPayload(body || {});
+      const saved = await wikiSetCategoryStatus(id, payload.isActive);
       return ok(res, saved);
     } catch (e) {
       return bad(res, e?.message || 'invalid payload', 400);

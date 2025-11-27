@@ -164,38 +164,28 @@ class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
     if (_busyIds.contains(cat.id)) return;
     setState(() => _busyIds.add(cat.id));
     final optimistic = cat.copyWith(isActive: !cat.isActive);
-    setState(() {
+    void _applyFilterAwareUpdate(WikiCategory updated) {
       _categories = _categories
-          .map((c) => c.id == cat.id ? optimistic : c)
+          .map((c) => c.id == updated.id ? updated : c)
           .where((c) {
         if (_statusFilter == 'active') return c.isActive;
         if (_statusFilter == 'inactive') return !c.isActive;
         return true;
       }).toList(growable: false);
-    });
+    }
+
+    setState(() => _applyFilterAwareUpdate(optimistic));
     try {
-      final updated = await widget.api.adminSaveWikiCategory({
-        'name': cat.name,
-        'description': cat.description,
-        'icon': cat.icon,
-        'sortOrder': cat.sortOrder,
-        'isActive': optimistic.isActive,
-      }, id: cat.id);
+      final updated = await widget.api.adminToggleWikiCategory(cat.id, optimistic.isActive);
       if (!mounted) return;
-      await _load();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('"${cat.name}" ist jetzt ${updated.isActive ? 'aktiv' : 'inaktiv'}')),
-      );
+      setState(() => _applyFilterAwareUpdate(updated));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('"${cat.name}" ist jetzt ${updated.isActive ? 'aktiv' : 'inaktiv'}'),
+      ));
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _categories = _categories
-            .map((c) => c.id == cat.id ? cat : c)
-            .where((c) {
-          if (_statusFilter == 'active') return c.isActive;
-          if (_statusFilter == 'inactive') return !c.isActive;
-          return true;
-        }).toList(growable: false);
+        _applyFilterAwareUpdate(cat);
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Fehler beim Aktualisieren: $e')),
