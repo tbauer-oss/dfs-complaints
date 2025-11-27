@@ -488,9 +488,13 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                   value: _categoryFilter,
                   hint: const Text('Kategorie'),
                   onChanged: (v) => setState(() => _categoryFilter = v),
-                  items: [const DropdownMenuItem(value: null, child: Text('Alle Kategorien'))]
+                  items: <DropdownMenuItem<String?>>[
+                    const DropdownMenuItem<String?>(value: null, child: Text('Alle Kategorien')),
+                  ]
                       .followedBy(
-                        _categories.map((c) => DropdownMenuItem(value: c.id, child: Text(c.name))),
+                        _categories.map(
+                          (c) => DropdownMenuItem<String?>(value: c.id, child: Text(c.name)),
+                        ),
                       )
                       .toList(),
                 ),
@@ -499,10 +503,14 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                   value: _productGroupFilter,
                   hint: const Text('Produktgruppe'),
                   onChanged: (v) => setState(() => _productGroupFilter = v),
-                  items: [const DropdownMenuItem(value: null, child: Text('Alle'))]
-                      .followedBy(_productGroupOptions().map(
-                        (p) => DropdownMenuItem(value: p, child: Text(p)),
-                      ))
+                  items: <DropdownMenuItem<String?>>[
+                    const DropdownMenuItem<String?>(value: null, child: Text('Alle')),
+                  ]
+                      .followedBy(
+                        _productGroupOptions().map(
+                          (p) => DropdownMenuItem<String?>(value: p, child: Text(p)),
+                        ),
+                      )
                       .toList(),
                 ),
                 const SizedBox(width: 8),
