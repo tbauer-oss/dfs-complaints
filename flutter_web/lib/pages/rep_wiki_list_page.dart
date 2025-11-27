@@ -87,13 +87,32 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
 
   Widget _badge(String label, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
-        border: Border.all(color: color.withOpacity(0.6)),
-        borderRadius: BorderRadius.circular(12),
+        gradient: LinearGradient(colors: [color.withOpacity(.18), color.withOpacity(.07)]),
+        border: Border.all(color: color.withOpacity(0.55)),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(.14),
+            blurRadius: 12,
+            spreadRadius: 1,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
-      child: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            margin: const EdgeInsets.only(right: 6),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w700, letterSpacing: .3)),
+        ],
+      ),
     );
   }
 
@@ -102,91 +121,128 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
-    final filters = Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      children: [
-        SizedBox(
-          width: 220,
-          child: DropdownButtonFormField<String?>(
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: 'Kategorie'),
-            value: _category,
-            items: <DropdownMenuItem<String?>>[
-              const DropdownMenuItem<String?>(value: null, child: Text('Alle Kategorien')),
-            ]
-                .followedBy(_categoryOptions().map(
-                  (c) => DropdownMenuItem<String?>(value: c, child: Text(c)),
-                ))
-                .toList(),
-            onChanged: (v) {
-              setState(() => _category = v);
-              _load();
-            },
-          ),
+    final filters = Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [cs.surfaceContainerHighest, cs.surface],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        SizedBox(
-          width: 200,
-          child: DropdownButtonFormField<String?>(
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: 'Produktgruppe'),
-            value: _productGroup,
-            items: <DropdownMenuItem<String?>>[
-              const DropdownMenuItem<String?>(value: null, child: Text('Alle')),
-            ]
-                .followedBy(_productGroupOptions().map(
-                  (p) => DropdownMenuItem<String?>(value: p, child: Text(p)),
-                ))
-                .toList(),
-            onChanged: (v) {
-              setState(() => _productGroup = v);
-              _load();
-            },
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: cs.shadow.withOpacity(.12),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
           ),
-        ),
-        SizedBox(
-          width: 160,
-          child: DropdownButtonFormField<String?>(
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: 'Typ'),
-            value: _type,
-            items: const <DropdownMenuItem<String?>>[
-              DropdownMenuItem<String?>(value: null, child: Text('Alle Typen')),
-              DropdownMenuItem<String?>(value: 'faq', child: Text('FAQ')),
-              DropdownMenuItem<String?>(value: 'safety', child: Text('Sicherheit')),
-              DropdownMenuItem<String?>(value: 'error', child: Text('Fehler')),
-              DropdownMenuItem<String?>(value: 'prevention', child: Text('Vermeidung')),
-            ],
-            onChanged: (v) {
-              setState(() => _type = v);
-              _load();
-            },
-          ),
-        ),
-        SizedBox(
-          width: 260,
-          child: TextField(
-            controller: _searchCtrl,
-            decoration: InputDecoration(
-              labelText: 'Suche (Titel, Teaser, Inhalt)',
-              suffixIcon: IconButton(
-                icon: const Icon(Icons.search),
-                onPressed: _load,
+        ],
+        border: Border.all(color: cs.outlineVariant.withOpacity(.6)),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.tune_rounded, color: cs.primary),
+              const SizedBox(width: 8),
+              Text('Feinjustierung', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+              const Spacer(),
+              FilledButton.icon(
+                onPressed: _loading ? null : _load,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Filter anwenden'),
               ),
-            ),
-            onSubmitted: (_) => _load(),
+            ],
           ),
-        ),
-        ElevatedButton.icon(
-          onPressed: _loading ? null : _load,
-          icon: const Icon(Icons.refresh),
-          label: const Text('Aktualisieren'),
-        ),
-      ],
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              SizedBox(
+                width: 220,
+                child: DropdownButtonFormField<String?>(
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Kategorie'),
+                  value: _category,
+                  items: <DropdownMenuItem<String?>>[
+                    const DropdownMenuItem<String?>(value: null, child: Text('Alle Kategorien')),
+                  ]
+                      .followedBy(_categoryOptions().map(
+                        (c) => DropdownMenuItem<String?>(value: c, child: Text(c)),
+                      ))
+                      .toList(),
+                  onChanged: (v) {
+                    setState(() => _category = v);
+                    _load();
+                  },
+                ),
+              ),
+              SizedBox(
+                width: 200,
+                child: DropdownButtonFormField<String?>(
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Produktgruppe'),
+                  value: _productGroup,
+                  items: <DropdownMenuItem<String?>>[
+                    const DropdownMenuItem<String?>(value: null, child: Text('Alle')),
+                  ]
+                      .followedBy(_productGroupOptions().map(
+                        (p) => DropdownMenuItem<String?>(value: p, child: Text(p)),
+                      ))
+                      .toList(),
+                  onChanged: (v) {
+                    setState(() => _productGroup = v);
+                    _load();
+                  },
+                ),
+              ),
+              SizedBox(
+                width: 160,
+                child: DropdownButtonFormField<String?>(
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Typ'),
+                  value: _type,
+                  items: const <DropdownMenuItem<String?>>[
+                    DropdownMenuItem<String?>(value: null, child: Text('Alle Typen')),
+                    DropdownMenuItem<String?>(value: 'faq', child: Text('FAQ')),
+                    DropdownMenuItem<String?>(value: 'safety', child: Text('Sicherheit')),
+                    DropdownMenuItem<String?>(value: 'error', child: Text('Fehler')),
+                    DropdownMenuItem<String?>(value: 'prevention', child: Text('Vermeidung')),
+                  ],
+                  onChanged: (v) {
+                    setState(() => _type = v);
+                    _load();
+                  },
+                ),
+              ),
+              SizedBox(
+                width: 260,
+                child: TextField(
+                  controller: _searchCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Suche (Titel, Teaser, Inhalt)',
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.search_rounded),
+                      onPressed: _load,
+                    ),
+                  ),
+                  onSubmitted: (_) => _load(),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
 
     Widget buildCard(WikiArticle a) {
-      return InkWell(
+      return _ArticleCard(
+        article: a,
+        badgeBuilder: _badge,
+        isNew: _isNew(a),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => RepWikiDetailPage(
@@ -196,60 +252,22 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
             ),
           ),
         ),
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(a.title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-                          const SizedBox(height: 6),
-                          Text(a.categoryName ?? a.categoryId, style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
-                        ],
-                      ),
-                    ),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: [
-                        if (a.importance.toLowerCase() == 'high') _badge('WICHTIG', cs.error),
-                        if (a.type == 'safety') _badge('SICHERHEIT', cs.primary),
-                        if (_isNew(a)) _badge('NEU', cs.tertiary),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                if (a.productGroups.isNotEmpty)
-                  Wrap(
-                    spacing: 6,
-                    children: a.productGroups
-                        .map((p) => Chip(
-                              label: Text(p),
-                              backgroundColor: cs.surfaceVariant,
-                              visualDensity: VisualDensity.compact,
-                            ))
-                        .toList(),
-                  ),
-                const SizedBox(height: 8),
-                Text(a.teaser, maxLines: 3, overflow: TextOverflow.ellipsis),
-              ],
-            ),
-          ),
-        ),
       );
     }
 
     Widget buildList() {
       if (_loading) {
-        return const Center(child: CircularProgressIndicator());
+        return const Padding(
+          padding: EdgeInsets.symmetric(vertical: 48),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(width: 80, height: 80, child: CircularProgressIndicator(strokeWidth: 5)),
+              SizedBox(height: 16),
+              Text('Wissensdatenbank wird geladen...'),
+            ],
+          ),
+        );
       }
       if (_err != null) {
         return Center(
@@ -299,12 +317,204 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Kundenwissen & Produktinfos', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [cs.primaryContainer, cs.surface],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [BoxShadow(color: cs.shadow.withOpacity(.15), blurRadius: 26, offset: const Offset(0, 12))],
+            border: Border.all(color: cs.primary.withOpacity(.18)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                backgroundColor: cs.primary,
+                foregroundColor: cs.onPrimary,
+                child: const Icon(Icons.menu_book_rounded),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Vertreter-Wiki', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Aktuelle Produkt- und Sicherheitsinfos in einem modernen, klaren Layout. Filtern Sie Inhalte blitzschnell und öffnen Sie Details mit sanften Übergängen.',
+                      style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
         filters,
-        const SizedBox(height: 12),
-        buildList(),
+        const SizedBox(height: 16),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 250),
+          child: buildList(),
+        ),
       ],
+    );
+  }
+}
+
+class _ArticleCard extends StatefulWidget {
+  final WikiArticle article;
+  final bool isNew;
+  final void Function()? onTap;
+  final Widget Function(String label, Color color) badgeBuilder;
+
+  const _ArticleCard({
+    required this.article,
+    required this.isNew,
+    required this.badgeBuilder,
+    this.onTap,
+  });
+
+  @override
+  State<_ArticleCard> createState() => _ArticleCardState();
+}
+
+class _ArticleCardState extends State<_ArticleCard> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final a = widget.article;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
+        transform: Matrix4.identity()..translate(0.0, _hovered ? -4 : 0.0),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [cs.surfaceContainerHighest, cs.surface],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: cs.shadow.withOpacity(_hovered ? .2 : .12),
+              blurRadius: _hovered ? 24 : 14,
+              offset: const Offset(0, 12),
+            ),
+          ],
+          border: Border.all(color: cs.outlineVariant.withOpacity(.6)),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: widget.onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: cs.primaryContainer,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(Icons.menu_book_rounded, color: cs.onPrimaryContainer),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(a.title,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: .2)),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Icon(Icons.folder_outlined, size: 18, color: cs.onSurfaceVariant),
+                                const SizedBox(width: 6),
+                                Text(
+                                  a.categoryName ?? a.categoryId,
+                                  style:
+                                      Theme.of(context).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: [
+                          if (a.importance.toLowerCase() == 'high') widget.badgeBuilder('WICHTIG', cs.error),
+                          if (a.type == 'safety') widget.badgeBuilder('SICHERHEIT', cs.primary),
+                          if (widget.isNew) widget.badgeBuilder('NEU', cs.tertiary),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  if (a.productGroups.isNotEmpty)
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: a.productGroups
+                          .map((p) => Chip(
+                                label: Text(p),
+                                backgroundColor: cs.surfaceVariant,
+                                visualDensity: VisualDensity.compact,
+                                side: BorderSide(color: cs.outlineVariant),
+                              ))
+                          .toList(),
+                    ),
+                  const SizedBox(height: 10),
+                  Text(
+                    a.teaser,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.copyWith(height: 1.5, color: cs.onSurfaceVariant.withOpacity(.9)),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(Icons.arrow_outward_rounded, size: 18, color: cs.primary),
+                      const SizedBox(width: 6),
+                      Text('Details öffnen', style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700)),
+                      const Spacer(),
+                      AnimatedOpacity(
+                        duration: const Duration(milliseconds: 200),
+                        opacity: _hovered ? 1 : 0,
+                        child: Icon(Icons.keyboard_arrow_right, color: cs.primary),
+                      ),
+                    ],
+                  )
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
