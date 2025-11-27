@@ -969,6 +969,27 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
   // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
   Future<void> _logout() async {
+    final t = context.t;
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialogCtx) => AlertDialog(
+            title: Text(t.logoutTitle),
+            content: Text(t.logoutConfirm),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogCtx, false),
+                child: Text(t.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogCtx, true),
+                child: Text(t.logout),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed) return;
+
     await widget.api.repLogout();
     try { html.window.localStorage.remove('dfs_mode'); } catch (_) {}
     if (!mounted) return;
