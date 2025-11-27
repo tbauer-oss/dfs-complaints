@@ -46,10 +46,23 @@ class _RepWikiDetailPageState extends State<RepWikiDetailPage> {
         _article = article;
         _loading = false;
       });
+      return;
     } catch (e) {
+      WikiArticle? fallbackArticle;
+      String? err;
+      if (e is ApiError && e.status == 404) {
+        try {
+          fallbackArticle = await widget.api.fetchWikiArticle(widget.articleId);
+        } catch (fallbackErr) {
+          err = fallbackErr.toString();
+        }
+      } else {
+        err = e.toString();
+      }
       if (!mounted) return;
       setState(() {
-        _err = e.toString();
+        _article = fallbackArticle ?? _article;
+        _err = _article == null ? (err ?? e.toString()) : null;
         _loading = false;
       });
     }
