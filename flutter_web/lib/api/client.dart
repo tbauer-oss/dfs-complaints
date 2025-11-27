@@ -1713,6 +1713,21 @@ class ApiClient {
     throw ApiError(500, 'Ungültige Antwort für Kategorie');
   }
 
+  Future<WikiCategory> adminToggleWikiCategory(String id, bool isActive) async {
+    final safeId = Uri.encodeComponent(id);
+    final r = await http.patch(
+      _u('/api/wiki/admin/categories/$safeId'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode({'isActive': isActive}),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    if (decoded is Map<String, dynamic>) return WikiCategory.fromJson(decoded);
+    throw ApiError(500, 'Ungültige Antwort für Kategorie-Status');
+  }
+
   Future<void> adminDeleteWikiCategory(String id) async {
     final r = await http.delete(
       _u('/api/wiki/admin/categories/$id'),

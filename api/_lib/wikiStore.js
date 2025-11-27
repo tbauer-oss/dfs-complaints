@@ -297,11 +297,24 @@ export async function wikiAdminList(params = {}) {
 
 export async function wikiSaveCategory(payload) {
   const cats = await loadCategories();
-  const normalized = normalizeCategory(payload);
+  const existing = cats.find((c) => c.id === (payload?.id || payload?.categoryId));
+  const normalized = normalizeCategory(payload, existing);
   const idx = cats.findIndex((c) => c.id === normalized.id);
   if (idx >= 0) cats[idx] = normalized; else cats.push(normalized);
   await persistCategories(cats);
   return normalized;
+}
+
+export async function wikiSetCategoryStatus(id, isActive) {
+  const target = (id ?? '').toString().trim();
+  if (!target) throw new Error('id required');
+  const cats = await loadCategories();
+  const idx = cats.findIndex((c) => c.id === target);
+  if (idx < 0) throw new Error('category not found');
+  const updated = { ...cats[idx], isActive: isActive === true };
+  cats[idx] = updated;
+  await persistCategories(cats);
+  return updated;
 }
 
 export async function wikiDeleteCategory(id) {

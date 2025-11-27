@@ -56,6 +56,12 @@ export function validateCategoryPayload(payload = {}) {
   };
 }
 
+export function validateCategoryStatusPayload(payload = {}) {
+  if (!('isActive' in payload)) throw new Error('isActive required');
+  const isActive = parseBool(payload.isActive);
+  return { isActive };
+}
+
 export function validateArticlePayload(payload = {}) {
   const categoryId = parseString(payload.categoryId, { required: true });
   const productGroups = parseStringArray(payload.productGroups);
