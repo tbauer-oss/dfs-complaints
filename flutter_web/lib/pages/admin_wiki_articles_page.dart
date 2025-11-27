@@ -5,6 +5,7 @@ import 'dart:ui' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import '../api/client.dart';
+import '../l10n/app_localizations.dart';
 import '../models/wiki_article.dart';
 import '../models/wiki_category.dart';
 
@@ -744,6 +745,7 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final t = AppLocalizations.of(context)!;
     return LayoutBuilder(
       builder: (context, cons) {
         final isCompact = cons.maxWidth < 1000;
@@ -779,33 +781,33 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Artikel verwalten',
-                                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-                                const SizedBox(height: 4),
-                                Text('Professionelle Tabellen, klare Filter und hochwertige Markdown-Vorschau.',
-                                    style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
-                              ],
-                            ),
-                          ),
-                          Wrap(
-                            spacing: 8,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              if (widget.onBack != null)
-                                OutlinedButton.icon(
-                                  onPressed: widget.onBack,
-                                  icon: const Icon(Icons.arrow_back),
-                                  label: const Text('Zurück zur Übersicht'),
-                                ),
-                              FilledButton.icon(
-                                onPressed: _loading ? null : () => _openForm(),
-                                icon: const Icon(Icons.add),
-                                label: const Text('Neu'),
-                              ),
+                              Text(t.adminWikiBannerTitle,
+                                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+                              const SizedBox(height: 4),
+                              Text(t.adminWikiBannerSubtitle,
+                                  style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
                             ],
                           ),
+                        ),
+                        Wrap(
+                          spacing: 8,
+                          children: [
+                            if (widget.onBack != null)
+                              OutlinedButton.icon(
+                                onPressed: widget.onBack,
+                                icon: const Icon(Icons.arrow_back),
+                                label: Text(t.adminWikiBannerBack),
+                              ),
+                            FilledButton.icon(
+                              onPressed: _loading ? null : () => _openForm(),
+                              icon: const Icon(Icons.add),
+                              label: Text(t.adminWikiBannerNew),
+                            ),
+                          ],
+                        ),
                         ],
                       ),
                     ],
@@ -829,7 +831,7 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                         children: [
                           Icon(Icons.tune_rounded, color: cs.primary),
                           const SizedBox(width: 8),
-                          Text('Filter & Suche',
+                          Text(t.adminWikiFiltersTitle,
                               style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
                         ],
                       ),
@@ -837,13 +839,13 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                         width: isCompact ? 210 : 240,
                         child: DropdownButtonFormField<String?>(
                           value: _categoryFilter,
-                          decoration: const InputDecoration(labelText: 'Kategorie'),
+                          decoration: InputDecoration(labelText: t.adminWikiFilterCategoryLabel),
                           onChanged: (v) {
                             setState(() => _categoryFilter = v);
                             _load();
                           },
                           items: <DropdownMenuItem<String?>>[
-                            const DropdownMenuItem<String?>(value: null, child: Text('Alle Kategorien')),
+                            DropdownMenuItem<String?>(value: null, child: Text(t.adminWikiFilterCategoryAll)),
                           ]
                               .followedBy(
                                 _categories.map(
@@ -857,13 +859,13 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                         width: isCompact ? 190 : 220,
                         child: DropdownButtonFormField<String?>(
                           value: _productGroupFilter,
-                          decoration: const InputDecoration(labelText: 'Produktgruppe'),
+                          decoration: InputDecoration(labelText: t.adminWikiFilterProductGroupLabel),
                           onChanged: (v) {
                             setState(() => _productGroupFilter = v);
                             _load();
                           },
                           items: <DropdownMenuItem<String?>>[
-                            const DropdownMenuItem<String?>(value: null, child: Text('Alle')),
+                            DropdownMenuItem<String?>(value: null, child: Text(t.adminWikiFilterProductGroupAll)),
                           ]
                               .followedBy(
                                 _productGroupOptions().map(
@@ -877,17 +879,17 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                         width: isCompact ? 180 : 200,
                         child: DropdownButtonFormField<String?>(
                           value: _typeFilter,
-                          decoration: const InputDecoration(labelText: 'Typ'),
+                          decoration: InputDecoration(labelText: t.adminWikiFilterTypeLabel),
                           onChanged: (v) {
                             setState(() => _typeFilter = v);
                             _load();
                           },
-                          items: const [
-                            DropdownMenuItem(value: null, child: Text('Alle Typen')),
-                            DropdownMenuItem(value: 'faq', child: Text('FAQ')),
-                            DropdownMenuItem(value: 'safety', child: Text('Sicherheit')),
-                            DropdownMenuItem(value: 'error', child: Text('Fehler')),
-                            DropdownMenuItem(value: 'prevention', child: Text('Vermeidung')),
+                          items: [
+                            DropdownMenuItem(value: null, child: Text(t.adminWikiFilterTypeAll)),
+                            DropdownMenuItem(value: 'faq', child: Text(t.adminWikiFilterTypeFaq)),
+                            DropdownMenuItem(value: 'safety', child: Text(t.adminWikiFilterTypeSafety)),
+                            DropdownMenuItem(value: 'error', child: Text(t.adminWikiFilterTypeError)),
+                            DropdownMenuItem(value: 'prevention', child: Text(t.adminWikiFilterTypePrevention)),
                           ],
                         ),
                       ),
@@ -895,15 +897,15 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                         width: isCompact ? 180 : 200,
                         child: DropdownButtonFormField<String?>(
                           value: _statusFilter,
-                          decoration: const InputDecoration(labelText: 'Status'),
+                          decoration: InputDecoration(labelText: t.adminWikiFilterStatusLabel),
                           onChanged: (v) {
                             setState(() => _statusFilter = v);
                             _load();
                           },
-                          items: const [
-                            DropdownMenuItem(value: null, child: Text('Alle')),
-                            DropdownMenuItem(value: 'active', child: Text('Aktiv')),
-                            DropdownMenuItem(value: 'inactive', child: Text('Inaktiv')),
+                          items: [
+                            DropdownMenuItem(value: null, child: Text(t.adminWikiFilterStatusAll)),
+                            DropdownMenuItem(value: 'active', child: Text(t.adminWikiFilterStatusActive)),
+                            DropdownMenuItem(value: 'inactive', child: Text(t.adminWikiFilterStatusInactive)),
                           ],
                         ),
                       ),
@@ -911,19 +913,19 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                         width: isCompact ? 220 : 260,
                         child: TextField(
                           controller: _searchCtrl,
-                          decoration: const InputDecoration(labelText: 'Suche Titel/Teaser/Tags'),
+                          decoration: InputDecoration(labelText: t.adminWikiFilterSearchLabel),
                           onSubmitted: (_) => _load(),
                         ),
                       ),
                       IconButton(
-                        tooltip: 'Filtern',
+                        tooltip: t.adminWikiFilterTooltip,
                         onPressed: _loading ? null : _load,
                         icon: const Icon(Icons.refresh_rounded),
                       ),
                       FilledButton.tonalIcon(
                         onPressed: _openColumnWidthDialog,
                         icon: const Icon(Icons.view_column_rounded),
-                        label: const Text('Spaltenbreite'),
+                        label: Text(t.adminWikiFilterColumnsWidth),
                       ),
                     ],
                   ),

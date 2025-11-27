@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 
 import '../api/client.dart';
+import '../l10n/app_localizations.dart';
 import '../models/wiki_article.dart';
 import '../utils/lang_utils.dart';
 
@@ -24,6 +25,7 @@ class _RepWikiDetailPageState extends State<RepWikiDetailPage> {
   WikiArticle? _article;
   bool _loading = true;
   String? _err;
+  String? _lastLocale;
 
   @override
   void initState() {
@@ -31,6 +33,20 @@ class _RepWikiDetailPageState extends State<RepWikiDetailPage> {
     _article = widget.initialArticle;
     _loading = _article == null;
     _load();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final locale = normalizeLangCode(Localizations.localeOf(context).languageCode);
+    if (_lastLocale == null) {
+      _lastLocale = locale;
+      return;
+    }
+    if (_lastLocale != locale) {
+      _lastLocale = locale;
+      _load();
+    }
   }
 
   Future<void> _load() async {
@@ -72,14 +88,15 @@ class _RepWikiDetailPageState extends State<RepWikiDetailPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final t = AppLocalizations.of(context)!;
     final article = _article;
     return Scaffold(
       appBar: AppBar(
-        title: Text(article?.title ?? 'Wiki-Artikel'),
+        title: Text(article?.title ?? t.repWikiArticleTitleFallback),
         leading: Navigator.of(context).canPop() ? const BackButton() : null,
         actions: [
           IconButton(
-            tooltip: 'Neu laden',
+            tooltip: t.repWikiReload,
             onPressed: _loading ? null : _load,
             icon: const Icon(Icons.refresh),
           ),
@@ -92,7 +109,7 @@ class _RepWikiDetailPageState extends State<RepWikiDetailPage> {
                 children: [
                   const SizedBox(width: 80, height: 80, child: CircularProgressIndicator(strokeWidth: 5)),
                   const SizedBox(height: 16),
-                  Text('Artikel wird geladen...', style: theme.textTheme.titleMedium),
+                  Text(t.repWikiArticleLoading, style: theme.textTheme.titleMedium),
                 ],
               ),
             )
@@ -103,9 +120,9 @@ class _RepWikiDetailPageState extends State<RepWikiDetailPage> {
                     children: [
                       const Icon(Icons.error_outline, size: 48),
                       const SizedBox(height: 12),
-                      Text(_err ?? 'Artikel konnte nicht geladen werden.', style: TextStyle(color: cs.error)),
+                      Text(_err ?? t.repWikiArticleError, style: TextStyle(color: cs.error)),
                       const SizedBox(height: 8),
-                      ElevatedButton(onPressed: _load, child: const Text('Erneut versuchen')),
+                      ElevatedButton(onPressed: _load, child: Text(t.repWikiRetry)),
                     ],
                   ),
                 )
@@ -135,7 +152,7 @@ class _RepWikiDetailPageState extends State<RepWikiDetailPage> {
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
-                                        'Aktuelle Version konnte nicht geladen werden (${_err}). Die zwischengespeicherte Version wird angezeigt.',
+                                        t.repWikiArticleCachedInfo(_err ?? ''),
                                         style: TextStyle(color: cs.onErrorContainer),
                                       ),
                                     ),
@@ -176,7 +193,8 @@ class _RepWikiDetailPageState extends State<RepWikiDetailPage> {
                                   Column(
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
-                                      Text('Aktualisiert: ${article.updatedAt.toLocal()}'.split('.').first),
+                                      Text(t.repWikiArticleUpdatedAt(
+                                          '${article.updatedAt.toLocal()}'.split('.').first)),
                                       if (article.tags.isNotEmpty)
                                         Wrap(
                                           spacing: 4,
