@@ -3635,9 +3635,8 @@ class _AdminPageState extends State<AdminPage> {
           : navBadge(item.badge!, selected: selected, compact: isCompact);
 
       if (isCompact) {
-        return Tooltip(
+        return _navTooltip(
           message: item.label,
-          verticalOffset: 12,
           child: InkWell(
             borderRadius: BorderRadius.circular(12),
             onTap: () {
@@ -3953,6 +3952,13 @@ class _AdminPageState extends State<AdminPage> {
         ),
       ),
     );
+  }
+
+  /// Tooltip helper for the compact navigation tiles that keeps pointer events
+  /// on the underlying sidebar so scrolling stays smooth while a tooltip is
+  /// visible.
+  Widget _navTooltip({required String message, required Widget child}) {
+    return _SidebarTooltip(message: message, child: child);
   }
 
   List<_AdminNavSection> _defaultNavSections() {
@@ -8653,6 +8659,91 @@ class _AdminNavSection {
 
   final String title;
   final List<_AdminNavItem> items;
+}
+
+class _SidebarTooltip extends StatefulWidget {
+  final String message;
+  final Widget child;
+
+  const _SidebarTooltip({required this.message, required this.child});
+
+  @override
+  State<_SidebarTooltip> createState() => _SidebarTooltipState();
+}
+
+class _SidebarTooltipState extends State<_SidebarTooltip> {
+  final LayerLink _link = LayerLink();
+  OverlayEntry? _entry;
+
+  void _show() {
+    if (_entry != null) return;
+
+    final overlay = Overlay.of(context);
+    if (overlay == null) return;
+
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    _entry = OverlayEntry(
+      builder: (context) => CompositedTransformFollower(
+        link: _link,
+        showWhenUnlinked: false,
+        targetAnchor: Alignment.centerRight,
+        followerAnchor: Alignment.centerLeft,
+        offset: const Offset(18, 0),
+        child: IgnorePointer(
+          child: Material(
+            color: Colors.transparent,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: colorScheme.surface.withOpacity(
+                  theme.brightness == Brightness.dark ? 0.86 : 0.94,
+                ),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.7)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Text(
+                  widget.message,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colorScheme.onSurface,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    overlay.insert(_entry!);
+  }
+
+  void _hide() {
+    _entry?.remove();
+    _entry = null;
+  }
+
+  @override
+  void dispose() {
+    _hide();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => _show(),
+      onExit: (_) => _hide(),
+      child: CompositedTransformTarget(
+        link: _link,
+        child: widget.child,
+      ),
+    );
+  }
 }
 
 // ===================================================================
