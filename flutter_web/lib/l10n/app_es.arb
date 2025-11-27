@@ -19,6 +19,8 @@
   "theme_dark": "Oscuro",
 
   "ticket": "Número de ticket",
+  "customer_knowledge": "Conocimiento del cliente e información sobre productos",
+  "repwiki": "Wiki para representantes",
 
   "attachments_add": "Enviar archivos adjuntos adicionales",
   "attachments_success": "Los archivos adjuntos se enviaron correctamente.",
