@@ -5,7 +5,8 @@ import '../models/wiki_category.dart';
 
 class AdminWikiCategoriesPage extends StatefulWidget {
   final ApiClient api;
-  const AdminWikiCategoriesPage({super.key, required this.api});
+  final VoidCallback? onBack;
+  const AdminWikiCategoriesPage({super.key, required this.api, this.onBack});
 
   @override
   State<AdminWikiCategoriesPage> createState() => _AdminWikiCategoriesPageState();
@@ -185,30 +186,46 @@ class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: cs.primary.withOpacity(.15)),
                   ),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      CircleAvatar(
-                        backgroundColor: cs.primary,
-                        foregroundColor: cs.onPrimary,
-                        child: const Icon(Icons.category_rounded),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Kategorien verwalten',
-                                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-                            const SizedBox(height: 4),
-                            Text('Strukturierte Übersicht, moderne Filterleiste und klare Status-Badges.',
-                                style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
-                          ],
-                        ),
-                      ),
-                      FilledButton.icon(
-                        onPressed: _loading ? null : () => _openForm(),
-                        icon: const Icon(Icons.add_rounded),
-                        label: const Text('Neu'),
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: cs.primary,
+                            foregroundColor: cs.onPrimary,
+                            child: const Icon(Icons.category_rounded),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Kategorien verwalten',
+                                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+                                const SizedBox(height: 4),
+                                Text('Strukturierte Übersicht, moderne Filterleiste und klare Status-Badges.',
+                                    style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
+                              ],
+                            ),
+                          ),
+                          Wrap(
+                            spacing: 8,
+                            children: [
+                              if (widget.onBack != null)
+                                OutlinedButton.icon(
+                                  onPressed: widget.onBack,
+                                  icon: const Icon(Icons.arrow_back),
+                                  label: const Text('Zurück zur Übersicht'),
+                                ),
+                              FilledButton.icon(
+                                onPressed: _loading ? null : () => _openForm(),
+                                icon: const Icon(Icons.add_rounded),
+                                label: const Text('Neu'),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ],
                   ),
