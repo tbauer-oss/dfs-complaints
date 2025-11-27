@@ -176,6 +176,7 @@ class _AdminPageState extends State<AdminPage> {
   List<AdminComplaint> _allComplaints = [];
   List<AdminComplaint> _openComplaints = [];
   List<Rep> _reps = [];
+  final Map<String, bool> _repAssignmentBusy = {};
   List<CustomerNewsEntry> _newsEntries = [];
   bool _newsLoading = false;
   String? _newsErr;
@@ -479,6 +480,18 @@ class _AdminPageState extends State<AdminPage> {
     return list.toList();
   }
 
+  String? _repIdForEmail(String email) {
+    final normalized = email.trim().toLowerCase();
+    for (final r in _reps) {
+      for (final c in r.customers) {
+        if (c.trim().toLowerCase() == normalized) {
+          return r.id;
+        }
+      }
+    }
+    return null;
+  }
+
   String? _repNameForEmail(String email) {
     final e = email.trim().toLowerCase();
     for (final r in _reps) {
@@ -490,6 +503,97 @@ class _AdminPageState extends State<AdminPage> {
       }
     }
     return null;
+  }
+
+  void _updateRepCustomers(String repId, List<String> customers) {
+    setState(() {
+      final idx = _reps.indexWhere((r) => r.id == repId);
+      if (idx >= 0) {
+        final r = _reps[idx];
+        _reps[idx] = Rep(
+          id: r.id,
+          firstName: r.firstName,
+          lastName: r.lastName,
+          email: r.email,
+          region: r.region,
+          lang: r.lang,
+          customers: customers,
+        );
+      }
+    });
+  }
+
+  bool _isRepAssignmentBusy(String email) {
+    return _repAssignmentBusy[email.trim().toLowerCase()] ?? false;
+  }
+
+  void _setRepAssignmentBusy(String email, bool value) {
+    setState(() {
+      _repAssignmentBusy[email.trim().toLowerCase()] = value;
+    });
+  }
+
+  Future<void> _changeUserRep({required String email, String? repId}) async {
+    final targetRepId = (repId ?? '').trim();
+    final currentRepId = (_repIdForEmail(email) ?? '').trim();
+
+    if (currentRepId == targetRepId) return;
+
+    _setRepAssignmentBusy(email, true);
+    try {
+      if (targetRepId.isEmpty) {
+        if (currentRepId.isEmpty) return;
+        final customers = await _api.unassignCustomerFromRep(
+          repId: currentRepId,
+          email: email,
+        );
+        _updateRepCustomers(currentRepId, customers);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Vertreter entfernt für ${_companyByEmail(email) ?? email}.')),
+        );
+        return;
+      }
+
+      if (currentRepId.isNotEmpty && currentRepId != targetRepId) {
+        final customers = await _api.unassignCustomerFromRep(
+          repId: currentRepId,
+          email: email,
+        );
+        _updateRepCustomers(currentRepId, customers);
+      }
+
+      final customers = await _api.assignCustomerToRep(
+        repId: targetRepId,
+        email: email,
+      );
+      _updateRepCustomers(targetRepId, customers);
+
+      if (!mounted) return;
+      final rep = _reps.firstWhere(
+        (r) => r.id == targetRepId,
+        orElse: () => Rep(
+          id: targetRepId,
+          firstName: '',
+          lastName: '',
+          email: '',
+          region: '',
+          lang: 'de',
+          customers: const [],
+        ),
+      );
+      final label = rep.displayName.isNotEmpty ? rep.displayName : targetRepId;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Kunde wurde ${label} zugewiesen.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fehler bei Vertreterzuordnung: $e')),
+      );
+    } finally {
+      _setRepAssignmentBusy(email, false);
+    }
   }
 
   String _repLabelForComplaint(AdminComplaint c) {
@@ -6937,6 +7041,8 @@ class _AdminPageState extends State<AdminPage> {
                         itemBuilder: (ctx, i) {
                           final u = data[i];
                           final repName = _repNameForEmail(u.email);
+                          final repId = _repIdForEmail(u.email);
+                          final repBusy = _isRepAssignmentBusy(u.email);
                           return _UserTile(
                             data: u,
                             api: _api,
@@ -6972,6 +7078,13 @@ class _AdminPageState extends State<AdminPage> {
                               _refreshOpen();
                             },
                             repName: repName,
+                            reps: _reps,
+                            repBusy: repBusy,
+                            assignedRepId: repId,
+                            onChangeRep: (value) => _changeUserRep(
+                              email: u.email,
+                              repId: value,
+                            ),
                             onToggleRevoked: (revoked) async {
                               final title = revoked ? 'Kunde sperren' : 'Sperre aufheben';
                               final msg = revoked
@@ -8889,6 +9002,10 @@ class _UserTile extends StatefulWidget {
   final _ComplaintsResult? complaints;
   final VoidCallback onClosedFromEditor;
   final String? repName;
+  final String? assignedRepId;
+  final List<Rep> reps;
+  final bool repBusy;
+  final Future<void> Function(String? repId) onChangeRep;
   final Future<void> Function(bool revoked) onToggleRevoked;
 
   const _UserTile({
@@ -8899,6 +9016,10 @@ class _UserTile extends StatefulWidget {
     required this.complaints,
     required this.onClosedFromEditor,
     required this.onToggleRevoked,
+    required this.reps,
+    required this.repBusy,
+    required this.onChangeRep,
+    this.assignedRepId,
     this.repName,
   });
 
@@ -9009,7 +9130,7 @@ class _UserTileState extends State<_UserTile> {
   }
 
   Future<void> _toggleRevoked() async {
-    if (_busy) return;
+    if (_busy || widget.repBusy) return;
     setState(() => _busy = true);
     try {
       await widget.onToggleRevoked(!widget.data.revoked);
@@ -9026,6 +9147,8 @@ class _UserTileState extends State<_UserTile> {
 
     final hasCustomerNo =
         (d.customerNumber != null && d.customerNumber!.trim().isNotEmpty);
+
+    final tileBusy = _busy || widget.repBusy;
 
     Widget statusBadge(String text, Color color) => Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -9107,13 +9230,53 @@ class _UserTileState extends State<_UserTile> {
                   ),
                   const SizedBox(width: 8),
                   TextButton.icon(
-                    onPressed: _busy ? null : _editCustomerNumber,
+                    onPressed: tileBusy ? null : _editCustomerNumber,
                     icon: const Icon(Icons.edit_outlined, size: 16),
                     label: const Text(
                       'Bearbeiten',
                       style: TextStyle(fontSize: 12),
                     ),
                   ),
+                ],
+              ),
+
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: widget.assignedRepId ?? '',
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Vertreter zuweisen',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      items: [
+                        const DropdownMenuItem(value: '', child: Text('Kein Vertreter')),
+                        ...widget.reps.map(
+                          (r) => DropdownMenuItem<String>(
+                            value: r.id,
+                            child: Text(r.displayName.isNotEmpty ? r.displayName : r.email),
+                          ),
+                        ),
+                      ],
+                      onChanged: widget.repBusy
+                          ? null
+                          : (v) async {
+                              await widget.onChangeRep(v?.trim().isEmpty == true ? null : v);
+                            },
+                    ),
+                  ),
+                  if (widget.repBusy) ...[
+                    const SizedBox(width: 10),
+                    const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ],
                 ],
               ),
             ],
@@ -9124,7 +9287,7 @@ class _UserTileState extends State<_UserTile> {
             children: [
               IconButton(
                 tooltip: 'Adressdaten',
-                onPressed: _showAddress,
+                onPressed: tileBusy ? null : _showAddress,
                 icon: const Icon(Icons.info_outline),
               ),
               IconButton(
@@ -9137,12 +9300,12 @@ class _UserTileState extends State<_UserTile> {
                     Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
               ),
               OutlinedButton.icon(
-                onPressed: _busy ? null : _toggleRevoked,
+                onPressed: tileBusy ? null : _toggleRevoked,
                 icon: Icon(widget.data.revoked ? Icons.lock_open : Icons.lock_outline),
                 label: Text(widget.data.revoked ? 'Freigeben' : 'Sperren'),
               ),
               FilledButton.icon(
-                onPressed: _busy ? null : () async => widget.onDelete(),
+                onPressed: tileBusy ? null : () async => widget.onDelete(),
                 style: FilledButton.styleFrom(
                   backgroundColor: Theme.of(context).colorScheme.error,
                   foregroundColor: Theme.of(context).colorScheme.onError,
