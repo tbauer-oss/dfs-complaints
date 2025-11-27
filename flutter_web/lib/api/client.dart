@@ -1508,19 +1508,17 @@ class ApiClient {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
     final decoded = jsonDecode(r.body);
-    if (decoded is List) {
-      return decoded
-          .whereType<Map<String, dynamic>>()
-          .map((e) => WikiArticle.fromJson(e))
-          .toList();
-    }
-    if (decoded is Map && decoded['items'] is List) {
-      return (decoded['items'] as List)
-          .whereType<Map<String, dynamic>>()
-          .map((e) => WikiArticle.fromJson(e))
-          .toList();
-    }
-    return const [];
+    final list = decoded is List
+        ? decoded
+        : decoded is Map && decoded['articles'] is List
+            ? decoded['articles'] as List
+            : decoded is Map && decoded['items'] is List
+                ? decoded['items'] as List
+                : const [];
+    return list
+        .whereType<Map<String, dynamic>>()
+        .map((e) => WikiArticle.fromJson(e))
+        .toList();
   }
 
   Future<WikiArticle> fetchWikiArticle(String id, {String? lang}) async {
@@ -1550,9 +1548,11 @@ class ApiClient {
     final decoded = jsonDecode(r.body);
     final list = decoded is List
         ? decoded
-        : decoded is Map && decoded['items'] is List
-            ? decoded['items'] as List
-            : const [];
+        : decoded is Map && decoded['articles'] is List
+            ? decoded['articles'] as List
+            : decoded is Map && decoded['items'] is List
+                ? decoded['items'] as List
+                : const [];
     return list
         .whereType<Map<String, dynamic>>()
         .map((e) => WikiCategory.fromJson(e))
@@ -1611,9 +1611,11 @@ class ApiClient {
     final decoded = jsonDecode(r.body);
     final list = decoded is List
         ? decoded
-        : decoded is Map && decoded['items'] is List
-            ? decoded['items'] as List
-            : const [];
+        : decoded is Map && decoded['articles'] is List
+            ? decoded['articles'] as List
+            : decoded is Map && decoded['items'] is List
+                ? decoded['items'] as List
+                : const [];
     return list
         .whereType<Map<String, dynamic>>()
         .map((e) => WikiArticle.fromJson(e))
