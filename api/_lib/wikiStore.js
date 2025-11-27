@@ -183,30 +183,46 @@ function articleWithLang(article, lang, categories = []) {
 }
 
 async function loadCategories() {
+  if (redis) {
+    const raw = await rget(KEY_CATEGORIES);
+    const normalized = Array.isArray(raw) ? raw.map((c) => normalizeCategory(c)) : [];
+    if (normalized.length) {
+      mem.categories = normalized;
+      global.__DFS_WIKI_CATEGORIES__ = normalized;
+      return normalized;
+    }
+  }
+
   const cached = mem.categories;
   if (Array.isArray(cached) && cached.length) return cached;
   if (Array.isArray(global.__DFS_WIKI_CATEGORIES__)) {
     mem.categories = global.__DFS_WIKI_CATEGORIES__;
     return mem.categories;
   }
-  const raw = await rget(KEY_CATEGORIES);
-  const normalized = Array.isArray(raw) ? raw.map((c) => normalizeCategory(c)) : [];
-  mem.categories = normalized.length ? normalized : wikiSeedCategories.map((c) => normalizeCategory(c));
+
+  mem.categories = wikiSeedCategories.map((c) => normalizeCategory(c));
   return mem.categories;
 }
 
 async function loadArticles(categories = null) {
+  if (redis) {
+    const raw = await rget(KEY_ARTICLES);
+    const normalized = Array.isArray(raw) ? raw.map((c) => normalizeArticle(c)) : [];
+    if (normalized.length) {
+      mem.articles = normalized;
+      global.__DFS_WIKI_ARTICLES__ = normalized;
+      return normalized;
+    }
+  }
+
   const cached = mem.articles;
   if (Array.isArray(cached) && cached.length) return cached;
   if (Array.isArray(global.__DFS_WIKI_ARTICLES__)) {
     mem.articles = global.__DFS_WIKI_ARTICLES__;
     return mem.articles;
   }
-  const raw = await rget(KEY_ARTICLES);
-  const normalized = Array.isArray(raw) ? raw.map((c) => normalizeArticle(c)) : [];
-  mem.articles = normalized.length
-    ? normalized
-    : wikiSeedArticles.map((c) => normalizeArticle(c));
+
+  mem.articles = wikiSeedArticles.map((c) => normalizeArticle(c));
   return mem.articles;
 }
 
