@@ -25,7 +25,6 @@ import 'product_catalog_page.dart';
 import 'admin_wiki_categories_page.dart';
 import 'admin_wiki_articles_page.dart';
 import 'rep_wiki_list_page.dart';
-import 'admin_downloads_page.dart';
 
 // ===================================================================
 // Admin Page – mit Kachel-Menü (wie Kunden-Dashboard)
@@ -57,7 +56,6 @@ enum _AdminView {
   open,
   reps,
   news,
-  downloads,
   products,
   faq,
   wiki,
@@ -3405,7 +3403,6 @@ class _AdminPageState extends State<AdminPage> {
       _AdminView.users          => 'Kundendatenbank',
       _AdminView.open           => 'Offene Reklamationen',
       _AdminView.reps           => 'Vertreterverwaltung',
-      _AdminView.downloads      => 'Vertreter-Downloads',
       _AdminView.faq            => 'Wissensdatenbank (FAQ)',
       _AdminView.wiki           => 'Vertreter-Wiki',
       _AdminView.products       => 'Artikelliste',
@@ -4005,11 +4002,6 @@ class _AdminPageState extends State<AdminPage> {
             view: _AdminView.news,
           ),
           _AdminNavItem(
-            label: 'Downloads',
-            icon: Icons.download_outlined,
-            view: _AdminView.downloads,
-          ),
-          _AdminNavItem(
             label: 'FAQ / Wissen',
             icon: Icons.help_outline,
             view: _AdminView.faq,
@@ -4102,7 +4094,7 @@ class _AdminPageState extends State<AdminPage> {
       const _AdminMenuSectionState(
         title: 'Kommunikation & Inhalte',
         subtitle: 'Informationen und Push-Kanäle pflegen',
-        tileIds: ['news', 'downloads', 'faq', 'wiki', 'products', 'push'],
+        tileIds: ['news', 'faq', 'wiki', 'products', 'push'],
       ),
       const _AdminMenuSectionState(
         title: 'System & Konfiguration',
@@ -4983,19 +4975,6 @@ class _AdminPageState extends State<AdminPage> {
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
-      case 'downloads':
-        return AdminTilePro(
-          label: 'Downloads',
-          subtitle: 'Dokumente für Vertreter',
-          icon: Icons.download_outlined,
-          colorA: AdminPalette.indigoA,
-          colorB: AdminPalette.indigoB,
-          compact: compact,
-          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.downloads),
-          actionLabel: resolvedActionLabel,
-          actionIcon: resolvedActionIcon,
-          onActionTap: onActionTap,
-        );
       case 'faq':
         return AdminTilePro(
           label: 'Wissensdatenbank (FAQ)',
@@ -5402,8 +5381,6 @@ class _AdminPageState extends State<AdminPage> {
         return _buildRepsPanel();
       case _AdminView.news:
         return _buildNewsPanel();
-      case _AdminView.downloads:
-        return AdminDownloadsPage(api: widget.api);
       case _AdminView.products:
         return _buildProductsPanel();
       case _AdminView.faq:
@@ -9302,7 +9279,7 @@ class _UserTileState extends State<_UserTile> {
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -9334,7 +9311,7 @@ class _UserTileState extends State<_UserTile> {
                     ),
                   ),
                   if (widget.repBusy) ...[
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 12),
                     const SizedBox(
                       height: 18,
                       width: 18,
@@ -13860,8 +13837,6 @@ class AdminPalette {
   static const tealB  = Color(0xFF00897B);
   static const blueA  = Color(0xFFE7F0FF);
   static const blueB  = Color(0xFF1E88E5);
-  static const indigoA = Color(0xFFE8EAF6);
-  static const indigoB = Color(0xFF3949AB);
   static const purpleA = Color(0xFFF1E8FF);
   static const purpleB = Color(0xFF7E57C2);
 }
