@@ -3596,7 +3596,8 @@ class _AdminPageState extends State<AdminPage> {
     final theme = Theme.of(context);
     final Color accent = theme.colorScheme.primary;
     final Color subtle = theme.colorScheme.onSurfaceVariant;
-    final sections = _navSections();
+    final order = List<_AdminView>.from(_mergeNavOrder(_navOrder));
+    final lookup = _navItemLookup();
     final surfaceBlend = Color.alphaBlend(
       theme.colorScheme.surfaceVariant.withOpacity(theme.brightness == Brightness.dark ? 0.28 : 0.46),
       theme.colorScheme.surface,
@@ -3811,11 +3812,6 @@ class _AdminPageState extends State<AdminPage> {
                   ],
                 ),
               ),
-              _navActionButton(
-                tooltip: 'Sidebar sortieren',
-                icon: Icons.tune_rounded,
-                onPressed: _showNavOrderDialog,
-              ),
               _navToggleButton(
                 tooltip: 'Sidebar einklappen',
                 icon: Icons.chevron_left,
@@ -3823,12 +3819,6 @@ class _AdminPageState extends State<AdminPage> {
               ),
             ] else ...[
               const Spacer(),
-              _navActionButton(
-                tooltip: 'Sidebar sortieren',
-                icon: Icons.tune_rounded,
-                onPressed: _showNavOrderDialog,
-                color: subtle,
-              ),
               _navToggleButton(
                 tooltip: 'Sidebar erweitern',
                 icon: Icons.chevron_right,
@@ -3862,24 +3852,36 @@ class _AdminPageState extends State<AdminPage> {
               radius: const Radius.circular(12),
               interactive: true,
               thumbVisibility: true,
-              child: ListView(
+              child: ReorderableListView.builder(
                 primary: false,
                 physics: const ClampingScrollPhysics(),
-                padding: EdgeInsets.symmetric(horizontal: isCompact ? 6 : 16, vertical: isCompact ? 4 : 8),
-                children: [
-                  for (final section in sections) ...[
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      child: _NavigationSection(
-                        key: ValueKey('${section.title}-$isCompact'),
-                        title: section.title,
-                        isCompact: isCompact,
-                        children: section.items.map(buildTile).toList(),
-                      ),
+                padding: EdgeInsets.symmetric(horizontal: isCompact ? 6 : 16, vertical: isCompact ? 6 : 10),
+                buildDefaultDragHandles: false,
+                itemCount: order.length,
+                onReorder: (oldIndex, newIndex) {
+                  if (newIndex > oldIndex) newIndex -= 1;
+                  final moved = order.removeAt(oldIndex);
+                  order.insert(newIndex, moved);
+                  _applyNavOrder(order, persist: true);
+                },
+                itemBuilder: (context, index) {
+                  final view = order[index];
+                  final item = lookup[view];
+                  if (item == null) {
+                    return const SizedBox.shrink();
+                  }
+
+                  final tile = buildTile(item);
+
+                  return ReorderableDragStartListener(
+                    key: ValueKey(view.name),
+                    index: index,
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: isCompact ? 4 : 6),
+                      child: tile,
                     ),
-                    SizedBox(height: isCompact ? 6 : 8),
-                  ],
-                ],
+                  );
+                },
               ),
             ),
           ),
@@ -3931,28 +3933,6 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  Widget _navActionButton({
-    required IconData icon,
-    required String tooltip,
-    required VoidCallback onPressed,
-    Color? color,
-  }) {
-    return SizedBox(
-      width: 44,
-      height: 44,
-      child: Material(
-        type: MaterialType.transparency,
-        child: IconButton(
-          tooltip: tooltip,
-          icon: Icon(icon, color: color ?? Theme.of(context).colorScheme.primary),
-          onPressed: onPressed,
-          padding: const EdgeInsets.all(10),
-          splashRadius: 24,
-        ),
-      ),
-    );
-  }
-
   Widget _navToggleButton({
     required IconData icon,
     required String tooltip,
@@ -3973,35 +3953,6 @@ class _AdminPageState extends State<AdminPage> {
         ),
       ),
     );
-  }
-
-  List<_AdminNavSection> _navSections() {
-    final defaults = _defaultNavSections();
-    final baseOrder = _navOrder.isNotEmpty ? _navOrder : _defaultNavOrder();
-    final order = _mergeNavOrder(baseOrder);
-    final orderIndex = <_AdminView, int>{
-      for (var i = 0; i < order.length; i++) order[i]: i,
-    };
-
-    final sections = defaults
-        .map(
-          (section) => _AdminNavSection(
-            title: section.title,
-            items: [...section.items]
-              ..sort(
-                (a, b) => (orderIndex[a.view] ?? 999).compareTo(orderIndex[b.view] ?? 999),
-              ),
-          ),
-        )
-        .toList();
-
-    int sectionScore(_AdminNavSection section) {
-      final scores = section.items.map((item) => orderIndex[item.view] ?? 999).toList();
-      return scores.isEmpty ? 999 : scores.reduce((a, b) => a < b ? a : b);
-    }
-
-    sections.sort((a, b) => sectionScore(a).compareTo(sectionScore(b)));
-    return sections;
   }
 
   List<_AdminNavSection> _defaultNavSections() {
@@ -4058,6 +4009,11 @@ class _AdminPageState extends State<AdminPage> {
             icon: Icons.support_agent_outlined,
             view: _AdminView.reps,
             badge: _reps.isNotEmpty ? '${_reps.length}' : null,
+          ),
+          _AdminNavItem(
+            label: 'Aktivität',
+            icon: Icons.query_stats_outlined,
+            view: _AdminView.activity,
           ),
         ],
       ),
@@ -4209,72 +4165,6 @@ class _AdminPageState extends State<AdminPage> {
   Map<_AdminView, _AdminNavItem> _navItemLookup() {
     final items = _flattenNavItems(_defaultNavSections());
     return {for (final item in items) item.view: item};
-  }
-
-  Future<void> _showNavOrderDialog() async {
-    final lookup = _navItemLookup();
-    final theme = Theme.of(context);
-    var workingOrder = List<_AdminView>.from(_mergeNavOrder(_navOrder));
-
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, localSetState) {
-            return AlertDialog(
-              title: const Text('Sidebar sortieren'),
-              content: SizedBox(
-                width: 460,
-                height: 420,
-                child: ReorderableListView.builder(
-                  buildDefaultDragHandles: false,
-                  itemBuilder: (context, index) {
-                    final view = workingOrder[index];
-                    final item = lookup[view];
-                    final icon = item?.icon ?? Icons.drag_indicator_rounded;
-                    final label = item?.label ?? view.name;
-                    return ReorderableDragStartListener(
-                      key: ValueKey(view.name),
-                      index: index,
-                      child: ListTile(
-                        leading: Icon(icon, color: theme.colorScheme.primary),
-                        title: Text(label),
-                        subtitle: const Text('Zum Verschieben irgendwo in der Zeile ziehen'),
-                      ),
-                    );
-                  },
-                  itemCount: workingOrder.length,
-                  onReorder: (oldIndex, newIndex) {
-                    localSetState(() {
-                      if (newIndex > oldIndex) newIndex -= 1;
-                      final item = workingOrder.removeAt(oldIndex);
-                      workingOrder.insert(newIndex, item);
-                    });
-                  },
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => localSetState(() => workingOrder = _defaultNavOrder()),
-                  child: const Text('Standard wiederherstellen'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text('Abbrechen'),
-                ),
-                FilledButton(
-                  onPressed: () {
-                    _applyNavOrder(workingOrder, persist: true);
-                    Navigator.of(ctx).pop();
-                  },
-                  child: const Text('Speichern'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
   }
 
   Widget _buildBody(ThemeData theme) {
