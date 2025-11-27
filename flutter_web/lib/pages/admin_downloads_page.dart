@@ -38,7 +38,7 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
   final _formKey = GlobalKey<FormState>();
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
-  final _categoryCtrl = TextEditingController();
+  String _category = '';
   String _badge = '';
   bool _active = true;
   RepDownloadItem? _editing;
@@ -55,7 +55,6 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
     _searchCtrl.dispose();
     _titleCtrl.dispose();
     _descCtrl.dispose();
-    _categoryCtrl.dispose();
     super.dispose();
   }
 
@@ -90,7 +89,7 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
     _editing = null;
     _titleCtrl.clear();
     _descCtrl.clear();
-    _categoryCtrl.clear();
+    _category = '';
     _badge = '';
     _active = true;
     _filePayload = null;
@@ -101,7 +100,7 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
       _editing = item;
       _titleCtrl.text = item.title;
       _descCtrl.text = item.description;
-      _categoryCtrl.text = item.category;
+      _category = item.category;
       _badge = item.badge;
       _active = item.active;
       _filePayload = null;
@@ -165,7 +164,7 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
         id: _editing?.id,
         title: _titleCtrl.text.trim(),
         description: _descCtrl.text.trim(),
-        category: _categoryCtrl.text.trim(),
+        category: _category.trim(),
         badge: _badge,
         active: _active,
         file: _filePayload,
@@ -650,13 +649,21 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: TextFormField(
-                        controller: _categoryCtrl,
+                      child: DropdownButtonFormField<String>(
+                        value: _category.isEmpty ? null : _category,
                         decoration: const InputDecoration(
                           labelText: 'Kategorie',
-                          hintText: 'z. B. Kataloge',
+                          hintText: 'Kategorie auswählen',
                           prefixIcon: Icon(Icons.category_outlined),
                         ),
+                        isExpanded: true,
+                        items: [
+                          const DropdownMenuItem(value: '', child: Text('Keine Kategorie')),
+                          ..._allCategories
+                              .map((c) => DropdownMenuItem(value: c.name, child: Text(c.name)))
+                              .toList(),
+                        ],
+                        onChanged: (v) => setState(() => _category = v ?? ''),
                       ),
                     ),
                   ];
