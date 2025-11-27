@@ -17,6 +17,7 @@ class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
   String? _err;
   String _statusFilter = 'alle';
   List<WikiCategory> _categories = const [];
+  final Set<String> _busyIds = {};
 
   @override
   void initState() {
@@ -157,6 +158,36 @@ class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
     descCtrl.dispose();
     iconCtrl.dispose();
     orderCtrl.dispose();
+  }
+
+  Future<void> _toggleActive(WikiCategory cat) async {
+    if (_busyIds.contains(cat.id)) return;
+    setState(() => _busyIds.add(cat.id));
+    try {
+      final updated = await widget.api.adminSaveWikiCategory({
+        'name': cat.name,
+        'description': cat.description,
+        'icon': cat.icon,
+        'sortOrder': cat.sortOrder,
+        'isActive': !cat.isActive,
+      }, id: cat.id);
+      if (!mounted) return;
+      setState(() {
+        _categories = _categories
+            .map((c) => c.id == cat.id ? updated : c)
+            .toList(growable: false);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('"${cat.name}" ist jetzt ${updated.isActive ? 'aktiv' : 'inaktiv'}')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fehler beim Aktualisieren: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _busyIds.remove(cat.id));
+    }
   }
 
   @override
@@ -336,6 +367,15 @@ class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
                                       )),
                                       DataCell(Row(
                                         children: [
+                                          IconButton(
+                                            tooltip: c.isActive ? 'Deaktivieren' : 'Aktivieren',
+                                            icon: Icon(c.isActive
+                                                ? Icons.visibility_off_outlined
+                                                : Icons.visibility_outlined),
+                                            onPressed: _busyIds.contains(c.id)
+                                                ? null
+                                                : () => _toggleActive(c),
+                                          ),
                                           IconButton(
                                             tooltip: 'Bearbeiten',
                                             icon: const Icon(Icons.edit_outlined),
