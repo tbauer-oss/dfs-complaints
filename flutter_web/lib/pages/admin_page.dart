@@ -3423,6 +3423,9 @@ class _AdminPageState extends State<AdminPage> {
                       .where((s) => s.isNotEmpty)
                       .toList();
 
+                  contacts.sort(
+                      (a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
                   if (contacts.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Keine Vertreter vorhanden. Bitte zuerst anlegen.')),
@@ -3436,6 +3439,7 @@ class _AdminPageState extends State<AdminPage> {
                       role: ComplaintChatRole.admin,
                       contacts: contacts,
                       defaultContact: contacts.first,
+                      adminLabel: 'QM / Admin',
                     ),
                   );
                 },

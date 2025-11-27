@@ -7,12 +7,16 @@ class ComplaintChatPageArgs {
   final String? ticket;
   final List<String> contacts;
   final String? defaultContact;
+  final String? repLabel;
+  final String? adminLabel;
 
   const ComplaintChatPageArgs({
     required this.role,
     this.ticket,
     this.contacts = const [],
     this.defaultContact,
+    this.repLabel,
+    this.adminLabel,
   });
 }
 
@@ -21,6 +25,8 @@ class ComplaintChatPage extends StatefulWidget {
   final String? ticket;
   final List<String> contacts;
   final String? defaultContact;
+  final String? repLabel;
+  final String? adminLabel;
 
   const ComplaintChatPage({
     super.key,
@@ -28,6 +34,8 @@ class ComplaintChatPage extends StatefulWidget {
     ComplaintChatRole? role,
     List<String>? contacts,
     this.defaultContact,
+    this.repLabel,
+    this.adminLabel,
   })  : role = role ?? ComplaintChatRole.rep,
         contacts = contacts ?? const [];
 
@@ -45,6 +53,8 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
 
   late ComplaintChatRole _currentRole;
   late List<String> _contactOptions;
+  late String _repLabel;
+  late String _adminLabel;
   List<ComplaintChatConversation> _conversations = [];
   String? _activeConversationId;
 
@@ -52,13 +62,20 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
   void initState() {
     super.initState();
     _currentRole = widget.role;
-    _contactOptions = widget.contacts;
+    _repLabel = (widget.repLabel ?? '').trim();
+    _adminLabel = (widget.adminLabel ?? 'QM / Admin').trim();
+    if (_adminLabel.isEmpty) _adminLabel = 'QM / Admin';
+    if (_repLabel.isEmpty && _currentRole == ComplaintChatRole.rep) {
+      _repLabel = 'Vertreter';
+    }
+    _contactOptions = [...widget.contacts];
+    _contactOptions.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     if (widget.ticket != null) _ticketCtrl.text = widget.ticket!;
     if (_currentRole == ComplaintChatRole.rep) {
-      _contactOptions = const ['QM / Admin'];
+      _contactOptions = [_adminLabel];
       _contactCtrl.text = widget.defaultContact?.isNotEmpty == true
           ? widget.defaultContact!
-          : 'QM / Admin';
+          : _adminLabel;
     } else if (widget.defaultContact != null && widget.defaultContact!.isNotEmpty) {
       _contactCtrl.text = widget.defaultContact!;
     } else if (_contactOptions.isNotEmpty) {
@@ -82,6 +99,24 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
     ComplaintChatInboxState.syncUnread(_conversations);
   }
 
+  String _partnerLabel(ComplaintChatConversation conv) {
+    if (_currentRole == ComplaintChatRole.admin) {
+      return conv.repLabel.isNotEmpty ? conv.repLabel : conv.contactLabel;
+    }
+    return conv.adminLabel.isNotEmpty ? conv.adminLabel : conv.contactLabel;
+  }
+
+  String _authorLabel(
+    ComplaintChatConversation conv,
+    ComplaintChatMessage msg,
+  ) {
+    if (msg.author == ComplaintChatRole.admin) {
+      return conv.adminLabel.isNotEmpty ? conv.adminLabel : 'Admin';
+    }
+    if (conv.repLabel.isNotEmpty) return conv.repLabel;
+    return 'Vertreter';
+  }
+
   ComplaintChatConversation? get _activeConversation => _conversations
       .where((c) => c.id == _activeConversationId)
       .cast<ComplaintChatConversation?>()
@@ -90,7 +125,7 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
   void _startConversation() {
     final subject = _subjectCtrl.text.trim();
     final contact = _currentRole == ComplaintChatRole.rep
-        ? (_contactCtrl.text.trim().isNotEmpty ? _contactCtrl.text.trim() : 'QM / Admin')
+        ? _adminLabel
         : _contactCtrl.text.trim();
 
     if (subject.isEmpty || (_currentRole != ComplaintChatRole.rep && contact.isEmpty)) {
@@ -106,10 +141,19 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
       return;
     }
 
+    final repLabel = _currentRole == ComplaintChatRole.admin
+        ? contact
+        : (_repLabel.isNotEmpty ? _repLabel : 'Vertreter');
+    final adminLabel = _adminLabel;
+    final partnerLabel =
+        _currentRole == ComplaintChatRole.admin ? repLabel : adminLabel;
+
     final conv = ComplaintChatConversation(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       subject: subject,
-      contactLabel: contact,
+      contactLabel: partnerLabel,
+      repLabel: repLabel,
+      adminLabel: adminLabel,
       ticketNumber: _ticketCtrl.text.trim().isEmpty
           ? null
           : _ticketCtrl.text.trim(),
@@ -181,7 +225,7 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
     final filtered = _conversations.where((c) {
       if (query.isEmpty) return true;
       final haystack =
-          '${c.subject} ${c.contactLabel} ${c.ticketNumber ?? ''} ${c.internalNumber ?? ''}'
+          '${c.subject} ${_partnerLabel(c)} ${c.ticketNumber ?? ''} ${c.internalNumber ?? ''}'
               .toLowerCase();
       return haystack.contains(query);
     }).toList()
@@ -232,28 +276,28 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
                   ),
                 )
               : ListView.separated(
-                  itemBuilder: (_, i) {
-                    final conv = filtered[i];
-                    final unread = conv.unreadCount(_currentRole);
-                    return ListTile(
-                      selected: conv.id == _activeConversationId,
-                      onTap: () => _selectConversation(conv.id),
-                      leading: CircleAvatar(
-                        backgroundColor: theme.colorScheme.primaryContainer,
-                        child: Text(conv.contactLabel.isEmpty
-                            ? 'C'
-                            : conv.contactLabel.substring(0, 1).toUpperCase()),
-                      ),
-                      title: Text(conv.subject,
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
-                      subtitle: Wrap(
-                        spacing: 6,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          Text(conv.contactLabel,
-                              style: theme.textTheme.bodySmall),
-                          if (conv.ticketNumber != null)
-                            _chip(conv.ticketNumber!, theme),
+                itemBuilder: (_, i) {
+                  final conv = filtered[i];
+                  final contactLabel = _partnerLabel(conv);
+                  final unread = conv.unreadCount(_currentRole);
+                  return ListTile(
+                    selected: conv.id == _activeConversationId,
+                    onTap: () => _selectConversation(conv.id),
+                    leading: CircleAvatar(
+                      backgroundColor: theme.colorScheme.primaryContainer,
+                      child: Text(contactLabel.isEmpty
+                          ? 'C'
+                          : contactLabel.substring(0, 1).toUpperCase()),
+                    ),
+                    title: Text(conv.subject,
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                    subtitle: Wrap(
+                      spacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(contactLabel, style: theme.textTheme.bodySmall),
+                        if (conv.ticketNumber != null)
+                          _chip(conv.ticketNumber!, theme),
                           if (conv.internalNumber != null)
                             _chip(conv.internalNumber!, theme),
                         ],
@@ -290,6 +334,7 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
 
   Widget _buildConversationHeader(ComplaintChatConversation conv) {
     final theme = Theme.of(context);
+    final contactLabel = _partnerLabel(conv);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -303,7 +348,7 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Chip(
-              label: Text(conv.contactLabel),
+              label: Text(contactLabel),
               avatar: const Icon(Icons.person_outline),
             ),
             if (conv.ticketNumber != null)
@@ -330,6 +375,7 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
       itemBuilder: (_, i) {
         final m = conv.messages[i];
         final isMine = m.author == _currentRole;
+        final authorLabel = _authorLabel(conv, m);
         return Align(
           alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
           child: Container(
@@ -360,9 +406,7 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      m.author == ComplaintChatRole.admin
-                          ? 'Admin'
-                          : 'Vertreter',
+                      authorLabel,
                       style: theme.textTheme.labelSmall
                           ?.copyWith(color: theme.colorScheme.outline),
                     ),

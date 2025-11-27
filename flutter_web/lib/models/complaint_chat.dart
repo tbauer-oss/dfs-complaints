@@ -63,6 +63,8 @@ class ComplaintChatConversation {
   final String id;
   final String subject;
   final String contactLabel;
+  final String repLabel;
+  final String adminLabel;
   final String? ticketNumber;
   final String? internalNumber;
   final DateTime createdAt;
@@ -73,6 +75,8 @@ class ComplaintChatConversation {
     required this.subject,
     required this.contactLabel,
     required this.createdAt,
+    this.repLabel = '',
+    this.adminLabel = '',
     this.ticketNumber,
     this.internalNumber,
     this.messages = const [],
@@ -82,6 +86,8 @@ class ComplaintChatConversation {
     String? id,
     String? subject,
     String? contactLabel,
+    String? repLabel,
+    String? adminLabel,
     String? ticketNumber,
     String? internalNumber,
     DateTime? createdAt,
@@ -91,6 +97,8 @@ class ComplaintChatConversation {
       id: id ?? this.id,
       subject: subject ?? this.subject,
       contactLabel: contactLabel ?? this.contactLabel,
+      repLabel: repLabel ?? this.repLabel,
+      adminLabel: adminLabel ?? this.adminLabel,
       ticketNumber: ticketNumber ?? this.ticketNumber,
       internalNumber: internalNumber ?? this.internalNumber,
       createdAt: createdAt ?? this.createdAt,
