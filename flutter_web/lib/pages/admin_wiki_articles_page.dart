@@ -17,6 +17,8 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
   String? _err;
   List<WikiArticle> _articles = const [];
   List<WikiCategory> _categories = const [];
+  final ScrollController _verticalController = ScrollController();
+  final ScrollController _horizontalController = ScrollController();
 
   String? _categoryFilter;
   String? _productGroupFilter;
@@ -32,6 +34,8 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
 
   @override
   void dispose() {
+    _verticalController.dispose();
+    _horizontalController.dispose();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -658,71 +662,80 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                 const SizedBox(height: 8),
                 Expanded(
                   child: Scrollbar(
+                    controller: _verticalController,
+                    thumbVisibility: true,
                     child: SingleChildScrollView(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(minWidth: cons.maxWidth - 32),
-                          child: DataTableTheme(
-                            data: DataTableThemeData(
-                              headingRowColor: WidgetStatePropertyAll(cs.surfaceContainerHigh),
-                              headingTextStyle:
-                                  theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800, letterSpacing: .2),
-                              dataRowColor: WidgetStateProperty.resolveWith(
-                                (states) => states.contains(WidgetState.hovered)
-                                    ? cs.surfaceContainerHighest
-                                    : cs.surface,
+                      controller: _verticalController,
+                      child: Scrollbar(
+                        controller: _horizontalController,
+                        thumbVisibility: true,
+                        notificationPredicate: (notification) => notification.depth == 1,
+                        child: SingleChildScrollView(
+                          controller: _horizontalController,
+                          scrollDirection: Axis.horizontal,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(minWidth: cons.maxWidth - 32),
+                            child: DataTableTheme(
+                              data: DataTableThemeData(
+                                headingRowColor: WidgetStatePropertyAll(cs.surfaceContainerHigh),
+                                headingTextStyle: theme.textTheme.labelLarge
+                                    ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: .2),
+                                dataRowColor: WidgetStateProperty.resolveWith(
+                                  (states) => states.contains(WidgetState.hovered)
+                                      ? cs.surfaceContainerHighest
+                                      : cs.surface,
+                                ),
+                                dividerThickness: 0.5,
+                                horizontalMargin: 14,
+                                columnSpacing: 18,
                               ),
-                              dividerThickness: 0.5,
-                              horizontalMargin: 14,
-                              columnSpacing: 18,
-                            ),
-                            child: DataTable(
-                              columns: const [
-                                DataColumn(label: Text('Titel')),
-                                DataColumn(label: Text('Kategorie')),
-                                DataColumn(label: Text('Produktgruppen')),
-                                DataColumn(label: Text('Typ')),
-                                DataColumn(label: Text('Wichtigkeit')),
-                                DataColumn(label: Text('Status')),
-                                DataColumn(label: Text('Geändert')),
-                                DataColumn(label: Text('Aktionen')),
-                              ],
-                              rows: _articles
-                                  .map(
-                                    (a) => DataRow(cells: [
-                                      DataCell(Text(a.title, style: const TextStyle(fontWeight: FontWeight.w700))),
-                                      DataCell(Text(_categoryLabel(a.categoryId))),
-                                      DataCell(Text(a.productGroups.join(', '))),
-                                      DataCell(Text(a.type)),
-                                      DataCell(Text(a.importance)),
-                                      DataCell(Chip(
-                                        label: Text(a.isActive ? 'Aktiv' : 'Inaktiv'),
-                                        backgroundColor: a.isActive ? cs.primaryContainer : cs.surfaceVariant,
-                                      )),
-                                      DataCell(Text(a.updatedAt.toLocal().toString().split('.').first)),
-                                      DataCell(Row(
-                                        children: [
-                                          IconButton(
-                                            tooltip: 'Vorschau',
-                                            icon: const Icon(Icons.visibility_outlined),
-                                            onPressed: () => _openPreview(a),
-                                          ),
-                                          IconButton(
-                                            tooltip: 'Bearbeiten',
-                                            icon: const Icon(Icons.edit_outlined),
-                                            onPressed: () => _openForm(article: a),
-                                          ),
-                                          IconButton(
-                                            tooltip: 'Löschen',
-                                            icon: const Icon(Icons.delete_outline),
-                                            onPressed: () => _delete(a),
-                                          ),
-                                        ],
-                                      )),
-                                    ]),
-                                  )
-                                  .toList(),
+                              child: DataTable(
+                                columns: const [
+                                  DataColumn(label: Text('Titel')),
+                                  DataColumn(label: Text('Kategorie')),
+                                  DataColumn(label: Text('Produktgruppen')),
+                                  DataColumn(label: Text('Typ')),
+                                  DataColumn(label: Text('Wichtigkeit')),
+                                  DataColumn(label: Text('Status')),
+                                  DataColumn(label: Text('Geändert')),
+                                  DataColumn(label: Text('Aktionen')),
+                                ],
+                                rows: _articles
+                                    .map(
+                                      (a) => DataRow(cells: [
+                                        DataCell(Text(a.title, style: const TextStyle(fontWeight: FontWeight.w700))),
+                                        DataCell(Text(_categoryLabel(a.categoryId))),
+                                        DataCell(Text(a.productGroups.join(', '))),
+                                        DataCell(Text(a.type)),
+                                        DataCell(Text(a.importance)),
+                                        DataCell(Chip(
+                                          label: Text(a.isActive ? 'Aktiv' : 'Inaktiv'),
+                                          backgroundColor: a.isActive ? cs.primaryContainer : cs.surfaceVariant,
+                                        )),
+                                        DataCell(Text(a.updatedAt.toLocal().toString().split('.').first)),
+                                        DataCell(Row(
+                                          children: [
+                                            IconButton(
+                                              tooltip: 'Vorschau',
+                                              icon: const Icon(Icons.visibility_outlined),
+                                              onPressed: () => _openPreview(a),
+                                            ),
+                                            IconButton(
+                                              tooltip: 'Bearbeiten',
+                                              icon: const Icon(Icons.edit_outlined),
+                                              onPressed: () => _openForm(article: a),
+                                            ),
+                                            IconButton(
+                                              tooltip: 'Löschen',
+                                              icon: const Icon(Icons.delete_outline),
+                                              onPressed: () => _delete(a),
+                                            ),
+                                          ],
+                                        )),
+                                      ]),
+                                    )
+                                    .toList(),
+                              ),
                             ),
                           ),
                         ),
