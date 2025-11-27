@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:html' as html;
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -48,6 +49,13 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
   RepDownloadItem? _editing;
   Map<String, dynamic>? _filePayload;
   final ScrollController _tableScrollCtrl = ScrollController();
+  final ScrollBehavior _tableScrollBehavior =
+      const ScrollBehavior().copyWith(dragDevices: {
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.trackpad,
+    PointerDeviceKind.stylus,
+  });
 
   @override
   void initState() {
@@ -998,18 +1006,20 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
             ),
           ),
           const Divider(height: 1),
-          Scrollbar(
-            controller: _tableScrollCtrl,
-            thumbVisibility: true,
-            interactive: true,
-            scrollbarOrientation: ScrollbarOrientation.bottom,
-            child: SingleChildScrollView(
+          ScrollConfiguration(
+            behavior: _tableScrollBehavior,
+            child: Scrollbar(
               controller: _tableScrollCtrl,
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.only(bottom: 2),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minWidth: minTableWidth),
-                child: DataTable(
+              thumbVisibility: true,
+              interactive: true,
+              scrollbarOrientation: ScrollbarOrientation.bottom,
+              child: SingleChildScrollView(
+                controller: _tableScrollCtrl,
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.only(bottom: 2),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minWidth: minTableWidth),
+                  child: DataTable(
                   columnSpacing: 24,
                   horizontalMargin: 16,
                   headingRowHeight: 48,
