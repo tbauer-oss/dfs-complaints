@@ -63,6 +63,7 @@ const mem = {
   faqCategories: [],
   faqItems: [],
   downloads: [],
+  downloadsCacheVersion: 0,
   downloadCategories: null,
   repDownloadSeen: new Map(),
 };
@@ -1918,6 +1919,17 @@ function _normalizeDownload(input = {}, existing = null, { bumpVersion = true } 
   const badge = _normalizeDownloadBadge(input.badge ?? base.badge ?? '');
   const active = input.active !== undefined ? Boolean(input.active) : Boolean(base.active ?? true);
 
+  const allowedInput = Array.isArray(input.allowedRepresentatives)
+    ? input.allowedRepresentatives
+    : Array.isArray(base.allowedRepresentatives)
+      ? base.allowedRepresentatives
+      : [];
+  const allowedRepresentatives = Array.from(new Set(
+    allowedInput
+      .map((v) => (v ?? '').toString().trim())
+      .filter(Boolean)
+  ));
+
   const fileName = _text(input.fileName ?? input.name ?? base.fileName ?? '', 240);
   const downloadUrl = _safeDownloadUrl(input.downloadUrl ?? input.url ?? base.downloadUrl ?? '') || null;
   const mime = _text(input.mime ?? base.mime ?? '', 120) || null;
@@ -1943,6 +1955,7 @@ function _normalizeDownload(input = {}, existing = null, { bumpVersion = true } 
     mime,
     size,
     uploadedAt,
+    allowedRepresentatives,
     createdAt: Number.isFinite(base.createdAt) ? Number(base.createdAt) : now,
     updatedAt: now,
     version,
@@ -1950,9 +1963,9 @@ function _normalizeDownload(input = {}, existing = null, { bumpVersion = true } 
 }
 
 async function _loadDownloads() {
-  if (Array.isArray(mem.downloads) && mem.downloads.length) return mem.downloads.map((d) => ({ ...d }));
   const r = getRedis();
   let list = null;
+
   if (r) {
     const raw = await rget(KEY_DOWNLOADS);
     if (Array.isArray(raw)) list = raw;
@@ -1962,7 +1975,12 @@ async function _loadDownloads() {
     } else if (raw && typeof raw === 'object') {
       list = raw.items || raw.list || [];
     }
+  } else if (Array.isArray(mem.downloads) && mem.downloads.length) {
+    return mem.downloads.map((d) => ({ ...d }));
+  } else if (global.__DFS_DOWNLOADS__ && Array.isArray(global.__DFS_DOWNLOADS__)) {
+    list = global.__DFS_DOWNLOADS__;
   }
+
   if (!Array.isArray(list)) list = [];
   const normalized = [];
   for (const item of list) {
@@ -1972,12 +1990,14 @@ async function _loadDownloads() {
     } catch (_) { /* ignore */ }
   }
   mem.downloads = normalized.map((d) => ({ ...d }));
+  mem.downloadsCacheVersion += 1;
   return normalized;
 }
 
 async function _persistDownloads(list) {
   const safe = list.map((d) => ({ ...d }));
   mem.downloads = safe.map((d) => ({ ...d }));
+  mem.downloadsCacheVersion += 1;
   const r = getRedis();
   if (r) await rset(KEY_DOWNLOADS, safe);
   else global.__DFS_DOWNLOADS__ = safe;
@@ -2057,11 +2077,31 @@ export async function markDownloadsSeen(repId, ids = []) {
 export async function repDownloadsWithBadges(repId, { includeInactive = false } = {}) {
   const list = await downloadsList({ includeInactive });
   const seen = await _loadRepDownloadSeen(repId);
-  return list.map((item) => {
-    const seenVersion = Number(seen?.[item.id] ?? 0);
-    const showBadge = item.badge && (!seenVersion || seenVersion < item.version);
-    return { ...item, badge: showBadge ? item.badge : '' };
+  return list
+    .filter((item) => !item.allowedRepresentatives?.length || item.allowedRepresentatives.includes(repId))
+    .map((item) => {
+      const seenVersion = Number(seen?.[item.id] ?? 0);
+      const showBadge = item.badge && (!seenVersion || seenVersion < item.version);
+      return { ...item, badge: showBadge ? item.badge : '' };
+    });
+}
+
+export async function removeRepFromDownloadPermissions(repId) {
+  const target = (repId ?? '').toString().trim();
+  if (!target) return [];
+  const list = await downloadsList({ includeInactive: true });
+  let changed = false;
+  const next = list.map((item) => {
+    if (!Array.isArray(item.allowedRepresentatives) || !item.allowedRepresentatives.length) return item;
+    const filtered = item.allowedRepresentatives.filter((id) => id !== target);
+    if (filtered.length === item.allowedRepresentatives.length) return item;
+    changed = true;
+    return { ...item, allowedRepresentatives: filtered };
   });
+  if (changed) {
+    await _persistDownloads(next);
+  }
+  return next;
 }
 
 /* ============== Gate Codes ============== */

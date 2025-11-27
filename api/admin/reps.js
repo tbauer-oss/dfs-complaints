@@ -58,6 +58,7 @@ import {
   assignCustomer,
   unassignCustomer,
 } from '../_lib/repsStore.js';
+import { removeRepFromDownloadPermissions } from '../_lib/store.js';
 
 // ---------------- Handler ----------------
 export default async function handler(req, res) {
@@ -154,6 +155,7 @@ export default async function handler(req, res) {
       }
       if (!id) { res.status(400).end(JSON.stringify({ error: 'missing id' })); return; }
       await deleteRep(id);
+      await removeRepFromDownloadPermissions(id);
       res.status(204).end();
       return;
     }
