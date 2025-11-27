@@ -1085,7 +1085,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                 _RepView.customers => _scrollWrap(_buildCustomersCard()),
                 _RepView.support   => _scrollWrap(_buildSupportContactCard()),
                 _RepView.account   => _scrollWrap(_buildAccountCard()),
-                _RepView.wiki      => _scrollWrap(RepWikiListPage(api: widget.api)),
+                _RepView.wiki      => RepWikiListPage(api: widget.api),
               };
 
     final canGoBack = _view != _RepView.menu;
