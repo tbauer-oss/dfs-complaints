@@ -8690,26 +8690,35 @@ class _SidebarTooltipState extends State<_SidebarTooltip> {
         showWhenUnlinked: false,
         targetAnchor: Alignment.centerRight,
         followerAnchor: Alignment.centerLeft,
-        offset: const Offset(18, 0),
+        offset: const Offset(14, 0),
         child: IgnorePointer(
-          child: Material(
-            color: Colors.transparent,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: colorScheme.surface.withOpacity(
-                  theme.brightness == Brightness.dark ? 0.86 : 0.94,
-                ),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.7)),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: Text(
-                  widget.message,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: colorScheme.onSurface,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.1,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 180),
+              child: Material(
+                type: MaterialType.transparency,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: colorScheme.surface.withOpacity(
+                      theme.brightness == Brightness.dark ? 0.9 : 0.95,
+                    ),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.55)),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    child: Text(
+                      widget.message,
+                      softWrap: false,
+                      overflow: TextOverflow.fade,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: colorScheme.onSurface,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.1,
+                        height: 1.1,
+                      ),
+                    ),
                   ),
                 ),
               ),
