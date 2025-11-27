@@ -183,30 +183,46 @@ function articleWithLang(article, lang, categories = []) {
 }
 
 async function loadCategories() {
+  if (redis) {
+    const raw = await rget(KEY_CATEGORIES);
+    const normalized = Array.isArray(raw) ? raw.map((c) => normalizeCategory(c)) : [];
+    if (normalized.length) {
+      mem.categories = normalized;
+      global.__DFS_WIKI_CATEGORIES__ = normalized;
+      return normalized;
+    }
+  }
+
   const cached = mem.categories;
   if (Array.isArray(cached) && cached.length) return cached;
   if (Array.isArray(global.__DFS_WIKI_CATEGORIES__)) {
     mem.categories = global.__DFS_WIKI_CATEGORIES__;
     return mem.categories;
   }
-  const raw = await rget(KEY_CATEGORIES);
-  const normalized = Array.isArray(raw) ? raw.map((c) => normalizeCategory(c)) : [];
-  mem.categories = normalized.length ? normalized : wikiSeedCategories.map((c) => normalizeCategory(c));
+
+  mem.categories = wikiSeedCategories.map((c) => normalizeCategory(c));
   return mem.categories;
 }
 
 async function loadArticles(categories = null) {
+  if (redis) {
+    const raw = await rget(KEY_ARTICLES);
+    const normalized = Array.isArray(raw) ? raw.map((c) => normalizeArticle(c)) : [];
+    if (normalized.length) {
+      mem.articles = normalized;
+      global.__DFS_WIKI_ARTICLES__ = normalized;
+      return normalized;
+    }
+  }
+
   const cached = mem.articles;
   if (Array.isArray(cached) && cached.length) return cached;
   if (Array.isArray(global.__DFS_WIKI_ARTICLES__)) {
     mem.articles = global.__DFS_WIKI_ARTICLES__;
     return mem.articles;
   }
-  const raw = await rget(KEY_ARTICLES);
-  const normalized = Array.isArray(raw) ? raw.map((c) => normalizeArticle(c)) : [];
-  mem.articles = normalized.length
-    ? normalized
-    : wikiSeedArticles.map((c) => normalizeArticle(c));
+
+  mem.articles = wikiSeedArticles.map((c) => normalizeArticle(c));
   return mem.articles;
 }
 
@@ -297,11 +313,24 @@ export async function wikiAdminList(params = {}) {
 
 export async function wikiSaveCategory(payload) {
   const cats = await loadCategories();
-  const normalized = normalizeCategory(payload);
+  const existing = cats.find((c) => c.id === (payload?.id || payload?.categoryId));
+  const normalized = normalizeCategory(payload, existing);
   const idx = cats.findIndex((c) => c.id === normalized.id);
   if (idx >= 0) cats[idx] = normalized; else cats.push(normalized);
   await persistCategories(cats);
   return normalized;
+}
+
+export async function wikiSetCategoryStatus(id, isActive) {
+  const target = (id ?? '').toString().trim();
+  if (!target) throw new Error('id required');
+  const cats = await loadCategories();
+  const idx = cats.findIndex((c) => c.id === target);
+  if (idx < 0) throw new Error('category not found');
+  const updated = { ...cats[idx], isActive: isActive === true };
+  cats[idx] = updated;
+  await persistCategories(cats);
+  return updated;
 }
 
 export async function wikiDeleteCategory(id) {
