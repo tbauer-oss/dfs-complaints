@@ -664,12 +664,17 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                   child: Scrollbar(
                     controller: _verticalController,
                     thumbVisibility: true,
+                    trackVisibility: true,
+                    notificationPredicate: (notification) => notification.depth == 0,
+                    scrollbarOrientation: ScrollbarOrientation.right,
                     child: SingleChildScrollView(
                       controller: _verticalController,
                       child: Scrollbar(
                         controller: _horizontalController,
                         thumbVisibility: true,
+                        trackVisibility: true,
                         notificationPredicate: (notification) => notification.depth == 1,
+                        scrollbarOrientation: ScrollbarOrientation.bottom,
                         child: SingleChildScrollView(
                           controller: _horizontalController,
                           scrollDirection: Axis.horizontal,
