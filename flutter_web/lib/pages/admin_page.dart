@@ -4059,11 +4059,6 @@ class _AdminPageState extends State<AdminPage> {
             view: _AdminView.reps,
             badge: _reps.isNotEmpty ? '${_reps.length}' : null,
           ),
-          _AdminNavItem(
-            label: 'Aktivität',
-            icon: Icons.query_stats_outlined,
-            view: _AdminView.activity,
-          ),
         ],
       ),
       _AdminNavSection(
