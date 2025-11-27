@@ -644,6 +644,18 @@ class _MyAppState extends State<MyApp> {
               '/repLogin': (_) => RepLoginPage(api: api),
               // Vertreter-Dashboard
               '/rep': (_) => RepDashboardPage(api: api),
+              '/admin/wiki': (_) => AdminPage.wiki(
+                    api: api,
+                    onMetaUpdated: (meta) => setState(() => _appMeta = meta),
+                  ),
+              '/admin/wiki/categories': (_) => AdminPage.wikiCategories(
+                    api: api,
+                    onMetaUpdated: (meta) => setState(() => _appMeta = meta),
+                  ),
+              '/admin/wiki/articles': (_) => AdminPage.wikiArticles(
+                    api: api,
+                    onMetaUpdated: (meta) => setState(() => _appMeta = meta),
+                  ),
               '/reset-password': (_) => ResetPasswordPage(api: api),
               // Datenschutz-Seite
               '/legal/privacy': (_) => const LegalPrivacyPage(),
