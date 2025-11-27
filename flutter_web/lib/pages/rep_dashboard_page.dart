@@ -1071,7 +1071,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
       _RepView.customers => t.myCustomers,
       _RepView.support   => t.rep_support_contact_title,
       _RepView.account   => t.profilePW,
-      _RepView.wiki      => 'Kundenwissen & Produktinfos',
+      _RepView.wiki      => t.repwiki,
     };
 
     final body = _loading
@@ -1268,8 +1268,8 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
         _MenuCard(
           color: Colors.green,
           icon: Icons.menu_book_outlined,
-          title: 'Kundenwissen & Produktinfos',
-          subtitle: 'Vertreter-Wiki',
+          title: t.repwiki,
+          subtitle: t.customer_knowledge,
           count: null,
           compact: compact,
           scale: scale,
