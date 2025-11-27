@@ -516,7 +516,7 @@ Note: rispettare la velocità consigliata, pressione moderata, evitare uso a sec
     productGroups: [
       'MDR-TD1 - rot. Dentalinstrumente',
       'MDR-TD2 - Knochenfräser',
-      'MDR-TD3 - Dentalpolierer)',
+      'MDR-TD3 - Dentalpolierer',
       'MDR-TD4 - PreciCut',
     ],
     type: 'prevention',
