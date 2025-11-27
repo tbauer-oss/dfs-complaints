@@ -69,29 +69,63 @@ class _RepMenuTileState {
 }
 
 class _RepMenuSectionState {
+  final String id;
+  final bool isSystem;
   final bool protected;
-  String title;
+  String? l10nKey;
+  String? customLabel;
   List<_RepMenuTileState> tiles;
 
-  _RepMenuSectionState({required this.title, required this.tiles, this.protected = false});
+  _RepMenuSectionState({
+    required this.id,
+    required this.tiles,
+    this.isSystem = false,
+    this.protected = false,
+    this.l10nKey,
+    this.customLabel,
+  });
 
   _RepMenuSectionState copy() => _RepMenuSectionState(
-        title: title,
+        id: id,
         tiles: tiles.map((t) => t.copy()).toList(),
+        isSystem: isSystem,
         protected: protected,
+        l10nKey: l10nKey,
+        customLabel: customLabel,
       );
 
-  Map<String, Object> toJson() => {
-        'title': title,
+  Map<String, Object?> toJson() => {
+        'id': id,
+        'l10nKey': l10nKey,
+        'customLabel': customLabel,
+        'isSystem': isSystem,
         'tiles': tiles.map((e) => e.toJson()).toList(),
         'protected': protected,
       };
 
   static _RepMenuSectionState fromJson(Map<String, Object?> raw) {
     final tiles = (raw['tiles'] as List?)?.whereType<Map>().map((e) => e.cast<String, Object?>()).toList();
+    final legacyTitle = (raw['title'] ?? '').toString();
+    final migrated = _RepDashboardPageState._migrateLegacySystemCategory(legacyTitle);
+    final id = (raw['id'] ?? '').toString();
+    final l10nKey = (raw['l10nKey'] ?? '').toString();
+    final customLabel = (raw['customLabel'] ?? '').toString();
+    final isSystem = raw['isSystem'] == true || migrated != null;
+    final effectiveId = id.isNotEmpty
+        ? id
+        : migrated?.id ?? _RepDashboardPageState._slugForCategoryLabel(legacyTitle, fallback: customLabel);
+    final systemConfig = isSystem ? _RepDashboardPageState._systemCategoryById(effectiveId) : null;
+    final effectiveL10nKey = migrated?.l10nKey ?? (l10nKey.isEmpty ? null : l10nKey) ?? systemConfig?.l10nKey;
     return _RepMenuSectionState(
-      title: (raw['title'] ?? '').toString(),
-      protected: raw['protected'] == true,
+      id: effectiveId,
+      l10nKey: effectiveL10nKey,
+      customLabel: migrated != null
+          ? null
+          : isSystem
+              ? null
+              : (customLabel.isNotEmpty ? customLabel : legacyTitle),
+      isSystem: isSystem,
+      protected: raw['protected'] == true || (migrated?.protected ?? false) || (systemConfig?.protected ?? false) || isSystem,
       tiles: tiles == null ? <_RepMenuTileState>[] : tiles.map(_RepMenuTileState.fromJson).toList(),
     );
   }
@@ -102,6 +136,13 @@ class _RepMenuTileDescriptor {
   final Color color;
   final IconData icon;
   const _RepMenuTileDescriptor({required this.id, required this.color, required this.icon});
+}
+
+class _SystemCategoryConfig {
+  final String id;
+  final String l10nKey;
+  final bool protected;
+  const _SystemCategoryConfig({required this.id, required this.l10nKey, this.protected = true});
 }
 
 class _RepDraggedTile {
@@ -186,6 +227,64 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     'downloads': _RepMenuTileDescriptor(id: 'downloads', color: Colors.deepPurple, icon: Icons.download_outlined),
     'wiki': _RepMenuTileDescriptor(id: 'wiki', color: Colors.green, icon: Icons.menu_book_outlined),
   };
+
+  static const List<_SystemCategoryConfig> _systemCategories = [
+    _SystemCategoryConfig(id: 'claims', l10nKey: 'rep_dash_cat_claims'),
+    _SystemCategoryConfig(id: 'customers', l10nKey: 'rep_dash_cat_customers'),
+    _SystemCategoryConfig(id: 'docs', l10nKey: 'rep_dash_cat_docs'),
+  ];
+
+  static const Map<String, String> _legacySystemCategoryLabels = {
+    'reklamationen': 'claims',
+    'claims': 'claims',
+    'réclamations': 'claims',
+    'reclamaciones': 'claims',
+    'reclami': 'claims',
+    'kunden & support': 'customers',
+    'customers & support': 'customers',
+    'clientes y soporte': 'customers',
+    'clients et support': 'customers',
+    'clienti e supporto': 'customers',
+    'wissen & dokumente': 'docs',
+    'knowledge & documents': 'docs',
+    'conocimiento y documentos': 'docs',
+    'connaissances et documents': 'docs',
+    'conoscenza e documenti': 'docs',
+  };
+
+  static _SystemCategoryConfig? _systemCategoryById(String id) {
+    for (final c in _systemCategories) {
+      if (c.id == id) return c;
+    }
+    return null;
+  }
+
+  static _SystemCategoryConfig? _migrateLegacySystemCategory(String legacyTitle) {
+    final normalized = _normalizeLabel(legacyTitle);
+    final systemId = _legacySystemCategoryLabels[normalized];
+    if (systemId == null) return null;
+    return _systemCategoryById(systemId);
+  }
+
+  static String _normalizeLabel(String value) => value.trim().toLowerCase();
+
+  static String _slugForCategoryLabel(String label, {String? fallback}) {
+    final source = (label.isNotEmpty ? label : (fallback ?? '')).trim();
+    if (source.isEmpty) return 'category_${DateTime.now().millisecondsSinceEpoch}';
+    final sanitized = source
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+        .replaceAll(RegExp(r'_+'), '_')
+        .replaceAll(RegExp(r'^_|_$'), '');
+    return sanitized.isEmpty ? 'category_${DateTime.now().millisecondsSinceEpoch}' : sanitized;
+  }
+
+  static bool _isValidSection(_RepMenuSectionState section) {
+    if (section.isSystem) {
+      return (section.l10nKey ?? '').trim().isNotEmpty;
+    }
+    return (section.customLabel ?? '').trim().isNotEmpty;
+  }
   List<_RepMenuSectionState> _menuSections = [];
   bool _menuEditMode = false;
   List<_RepMenuSectionState>? _menuBackup;
@@ -234,7 +333,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   List<_RepMenuSectionState> _defaultMenuSections() {
     return [
       _RepMenuSectionState(
-        title: 'Reklamationen',
+        id: 'claims',
+        l10nKey: 'rep_dash_cat_claims',
+        isSystem: true,
         protected: true,
         tiles: [
           _RepMenuTileState(id: 'earlyWarning', size: _RepMenuTileSize.large),
@@ -243,7 +344,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         ],
       ),
       _RepMenuSectionState(
-        title: 'Kunden & Support',
+        id: 'customers',
+        l10nKey: 'rep_dash_cat_customers',
+        isSystem: true,
         protected: true,
         tiles: [
           _RepMenuTileState(id: 'customers', size: _RepMenuTileSize.medium),
@@ -252,7 +355,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         ],
       ),
       _RepMenuSectionState(
-        title: 'Wissen & Dokumente',
+        id: 'docs',
+        l10nKey: 'rep_dash_cat_docs',
+        isSystem: true,
         protected: true,
         tiles: [
           _RepMenuTileState(id: 'downloads', size: _RepMenuTileSize.medium),
@@ -285,7 +390,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       for (final entry in parsed) {
         if (entry is! Map) continue;
         final section = _RepMenuSectionState.fromJson(entry.cast<String, Object?>());
-        if (section.title.trim().isEmpty) continue;
+        if (!_isValidSection(section)) continue;
         section.tiles = section.tiles.where((t) => known.contains(t.id)).toList();
         used.addAll(section.tiles.map((e) => e.id));
         sections.add(section);
@@ -293,15 +398,21 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
       for (final def in defaults) {
         final existing = sections.firstWhere(
-          (s) => s.title == def.title,
-          orElse: () => _RepMenuSectionState(title: '', tiles: []),
+          (s) => s.id == def.id,
+          orElse: () => _RepMenuSectionState(id: '', tiles: []),
         );
-        if (existing.title.isEmpty) continue;
-        for (final tile in def.tiles) {
-          if (used.contains(tile.id)) continue;
-          existing.tiles.add(tile.copy());
-          used.add(tile.id);
+        if (existing.id.isNotEmpty) {
+          for (final tile in def.tiles) {
+            if (used.contains(tile.id)) continue;
+            existing.tiles.add(tile.copy());
+            used.add(tile.id);
+          }
+          continue;
         }
+
+        final copy = def.copy();
+        sections.add(copy);
+        used.addAll(copy.tiles.map((e) => e.id));
       }
 
       for (final id in known) {
@@ -388,10 +499,15 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
     if (created == null || created.trim().isEmpty) return;
 
+    var id = _slugForCategoryLabel(created.trim());
+    if (_menuSections.any((s) => s.id == id)) {
+      id = '${id}_${DateTime.now().millisecondsSinceEpoch}';
+    }
+
     setState(() {
       _menuSections = [
         ..._menuSections,
-        _RepMenuSectionState(title: created.trim(), tiles: []),
+        _RepMenuSectionState(id: id, customLabel: created.trim(), tiles: []),
       ];
     });
     _persistMenuLayout();
@@ -1956,8 +2072,25 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     });
   }
 
+  String _sectionLabel(_RepMenuSectionState section) {
+    if (section.isSystem && section.l10nKey != null) {
+      switch (section.l10nKey) {
+        case 'rep_dash_cat_claims':
+          return context.t.repDashCatClaims ?? 'Reklamationen';
+        case 'rep_dash_cat_customers':
+          return context.t.repDashCatCustomers ?? 'Kunden & Support';
+        case 'rep_dash_cat_docs':
+          return context.t.repDashCatDocs ?? 'Wissen & Dokumente';
+      }
+    }
+    return section.customLabel?.trim().isNotEmpty == true
+        ? section.customLabel!.trim()
+        : (section.l10nKey ?? section.id);
+  }
+
   Widget _buildSectionHeader(_RepMenuSectionState section, int index) {
     final theme = Theme.of(context);
+    final label = _sectionLabel(section);
     return Row(
       children: [
         if (_menuEditMode)
@@ -1980,7 +2113,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                       ),
                     ],
                   ),
-                  child: Text(section.title, style: theme.textTheme.titleMedium),
+                  child: Text(label, style: theme.textTheme.titleMedium),
                 ),
               ),
               child: const Icon(Icons.drag_indicator, color: Colors.grey),
@@ -1990,7 +2123,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(section.title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+              Text(label, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
               const SizedBox(height: 4),
               Container(height: 2, width: 48, color: theme.colorScheme.primary.withOpacity(0.35)),
             ],
@@ -2002,7 +2135,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
               IconButton.filledTonal(
                 tooltip: 'Kategorie umbenennen',
                 icon: const Icon(Icons.edit_outlined),
-                onPressed: () => _renameSection(section),
+                onPressed: section.protected ? null : () => _renameSection(section),
               ),
               const SizedBox(width: 4),
               IconButton.filledTonal(
@@ -2017,7 +2150,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
   }
 
   void _renameSection(_RepMenuSectionState section) async {
-    final ctrl = TextEditingController(text: section.title);
+    final ctrl = TextEditingController(text: _sectionLabel(section));
     final updated = await showDialog<String>(
       context: context,
       builder: (context) {
@@ -2043,7 +2176,10 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
       },
     );
     if (updated == null) return;
-    setState(() => section.title = updated.trim());
+    setState(() {
+      section.customLabel = updated.trim();
+      section.l10nKey = section.isSystem ? section.l10nKey : null;
+    });
     _persistMenuLayout();
   }
 
