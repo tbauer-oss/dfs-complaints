@@ -18,6 +18,8 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
   String? _err;
   List<WikiArticle> _articles = const [];
 
+  final ScrollController _scrollCtrl = ScrollController();
+
   String? _category;
   String? _productGroup;
   String? _type;
@@ -31,6 +33,7 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
 
   @override
   void dispose() {
+    _scrollCtrl.dispose();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -247,7 +250,7 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
       );
     }
 
-    Widget buildList() {
+    Widget buildList(double width) {
       final grouped = <String, List<WikiArticle>>{};
       for (final a in _articles) {
         final key = a.categoryName ?? a.categoryId ?? 'Allgemein';
@@ -284,68 +287,63 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
         return const Center(child: Text('Keine Artikel gefunden'));
       }
 
-      return LayoutBuilder(
-        builder: (_, cons) {
-          final width = cons.maxWidth;
-          final crossAxisCount = width >= 1400
-              ? 4
-              : width >= 1150
-                  ? 3
-                  : width >= 760
-                      ? 2
-                      : 1;
-          final aspectRatio = width >= 1400
-              ? 1.6
-              : width >= 1150
-                  ? 1.45
-                  : width >= 760
-                      ? 1.3
-                      : 1.05;
+      final crossAxisCount = width >= 1400
+          ? 4
+          : width >= 1150
+              ? 3
+              : width >= 760
+                  ? 2
+                  : 1;
+      final aspectRatio = width >= 1400
+          ? 2.4
+          : width >= 1150
+              ? 2.1
+              : width >= 760
+                  ? 1.75
+                  : 1.2;
 
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (final category in sortedCategories) ...[
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Row(
-                    children: [
-                      Icon(Icons.folder_special_rounded, color: cs.primary),
-                      const SizedBox(width: 8),
-                      Text(
-                        category,
-                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-                      ),
-                      const SizedBox(width: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: cs.surfaceVariant.withOpacity(.5),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text('${grouped[category]!.length} Artikel',
-                            style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
-                      ),
-                    ],
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final category in sortedCategories) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  Icon(Icons.folder_special_rounded, color: cs.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    category,
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
                   ),
-                ),
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: crossAxisCount,
-                    mainAxisSpacing: 10,
-                    crossAxisSpacing: 10,
-                    childAspectRatio: aspectRatio,
+                  const SizedBox(width: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: cs.surfaceVariant.withOpacity(.5),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text('${grouped[category]!.length} Artikel',
+                        style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
                   ),
-                  itemCount: grouped[category]!.length,
-                  itemBuilder: (_, i) => buildCard(grouped[category]![i]),
-                ),
-                const SizedBox(height: 18),
-              ],
-            ],
-          );
-        },
+                ],
+              ),
+            ),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: aspectRatio,
+              ),
+              itemCount: grouped[category]!.length,
+              itemBuilder: (_, i) => buildCard(grouped[category]![i]),
+            ),
+            const SizedBox(height: 18),
+          ],
+        ],
       );
     }
 
@@ -389,30 +387,61 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
       ),
     );
 
-    final content = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        header,
-        filters,
-        const SizedBox(height: 16),
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 250),
-          child: buildList(),
-        ),
-      ],
-    );
-
     return LayoutBuilder(
-      builder: (context, constraints) => Scrollbar(
-        thumbVisibility: true,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight - 32),
-            child: content,
+      builder: (context, constraints) {
+        final width = constraints.maxWidth - 32; // account for horizontal padding below
+        final slivers = <Widget>[
+          SliverToBoxAdapter(child: header),
+          SliverToBoxAdapter(child: filters),
+          const SliverToBoxAdapter(child: SizedBox(height: 16)),
+        ];
+
+        Widget status(Widget child) => SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: child),
+              ),
+            );
+
+        if (_loading) {
+          slivers.add(
+            status(const Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(width: 80, height: 80, child: CircularProgressIndicator(strokeWidth: 5)),
+                SizedBox(height: 16),
+                Text('Wissensdatenbank wird geladen...'),
+              ],
+            )),
+          );
+        } else if (_err != null) {
+          slivers.add(
+            status(Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(_err!, style: TextStyle(color: cs.error)),
+                const SizedBox(height: 8),
+                ElevatedButton(onPressed: _load, child: const Text('Erneut versuchen')),
+              ],
+            )),
+          );
+        } else if (_articles.isEmpty) {
+          slivers.add(status(const Text('Keine Artikel gefunden')));
+        } else {
+          final list = buildList(width);
+          slivers.add(SliverToBoxAdapter(child: list));
+        }
+
+        return Scrollbar(
+          thumbVisibility: true,
+          controller: _scrollCtrl,
+          child: CustomScrollView(
+            controller: _scrollCtrl,
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            slivers: slivers,
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -448,33 +477,33 @@ class _ArticleCardState extends State<_ArticleCard> {
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOut,
         transform: Matrix4.identity()..translate(0.0, _hovered ? -4 : 0.0),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: cs.shadow.withOpacity(_hovered ? .18 : .10),
-            blurRadius: _hovered ? 16 : 10,
-            offset: const Offset(0, 10),
-          ),
-        ],
-        border: Border.all(color: cs.outlineVariant.withOpacity(.5)),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
+        decoration: BoxDecoration(
+          color: cs.surface,
           borderRadius: BorderRadius.circular(16),
-          onTap: widget.onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+          boxShadow: [
+            BoxShadow(
+              color: cs.shadow.withOpacity(_hovered ? .18 : .10),
+              blurRadius: _hovered ? 16 : 10,
+              offset: const Offset(0, 10),
+            ),
+          ],
+          border: Border.all(color: cs.outlineVariant.withOpacity(.5)),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: widget.onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(8),
+                        padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
                           color: cs.primaryContainer,
                           borderRadius: BorderRadius.circular(10),
@@ -488,14 +517,14 @@ class _ArticleCardState extends State<_ArticleCard> {
                           children: [
                             Text(
                               a.title,
-                              maxLines: 2,
+                              maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: Theme.of(context)
                                   .textTheme
                                   .titleMedium
                                   ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: .1),
                             ),
-                            const SizedBox(height: 2),
+                            const SizedBox(height: 1),
                             Row(
                               children: [
                                 Icon(Icons.folder_outlined, size: 18, color: cs.onSurfaceVariant),
@@ -521,13 +550,14 @@ class _ArticleCardState extends State<_ArticleCard> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   if (a.productGroups.isNotEmpty)
                     Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: a.productGroups
-                          .map((p) => Chip(
+                      spacing: 4,
+                      runSpacing: 4,
+                      children: [
+                        ...a.productGroups.take(2).map(
+                              (p) => Chip(
                                 label: Text(p),
                                 labelStyle: Theme.of(context)
                                     .textTheme
@@ -535,21 +565,35 @@ class _ArticleCardState extends State<_ArticleCard> {
                                     ?.copyWith(color: cs.onSurfaceVariant),
                                 backgroundColor: cs.surfaceVariant.withOpacity(.5),
                                 visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(horizontal: 6),
                                 side: BorderSide(color: cs.outlineVariant.withOpacity(.7)),
-                              ))
-                          .toList(),
+                              ),
+                            ),
+                        if (a.productGroups.length > 2)
+                          Chip(
+                            label: Text('+${a.productGroups.length - 2}'),
+                            labelStyle: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: cs.onSurfaceVariant),
+                            backgroundColor: cs.surfaceVariant.withOpacity(.5),
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            side: BorderSide(color: cs.outlineVariant.withOpacity(.7)),
+                          ),
+                      ],
                     ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   Text(
                     a.teaser,
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context)
                         .textTheme
                         .bodyMedium
-                        ?.copyWith(height: 1.5, color: cs.onSurfaceVariant.withOpacity(.9)),
+                        ?.copyWith(height: 1.4, color: cs.onSurfaceVariant.withOpacity(.9)),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   Row(
                     children: [
                       Icon(Icons.arrow_outward_rounded, size: 18, color: cs.primary),
