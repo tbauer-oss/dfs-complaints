@@ -24,7 +24,8 @@ function requireAdmin(req, res) {
 
 async function parseUpload(body) {
   const provided = normalizeProvidedUploads(body?.uploads || body?.files || []);
-  if (provided.length) return provided[0];
+  const providedWithLink = provided.find((p) => p?.downloadUrl || p?.url);
+  if (providedWithLink) return { ...providedWithLink, downloadUrl: providedWithLink.downloadUrl || providedWithLink.url };
 
   const files = Array.isArray(body?.files)
     ? body.files
@@ -39,7 +40,9 @@ async function parseUpload(body) {
     allowDataUrlFallback: true,
     maxTotalBytes: 25 * 1024 * 1024,
   });
-  return processed.uploads[0] || null;
+  const upload = processed.uploads[0] || null;
+  if (!upload) return null;
+  return { ...upload, downloadUrl: upload.downloadUrl || upload.url };
 }
 
 export default async function handler(req, res) {
@@ -89,8 +92,8 @@ export default async function handler(req, res) {
         return bad(res, 'title required', 400);
       }
 
-      if (!upload && !body?.downloadUrl && !existing?.downloadUrl) {
-        return bad(res, 'file or downloadUrl required', 400);
+      if (!upload && !existing?.downloadUrl) {
+        return bad(res, 'file required', 400);
       }
 
       const payload = {
