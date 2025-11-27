@@ -2076,11 +2076,11 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     if (section.isSystem && section.l10nKey != null) {
       switch (section.l10nKey) {
         case 'rep_dash_cat_claims':
-          return context.t.repDashCatClaims ?? 'Reklamationen';
+          return context.t.rep_dash_cat_claims ?? 'Reklamationen';
         case 'rep_dash_cat_customers':
-          return context.t.repDashCatCustomers ?? 'Kunden & Support';
+          return context.t.rep_dash_cat_customers ?? 'Kunden & Support';
         case 'rep_dash_cat_docs':
-          return context.t.repDashCatDocs ?? 'Wissen & Dokumente';
+          return context.t.rep_dash_cat_docs ?? 'Wissen & Dokumente';
       }
     }
     return section.customLabel?.trim().isNotEmpty == true
