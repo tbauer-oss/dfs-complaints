@@ -9279,7 +9279,7 @@ class _UserTileState extends State<_UserTile> {
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -9311,7 +9311,7 @@ class _UserTileState extends State<_UserTile> {
                     ),
                   ),
                   if (widget.repBusy) ...[
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 12),
                     const SizedBox(
                       height: 18,
                       width: 18,
