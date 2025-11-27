@@ -175,12 +175,15 @@ class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
       setState(() {
         _categories = _categories
             .map((c) => c.id == cat.id ? updated : c)
-            .toList(growable: false);
+            .where((c) {
+          if (_statusFilter == 'active') return c.isActive;
+          if (_statusFilter == 'inactive') return !c.isActive;
+          return true;
+        }).toList(growable: false);
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('"${cat.name}" ist jetzt ${updated.isActive ? 'aktiv' : 'inaktiv'}')),
       );
-      _load();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
