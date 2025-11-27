@@ -11,6 +11,7 @@ class RepDownloadItem {
   final int size;
   final int updatedAt;
   final int version;
+  final bool active;
 
   const RepDownloadItem({
     required this.id,
@@ -24,6 +25,7 @@ class RepDownloadItem {
     required this.size,
     required this.updatedAt,
     required this.version,
+    required this.active,
   });
 
   factory RepDownloadItem.fromJson(Map<String, dynamic> json) {
@@ -39,6 +41,7 @@ class RepDownloadItem {
       size: json['size'] is num ? (json['size'] as num).round() : 0,
       updatedAt: json['updatedAt'] is num ? (json['updatedAt'] as num).round() : 0,
       version: json['version'] is num ? (json['version'] as num).round() : 1,
+      active: json['active'] != false,
     );
   }
 }

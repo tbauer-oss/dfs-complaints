@@ -47,6 +47,7 @@ async function withRedisTimeout(promise, label = 'redis op') {
 
 const P = 'dfs:';
 const KEY_REP_PUSH = (repId) => `${P}rep:${repId}:pushTokens`;
+const KEY_DOWNLOAD_CATEGORIES = `${P}downloads:categories`;
 
 // ===== In-Memory Fallback (Preview / Dev) =====
 const mem = {
@@ -62,8 +63,19 @@ const mem = {
   faqCategories: [],
   faqItems: [],
   downloads: [],
+  downloadCategories: null,
   repDownloadSeen: new Map(),
 };
+
+const DEFAULT_DOWNLOAD_CATEGORIES = [
+  'Sicherheitsdatenblätter',
+  'Gebrauchsanweisungen',
+  'Aufbereitungsanweisungen',
+  'Kataloge',
+  'Produktflyer',
+  'Registrierungsdokumente',
+  'sonstige Dokumente',
+];
 
 export const SUPPORTED_LANGS = new Set([
   'bg', // Bulgarian
@@ -300,6 +312,7 @@ const KEY_FAQ_CATEGORIES = `${P}faq:categories`;
 const KEY_FAQ_ITEMS = `${P}faq:items`;
 const KEY_DOWNLOADS = `${P}downloads`;
 const KEY_REP_DOWNLOAD_SEEN = (repId) => `${P}rep:${repId}:downloads:seen`;
+const KEY_GLOBAL_DOWNLOAD_CATEGORIES = '__DFS_DOWNLOAD_CATEGORIES__';
 const PUSH_TOKEN_FRESH_MS = Math.max(
   60 * 60 * 1000,
   Number(process.env.PUSH_TOKEN_FRESH_MS || 1000 * 60 * 60 * 24 * 45)
@@ -424,6 +437,10 @@ function _text(value, max = 400) {
     s = `${s.slice(0, max - 1).trim()}…`;
   }
   return s;
+}
+
+function _normalizeCategoryName(name) {
+  return _text(name, 160);
 }
 
 function _normalizeIntlMap(raw, maxLen = 400) {
@@ -1775,6 +1792,108 @@ export async function anonymizeUserAndComplaints(email) {
 }
 
 /* ============== Downloads für Vertreter ============== */
+function _mergeDefaultCategories(list = []) {
+  const seen = new Set();
+  const out = [];
+  const add = (name) => {
+    const clean = _normalizeCategoryName(name);
+    if (!clean) return;
+    const key = clean.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(clean);
+  };
+  for (const name of DEFAULT_DOWNLOAD_CATEGORIES) add(name);
+  for (const name of list) add(name);
+  return out;
+}
+
+async function _loadDownloadCategories() {
+  if (Array.isArray(mem.downloadCategories)) return [...mem.downloadCategories];
+  const r = getRedis();
+  let list = null;
+  if (r) {
+    const raw = await rget(KEY_DOWNLOAD_CATEGORIES);
+    if (Array.isArray(raw)) list = raw;
+    else if (typeof raw === 'string' && raw.trim()) {
+      try { list = JSON.parse(raw); }
+      catch { list = []; }
+    }
+  } else if (global[KEY_GLOBAL_DOWNLOAD_CATEGORIES]) {
+    list = global[KEY_GLOBAL_DOWNLOAD_CATEGORIES];
+  }
+
+  if (!Array.isArray(list)) list = [];
+  const normalized = list.length ? list.map(_normalizeCategoryName).filter(Boolean) : [];
+  const merged = normalized.length ? normalized : _mergeDefaultCategories();
+  mem.downloadCategories = [...merged];
+  return [...merged];
+}
+
+async function _persistDownloadCategories(list) {
+  const safe = list.map(_normalizeCategoryName).filter(Boolean);
+  mem.downloadCategories = [...safe];
+  const r = getRedis();
+  if (r) await rset(KEY_DOWNLOAD_CATEGORIES, safe);
+  else global[KEY_GLOBAL_DOWNLOAD_CATEGORIES] = [...safe];
+  return safe;
+}
+
+export async function downloadCategoriesWithCounts() {
+  const [categories, downloads] = await Promise.all([
+    _loadDownloadCategories(),
+    downloadsList({ includeInactive: true }),
+  ]);
+  const counts = new Map();
+  for (const item of downloads) {
+    const cat = _normalizeCategoryName(item.category);
+    const key = cat || '';
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  return categories.map((name) => ({ name, count: counts.get(name) || 0 }));
+}
+
+export async function addDownloadCategory(name) {
+  const clean = _normalizeCategoryName(name);
+  if (!clean) throw new Error('name required');
+  const categories = await _loadDownloadCategories();
+  const lower = clean.toLowerCase();
+  if (categories.some((c) => c.toLowerCase() === lower)) return categories;
+  const next = [...categories, clean];
+  await _persistDownloadCategories(next);
+  return next;
+}
+
+export async function deleteDownloadCategory(name, { force = false } = {}) {
+  const clean = _normalizeCategoryName(name);
+  if (!clean) throw new Error('name required');
+  const categories = await _loadDownloadCategories();
+  const lower = clean.toLowerCase();
+  if (!categories.some((c) => c.toLowerCase() === lower)) return { deleted: false, removedDownloads: [] };
+
+  const downloads = await downloadsList({ includeInactive: true });
+  const affected = downloads.filter((d) => _normalizeCategoryName(d.category).toLowerCase() === lower);
+  if (affected.length && !force) {
+    const err = new Error('category has downloads');
+    err.code = 'HAS_DOWNLOADS';
+    err.details = { count: affected.length };
+    throw err;
+  }
+
+  const nextCategories = categories.filter((c) => c.toLowerCase() !== lower);
+  await _persistDownloadCategories(nextCategories);
+
+  const removedDownloads = [];
+  if (affected.length) {
+    for (const item of affected) {
+      await downloadsDelete(item.id);
+      removedDownloads.push(item.id);
+    }
+  }
+
+  return { deleted: true, removedDownloads };
+}
+
 function _normalizeDownloadBadge(value) {
   const raw = (value ?? '').toString().trim().toLowerCase();
   if (raw === 'new' || raw === 'change') return raw;
