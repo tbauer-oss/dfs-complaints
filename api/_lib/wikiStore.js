@@ -1,5 +1,6 @@
 // api/_lib/wikiStore.js
 import { Redis } from '@upstash/redis';
+import { wikiSeedArticles, wikiSeedCategories } from './wikiSeeds.js';
 
 const redisUrl =
   process.env.REDIS_URL ||
@@ -136,8 +137,8 @@ async function loadCategories() {
   }
   const raw = await rget(KEY_CATEGORIES);
   const normalized = Array.isArray(raw) ? raw.map((c) => normalizeCategory(c)) : [];
-  mem.categories = normalized;
-  return normalized;
+  mem.categories = normalized.length ? normalized : wikiSeedCategories.map((c) => normalizeCategory(c));
+  return mem.categories;
 }
 
 async function loadArticles(categories = null) {
@@ -149,8 +150,10 @@ async function loadArticles(categories = null) {
   }
   const raw = await rget(KEY_ARTICLES);
   const normalized = Array.isArray(raw) ? raw.map((c) => normalizeArticle(c)) : [];
-  mem.articles = normalized;
-  return normalized;
+  mem.articles = normalized.length
+    ? normalized
+    : wikiSeedArticles.map((c) => normalizeArticle(c));
+  return mem.articles;
 }
 
 async function persistCategories(list) {
