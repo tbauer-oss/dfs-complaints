@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:intl/intl.dart';
+import 'package:collection/collection.dart';
 import 'package:markdown/markdown.dart' as md;
 import '../api/client.dart';
 import '../models/country.dart';
@@ -225,6 +226,7 @@ class _AdminPageState extends State<AdminPage> {
   final Set<String> _archivedTileIds = <String>{};
 
   bool _navCollapsed = true;
+  late List<_AdminView> _navOrder;
 
   // Mehrfach-Zuordnung interne Nummer
   final Set<String> _selectedAllTickets = <String>{};
@@ -237,6 +239,7 @@ class _AdminPageState extends State<AdminPage> {
   bool _loadAllComplaints = false;
 
   static const _menuLayoutStorageKey = 'admin_menu_layout_v1';
+  static const _navOrderStorageKey = 'admin_nav_order_v1';
   static const double _tileScaleMin = 0.6;
   static const double _tileScaleMax = 1.35;
   late final Map<String, String> _tileDefaultSection;
@@ -361,6 +364,8 @@ class _AdminPageState extends State<AdminPage> {
     _api.setSecret(secret);
 
     _initMenuLayout();
+    _navOrder = _defaultNavOrder();
+    _loadNavOrder();
     _view = widget.initialView;
 
     if (secret.isEmpty) {
@@ -3806,6 +3811,11 @@ class _AdminPageState extends State<AdminPage> {
                   ],
                 ),
               ),
+              _navActionButton(
+                tooltip: 'Sidebar sortieren',
+                icon: Icons.tune_rounded,
+                onPressed: _showNavOrderDialog,
+              ),
               _navToggleButton(
                 tooltip: 'Sidebar einklappen',
                 icon: Icons.chevron_left,
@@ -3813,6 +3823,12 @@ class _AdminPageState extends State<AdminPage> {
               ),
             ] else ...[
               const Spacer(),
+              _navActionButton(
+                tooltip: 'Sidebar sortieren',
+                icon: Icons.tune_rounded,
+                onPressed: _showNavOrderDialog,
+                color: subtle,
+              ),
               _navToggleButton(
                 tooltip: 'Sidebar erweitern',
                 icon: Icons.chevron_right,
@@ -3915,6 +3931,25 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  Widget _navActionButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+    Color? color,
+  }) {
+    return SizedBox(
+      width: 44,
+      height: 44,
+      child: IconButton(
+        tooltip: tooltip,
+        icon: Icon(icon, color: color ?? Theme.of(context).colorScheme.primary),
+        onPressed: onPressed,
+        padding: const EdgeInsets.all(10),
+        splashRadius: 24,
+      ),
+    );
+  }
+
   Widget _navToggleButton({
     required IconData icon,
     required String tooltip,
@@ -3935,6 +3970,35 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   List<_AdminNavSection> _navSections() {
+    final defaults = _defaultNavSections();
+    final baseOrder = _navOrder.isNotEmpty ? _navOrder : _defaultNavOrder();
+    final order = _mergeNavOrder(baseOrder);
+    final orderIndex = <_AdminView, int>{
+      for (var i = 0; i < order.length; i++) order[i]: i,
+    };
+
+    final sections = defaults
+        .map(
+          (section) => _AdminNavSection(
+            title: section.title,
+            items: [...section.items]
+              ..sort(
+                (a, b) => (orderIndex[a.view] ?? 999).compareTo(orderIndex[b.view] ?? 999),
+              ),
+          ),
+        )
+        .toList();
+
+    int sectionScore(_AdminNavSection section) {
+      final scores = section.items.map((item) => orderIndex[item.view] ?? 999).toList();
+      return scores.isEmpty ? 999 : scores.reduce((a, b) => a < b ? a : b);
+    }
+
+    sections.sort((a, b) => sectionScore(a).compareTo(sectionScore(b)));
+    return sections;
+  }
+
+  List<_AdminNavSection> _defaultNavSections() {
     return [
       _AdminNavSection(
         title: 'Dashboard',
@@ -4071,6 +4135,143 @@ class _AdminPageState extends State<AdminPage> {
         ],
       ),
     ];
+  }
+
+  List<_AdminNavItem> _flattenNavItems(List<_AdminNavSection> sections) => [
+        for (final section in sections) ...section.items,
+      ];
+
+  List<_AdminView> _defaultNavOrder() =>
+      _flattenNavItems(_defaultNavSections()).map((i) => i.view).toList(growable: false);
+
+  void _loadNavOrder() {
+    final defaults = _defaultNavOrder();
+    final raw = html.window.localStorage[_navOrderStorageKey];
+    List<_AdminView> next = defaults;
+
+    if (raw != null) {
+      try {
+        final parsed = jsonDecode(raw);
+        if (parsed is List) {
+          final views = parsed
+              .whereType<String>()
+              .map((name) => _AdminView.values.firstWhereOrNull((v) => v.name == name))
+              .whereNotNull()
+              .toList();
+          if (views.isNotEmpty) {
+            next = _mergeNavOrder(views);
+          }
+        }
+      } catch (_) {
+        // Fallback to defaults below.
+      }
+    }
+
+    if (!listEquals(_navOrder, next)) {
+      if (mounted) {
+        setState(() => _navOrder = next);
+      } else {
+        _navOrder = next;
+      }
+    }
+  }
+
+  void _persistNavOrder() {
+    html.window.localStorage[_navOrderStorageKey] = jsonEncode(_navOrder.map((v) => v.name).toList());
+  }
+
+  List<_AdminView> _mergeNavOrder(List<_AdminView> candidate) {
+    final defaults = _defaultNavOrder();
+    final merged = <_AdminView>[];
+    for (final view in candidate) {
+      if (defaults.contains(view) && !merged.contains(view)) {
+        merged.add(view);
+      }
+    }
+    for (final view in defaults) {
+      if (!merged.contains(view)) {
+        merged.add(view);
+      }
+    }
+    return merged;
+  }
+
+  Map<_AdminView, _AdminNavItem> _navItemLookup() {
+    final items = _flattenNavItems(_defaultNavSections());
+    return {for (final item in items) item.view: item};
+  }
+
+  Future<void> _showNavOrderDialog() async {
+    final lookup = _navItemLookup();
+    final theme = Theme.of(context);
+    var workingOrder = List<_AdminView>.from(_navOrder);
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, localSetState) {
+            return AlertDialog(
+              title: const Text('Sidebar sortieren'),
+              content: SizedBox(
+                width: 460,
+                height: 420,
+                child: ReorderableListView.builder(
+                  buildDefaultDragHandles: false,
+                  itemBuilder: (context, index) {
+                    final view = workingOrder[index];
+                    final item = lookup[view];
+                    final icon = item?.icon ?? Icons.drag_indicator_rounded;
+                    final label = item?.label ?? view.name;
+                    return ReorderableDragStartListener(
+                      key: ValueKey(view.name),
+                      index: index,
+                      child: ListTile(
+                        leading: Icon(icon, color: theme.colorScheme.primary),
+                        title: Text(label),
+                        subtitle: const Text('Zum Verschieben irgendwo in der Zeile ziehen'),
+                      ),
+                    );
+                  },
+                  itemCount: workingOrder.length,
+                  onReorder: (oldIndex, newIndex) {
+                    localSetState(() {
+                      if (newIndex > oldIndex) newIndex -= 1;
+                      final item = workingOrder.removeAt(oldIndex);
+                      workingOrder.insert(newIndex, item);
+                    });
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => localSetState(() => workingOrder = _defaultNavOrder()),
+                  child: const Text('Standard wiederherstellen'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Abbrechen'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    if (mounted) {
+                      setState(() {
+                        _navOrder = _mergeNavOrder(workingOrder);
+                      });
+                    } else {
+                      _navOrder = _mergeNavOrder(workingOrder);
+                    }
+                    _persistNavOrder();
+                    Navigator.of(ctx).pop();
+                  },
+                  child: const Text('Speichern'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   Widget _buildBody(ThemeData theme) {
