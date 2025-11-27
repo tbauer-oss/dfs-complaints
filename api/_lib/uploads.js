@@ -145,6 +145,13 @@ export async function processIncomingFiles(filesInput, {
       throw new Error('blob upload failed');
     }
 
+    // Fallback für Umgebungen ohne Blob-Storage: stelle einen Data-URL-Download
+    // bereit, damit Admin-Uploads dennoch funktionieren. Die Upload-Größe wird
+    // upstream durch maxTotalBytes begrenzt, sodass die Data-URL handhabbar bleibt.
+    if (!blobUploadsEnabled && !entry.downloadUrl) {
+      entry.downloadUrl = `data:${entry.mime};base64,${base64}`;
+    }
+
     if (!entry.url && allowPreviewFallback) {
       const preview = normalizePreview(raw.preview);
       if (preview) entry.preview = preview;
