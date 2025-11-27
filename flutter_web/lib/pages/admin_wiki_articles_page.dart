@@ -489,120 +489,167 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
       builder: (context, cons) {
         final isCompact = cons.maxWidth < 1000;
         return Card(
+          elevation: 4,
+          shadowColor: cs.shadow.withOpacity(.12),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.menu_book_outlined),
-                        const SizedBox(width: 8),
-                        Text('Artikel verwalten', style: theme.textTheme.titleLarge),
-                      ],
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [cs.primaryContainer, cs.surface],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                    SizedBox(
-                      width: isCompact ? 210 : 240,
-                      child: DropdownButtonFormField<String?>(
-                        value: _categoryFilter,
-                        decoration: const InputDecoration(labelText: 'Kategorie'),
-                        onChanged: (v) {
-                          setState(() => _categoryFilter = v);
-                          _load();
-                        },
-                        items: <DropdownMenuItem<String?>>[
-                          const DropdownMenuItem<String?>(value: null, child: Text('Alle Kategorien')),
-                        ]
-                            .followedBy(
-                              _categories.map(
-                                (c) => DropdownMenuItem<String?>(value: c.id, child: Text(c.name)),
-                              ),
-                            )
-                            .toList(),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: cs.primary.withOpacity(.15)),
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: cs.primary,
+                        foregroundColor: cs.onPrimary,
+                        child: const Icon(Icons.menu_book_outlined),
                       ),
-                    ),
-                    SizedBox(
-                      width: isCompact ? 190 : 220,
-                      child: DropdownButtonFormField<String?>(
-                        value: _productGroupFilter,
-                        decoration: const InputDecoration(labelText: 'Produktgruppe'),
-                        onChanged: (v) {
-                          setState(() => _productGroupFilter = v);
-                          _load();
-                        },
-                        items: <DropdownMenuItem<String?>>[
-                          const DropdownMenuItem<String?>(value: null, child: Text('Alle')),
-                        ]
-                            .followedBy(
-                              _productGroupOptions().map(
-                                (p) => DropdownMenuItem<String?>(value: p, child: Text(p)),
-                              ),
-                            )
-                            .toList(),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Artikel verwalten',
+                                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+                            const SizedBox(height: 4),
+                            Text('Professionelle Tabellen, klare Filter und hochwertige Markdown-Vorschau.',
+                                style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
+                          ],
+                        ),
                       ),
-                    ),
-                    SizedBox(
-                      width: isCompact ? 180 : 200,
-                      child: DropdownButtonFormField<String?>(
-                        value: _typeFilter,
-                        decoration: const InputDecoration(labelText: 'Typ'),
-                        onChanged: (v) {
-                          setState(() => _typeFilter = v);
-                          _load();
-                        },
-                        items: const [
-                          DropdownMenuItem(value: null, child: Text('Alle Typen')),
-                          DropdownMenuItem(value: 'faq', child: Text('FAQ')),
-                          DropdownMenuItem(value: 'safety', child: Text('Sicherheit')),
-                          DropdownMenuItem(value: 'error', child: Text('Fehler')),
-                          DropdownMenuItem(value: 'prevention', child: Text('Vermeidung')),
+                      FilledButton.icon(
+                        onPressed: _loading ? null : () => _openForm(),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Neu'),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: cs.outlineVariant.withOpacity(.7)),
+                  ),
+                  child: Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.tune_rounded, color: cs.primary),
+                          const SizedBox(width: 8),
+                          Text('Filter & Suche',
+                              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
                         ],
                       ),
-                    ),
-                    SizedBox(
-                      width: isCompact ? 180 : 200,
-                      child: DropdownButtonFormField<String?>(
-                        value: _statusFilter,
-                        decoration: const InputDecoration(labelText: 'Status'),
-                        onChanged: (v) {
-                          setState(() => _statusFilter = v);
-                          _load();
-                        },
-                        items: const [
-                          DropdownMenuItem(value: null, child: Text('Alle')),
-                          DropdownMenuItem(value: 'active', child: Text('Aktiv')),
-                          DropdownMenuItem(value: 'inactive', child: Text('Inaktiv')),
-                        ],
+                      SizedBox(
+                        width: isCompact ? 210 : 240,
+                        child: DropdownButtonFormField<String?>(
+                          value: _categoryFilter,
+                          decoration: const InputDecoration(labelText: 'Kategorie'),
+                          onChanged: (v) {
+                            setState(() => _categoryFilter = v);
+                            _load();
+                          },
+                          items: <DropdownMenuItem<String?>>[
+                            const DropdownMenuItem<String?>(value: null, child: Text('Alle Kategorien')),
+                          ]
+                              .followedBy(
+                                _categories.map(
+                                  (c) => DropdownMenuItem<String?>(value: c.id, child: Text(c.name)),
+                                ),
+                              )
+                              .toList(),
+                        ),
                       ),
-                    ),
-                    SizedBox(
-                      width: isCompact ? 220 : 260,
-                      child: TextField(
-                        controller: _searchCtrl,
-                        decoration: const InputDecoration(labelText: 'Suche Titel/Teaser/Tags'),
-                        onSubmitted: (_) => _load(),
+                      SizedBox(
+                        width: isCompact ? 190 : 220,
+                        child: DropdownButtonFormField<String?>(
+                          value: _productGroupFilter,
+                          decoration: const InputDecoration(labelText: 'Produktgruppe'),
+                          onChanged: (v) {
+                            setState(() => _productGroupFilter = v);
+                            _load();
+                          },
+                          items: <DropdownMenuItem<String?>>[
+                            const DropdownMenuItem<String?>(value: null, child: Text('Alle')),
+                          ]
+                              .followedBy(
+                                _productGroupOptions().map(
+                                  (p) => DropdownMenuItem<String?>(value: p, child: Text(p)),
+                                ),
+                              )
+                              .toList(),
+                        ),
                       ),
-                    ),
-                    IconButton(
-                      tooltip: 'Filtern',
-                      onPressed: _loading ? null : _load,
-                      icon: const Icon(Icons.refresh),
-                    ),
-                    FilledButton.icon(
-                      onPressed: _loading ? null : () => _openForm(),
-                      icon: const Icon(Icons.add),
-                      label: const Text('Neu'),
-                    ),
-                  ],
+                      SizedBox(
+                        width: isCompact ? 180 : 200,
+                        child: DropdownButtonFormField<String?>(
+                          value: _typeFilter,
+                          decoration: const InputDecoration(labelText: 'Typ'),
+                          onChanged: (v) {
+                            setState(() => _typeFilter = v);
+                            _load();
+                          },
+                          items: const [
+                            DropdownMenuItem(value: null, child: Text('Alle Typen')),
+                            DropdownMenuItem(value: 'faq', child: Text('FAQ')),
+                            DropdownMenuItem(value: 'safety', child: Text('Sicherheit')),
+                            DropdownMenuItem(value: 'error', child: Text('Fehler')),
+                            DropdownMenuItem(value: 'prevention', child: Text('Vermeidung')),
+                          ],
+                        ),
+                      ),
+                      SizedBox(
+                        width: isCompact ? 180 : 200,
+                        child: DropdownButtonFormField<String?>(
+                          value: _statusFilter,
+                          decoration: const InputDecoration(labelText: 'Status'),
+                          onChanged: (v) {
+                            setState(() => _statusFilter = v);
+                            _load();
+                          },
+                          items: const [
+                            DropdownMenuItem(value: null, child: Text('Alle')),
+                            DropdownMenuItem(value: 'active', child: Text('Aktiv')),
+                            DropdownMenuItem(value: 'inactive', child: Text('Inaktiv')),
+                          ],
+                        ),
+                      ),
+                      SizedBox(
+                        width: isCompact ? 220 : 260,
+                        child: TextField(
+                          controller: _searchCtrl,
+                          decoration: const InputDecoration(labelText: 'Suche Titel/Teaser/Tags'),
+                          onSubmitted: (_) => _load(),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Filtern',
+                        onPressed: _loading ? null : _load,
+                        icon: const Icon(Icons.refresh_rounded),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 12),
-                if (_loading) const LinearProgressIndicator(),
+                if (_loading) const LinearProgressIndicator(minHeight: 3),
                 if (_err != null)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
@@ -616,52 +663,67 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                         scrollDirection: Axis.horizontal,
                         child: ConstrainedBox(
                           constraints: BoxConstraints(minWidth: cons.maxWidth - 32),
-                          child: DataTable(
-                            columns: const [
-                              DataColumn(label: Text('Titel')),
-                              DataColumn(label: Text('Kategorie')),
-                              DataColumn(label: Text('Produktgruppen')),
-                              DataColumn(label: Text('Typ')),
-                              DataColumn(label: Text('Wichtigkeit')),
-                              DataColumn(label: Text('Status')),
-                              DataColumn(label: Text('Geändert')),
-                              DataColumn(label: Text('Aktionen')),
-                            ],
-                            rows: _articles
-                                .map(
-                                  (a) => DataRow(cells: [
-                                    DataCell(Text(a.title)),
-                                    DataCell(Text(_categoryLabel(a.categoryId))),
-                                    DataCell(Text(a.productGroups.join(', '))),
-                                    DataCell(Text(a.type)),
-                                    DataCell(Text(a.importance)),
-                                    DataCell(Chip(
-                                      label: Text(a.isActive ? 'Aktiv' : 'Inaktiv'),
-                                      backgroundColor: a.isActive ? cs.primaryContainer : cs.surfaceVariant,
-                                    )),
-                                    DataCell(Text(a.updatedAt.toLocal().toString().split('.').first)),
-                                    DataCell(Row(
-                                      children: [
-                                        IconButton(
-                                          tooltip: 'Vorschau',
-                                          icon: const Icon(Icons.visibility_outlined),
-                                          onPressed: () => _openPreview(a),
-                                        ),
-                                        IconButton(
-                                          tooltip: 'Bearbeiten',
-                                          icon: const Icon(Icons.edit_outlined),
-                                          onPressed: () => _openForm(article: a),
-                                        ),
-                                        IconButton(
-                                          tooltip: 'Löschen',
-                                          icon: const Icon(Icons.delete_outline),
-                                          onPressed: () => _delete(a),
-                                        ),
-                                      ],
-                                    )),
-                                  ]),
-                                )
-                                .toList(),
+                          child: DataTableTheme(
+                            data: DataTableThemeData(
+                              headingRowColor: WidgetStatePropertyAll(cs.surfaceContainerHigh),
+                              headingTextStyle:
+                                  theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800, letterSpacing: .2),
+                              dataRowColor: WidgetStateProperty.resolveWith(
+                                (states) => states.contains(WidgetState.hovered)
+                                    ? cs.surfaceContainerHighest
+                                    : cs.surface,
+                              ),
+                              dividerThickness: 0.5,
+                              horizontalMargin: 14,
+                              columnSpacing: 18,
+                            ),
+                            child: DataTable(
+                              columns: const [
+                                DataColumn(label: Text('Titel')),
+                                DataColumn(label: Text('Kategorie')),
+                                DataColumn(label: Text('Produktgruppen')),
+                                DataColumn(label: Text('Typ')),
+                                DataColumn(label: Text('Wichtigkeit')),
+                                DataColumn(label: Text('Status')),
+                                DataColumn(label: Text('Geändert')),
+                                DataColumn(label: Text('Aktionen')),
+                              ],
+                              rows: _articles
+                                  .map(
+                                    (a) => DataRow(cells: [
+                                      DataCell(Text(a.title, style: const TextStyle(fontWeight: FontWeight.w700))),
+                                      DataCell(Text(_categoryLabel(a.categoryId))),
+                                      DataCell(Text(a.productGroups.join(', '))),
+                                      DataCell(Text(a.type)),
+                                      DataCell(Text(a.importance)),
+                                      DataCell(Chip(
+                                        label: Text(a.isActive ? 'Aktiv' : 'Inaktiv'),
+                                        backgroundColor: a.isActive ? cs.primaryContainer : cs.surfaceVariant,
+                                      )),
+                                      DataCell(Text(a.updatedAt.toLocal().toString().split('.').first)),
+                                      DataCell(Row(
+                                        children: [
+                                          IconButton(
+                                            tooltip: 'Vorschau',
+                                            icon: const Icon(Icons.visibility_outlined),
+                                            onPressed: () => _openPreview(a),
+                                          ),
+                                          IconButton(
+                                            tooltip: 'Bearbeiten',
+                                            icon: const Icon(Icons.edit_outlined),
+                                            onPressed: () => _openForm(article: a),
+                                          ),
+                                          IconButton(
+                                            tooltip: 'Löschen',
+                                            icon: const Icon(Icons.delete_outline),
+                                            onPressed: () => _delete(a),
+                                          ),
+                                        ],
+                                      )),
+                                    ]),
+                                  )
+                                  .toList(),
+                            ),
                           ),
                         ),
                       ),

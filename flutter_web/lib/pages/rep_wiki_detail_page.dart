@@ -86,7 +86,16 @@ class _RepWikiDetailPageState extends State<RepWikiDetailPage> {
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(width: 80, height: 80, child: CircularProgressIndicator(strokeWidth: 5)),
+                  const SizedBox(height: 16),
+                  Text('Artikel wird geladen...', style: theme.textTheme.titleMedium),
+                ],
+              ),
+            )
           : article == null
               ? Center(
                   child: Column(
@@ -183,15 +192,24 @@ class _RepWikiDetailPageState extends State<RepWikiDetailPage> {
                             MarkdownBody(
                               data: article.contentMarkdown,
                               selectable: true,
-                              styleSheet: MarkdownStyleSheet(
-                                h1: theme.textTheme.headlineSmall,
-                                h2: theme.textTheme.titleLarge,
-                                h3: theme.textTheme.titleMedium,
+                              styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
+                                p: theme.textTheme.bodyLarge?.copyWith(height: 1.6),
+                                h1: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+                                h2: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                                h3: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                                blockSpacing: 18,
+                                listBullet: TextStyle(color: cs.primary, fontWeight: FontWeight.bold),
+                                codeblockDecoration: BoxDecoration(
+                                  color: cs.surfaceVariant,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: cs.outlineVariant),
+                                ),
                                 blockquoteDecoration: BoxDecoration(
                                   color: cs.tertiaryContainer.withOpacity(0.3),
                                   borderRadius: BorderRadius.circular(10),
                                   border: Border(left: BorderSide(color: cs.primary, width: 4)),
                                 ),
+                                horizontalRuleDecoration: BoxDecoration(border: Border.all(color: cs.outlineVariant)),
                               ),
                               imageBuilder: (uri, title, alt) => Padding(
                                 padding: const EdgeInsets.symmetric(vertical: 8),
