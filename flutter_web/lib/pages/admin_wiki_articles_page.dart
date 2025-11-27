@@ -10,7 +10,8 @@ import '../models/wiki_category.dart';
 
 class AdminWikiArticlesPage extends StatefulWidget {
   final ApiClient api;
-  const AdminWikiArticlesPage({super.key, required this.api});
+  final VoidCallback? onBack;
+  const AdminWikiArticlesPage({super.key, required this.api, this.onBack});
 
   @override
   State<AdminWikiArticlesPage> createState() => _AdminWikiArticlesPageState();
@@ -21,6 +22,7 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
   String? _err;
   List<WikiArticle> _articles = const [];
   List<WikiCategory> _categories = const [];
+  final Set<String> _deletingIds = {};
   final ScrollController _verticalController = ScrollController();
   final ScrollController _horizontalController = ScrollController();
   double _horizontalOffset = 0;
@@ -350,24 +352,44 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Artikel löschen?'),
-        content: Text('Soll "${article.title}" gelöscht werden?'),
+        title: const Text('Artikel endgültig löschen?'),
+        icon: const Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 32),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('"${article.title}" wird unwiderruflich entfernt.'),
+            const SizedBox(height: 8),
+            const Text('Diese Aktion kann nicht rückgängig gemacht werden.',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+          ],
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen')),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.delete_outline),
+            label: const Text('Jetzt löschen'),
+          ),
         ],
       ),
     );
     if (ok != true) return;
+
+    setState(() => _deletingIds.add(article.id));
     try {
       await widget.api.adminDeleteWikiArticle(article.id);
       if (!mounted) return;
+      setState(() {
+        _articles = _articles.where((a) => a.id != article.id).toList();
+        _deletingIds.remove(article.id);
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Artikel "${article.title}" gelöscht')),
       );
-      _load();
     } catch (e) {
       if (!mounted) return;
+      setState(() => _deletingIds.remove(article.id));
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Fehler: $e')),
       );
@@ -709,30 +731,46 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: cs.primary.withOpacity(.15)),
                   ),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      CircleAvatar(
-                        backgroundColor: cs.primary,
-                        foregroundColor: cs.onPrimary,
-                        child: const Icon(Icons.menu_book_outlined),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Artikel verwalten',
-                                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-                            const SizedBox(height: 4),
-                            Text('Professionelle Tabellen, klare Filter und hochwertige Markdown-Vorschau.',
-                                style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
-                          ],
-                        ),
-                      ),
-                      FilledButton.icon(
-                        onPressed: _loading ? null : () => _openForm(),
-                        icon: const Icon(Icons.add),
-                        label: const Text('Neu'),
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: cs.primary,
+                            foregroundColor: cs.onPrimary,
+                            child: const Icon(Icons.menu_book_outlined),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Artikel verwalten',
+                                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+                                const SizedBox(height: 4),
+                                Text('Professionelle Tabellen, klare Filter und hochwertige Markdown-Vorschau.',
+                                    style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
+                              ],
+                            ),
+                          ),
+                          Wrap(
+                            spacing: 8,
+                            children: [
+                              if (widget.onBack != null)
+                                OutlinedButton.icon(
+                                  onPressed: widget.onBack,
+                                  icon: const Icon(Icons.arrow_back),
+                                  label: const Text('Zurück zur Übersicht'),
+                                ),
+                              FilledButton.icon(
+                                onPressed: _loading ? null : () => _openForm(),
+                                icon: const Icon(Icons.add),
+                                label: const Text('Neu'),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -1014,7 +1052,9 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                                                               IconButton(
                                                                 tooltip: 'Löschen',
                                                                 icon: const Icon(Icons.delete_outline),
-                                                                onPressed: () => _delete(a),
+                                                                onPressed: _deletingIds.contains(a.id)
+                                                                    ? null
+                                                                    : () => _delete(a),
                                                               ),
                                                             ],
                                                           ),

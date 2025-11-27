@@ -22,8 +22,14 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
+      const status = (req.query?.status ?? '').toString().trim().toLowerCase();
       const data = await wikiCategories({ includeInactive: true });
-      return ok(res, data);
+      const filtered = status === 'active'
+          ? data.filter((c) => c.isActive)
+          : status === 'inactive'
+              ? data.filter((c) => !c.isActive)
+              : data;
+      return ok(res, filtered);
     }
 
     if (req.method === 'POST') {

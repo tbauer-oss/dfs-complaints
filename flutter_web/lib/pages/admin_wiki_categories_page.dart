@@ -5,7 +5,8 @@ import '../models/wiki_category.dart';
 
 class AdminWikiCategoriesPage extends StatefulWidget {
   final ApiClient api;
-  const AdminWikiCategoriesPage({super.key, required this.api});
+  final VoidCallback? onBack;
+  const AdminWikiCategoriesPage({super.key, required this.api, this.onBack});
 
   @override
   State<AdminWikiCategoriesPage> createState() => _AdminWikiCategoriesPageState();
@@ -16,6 +17,7 @@ class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
   String? _err;
   String _statusFilter = 'alle';
   List<WikiCategory> _categories = const [];
+  final Set<String> _busyIds = {};
 
   @override
   void initState() {
@@ -158,6 +160,36 @@ class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
     orderCtrl.dispose();
   }
 
+  Future<void> _toggleActive(WikiCategory cat) async {
+    if (_busyIds.contains(cat.id)) return;
+    setState(() => _busyIds.add(cat.id));
+    try {
+      final updated = await widget.api.adminSaveWikiCategory({
+        'name': cat.name,
+        'description': cat.description,
+        'icon': cat.icon,
+        'sortOrder': cat.sortOrder,
+        'isActive': !cat.isActive,
+      }, id: cat.id);
+      if (!mounted) return;
+      setState(() {
+        _categories = _categories
+            .map((c) => c.id == cat.id ? updated : c)
+            .toList(growable: false);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('"${cat.name}" ist jetzt ${updated.isActive ? 'aktiv' : 'inaktiv'}')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fehler beim Aktualisieren: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _busyIds.remove(cat.id));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -185,30 +217,46 @@ class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: cs.primary.withOpacity(.15)),
                   ),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      CircleAvatar(
-                        backgroundColor: cs.primary,
-                        foregroundColor: cs.onPrimary,
-                        child: const Icon(Icons.category_rounded),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Kategorien verwalten',
-                                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-                            const SizedBox(height: 4),
-                            Text('Strukturierte Übersicht, moderne Filterleiste und klare Status-Badges.',
-                                style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
-                          ],
-                        ),
-                      ),
-                      FilledButton.icon(
-                        onPressed: _loading ? null : () => _openForm(),
-                        icon: const Icon(Icons.add_rounded),
-                        label: const Text('Neu'),
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: cs.primary,
+                            foregroundColor: cs.onPrimary,
+                            child: const Icon(Icons.category_rounded),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Kategorien verwalten',
+                                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+                                const SizedBox(height: 4),
+                                Text('Strukturierte Übersicht, moderne Filterleiste und klare Status-Badges.',
+                                    style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
+                              ],
+                            ),
+                          ),
+                          Wrap(
+                            spacing: 8,
+                            children: [
+                              if (widget.onBack != null)
+                                OutlinedButton.icon(
+                                  onPressed: widget.onBack,
+                                  icon: const Icon(Icons.arrow_back),
+                                  label: const Text('Zurück zur Übersicht'),
+                                ),
+                              FilledButton.icon(
+                                onPressed: _loading ? null : () => _openForm(),
+                                icon: const Icon(Icons.add_rounded),
+                                label: const Text('Neu'),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -319,6 +367,15 @@ class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
                                       )),
                                       DataCell(Row(
                                         children: [
+                                          IconButton(
+                                            tooltip: c.isActive ? 'Deaktivieren' : 'Aktivieren',
+                                            icon: Icon(c.isActive
+                                                ? Icons.visibility_off_outlined
+                                                : Icons.visibility_outlined),
+                                            onPressed: _busyIds.contains(c.id)
+                                                ? null
+                                                : () => _toggleActive(c),
+                                          ),
                                           IconButton(
                                             tooltip: 'Bearbeiten',
                                             icon: const Icon(Icons.edit_outlined),
