@@ -18,6 +18,8 @@
   "theme_light": "Chiaro",
   "theme_dark": "Scuro",
 
+  "rep_dashboard_sub": "Tutte le informazioni importanti in sintesi",
+
   "ticket": "Numero ticket",
   "customer_knowledge": "Conoscenza dei clienti e informazioni sui prodotti",
   "repwiki": "Wiki dei rappresentanti",
