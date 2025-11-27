@@ -409,6 +409,9 @@
 
   "rep_login_title": "Vertreter-Login",
   "rep_dashboard": "Vertreter-Dashboard",
+  "rep_dash_cat_claims": "Reklamationen",
+  "rep_dash_cat_customers": "Kunden & Support",
+  "rep_dash_cat_docs": "Wissen & Dokumente",
   "rep_area": "Vertreterbereich",
   "rep_banner_title": "Ihr Ansprechpartner (Vertreter): {name}",
   "@rep_banner_title": { "placeholders": { "name": { "type": "String" } } },

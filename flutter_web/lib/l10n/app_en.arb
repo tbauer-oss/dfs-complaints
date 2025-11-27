@@ -410,6 +410,9 @@
 
   "rep_login_title": "Representative login",
   "rep_dashboard": "Representative dashboard",
+  "rep_dash_cat_claims": "Claims",
+  "rep_dash_cat_customers": "Customers & Support",
+  "rep_dash_cat_docs": "Knowledge & Documents",
   "rep_area": "Representative area",
   "rep_banner_title": "Your representative: {name}",
   "@rep_banner_title": { "placeholders": { "name": { "type": "String" } } },

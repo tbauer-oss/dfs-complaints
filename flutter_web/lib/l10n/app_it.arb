@@ -407,6 +407,9 @@
 
   "rep_login_title": "Accesso rappresentante",
   "rep_dashboard": "Dashboard rappresentante",
+  "rep_dash_cat_claims": "Reclami",
+  "rep_dash_cat_customers": "Clienti e supporto",
+  "rep_dash_cat_docs": "Conoscenza e documenti",
   "rep_area": "Area rappresentante",
   "rep_banner_title": "Il tuo rappresentante: {name}",
   "@rep_banner_title": { "placeholders": { "name": { "type": "String" } } },
