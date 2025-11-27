@@ -5234,9 +5234,9 @@ class _AdminPageState extends State<AdminPage> {
       case _AdminView.pushBroadcast:
         return _buildPushBroadcastPanel();
       case _AdminView.wikiCategories:
-        return AdminWikiCategoriesPage(api: _api);
+        return AdminWikiCategoriesPage(api: widget.api);
       case _AdminView.wikiArticles:
-        return AdminWikiArticlesPage(api: _api);
+        return AdminWikiArticlesPage(api: widget.api);
     }
   }
 
