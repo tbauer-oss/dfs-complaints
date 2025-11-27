@@ -1749,10 +1749,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     }
 
     final filtered = _filteredDownloads();
-    if (filtered.isEmpty) {
-      return Center(child: Text(t.rep_downloads_empty));
-    }
-
     final grouped = _groupDownloadsByCategory(filtered);
     final width = MediaQuery.of(context).size.width;
     final isPhone = width < 720;
@@ -1881,70 +1877,78 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
             ),
           ),
           const SizedBox(height: 10),
-          ...grouped.map((entry) {
-            final label = entry.key == '__uncategorized' ? t.rep_downloads_uncategorized : entry.key;
-            final items = entry.value;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(label, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-                      const SizedBox(width: 6),
-                      Chip(
-                        label: Text('${items.length}'),
-                        visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                        backgroundColor: Colors.grey.withOpacity(0.12),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  if (_downloadView == _DownloadsView.grid)
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: items
-                          .map(
-                            (item) => ConstrainedBox(
-                              constraints: BoxConstraints(minWidth: minCardWidth, maxWidth: cardWidth),
-                              child: _downloadCard(t, item, isPhone),
-                            ),
-                          )
-                          .toList(),
-                    )
-                  else
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            color: Theme.of(context).colorScheme.surface.withOpacity(0.65),
-                            padding: EdgeInsets.symmetric(horizontal: isPhone ? 12 : 12, vertical: 8),
-                            child: Row(
-                              children: [
-                                Expanded(flex: 5, child: Text(t.rep_downloads_column_title, style: Theme.of(context).textTheme.labelLarge)),
-                                if (!isPhone) ...[
-                                  Expanded(flex: 3, child: Text(t.rep_downloads_column_category, style: Theme.of(context).textTheme.labelLarge)),
-                                  Expanded(flex: 2, child: Text(t.rep_downloads_column_size, style: Theme.of(context).textTheme.labelLarge)),
-                                  Expanded(flex: 2, child: Text(t.rep_downloads_column_date, style: Theme.of(context).textTheme.labelLarge)),
-                                  const SizedBox(width: 36),
-                                ],
-                                if (isPhone) Icon(Icons.download_outlined, color: Colors.grey.shade500, size: 18),
-                              ],
-                            ),
-                          ),
-                          ...items.map((item) => _buildDownloadListRow(t, item, isPhone)),
-                        ],
-                      ),
-                    ),
-                ],
+          if (filtered.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 40),
+                child: Text(t.rep_downloads_empty),
               ),
-            );
-          }),
+            )
+          else
+            ...grouped.map((entry) {
+              final label = entry.key == '__uncategorized' ? t.rep_downloads_uncategorized : entry.key;
+              final items = entry.value;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(label, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                        const SizedBox(width: 6),
+                        Chip(
+                          label: Text('${items.length}'),
+                          visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                          backgroundColor: Colors.grey.withOpacity(0.12),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    if (_downloadView == _DownloadsView.grid)
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: items
+                            .map(
+                              (item) => ConstrainedBox(
+                                constraints: BoxConstraints(minWidth: minCardWidth, maxWidth: cardWidth),
+                                child: _downloadCard(t, item, isPhone),
+                              ),
+                            )
+                            .toList(),
+                      )
+                    else
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              color: Theme.of(context).colorScheme.surface.withOpacity(0.65),
+                              padding: EdgeInsets.symmetric(horizontal: isPhone ? 12 : 12, vertical: 8),
+                              child: Row(
+                                children: [
+                                  Expanded(flex: 5, child: Text(t.rep_downloads_column_title, style: Theme.of(context).textTheme.labelLarge)),
+                                  if (!isPhone) ...[
+                                    Expanded(flex: 3, child: Text(t.rep_downloads_column_category, style: Theme.of(context).textTheme.labelLarge)),
+                                    Expanded(flex: 2, child: Text(t.rep_downloads_column_size, style: Theme.of(context).textTheme.labelLarge)),
+                                    Expanded(flex: 2, child: Text(t.rep_downloads_column_date, style: Theme.of(context).textTheme.labelLarge)),
+                                    const SizedBox(width: 36),
+                                  ],
+                                  if (isPhone) Icon(Icons.download_outlined, color: Colors.grey.shade500, size: 18),
+                                ],
+                              ),
+                            ),
+                            ...items.map((item) => _buildDownloadListRow(t, item, isPhone)),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            }),
         ],
       ),
     );
