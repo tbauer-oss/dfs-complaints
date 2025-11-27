@@ -3452,11 +3452,14 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-            child: SizedBox(
-              width: 320,
-              child: Column(
-                children: [
-                  DropdownButtonFormField<String>(
+            child: Wrap(
+              spacing: 14,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                SizedBox(
+                  width: 320,
+                  child: DropdownButtonFormField<String>(
                     isExpanded: true,
                     value: _selectedCompany,
                     items: <DropdownMenuItem<String>>[
@@ -3475,8 +3478,10 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                       prefixIcon: const Icon(Icons.apartment_outlined),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
+                ),
+                SizedBox(
+                  width: 220,
+                  child: DropdownButtonFormField<String>(
                     value: _decisionFilter,
                     items: _decisionFilterItems(t),
                     onChanged: (v) => setState(() => _decisionFilter = v ?? ''),
@@ -3485,8 +3490,10 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                       prefixIcon: const Icon(Icons.how_to_vote_outlined),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
+                ),
+                SizedBox(
+                  width: 220,
+                  child: DropdownButtonFormField<String>(
                     value: _statusFilter,
                     items: _statusFilterItems(t),
                     onChanged: (v) => setState(() => _statusFilter = v ?? ''),
@@ -3495,8 +3502,8 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                       prefixIcon: const Icon(Icons.flag_outlined),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
