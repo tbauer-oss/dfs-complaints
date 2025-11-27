@@ -848,6 +848,27 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   }
 
   Future<void> _logout() async {
+    final t = context.t;
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialogCtx) => AlertDialog(
+            title: Text(t.logoutTitle),
+            content: Text(t.logoutConfirm),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogCtx, false),
+                child: Text(t.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogCtx, true),
+                child: Text(t.logout),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed) return;
+
     try {
       await PushNotifications.instance.deactivate(widget.api);
     } catch (e) {

@@ -453,6 +453,26 @@ class _MyAppState extends State<MyApp> {
                                     icon: const Icon(Icons.logout),
                                     label: Text(t.logout),
                                     onPressed: () async {
+                                      final confirm = await showDialog<bool>(
+                                            context: ctx,
+                                            builder: (dialogCtx) => AlertDialog(
+                                              title: Text(t.logoutTitle),
+                                              content: Text(t.logoutConfirm),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () => Navigator.pop(dialogCtx, false),
+                                                  child: Text(t.cancel),
+                                                ),
+                                                FilledButton(
+                                                  onPressed: () => Navigator.pop(dialogCtx, true),
+                                                  child: Text(t.logout),
+                                                ),
+                                              ],
+                                            ),
+                                          ) ??
+                                          false;
+                                      if (!confirm) return;
+
                                       await api.logout(); // Kunden-Logout
                                       if (ctx.mounted) {
                                         ScaffoldMessenger.of(ctx).showSnackBar(
