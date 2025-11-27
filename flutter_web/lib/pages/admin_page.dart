@@ -9240,85 +9240,85 @@ class _UserTileState extends State<_UserTile> {
                 ],
               ),
 
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerRight,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 260),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Flexible(
-                        child: DropdownButtonFormField<String>(
-                          value: widget.assignedRepId ?? '',
-                          isExpanded: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Vertreter zuweisen',
-                            border: OutlineInputBorder(),
-                            isDense: true,
-                          ),
-                          items: [
-                            const DropdownMenuItem(value: '', child: Text('Kein Vertreter')),
-                            ...widget.reps.map(
-                              (r) => DropdownMenuItem<String>(
-                                value: r.id,
-                                child: Text(r.displayName.isNotEmpty ? r.displayName : r.email),
-                              ),
-                            ),
-                          ],
-                          onChanged: widget.repBusy
-                              ? null
-                              : (v) async {
-                                  await widget.onChangeRep(v?.trim().isEmpty == true ? null : v);
-                                },
-                        ),
-                      ),
-                      if (widget.repBusy) ...[
-                        const SizedBox(width: 10),
-                        const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
             ],
           ),
-          trailing: Wrap(
-            spacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
+          trailing: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              IconButton(
-                tooltip: 'Adressdaten',
-                onPressed: tileBusy ? null : _showAddress,
-                icon: const Icon(Icons.info_outline),
+              Wrap(
+                spacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  IconButton(
+                    tooltip: 'Adressdaten',
+                    onPressed: tileBusy ? null : _showAddress,
+                    icon: const Icon(Icons.info_outline),
+                  ),
+                  IconButton(
+                    tooltip: 'Reklamationen anzeigen',
+                    onPressed: () {
+                      setState(() => _expanded = !_expanded);
+                      if (_expanded) widget.onLoadComplaints();
+                    },
+                    icon: Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: tileBusy ? null : _toggleRevoked,
+                    icon: Icon(widget.data.revoked ? Icons.lock_open : Icons.lock_outline),
+                    label: Text(widget.data.revoked ? 'Freigeben' : 'Sperren'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: tileBusy ? null : () async => widget.onDelete(),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.error,
+                      foregroundColor: Theme.of(context).colorScheme.onError,
+                    ),
+                    icon: const Icon(Icons.delete_outline),
+                    label: const Text('Löschen'),
+                  ),
+                ],
               ),
-              IconButton(
-                tooltip: 'Reklamationen anzeigen',
-                onPressed: () {
-                  setState(() => _expanded = !_expanded);
-                  if (_expanded) widget.onLoadComplaints();
-                },
-                icon:
-                    Icon(_expanded ? Icons.expand_less : Icons.receipt_long),
-              ),
-              OutlinedButton.icon(
-                onPressed: tileBusy ? null : _toggleRevoked,
-                icon: Icon(widget.data.revoked ? Icons.lock_open : Icons.lock_outline),
-                label: Text(widget.data.revoked ? 'Freigeben' : 'Sperren'),
-              ),
-              FilledButton.icon(
-                onPressed: tileBusy ? null : () async => widget.onDelete(),
-                style: FilledButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.error,
-                  foregroundColor: Theme.of(context).colorScheme.onError,
-                ),
-                icon: const Icon(Icons.delete_outline),
-                label: const Text('Löschen'),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 220,
+                    child: DropdownButtonFormField<String>(
+                      value: widget.assignedRepId ?? '',
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Vertreter zuweisen',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      items: [
+                        const DropdownMenuItem(value: '', child: Text('Kein Vertreter')),
+                        ...widget.reps.map(
+                          (r) => DropdownMenuItem<String>(
+                            value: r.id,
+                            child: Text(r.displayName.isNotEmpty ? r.displayName : r.email),
+                          ),
+                        ),
+                      ],
+                      onChanged: widget.repBusy
+                          ? null
+                          : (v) async {
+                              await widget.onChangeRep(v?.trim().isEmpty == true ? null : v);
+                            },
+                    ),
+                  ),
+                  if (widget.repBusy) ...[
+                    const SizedBox(width: 10),
+                    const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ],
+                ],
               ),
             ],
           ),
