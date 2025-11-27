@@ -24,6 +24,7 @@ import 'admin_stats_page.dart';
 import 'product_catalog_page.dart';
 import 'admin_wiki_categories_page.dart';
 import 'admin_wiki_articles_page.dart';
+import 'rep_wiki_list_page.dart';
 
 // ===================================================================
 // Admin Page – mit Kachel-Menü (wie Kunden-Dashboard)
@@ -31,7 +32,17 @@ import 'admin_wiki_articles_page.dart';
 class AdminPage extends StatefulWidget {
   final ApiClient api;
   final void Function(Map<String, dynamic> meta)? onMetaUpdated;
-  const AdminPage({super.key, required this.api, this.onMetaUpdated});
+  final _AdminView initialView;
+  const AdminPage({super.key, required this.api, this.onMetaUpdated, this.initialView = _AdminView.menu});
+
+  const AdminPage.wiki({super.key, required this.api, this.onMetaUpdated})
+      : initialView = _AdminView.wiki;
+
+  const AdminPage.wikiCategories({super.key, required this.api, this.onMetaUpdated})
+      : initialView = _AdminView.wikiCategories;
+
+  const AdminPage.wikiArticles({super.key, required this.api, this.onMetaUpdated})
+      : initialView = _AdminView.wikiArticles;
 
   @override
   State<AdminPage> createState() => _AdminPageState();
@@ -47,6 +58,7 @@ enum _AdminView {
   news,
   products,
   faq,
+  wiki,
   catalogs,
   systemHealth,
   activity,
@@ -346,6 +358,7 @@ class _AdminPageState extends State<AdminPage> {
     _api.setSecret(secret);
 
     _initMenuLayout();
+    _view = widget.initialView;
 
     if (secret.isEmpty) {
       _fatalErr =
@@ -3287,6 +3300,7 @@ class _AdminPageState extends State<AdminPage> {
       _AdminView.open           => 'Offene Reklamationen',
       _AdminView.reps           => 'Vertreterverwaltung',
       _AdminView.faq            => 'Wissensdatenbank (FAQ)',
+      _AdminView.wiki           => 'Vertreter-Wiki',
       _AdminView.products       => 'Artikelliste',
       _AdminView.news           => 'Neuigkeiten & Infoscreen',
       _AdminView.catalogs       => 'Katalog-Konfiguration',
@@ -3887,6 +3901,11 @@ class _AdminPageState extends State<AdminPage> {
         title: 'Vertreter-Wiki',
         items: [
           _AdminNavItem(
+            label: 'Vertreter-Wiki',
+            icon: Icons.menu_book_rounded,
+            view: _AdminView.wiki,
+          ),
+          _AdminNavItem(
             label: 'Kategorien verwalten',
             icon: Icons.category_outlined,
             view: _AdminView.wikiCategories,
@@ -3945,7 +3964,7 @@ class _AdminPageState extends State<AdminPage> {
       const _AdminMenuSectionState(
         title: 'Kommunikation & Inhalte',
         subtitle: 'Informationen und Push-Kanäle pflegen',
-        tileIds: ['news', 'faq', 'products', 'push'],
+        tileIds: ['news', 'faq', 'wiki', 'products', 'push'],
       ),
       const _AdminMenuSectionState(
         title: 'System & Konfiguration',
@@ -4840,6 +4859,19 @@ class _AdminPageState extends State<AdminPage> {
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
+      case 'wiki':
+        return AdminTilePro(
+          label: 'Vertreter-Wiki',
+          subtitle: 'Kundenwissen & Produktinfos',
+          icon: Icons.menu_book_rounded,
+          colorA: AdminPalette.tealA,
+          colorB: AdminPalette.tealB,
+          compact: compact,
+          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.wiki),
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
+        );
       case 'products':
         return AdminTilePro(
           label: 'Artikelliste',
@@ -5223,6 +5255,8 @@ class _AdminPageState extends State<AdminPage> {
         return _buildProductsPanel();
       case _AdminView.faq:
         return _buildFaqPanel();
+      case _AdminView.wiki:
+        return _buildWikiOverview();
       case _AdminView.catalogs:
         return _buildCatalogsPanel();
       case _AdminView.systemHealth:
@@ -5238,6 +5272,75 @@ class _AdminPageState extends State<AdminPage> {
       case _AdminView.wikiArticles:
         return AdminWikiArticlesPage(api: widget.api);
     }
+  }
+
+  Widget _buildWikiOverview() {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.menu_book_rounded, color: cs.primary),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Vertreter-Wiki',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Kategorien und Artikel für Kundenwissen & Produktinfos verwalten.',
+                    style: TextStyle(fontSize: 15),
+                  ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      FilledButton.icon(
+                        icon: const Icon(Icons.category_outlined),
+                        label: const Text('Kategorien verwalten'),
+                        onPressed: () => setState(() => _view = _AdminView.wikiCategories),
+                      ),
+                      FilledButton.icon(
+                        icon: const Icon(Icons.article_outlined),
+                        label: const Text('Artikel verwalten'),
+                        onPressed: () => setState(() => _view = _AdminView.wikiArticles),
+                      ),
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.preview_outlined),
+                        label: const Text('Vertreteransicht öffnen'),
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => Scaffold(
+                              appBar: AppBar(title: const Text('Vertreter-Wiki Vorschau')),
+                              body: RepWikiListPage(api: widget.api),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildNewsPanel() {
