@@ -18,10 +18,13 @@ class _RepWikiDetailPageState extends State<RepWikiDetailPage> {
   WikiArticle? _article;
   bool _loading = true;
   String? _err;
+  bool _didInit = false;
 
   @override
-  void initState() {
-    super.initState();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didInit) return;
+    _didInit = true;
     _load();
   }
 

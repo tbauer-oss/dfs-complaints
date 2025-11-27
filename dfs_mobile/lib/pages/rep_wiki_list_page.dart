@@ -22,10 +22,18 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
   String? _productGroup;
   String? _type;
   final TextEditingController _searchCtrl = TextEditingController();
+  bool _initialLoadDone = false;
 
   @override
   void initState() {
     super.initState();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initialLoadDone) return;
+    _initialLoadDone = true;
     _load();
   }
 
