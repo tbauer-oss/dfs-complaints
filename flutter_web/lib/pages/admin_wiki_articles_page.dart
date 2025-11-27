@@ -217,210 +217,223 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
 
           return AlertDialog(
             title: Text(article == null ? 'Artikel anlegen' : 'Artikel bearbeiten'),
-            content: SizedBox(
-              width: 900,
+            content: Scrollbar(
+              thumbVisibility: true,
+              trackVisibility: true,
               child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    DropdownButtonFormField<String>(
-                      value: categoryId,
-                      decoration: const InputDecoration(labelText: 'Kategorie *'),
-                      items: _categories
-                          .map((c) => DropdownMenuItem(value: c.id, child: Text(c.name)))
-                          .toList(),
-                      onChanged: (v) => setModalState(() => categoryId = v),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: titleCtrl,
-                      decoration: const InputDecoration(labelText: 'Titel *'),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: teaserCtrl,
-                      decoration: const InputDecoration(labelText: 'Teaser'),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            value: type,
-                            decoration: const InputDecoration(labelText: 'Typ'),
-                            items: const [
-                              DropdownMenuItem(value: 'faq', child: Text('FAQ')),
-                              DropdownMenuItem(value: 'safety', child: Text('Sicherheit')),
-                              DropdownMenuItem(value: 'error', child: Text('Fehler')),
-                              DropdownMenuItem(value: 'prevention', child: Text('Vermeidung')),
-                            ],
-                            onChanged: (v) => setModalState(() => type = v ?? 'faq'),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            value: importance,
-                            decoration: const InputDecoration(labelText: 'Wichtigkeit'),
-                            items: const [
-                              DropdownMenuItem(value: 'normal', child: Text('Normal')),
-                              DropdownMenuItem(value: 'high', child: Text('Wichtig')),
-                              DropdownMenuItem(value: 'critical', child: Text('Kritisch')),
-                            ],
-                            onChanged: (v) => setModalState(() => importance = v ?? 'normal'),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              const Text('Produktgruppen:'),
-                              ...productGroups
-                                  .map(
-                                    (pg) => Chip(
-                                      label: Text(pg),
-                                      onDeleted: () => setModalState(() => productGroups.remove(pg)),
-                                    ),
-                                  )
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 900),
+                  child: SizedBox(
+                    width: 900,
+                    child: Scrollbar(
+                      thumbVisibility: true,
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            DropdownButtonFormField<String>(
+                              value: categoryId,
+                              decoration: const InputDecoration(labelText: 'Kategorie *'),
+                              items: _categories
+                                  .map((c) => DropdownMenuItem(value: c.id, child: Text(c.name)))
                                   .toList(),
-                              SizedBox(
-                                width: 180,
-                                child: TextField(
-                                  controller: productCtrl,
-                                  decoration: InputDecoration(
-                                    labelText: 'hinzufügen',
-                                    suffixIcon: IconButton(
-                                      icon: const Icon(Icons.add),
-                                      onPressed: () => setModalState(() => addProductGroup(productCtrl.text)),
-                                    ),
+                              onChanged: (v) => setModalState(() => categoryId = v),
+                            ),
+                            const SizedBox(height: 10),
+                            TextField(
+                              controller: titleCtrl,
+                              decoration: const InputDecoration(labelText: 'Titel *'),
+                            ),
+                            const SizedBox(height: 10),
+                            TextField(
+                              controller: teaserCtrl,
+                              decoration: const InputDecoration(labelText: 'Teaser'),
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: DropdownButtonFormField<String>(
+                                    value: type,
+                                    decoration: const InputDecoration(labelText: 'Typ'),
+                                    items: const [
+                                      DropdownMenuItem(value: 'faq', child: Text('FAQ')),
+                                      DropdownMenuItem(value: 'safety', child: Text('Sicherheit')),
+                                      DropdownMenuItem(value: 'error', child: Text('Fehler')),
+                                      DropdownMenuItem(value: 'prevention', child: Text('Vermeidung')),
+                                    ],
+                                    onChanged: (v) => setModalState(() => type = v ?? 'faq'),
                                   ),
-                                  onSubmitted: (v) => setModalState(() => addProductGroup(v)),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('Tags'),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: [
-                                  ...tags
-                                      .map((t) => Chip(
-                                            label: Text(t),
-                                            onDeleted: () => setModalState(() => tags.remove(t)),
-                                          ))
-                                      .toList(),
-                                  SizedBox(
-                                    width: 180,
-                                    child: TextField(
-                                      controller: tagsCtrl,
-                                      decoration: InputDecoration(
-                                        labelText: 'Tag hinzufügen',
-                                        suffixIcon: IconButton(
-                                          icon: const Icon(Icons.add),
-                                          onPressed: () => setModalState(() => addTag(tagsCtrl.text)),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: DropdownButtonFormField<String>(
+                                    value: importance,
+                                    decoration: const InputDecoration(labelText: 'Wichtigkeit'),
+                                    items: const [
+                                      DropdownMenuItem(value: 'normal', child: Text('Normal')),
+                                      DropdownMenuItem(value: 'high', child: Text('Wichtig')),
+                                      DropdownMenuItem(value: 'critical', child: Text('Kritisch')),
+                                    ],
+                                    onChanged: (v) => setModalState(() => importance = v ?? 'normal'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: [
+                                      const Text('Produktgruppen:'),
+                                      ...productGroups
+                                          .map(
+                                            (pg) => Chip(
+                                              label: Text(pg),
+                                              onDeleted: () => setModalState(() => productGroups.remove(pg)),
+                                            ),
+                                          )
+                                          .toList(),
+                                      SizedBox(
+                                        width: 180,
+                                        child: TextField(
+                                          controller: productCtrl,
+                                          decoration: InputDecoration(
+                                            labelText: 'hinzufügen',
+                                            suffixIcon: IconButton(
+                                              icon: const Icon(Icons.add),
+                                              onPressed: () => setModalState(() => addProductGroup(productCtrl.text)),
+                                            ),
+                                          ),
+                                          onSubmitted: (v) => setModalState(() => addProductGroup(v)),
                                         ),
                                       ),
-                                      onSubmitted: (v) => setModalState(() => addTag(v)),
-                                    ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                            ],
-                          ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text('Tags'),
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 8,
+                                        children: [
+                                          ...tags
+                                              .map((t) => Chip(
+                                                    label: Text(t),
+                                                    onDeleted: () => setModalState(() => tags.remove(t)),
+                                                  ))
+                                              .toList(),
+                                          SizedBox(
+                                            width: 180,
+                                            child: TextField(
+                                              controller: tagsCtrl,
+                                              decoration: InputDecoration(
+                                                labelText: 'Tag hinzufügen',
+                                                suffixIcon: IconButton(
+                                                  icon: const Icon(Icons.add),
+                                                  onPressed: () => setModalState(() => addTag(tagsCtrl.text)),
+                                                ),
+                                              ),
+                                              onSubmitted: (v) => setModalState(() => addTag(v)),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Switch(value: isActive, onChanged: (v) => setModalState(() => isActive = v)),
+                                const SizedBox(width: 6),
+                                const Text('Aktiv')
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Text('Markdown-Inhalt'),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 6,
+                              children: [
+                                ElevatedButton.icon(
+                                  onPressed: () => updateContent('**Fett**'),
+                                  icon: const Icon(Icons.format_bold),
+                                  label: const Text('Bold'),
+                                ),
+                                ElevatedButton.icon(
+                                  onPressed: () => updateContent('_Kursiv_'),
+                                  icon: const Icon(Icons.format_italic),
+                                  label: const Text('Italic'),
+                                ),
+                                ElevatedButton.icon(
+                                  onPressed: () => updateContent('# H1'),
+                                  icon: const Icon(Icons.title),
+                                  label: const Text('H1'),
+                                ),
+                                ElevatedButton.icon(
+                                  onPressed: () => updateContent('## H2'),
+                                  icon: const Icon(Icons.title_outlined),
+                                  label: const Text('H2'),
+                                ),
+                                ElevatedButton.icon(
+                                  onPressed: () => updateContent('### H3'),
+                                  icon: const Icon(Icons.subtitles_outlined),
+                                  label: const Text('H3'),
+                                ),
+                                ElevatedButton.icon(
+                                  onPressed: () => updateContent('- Punkt'),
+                                  icon: const Icon(Icons.format_list_bulleted),
+                                  label: const Text('Liste'),
+                                ),
+                                ElevatedButton.icon(
+                                  onPressed: () => updateContent('1. Punkt'),
+                                  icon: const Icon(Icons.format_list_numbered),
+                                  label: const Text('Nummeriert'),
+                                ),
+                                ElevatedButton.icon(
+                                  onPressed: () => updateContent('> INFO: Hinweis...'),
+                                  icon: const Icon(Icons.info_outline),
+                                  label: const Text('Info-Box'),
+                                ),
+                                ElevatedButton.icon(
+                                  onPressed: () => updateContent('> WARNUNG: Achtung...'),
+                                  icon: const Icon(Icons.warning_amber_outlined),
+                                  label: const Text('Warn-Box'),
+                                ),
+                                ElevatedButton.icon(
+                                  onPressed: () => updateContent('[Linktext](https://example.com)'),
+                                  icon: const Icon(Icons.link),
+                                  label: const Text('Link'),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: contentCtrl,
+                              minLines: 10,
+                              maxLines: 18,
+                              decoration: const InputDecoration(border: OutlineInputBorder()),
+                            ),
+                            const SizedBox(height: 8),
+                            if (article != null)
+                              Text('Erstellt: ${article.createdAt.toLocal()} | Geändert: ${article.updatedAt.toLocal()}'),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Switch(value: isActive, onChanged: (v) => setModalState(() => isActive = v)),
-                        const SizedBox(width: 6),
-                        const Text('Aktiv')
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Text('Markdown-Inhalt'),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      children: [
-                        ElevatedButton.icon(
-                          onPressed: () => updateContent('**Fett**'),
-                          icon: const Icon(Icons.format_bold),
-                          label: const Text('Bold'),
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: () => updateContent('_Kursiv_'),
-                          icon: const Icon(Icons.format_italic),
-                          label: const Text('Italic'),
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: () => updateContent('# H1'),
-                          icon: const Icon(Icons.title),
-                          label: const Text('H1'),
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: () => updateContent('## H2'),
-                          icon: const Icon(Icons.title_outlined),
-                          label: const Text('H2'),
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: () => updateContent('### H3'),
-                          icon: const Icon(Icons.subtitles_outlined),
-                          label: const Text('H3'),
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: () => updateContent('- Punkt'),
-                          icon: const Icon(Icons.format_list_bulleted),
-                          label: const Text('Liste'),
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: () => updateContent('1. Punkt'),
-                          icon: const Icon(Icons.format_list_numbered),
-                          label: const Text('Nummeriert'),
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: () => updateContent('> INFO: Hinweis...'),
-                          icon: const Icon(Icons.info_outline),
-                          label: const Text('Info-Box'),
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: () => updateContent('> WARNUNG: Achtung...'),
-                          icon: const Icon(Icons.warning_amber_outlined),
-                          label: const Text('Warn-Box'),
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: () => updateContent('[Linktext](https://example.com)'),
-                          icon: const Icon(Icons.link),
-                          label: const Text('Link'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: contentCtrl,
-                      minLines: 10,
-                      maxLines: 18,
-                      decoration: const InputDecoration(border: OutlineInputBorder()),
-                    ),
-                    const SizedBox(height: 8),
-                    if (article != null)
-                      Text('Erstellt: ${article.createdAt.toLocal()} | Geändert: ${article.updatedAt.toLocal()}'),
-                  ],
+                  ),
                 ),
               ),
             ),
