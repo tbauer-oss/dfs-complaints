@@ -19,6 +19,8 @@
   "theme_dark": "Dark",
 
   "ticket": "Ticket number",
+  "customer_knowledge": "Customer knowledge & product information",
+  "repwiki": "Representative Wiki",
 
   "attachments_add": "Send additional attachments",
   "attachments_success": "Attachments were sent successfully.",
