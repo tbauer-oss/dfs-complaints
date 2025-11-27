@@ -11,6 +11,10 @@ class RepDownloadItem {
   final int size;
   final int updatedAt;
   final int version;
+  final bool active;
+  final List<String> allowedRepresentatives;
+
+  bool get visibleForAll => allowedRepresentatives.isEmpty;
 
   const RepDownloadItem({
     required this.id,
@@ -24,6 +28,8 @@ class RepDownloadItem {
     required this.size,
     required this.updatedAt,
     required this.version,
+    required this.active,
+    this.allowedRepresentatives = const [],
   });
 
   factory RepDownloadItem.fromJson(Map<String, dynamic> json) {
@@ -39,6 +45,14 @@ class RepDownloadItem {
       size: json['size'] is num ? (json['size'] as num).round() : 0,
       updatedAt: json['updatedAt'] is num ? (json['updatedAt'] as num).round() : 0,
       version: json['version'] is num ? (json['version'] as num).round() : 1,
+      active: json['active'] != false,
+      allowedRepresentatives: json['allowedRepresentatives'] is List
+          ? (json['allowedRepresentatives'] as List)
+              .whereType<String>()
+              .map((e) => e.trim())
+              .where((e) => e.isNotEmpty)
+              .toList(growable: false)
+          : const [],
     );
   }
 }

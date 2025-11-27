@@ -103,6 +103,11 @@ export default async function handler(req, res) {
         category: body.category,
         badge: body.badge,
         active: body.active,
+        allowedRepresentatives: Array.isArray(body.allowedRepresentatives)
+          ? body.allowedRepresentatives
+          : body.allowedRepresentatives === null
+            ? []
+            : undefined,
         ...(upload
           ? {
               fileName: upload.name,

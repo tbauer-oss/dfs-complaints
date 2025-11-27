@@ -11,6 +11,7 @@ import '../models/wiki_category.dart';
 import '../models/wiki_overview.dart';
 import '../models/rep_download_item.dart';
 import '../models/download_category.dart';
+import '../models/admin_rep_summary.dart';
 import 'config.dart';
 
 class ApiError implements Exception {
@@ -1306,6 +1307,7 @@ class ApiClient {
     String? badge,
     bool? active,
     Map<String, dynamic>? file,
+    List<String>? allowedRepresentatives,
   }) async {
     final body = <String, dynamic>{
       if (id != null) 'id': id,
@@ -1315,6 +1317,7 @@ class ApiClient {
       if (badge != null) 'badge': badge,
       if (active != null) 'active': active,
       if (file != null) 'files': [file],
+      if (allowedRepresentatives != null) 'allowedRepresentatives': allowedRepresentatives,
     };
     final r = await http.post(
       _u('/api/admin/downloads'),
@@ -1327,6 +1330,19 @@ class ApiClient {
     final decoded = jsonDecode(r.body);
     if (decoded is Map) return RepDownloadItem.fromJson(decoded.cast<String, dynamic>());
     throw ApiError(r.statusCode, 'invalid response for admin download save');
+  }
+
+  Future<List<AdminRepSummary>> adminRepSummaries() async {
+    final r = await http.get(_u('/api/admin/reps'), headers: _adminHeaders());
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <dynamic>[] : jsonDecode(r.body);
+    final list = decoded is List ? decoded : <dynamic>[];
+    return list
+        .whereType<Map>()
+        .map((e) => AdminRepSummary.fromJson(e.cast<String, dynamic>()))
+        .toList(growable: false);
   }
 
   Future<void> adminDeleteDownload(String id) async {

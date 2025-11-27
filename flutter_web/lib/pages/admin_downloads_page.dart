@@ -10,6 +10,7 @@ import '../api/client.dart';
 import '../data/download_categories.dart';
 import '../models/download_category.dart';
 import '../models/rep_download_item.dart';
+import '../models/admin_rep_summary.dart';
 
 class AdminDownloadsPage extends StatefulWidget {
   final ApiClient api;
@@ -25,6 +26,7 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
   String? _err;
   List<RepDownloadItem> _items = const [];
   List<DownloadCategory> _categories = const [];
+  List<AdminRepSummary> _reps = const [];
 
   // Filters & sorting
   String _search = '';
@@ -41,6 +43,8 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
   String _category = '';
   String _badge = '';
   bool _active = true;
+  bool _visibleToAll = true;
+  Set<String> _allowedRepIds = <String>{};
   RepDownloadItem? _editing;
   Map<String, dynamic>? _filePayload;
 
@@ -68,10 +72,12 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
     try {
       final downloads = await widget.api.adminDownloads();
       final categories = await widget.api.adminDownloadCategories();
+      final reps = await widget.api.adminRepSummaries();
       if (mounted) {
         setState(() {
           _items = downloads;
           _categories = categories;
+          _reps = reps;
           _loading = false;
         });
       }
@@ -92,6 +98,8 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
     _category = '';
     _badge = '';
     _active = true;
+    _visibleToAll = true;
+    _allowedRepIds = <String>{};
     _filePayload = null;
   }
 
@@ -103,6 +111,8 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
       _category = item.category;
       _badge = item.badge;
       _active = item.active;
+      _visibleToAll = item.allowedRepresentatives.isEmpty;
+      _allowedRepIds = item.allowedRepresentatives.toSet();
       _filePayload = null;
     });
   }
@@ -158,6 +168,12 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
       );
       return;
     }
+    if (!_visibleToAll && _allowedRepIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bitte mindestens einen Vertreter auswählen oder für alle freigeben.')),
+      );
+      return;
+    }
     setState(() => _saving = true);
     try {
       await widget.api.adminSaveDownload(
@@ -168,6 +184,7 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
         badge: _badge,
         active: _active,
         file: _filePayload,
+        allowedRepresentatives: _visibleToAll ? <String>[] : _allowedRepIds.toList(),
       );
       if (mounted) {
         _resetForm();
@@ -395,6 +412,81 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
       avatar: Icon(Icons.fiber_manual_record, size: 14, color: color.shade700),
       backgroundColor: color.withOpacity(0.12),
       shape: StadiumBorder(side: BorderSide(color: color.shade200)),
+    );
+  }
+
+  String _repLabelById(String id) {
+    final match = _reps.firstWhere(
+      (r) => r.id == id,
+      orElse: () => const AdminRepSummary(id: '', firstName: '', lastName: '', email: ''),
+    );
+    if (match.id.isEmpty) return id;
+    return match.label.isNotEmpty ? match.label : id;
+  }
+
+  Widget _buildVisibilityInfo(RepDownloadItem item) {
+    if (item.allowedRepresentatives.isEmpty) {
+      return const Text('Alle Vertreter');
+    }
+    final names = item.allowedRepresentatives.map(_repLabelById).where((n) => n.trim().isNotEmpty).toList();
+    if (names.isEmpty) return const Text('Alle Vertreter');
+    final displayNames = names.length > 3
+        ? [...names.take(2), '…', names.last]
+        : names;
+    return Wrap(
+      spacing: 6,
+      runSpacing: 4,
+      children: displayNames
+          .map((n) => Chip(
+                label: Text(n, style: const TextStyle(fontSize: 11)),
+                padding: EdgeInsets.zero,
+              ))
+          .toList(),
+    );
+  }
+
+  Widget _buildRepSelector() {
+    final selected = _reps.where((r) => _allowedRepIds.contains(r.id)).toList();
+    final available = _reps
+        .where((r) => !_allowedRepIds.contains(r.id))
+        .toList()
+      ..sort((a, b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (selected.isEmpty)
+          const Text('Keine Vertreter ausgewählt.')
+        else
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: selected
+                .map((r) => InputChip(
+                      label: Text(r.label),
+                      onDeleted: _saving
+                          ? null
+                          : () => setState(() => _allowedRepIds = {
+                                ..._allowedRepIds.where((id) => id != r.id),
+                              }),
+                    ))
+                .toList(),
+          ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          value: null,
+          decoration: const InputDecoration(labelText: 'Vertreter hinzufügen'),
+          items: available
+              .map((r) => DropdownMenuItem(value: r.id, child: Text(r.label)))
+              .toList(),
+          onChanged: _saving
+              ? null
+              : (v) {
+                  if (v == null || v.isEmpty) return;
+                  setState(() => _allowedRepIds = {..._allowedRepIds, v});
+                },
+        ),
+      ],
     );
   }
 
@@ -709,18 +801,40 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
                       contentPadding: EdgeInsets.zero,
                     ),
                   ),
-                  ElevatedButton.icon(
-                    onPressed: _saving ? null : _pickFile,
-                    icon: const Icon(Icons.upload_file_outlined),
-                    label: Text(_filePayload == null ? 'Datei wählen' : 'Datei ersetzt'),
-                  ),
-                  if (_filePayload != null)
-                    Chip(
-                      label: Text('${_filePayload?['name'] ?? ''} · ${_formatSize(_filePayload?['size'] ?? 0)}'),
-                      avatar: const Icon(Icons.attachment_outlined, size: 18),
-                    ),
                 ],
               ),
+              const SizedBox(height: 12),
+              Text('Sichtbarkeit', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+              RadioListTile<bool>(
+                value: true,
+                groupValue: _visibleToAll,
+                onChanged: (v) => setState(() => _visibleToAll = v ?? true),
+                title: const Text('Für alle Vertreter sichtbar'),
+                contentPadding: EdgeInsets.zero,
+              ),
+              RadioListTile<bool>(
+                value: false,
+                groupValue: _visibleToAll,
+                onChanged: (v) => setState(() => _visibleToAll = v ?? false),
+                title: const Text('Nur für ausgewählte Vertreter'),
+                contentPadding: EdgeInsets.zero,
+              ),
+              if (!_visibleToAll)
+                Padding(
+                  padding: const EdgeInsets.only(left: 12, bottom: 8),
+                  child: _buildRepSelector(),
+                ),
+              const SizedBox(height: 8),
+              ElevatedButton.icon(
+                onPressed: _saving ? null : _pickFile,
+                icon: const Icon(Icons.upload_file_outlined),
+                label: Text(_filePayload == null ? 'Datei wählen' : 'Datei ersetzt'),
+              ),
+              if (_filePayload != null)
+                Chip(
+                  label: Text('${_filePayload?['name'] ?? ''} · ${_formatSize(_filePayload?['size'] ?? 0)}'),
+                  avatar: const Icon(Icons.attachment_outlined, size: 18),
+                ),
               const SizedBox(height: 16),
               Row(
                 children: [
@@ -838,6 +952,7 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
                   DataColumn(label: Text('Titel')),
                   DataColumn(label: Text('Kategorie')),
                   DataColumn(label: Text('Badge')),
+                  DataColumn(label: Text('Sichtbarkeit')),
                   DataColumn(label: Text('Version')),
                   DataColumn(label: Text('Aktualisiert')),
                   DataColumn(label: Text('Status')),
@@ -863,6 +978,7 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
                     )),
                     DataCell(item.category.isNotEmpty ? Text(item.category) : const Text('–')),
                     DataCell(_buildBadgeChip(item.badge)),
+                    DataCell(_buildVisibilityInfo(item)),
                     DataCell(Text('v${item.version}')),
                     DataCell(Text(_formatDate(item.updatedAt))),
                     DataCell(_buildStatusChip(item.active)),
