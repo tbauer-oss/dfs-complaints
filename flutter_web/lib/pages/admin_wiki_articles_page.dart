@@ -665,7 +665,8 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                     controller: _verticalController,
                     thumbVisibility: true,
                     trackVisibility: true,
-                    notificationPredicate: (notification) => notification.depth == 0,
+                    notificationPredicate: (notification) =>
+                        notification.metrics.axis == Axis.vertical,
                     scrollbarOrientation: ScrollbarOrientation.right,
                     child: SingleChildScrollView(
                       controller: _verticalController,
@@ -673,7 +674,8 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                         controller: _horizontalController,
                         thumbVisibility: true,
                         trackVisibility: true,
-                        notificationPredicate: (notification) => notification.depth == 1,
+                        notificationPredicate: (notification) =>
+                            notification.metrics.axis == Axis.horizontal,
                         scrollbarOrientation: ScrollbarOrientation.bottom,
                         child: SingleChildScrollView(
                           controller: _horizontalController,
