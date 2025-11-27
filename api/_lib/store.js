@@ -1781,6 +1781,14 @@ function _normalizeDownloadBadge(value) {
   return '';
 }
 
+function _safeDownloadUrl(value) {
+  const raw = (value ?? '').toString().trim();
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (raw.startsWith('data:')) return raw;
+  return '';
+}
+
 function _normalizeDownload(input = {}, existing = null, { bumpVersion = true } = {}) {
   const now = Date.now();
   const base = existing || {};
@@ -1792,7 +1800,7 @@ function _normalizeDownload(input = {}, existing = null, { bumpVersion = true } 
   const active = input.active !== undefined ? Boolean(input.active) : Boolean(base.active ?? true);
 
   const fileName = _text(input.fileName ?? input.name ?? base.fileName ?? '', 240);
-  const downloadUrl = _safeUrl(input.downloadUrl ?? base.downloadUrl ?? '') || null;
+  const downloadUrl = _safeDownloadUrl(input.downloadUrl ?? input.url ?? base.downloadUrl ?? '') || null;
   const mime = _text(input.mime ?? base.mime ?? '', 120) || null;
   const size = Number.isFinite(input.size) ? Math.max(0, Number(input.size))
     : Number.isFinite(base.size) ? Math.max(0, Number(base.size))
