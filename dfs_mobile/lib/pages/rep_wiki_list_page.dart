@@ -105,13 +105,13 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
       children: [
         SizedBox(
           width: 220,
-          child: DropdownButtonFormField<String>(
+          child: DropdownButtonFormField<String?>(
             isExpanded: true,
             decoration: const InputDecoration(labelText: 'Kategorie'),
             value: _category,
-            items: [const DropdownMenuItem(value: null, child: Text('Alle Kategorien'))]
+            items: [const DropdownMenuItem<String?>(value: null, child: Text('Alle Kategorien'))]
                 .followedBy(_categoryOptions().map(
-                  (c) => DropdownMenuItem(value: c, child: Text(c)),
+                  (c) => DropdownMenuItem<String?>(value: c, child: Text(c)),
                 ))
                 .toList(),
             onChanged: (v) {
@@ -122,13 +122,13 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
         ),
         SizedBox(
           width: 200,
-          child: DropdownButtonFormField<String>(
+          child: DropdownButtonFormField<String?>(
             isExpanded: true,
             decoration: const InputDecoration(labelText: 'Produktgruppe'),
             value: _productGroup,
-            items: [const DropdownMenuItem(value: null, child: Text('Alle'))]
+            items: [const DropdownMenuItem<String?>(value: null, child: Text('Alle'))]
                 .followedBy(_productGroupOptions().map(
-                  (p) => DropdownMenuItem(value: p, child: Text(p)),
+                  (p) => DropdownMenuItem<String?>(value: p, child: Text(p)),
                 ))
                 .toList(),
             onChanged: (v) {
@@ -139,16 +139,16 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
         ),
         SizedBox(
           width: 160,
-          child: DropdownButtonFormField<String>(
+          child: DropdownButtonFormField<String?>(
             isExpanded: true,
             decoration: const InputDecoration(labelText: 'Typ'),
             value: _type,
             items: const [
-              DropdownMenuItem(value: null, child: Text('Alle Typen')),
-              DropdownMenuItem(value: 'faq', child: Text('FAQ')),
-              DropdownMenuItem(value: 'safety', child: Text('Sicherheit')),
-              DropdownMenuItem(value: 'error', child: Text('Fehler')),
-              DropdownMenuItem(value: 'prevention', child: Text('Vermeidung')),
+              DropdownMenuItem<String?>(value: null, child: Text('Alle Typen')),
+              DropdownMenuItem<String?>(value: 'faq', child: Text('FAQ')),
+              DropdownMenuItem<String?>(value: 'safety', child: Text('Sicherheit')),
+              DropdownMenuItem<String?>(value: 'error', child: Text('Fehler')),
+              DropdownMenuItem<String?>(value: 'prevention', child: Text('Vermeidung')),
             ],
             onChanged: (v) {
               setState(() => _type = v);
