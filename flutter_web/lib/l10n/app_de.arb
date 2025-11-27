@@ -19,6 +19,9 @@
   "theme_dark": "Dunkel",
 
   "ticket": "Ticketnummer",
+  "customer_knowledge": "Kundenwissen & Produktinfos",
+  "repwiki": "Vertreter-Wiki",
+
 
   "attachments_add": "Anhänge nachträglich senden",
   "attachments_success": "Anhänge wurden erfolgreich übermittelt.",
