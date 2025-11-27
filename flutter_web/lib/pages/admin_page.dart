@@ -3971,7 +3971,8 @@ class _AdminPageState extends State<AdminPage> {
 
   List<_AdminNavSection> _navSections() {
     final defaults = _defaultNavSections();
-    final order = _navOrder.isNotEmpty ? _navOrder : _defaultNavOrder();
+    final baseOrder = _navOrder.isNotEmpty ? _navOrder : _defaultNavOrder();
+    final order = _mergeNavOrder(baseOrder);
     final orderIndex = <_AdminView, int>{
       for (var i = 0; i < order.length; i++) order[i]: i,
     };
@@ -4146,27 +4147,33 @@ class _AdminPageState extends State<AdminPage> {
   void _loadNavOrder() {
     final defaults = _defaultNavOrder();
     final raw = html.window.localStorage[_navOrderStorageKey];
-    if (raw == null) {
-      _navOrder = defaults;
-      return;
-    }
+    List<_AdminView> next = defaults;
 
-    try {
-      final parsed = jsonDecode(raw);
-      if (parsed is List) {
-        final views = parsed
-            .whereType<String>()
-            .map((name) => _AdminView.values.firstWhereOrNull((v) => v.name == name))
-            .whereNotNull()
-            .toList();
-        _navOrder = _mergeNavOrder(views);
-        return;
+    if (raw != null) {
+      try {
+        final parsed = jsonDecode(raw);
+        if (parsed is List) {
+          final views = parsed
+              .whereType<String>()
+              .map((name) => _AdminView.values.firstWhereOrNull((v) => v.name == name))
+              .whereNotNull()
+              .toList();
+          if (views.isNotEmpty) {
+            next = _mergeNavOrder(views);
+          }
+        }
+      } catch (_) {
+        // Fallback to defaults below.
       }
-    } catch (_) {
-      // Fallback to defaults below.
     }
 
-    _navOrder = defaults;
+    if (!listEquals(_navOrder, next)) {
+      if (mounted) {
+        setState(() => _navOrder = next);
+      } else {
+        _navOrder = next;
+      }
+    }
   }
 
   void _persistNavOrder() {
@@ -4210,16 +4217,20 @@ class _AdminPageState extends State<AdminPage> {
                 width: 460,
                 height: 420,
                 child: ReorderableListView.builder(
+                  buildDefaultDragHandles: false,
                   itemBuilder: (context, index) {
                     final view = workingOrder[index];
                     final item = lookup[view];
                     final icon = item?.icon ?? Icons.drag_indicator_rounded;
                     final label = item?.label ?? view.name;
-                    return ListTile(
+                    return ReorderableDragStartListener(
                       key: ValueKey(view.name),
-                      leading: Icon(icon, color: theme.colorScheme.primary),
-                      title: Text(label),
-                      trailing: const Icon(Icons.drag_handle_rounded),
+                      index: index,
+                      child: ListTile(
+                        leading: Icon(icon, color: theme.colorScheme.primary),
+                        title: Text(label),
+                        subtitle: const Text('Zum Verschieben irgendwo in der Zeile ziehen'),
+                      ),
                     );
                   },
                   itemCount: workingOrder.length,
