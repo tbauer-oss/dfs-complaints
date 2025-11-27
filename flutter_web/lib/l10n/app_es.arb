@@ -406,6 +406,9 @@
 
   "rep_login_title": "Inicio de sesión del representante",
   "rep_dashboard": "Panel del representante",
+  "rep_dash_cat_claims": "Reclamaciones",
+  "rep_dash_cat_customers": "Clientes y soporte",
+  "rep_dash_cat_docs": "Conocimiento y documentos",
   "rep_area": "Área del representante",
   "rep_banner_title": "Su representante: {name}",
   "@rep_banner_title": { "placeholders": { "name": { "type": "String" } } },

@@ -407,6 +407,9 @@
 
   "rep_login_title": "Connexion du représentant",
   "rep_dashboard": "Tableau de bord du représentant",
+  "rep_dash_cat_claims": "Réclamations",
+  "rep_dash_cat_customers": "Clients et support",
+  "rep_dash_cat_docs": "Connaissances et documents",
   "rep_area": "Espace représentant",
   "rep_banner_title": "Votre représentant : {name}",
   "@rep_banner_title": { "placeholders": { "name": { "type": "String" } } },
