@@ -472,155 +472,194 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    return LayoutBuilder(
+      builder: (context, cons) {
+        final isCompact = cons.maxWidth < 1000;
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.menu_book_outlined),
-                const SizedBox(width: 8),
-                Text('Artikel verwalten', style: theme.textTheme.titleLarge),
-                const Spacer(),
-                DropdownButton<String?>(
-                  value: _categoryFilter,
-                  hint: const Text('Kategorie'),
-                  onChanged: (v) => setState(() => _categoryFilter = v),
-                  items: <DropdownMenuItem<String?>>[
-                    const DropdownMenuItem<String?>(value: null, child: Text('Alle Kategorien')),
-                  ]
-                      .followedBy(
-                        _categories.map(
-                          (c) => DropdownMenuItem<String?>(value: c.id, child: Text(c.name)),
-                        ),
-                      )
-                      .toList(),
-                ),
-                const SizedBox(width: 8),
-                DropdownButton<String?>(
-                  value: _productGroupFilter,
-                  hint: const Text('Produktgruppe'),
-                  onChanged: (v) => setState(() => _productGroupFilter = v),
-                  items: <DropdownMenuItem<String?>>[
-                    const DropdownMenuItem<String?>(value: null, child: Text('Alle')),
-                  ]
-                      .followedBy(
-                        _productGroupOptions().map(
-                          (p) => DropdownMenuItem<String?>(value: p, child: Text(p)),
-                        ),
-                      )
-                      .toList(),
-                ),
-                const SizedBox(width: 8),
-                DropdownButton<String?>(
-                  value: _typeFilter,
-                  hint: const Text('Typ'),
-                  onChanged: (v) => setState(() => _typeFilter = v),
-                  items: const [
-                    DropdownMenuItem(value: null, child: Text('Alle Typen')),
-                    DropdownMenuItem(value: 'faq', child: Text('FAQ')),
-                    DropdownMenuItem(value: 'safety', child: Text('Sicherheit')),
-                    DropdownMenuItem(value: 'error', child: Text('Fehler')),
-                    DropdownMenuItem(value: 'prevention', child: Text('Vermeidung')),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.menu_book_outlined),
+                        const SizedBox(width: 8),
+                        Text('Artikel verwalten', style: theme.textTheme.titleLarge),
+                      ],
+                    ),
+                    SizedBox(
+                      width: isCompact ? 210 : 240,
+                      child: DropdownButtonFormField<String?>(
+                        value: _categoryFilter,
+                        decoration: const InputDecoration(labelText: 'Kategorie'),
+                        onChanged: (v) {
+                          setState(() => _categoryFilter = v);
+                          _load();
+                        },
+                        items: <DropdownMenuItem<String?>>[
+                          const DropdownMenuItem<String?>(value: null, child: Text('Alle Kategorien')),
+                        ]
+                            .followedBy(
+                              _categories.map(
+                                (c) => DropdownMenuItem<String?>(value: c.id, child: Text(c.name)),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                    SizedBox(
+                      width: isCompact ? 190 : 220,
+                      child: DropdownButtonFormField<String?>(
+                        value: _productGroupFilter,
+                        decoration: const InputDecoration(labelText: 'Produktgruppe'),
+                        onChanged: (v) {
+                          setState(() => _productGroupFilter = v);
+                          _load();
+                        },
+                        items: <DropdownMenuItem<String?>>[
+                          const DropdownMenuItem<String?>(value: null, child: Text('Alle')),
+                        ]
+                            .followedBy(
+                              _productGroupOptions().map(
+                                (p) => DropdownMenuItem<String?>(value: p, child: Text(p)),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                    SizedBox(
+                      width: isCompact ? 180 : 200,
+                      child: DropdownButtonFormField<String?>(
+                        value: _typeFilter,
+                        decoration: const InputDecoration(labelText: 'Typ'),
+                        onChanged: (v) {
+                          setState(() => _typeFilter = v);
+                          _load();
+                        },
+                        items: const [
+                          DropdownMenuItem(value: null, child: Text('Alle Typen')),
+                          DropdownMenuItem(value: 'faq', child: Text('FAQ')),
+                          DropdownMenuItem(value: 'safety', child: Text('Sicherheit')),
+                          DropdownMenuItem(value: 'error', child: Text('Fehler')),
+                          DropdownMenuItem(value: 'prevention', child: Text('Vermeidung')),
+                        ],
+                      ),
+                    ),
+                    SizedBox(
+                      width: isCompact ? 180 : 200,
+                      child: DropdownButtonFormField<String?>(
+                        value: _statusFilter,
+                        decoration: const InputDecoration(labelText: 'Status'),
+                        onChanged: (v) {
+                          setState(() => _statusFilter = v);
+                          _load();
+                        },
+                        items: const [
+                          DropdownMenuItem(value: null, child: Text('Alle')),
+                          DropdownMenuItem(value: 'active', child: Text('Aktiv')),
+                          DropdownMenuItem(value: 'inactive', child: Text('Inaktiv')),
+                        ],
+                      ),
+                    ),
+                    SizedBox(
+                      width: isCompact ? 220 : 260,
+                      child: TextField(
+                        controller: _searchCtrl,
+                        decoration: const InputDecoration(labelText: 'Suche Titel/Teaser/Tags'),
+                        onSubmitted: (_) => _load(),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Filtern',
+                      onPressed: _loading ? null : _load,
+                      icon: const Icon(Icons.refresh),
+                    ),
+                    FilledButton.icon(
+                      onPressed: _loading ? null : () => _openForm(),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Neu'),
+                    ),
                   ],
                 ),
-                const SizedBox(width: 8),
-                DropdownButton<String?>(
-                  value: _statusFilter,
-                  hint: const Text('Status'),
-                  onChanged: (v) => setState(() => _statusFilter = v),
-                  items: const [
-                    DropdownMenuItem(value: null, child: Text('Alle')),
-                    DropdownMenuItem(value: 'active', child: Text('Aktiv')),
-                    DropdownMenuItem(value: 'inactive', child: Text('Inaktiv')),
-                  ],
-                ),
-                const SizedBox(width: 8),
-                SizedBox(
-                  width: 220,
-                  child: TextField(
-                    controller: _searchCtrl,
-                    decoration: const InputDecoration(labelText: 'Suche Titel/Teaser/Tags'),
-                    onSubmitted: (_) => _load(),
+                const SizedBox(height: 12),
+                if (_loading) const LinearProgressIndicator(),
+                if (_err != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(_err!, style: TextStyle(color: cs.error)),
                   ),
-                ),
-                IconButton(
-                  tooltip: 'Filtern',
-                  onPressed: _loading ? null : _load,
-                  icon: const Icon(Icons.refresh),
-                ),
-                const SizedBox(width: 8),
-                FilledButton.icon(
-                  onPressed: _loading ? null : () => _openForm(),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Neu'),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: Scrollbar(
+                    child: SingleChildScrollView(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(minWidth: cons.maxWidth - 32),
+                          child: DataTable(
+                            columns: const [
+                              DataColumn(label: Text('Titel')),
+                              DataColumn(label: Text('Kategorie')),
+                              DataColumn(label: Text('Produktgruppen')),
+                              DataColumn(label: Text('Typ')),
+                              DataColumn(label: Text('Wichtigkeit')),
+                              DataColumn(label: Text('Status')),
+                              DataColumn(label: Text('Geändert')),
+                              DataColumn(label: Text('Aktionen')),
+                            ],
+                            rows: _articles
+                                .map(
+                                  (a) => DataRow(cells: [
+                                    DataCell(Text(a.title)),
+                                    DataCell(Text(_categoryLabel(a.categoryId))),
+                                    DataCell(Text(a.productGroups.join(', '))),
+                                    DataCell(Text(a.type)),
+                                    DataCell(Text(a.importance)),
+                                    DataCell(Chip(
+                                      label: Text(a.isActive ? 'Aktiv' : 'Inaktiv'),
+                                      backgroundColor: a.isActive ? cs.primaryContainer : cs.surfaceVariant,
+                                    )),
+                                    DataCell(Text(a.updatedAt.toLocal().toString().split('.').first)),
+                                    DataCell(Row(
+                                      children: [
+                                        IconButton(
+                                          tooltip: 'Vorschau',
+                                          icon: const Icon(Icons.visibility_outlined),
+                                          onPressed: () => _openPreview(a),
+                                        ),
+                                        IconButton(
+                                          tooltip: 'Bearbeiten',
+                                          icon: const Icon(Icons.edit_outlined),
+                                          onPressed: () => _openForm(article: a),
+                                        ),
+                                        IconButton(
+                                          tooltip: 'Löschen',
+                                          icon: const Icon(Icons.delete_outline),
+                                          onPressed: () => _delete(a),
+                                        ),
+                                      ],
+                                    )),
+                                  ]),
+                                )
+                                .toList(),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            if (_loading) const LinearProgressIndicator(),
-            if (_err != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text(_err!, style: TextStyle(color: cs.error)),
-              ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: SingleChildScrollView(
-                child: DataTable(
-                  columns: const [
-                    DataColumn(label: Text('Titel')),
-                    DataColumn(label: Text('Kategorie')),
-                    DataColumn(label: Text('Produktgruppen')),
-                    DataColumn(label: Text('Typ')),
-                    DataColumn(label: Text('Wichtigkeit')),
-                    DataColumn(label: Text('Status')),
-                    DataColumn(label: Text('Geändert')),
-                    DataColumn(label: Text('Aktionen')),
-                  ],
-                  rows: _articles
-                      .map(
-                        (a) => DataRow(cells: [
-                          DataCell(Text(a.title)),
-                          DataCell(Text(_categoryLabel(a.categoryId))),
-                          DataCell(Text(a.productGroups.join(', '))),
-                          DataCell(Text(a.type)),
-                          DataCell(Text(a.importance)),
-                          DataCell(Chip(
-                            label: Text(a.isActive ? 'Aktiv' : 'Inaktiv'),
-                            backgroundColor: a.isActive ? cs.primaryContainer : cs.surfaceVariant,
-                          )),
-                          DataCell(Text(a.updatedAt.toLocal().toString().split('.').first)),
-                          DataCell(Row(
-                            children: [
-                              IconButton(
-                                tooltip: 'Vorschau',
-                                icon: const Icon(Icons.visibility_outlined),
-                                onPressed: () => _openPreview(a),
-                              ),
-                              IconButton(
-                                tooltip: 'Bearbeiten',
-                                icon: const Icon(Icons.edit_outlined),
-                                onPressed: () => _openForm(article: a),
-                              ),
-                              IconButton(
-                                tooltip: 'Löschen',
-                                icon: const Icon(Icons.delete_outline),
-                                onPressed: () => _delete(a),
-                              ),
-                            ],
-                          )),
-                        ]),
-                      )
-                      .toList(),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

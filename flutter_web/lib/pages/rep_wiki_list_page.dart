@@ -189,7 +189,11 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
       return InkWell(
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => RepWikiDetailPage(api: widget.api, articleId: a.id),
+            builder: (_) => RepWikiDetailPage(
+              api: widget.api,
+              articleId: a.id,
+              initialArticle: a,
+            ),
           ),
         ),
         child: Card(
