@@ -72,8 +72,8 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
       );
       if (!mounted) return;
       setState(() {
-        _articles = overview.articles;
-        _categories = overview.categories;
+        _articles = overview.articles.where((a) => a.isActive).toList(growable: false);
+        _categories = overview.categories.where((c) => c.isActive).toList(growable: false);
       });
     } catch (e) {
       if (!mounted) return;
