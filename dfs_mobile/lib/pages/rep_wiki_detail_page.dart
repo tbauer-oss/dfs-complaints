@@ -3,6 +3,7 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 
 import '../api/client.dart';
 import '../models/wiki_article.dart';
+import '../utils/lang_utils.dart';
 
 class RepWikiDetailPage extends StatefulWidget {
   final ApiClient api;
@@ -30,7 +31,8 @@ class _RepWikiDetailPageState extends State<RepWikiDetailPage> {
       _err = null;
     });
     try {
-      final article = await widget.api.fetchWikiArticle(widget.articleId);
+      final lang = normalizeLangCode(Localizations.localeOf(context).languageCode);
+      final article = await widget.api.fetchWikiArticle(widget.articleId, lang: lang);
       if (!mounted) return;
       setState(() => _article = article);
     } catch (e) {
