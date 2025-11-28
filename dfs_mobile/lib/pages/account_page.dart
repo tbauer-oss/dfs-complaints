@@ -170,6 +170,47 @@ class _AccountPageState extends State<AccountPage> {
     }
   }
 
+  Widget _infoRow(BuildContext context, IconData icon, String label, String value) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withOpacity(0.08),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: theme.colorScheme.primary, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    letterSpacing: 0.4,
+                    color: theme.colorScheme.outline,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  value,
+                  style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.t;
@@ -180,136 +221,357 @@ class _AccountPageState extends State<AccountPage> {
       // FIX: falscher Key (früher: t.editdata) -> nutze vorhandenen Key oder Fallback
       if (acc == null) return Center(child: Text(t.noDataFound ?? 'Keine Daten gefunden.'));
 
-      return Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720),
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              Text('E-Mail: ${_val(acc!['email'], '')}'),
-              Text('${t.company}: ${_val(acc!['company'])}'),
-              // FIX: v(...) existierte nicht -> Helper _val
-              Text('${t.contact_person}: ${_val(acc!['contact'])}'),
-              Text('${t.country_label ?? 'Land'}: ${_val(acc!['country'])}'),
-              Text('${t.catalog_select_language}: ${_langDisplay(context, acc!['lang'])}'),
-              Builder(
-                builder: (_) {
-                  final raw =
-                      (acc!['customerNumber'] ?? acc!['customer_no'] ?? '').toString().trim();
-                  if (raw.isEmpty) {
-                    return Text('${t.customer_number_label ?? 'Kundennr.'}: -');
-                  }
-                  return Text('${t.customer_number_label ?? 'Kundennr.'}: $raw');
-                },
-              ),
-              const SizedBox(height: 16),
+      final theme = Theme.of(context);
+      final highlight = theme.colorScheme.primaryContainer.withOpacity(0.55);
+      final surfaceTint = theme.colorScheme.surfaceVariant.withOpacity(0.28);
 
-              FilledButton.icon(
-                icon: const Icon(Icons.edit),
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => _AccountEditPage(api: widget.api, initial: acc!),
+      return Container(
+        color: surfaceTint,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 840),
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 26),
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [highlight, theme.colorScheme.primaryContainer],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: theme.colorScheme.primary.withOpacity(0.18),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
                   ),
-                ).then((_) => _load()),
-                label: Text(t.editData),
-              ),
-              const SizedBox(height: 12),
-
-              FilledButton.icon(
-                icon: const Icon(Icons.lock),
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => _PasswordPage(api: widget.api)),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.onPrimaryContainer.withOpacity(0.08),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(Icons.person_pin_circle,
+                                color: theme.colorScheme.onPrimaryContainer, size: 26),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  t.myAccount ?? 'Mein Account',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    color: theme.colorScheme.onPrimaryContainer,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  _val(acc!['email'], ''),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onPrimaryContainer.withOpacity(0.9),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Chip(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                            visualDensity: VisualDensity.compact,
+                            backgroundColor:
+                                theme.colorScheme.onPrimaryContainer.withOpacity(0.08),
+                            label: Text(
+                              t.catalog_select_language,
+                              style: TextStyle(
+                                color: theme.colorScheme.onPrimaryContainer,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Icon(Icons.verified_user, color: theme.colorScheme.onPrimaryContainer),
+                          const SizedBox(width: 8),
+                          Text(
+                            t.customer_number_label ?? 'Kundennr.',
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              color: theme.colorScheme.onPrimaryContainer.withOpacity(0.8),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _val(acc!['customerNumber'] ?? acc!['customer_no']),
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              color: theme.colorScheme.onPrimaryContainer,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-                label: Text(t.changePassword),
-              ),
-              const SizedBox(height: 12),
 
-              OutlinedButton.icon(
-                icon: _exportBusy
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.file_download),
-                label: Text(t.dataExportButton ?? 'Datenexport (DSGVO)'),
-                onPressed: _exportBusy ? null : _handleExport,
-              ),
-              const SizedBox(height: 12),
-
-              OutlinedButton.icon(
-                icon: const Icon(Icons.delete_forever, color: Colors.red),
-                label: Text(t.accountDelete, style: const TextStyle(color: Colors.red)),
-                onPressed: () async {
-                  // 1) Sicherheitsabfrage
-                  final sure = await showDialog<bool>(
-                    context: context,
-                    builder: (_) => AlertDialog(
-                      title: Text(t.accountDeleteTitle),
-                      content: DialogContentScroll(child: Text(t.accountDeleteConfirm)),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: Text(t.cancel),
+                const SizedBox(height: 12),
+                Card(
+                  elevation: 2,
+                  margin: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          t.contact_person,
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                        FilledButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          child: Text(t.continueLabel),
+                        const SizedBox(height: 2),
+                        _infoRow(context, Icons.person_outline, t.contact_person,
+                            _val(acc!['contact'])),
+                        _infoRow(
+                          context,
+                          Icons.apartment,
+                          t.company,
+                          _val(acc!['company']),
+                        ),
+                        _infoRow(
+                          context,
+                          Icons.language,
+                          t.catalog_select_language,
+                          _langDisplay(context, acc!['lang']),
+                        ),
+                        _infoRow(
+                          context,
+                          Icons.flag_outlined,
+                          t.country_label ?? 'Land',
+                          _val(acc!['country']),
+                        ),
+                        _infoRow(
+                          context,
+                          Icons.location_on_outlined,
+                          t.address ?? 'Adresse',
+                          '${_val(acc!['street'])}, ${_val(acc!['zip'])} ${_val(acc!['city'])}',
                         ),
                       ],
                     ),
-                  );
-                  if (sure != true) return;
+                  ),
+                ),
 
-                  // 2) Passwort-Abfrage
-                  final pwd = await showDialog<String>(
-                    context: context,
-                    builder: (_) {
-                      final ctrl = TextEditingController();
-                      return AlertDialog(
-                        // FIX: Key existierte nicht -> kompatibler Key + Fallback
-                        title: Text(t.confirmPassword ?? 'Passwort bestätigen'),
-                        content: DialogContentScroll(
-                          child: PasswordField(
-                            controller: ctrl,
-                            decoration: InputDecoration(labelText: t.gate_password),
+                const SizedBox(height: 12),
+                Card(
+                  elevation: 2,
+                  margin: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          t.editData,
+                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: [
+                            FilledButton.icon(
+                              icon: const Icon(Icons.edit),
+                              style: FilledButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              onPressed: () => Navigator.of(context)
+                                  .push(
+                                    MaterialPageRoute(
+                                      builder: (_) => _AccountEditPage(api: widget.api, initial: acc!),
+                                    ),
+                                  )
+                                  .then((_) => _load()),
+                              label: Text(t.editData),
+                            ),
+                            FilledButton.icon(
+                              icon: const Icon(Icons.lock_outline),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: theme.colorScheme.secondaryContainer,
+                                foregroundColor: theme.colorScheme.onSecondaryContainer,
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              onPressed: () => Navigator.of(context).push(
+                                MaterialPageRoute(builder: (_) => _PasswordPage(api: widget.api)),
+                              ),
+                              label: Text(t.changePassword),
+                            ),
+                            OutlinedButton.icon(
+                              icon: _exportBusy
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.file_download_outlined),
+                              style: OutlinedButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              label: Text(t.dataExportButton ?? 'Datenexport (DSGVO)'),
+                              onPressed: _exportBusy ? null : _handleExport,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+                Card(
+                  color: theme.colorScheme.errorContainer.withOpacity(0.9),
+                  elevation: 0,
+                  margin: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.warning_amber_rounded, color: theme.colorScheme.onErrorContainer),
+                            const SizedBox(width: 8),
+                            Text(
+                              t.accountDelete,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: theme.colorScheme.onErrorContainer,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          t.accountDeleteConfirm,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onErrorContainer.withOpacity(0.9),
                           ),
                         ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: Text(t.cancel),
+                        const SizedBox(height: 10),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: OutlinedButton.icon(
+                            icon: Icon(Icons.delete_forever, color: theme.colorScheme.onErrorContainer),
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: theme.colorScheme.onErrorContainer),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            label: Text(
+                              t.accountDelete,
+                              style: TextStyle(
+                                color: theme.colorScheme.onErrorContainer,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            onPressed: () async {
+                              // 1) Sicherheitsabfrage
+                              final sure = await showDialog<bool>(
+                                context: context,
+                                builder: (_) => AlertDialog(
+                                  title: Text(t.accountDeleteTitle),
+                                  content: DialogContentScroll(child: Text(t.accountDeleteConfirm)),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context, false),
+                                      child: Text(t.cancel),
+                                    ),
+                                    FilledButton(
+                                      onPressed: () => Navigator.pop(context, true),
+                                      child: Text(t.continueLabel),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (sure != true) return;
+
+                              // 2) Passwort-Abfrage
+                              final pwd = await showDialog<String>(
+                                context: context,
+                                builder: (_) {
+                                  final ctrl = TextEditingController();
+                                  return AlertDialog(
+                                    // FIX: Key existierte nicht -> kompatibler Key + Fallback
+                                    title: Text(t.confirmPassword ?? 'Passwort bestätigen'),
+                                    content: DialogContentScroll(
+                                      child: PasswordField(
+                                        controller: ctrl,
+                                        decoration: InputDecoration(labelText: t.gate_password),
+                                      ),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context),
+                                        child: Text(t.cancel),
+                                      ),
+                                      FilledButton(
+                                        onPressed: () => Navigator.pop(context, ctrl.text),
+                                        child: Text(t.accountDelete),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              );
+                              if (pwd == null || pwd.isEmpty) return;
+
+                              try {
+                                await widget.api.accountDelete(pwd);
+
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(t.accountDeleted ?? 'Account gelöscht.')),
+                                );
+
+                                // Zur Start-/Loginseite zurück
+                                Navigator.of(context).popUntil((r) => r.isFirst);
+                              } catch (e) {
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('${t.error}: $e')),
+                                );
+                              }
+                            },
                           ),
-                          FilledButton(
-                            onPressed: () => Navigator.pop(context, ctrl.text),
-                            child: Text(t.accountDelete),
-                          ),
-                        ],
-                      );
-                    },
-                  );
-                  if (pwd == null || pwd.isEmpty) return;
-
-                  try {
-                    await widget.api.accountDelete(pwd);
-
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(t.accountDeleted ?? 'Account gelöscht.')),
-                    );
-
-                    // Zur Start-/Loginseite zurück
-                    Navigator.of(context).popUntil((r) => r.isFirst);
-                  } catch (e) {
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('${t.error}: $e')),
-                    );
-                  }
-                },
-              ),
-              const SizedBox(height: 24),
-            ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
