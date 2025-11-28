@@ -1,4 +1,4 @@
-8// lib/main.dart
+// lib/main.dart
 import 'dart:math' as math;
 import 'dart:ui' as ui show ImageFilter;
 
