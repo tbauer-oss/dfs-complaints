@@ -1,5 +1,7 @@
 // lib/data/document_languages.dart
 
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+
 class DocumentLanguage {
   final String code;
   final String name;
@@ -10,6 +12,14 @@ class DocumentLanguage {
     required this.name,
     required this.shortLabel,
   });
+
+  String get displayShortLabel => (shortLabel.isNotEmpty ? shortLabel : code).toUpperCase();
+
+  String localizedName(AppLocalizations t) {
+    final translator = _documentLanguageLocalizations[code];
+    if (translator != null) return translator(t);
+    return name;
+  }
 }
 
 const kDocumentLanguages = <DocumentLanguage>[
@@ -46,6 +56,14 @@ const kDocumentLanguages = <DocumentLanguage>[
   DocumentLanguage(code: 'ru', name: 'Russisch', shortLabel: 'RU'),
   DocumentLanguage(code: 'is', name: 'Isländisch', shortLabel: 'IS'),
 ];
+
+final Map<String, String Function(AppLocalizations)> _documentLanguageLocalizations = {
+  'de': (t) => t.langNameDE,
+  'en': (t) => t.langNameEN,
+  'fr': (t) => t.langNameFR,
+  'it': (t) => t.langNameIT,
+  'es': (t) => t.langNameES,
+};
 
 const kDocumentLanguageCodes = <String>{
   'de',
@@ -92,6 +110,6 @@ DocumentLanguage? documentLanguageFor(String? code) {
   }
 }
 
-String documentLanguageLabel(String? code) {
-  return documentLanguageFor(code)?.name ?? (code ?? '').toUpperCase();
+String documentLanguageLabel(AppLocalizations t, String? code) {
+  return documentLanguageFor(code)?.localizedName(t) ?? (code ?? '').toUpperCase();
 }
