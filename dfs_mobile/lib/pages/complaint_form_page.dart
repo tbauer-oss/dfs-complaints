@@ -942,7 +942,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
             controller: batch,
             decoration: _dec(context, isDentist ? '${t.batch} *' : t.batch, hint: isDentist ? t.batch : null, compact: compact),
             inputFormatters: isDentist ? [ChargeInputFormatter()] : null,
-            keyboardType: isDentist ? TextInputType.datetime : TextInputType.text,
+            keyboardType: TextInputType.text,
             textCapitalization: isDentist ? TextCapitalization.characters : TextCapitalization.none,
             maxLength: isDentist ? 11 : null,
           ),
