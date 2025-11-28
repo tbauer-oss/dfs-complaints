@@ -478,6 +478,7 @@
   "article": "Article number*",
   "articleNo": "Article",
   "batch": "Batch",
+  "batch_format_hint": "Please enter the batch in the format YYYY-MM-DD or YYYY-MM-DD + letter (e.g. 2025-11-23 or 2025-11-23A).",
   "serial_number": "Serial number",
   "quantity": "Quantity",
   "qty": "Quantity",
