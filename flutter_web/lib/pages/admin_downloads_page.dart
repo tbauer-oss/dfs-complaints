@@ -1116,8 +1116,18 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
                               ),
                             ),
                           ),
-                          DataCell(_buildLanguageChip(item.language)),
-                          DataCell(_buildBadgeChip(item.badge)),
+                          DataCell(
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(minWidth: 110),
+                              child: _buildLanguageChip(item.language),
+                            ),
+                          ),
+                          DataCell(
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(minWidth: 110),
+                              child: _buildBadgeChip(item.badge),
+                            ),
+                          ),
                           DataCell(_buildVisibilityInfo(item)),
                           DataCell(Text('v${item.version}')),
                           DataCell(Text(_formatDate(item.updatedAt))),
