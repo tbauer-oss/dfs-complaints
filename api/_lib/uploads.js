@@ -77,10 +77,16 @@ function buildBlobPath(ticket, filename) {
   return `${prefix}/${stamp}-${suffix}-${filename}`;
 }
 
+async function resolveTicket(ticket) {
+  if (typeof ticket === 'function') return await ticket();
+  return ticket;
+}
+
 async function uploadBuffer(buffer, { ticket, filename, mime }) {
   if (!blobUploadsEnabled || !buffer?.length) return null;
   const safeName = sanitizeFilename(filename);
-  const key = buildBlobPath(ticket, safeName);
+  const resolvedTicket = await resolveTicket(ticket);
+  const key = buildBlobPath(resolvedTicket, safeName);
   const blob = await put(key, buffer, {
     access: 'public',
     contentType: (mime || 'application/octet-stream').toString(),
