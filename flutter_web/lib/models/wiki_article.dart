@@ -31,6 +31,40 @@ class WikiArticle {
     this.translations = const {},
   });
 
+  WikiArticle copyWith({
+    String? id,
+    String? categoryId,
+    String? categoryName,
+    List<String>? productGroups,
+    String? type,
+    String? title,
+    String? teaser,
+    String? importance,
+    String? contentMarkdown,
+    List<String>? tags,
+    bool? isActive,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Map<String, WikiArticleTranslation>? translations,
+  }) {
+    return WikiArticle(
+      id: id ?? this.id,
+      categoryId: categoryId ?? this.categoryId,
+      categoryName: categoryName ?? this.categoryName,
+      productGroups: productGroups ?? this.productGroups,
+      type: type ?? this.type,
+      title: title ?? this.title,
+      teaser: teaser ?? this.teaser,
+      importance: importance ?? this.importance,
+      contentMarkdown: contentMarkdown ?? this.contentMarkdown,
+      tags: tags ?? this.tags,
+      isActive: isActive ?? this.isActive,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      translations: translations ?? this.translations,
+    );
+  }
+
   factory WikiArticle.fromJson(Map<String, dynamic> json) => WikiArticle(
         id: json['id'] as String,
         categoryId: json['categoryId'] as String,

@@ -72,8 +72,16 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
       );
       if (!mounted) return;
       setState(() {
-        _articles = overview.articles.where((a) => a.isActive).toList(growable: false);
-        _categories = overview.categories.where((c) => c.isActive).toList(growable: false);
+        _categories = overview.categories
+            .where((c) => c.isActive)
+            .map((c) => _localizedCategory(c, lang))
+            .toList(growable: false);
+        final categoriesById = {for (final c in _categories) c.id: c};
+        _articles = overview.articles
+            .where((a) => a.isActive)
+            .map((a) => _localizedArticle(a, lang, categoriesById))
+            .toList(growable: false);
+        _lastLocale = lang;
       });
     } catch (e) {
       if (!mounted) return;
@@ -91,6 +99,31 @@ class _RepWikiListPageState extends State<RepWikiListPage> {
     final list = set.toList();
     list.sort();
     return list;
+  }
+
+  WikiCategory _localizedCategory(WikiCategory category, String lang) {
+    final tr = category.translationFor(lang);
+    return category.copyWith(
+      name: tr.name.isNotEmpty ? tr.name : category.name,
+      description: tr.description.isNotEmpty ? tr.description : category.description,
+    );
+  }
+
+  WikiArticle _localizedArticle(
+    WikiArticle article,
+    String lang,
+    Map<String, WikiCategory> categoriesById,
+  ) {
+    final tr = article.translationFor(lang);
+    final categoryName = categoriesById[article.categoryId]?.name ??
+        article.categoryName ??
+        article.categoryId;
+    return article.copyWith(
+      title: tr.title.isNotEmpty ? tr.title : article.title,
+      teaser: tr.teaser.isNotEmpty ? tr.teaser : article.teaser,
+      contentMarkdown: tr.contentMarkdown.isNotEmpty ? tr.contentMarkdown : article.contentMarkdown,
+      categoryName: categoryName,
+    );
   }
 
   bool _isNew(WikiArticle a) {

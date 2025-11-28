@@ -59,7 +59,7 @@ class _RepWikiDetailPageState extends State<RepWikiDetailPage> {
       final article = await widget.api.fetchWikiArticle(widget.articleId, lang: lang);
       if (!mounted) return;
       setState(() {
-        _article = article;
+        _article = _localizedArticle(article, lang);
         _loading = false;
       });
       return;
@@ -77,11 +77,21 @@ class _RepWikiDetailPageState extends State<RepWikiDetailPage> {
       }
       if (!mounted) return;
       setState(() {
-        _article = fallbackArticle ?? _article;
+        final lang = normalizeLangCode(Localizations.localeOf(context).languageCode);
+        _article = fallbackArticle != null ? _localizedArticle(fallbackArticle, lang) : _article;
         _err = _article == null ? (err ?? e.toString()) : null;
         _loading = false;
       });
     }
+  }
+
+  WikiArticle _localizedArticle(WikiArticle article, String lang) {
+    final tr = article.translationFor(lang);
+    return article.copyWith(
+      title: tr.title.isNotEmpty ? tr.title : article.title,
+      teaser: tr.teaser.isNotEmpty ? tr.teaser : article.teaser,
+      contentMarkdown: tr.contentMarkdown.isNotEmpty ? tr.contentMarkdown : article.contentMarkdown,
+    );
   }
 
   @override
