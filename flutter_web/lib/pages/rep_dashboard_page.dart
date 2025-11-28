@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'dart:math' as math;
 import '../api/client.dart';
 import 'rep_profile_page.dart';
 import 'rep_support_contact_form.dart';
@@ -2559,7 +2560,8 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     return orderedKeys.map((k) => MapEntry(k, map[k]!)).toList();
   }
 
-  Widget _buildDownloadListRow(AppLocalizations t, RepDownloadItem item, bool isPhone) {
+  Widget _buildDownloadListRow(AppLocalizations t, RepDownloadItem item, bool isPhone,
+      {_DownloadListLayout? layout}) {
     final badgeLabel = item.badge == 'change'
         ? t.rep_downloads_change
         : item.badge == 'new'
@@ -2660,6 +2662,9 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
       );
     }
 
+    assert(layout != null, 'layout must be provided for desktop/tablet list view');
+    final resolvedLayout = layout!;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
@@ -2668,8 +2673,8 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
       ),
       child: Row(
         children: [
-          Expanded(
-            flex: 5,
+          SizedBox(
+            width: resolvedLayout.titleWidth,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -2702,8 +2707,8 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
               ],
             ),
           ),
-          Expanded(
-            flex: 3,
+          SizedBox(
+            width: resolvedLayout.categoryWidth,
             child: Row(
               children: [
                 if (languageChip != null) ...[
@@ -2720,18 +2725,32 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
               ],
             ),
           ),
-          Expanded(
-            flex: 2,
-            child: Text(_formatDownloadSize(item.size), style: metaTextStyle),
+          SizedBox(
+            width: resolvedLayout.sizeWidth,
+            child: Text(
+              _formatDownloadSize(item.size),
+              style: metaTextStyle,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
-          Expanded(
-            flex: 2,
-            child: Text(_formatDownloadDate(item.updatedAt), style: metaTextStyle),
+          SizedBox(
+            width: resolvedLayout.dateWidth,
+            child: Text(
+              _formatDownloadDate(item.updatedAt),
+              style: metaTextStyle,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
-          IconButton(
-            onPressed: () => _openDownload(item),
-            icon: const Icon(Icons.download_outlined, size: 22),
-            tooltip: t.download,
+          SizedBox(
+            width: resolvedLayout.actionWidth,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: IconButton(
+                onPressed: () => _openDownload(item),
+                icon: const Icon(Icons.download_outlined, size: 22),
+                tooltip: t.download,
+              ),
+            ),
           ),
         ],
       ),
@@ -3117,31 +3136,56 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                             .toList(),
                       )
                     else
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              color: Theme.of(context).colorScheme.surface.withOpacity(0.65),
-                              padding: EdgeInsets.symmetric(horizontal: isPhone ? 12 : 12, vertical: 8),
-                              child: Row(
-                                children: [
-                                  Expanded(flex: 5, child: Text(t.rep_downloads_column_title, style: Theme.of(context).textTheme.labelLarge)),
-                                  if (!isPhone) ...[
-                                    Expanded(flex: 3, child: Text(t.rep_downloads_column_category, style: Theme.of(context).textTheme.labelLarge)),
-                                    Expanded(flex: 2, child: Text(t.rep_downloads_column_size, style: Theme.of(context).textTheme.labelLarge)),
-                                    Expanded(flex: 2, child: Text(t.rep_downloads_column_date, style: Theme.of(context).textTheme.labelLarge)),
-                                    const SizedBox(width: 36),
+                      LayoutBuilder(builder: (context, constraints) {
+                        final layout = _DownloadListLayout.fromMaxWidth(constraints.maxWidth);
+
+                        return ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                color: Theme.of(context).colorScheme.surface.withOpacity(0.65),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                child: Row(
+                                  children: [
+                                    if (isPhone) ...[
+                                      Expanded(
+                                        child: Text(t.rep_downloads_column_title,
+                                            style: Theme.of(context).textTheme.labelLarge),
+                                      ),
+                                      Icon(Icons.download_outlined, color: Colors.grey.shade500, size: 18),
+                                    ] else ...[
+                                      SizedBox(
+                                        width: layout.titleWidth,
+                                        child:
+                                            Text(t.rep_downloads_column_title, style: Theme.of(context).textTheme.labelLarge),
+                                      ),
+                                      SizedBox(
+                                        width: layout.categoryWidth,
+                                        child: Text(t.rep_downloads_column_category,
+                                            style: Theme.of(context).textTheme.labelLarge),
+                                      ),
+                                      SizedBox(
+                                        width: layout.sizeWidth,
+                                        child:
+                                            Text(t.rep_downloads_column_size, style: Theme.of(context).textTheme.labelLarge),
+                                      ),
+                                      SizedBox(
+                                        width: layout.dateWidth,
+                                        child:
+                                            Text(t.rep_downloads_column_date, style: Theme.of(context).textTheme.labelLarge),
+                                      ),
+                                      SizedBox(width: layout.actionWidth),
+                                    ],
                                   ],
-                                  if (isPhone) Icon(Icons.download_outlined, color: Colors.grey.shade500, size: 18),
-                                ],
+                                ),
                               ),
-                            ),
-                            ...items.map((item) => _buildDownloadListRow(t, item, isPhone)),
-                          ],
-                        ),
-                      ),
+                              ...items.map((item) => _buildDownloadListRow(t, item, isPhone, layout: layout)),
+                            ],
+                          ),
+                        );
+                      }),
                   ],
                 ),
               );
@@ -4961,6 +5005,76 @@ class _RepDecisionChip extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _DownloadListLayout {
+  final double titleWidth;
+  final double categoryWidth;
+  final double sizeWidth;
+  final double dateWidth;
+  final double actionWidth;
+
+  const _DownloadListLayout({
+    required this.titleWidth,
+    required this.categoryWidth,
+    required this.sizeWidth,
+    required this.dateWidth,
+    required this.actionWidth,
+  });
+
+  factory _DownloadListLayout.fromMaxWidth(double maxWidth) {
+    const minTitle = 240.0;
+    const minCategory = 140.0;
+    const minSize = 88.0;
+    const minDate = 130.0;
+    const maxCategory = 220.0;
+    const maxSize = 110.0;
+    const maxDate = 170.0;
+    const actionWidth = 56.0;
+
+    final available = math.max(maxWidth - actionWidth, 1);
+    const minimumTotal = minTitle + minCategory + minSize + minDate;
+
+    if (available <= minimumTotal) {
+      final scale = available / minimumTotal;
+      return _DownloadListLayout(
+        titleWidth: minTitle * scale,
+        categoryWidth: minCategory * scale,
+        sizeWidth: minSize * scale,
+        dateWidth: minDate * scale,
+        actionWidth: actionWidth,
+      );
+    }
+
+    double title = minTitle;
+    double category = minCategory;
+    double size = minSize;
+    double date = minDate;
+    double remaining = available - minimumTotal;
+
+    double grow(double value, double cap) {
+      if (remaining <= 0) return value;
+      final add = math.min(cap - value, remaining);
+      if (add > 0) {
+        remaining -= add;
+        return value + add;
+      }
+      return value;
+    }
+
+    category = grow(category, maxCategory);
+    date = grow(date, maxDate);
+    size = grow(size, maxSize);
+    title += remaining;
+
+    return _DownloadListLayout(
+      titleWidth: title,
+      categoryWidth: category,
+      sizeWidth: size,
+      dateWidth: date,
+      actionWidth: actionWidth,
     );
   }
 }
