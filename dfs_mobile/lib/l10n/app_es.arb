@@ -487,6 +487,7 @@
   "article": "N.º de artículo*",
   "articleNo": "Artículo",
   "batch": "Lote",
+  "batch_format_hint": "Introduzca la partida en el formato AAAA-MM-DD o AAAA-MM-DD + letra (p. ej., 2025-11-23 o 2025-11-23A).",
   "serial_number": "Número de serie",
   "quantity": "Cantidad",
   "qty": "Cantidad",
