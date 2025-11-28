@@ -74,6 +74,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   String? err;
   bool busy = false;
   final ValueNotifier<bool> _busyNotifier = ValueNotifier(false);
+  final ValueNotifier<String?> _wizardError = ValueNotifier(null);
 
   Map<String, dynamic>? _account;
   bool _helpCollapsed = true;
@@ -106,6 +107,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     desc.removeListener(_handleDescriptionChanged);
     _scrollCtrl.dispose();
     _busyNotifier.dispose();
+    _wizardError.dispose();
     super.dispose();
   }
 
@@ -598,6 +600,29 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
         );
       },
     );
+  }
+
+  String? _validateWizardStep(String id) {
+    final t = context.t;
+    final optDentist = t.segment_dentist;
+    final optYes = t.yes;
+    final isDentist = segment == optDentist;
+    final needsInjuryDesc = isDentist && applied == optYes && injury == optYes;
+
+    switch (id) {
+      case 'product':
+        if (article.text.trim().isEmpty || desc.text.trim().isEmpty) return t.required_fields;
+        if (isDentist && batch.text.trim().isEmpty) return t.required_fields;
+        break;
+      case 'patient':
+        if (needsInjuryDesc && injuryDesc.text.trim().isEmpty) return t.required_fields;
+        break;
+      case 'privacy':
+        if (!privacy) return t.privacy_required;
+        break;
+    }
+
+    return null;
   }
 
   Widget _buildAutoHelpCard({required bool compact}) {
@@ -1405,6 +1430,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
 
     final sectionLookup = {for (final entry in sections) entry.id: entry.widget};
 
+    _wizardError.value = null;
     await Navigator.of(context).push(
       MaterialPageRoute(
         fullscreenDialog: true,
@@ -1413,6 +1439,8 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
           sectionLookup: sectionLookup,
           review: null,
           busyListenable: _busyNotifier,
+          validateStep: _validateWizardStep,
+          errorListenable: _wizardError,
           onSubmit: () => _submitComplaint(onSuccess: () => Navigator.of(context).pop()),
           t: t,
         ),
@@ -1651,6 +1679,8 @@ class _ComplaintWizardOverlay extends StatefulWidget {
   final Map<String, Widget> sectionLookup;
   final Widget? review;
   final ValueListenable<bool> busyListenable;
+  final ValueNotifier<String?>? errorListenable;
+  final String? Function(String stepId)? validateStep;
   final Future<void> Function() onSubmit;
   final AppLocalizations t;
   const _ComplaintWizardOverlay({
@@ -1658,6 +1688,8 @@ class _ComplaintWizardOverlay extends StatefulWidget {
     required this.sectionLookup,
     this.review,
     required this.busyListenable,
+    this.errorListenable,
+    this.validateStep,
     required this.onSubmit,
     required this.t,
     super.key,
@@ -1669,24 +1701,50 @@ class _ComplaintWizardOverlay extends StatefulWidget {
 
 class _ComplaintWizardOverlayState extends State<_ComplaintWizardOverlay> {
   late final PageController _pageCtrl;
+  late final ValueNotifier<String?> _errorNotifier;
   int _active = 0;
 
   @override
   void initState() {
     super.initState();
     _pageCtrl = PageController(initialPage: 0);
+    _errorNotifier = widget.errorListenable ?? ValueNotifier<String?>(null);
   }
 
   @override
   void dispose() {
+    if (widget.errorListenable == null) _errorNotifier.dispose();
     _pageCtrl.dispose();
     super.dispose();
   }
 
   void _goTo(int index) {
+    _setStepError(null);
     final next = index.clamp(0, widget.steps.length - 1);
     setState(() => _active = next);
     _pageCtrl.animateToPage(next, duration: const Duration(milliseconds: 240), curve: Curves.easeInOut);
+  }
+
+  void _setStepError(String? message) {
+    _errorNotifier.value = message;
+    if (message == null) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        backgroundColor: Theme.of(context).colorScheme.error,
+      ),
+    );
+  }
+
+  bool _validateActiveStep() {
+    if (widget.validateStep == null) return true;
+    final error = widget.validateStep!(widget.steps[_active].id);
+    _setStepError(error);
+    return error == null;
   }
 
   @override
@@ -1746,93 +1804,219 @@ class _ComplaintWizardOverlayState extends State<_ComplaintWizardOverlay> {
     }
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         leading: IconButton(icon: const Icon(Icons.arrow_back), tooltip: t.back, onPressed: () => Navigator.of(context).pop()),
-        title: Text(t.complaintWizardTile),
+        title: Text(t.complaintWizardTile, style: const TextStyle(fontWeight: FontWeight.w800)),
         actions: [IconButton(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.close))],
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                theme.colorScheme.primaryContainer.withOpacity(0.9),
+                theme.colorScheme.surface.withOpacity(0.85),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: LinearProgressIndicator(
-                          value: progress,
-                          minHeight: 8,
-                          borderRadius: BorderRadius.circular(99),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text('$completed/$totalWithoutIntro', style: const TextStyle(fontWeight: FontWeight.w700)),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Icon(step.icon, size: 18, color: theme.colorScheme.primary),
-                        Text(step.title, style: const TextStyle(fontWeight: FontWeight.w700)),
-                        if (step.hint.isNotEmpty)
-                          Text(
-                            step.hint,
-                            style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [theme.colorScheme.surface, theme.colorScheme.surfaceContainerHighest.withOpacity(0.9)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 820),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 4),
+                    Card(
+                      elevation: 6,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      clipBehavior: Clip.hardEdge,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              theme.colorScheme.primaryContainer.withOpacity(0.8),
+                              theme.colorScheme.surface,
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: PageView(
-                controller: _pageCtrl,
-                physics: const NeverScrollableScrollPhysics(),
-                onPageChanged: (i) => setState(() => _active = i),
-                children: [for (final s in widget.steps) buildPage(s)],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 8, 14, 18),
-              child: ValueListenableBuilder<bool>(
-                valueListenable: widget.busyListenable,
-                builder: (_, busy, __) {
-                  final primaryLabel = isLast ? t.send : (isIntro ? t.complaint_wizard_next : t.complaint_wizard_next);
-                  return Row(
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: (busy || isIntro || _active == 0) ? null : () => _goTo(_active - 1),
-                        icon: const Icon(Icons.chevron_left),
-                        label: Text(t.complaint_wizard_prev),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: busy
-                              ? null
-                              : (isLast
-                                  ? widget.onSubmit
-                                  : () => _goTo(_active + 1)),
-                          icon: busy
-                              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                              : Icon(isLast ? Icons.send_outlined : Icons.navigate_next),
-                          label: Text(primaryLabel),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              TweenAnimationBuilder<double>(
+                                tween: Tween(begin: 0, end: progress),
+                                duration: const Duration(milliseconds: 350),
+                                curve: Curves.easeOutCubic,
+                                builder: (_, value, __) => ClipRRect(
+                                  borderRadius: BorderRadius.circular(99),
+                                  child: LinearProgressIndicator(
+                                    value: value,
+                                    minHeight: 8,
+                                    backgroundColor: theme.colorScheme.onSurface.withOpacity(0.06),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.primaryContainer.withOpacity(0.6),
+                                      borderRadius: BorderRadius.circular(12),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: theme.colorScheme.primary.withOpacity(0.2),
+                                          blurRadius: 12,
+                                          offset: const Offset(0, 6),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Icon(step.icon, size: 20, color: theme.colorScheme.primary),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(step.title, style: const TextStyle(fontWeight: FontWeight.w800)),
+                                        if (step.hint.isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(top: 4),
+                                            child: Text(
+                                              step.hint,
+                                              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  AnimatedContainer(
+                                    duration: const Duration(milliseconds: 260),
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.primary.withOpacity(0.08),
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    child: Text('$completed/$totalWithoutIntro', style: const TextStyle(fontWeight: FontWeight.w700)),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              ValueListenableBuilder<String?>(
+                                valueListenable: _errorNotifier,
+                                builder: (_, err, __) => AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 220),
+                                  child: err == null
+                                      ? const SizedBox.shrink()
+                                      : Container(
+                                          key: const ValueKey('wizard-error'),
+                                          margin: const EdgeInsets.only(top: 4),
+                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                          decoration: BoxDecoration(
+                                            color: theme.colorScheme.errorContainer.withOpacity(0.9),
+                                            borderRadius: BorderRadius.circular(12),
+                                            boxShadow: [
+                                              BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8, offset: const Offset(0, 4)),
+                                            ],
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Icon(Icons.error_outline, color: theme.colorScheme.onErrorContainer),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: Text(
+                                                  err,
+                                                  style: TextStyle(
+                                                    color: theme.colorScheme.onErrorContainer,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ],
-                  );
-                },
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: PageView(
+                        controller: _pageCtrl,
+                        physics: const NeverScrollableScrollPhysics(),
+                        onPageChanged: (i) => setState(() => _active = i),
+                        children: [for (final s in widget.steps) buildPage(s)],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 8, 4, 14),
+                      child: ValueListenableBuilder<bool>(
+                        valueListenable: widget.busyListenable,
+                        builder: (_, busy, __) {
+                          final primaryLabel = isLast ? t.send : (isIntro ? t.complaint_wizard_next : t.complaint_wizard_next);
+                          return Row(
+                            children: [
+                              OutlinedButton.icon(
+                                onPressed: (busy || isIntro || _active == 0) ? null : () => _goTo(_active - 1),
+                                icon: const Icon(Icons.chevron_left),
+                                label: Text(t.complaint_wizard_prev),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: FilledButton.icon(
+                                  style: FilledButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                    textStyle: const TextStyle(fontWeight: FontWeight.w700),
+                                    elevation: 2,
+                                    shadowColor: theme.colorScheme.primary.withOpacity(0.25),
+                                  ),
+                                  onPressed: busy
+                                      ? null
+                                      : (isLast
+                                          ? () {
+                                              if (_validateActiveStep()) widget.onSubmit();
+                                            }
+                                          : () {
+                                              if (_validateActiveStep()) _goTo(_active + 1);
+                                            }),
+                                  icon: busy
+                                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                                      : Icon(isLast ? Icons.send_outlined : Icons.navigate_next),
+                                  label: Text(primaryLabel),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
