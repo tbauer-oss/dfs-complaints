@@ -21,6 +21,7 @@ import '../widgets/password_field.dart';
 import 'rep_wiki_list_page.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../data/download_categories.dart';
+import '../data/document_languages.dart';
 
 // ---- L10n-Helper (top-level) ----
 extension _L10nX on BuildContext {
@@ -62,6 +63,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   final TextEditingController _downloadSearchCtrl = TextEditingController();
   String _downloadQuery = '';
   String _downloadCategory = 'all';
+  String _downloadLanguage = 'all';
   String _downloadBadge = 'all';
   String _downloadSort = 'recent';
 
@@ -1262,6 +1264,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       title: item.title,
       description: item.description,
       category: item.category,
+      language: item.language,
       badge: '',
       downloadUrl: item.downloadUrl,
       fileName: item.fileName,
@@ -1278,16 +1281,22 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     final query = _downloadQuery.trim().toLowerCase();
     final badge = _downloadBadge.toLowerCase();
     final category = _downloadCategory.toLowerCase();
+    final language = _downloadLanguage.toLowerCase();
 
     final List<RepDownloadItem> items = _downloads.where((d) {
       final matchesQuery = query.isEmpty ||
           d.title.toLowerCase().contains(query) ||
           d.description.toLowerCase().contains(query) ||
-          d.fileName.toLowerCase().contains(query);
+          d.fileName.toLowerCase().contains(query) ||
+          d.language.toLowerCase().contains(query);
       final matchesCategory = category == 'all' ||
           d.category.toLowerCase() == category;
+      final lang = d.language.trim().toLowerCase();
+      final matchesLanguage = language == 'all' ||
+          (language == 'none' && lang.isEmpty) ||
+          lang == language;
       final matchesBadge = badge == 'all' || d.badge.toLowerCase() == badge;
-      return matchesQuery && matchesCategory && matchesBadge;
+      return matchesQuery && matchesCategory && matchesLanguage && matchesBadge;
     }).toList(growable: false);
 
     items.sort((a, b) {
@@ -1298,6 +1307,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
           final c = a.category.toLowerCase().compareTo(b.category.toLowerCase());
           if (c != 0) return c;
           return b.updatedAt.compareTo(a.updatedAt);
+        case 'oldest':
+          return a.updatedAt.compareTo(b.updatedAt);
         default:
           return b.updatedAt.compareTo(a.updatedAt);
       }
@@ -1329,6 +1340,29 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     return ordered;
   }
 
+  List<String> _orderedLanguages(Iterable<RepDownloadItem> items) {
+    final fromData = items
+        .map((d) => d.language.trim().toLowerCase())
+        .where((c) => c.isNotEmpty)
+        .toSet();
+
+    final List<String> ordered = <String>[];
+    for (final lang in kDocumentLanguages) {
+      if (fromData.contains(lang.code) && !ordered.contains(lang.code)) {
+        ordered.add(lang.code);
+      }
+    }
+    for (final c in fromData) {
+      if (!ordered.contains(c)) ordered.add(c);
+    }
+
+    if (items.any((d) => d.language.trim().isEmpty)) {
+      ordered.add('');
+    }
+
+    return ordered;
+  }
+
   String _badgeLabel(BuildContext context, RepDownloadItem item) {
     if (item.badge == 'change') return context.t.rep_downloads_change;
     if (item.badge == 'new') return context.t.rep_downloads_new;
@@ -1339,6 +1373,14 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     if (item.badge == 'change') return const Color(0xFF8548FF);
     if (item.badge == 'new') return const Color(0xFF27AE60);
     return null;
+  }
+
+  String _languageShortLabel(String? code) {
+    return documentLanguageFor(code)?.shortLabel ?? (code ?? '').toUpperCase();
+  }
+
+  String _languageFullLabel(String? code) {
+    return documentLanguageLabel(code);
   }
 
   String _formatFileSize(int bytes) {
@@ -1414,6 +1456,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
     final filtered = _filteredDownloads();
     final categories = _orderedCategories(filtered.isEmpty ? _downloads : filtered);
+    final languages = _orderedLanguages(filtered.isEmpty ? _downloads : filtered);
 
     return LayoutBuilder(builder: (ctx, cons) {
       Widget buildFilterChips() {
@@ -1466,12 +1509,43 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         );
       }
 
+      Widget buildLanguageFilters() {
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _DownloadChoiceChip(
+              label: t.rep_downloads_filter_language_all ?? 'Alle Sprachen',
+              selected: _downloadLanguage == 'all',
+              onSelected: () => setState(() => _downloadLanguage = 'all'),
+            ),
+            if (languages.contains(''))
+              _DownloadChoiceChip(
+                label: t.rep_downloads_filter_language_none ?? 'Keine Sprache',
+                selected: _downloadLanguage == 'none',
+                onSelected: () => setState(() => _downloadLanguage = 'none'),
+              ),
+            ...languages
+                .where((c) => c.trim().isNotEmpty)
+                .map((c) => Tooltip(
+                      message: _languageFullLabel(c),
+                      child: _DownloadChoiceChip(
+                        label: _languageShortLabel(c),
+                        selected: _downloadLanguage == c.toLowerCase(),
+                        onSelected: () => setState(() => _downloadLanguage = c.toLowerCase()),
+                      ),
+                    )),
+          ],
+        );
+      }
+
       Widget buildSortControl() {
         return DropdownButtonFormField<String>(
           value: _downloadSort,
           onChanged: (v) => setState(() => _downloadSort = v ?? 'recent'),
           items: [
             DropdownMenuItem(value: 'recent', child: Text(t.rep_downloads_sort_recent ?? 'Neueste zuerst')),
+            DropdownMenuItem(value: 'oldest', child: Text(t.rep_downloads_sort_oldest ?? 'Älteste zuerst')),
             DropdownMenuItem(value: 'title', child: Text(t.rep_downloads_sort_title ?? 'Titel A-Z')),
             DropdownMenuItem(value: 'category', child: Text(t.rep_downloads_sort_category ?? 'Kategorie')),
           ],
@@ -1507,6 +1581,10 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                 Text(t.rep_downloads_filter_label ?? 'Kategorien', style: Theme.of(context).textTheme.labelLarge),
                 const SizedBox(height: 8),
                 buildFilterChips(),
+                const SizedBox(height: 8),
+                Text(t.rep_downloads_filter_language ?? 'Sprache', style: Theme.of(context).textTheme.labelLarge),
+                const SizedBox(height: 8),
+                buildLanguageFilters(),
                 const SizedBox(height: 8),
                 Text(t.rep_downloads_badge_label ?? 'Status', style: Theme.of(context).textTheme.labelLarge),
                 const SizedBox(height: 8),
@@ -1556,7 +1634,18 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                   spacing: 12,
                   runSpacing: 12,
                   children: items
-                      .map((item) => SizedBox(width: cardWidth, child: _DownloadCard(item: item, badgeLabel: _badgeLabel(context, item), badgeColor: _badgeColor(item), onDownload: () => _openDownload(item), fileSize: _formatFileSize(item.size))))
+                      .map((item) => SizedBox(
+                            width: cardWidth,
+                            child: _DownloadCard(
+                              item: item,
+                              badgeLabel: _badgeLabel(context, item),
+                              badgeColor: _badgeColor(item),
+                              onDownload: () => _openDownload(item),
+                              fileSize: _formatFileSize(item.size),
+                              languageLabel: _languageShortLabel(item.language),
+                              languageName: _languageFullLabel(item.language),
+                            ),
+                          ))
                       .toList(),
                 );
               }),
@@ -4653,12 +4742,16 @@ class _DownloadCard extends StatelessWidget {
   final Color? badgeColor;
   final VoidCallback onDownload;
   final String fileSize;
+  final String languageLabel;
+  final String languageName;
   const _DownloadCard({
     required this.item,
     required this.badgeLabel,
     required this.badgeColor,
     required this.onDownload,
     required this.fileSize,
+    required this.languageLabel,
+    required this.languageName,
   });
 
   @override
@@ -4736,6 +4829,15 @@ class _DownloadCard extends StatelessWidget {
                 runSpacing: 6,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
+                  if (languageLabel.trim().isNotEmpty)
+                    Tooltip(
+                      message: languageName,
+                      child: Chip(
+                        label: Text(languageLabel),
+                        side: BorderSide(color: cs.outlineVariant),
+                        backgroundColor: cs.surfaceVariant.withOpacity(0.5),
+                      ),
+                    ),
                   if (item.category.trim().isNotEmpty)
                     Chip(
                       label: Text(item.category),
