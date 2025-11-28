@@ -485,15 +485,13 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
   Widget _buildLanguageChip(String code) {
     final lang = documentLanguageFor(code);
     if (lang == null) return const Text('—');
-    return Tooltip(
-      message: lang.name,
-      child: Chip(
-        label: Text(lang.displayShortLabel),
-        avatar: const Icon(Icons.language_outlined, size: 16),
-        visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        shape: StadiumBorder(side: BorderSide(color: Colors.blueGrey.shade100)),
-      ),
+    return Chip(
+      label: Text(lang.shortLabel),
+      avatar: const Icon(Icons.language_outlined, size: 16),
+      visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      shape: StadiumBorder(side: BorderSide(color: Colors.blueGrey.shade100)),
+      tooltip: lang.name,
     );
   }
 
@@ -1116,18 +1114,8 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
                               ),
                             ),
                           ),
-                          DataCell(
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(minWidth: 110),
-                              child: _buildLanguageChip(item.language),
-                            ),
-                          ),
-                           DataCell(
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(minWidth: 110),
-                              child: _buildBadgeChip(item.badge),
-                            ),
-                          ),
+                          DataCell(_buildLanguageChip(item.language)),
+                          DataCell(_buildBadgeChip(item.badge)),
                           DataCell(_buildVisibilityInfo(item)),
                           DataCell(Text('v${item.version}')),
                           DataCell(Text(_formatDate(item.updatedAt))),
