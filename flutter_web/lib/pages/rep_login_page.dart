@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import 'rep_dashboard_page.dart';
-import '../l10n/app_localizations.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import '../widgets/password_field.dart';
 import '../widgets/legal_footer.dart';
 

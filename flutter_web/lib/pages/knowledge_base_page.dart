@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import '../api/client.dart';
 import '../data/knowledge_base_data.dart';
-import '../l10n/app_localizations.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import '../models/faq.dart';
 
 /// Alle 48 Einträge, verknüpft mit den ARB-Keys

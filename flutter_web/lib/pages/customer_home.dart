@@ -1,7 +1,7 @@
 // lib/pages/customer_home_page.dart
 import 'package:flutter/material.dart';
 import '../api/client.dart';
-import '../l10n/app_localizations.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 import 'complaint_form_page.dart';
 import 'my_complaints_page.dart';

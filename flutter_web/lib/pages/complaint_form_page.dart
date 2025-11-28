@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/client.dart';
-import '../l10n/app_localizations.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import '../data/knowledge_base_data.dart';
 import '../models/complaint_attachment.dart';
 import '../utils/attachment_preview.dart';

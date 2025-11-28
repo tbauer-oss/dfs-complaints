@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import '../services/app_prefs_scope.dart';
 import '../services/app_prefs.dart';
-import '../l10n/app_localizations.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class ThemeAction extends StatelessWidget {
   const ThemeAction({super.key});

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/dfs_product.dart';
 import '../services/dfs_product_service.dart';
-import '../l10n/app_localizations.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class RepProductListPage extends StatefulWidget {
   final List<String> articleNumbers;

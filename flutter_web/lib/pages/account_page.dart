@@ -8,7 +8,7 @@ import 'package:file_saver/file_saver.dart';
 import 'package:intl/intl.dart';
 import '../api/client.dart';
 import '../data/country_geography.dart';
-import '../l10n/app_localizations.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import '../models/country.dart';
 import '../services/app_prefs_scope.dart';
 import '../utils/lang_utils.dart';

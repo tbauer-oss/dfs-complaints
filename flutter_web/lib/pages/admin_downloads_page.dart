@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 
 import '../api/client.dart';
 import '../data/download_categories.dart';
+import '../data/document_languages.dart';
 import '../models/download_category.dart';
 import '../models/rep_download_item.dart';
 import '../models/admin_rep_summary.dart';
@@ -42,6 +43,7 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   String _category = '';
+  String _language = '';
   String _badge = '';
   bool _active = true;
   bool _visibleToAll = true;
@@ -106,6 +108,7 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
     _titleCtrl.clear();
     _descCtrl.clear();
     _category = '';
+    _language = '';
     _badge = '';
     _active = true;
     _visibleToAll = true;
@@ -119,6 +122,7 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
       _titleCtrl.text = item.title;
       _descCtrl.text = item.description;
       _category = item.category;
+      _language = item.language;
       _badge = item.badge;
       _active = item.active;
       _visibleToAll = item.allowedRepresentatives.isEmpty;
@@ -243,6 +247,7 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
         title: _titleCtrl.text.trim(),
         description: _descCtrl.text.trim(),
         category: _category.trim(),
+        language: _language.trim(),
         badge: _badge,
         active: _active,
         file: _filePayload,
@@ -474,6 +479,19 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
       avatar: Icon(Icons.fiber_manual_record, size: 14, color: color.shade700),
       backgroundColor: color.withOpacity(0.12),
       shape: StadiumBorder(side: BorderSide(color: color.shade200)),
+    );
+  }
+
+  Widget _buildLanguageChip(String code) {
+    final lang = documentLanguageFor(code);
+    if (lang == null) return const Text('—');
+    return Chip(
+      label: Text(lang.shortLabel),
+      avatar: const Icon(Icons.language_outlined, size: 16),
+      visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      shape: StadiumBorder(side: BorderSide(color: Colors.blueGrey.shade100)),
+      tooltip: lang.name,
     );
   }
 
@@ -820,9 +838,34 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
                         onChanged: (v) => setState(() => _category = v ?? ''),
                       ),
                     ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _language.isEmpty ? null : _language,
+                        decoration: const InputDecoration(
+                          labelText: 'Sprache',
+                          hintText: 'Sprache auswählen',
+                          prefixIcon: Icon(Icons.language_outlined),
+                        ),
+                        isExpanded: true,
+                        items: [
+                          const DropdownMenuItem(value: '', child: Text('Keine Angabe')),
+                          ...kDocumentLanguages
+                              .map((lang) => DropdownMenuItem(value: lang.code, child: Text(lang.name)))
+                              .toList(),
+                        ],
+                        onChanged: (v) => setState(() => _language = v ?? ''),
+                      ),
+                    ),
                   ];
                   return isNarrow
-                      ? Column(children: [fields[0], const SizedBox(height: 12), fields[2]])
+                      ? Column(children: [
+                          fields[0],
+                          const SizedBox(height: 12),
+                          fields[2],
+                          const SizedBox(height: 12),
+                          fields[4],
+                        ])
                       : Row(children: fields);
                 },
               ),
@@ -1044,6 +1087,7 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
                     columns: const [
                       DataColumn(label: Text('Titel')),
                       DataColumn(label: Text('Kategorie')),
+                      DataColumn(label: Text('Sprache')),
                       DataColumn(label: Text('Badge')),
                       DataColumn(label: Text('Sichtbarkeit')),
                       DataColumn(label: Text('Version')),
@@ -1070,6 +1114,7 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
                               ),
                             ),
                           ),
+                          DataCell(_buildLanguageChip(item.language)),
                           DataCell(_buildBadgeChip(item.badge)),
                           DataCell(_buildVisibilityInfo(item)),
                           DataCell(Text('v${item.version}')),

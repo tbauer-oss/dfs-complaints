@@ -1,7 +1,7 @@
 // lib/widgets/lang_action.dart
 import 'package:flutter/material.dart';
 import 'package:country_flags/country_flags.dart';
-import '../l10n/app_localizations.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import '../utils/lang_utils.dart';
 
 /// Sprachcode -> Flaggen-Ländercode (für EN nehme ich GB)

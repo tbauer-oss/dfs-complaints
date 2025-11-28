@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../api/client.dart';
-import '../l10n/app_localizations.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import '../models/customer_news_entry.dart';
 
 class CustomerNewsPage extends StatefulWidget {

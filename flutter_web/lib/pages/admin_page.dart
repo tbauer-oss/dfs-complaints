@@ -15,7 +15,7 @@ import '../models/customer_news_entry.dart';
 import '../models/dfs_product.dart';
 import '../models/faq.dart';
 import '../data/knowledge_base_data.dart';
-import '../l10n/app_localizations.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import '../services/dfs_product_service.dart';
 import '../widgets/dialog_content_scroll.dart';
 import '../widgets/legal_footer.dart';

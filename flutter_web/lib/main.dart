@@ -5,7 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 import 'api/client.dart';
-import 'l10n/app_localizations.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'services/app_prefs.dart';
 import 'services/app_prefs_scope.dart';
 import 'dart:html' as html; // für Web-Tab-Titel
