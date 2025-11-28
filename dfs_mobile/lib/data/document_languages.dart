@@ -8,8 +8,8 @@ class DocumentLanguage {
   const DocumentLanguage({
     required this.code,
     required this.name,
-    String? shortLabel,
-  }) : shortLabel = shortLabel ?? code.toUpperCase();
+    required this.shortLabel,
+  });
 }
 
 const kDocumentLanguages = <DocumentLanguage>[
