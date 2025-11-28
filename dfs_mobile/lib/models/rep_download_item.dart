@@ -13,7 +13,6 @@ class RepDownloadItem {
   final int updatedAt;
   final int version;
   final bool active;
-  final String language;
   final List<String> allowedRepresentatives;
 
   bool get visibleForAll => allowedRepresentatives.isEmpty;
@@ -32,7 +31,6 @@ class RepDownloadItem {
     required this.updatedAt,
     required this.version,
     required this.active,
-    this.language = '',
     this.allowedRepresentatives = const [],
   });
 
@@ -51,7 +49,6 @@ class RepDownloadItem {
       updatedAt: json['updatedAt'] is num ? (json['updatedAt'] as num).round() : 0,
       version: json['version'] is num ? (json['version'] as num).round() : 1,
       active: json['active'] != false,
-      language: (json['language'] ?? '').toString(),
       allowedRepresentatives: json['allowedRepresentatives'] is List
           ? (json['allowedRepresentatives'] as List)
               .whereType<String>()
