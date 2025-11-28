@@ -4,7 +4,6 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart';
 import 'package:file_saver/file_saver.dart';
 import 'package:intl/intl.dart';
 import '../api/client.dart';
@@ -13,7 +12,6 @@ import '../l10n/app_localizations.dart';
 import '../models/country.dart';
 import '../services/app_prefs_scope.dart';
 import '../utils/lang_utils.dart';
-import '../widgets/dialog_content_scroll.dart';
 import '../widgets/legal_footer.dart';
 import '../widgets/password_field.dart';
 
@@ -54,19 +52,7 @@ class _AccountPageState extends State<AccountPage> {
   Future<void> _load() async {
     setState(() { busy = true; err = null; });
     try {
-      final data = await widget.api.accountGet();
-      if (!mounted) return;
-
-      final prefs = AppPrefsScope.of(context);
-      final lang = normalizeLangCode(data['lang']?.toString());
-      final currentLang = prefs.locale?.languageCode.toLowerCase();
-      if (currentLang != lang) {
-        await prefs.setLang(lang);
-      }
-
-      setState(() {
-        acc = data;
-      });
+      acc = await widget.api.accountGet();
     } catch (e) {
       final s = e.toString();
       if (s.contains('401')) {
@@ -78,11 +64,7 @@ class _AccountPageState extends State<AccountPage> {
         }
         return;
       }
-      if (mounted) {
-        setState(() {
-          err = s;
-        });
-      }
+      err = s;
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -100,10 +82,16 @@ class _AccountPageState extends State<AccountPage> {
         context: rootContext,
         builder: (dialogCtx) => AlertDialog(
           title: Text(dialogCtx.t.dataExportTitle ?? 'Datenexport (DSGVO)'),
-          content: DialogContentScroll(
-            child: SelectableText(
-              pretty,
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480, maxHeight: 360),
+            child: Scrollbar(
+              thumbVisibility: true,
+              child: SingleChildScrollView(
+                child: SelectableText(
+                  pretty,
+                  style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+                ),
+              ),
             ),
           ),
           actions: [
@@ -146,14 +134,12 @@ class _AccountPageState extends State<AccountPage> {
   Future<void> _downloadExportFile(String pretty, BuildContext rootContext) async {
     try {
       final bytes = Uint8List.fromList(utf8.encode(pretty));
-
       await FileSaver.instance.saveFile(
         name: _exportFileName(),
         bytes: bytes,
-        fileExtension: 'txt',       // statt ext: und statt positional 'txt'
+        ext: 'txt',
         mimeType: MimeType.text,
       );
-
       if (!mounted) return;
       ScaffoldMessenger.of(rootContext).showSnackBar(
         SnackBar(
@@ -170,47 +156,6 @@ class _AccountPageState extends State<AccountPage> {
     }
   }
 
-  Widget _infoRow(BuildContext context, IconData icon, String label, String value) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withOpacity(0.08),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: theme.colorScheme.primary, size: 18),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    letterSpacing: 0.4,
-                    color: theme.colorScheme.outline,
-                  ),
-                ),
-                const SizedBox(height: 1),
-                Text(
-                  value,
-                  style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final t = context.t;
@@ -221,343 +166,141 @@ class _AccountPageState extends State<AccountPage> {
       // FIX: falscher Key (früher: t.editdata) -> nutze vorhandenen Key oder Fallback
       if (acc == null) return Center(child: Text(t.noDataFound ?? 'Keine Daten gefunden.'));
 
-      final theme = Theme.of(context);
-      final highlight = theme.colorScheme.primaryContainer.withOpacity(0.55);
-      final surfaceTint = theme.colorScheme.surfaceVariant.withOpacity(0.28);
+      return Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              // evtl. Kurz-Variable, damit wir nicht ständig acc! schreiben
+              Text('E-Mail: ${_val(acc!['email'], '')}'),
+              Text('${t.company}: ${_val(acc!['company'])}'),
+              Text('${t.contact_person}: ${_val(acc!['contact'])}'),
+              Text('${t.country_label ?? 'Land'}: ${_val(acc!['country'])}'),
+              Text('${t.catalog_select_language}: ${_langDisplay(context, acc!['lang'])}'),
 
-      return Container(
-        color: surfaceTint,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 840),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(14, 14, 14, 26),
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [highlight, theme.colorScheme.primaryContainer],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: theme.colorScheme.primary.withOpacity(0.18),
-                        blurRadius: 18,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
+              // NEU: Kundennummer (nur Anzeige)
+              // Backend liefert "customerNumber" (oder optional "customer_no")
+              Builder(
+                builder: (_) {
+                  final raw = (acc!['customerNumber'] ?? acc!['customer_no'] ?? '').toString().trim();
+                  if (raw.isEmpty) {
+                    // Wenn du bei "nicht hinterlegt" NICHTS anzeigen willst:
+                    // return const SizedBox.shrink();
+                    return Text(
+                      '${t.customer_number_label}: -',
+                    );
+                  }
+                  return Text(
+                    '${t.customer_number_label}: $raw',
+                  );
+                },
+              ),
+
+              const SizedBox(height: 16),
+
+              FilledButton.icon(
+                icon: const Icon(Icons.edit),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => _AccountEditPage(api: widget.api, initial: acc!),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.onPrimaryContainer.withOpacity(0.08),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(Icons.person_pin_circle,
-                                color: theme.colorScheme.onPrimaryContainer, size: 26),
+                ).then((_) => _load()),
+                label: Text(t.editData),
+              ),
+              const SizedBox(height: 12),
+
+              FilledButton.icon(
+                icon: const Icon(Icons.lock),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => _PasswordPage(api: widget.api)),
+                ),
+                label: Text(t.changePassword),
+              ),
+              const SizedBox(height: 12),
+
+              OutlinedButton.icon(
+                icon: _exportBusy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.file_download),
+                label: Text(t.dataExportButton ?? 'Datenexport (DSGVO)'),
+                onPressed: _exportBusy ? null : _handleExport,
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.delete_forever, color: Colors.red),
+                label: Text(t.accountDelete, style: const TextStyle(color: Colors.red)),
+                onPressed: () async {
+                  // 1) Sicherheitsabfrage
+                  final sure = await showDialog<bool>(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      title: Text(t.accountDeleteTitle),
+                      content: Text(t.accountDeleteConfirm),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: Text(t.cancel),
+                        ),
+                        FilledButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: Text(t.continueLabel),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (sure != true) return;
+
+                  // 2) Passwort-Abfrage
+                  final pwd = await showDialog<String>(
+                    context: context,
+                    builder: (_) {
+                      final ctrl = TextEditingController();
+                      return AlertDialog(
+                        // FIX: Key existierte nicht -> kompatibler Key + Fallback
+                        title: Text(t.confirmPassword ?? 'Passwort bestätigen'),
+                        content: PasswordField(
+                          controller: ctrl,
+                          decoration: InputDecoration(labelText: t.gate_password),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: Text(t.cancel),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  t.myAccount ?? 'Mein Account',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    color: theme.colorScheme.onPrimaryContainer,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  _val(acc!['email'], ''),
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onPrimaryContainer.withOpacity(0.9),
-                                  ),
-                                ),
-                              ],
-                            ),
+                          FilledButton(
+                            onPressed: () => Navigator.pop(context, ctrl.text),
+                            child: Text(t.accountDelete),
                           ),
                         ],
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Icon(Icons.verified_user, color: theme.colorScheme.onPrimaryContainer),
-                          const SizedBox(width: 8),
-                          Text(
-                            t.customer_number_label ?? 'Kundennr.',
-                            style: theme.textTheme.labelLarge?.copyWith(
-                              color: theme.colorScheme.onPrimaryContainer.withOpacity(0.8),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            _val(acc!['customerNumber'] ?? acc!['customer_no']),
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              color: theme.colorScheme.onPrimaryContainer,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+                      );
+                    },
+                  );
+                  if (pwd == null || pwd.isEmpty) return;
 
-                const SizedBox(height: 12),
-                Card(
-                  elevation: 2,
-                  margin: EdgeInsets.zero,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          t.contact_person,
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            color: theme.colorScheme.primary,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        _infoRow(context, Icons.person_outline, t.contact_person,
-                            _val(acc!['contact'])),
-                        _infoRow(
-                          context,
-                          Icons.apartment,
-                          t.company,
-                          _val(acc!['company']),
-                        ),
-                        _infoRow(
-                          context,
-                          Icons.language,
-                          t.catalog_select_language,
-                          _langDisplay(context, acc!['lang']),
-                        ),
-                        _infoRow(
-                          context,
-                          Icons.flag_outlined,
-                          t.country_label ?? 'Land',
-                          _val(acc!['country']),
-                        ),
-                        _infoRow(
-                          context,
-                          Icons.location_on_outlined,
-                          t.address ?? 'Adresse',
-                          '${_val(acc!['street'])}, ${_val(acc!['zip'])} ${_val(acc!['city'])}',
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                  try {
+                    await widget.api.accountDelete(pwd);
 
-                const SizedBox(height: 12),
-                Card(
-                  elevation: 2,
-                  margin: EdgeInsets.zero,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          t.editData,
-                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 10,
-                          runSpacing: 10,
-                          children: [
-                            FilledButton.icon(
-                              icon: const Icon(Icons.edit),
-                              style: FilledButton.styleFrom(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                              onPressed: () => Navigator.of(context)
-                                  .push(
-                                    MaterialPageRoute(
-                                      builder: (_) => _AccountEditPage(api: widget.api, initial: acc!),
-                                    ),
-                                  )
-                                  .then((_) => _load()),
-                              label: Text(t.editData),
-                            ),
-                            FilledButton.icon(
-                              icon: const Icon(Icons.lock_outline),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: theme.colorScheme.secondaryContainer,
-                                foregroundColor: theme.colorScheme.onSecondaryContainer,
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                              onPressed: () => Navigator.of(context).push(
-                                MaterialPageRoute(builder: (_) => _PasswordPage(api: widget.api)),
-                              ),
-                              label: Text(t.changePassword),
-                            ),
-                            OutlinedButton.icon(
-                              icon: _exportBusy
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
-                                    )
-                                  : const Icon(Icons.file_download_outlined),
-                              style: OutlinedButton.styleFrom(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                              label: Text(t.dataExportButton ?? 'Datenexport (DSGVO)'),
-                              onPressed: _exportBusy ? null : _handleExport,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(t.accountDeleted ?? 'Account gelöscht.')),
+                    );
 
-                const SizedBox(height: 12),
-                Card(
-                  color: theme.colorScheme.errorContainer.withOpacity(0.9),
-                  elevation: 0,
-                  margin: EdgeInsets.zero,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.warning_amber_rounded, color: theme.colorScheme.onErrorContainer),
-                            const SizedBox(width: 8),
-                            Text(
-                              t.accountDelete,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                color: theme.colorScheme.onErrorContainer,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: OutlinedButton.icon(
-                            icon: Icon(
-                              Icons.delete_forever,
-                              color: theme.colorScheme.onErrorContainer,
-                              size: 18,
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              side: BorderSide(color: theme.colorScheme.onErrorContainer.withOpacity(0.85)),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              visualDensity: VisualDensity.compact,
-                              minimumSize: const Size(0, 0),
-                            ),
-                            label: Text(
-                              t.accountDelete,
-                              style: TextStyle(
-                                color: theme.colorScheme.onErrorContainer,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            onPressed: () async {
-                              // 1) Sicherheitsabfrage
-                              final sure = await showDialog<bool>(
-                                context: context,
-                                builder: (_) => AlertDialog(
-                                  title: Text(t.accountDeleteTitle),
-                                  content: DialogContentScroll(child: Text(t.accountDeleteConfirm)),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context, false),
-                                      child: Text(t.cancel),
-                                    ),
-                                    FilledButton(
-                                      onPressed: () => Navigator.pop(context, true),
-                                      child: Text(t.continueLabel),
-                                    ),
-                                  ],
-                                ),
-                              );
-                              if (sure != true) return;
-
-                              // 2) Passwort-Abfrage
-                              final pwd = await showDialog<String>(
-                                context: context,
-                                builder: (_) {
-                                  final ctrl = TextEditingController();
-                                  return AlertDialog(
-                                    // FIX: Key existierte nicht -> kompatibler Key + Fallback
-                                    title: Text(t.confirmPassword ?? 'Passwort bestätigen'),
-                                    content: DialogContentScroll(
-                                      child: PasswordField(
-                                        controller: ctrl,
-                                        decoration: InputDecoration(labelText: t.gate_password),
-                                      ),
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(context),
-                                        child: Text(t.cancel),
-                                      ),
-                                      FilledButton(
-                                        onPressed: () => Navigator.pop(context, ctrl.text),
-                                        child: Text(t.accountDelete),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              );
-                              if (pwd == null || pwd.isEmpty) return;
-
-                              try {
-                                await widget.api.accountDelete(pwd);
-
-                                if (!mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(t.accountDeleted ?? 'Account gelöscht.')),
-                                );
-
-                                // Zur Start-/Loginseite zurück
-                                Navigator.of(context).popUntil((r) => r.isFirst);
-                              } catch (e) {
-                                if (!mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('${t.error}: $e')),
-                                );
-                              }
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
+                    // Zur Start-/Loginseite zurück
+                    Navigator.of(context).popUntil((r) => r.isFirst);
+                  } catch (e) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('${t.error}: $e')),
+                    );
+                  }
+                },
+              ),
+            ],
           ),
         ),
       );
@@ -601,6 +344,7 @@ class _AccountEditPageState extends State<_AccountEditPage> {
       TextEditingController(text: widget.initial['city']?.toString() ?? '');
 
   Country? _countrySel;
+
   bool busy = false;
   late String _selectedLang;
 
@@ -634,15 +378,6 @@ class _AccountEditPageState extends State<_AccountEditPage> {
         fallback;
   }
 
-  InputDecoration _fieldDecoration(String? label) {
-    return InputDecoration(
-      labelText: label,
-      border: const OutlineInputBorder(),
-      isDense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-    );
-  }
-
   Country? _resolveCountry(String code, String name) {
     final resolved = CountryGeography.resolveCode(code.isNotEmpty ? code : name);
     if (resolved == null) return null;
@@ -656,8 +391,7 @@ class _AccountEditPageState extends State<_AccountEditPage> {
   Widget build(BuildContext context) {
     final t = context.t;
     final prefs = AppPrefsScope.of(context);
-    final customerNo =
-        (widget.initial['customerNumber'] ?? widget.initial['customer_no'] ?? '').toString().trim();
+    final customerNo = (widget.initial['customerNumber'] ?? widget.initial['customer_no'] ?? '').toString().trim();
 
     return Scaffold(
       appBar: AppBar(title: Text(t.editData ?? 'Daten ändern')),
@@ -665,36 +399,41 @@ class _AccountEditPageState extends State<_AccountEditPage> {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
+            padding: const EdgeInsets.all(16),
             children: [
               TextField(
                 controller: email,
-                decoration: _fieldDecoration(t.email),
-              ),
+                decoration: InputDecoration(
+                  labelText: t.email, border: const OutlineInputBorder(),
+                ),
+              ),              
+              // NEU: Kundennummer nur lesend anzeigen
               if (customerNo.isNotEmpty) ...[
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 Text(
-                  '${t.customer_number_label ?? 'Kundennr.'}: $customerNo',
+                  '${t.customer_number_label}: $customerNo',
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
-              ],
-              const SizedBox(height: 6),
+              ],              
+              const SizedBox(height: 8),
               TextField(
                 controller: contact,
-                decoration: _fieldDecoration(t.contact_person),
+                decoration: InputDecoration(
+                  labelText: t.contact_person, border: const OutlineInputBorder(),
+                ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               DropdownButtonFormField<String>(
                 value: _selectedLang,
                 isExpanded: true,
-                decoration: _fieldDecoration(t.catalog_select_language),
+                decoration: InputDecoration(
+                  labelText: t.catalog_select_language,
+                  border: const OutlineInputBorder(),
+                ),
                 items: supportedLangCodes
                     .map((code) => DropdownMenuItem<String>(
                           value: code,
-                          child: Text(
-                            langNameFor(t, code),
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                          child: Text(langNameFor(t, code)),
                         ))
                     .toList(),
                 onChanged: (value) {
@@ -703,53 +442,60 @@ class _AccountEditPageState extends State<_AccountEditPage> {
                   prefs.setLang(value);
                 },
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               DropdownButtonFormField<Country>(
                 value: _selectedCountry(context),
-                isExpanded: true,
-                decoration: _fieldDecoration(t.country_label),
+                decoration: InputDecoration(
+                  labelText: t.country_label,
+                  border: const OutlineInputBorder(),
+                ),
                 items: kCountries
                     .map(
                       (country) => DropdownMenuItem<Country>(
                         value: country,
-                        child: Text(
-                          country.label(context),
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        child: Text(country.label(context)),
                       ),
                     )
                     .toList(),
                 onChanged: (val) => setState(() => _countrySel = val),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               TextField(
                 controller: company,
-                decoration: _fieldDecoration(t.company),
+                decoration: InputDecoration(
+                  labelText: t.company, border: const OutlineInputBorder(),
+                ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               TextField(
                 controller: street,
-                decoration: _fieldDecoration(t.address ?? 'Adresse'),
+                decoration: InputDecoration(
+                  labelText: t.address ?? 'Adresse', border: const OutlineInputBorder(),
+                ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               Row(
                 children: [
                   Expanded(
                     child: TextField(
                       controller: zip,
-                      decoration: _fieldDecoration(t.zip ?? 'PLZ'),
+                      decoration: InputDecoration(
+                        labelText: t.zip ?? 'PLZ', border: const OutlineInputBorder(),
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: TextField(
                       controller: city,
-                      decoration: _fieldDecoration(t.city ?? 'Ort'),
+                      decoration: InputDecoration(
+                        labelText: t.city ?? 'Ort', border: const OutlineInputBorder(),
+                      ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
               Row(
                 children: [
                   FilledButton(
