@@ -173,20 +173,20 @@ class _AccountPageState extends State<AccountPage> {
   Widget _infoRow(BuildContext context, IconData icon, String label, String value) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: 32,
+            height: 32,
             decoration: BoxDecoration(
               color: theme.colorScheme.primary.withOpacity(0.08),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: theme.colorScheme.primary, size: 20),
+            child: Icon(icon, color: theme.colorScheme.primary, size: 18),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -194,14 +194,14 @@ class _AccountPageState extends State<AccountPage> {
                 Text(
                   label,
                   style: theme.textTheme.labelSmall?.copyWith(
-                    letterSpacing: 0.5,
+                    letterSpacing: 0.4,
                     color: theme.colorScheme.outline,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 1),
                 Text(
                   value,
-                  style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+                  style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
                 ),
               ],
             ),
@@ -222,8 +222,8 @@ class _AccountPageState extends State<AccountPage> {
       if (acc == null) return Center(child: Text(t.noDataFound ?? 'Keine Daten gefunden.'));
 
       final theme = Theme.of(context);
-      final highlight = theme.colorScheme.primaryContainer.withOpacity(0.6);
-      final surfaceTint = theme.colorScheme.surfaceVariant.withOpacity(0.35);
+      final highlight = theme.colorScheme.primaryContainer.withOpacity(0.55);
+      final surfaceTint = theme.colorScheme.surfaceVariant.withOpacity(0.28);
 
       return Container(
         color: surfaceTint,
@@ -231,7 +231,7 @@ class _AccountPageState extends State<AccountPage> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 840),
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 18, 16, 32),
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 26),
               children: [
                 Container(
                   decoration: BoxDecoration(
@@ -240,16 +240,16 @@ class _AccountPageState extends State<AccountPage> {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
                         color: theme.colorScheme.primary.withOpacity(0.18),
-                        blurRadius: 24,
-                        offset: const Offset(0, 10),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
                       ),
                     ],
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -262,24 +262,26 @@ class _AccountPageState extends State<AccountPage> {
                               shape: BoxShape.circle,
                             ),
                             child: Icon(Icons.person_pin_circle,
-                                color: theme.colorScheme.onPrimaryContainer, size: 30),
+                                color: theme.colorScheme.onPrimaryContainer, size: 26),
                           ),
-                          const SizedBox(width: 14),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   t.myAccount ?? 'Mein Account',
-                                  style: theme.textTheme.titleLarge?.copyWith(
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.titleMedium?.copyWith(
                                     color: theme.colorScheme.onPrimaryContainer,
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 2),
                                 Text(
                                   _val(acc!['email'], ''),
-                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                  style: theme.textTheme.bodySmall?.copyWith(
                                     color: theme.colorScheme.onPrimaryContainer.withOpacity(0.9),
                                   ),
                                 ),
@@ -287,18 +289,21 @@ class _AccountPageState extends State<AccountPage> {
                             ),
                           ),
                           Chip(
-                            backgroundColor: theme.colorScheme.onPrimaryContainer.withOpacity(0.08),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                            visualDensity: VisualDensity.compact,
+                            backgroundColor:
+                                theme.colorScheme.onPrimaryContainer.withOpacity(0.08),
                             label: Text(
                               t.catalog_select_language,
                               style: TextStyle(
                                 color: theme.colorScheme.onPrimaryContainer,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 10),
                       Row(
                         children: [
                           Icon(Icons.verified_user, color: theme.colorScheme.onPrimaryContainer),
@@ -312,7 +317,7 @@ class _AccountPageState extends State<AccountPage> {
                           const SizedBox(width: 6),
                           Text(
                             _val(acc!['customerNumber'] ?? acc!['customer_no']),
-                            style: theme.textTheme.titleMedium?.copyWith(
+                            style: theme.textTheme.titleSmall?.copyWith(
                               color: theme.colorScheme.onPrimaryContainer,
                               fontWeight: FontWeight.w700,
                             ),
@@ -323,13 +328,13 @@ class _AccountPageState extends State<AccountPage> {
                   ),
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 Card(
-                  elevation: 4,
+                  elevation: 2,
                   margin: EdgeInsets.zero,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   child: Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(14),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -340,7 +345,7 @@ class _AccountPageState extends State<AccountPage> {
                             fontWeight: FontWeight.w700,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 2),
                         _infoRow(context, Icons.person_outline, t.contact_person,
                             _val(acc!['contact'])),
                         _infoRow(
@@ -372,13 +377,13 @@ class _AccountPageState extends State<AccountPage> {
                   ),
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 Card(
                   elevation: 2,
                   margin: EdgeInsets.zero,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   child: Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(14),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -386,15 +391,16 @@ class _AccountPageState extends State<AccountPage> {
                           t.editData,
                           style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 10),
                         Wrap(
-                          spacing: 12,
-                          runSpacing: 12,
+                          spacing: 10,
+                          runSpacing: 10,
                           children: [
                             FilledButton.icon(
                               icon: const Icon(Icons.edit),
                               style: FilledButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
                               onPressed: () => Navigator.of(context)
@@ -411,7 +417,8 @@ class _AccountPageState extends State<AccountPage> {
                               style: FilledButton.styleFrom(
                                 backgroundColor: theme.colorScheme.secondaryContainer,
                                 foregroundColor: theme.colorScheme.onSecondaryContainer,
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
                               onPressed: () => Navigator.of(context).push(
@@ -428,7 +435,8 @@ class _AccountPageState extends State<AccountPage> {
                                     )
                                   : const Icon(Icons.file_download_outlined),
                               style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
                               label: Text(t.dataExportButton ?? 'Datenexport (DSGVO)'),
@@ -441,14 +449,14 @@ class _AccountPageState extends State<AccountPage> {
                   ),
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 Card(
                   color: theme.colorScheme.errorContainer.withOpacity(0.9),
                   elevation: 0,
                   margin: EdgeInsets.zero,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   child: Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(14),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -465,14 +473,14 @@ class _AccountPageState extends State<AccountPage> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 6),
                         Text(
                           t.accountDeleteConfirm,
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: theme.colorScheme.onErrorContainer.withOpacity(0.9),
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 10),
                         Align(
                           alignment: Alignment.centerRight,
                           child: OutlinedButton.icon(
