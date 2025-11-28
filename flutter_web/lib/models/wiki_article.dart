@@ -12,6 +12,7 @@ class WikiArticle {
   final bool isActive;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final Map<String, WikiArticleTranslation> translations;
 
   const WikiArticle({
     required this.id,
@@ -27,6 +28,7 @@ class WikiArticle {
     required this.createdAt,
     required this.updatedAt,
     this.categoryName,
+    this.translations = const {},
   });
 
   factory WikiArticle.fromJson(Map<String, dynamic> json) => WikiArticle(
@@ -43,5 +45,52 @@ class WikiArticle {
         isActive: json['isActive'] as bool? ?? false,
         createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? '') ?? DateTime.now(),
         updatedAt: DateTime.tryParse(json['updatedAt']?.toString() ?? '') ?? DateTime.now(),
+        translations: _parseTranslations(json),
       );
+
+  WikiArticleTranslation translationFor(String lang) {
+    if (translations.containsKey(lang)) return translations[lang]!;
+    if (lang != 'de' && translations.containsKey('de')) return translations['de']!;
+    return const WikiArticleTranslation(title: '', teaser: '', contentMarkdown: '');
+  }
+}
+
+class WikiArticleTranslation {
+  final String title;
+  final String teaser;
+  final String contentMarkdown;
+
+  const WikiArticleTranslation({
+    required this.title,
+    required this.teaser,
+    required this.contentMarkdown,
+  });
+
+  factory WikiArticleTranslation.fromJson(Map<String, dynamic> json) => WikiArticleTranslation(
+        title: json['title']?.toString() ?? '',
+        teaser: json['teaser']?.toString() ?? '',
+        contentMarkdown: json['contentMarkdown']?.toString() ?? '',
+      );
+}
+
+Map<String, WikiArticleTranslation> _parseTranslations(Map<String, dynamic> json) {
+  final translations = <String, WikiArticleTranslation>{};
+  final raw = json['translations'];
+  if (raw is Map<String, dynamic>) {
+    for (final entry in raw.entries) {
+      if (entry.value is Map<String, dynamic>) {
+        translations[entry.key] = WikiArticleTranslation.fromJson(
+          (entry.value as Map).cast<String, dynamic>(),
+        );
+      }
+    }
+  }
+  if (!translations.containsKey('de')) {
+    translations['de'] = WikiArticleTranslation(
+      title: json['title']?.toString() ?? '',
+      teaser: json['teaser']?.toString() ?? '',
+      contentMarkdown: json['contentMarkdown']?.toString() ?? '',
+    );
+  }
+  return translations;
 }

@@ -13,6 +13,15 @@ class AdminWikiCategoriesPage extends StatefulWidget {
 }
 
 class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
+  static const _wikiLangOrder = ['de', 'en', 'es', 'fr', 'it'];
+  static const _wikiLangLabels = {
+    'de': 'Deutsch',
+    'en': 'English',
+    'es': 'Español',
+    'fr': 'Français',
+    'it': 'Italiano',
+  };
+
   bool _loading = true;
   String? _err;
   String _statusFilter = 'alle';
@@ -73,8 +82,19 @@ class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
   }
 
   Future<void> _openForm({WikiCategory? cat}) async {
-    final nameCtrl = TextEditingController(text: cat?.name ?? '');
-    final descCtrl = TextEditingController(text: cat?.description ?? '');
+    final nameCtrls = {
+      for (final code in _wikiLangOrder)
+        code: TextEditingController(
+          text: cat?.translations[code]?.name ?? (code == 'de' ? cat?.name ?? '' : ''),
+        )
+    };
+    final descCtrls = {
+      for (final code in _wikiLangOrder)
+        code: TextEditingController(
+          text:
+              cat?.translations[code]?.description ?? (code == 'de' ? cat?.description ?? '' : ''),
+        )
+    };
     final iconCtrl = TextEditingController(text: cat?.icon ?? 'info');
     final orderCtrl = TextEditingController(text: cat?.sortOrder.toString() ?? '0');
     bool isActive = cat?.isActive ?? true;
@@ -84,43 +104,72 @@ class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModalState) => AlertDialog(
           title: Text(cat == null ? 'Kategorie anlegen' : 'Kategorie bearbeiten'),
-          content: SizedBox(
-            width: 520,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: nameCtrl,
-                    decoration: const InputDecoration(labelText: 'Name *'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: descCtrl,
-                    minLines: 2,
-                    maxLines: 4,
-                    decoration: const InputDecoration(labelText: 'Beschreibung'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: iconCtrl,
-                    decoration: const InputDecoration(labelText: 'Icon (z. B. info, warning)'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: orderCtrl,
-                    decoration: const InputDecoration(labelText: 'Sortierreihenfolge'),
-                    keyboardType: TextInputType.number,
-                  ),
-                  const SizedBox(height: 12),
-                  CheckboxListTile(
-                    value: isActive,
-                    onChanged: (v) => setModalState(() => isActive = v ?? false),
-                    title: const Text('Aktiv'),
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                  ),
-                ],
+          content: DefaultTabController(
+            length: _wikiLangOrder.length,
+            child: SizedBox(
+              width: 580,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TabBar(
+                      isScrollable: true,
+                      tabs: _wikiLangOrder
+                          .map((code) => Tab(text: _wikiLangLabels[code] ?? code.toUpperCase()))
+                          .toList(),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 220,
+                      child: TabBarView(
+                        children: _wikiLangOrder
+                            .map(
+                              (code) => Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    TextField(
+                                      controller: nameCtrls[code],
+                                      decoration: InputDecoration(
+                                        labelText: 'Name ${code == 'de' ? '*' : ''}',
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    TextField(
+                                      controller: descCtrls[code],
+                                      minLines: 2,
+                                      maxLines: 4,
+                                      decoration: const InputDecoration(labelText: 'Beschreibung'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: iconCtrl,
+                      decoration: const InputDecoration(labelText: 'Icon (z. B. info, warning)'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: orderCtrl,
+                      decoration: const InputDecoration(labelText: 'Sortierreihenfolge'),
+                      keyboardType: TextInputType.number,
+                    ),
+                    const SizedBox(height: 12),
+                    CheckboxListTile(
+                      value: isActive,
+                      onChanged: (v) => setModalState(() => isActive = v ?? false),
+                      title: const Text('Aktiv'),
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -135,11 +184,18 @@ class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
     if (result == true) {
       try {
         await widget.api.adminSaveWikiCategory({
-          'name': nameCtrl.text.trim(),
-          'description': descCtrl.text.trim(),
+          'name': nameCtrls['de']?.text.trim() ?? '',
+          'description': descCtrls['de']?.text.trim() ?? '',
           'icon': iconCtrl.text.trim(),
           'sortOrder': int.tryParse(orderCtrl.text.trim()).orZero,
           'isActive': isActive,
+          'translations': {
+            for (final code in _wikiLangOrder)
+              code: {
+                'name': nameCtrls[code]?.text.trim() ?? '',
+                'description': descCtrls[code]?.text.trim() ?? '',
+              }
+          },
         }, id: cat?.id);
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -154,8 +210,12 @@ class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
       }
     }
 
-    nameCtrl.dispose();
-    descCtrl.dispose();
+    for (final ctrl in nameCtrls.values) {
+      ctrl.dispose();
+    }
+    for (final ctrl in descCtrls.values) {
+      ctrl.dispose();
+    }
     iconCtrl.dispose();
     orderCtrl.dispose();
   }
