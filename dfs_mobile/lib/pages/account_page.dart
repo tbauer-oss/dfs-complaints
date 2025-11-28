@@ -461,13 +461,6 @@ class _AccountPageState extends State<AccountPage> {
                           ],
                         ),
                         const SizedBox(height: 6),
-                        Text(
-                          t.accountDeleteConfirm,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onErrorContainer.withOpacity(0.9),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
                         Align(
                           alignment: Alignment.centerRight,
                           child: OutlinedButton.icon(
