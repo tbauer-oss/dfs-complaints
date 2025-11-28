@@ -540,7 +540,7 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                                 final ctrl = contentCtrls[lang]!;
                                 final text = ctrl.text;
                                 final selection = ctrl.selection;
-                                final insertion = '\$prefix ';
+                                final insertion = '$prefix ';
                                 final newText = text.replaceRange(selection.start, selection.end, insertion);
                                 ctrl.value = TextEditingValue(
                                   text: newText,
