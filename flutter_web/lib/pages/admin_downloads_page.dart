@@ -131,7 +131,11 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
     });
   }
 
-  Widget _buildTitleCell(RepDownloadItem item, ThemeData theme) {
+  Widget _buildTitleCell(
+    RepDownloadItem item,
+    ThemeData theme,
+    BoxConstraints constraints,
+  ) {
     final titleStyle = theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700);
     final secondaryStyle = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.onSurface.withOpacity(0.65),
@@ -139,7 +143,7 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
     );
 
     return ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 240, maxWidth: 380),
+      constraints: constraints,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
@@ -1064,93 +1068,109 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
                 padding: const EdgeInsets.only(bottom: 2),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(minWidth: minTableWidth),
-                  child: DataTable(
-                    columnSpacing: 24,
-                    horizontalMargin: 16,
-                    headingRowHeight: 48,
-                    dataRowMinHeight: 64,
-                    dataRowMaxHeight: 86,
-                    dividerThickness: 0.7,
-                    headingTextStyle: theme.textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: theme.colorScheme.onSurface.withOpacity(0.72),
-                      letterSpacing: 0.2,
-                    ),
-                    dataTextStyle: theme.textTheme.bodyMedium,
-                    headingRowColor: MaterialStatePropertyAll(
-                      theme.colorScheme.surfaceVariant.withOpacity(0.45),
-                    ),
-                    dataRowColor: MaterialStateProperty.resolveWith((states) {
-                      if (states.contains(MaterialState.hovered)) {
-                        return theme.colorScheme.surfaceVariant.withOpacity(0.25);
-                      }
-                      return Colors.transparent;
-                    }),
-                    columns: const [
-                      DataColumn(label: Text('Titel')),
-                      DataColumn(label: Text('Kategorie')),
-                      DataColumn(label: Text('Sprache')),
-                      DataColumn(label: Text('Badge')),
-                      DataColumn(label: Text('Sichtbarkeit')),
-                      DataColumn(label: Text('Version')),
-                      DataColumn(label: Text('Aktualisiert')),
-                      DataColumn(label: Text('Status')),
-                      DataColumn(label: Text('Aktionen')),
-                    ],
-                    rows: _filteredItems.map((item) {
-                      return DataRow(
-                        cells: [
-                          DataCell(_buildTitleCell(item, theme)),
-                          DataCell(
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(minWidth: 120, maxWidth: 180),
-                              child: Tooltip(
-                                message: item.category.isNotEmpty
-                                    ? item.category
-                                    : 'Keine Kategorie',
-                                child: Text(
-                                  item.category.isNotEmpty ? item.category : '–',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isCompact = constraints.maxWidth < 1200;
+                      final columnSpacing = isCompact ? 16.0 : 24.0;
+                      final titleConstraints = BoxConstraints(
+                        minWidth: isCompact ? 200 : 240,
+                        maxWidth: isCompact ? 320 : 380,
+                      );
+                      final categoryConstraints = BoxConstraints(
+                        minWidth: isCompact ? 100 : 120,
+                        maxWidth: isCompact ? 150 : 180,
+                      );
+                      final chipConstraints = BoxConstraints(minWidth: isCompact ? 90 : 110);
+
+                      return DataTable(
+                        columnSpacing: columnSpacing,
+                        horizontalMargin: 16,
+                        headingRowHeight: 48,
+                        dataRowMinHeight: 64,
+                        dataRowMaxHeight: 86,
+                        dividerThickness: 0.7,
+                        headingTextStyle: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: theme.colorScheme.onSurface.withOpacity(0.72),
+                          letterSpacing: 0.2,
+                        ),
+                        dataTextStyle: theme.textTheme.bodyMedium,
+                        headingRowColor: MaterialStatePropertyAll(
+                          theme.colorScheme.surfaceVariant.withOpacity(0.45),
+                        ),
+                        dataRowColor: MaterialStateProperty.resolveWith((states) {
+                          if (states.contains(MaterialState.hovered)) {
+                            return theme.colorScheme.surfaceVariant.withOpacity(0.25);
+                          }
+                          return Colors.transparent;
+                        }),
+                        columns: const [
+                          DataColumn(label: Text('Titel')),
+                          DataColumn(label: Text('Kategorie')),
+                          DataColumn(label: Text('Sprache')),
+                          DataColumn(label: Text('Badge')),
+                          DataColumn(label: Text('Sichtbarkeit')),
+                          DataColumn(label: Text('Version')),
+                          DataColumn(label: Text('Aktualisiert')),
+                          DataColumn(label: Text('Status')),
+                          DataColumn(label: Text('Aktionen')),
+                        ],
+                        rows: _filteredItems.map((item) {
+                          return DataRow(
+                            cells: [
+                              DataCell(_buildTitleCell(item, theme, titleConstraints)),
+                              DataCell(
+                                ConstrainedBox(
+                                  constraints: categoryConstraints,
+                                  child: Tooltip(
+                                    message: item.category.isNotEmpty
+                                        ? item.category
+                                        : 'Keine Kategorie',
+                                    child: Text(
+                                      item.category.isNotEmpty ? item.category : '–',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
-                          ),
-                          DataCell(
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(minWidth: 110),
-                              child: _buildLanguageChip(item.language),
-                            ),
-                          ),
-                          DataCell(
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(minWidth: 110),
-                              child: _buildBadgeChip(item.badge),
-                            ),
-                          ),
-                          DataCell(_buildVisibilityInfo(item)),
-                          DataCell(Text('v${item.version}')),
-                          DataCell(Text(_formatDate(item.updatedAt))),
-                          DataCell(_buildStatusChip(item.active)),
-                          DataCell(
-                            Row(
-                              children: [
-                                IconButton(
-                                  tooltip: 'Öffnen',
-                                  icon: const Icon(Icons.open_in_new_outlined),
-                                  onPressed: () => html.window.open(item.downloadUrl, '_blank'),
+                              DataCell(
+                                ConstrainedBox(
+                                  constraints: chipConstraints,
+                                  child: _buildLanguageChip(item.language),
                                 ),
-                                IconButton(
-                                  tooltip: 'Bearbeiten',
-                                  icon: const Icon(Icons.edit_outlined),
-                                  onPressed: () => _editItem(item),
+                              ),
+                              DataCell(
+                                ConstrainedBox(
+                                  constraints: chipConstraints,
+                                  child: _buildBadgeChip(item.badge),
                                 ),
-                              ],
-                            ),
-                          ),
-                        ],
+                              ),
+                              DataCell(_buildVisibilityInfo(item)),
+                              DataCell(Text('v${item.version}')),
+                              DataCell(Text(_formatDate(item.updatedAt))),
+                              DataCell(_buildStatusChip(item.active)),
+                              DataCell(
+                                Row(
+                                  children: [
+                                    IconButton(
+                                      tooltip: 'Öffnen',
+                                      icon: const Icon(Icons.open_in_new_outlined),
+                                      onPressed: () => html.window.open(item.downloadUrl, '_blank'),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Bearbeiten',
+                                      icon: const Icon(Icons.edit_outlined),
+                                      onPressed: () => _editItem(item),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          );
+                        }).toList(),
                       );
-                    }).toList(),
+                    },
                   ),
                 ),
               ),
