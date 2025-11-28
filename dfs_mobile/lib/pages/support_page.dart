@@ -83,12 +83,12 @@ class _SupportPageState extends State<SupportPage> {
         title: Text(t.supportTitle),
       ),
       body: Container(
-        color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.2),
+        color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.18),
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 820),
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 24),
               children: [
                 Container(
                   decoration: BoxDecoration(
@@ -100,16 +100,16 @@ class _SupportPageState extends State<SupportPage> {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
                         color: Theme.of(context).colorScheme.primary.withOpacity(0.15),
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
+                        blurRadius: 16,
+                        offset: const Offset(0, 6),
                       ),
                     ],
                   ),
-                  padding: const EdgeInsets.all(18),
+                  padding: const EdgeInsets.all(14),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -138,12 +138,12 @@ class _SupportPageState extends State<SupportPage> {
                               children: [
                                 Text(
                                   t.supportTitle,
-                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                         color: Theme.of(context).colorScheme.onPrimaryContainer,
                                         fontWeight: FontWeight.w800,
                                       ),
                                 ),
-                                const SizedBox(height: 6),
+                                const SizedBox(height: 4),
                                 Text(
                                   t.supportCatSuggestion,
                                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -158,22 +158,28 @@ class _SupportPageState extends State<SupportPage> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
                         children: [
-                          Chip(
-                            avatar: const Icon(Icons.timer, size: 18),
-                            label: Text(t.supportCatTechnical),
+                          _QuickCategoryButton(
+                            icon: Icons.build_circle_outlined,
+                            label: t.supportCatTechnical,
+                            onTap: () => setState(() => _cat = 'technical'),
+                            selected: _cat == 'technical',
                           ),
-                          Chip(
-                            avatar: const Icon(Icons.lock_person, size: 18),
-                            label: Text(t.supportCatPrivacy),
+                          _QuickCategoryButton(
+                            icon: Icons.lock_person,
+                            label: t.supportCatPrivacy,
+                            onTap: () => setState(() => _cat = 'privacy'),
+                            selected: _cat == 'privacy',
                           ),
-                          Chip(
-                            avatar: const Icon(Icons.feedback_outlined, size: 18),
-                            label: Text(t.supportCatFeedback),
+                          _QuickCategoryButton(
+                            icon: Icons.feedback_outlined,
+                            label: t.supportCatFeedback,
+                            onTap: () => setState(() => _cat = 'feedback'),
+                            selected: _cat == 'feedback',
                           ),
                         ],
                       ),
@@ -181,12 +187,12 @@ class _SupportPageState extends State<SupportPage> {
                   ),
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 Card(
                   elevation: 4,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   child: Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(14),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -196,7 +202,7 @@ class _SupportPageState extends State<SupportPage> {
                                 fontWeight: FontWeight.w700,
                               ),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 10),
                         DropdownButtonFormField<String>(
                           value: _cat,
                           items: _cats
@@ -206,28 +212,35 @@ class _SupportPageState extends State<SupportPage> {
                                   ))
                               .toList(),
                           onChanged: (v) => setState(() => _cat = v ?? 'general'),
+                          isExpanded: true,
                           decoration: InputDecoration(
                             labelText: t.category,
+                            isDense: true,
                             filled: true,
                             fillColor:
                                 Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.35),
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                             border: const OutlineInputBorder(),
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 10),
                         TextField(
                           controller: _msg,
                           minLines: 6,
                           maxLines: 16,
                           decoration: InputDecoration(
                             labelText: t.yourMessage,
+                            isDense: true,
                             filled: true,
                             fillColor:
                                 Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.35),
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                             border: const OutlineInputBorder(),
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 8),
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -268,7 +281,7 @@ class _SupportPageState extends State<SupportPage> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 12),
                         Row(
                           children: [
                             Expanded(
@@ -344,6 +357,62 @@ class _SupportPageState extends State<SupportPage> {
         ),
       ),
       bottomNavigationBar: LegalFooter(api: widget.api),
+    );
+  }
+}
+
+class _QuickCategoryButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool selected;
+
+  const _QuickCategoryButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    required this.selected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final bg = selected
+        ? theme.colorScheme.secondaryContainer
+        : theme.colorScheme.surfaceVariant.withOpacity(0.35);
+    final fg = selected
+        ? theme.colorScheme.onSecondaryContainer
+        : theme.colorScheme.onSurfaceVariant;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Ink(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected
+                ? theme.colorScheme.secondary.withOpacity(0.5)
+                : theme.colorScheme.outlineVariant,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18, color: fg),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: fg,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
