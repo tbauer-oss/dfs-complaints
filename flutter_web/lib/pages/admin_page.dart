@@ -9537,48 +9537,54 @@ class _UserTileState extends State<_UserTile> {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    width: 220,
-                    child: DropdownButtonFormField<String>(
-                      value: widget.assignedRepId ?? '',
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Vertreter zuweisen',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                      items: [
-                        const DropdownMenuItem(value: '', child: Text('Kein Vertreter')),
-                        ...widget.reps.map(
-                          (r) => DropdownMenuItem<String>(
-                            value: r.id,
-                            child: Text(r.displayName.isNotEmpty ? r.displayName : r.email),
-                          ),
-                        ),
-                      ],
-                      onChanged: widget.repBusy
-                          ? null
-                          : (v) async {
-                              await widget.onChangeRep(v?.trim().isEmpty == true ? null : v);
-                            },
-                    ),
-                  ),
-                  if (widget.repBusy) ...[
-                    const SizedBox(width: 12),
-                    const SizedBox(
-                      height: 18,
-                      width: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  ],
-                ],
-              ),
             ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 240,
+                  child: DropdownButtonFormField<String>(
+                    value: widget.assignedRepId ?? '',
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Vertreter zuweisen',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    items: [
+                      const DropdownMenuItem(value: '', child: Text('Kein Vertreter')),
+                      ...widget.reps.map(
+                        (r) => DropdownMenuItem<String>(
+                          value: r.id,
+                          child: Text(r.displayName.isNotEmpty ? r.displayName : r.email),
+                        ),
+                      ),
+                    ],
+                    onChanged: widget.repBusy
+                        ? null
+                        : (v) async {
+                            await widget.onChangeRep(v?.trim().isEmpty == true ? null : v);
+                          },
+                  ),
+                ),
+                if (widget.repBusy) ...[
+                  const SizedBox(width: 12),
+                  const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
         if (_expanded)
