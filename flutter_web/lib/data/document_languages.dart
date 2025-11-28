@@ -3,13 +3,15 @@
 class DocumentLanguage {
   final String code;
   final String name;
-  final String shortLabel;
+  final String? shortLabel;
 
   const DocumentLanguage({
     required this.code,
     required this.name,
-    String? shortLabel,
-  }) : shortLabel = shortLabel ?? code.toUpperCase();
+    this.shortLabel,
+  });
+
+  String get displayShortLabel => (shortLabel ?? code).toUpperCase();
 }
 
 const kDocumentLanguages = <DocumentLanguage>[

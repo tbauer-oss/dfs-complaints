@@ -2894,7 +2894,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     return Tooltip(
       message: '${t.rep_downloads_language_label}: ${lang.name}',
       child: Chip(
-        label: Text(lang.shortLabel),
+        label: Text(lang.displayShortLabel),
         avatar: const Icon(Icons.language_outlined, size: 14),
         visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,

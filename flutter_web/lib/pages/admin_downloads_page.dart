@@ -485,13 +485,15 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
   Widget _buildLanguageChip(String code) {
     final lang = documentLanguageFor(code);
     if (lang == null) return const Text('—');
-    return Chip(
-      label: Text(lang.shortLabel),
-      avatar: const Icon(Icons.language_outlined, size: 16),
-      visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      shape: StadiumBorder(side: BorderSide(color: Colors.blueGrey.shade100)),
-      tooltip: lang.name,
+    return Tooltip(
+      message: lang.name,
+      child: Chip(
+        label: Text(lang.displayShortLabel),
+        avatar: const Icon(Icons.language_outlined, size: 16),
+        visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        shape: StadiumBorder(side: BorderSide(color: Colors.blueGrey.shade100)),
+      ),
     );
   }
 
