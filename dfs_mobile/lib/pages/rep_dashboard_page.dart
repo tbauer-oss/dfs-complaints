@@ -1376,11 +1376,11 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   }
 
   String _languageShortLabel(String? code) {
-    return documentLanguageFor(code)?.shortLabel ?? (code ?? '').toUpperCase();
+    return documentLanguageFor(code)?.displayShortLabel ?? (code ?? '').toUpperCase();
   }
 
-  String _languageFullLabel(String? code) {
-    return documentLanguageLabel(code);
+  String _languageFullLabel(AppLocalizations t, String? code) {
+    return documentLanguageLabel(t, code);
   }
 
   String _formatFileSize(int bytes) {
@@ -1467,7 +1467,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             onSelected: () => setState(() => _downloadCategory = 'all'),
           ),
           ...categories.map((c) {
-            final display = c.isEmpty ? t.rep_downloads_uncategorized ?? 'Ohne Kategorie' : c;
+            final display =
+                c.isEmpty ? t.rep_downloads_uncategorized ?? 'Ohne Kategorie' : localizeDownloadCategory(t, c);
             return _DownloadChoiceChip(
               label: display,
               selected: _downloadCategory.toLowerCase() == c.toLowerCase(),
@@ -1528,7 +1529,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             ...languages
                 .where((c) => c.trim().isNotEmpty)
                 .map((c) => Tooltip(
-                      message: _languageFullLabel(c),
+                      message: _languageFullLabel(t, c),
                       child: _DownloadChoiceChip(
                         label: _languageShortLabel(c),
                         selected: _downloadLanguage == c.toLowerCase(),
@@ -1643,7 +1644,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                               onDownload: () => _openDownload(item),
                               fileSize: _formatFileSize(item.size),
                               languageLabel: _languageShortLabel(item.language),
-                              languageName: _languageFullLabel(item.language),
+                              languageName: _languageFullLabel(t, item.language),
                             ),
                           ))
                       .toList(),
@@ -1658,7 +1659,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       for (final c in categories) {
         final items = filtered.where((d) => d.category.trim().toLowerCase() == c.toLowerCase()).toList(growable: false);
         if (items.isEmpty) continue;
-        final label = c.isEmpty ? t.rep_downloads_uncategorized ?? 'Ohne Kategorie' : c;
+        final label = c.isEmpty ? t.rep_downloads_uncategorized ?? 'Ohne Kategorie' : localizeDownloadCategory(t, c);
         sections.add(buildSection(label, items));
       }
 
