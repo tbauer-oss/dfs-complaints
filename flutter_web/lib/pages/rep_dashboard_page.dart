@@ -2892,7 +2892,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     final lang = documentLanguageFor(code);
     if (lang == null) return null;
     return Tooltip(
-      message: '${t.rep_downloads_language_label}: ${lang.name}',
+      message: '${t.rep_downloads_language_label}: ${lang.localizedName(t)}',
       child: Chip(
         label: Text(lang.displayShortLabel),
         avatar: const Icon(Icons.language_outlined, size: 14),
@@ -2990,6 +2990,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
 
     final metaTextStyle = Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey.shade400);
     final languageChip = _languageBadge(item.language, t);
+    final categoryLabel = item.category.isEmpty ? '—' : localizeDownloadCategory(t, item.category);
 
     if (isPhone) {
       return Container(
@@ -3046,7 +3047,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       if (languageChip != null) languageChip,
-                      Text(item.category.isEmpty ? '—' : item.category, style: Theme.of(context).textTheme.bodySmall),
+                      Text(categoryLabel, style: Theme.of(context).textTheme.bodySmall),
                     ],
                   ),
                 ),
@@ -3113,7 +3114,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                 ],
                 Expanded(
                   child: Text(
-                    item.category.isEmpty ? '—' : item.category,
+                    categoryLabel,
                     style: Theme.of(context).textTheme.bodyMedium,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -3147,6 +3148,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
             : '';
     final accent = badgeLabel.isNotEmpty ? (item.badge == 'change' ? Colors.amber : Colors.blue) : Colors.teal;
     final languageChip = _languageBadge(item.language, t);
+    final categoryLabel = item.category.isEmpty ? '—' : localizeDownloadCategory(t, item.category);
 
     return Material(
       elevation: 1,
@@ -3216,7 +3218,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                 children: [
                   if (item.category.isNotEmpty)
                     Chip(
-                      label: Text(item.category),
+                      label: Text(categoryLabel),
                       avatar: const Icon(Icons.folder_open, size: 14),
                       visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
                       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -3362,7 +3364,8 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                           items: [
                             DropdownMenuItem(value: '', child: Text(t.rep_downloads_filter_category_all)),
                             ...sortedCategories
-                                .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                                .map((c) => DropdownMenuItem(
+                                    value: c, child: Text(localizeDownloadCategory(t, c))))
                                 .toList(),
                           ],
                           onChanged: (v) => setState(() => _downloadCategoryFilter = v ?? ''),
@@ -3378,7 +3381,8 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                             DropdownMenuItem(value: 'all', child: Text(t.rep_downloads_filter_language_all)),
                             DropdownMenuItem(value: 'none', child: Text(t.rep_downloads_filter_language_none)),
                             ...languageOptions
-                                .map((lang) => DropdownMenuItem(value: lang.code, child: Text(lang.name)))
+                                .map((lang) =>
+                                    DropdownMenuItem(value: lang.code, child: Text(lang.localizedName(t))))
                                 .toList(),
                           ],
                           onChanged: (v) => setState(() => _downloadLanguageFilter = v ?? 'all'),
@@ -3479,7 +3483,9 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
             )
           else
             ...grouped.map((entry) {
-              final label = entry.key == '__uncategorized' ? t.rep_downloads_uncategorized : entry.key;
+              final label = entry.key == '__uncategorized'
+                  ? t.rep_downloads_uncategorized
+                  : localizeDownloadCategory(t, entry.key);
               final items = entry.value;
               return Padding(
                 padding: const EdgeInsets.only(bottom: 14),
