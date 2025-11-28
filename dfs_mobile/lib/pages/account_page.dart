@@ -249,7 +249,7 @@ class _AccountPageState extends State<AccountPage> {
                       ),
                     ],
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -288,19 +288,6 @@ class _AccountPageState extends State<AccountPage> {
                               ],
                             ),
                           ),
-                          Chip(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                            visualDensity: VisualDensity.compact,
-                            backgroundColor:
-                                theme.colorScheme.onPrimaryContainer.withOpacity(0.08),
-                            label: Text(
-                              t.catalog_select_language,
-                              style: TextStyle(
-                                color: theme.colorScheme.onPrimaryContainer,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
                         ],
                       ),
                       const SizedBox(height: 10),
@@ -334,7 +321,7 @@ class _AccountPageState extends State<AccountPage> {
                   margin: EdgeInsets.zero,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   child: Padding(
-                    padding: const EdgeInsets.all(14),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -383,7 +370,7 @@ class _AccountPageState extends State<AccountPage> {
                   margin: EdgeInsets.zero,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   child: Padding(
-                    padding: const EdgeInsets.all(14),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -456,7 +443,7 @@ class _AccountPageState extends State<AccountPage> {
                   margin: EdgeInsets.zero,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   child: Padding(
-                    padding: const EdgeInsets.all(14),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -480,15 +467,21 @@ class _AccountPageState extends State<AccountPage> {
                             color: theme.colorScheme.onErrorContainer.withOpacity(0.9),
                           ),
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 8),
                         Align(
                           alignment: Alignment.centerRight,
                           child: OutlinedButton.icon(
-                            icon: Icon(Icons.delete_forever, color: theme.colorScheme.onErrorContainer),
+                            icon: Icon(
+                              Icons.delete_forever,
+                              color: theme.colorScheme.onErrorContainer,
+                              size: 18,
+                            ),
                             style: OutlinedButton.styleFrom(
-                              side: BorderSide(color: theme.colorScheme.onErrorContainer),
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              side: BorderSide(color: theme.colorScheme.onErrorContainer.withOpacity(0.85)),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              visualDensity: VisualDensity.compact,
+                              minimumSize: const Size(0, 0),
                             ),
                             label: Text(
                               t.accountDelete,
@@ -648,6 +641,15 @@ class _AccountEditPageState extends State<_AccountEditPage> {
         fallback;
   }
 
+  InputDecoration _fieldDecoration(String? label) {
+    return InputDecoration(
+      labelText: label,
+      border: const OutlineInputBorder(),
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+    );
+  }
+
   Country? _resolveCountry(String code, String name) {
     final resolved = CountryGeography.resolveCode(code.isNotEmpty ? code : name);
     if (resolved == null) return null;
@@ -670,40 +672,36 @@ class _AccountEditPageState extends State<_AccountEditPage> {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
           child: ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
             children: [
               TextField(
                 controller: email,
-                decoration: InputDecoration(
-                  labelText: t.email, border: const OutlineInputBorder(),
-                ),
+                decoration: _fieldDecoration(t.email),
               ),
               if (customerNo.isNotEmpty) ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Text(
                   '${t.customer_number_label ?? 'Kundennr.'}: $customerNo',
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
               ],
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               TextField(
                 controller: contact,
-                decoration: InputDecoration(
-                  labelText: t.contact_person, border: const OutlineInputBorder(),
-                ),
+                decoration: _fieldDecoration(t.contact_person),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               DropdownButtonFormField<String>(
                 value: _selectedLang,
                 isExpanded: true,
-                decoration: InputDecoration(
-                  labelText: t.catalog_select_language,
-                  border: const OutlineInputBorder(),
-                ),
+                decoration: _fieldDecoration(t.catalog_select_language),
                 items: supportedLangCodes
                     .map((code) => DropdownMenuItem<String>(
                           value: code,
-                          child: Text(langNameFor(t, code)),
+                          child: Text(
+                            langNameFor(t, code),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ))
                     .toList(),
                 onChanged: (value) {
@@ -712,60 +710,53 @@ class _AccountEditPageState extends State<_AccountEditPage> {
                   prefs.setLang(value);
                 },
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               DropdownButtonFormField<Country>(
                 value: _selectedCountry(context),
-                decoration: InputDecoration(
-                  labelText: t.country_label,
-                  border: const OutlineInputBorder(),
-                ),
+                isExpanded: true,
+                decoration: _fieldDecoration(t.country_label),
                 items: kCountries
                     .map(
                       (country) => DropdownMenuItem<Country>(
                         value: country,
-                        child: Text(country.label(context)),
+                        child: Text(
+                          country.label(context),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     )
                     .toList(),
                 onChanged: (val) => setState(() => _countrySel = val),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               TextField(
                 controller: company,
-                decoration: InputDecoration(
-                  labelText: t.company, border: const OutlineInputBorder(),
-                ),
+                decoration: _fieldDecoration(t.company),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               TextField(
                 controller: street,
-                decoration: InputDecoration(
-                  labelText: t.address ?? 'Adresse', border: const OutlineInputBorder(),
-                ),
+                decoration: _fieldDecoration(t.address ?? 'Adresse'),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Row(
                 children: [
                   Expanded(
                     child: TextField(
                       controller: zip,
-                      decoration: InputDecoration(
-                        labelText: t.zip ?? 'PLZ', border: const OutlineInputBorder(),
-                      ),
+                      decoration: _fieldDecoration(t.zip ?? 'PLZ'),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: TextField(
                       controller: city,
-                      decoration: InputDecoration(
-                        labelText: t.city ?? 'Ort', border: const OutlineInputBorder(),
-                      ),
+                      decoration: _fieldDecoration(t.city ?? 'Ort'),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               Row(
                 children: [
                   FilledButton(
