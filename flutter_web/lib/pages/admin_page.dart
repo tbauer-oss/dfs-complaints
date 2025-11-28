@@ -9601,6 +9601,10 @@ class _UserTileState extends State<_UserTile> {
                   OutlinedButton.icon(
                     onPressed: tileBusy ? null : _toggleRevoked,
                     icon: Icon(widget.data.revoked ? Icons.lock_open : Icons.lock_outline),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.orange,
+                      side: const BorderSide(color: Colors.orange),
+                    ),
                     label: Text(widget.data.revoked ? 'Freigeben' : 'Sperren'),
                   ),
                   FilledButton.icon(
