@@ -488,7 +488,7 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
     return Tooltip(
       message: lang.name,
       child: Chip(
-        label: Text(lang.shortLabel),
+        label: Text(lang.displayShortLabel),
         avatar: const Icon(Icons.language_outlined, size: 16),
         visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
