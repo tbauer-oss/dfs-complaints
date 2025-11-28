@@ -735,20 +735,6 @@ class ApiClient {
     return const [];
   }
 
-  Future<List<Map<String, dynamic>>> repEarlyWarnings() async {
-    final r = await _repFetch('/api/rep/early-warning');
-    if (!_ok2xx(r.statusCode)) {
-      throw Exception('GET /api/rep/early-warning failed: ${r.statusCode} ${r.body}');
-    }
-    if (r.body.isEmpty) return const [];
-    final body = jsonDecode(r.body);
-    if (body is Map && body['items'] is List) {
-      return (body['items'] as List).cast<Map<String, dynamic>>();
-    }
-    if (body is List) return body.cast<Map<String, dynamic>>();
-    return const [];
-  }
-
   Future<List<RepDownloadItem>> repDownloads() async {
     final r = await _repFetch('/api/rep/downloads');
     if (!_ok2xx(r.statusCode)) {

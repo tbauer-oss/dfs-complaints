@@ -1,6 +1,5 @@
 // lib/pages/rep_dashboard_page.dart
 import 'dart:convert';
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -20,8 +19,6 @@ import 'rep_wiki_list_page.dart';
 import '../models/rep_download_item.dart';
 import '../data/download_categories.dart';
 import '../data/document_languages.dart';
-import '../models/rep_early_warning.dart';
-import 'rep_product_list_page.dart';
 
 // ---- L10n-Helper (top-level) ----
 extension _L10nX on BuildContext {
@@ -32,7 +29,7 @@ extension _L10nX on BuildContext {
 enum _RepFilter { all, open, rejected, finished }
 
 // Menü-Views
-enum _RepView { menu, earlyWarning, open, all, customers, support, account, wiki, downloads }
+enum _RepView { menu, open, all, customers, support, account, wiki, downloads }
 
 enum _RepPasswordMode { manual, generated }
 
@@ -177,11 +174,6 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   /// Reklamationen (aus Backend)
   List<Map<String, dynamic>> _complaints = [];
 
-  /// Early-Warning-Infos
-  List<RepEarlyWarning> _warnings = const [];
-  bool _warningsLoading = false;
-  String? _warningError;
-
   // Downloads (Admin-gesteuert)
   List<RepDownloadItem> _downloads = const [];
   bool _downloadsLoading = false;
@@ -211,10 +203,6 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   String _decisionFilter = '';
   String _statusFilter = '';
 
-  // Filter für Reklamationsliste (z. B. aus Early-Warning)
-  List<String> _complaintArticleFilter = const [];
-  String _complaintCustomerFilter = '';
-
   // "NEU"-Badges: lokal gemerkte "schon gesehen" Kunden (E-Mails als Key)
   static const _seenKey = 'rep_seen_customers_v1';
   final Set<String> _seenCustomers = <String>{};
@@ -222,7 +210,6 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   // Dashboard-Layout
   static const _menuStoragePrefix = 'rep_menu_layout_v2_';
   final Map<String, _RepMenuTileDescriptor> _tileDescriptors = const {
-    'earlyWarning': _RepMenuTileDescriptor(id: 'earlyWarning', color: Colors.orange, icon: Icons.warning_amber_outlined),
     'open': _RepMenuTileDescriptor(id: 'open', color: Colors.red, icon: Icons.report_gmailerrorred_outlined),
     'all': _RepMenuTileDescriptor(id: 'all', color: Colors.indigo, icon: Icons.all_inbox_outlined),
     'customers': _RepMenuTileDescriptor(id: 'customers', color: Colors.teal, icon: Icons.apartment_outlined),
@@ -342,7 +329,6 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         isSystem: true,
         protected: true,
         tiles: [
-          _RepMenuTileState(id: 'earlyWarning', size: _RepMenuTileSize.large),
           _RepMenuTileState(id: 'open', size: _RepMenuTileSize.medium),
           _RepMenuTileState(id: 'all', size: _RepMenuTileSize.medium),
         ],
@@ -656,8 +642,6 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   String _tileTitle(BuildContext context, String id) {
     final t = context.t;
     switch (id) {
-      case 'earlyWarning':
-        return t.repMenuEarlyWarningTitle;
       case 'open':
         return t.rep_menu_open_title;
       case 'all':
@@ -679,8 +663,6 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   String _tileSubtitle(BuildContext context, String id) {
     final t = context.t;
     switch (id) {
-      case 'earlyWarning':
-        return t.repMenuEarlyWarningSubtitle;
       case 'open':
         return t.rep_menu_open_subtitle;
       case 'all':
@@ -701,8 +683,6 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
   int? _tileCount(String id, int allCount, int openCount) {
     switch (id) {
-      case 'earlyWarning':
-        return _warningsLoading ? null : _warnings.length;
       case 'open':
         return openCount;
       case 'all':
@@ -758,9 +738,6 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     if (!mounted) return;
     setState(() {
       switch (id) {
-        case 'earlyWarning':
-          _view = _RepView.earlyWarning;
-          break;
         case 'open':
           _filter = _RepFilter.open;
           _view = _RepView.open;
@@ -828,8 +805,6 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     setState(() {
       _loading = true;
       _err = null;
-      _warningsLoading = true;
-      _warningError = null;
     });
 
     try {
@@ -838,7 +813,6 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
       final me   = await widget.api.repMe();
       final comp = await widget.api.repComplaints();
-      final warningsRaw = await widget.api.repEarlyWarnings();
 
       if (mounted) {
         final meLang = (me['lang'] ?? '').toString().trim();
@@ -906,17 +880,6 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         }
       }
 
-      List<RepEarlyWarning> warnings = _warnings;
-      String? warningErr;
-      try {
-        warnings = warningsRaw
-            .whereType<Map<String, dynamic>>()
-            .map((e) => RepEarlyWarning.fromJson(e))
-            .toList(growable: false);
-      } catch (e) {
-        warningErr = e.toString();
-      }
-
       List<RepDownloadItem> downloads = _downloads;
       String? downloadsErr;
       try {
@@ -934,9 +897,6 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         _me = me;
         _customers  = customers;
         _complaints = comp;
-        _warnings = warnings;
-        _warningsLoading = false;
-        _warningError = warningErr;
         _downloads = downloads;
         _downloadsErr = downloadsErr;
         _downloadsLoading = false;
@@ -949,13 +909,11 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       if (handled) return;
       setState(() {
         _err = '$e';
-        _warningsLoading = false;
       });
     } finally {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _warningsLoading = false;
       });
     }
   }
@@ -1753,53 +1711,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     }
   }
 
-  static const List<String> _articleKeys = [
-    'article',
-    'article_no',
-    'articleNo',
-    'articleNumber',
-    'article_name',
-    'product',
-    'productName',
-    'artikel',
-    'artikelnummer',
-  ];
-
-  String _articleFromComplaint(Map<String, dynamic> c) {
-    String pick(Map<dynamic, dynamic>? source) {
-      if (source == null) return '';
-      for (final key in _articleKeys) {
-        if (source.containsKey(key)) {
-          final v = (source[key] ?? '').toString().trim();
-          if (v.isNotEmpty) return v;
-        }
-      }
-      return '';
-    }
-
-    final payload = c['payload'];
-    final product = payload is Map ? payload['product'] as Map<dynamic, dynamic>? : null;
-    for (final src in [c, payload is Map ? payload as Map<dynamic, dynamic> : null, product]) {
-      final v = pick(src);
-      if (v.isNotEmpty) return v;
-    }
-    return '';
-  }
-
-  bool _matchesWarningFilters(Map<String, dynamic> c) {
-    if (_complaintArticleFilter.isNotEmpty) {
-      final normalized = _complaintArticleFilter.map((e) => e.toLowerCase()).toSet();
-      final article = _articleFromComplaint(c).toLowerCase();
-      if (article.isEmpty || !normalized.contains(article)) return false;
-    }
-    if (_complaintCustomerFilter.trim().isNotEmpty) {
-      final target = _complaintCustomerFilter.trim().toLowerCase();
-      final email = (c['customerEmail'] ?? c['email'] ?? '').toString().toLowerCase();
-      if (email.isEmpty || !email.contains(target)) return false;
-    }
-    return true;
-  }
-
   // Mapping E-Mail -> Firma (für Firmenanzeige)
   Map<String, String> get _emailToCompany {
     final m = <String, String>{};
@@ -1857,7 +1768,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     final finishedCount = _complaints.where((c) => (int.tryParse((c['status'] ?? '').toString()) ?? 0) == 5).length;
     final title = switch (_view) {
       _RepView.menu      => t.rep_dashboard,
-      _RepView.earlyWarning => t.repEarlyWarningTitle,
       _RepView.open      => t.complaintsMyCustomer,
       _RepView.all       => t.rep_menu_all_title,
       _RepView.customers => t.myCustomers,
@@ -1873,7 +1783,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
             ? Center(child: Text(_err!, style: const TextStyle(color: Colors.red)))
             : switch (_view) {
                 _RepView.menu      => _buildMenu(allCount, openCount, rejectedCount, finishedCount),
-                _RepView.earlyWarning => _buildEarlyWarningView(),
                 _RepView.open      => _scrollWrap(_buildOpenComplaints()),
                 _RepView.all       => _scrollWrap(_buildAllComplaints()),
                 _RepView.customers => _scrollWrap(_buildCustomersCard()),
@@ -2495,317 +2404,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
               .toList(),
         ),
       ],
-    );
-  }
-
-  Color _levelColor(String level, ColorScheme cs) {
-    switch (level) {
-      case 'critical':
-        return Colors.red.shade600;
-      case 'warn':
-        return Colors.orange.shade600;
-      default:
-        return cs.primary;
-    }
-  }
-
-  String _levelLabel(AppLocalizations t, String level) {
-    switch (level) {
-      case 'critical':
-        return t.repEarlyWarningLevelCritical;
-      case 'warn':
-        return t.repEarlyWarningLevelWarn;
-      default:
-        return t.repEarlyWarningLevelInfo;
-    }
-  }
-
-  void _openProductsForWarning(RepEarlyWarning warning) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => RepProductListPage(
-          articleNumbers: warning.articleNumbers,
-          productGroup: warning.productGroup,
-          title: warning.productGroup ?? context.t.repEarlyWarningProductsTitle,
-        ),
-      ),
-    );
-  }
-
-  void _openComplaintsForWarning(RepEarlyWarning warning) {
-    setState(() {
-      _complaintArticleFilter = warning.articleNumbers;
-      _complaintCustomerFilter = warning.customerEmail ?? '';
-      _filter = _RepFilter.all;
-      _view = _RepView.all;
-    });
-  }
-
-  Widget _buildTrendBar(AppLocalizations t, RepEarlyWarning warning) {
-    final cs = Theme.of(context).colorScheme;
-    final maxCount = math.max(warning.recentCount, warning.previousCount);
-    if (maxCount == 0) return const SizedBox.shrink();
-    final recentWidth = warning.recentCount / maxCount;
-    final prevWidth = warning.previousCount / maxCount;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          t.repEarlyWarningTrendTitle,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 6),
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(t.repEarlyWarningRecentLabel(warning.recentCount)),
-                  const SizedBox(height: 4),
-                  Container(
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: cs.primary.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: FractionallySizedBox(
-                      alignment: Alignment.centerLeft,
-                      widthFactor: recentWidth.clamp(0, 1).toDouble(),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: cs.primary,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(t.repEarlyWarningPreviousLabel(warning.previousCount)),
-                  const SizedBox(height: 4),
-                  Container(
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: cs.secondary.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: FractionallySizedBox(
-                      alignment: Alignment.centerLeft,
-                      widthFactor: prevWidth.clamp(0, 1).toDouble(),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: cs.secondary,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Future<void> _openWarningDetails(RepEarlyWarning warning) async {
-    final t = context.t;
-    final cs = Theme.of(context).colorScheme;
-    await showDialog<void>(
-      context: context,
-      builder: (dialogCtx) {
-        final levelColor = _levelColor(warning.level, cs);
-        return AlertDialog(
-          title: Text(warning.title),
-          content: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.warning_amber_outlined, color: levelColor),
-                    const SizedBox(width: 8),
-                    Text(
-                      _levelLabel(t, warning.level),
-                      style: TextStyle(color: levelColor, fontWeight: FontWeight.w600),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Text(warning.description),
-                if ((warning.productGroup ?? '').isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Chip(label: Text(warning.productGroup!)),
-                ],
-                const SizedBox(height: 12),
-                _buildTrendBar(t, warning),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    if (warning.articleNumbers.isNotEmpty)
-                      Wrap(
-                        spacing: 6,
-                        children: warning.articleNumbers
-                            .map((a) => Chip(label: Text('${t.repEarlyWarningArticleLabel}: $a')))
-                            .toList(),
-                      ),
-                    if ((warning.customerEmail ?? '').isNotEmpty)
-                      Chip(label: Text('${t.repEarlyWarningCustomerLabel}: ${warning.customerEmail}')),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton.icon(
-              onPressed: () {
-                Navigator.of(dialogCtx).pop();
-                _openProductsForWarning(warning);
-              },
-              icon: const Icon(Icons.list_alt_outlined),
-              label: Text(t.repEarlyWarningOpenProducts),
-            ),
-            TextButton.icon(
-              onPressed: () {
-                Navigator.of(dialogCtx).pop();
-                _openComplaintsForWarning(warning);
-              },
-              icon: const Icon(Icons.assignment_outlined),
-              label: Text(t.repEarlyWarningOpenComplaints),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(dialogCtx).pop(),
-              child: Text(t.close),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _warningCard(RepEarlyWarning warning, bool compact) {
-    final t = context.t;
-    final cs = Theme.of(context).colorScheme;
-    final levelColor = _levelColor(warning.level, cs);
-
-    return InkWell(
-      onTap: () => _openWarningDetails(warning),
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: levelColor.withOpacity(0.14),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      _levelLabel(t, warning.level),
-                      style: TextStyle(color: levelColor, fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                  const Spacer(),
-                  Icon(Icons.trending_up, color: levelColor),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                warning.title,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 6),
-              Text(warning.description),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                children: [
-                  if ((warning.productGroup ?? '').isNotEmpty)
-                    Chip(label: Text(warning.productGroup!)),
-                  if ((warning.customerEmail ?? '').isNotEmpty)
-                    Chip(label: Text('${t.repEarlyWarningCustomerLabel}: ${warning.customerEmail}')),
-                  if (warning.articleNumbers.isNotEmpty)
-                    ...warning.articleNumbers.map(
-                      (a) => Chip(label: Text('${t.repEarlyWarningArticleLabel}: $a')),
-                    ),
-                ],
-              ),
-              const Spacer(),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  onPressed: () => _openWarningDetails(warning),
-                  icon: const Icon(Icons.open_in_new),
-                  label: Text(t.repEarlyWarningDetails),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEarlyWarningView() {
-    final t = context.t;
-    if (_warningsLoading) {
-      return const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()));
-    }
-    if (_warningError != null) {
-      return Center(child: Text(_warningError!, style: const TextStyle(color: Colors.red)));
-    }
-    if (_warnings.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.celebration_outlined, size: 42),
-            const SizedBox(height: 8),
-            Text(t.repEarlyWarningEmpty, textAlign: TextAlign.center),
-          ],
-        ),
-      );
-    }
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final isPhone = width < 640;
-        final crossAxisCount = width >= 1300
-            ? 3
-            : width >= 900
-                ? 2
-                : 1;
-        return GridView.builder(
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
-            mainAxisSpacing: 18,
-            crossAxisSpacing: 18,
-            childAspectRatio: isPhone ? 0.95 : 1.2,
-          ),
-          itemCount: _warnings.length,
-          itemBuilder: (_, i) => _warningCard(_warnings[i], isPhone),
-        );
-      },
     );
   }
 
@@ -3703,7 +3301,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
 
     list = list.where(_matchesDecisionFilter).toList();
     list = list.where(_matchesStatusFilter).toList();
-    list = list.where(_matchesWarningFilters).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -3770,27 +3367,6 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                   selected: _showClosedAll,
                   onSelected: (v) => setState(() => _showClosedAll = v),
                 ),
-                if (_complaintArticleFilter.isNotEmpty)
-                  InputChip(
-                    label: Text(t.repEarlyWarningArticleFilter(_complaintArticleFilter.join(', '))),
-                    onDeleted: () => setState(() => _complaintArticleFilter = const []),
-                  ),
-                if (_complaintCustomerFilter.trim().isNotEmpty)
-                  InputChip(
-                    label: Text(t.repEarlyWarningCustomerFilter(_complaintCustomerFilter)),
-                    onDeleted: () => setState(() => _complaintCustomerFilter = ''),
-                  ),
-                if (_complaintArticleFilter.isNotEmpty || _complaintCustomerFilter.trim().isNotEmpty)
-                  TextButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        _complaintArticleFilter = const [];
-                        _complaintCustomerFilter = '';
-                      });
-                    },
-                    icon: const Icon(Icons.filter_alt_off_outlined),
-                    label: Text(t.repEarlyWarningClearFilters),
-                  ),
               ],
             ),
           ),
