@@ -438,121 +438,94 @@ class _AccountPageState extends State<AccountPage> {
 
                 const SizedBox(height: 12),
                 Card(
-                  color: theme.colorScheme.errorContainer.withOpacity(0.9),
+                  color: theme.colorScheme.error,
                   elevation: 0,
                   margin: EdgeInsets.zero,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.warning_amber_rounded, color: theme.colorScheme.onErrorContainer),
-                            const SizedBox(width: 8),
-                            Text(
-                              t.accountDelete,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                color: theme.colorScheme.onErrorContainer,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ],
+                    padding: const EdgeInsets.all(12),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        icon: const Icon(Icons.delete_forever, size: 18),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: theme.colorScheme.error,
+                          foregroundColor: theme.colorScheme.onError,
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        const SizedBox(height: 6),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: OutlinedButton.icon(
-                            icon: Icon(
-                              Icons.delete_forever,
-                              color: theme.colorScheme.onErrorContainer,
-                              size: 18,
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              side: BorderSide(color: theme.colorScheme.onErrorContainer.withOpacity(0.85)),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              visualDensity: VisualDensity.compact,
-                              minimumSize: const Size(0, 0),
-                            ),
-                            label: Text(
-                              t.accountDelete,
-                              style: TextStyle(
-                                color: theme.colorScheme.onErrorContainer,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            onPressed: () async {
-                              // 1) Sicherheitsabfrage
-                              final sure = await showDialog<bool>(
-                                context: context,
-                                builder: (_) => AlertDialog(
-                                  title: Text(t.accountDeleteTitle),
-                                  content: DialogContentScroll(child: Text(t.accountDeleteConfirm)),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context, false),
-                                      child: Text(t.cancel),
-                                    ),
-                                    FilledButton(
-                                      onPressed: () => Navigator.pop(context, true),
-                                      child: Text(t.continueLabel),
-                                    ),
-                                  ],
+                        label: Text(
+                          t.accountDelete,
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        onPressed: () async {
+                          // 1) Sicherheitsabfrage
+                          final sure = await showDialog<bool>(
+                            context: context,
+                            builder: (_) => AlertDialog(
+                              title: Text(t.accountDeleteTitle),
+                              content: DialogContentScroll(child: Text(t.accountDeleteConfirm)),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context, false),
+                                  child: Text(t.cancel),
                                 ),
+                                FilledButton(
+                                  onPressed: () => Navigator.pop(context, true),
+                                  child: Text(t.continueLabel),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (sure != true) return;
+
+                          // 2) Passwort-Abfrage
+                          final pwd = await showDialog<String>(
+                            context: context,
+                            builder: (_) {
+                              final ctrl = TextEditingController();
+                              return AlertDialog(
+                                // FIX: Key existierte nicht -> kompatibler Key + Fallback
+                                title: Text(t.confirmPassword ?? 'Passwort bestätigen'),
+                                content: DialogContentScroll(
+                                  child: PasswordField(
+                                    controller: ctrl,
+                                    decoration: InputDecoration(labelText: t.gate_password),
+                                  ),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: Text(t.cancel),
+                                  ),
+                                  FilledButton(
+                                    onPressed: () => Navigator.pop(context, ctrl.text),
+                                    child: Text(t.accountDelete),
+                                  ),
+                                ],
                               );
-                              if (sure != true) return;
-
-                              // 2) Passwort-Abfrage
-                              final pwd = await showDialog<String>(
-                                context: context,
-                                builder: (_) {
-                                  final ctrl = TextEditingController();
-                                  return AlertDialog(
-                                    // FIX: Key existierte nicht -> kompatibler Key + Fallback
-                                    title: Text(t.confirmPassword ?? 'Passwort bestätigen'),
-                                    content: DialogContentScroll(
-                                      child: PasswordField(
-                                        controller: ctrl,
-                                        decoration: InputDecoration(labelText: t.gate_password),
-                                      ),
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(context),
-                                        child: Text(t.cancel),
-                                      ),
-                                      FilledButton(
-                                        onPressed: () => Navigator.pop(context, ctrl.text),
-                                        child: Text(t.accountDelete),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              );
-                              if (pwd == null || pwd.isEmpty) return;
-
-                              try {
-                                await widget.api.accountDelete(pwd);
-
-                                if (!mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(t.accountDeleted ?? 'Account gelöscht.')),
-                                );
-
-                                // Zur Start-/Loginseite zurück
-                                Navigator.of(context).popUntil((r) => r.isFirst);
-                              } catch (e) {
-                                if (!mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('${t.error}: $e')),
-                                );
-                              }
                             },
-                          ),
-                        ),
-                      ],
+                          );
+                          if (pwd == null || pwd.isEmpty) return;
+
+                          try {
+                            await widget.api.accountDelete(pwd);
+
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(t.accountDeleted ?? 'Account gelöscht.')),
+                            );
+
+                            // Zur Start-/Loginseite zurück
+                            Navigator.of(context).popUntil((r) => r.isFirst);
+                          } catch (e) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('${t.error}: $e')),
+                            );
+                          }
+                        },
+                      ),
                     ),
                   ),
                 ),
