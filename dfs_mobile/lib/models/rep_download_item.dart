@@ -4,6 +4,7 @@ class RepDownloadItem {
   final String title;
   final String description;
   final String category;
+  final String language;
   final String badge;
   final String downloadUrl;
   final String fileName;
@@ -22,6 +23,7 @@ class RepDownloadItem {
     required this.title,
     required this.description,
     required this.category,
+    required this.language,
     required this.badge,
     required this.downloadUrl,
     required this.fileName,
@@ -40,6 +42,7 @@ class RepDownloadItem {
       title: (json['title'] ?? '').toString(),
       description: (json['description'] ?? '').toString(),
       category: (json['category'] ?? '').toString(),
+      language: (json['language'] ?? '').toString().trim(),
       badge: (json['badge'] ?? '').toString(),
       downloadUrl: (json['downloadUrl'] ?? json['url'] ?? '').toString(),
       fileName: (json['fileName'] ?? json['name'] ?? '').toString(),
