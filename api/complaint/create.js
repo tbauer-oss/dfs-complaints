@@ -62,8 +62,13 @@ export default async function handler(req, res) {
       return bad(res, 'batch required for dentist', 400);
     }
 
-    // --- Save first ---
-    const ticket = await nextTicket();
+    // --- Ticket erst erzeugen, wenn Uploads valide sind ---
+    let ticketPromise;
+    const ensureTicket = () => {
+      ticketPromise = ticketPromise || nextTicket();
+      return ticketPromise;
+    };
+
     const nowMs  = Date.now();
     let meta = null;
     try { meta = await loadAppMeta(); } catch (e) { console.warn('[create] meta load failed', e?.message || e); }
@@ -71,7 +76,7 @@ export default async function handler(req, res) {
     let processedFiles;
     try {
       processedFiles = await processIncomingFiles(files, {
-        ticket,
+        ticket: ensureTicket,
         includeMailAttachments: true,
         allowPreviewFallback: !blobUploadsEnabled,
       });
@@ -84,6 +89,7 @@ export default async function handler(req, res) {
       return bad(res, msg, 400);
     }
 
+    const ticket = await ensureTicket();
     const uploads = [...providedUploads, ...processedFiles.uploads];
 
     const complaint = {

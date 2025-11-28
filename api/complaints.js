@@ -97,12 +97,16 @@ export default async function handler(req, res) {
       if (segment === 'Zahnarzt' && !batch)
         return bad(res, 'batch required for dentist', 400);
 
-      const ticket = await nextTicket();
+      let ticketPromise;
+      const ensureTicket = () => {
+        ticketPromise = ticketPromise || nextTicket();
+        return ticketPromise;
+      };
 
       let processedFiles;
       try {
         processedFiles = await processIncomingFiles(files, {
-          ticket,
+          ticket: ensureTicket,
           allowPreviewFallback: !blobUploadsEnabled,
         });
       } catch (err) {
@@ -114,6 +118,7 @@ export default async function handler(req, res) {
         return bad(res, msg, 400);
       }
 
+      const ticket = await ensureTicket();
       const uploads = [...providedUploads, ...processedFiles.uploads];
       const now = Date.now();
 
