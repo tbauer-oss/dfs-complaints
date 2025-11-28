@@ -20,6 +20,7 @@ const redis = redisUrl && redisToken ? new Redis({ url: redisUrl, token: redisTo
 const PFX = 'dfs:wiki:';
 const KEY_CATEGORIES = `${PFX}categories`;
 const KEY_ARTICLES = `${PFX}articles`;
+const WIKI_LANGS = ['de', 'en', 'es', 'fr', 'it'];
 
 const mem = {
   categories: [],
@@ -182,6 +183,75 @@ function articleWithLang(article, lang, categories = []) {
   };
 }
 
+function categoryTranslations(cat) {
+  const translations = {};
+  const langs = new Set([
+    ...WIKI_LANGS,
+    ...Object.keys(cat.nameIntl || {}),
+    ...Object.keys(cat.descriptionIntl || {}),
+  ]);
+  for (const lang of langs) {
+    const normalized = normalizeLangValue(lang);
+    if (!normalized) continue;
+    const isBase = normalized === 'de';
+    const name = isBase ? cat.name : cat.nameIntl?.[normalized];
+    const description = isBase ? cat.description : cat.descriptionIntl?.[normalized];
+    if ((name && name.trim()) || (description && description.trim())) {
+      translations[normalized] = {
+        name: name?.toString() ?? '',
+        description: description?.toString() ?? '',
+      };
+    }
+  }
+  if (!translations.de) {
+    translations.de = { name: cat.name || '', description: cat.description || '' };
+  }
+  return translations;
+}
+
+function articleTranslations(article) {
+  const translations = {};
+  const langs = new Set([
+    ...WIKI_LANGS,
+    ...Object.keys(article.titleIntl || {}),
+    ...Object.keys(article.teaserIntl || {}),
+    ...Object.keys(article.contentIntl || {}),
+  ]);
+  for (const lang of langs) {
+    const normalized = normalizeLangValue(lang);
+    if (!normalized) continue;
+    const isBase = normalized === 'de';
+    const title = isBase ? article.title : article.titleIntl?.[normalized];
+    const teaser = isBase ? article.teaser : article.teaserIntl?.[normalized];
+    const content = isBase ? article.contentMarkdown : article.contentIntl?.[normalized];
+    if ((title && title.trim()) || (teaser && teaser.trim()) || (content && content.trim())) {
+      translations[normalized] = {
+        title: title?.toString() ?? '',
+        teaser: teaser?.toString() ?? '',
+        contentMarkdown: content?.toString() ?? '',
+      };
+    }
+  }
+  if (!translations.de) {
+    translations.de = {
+      title: article.title || '',
+      teaser: article.teaser || '',
+      contentMarkdown: article.contentMarkdown || '',
+    };
+  }
+  return translations;
+}
+
+function categoryView(cat, lang) {
+  const localized = lang ? categoryWithLang(cat, lang) : cat;
+  return { ...localized, translations: categoryTranslations(cat) };
+}
+
+function articleView(article, lang, categories = []) {
+  const localized = lang ? articleWithLang(article, lang, categories) : article;
+  return { ...localized, translations: articleTranslations(article) };
+}
+
 async function loadCategories() {
   if (redis) {
     const raw = await rget(KEY_CATEGORIES);
@@ -248,7 +318,7 @@ export async function wikiCategories({ includeInactive = true, lang = null } = {
   const langNorm = normalizeLangValue(lang);
   const cats = await loadCategories();
   const filtered = includeInactive ? cats : cats.filter((c) => c.isActive);
-  return langNorm ? filtered.map((c) => categoryWithLang(c, langNorm)) : filtered;
+  return filtered.map((c) => categoryView(c, langNorm));
 }
 
 export async function wikiArticles({ includeInactive = false, filters = {}, lang = null } = {}) {
@@ -279,8 +349,7 @@ export async function wikiArticles({ includeInactive = false, filters = {}, lang
     return true;
   });
 
-  if (!langNorm) return filtered;
-  return filtered.map((a) => articleWithLang(a, langNorm, cats));
+  return filtered.map((a) => articleView(a, langNorm, cats));
 }
 
 export async function wikiPublicList(params = {}) {
@@ -300,8 +369,7 @@ export async function wikiGetPublic(id, { lang = null } = {}) {
   const found = items.find((a) => a.id === target);
   if (!found) return null;
   if (!allowed.has(found.categoryId)) return null;
-  if (!langNorm) return found;
-  return articleWithLang(found, langNorm, cats);
+  return found;
 }
 
 export async function wikiAdminList(params = {}) {
@@ -366,6 +434,8 @@ export async function wikiDeleteArticle(id) {
 export async function wikiGetArticle(id) {
   const target = (id ?? '').toString().trim();
   if (!target) return null;
+  const cats = await wikiCategories({ includeInactive: true });
   const items = await loadArticles();
-  return items.find((a) => a.id === target) || null;
+  const found = items.find((a) => a.id === target) || null;
+  return found ? articleView(found, null, cats) : null;
 }
