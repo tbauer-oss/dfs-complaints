@@ -102,6 +102,7 @@ export default async function handler(req, res) {
         description: body.description,
         category: body.category,
         badge: body.badge,
+        language: body.language,
         active: body.active,
         allowedRepresentatives: Array.isArray(body.allowedRepresentatives)
           ? body.allowedRepresentatives

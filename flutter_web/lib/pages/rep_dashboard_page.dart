@@ -19,6 +19,7 @@ import '../widgets/password_field.dart';
 import 'rep_wiki_list_page.dart';
 import '../models/rep_download_item.dart';
 import '../data/download_categories.dart';
+import '../data/document_languages.dart';
 import '../models/rep_early_warning.dart';
 import 'rep_product_list_page.dart';
 
@@ -186,7 +187,10 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   bool _downloadsLoading = false;
   String? _downloadsErr;
   String _downloadSearch = '';
+  String _downloadCategoryFilter = '';
+  String _downloadLanguageFilter = 'all';
   String _downloadBadgeFilter = 'all';
+  String _downloadSort = 'newest';
   _DownloadsView _downloadView = _DownloadsView.grid;
   final TextEditingController _downloadSearchCtrl = TextEditingController();
 
@@ -2844,6 +2848,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
       title: item.title,
       description: item.description,
       category: item.category,
+      language: item.language,
       badge: '',
       downloadUrl: item.downloadUrl,
       fileName: item.fileName,
@@ -2852,6 +2857,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
       updatedAt: item.updatedAt,
       version: item.version,
       active: item.active,
+      allowedRepresentatives: item.allowedRepresentatives,
     );
   }
 
@@ -2882,8 +2888,24 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     return DateFormat('dd.MM.yyyy').format(DateTime.fromMillisecondsSinceEpoch(ts));
   }
 
+  Widget? _languageBadge(String code, AppLocalizations t) {
+    final lang = documentLanguageFor(code);
+    if (lang == null) return null;
+    return Tooltip(
+      message: '${t.rep_downloads_language_label}: ${lang.name}',
+      child: Chip(
+        label: Text(lang.shortLabel),
+        avatar: const Icon(Icons.language_outlined, size: 14),
+        visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1.5),
+        labelStyle: const TextStyle(fontSize: 11.5),
+      ),
+    );
+  }
+
   List<RepDownloadItem> _filteredDownloads() {
-    List<RepDownloadItem> list = _downloads;
+    List<RepDownloadItem> list = List.of(_downloads);
     if (_downloadSearch.trim().isNotEmpty) {
       final q = _downloadSearch.trim().toLowerCase();
       list = list.where((d) {
@@ -2892,11 +2914,30 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
             d.category.toLowerCase().contains(q);
       }).toList();
     }
+    if (_downloadCategoryFilter.isNotEmpty) {
+      final target = _downloadCategoryFilter.toLowerCase();
+      list = list.where((d) => d.category.toLowerCase() == target).toList();
+    }
+    if (_downloadLanguageFilter != 'all') {
+      if (_downloadLanguageFilter == 'none') {
+        list = list.where((d) => d.language.trim().isEmpty).toList();
+      } else {
+        final lang = _downloadLanguageFilter.toLowerCase();
+        list = list.where((d) => d.language.toLowerCase() == lang).toList();
+      }
+    }
     if (_downloadBadgeFilter != 'all') {
       list = list.where((d) {
         if (_downloadBadgeFilter == 'none') return d.badge.isEmpty;
         return d.badge == _downloadBadgeFilter;
       }).toList();
+    }
+    switch (_downloadSort) {
+      case 'oldest':
+        list.sort((a, b) => a.updatedAt.compareTo(b.updatedAt));
+        break;
+      default:
+        list.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     }
     return list;
   }
@@ -2948,6 +2989,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
         : null;
 
     final metaTextStyle = Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey.shade400);
+    final languageChip = _languageBadge(item.language, t);
 
     if (isPhone) {
       return Container(
@@ -2997,7 +3039,17 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
             const SizedBox(height: 6),
             Row(
               children: [
-                Expanded(child: Text(item.category.isEmpty ? '—' : item.category, style: Theme.of(context).textTheme.bodySmall)),
+                Expanded(
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      if (languageChip != null) languageChip,
+                      Text(item.category.isEmpty ? '—' : item.category, style: Theme.of(context).textTheme.bodySmall),
+                    ],
+                  ),
+                ),
                 const SizedBox(width: 10),
                 Text(_formatDownloadSize(item.size), style: metaTextStyle),
                 const SizedBox(width: 10),
@@ -3053,7 +3105,21 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
           ),
           Expanded(
             flex: 3,
-            child: Text(item.category.isEmpty ? '—' : item.category, style: Theme.of(context).textTheme.bodyMedium),
+            child: Row(
+              children: [
+                if (languageChip != null) ...[
+                  languageChip,
+                  const SizedBox(width: 6),
+                ],
+                Expanded(
+                  child: Text(
+                    item.category.isEmpty ? '—' : item.category,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
           ),
           Expanded(
             flex: 2,
@@ -3080,6 +3146,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
             ? t.rep_downloads_new
             : '';
     final accent = badgeLabel.isNotEmpty ? (item.badge == 'change' ? Colors.amber : Colors.blue) : Colors.teal;
+    final languageChip = _languageBadge(item.language, t);
 
     return Material(
       elevation: 1,
@@ -3156,6 +3223,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1.5),
                       labelStyle: const TextStyle(fontSize: 11.5),
                     ),
+                  if (languageChip != null) languageChip,
                   Chip(
                     label: Text('${t.rep_downloads_size}: ${_formatDownloadSize(item.size)}'),
                     avatar: const Icon(Icons.sd_storage_outlined, size: 14),
@@ -3217,6 +3285,17 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
     final isPhone = width < 720;
     final cardWidth = isPhone ? width - 36 : 280.0;
     final minCardWidth = isPhone ? width - 36 : 210.0;
+    final filterItemWidth = isPhone ? width - 52 : 230.0;
+    final categorySet = <String>{
+      ...kDefaultDownloadCategories,
+      ..._downloads.map((d) => d.category.trim()).where((c) => c.isNotEmpty),
+    }..removeWhere((c) => c.trim().isEmpty);
+    final sortedCategories = categorySet.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    final activeLanguageOptions = kDocumentLanguages
+        .where((lang) => _downloads.any((d) => d.language.toLowerCase() == lang.code))
+        .toList();
+    final languageOptions = activeLanguageOptions.isEmpty ? kDocumentLanguages : activeLanguageOptions;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -3268,6 +3347,57 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                     ),
                     onChanged: (v) => setState(() => _downloadSearch = v),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      SizedBox(
+                        width: filterItemWidth,
+                        child: DropdownButtonFormField<String>(
+                          value: _downloadCategoryFilter,
+                          decoration: InputDecoration(labelText: t.rep_downloads_filter_category),
+                          isExpanded: true,
+                          items: [
+                            DropdownMenuItem(value: '', child: Text(t.rep_downloads_filter_category_all)),
+                            ...sortedCategories
+                                .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                                .toList(),
+                          ],
+                          onChanged: (v) => setState(() => _downloadCategoryFilter = v ?? ''),
+                        ),
+                      ),
+                      SizedBox(
+                        width: filterItemWidth,
+                        child: DropdownButtonFormField<String>(
+                          value: _downloadLanguageFilter,
+                          decoration: InputDecoration(labelText: t.rep_downloads_filter_language),
+                          isExpanded: true,
+                          items: [
+                            DropdownMenuItem(value: 'all', child: Text(t.rep_downloads_filter_language_all)),
+                            DropdownMenuItem(value: 'none', child: Text(t.rep_downloads_filter_language_none)),
+                            ...languageOptions
+                                .map((lang) => DropdownMenuItem(value: lang.code, child: Text(lang.name)))
+                                .toList(),
+                          ],
+                          onChanged: (v) => setState(() => _downloadLanguageFilter = v ?? 'all'),
+                        ),
+                      ),
+                      SizedBox(
+                        width: filterItemWidth,
+                        child: DropdownButtonFormField<String>(
+                          value: _downloadSort,
+                          decoration: InputDecoration(labelText: t.rep_downloads_sort_label),
+                          isExpanded: true,
+                          items: [
+                            DropdownMenuItem(value: 'newest', child: Text(t.rep_downloads_sort_newest)),
+                            DropdownMenuItem(value: 'oldest', child: Text(t.rep_downloads_sort_oldest)),
+                          ],
+                          onChanged: (v) => setState(() => _downloadSort = v ?? 'newest'),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   Wrap(
