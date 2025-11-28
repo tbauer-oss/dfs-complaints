@@ -11,6 +11,7 @@ import '../l10n/app_localizations.dart';
 import '../data/knowledge_base_data.dart';
 import '../models/complaint_attachment.dart';
 import '../utils/attachment_preview.dart';
+import '../utils/charge_input_formatter.dart';
 import '../utils/image_optimizer.dart';
 import '../utils/upload_limits.dart';
 import 'knowledge_base_page.dart';
@@ -632,6 +633,10 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
       TextField(
         controller: batch,
         decoration: _dec(context, isDentist ? '${t.batch} *' : t.batch, hint: isDentist ? t.batch : null),
+        inputFormatters: isDentist ? [ChargeInputFormatter()] : null,
+        keyboardType: TextInputType.text,
+        textCapitalization: isDentist ? TextCapitalization.characters : TextCapitalization.none,
+        maxLength: isDentist ? 11 : null,
       ),
       const SizedBox(height: 10),
       Row(children: [
@@ -978,6 +983,8 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     );
   }
 
+  bool _isBatchValid(String value) => ChargeInputFormatter.pattern.hasMatch(value);
+
   Future<void> _submitComplaint(AppLocalizations t, {VoidCallback? onSuccess}) async {
     final optDentist = t.segment_dentist, optLab = t.segment_lab;
     final optYes = t.yes, optNo = t.no;
@@ -995,18 +1002,23 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     setState(() { busy = true; err = null; info = null; });
     _busyNotifier.value = true;
 
+    final batchValue = batch.text.trim();
+
     if (!privacy) { setState(() { err = t.privacy_required; busy = false; }); _busyNotifier.value = false; return; }
     if (article.text.trim().isEmpty || desc.text.trim().isEmpty) {
       setState(() { err = t.required_fields; busy = false; }); _busyNotifier.value = false; return;
     }
-    if (isDentist && batch.text.trim().isEmpty) {
+    if (isDentist && batchValue.isEmpty) {
       setState(() { err = t.batch; busy = false; }); _busyNotifier.value = false; return;
+    }
+    if (isDentist && !_isBatchValid(batchValue)) {
+      setState(() { err = t.batch_format_hint; busy = false; }); _busyNotifier.value = false; return;
     }
 
     final payload = <String, dynamic>{
       'segment': segment == optDentist ? 'Zahnmedizin': 'Dentallabor',
       'article': article.text.trim(),
-      'batch': batch.text.trim(),
+      'batch': batchValue,
       'qty': qty.text.trim(),
       'expiry': expiry.text.trim(),
       'desc': desc.text.trim(),

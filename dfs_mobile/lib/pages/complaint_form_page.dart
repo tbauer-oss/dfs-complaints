@@ -13,6 +13,7 @@ import '../l10n/app_localizations.dart';
 import '../data/knowledge_base_data.dart';
 import '../models/complaint_attachment.dart';
 import '../utils/attachment_preview.dart';
+import '../utils/charge_input_formatter.dart';
 import 'knowledge_base_page.dart';
 import 'complaint_summary_page.dart';
 
@@ -612,7 +613,11 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     switch (id) {
       case 'product':
         if (article.text.trim().isEmpty || desc.text.trim().isEmpty) return t.required_fields;
-        if (isDentist && batch.text.trim().isEmpty) return t.required_fields;
+        if (isDentist) {
+          final batchValue = batch.text.trim();
+          if (batchValue.isEmpty) return t.required_fields;
+          if (!_isBatchValid(batchValue)) return t.batch_format_hint;
+        }
         break;
       case 'patient':
         if (needsInjuryDesc && injuryDesc.text.trim().isEmpty) return t.required_fields;
@@ -624,6 +629,8 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
 
     return null;
   }
+
+  bool _isBatchValid(String value) => ChargeInputFormatter.pattern.hasMatch(value);
 
   Widget _buildAutoHelpCard({required bool compact}) {
     final suggestion = _autoHelpItem;
@@ -782,14 +789,18 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     if (article.text.trim().isEmpty || desc.text.trim().isEmpty) {
       setState(() { err = t.required_fields; busy = false; }); _busyNotifier.value = false; return;
     }
-    if (isDentist && batch.text.trim().isEmpty) {
+    final batchValue = batch.text.trim();
+    if (isDentist && batchValue.isEmpty) {
       setState(() { err = t.batch; busy = false; }); _busyNotifier.value = false; return;
+    }
+    if (isDentist && !_isBatchValid(batchValue)) {
+      setState(() { err = t.batch_format_hint; busy = false; }); _busyNotifier.value = false; return;
     }
 
     final payload = <String, dynamic>{
       'segment': segment == optDentist ? 'Zahnmedizin' : 'Dentallabor',
       'article': article.text.trim(),
-      'batch': batch.text.trim(),
+      'batch': batchValue,
       'qty': qty.text.trim(),
       'expiry': expiry.text.trim(),
       'desc': desc.text.trim(),
@@ -930,6 +941,10 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
           TextField(
             controller: batch,
             decoration: _dec(context, isDentist ? '${t.batch} *' : t.batch, hint: isDentist ? t.batch : null, compact: compact),
+            inputFormatters: isDentist ? [ChargeInputFormatter()] : null,
+            keyboardType: TextInputType.text,
+            textCapitalization: isDentist ? TextCapitalization.characters : TextCapitalization.none,
+            maxLength: isDentist ? 11 : null,
           ),
           const SizedBox(height: 10),
           Row(children: [
