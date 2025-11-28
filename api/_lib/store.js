@@ -1901,6 +1901,17 @@ function _normalizeDownloadBadge(value) {
   return '';
 }
 
+const DOWNLOAD_LANG_CODES = new Set([
+  'de', 'en', 'fr', 'it', 'es', 'pt', 'nl', 'da', 'sv', 'nb', 'fi', 'pl', 'cs', 'sk', 'hu', 'ro', 'bg',
+  'hr', 'sr', 'bs', 'sl', 'sq', 'el', 'tr', 'lt', 'lv', 'et', 'ga', 'mt', 'uk', 'ru', 'is',
+]);
+
+function _normalizeDownloadLanguage(value) {
+  const raw = (value ?? '').toString().trim().toLowerCase();
+  if (!raw) return '';
+  return DOWNLOAD_LANG_CODES.has(raw) ? raw : '';
+}
+
 function _safeDownloadUrl(value) {
   const raw = (value ?? '').toString().trim();
   if (!raw) return '';
@@ -1918,6 +1929,7 @@ function _normalizeDownload(input = {}, existing = null, { bumpVersion = true } 
   const category = _text(input.category ?? base.category ?? '', 120);
   const badge = _normalizeDownloadBadge(input.badge ?? base.badge ?? '');
   const active = input.active !== undefined ? Boolean(input.active) : Boolean(base.active ?? true);
+  const language = _normalizeDownloadLanguage(input.language ?? base.language ?? '');
 
   const allowedInput = Array.isArray(input.allowedRepresentatives)
     ? input.allowedRepresentatives
@@ -1950,6 +1962,7 @@ function _normalizeDownload(input = {}, existing = null, { bumpVersion = true } 
     category: category || '',
     badge,
     active,
+    language,
     fileName: fileName || '',
     downloadUrl,
     mime,
