@@ -12889,6 +12889,10 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                           alignment: Alignment.centerRight,
                           child: TextButton.icon(
                             onPressed: _busy ? null : _deleteComplaint,
+                            style: TextButton.styleFrom(
+                              foregroundColor: scheme.error,
+                              overlayColor: scheme.error.withOpacity(0.1),
+                            ),
                             icon: const Icon(Icons.delete_outline),
                             label: const Text('Ticket löschen'),
                           ),
