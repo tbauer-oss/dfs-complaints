@@ -984,7 +984,6 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
     for (final ctrl in contentCtrls.values) {
       ctrl.dispose();
     }
-    productCtrl.dispose();
     tagsCtrl.dispose();
   }
 
