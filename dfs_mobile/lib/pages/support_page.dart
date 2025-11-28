@@ -82,131 +82,264 @@ class _SupportPageState extends State<SupportPage> {
         ),
         title: Text(t.supportTitle),
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720),
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              DropdownButtonFormField<String>(
-                value: _cat,
-                items: _cats
-                    .map((c) => DropdownMenuItem<String>(
-                          value: c,
-                          child: Text(_catLabel(t, c)),
-                        ))
-                    .toList(),
-                onChanged: (v) => setState(() => _cat = v ?? 'general'),
-                decoration: InputDecoration(labelText: t.category),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _msg,
-                minLines: 6,
-                maxLines: 16,
-                decoration: InputDecoration(
-                  labelText: t.yourMessage,
-                  border: const OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Checkbox(
-                    value: _consent,
-                    onChanged: (v) => setState(() => _consent = v ?? false),
+      body: Container(
+        color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.2),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 820),
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Theme.of(context).colorScheme.primaryContainer.withOpacity(0.9),
+                        Theme.of(context).colorScheme.secondaryContainer,
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Theme.of(context).colorScheme.primary.withOpacity(0.15),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 6),
-                  Expanded(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onPrimaryContainer
+                                  .withOpacity(0.08),
+                              shape: BoxShape.circle,
+                            ),
+                            padding: const EdgeInsets.all(12),
+                            child: Icon(
+                              Icons.support_agent,
+                              color: Theme.of(context).colorScheme.onPrimaryContainer,
+                              size: 28,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  t.supportTitle,
+                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                        color: Theme.of(context).colorScheme.onPrimaryContainer,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  t.supportCatSuggestion,
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onPrimaryContainer
+                                            .withOpacity(0.85),
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          Chip(
+                            avatar: const Icon(Icons.timer, size: 18),
+                            label: Text(t.supportCatTechnical),
+                          ),
+                          Chip(
+                            avatar: const Icon(Icons.lock_person, size: 18),
+                            label: Text(t.supportCatPrivacy),
+                          ),
+                          Chip(
+                            avatar: const Icon(Icons.feedback_outlined, size: 18),
+                            label: Text(t.supportCatFeedback),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+                Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Pflichttext (unverändert aus L10n)
-                        Text(t.supportConsentText),
+                        Text(
+                          t.yourMessage,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          value: _cat,
+                          items: _cats
+                              .map((c) => DropdownMenuItem<String>(
+                                    value: c,
+                                    child: Text(_catLabel(t, c)),
+                                  ))
+                              .toList(),
+                          onChanged: (v) => setState(() => _cat = v ?? 'general'),
+                          decoration: InputDecoration(
+                            labelText: t.category,
+                            filled: true,
+                            fillColor:
+                                Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.35),
+                            border: const OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _msg,
+                          minLines: 6,
+                          maxLines: 16,
+                          decoration: InputDecoration(
+                            labelText: t.yourMessage,
+                            filled: true,
+                            fillColor:
+                                Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.35),
+                            border: const OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Checkbox.adaptive(
+                              value: _consent,
+                              onChanged: (v) => setState(() => _consent = v ?? false),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Pflichttext (unverändert aus L10n)
+                                  Text(t.supportConsentText),
 
-                        // Interner Link zur Datenschutz-Seite (mit gleichem Icon wie in register_page)
-                        const SizedBox(height: 4),
-                        InkWell(
-                          onTap: () => _openPrivacyPage(context),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.privacy_tip_outlined, size: 18),
-                              const SizedBox(width: 6),
-                              Text(
-                                t.privacy_view,
-                                style: TextStyle(
-                                  color: Theme.of(context).colorScheme.primary,
-                                  decoration: TextDecoration.underline,
-                                  fontWeight: FontWeight.w600,
+                                  // Interner Link zur Datenschutz-Seite (mit gleichem Icon wie in register_page)
+                                  const SizedBox(height: 4),
+                                  InkWell(
+                                    onTap: () => _openPrivacyPage(context),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.privacy_tip_outlined, size: 18),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          t.privacy_view,
+                                          style: TextStyle(
+                                            color: Theme.of(context).colorScheme.primary,
+                                            decoration: TextDecoration.underline,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: FilledButton.icon(
+                                icon: const Icon(Icons.send),
+                                onPressed: _busy
+                                    ? null
+                                    : () async {
+                                        if (_msg.text.trim().isEmpty) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(content: Text(t.message_required)),
+                                          );
+                                          return;
+                                        }
+                                        if (!_consent) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(content: Text(t.privacy_required)),
+                                          );
+                                          return;
+                                        }
+                                        setState(() => _busy = true);
+                                        try {
+                                          await widget.api.sendSupport(
+                                            category: _mapCategoryForApi(_cat),
+                                            message: _msg.text.trim(),
+                                            consent: true,
+                                          );
+                                          if (!mounted) return;
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(content: Text(t.message_sent)),
+                                          );
+                                          Navigator.of(context).pop();
+                                        } catch (e) {
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text('${t.error}: $e')),
+                                            );
+                                          }
+                                        } finally {
+                                          if (mounted) setState(() => _busy = false);
+                                        }
+                                      },
+                                child: _busy
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      )
+                                    : Text(t.send),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            OutlinedButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              style: OutlinedButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
-                            ],
-                          ),
+                              child: Text(t.cancel),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  FilledButton(
-                    onPressed: _busy
-                        ? null
-                        : () async {
-                            if (_msg.text.trim().isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(t.message_required)),
-                              );
-                              return;
-                            }
-                            if (!_consent) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(t.privacy_required)),
-                              );
-                              return;
-                            }
-                            setState(() => _busy = true);
-                            try {
-                              await widget.api.sendSupport(
-                                category: _mapCategoryForApi(_cat),  // << geändert
-                                message: _msg.text.trim(),
-                                consent: true,
-                              );
-                              if (!mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(t.message_sent)),
-                              );
-                              Navigator.of(context).pop();
-                            } catch (e) {
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('${t.error}: $e')),
-                                );
-                              }
-                            } finally {
-                              if (mounted) setState(() => _busy = false);
-                            }
-                          },
-                    child: _busy
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Text(t.send),
-                  ),
-                  const SizedBox(width: 12),
-                  OutlinedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(t.cancel),
-                  ),
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
