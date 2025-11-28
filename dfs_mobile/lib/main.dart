@@ -1,4 +1,4 @@
-// lib/main.dart
+8// lib/main.dart
 import 'dart:math' as math;
 import 'dart:ui' as ui show ImageFilter;
 
@@ -496,6 +496,12 @@ class _MyAppState extends State<MyApp> {
                                   child: FilledButton.icon(
                                     icon: const Icon(Icons.logout),
                                     label: Text(t.logout),
+                                    style: FilledButton.styleFrom(
+                                      visualDensity: VisualDensity.compact,
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      minimumSize: const Size(0, 36),
+                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    ),
                                     onPressed: () async {
                                       final confirm = await showDialog<bool>(
                                             context: ctx,
