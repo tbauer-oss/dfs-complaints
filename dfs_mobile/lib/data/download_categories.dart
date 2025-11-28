@@ -1,6 +1,6 @@
 // lib/data/download_categories.dart
 
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:dfs_mobile/l10n/app_localizations.dart';
 
 typedef DownloadCategoryLocalizationFn = String Function(AppLocalizations t);
 
