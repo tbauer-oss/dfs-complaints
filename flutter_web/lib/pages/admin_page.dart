@@ -9397,6 +9397,77 @@ class _UserTileState extends State<_UserTile> {
     }
   }
 
+  Future<void> _showRepDialog() async {
+    final d = widget.data;
+    final theme = Theme.of(context);
+    final initialRepId = (widget.assignedRepId ?? '').trim();
+
+    final selection = await showDialog<String?>(
+      context: context,
+      builder: (ctx) {
+        var selected = initialRepId;
+
+        return StatefulBuilder(
+          builder: (ctx, setState) => AlertDialog(
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Vertreter zuweisen'),
+                const SizedBox(height: 4),
+                Text(
+                  d.company.isNotEmpty ? d.company : d.email,
+                  style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: 360,
+              child: DropdownButtonFormField<String>(
+                value: selected,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Vertreter',
+                  border: OutlineInputBorder(),
+                ),
+                items: [
+                  const DropdownMenuItem(value: '', child: Text('Kein Vertreter')),
+                  ...widget.reps.map(
+                    (r) => DropdownMenuItem<String>(
+                      value: r.id,
+                      child: Text(r.displayName.isNotEmpty ? r.displayName : r.email),
+                    ),
+                  ),
+                ],
+                onChanged: (v) => setState(() => selected = v ?? ''),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, null),
+                child: const Text('Abbrechen'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, selected),
+                child: const Text('Speichern'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (selection == null) return; // Abbrechen
+
+    setState(() => _busy = true);
+    try {
+      await widget
+          .onChangeRep(selection.trim().isEmpty ? null : selection.trim());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final d = widget.data;
@@ -9508,6 +9579,12 @@ class _UserTileState extends State<_UserTile> {
                 spacing: 8,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
+                  OutlinedButton.icon(
+                    onPressed: tileBusy ? null : _showRepDialog,
+                    icon: const Icon(Icons.person_outline),
+                    label: const Text('Vertreter'),
+                  ),
+                  if (widget.repBusy) const _BusyDot(),
                   IconButton(
                     tooltip: 'Adressdaten',
                     onPressed: tileBusy ? null : _showAddress,
@@ -9538,53 +9615,6 @@ class _UserTileState extends State<_UserTile> {
                 ],
               ),
             ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                SizedBox(
-                  width: 240,
-                  child: DropdownButtonFormField<String>(
-                    value: widget.assignedRepId ?? '',
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Vertreter zuweisen',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    items: [
-                      const DropdownMenuItem(value: '', child: Text('Kein Vertreter')),
-                      ...widget.reps.map(
-                        (r) => DropdownMenuItem<String>(
-                          value: r.id,
-                          child: Text(r.displayName.isNotEmpty ? r.displayName : r.email),
-                        ),
-                      ),
-                    ],
-                    onChanged: widget.repBusy
-                        ? null
-                        : (v) async {
-                            await widget.onChangeRep(v?.trim().isEmpty == true ? null : v);
-                          },
-                  ),
-                ),
-                if (widget.repBusy) ...[
-                  const SizedBox(width: 12),
-                  const SizedBox(
-                    height: 18,
-                    width: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                ],
-              ],
-            ),
           ),
         ),
         if (_expanded)
