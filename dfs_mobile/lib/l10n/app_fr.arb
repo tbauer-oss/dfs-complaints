@@ -489,6 +489,7 @@
   "article": "Numéro d’article*",
   "articleNo": "Article",
   "batch": "Lot",
+  "batch_format_hint": "Veuillez saisir la charge au format AAAA-MM-JJ ou AAAA-MM-JJ + lettre (p. ex. 2025-11-23 ou 2025-11-23A).",
   "serial_number": "Numéro de série",
   "quantity": "Quantité",
   "qty": "Quantité",
