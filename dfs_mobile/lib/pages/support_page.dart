@@ -311,7 +311,7 @@ class _SupportPageState extends State<SupportPage> {
                                           if (mounted) setState(() => _busy = false);
                                         }
                                       },
-                                child: _busy
+                                label: _busy
                                     ? const SizedBox(
                                         width: 18,
                                         height: 18,
