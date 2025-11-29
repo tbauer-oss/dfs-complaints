@@ -16,7 +16,7 @@ import '../models/dfs_product.dart';
 import '../models/faq.dart';
 import '../data/knowledge_base_data.dart';
 import '../l10n/app_localizations.dart';
-import '../services/dfs_product_service.dart';
+import '../services/product_lookup.dart';
 import '../widgets/dialog_content_scroll.dart';
 import '../widgets/legal_footer.dart';
 import '../widgets/theme_action.dart' as w;
@@ -185,9 +185,8 @@ class _AdminPageState extends State<AdminPage> {
   String? _newsErr;
 
   // Artikelliste (CSV)
-  final DfsProductService _productService = DfsProductService();
+  final ProductLookup _productLookup = ProductLookup();
   List<DfsProduct> _products = [];
-  Map<String, DfsProduct> _productIndex = {};
   bool _productsLoading = false;
   String? _productErr;
 
@@ -761,9 +760,9 @@ class _AdminPageState extends State<AdminPage> {
     });
 
     try {
-      final list = await _productService.loadProducts();
+      final list = await _productLookup.loadProducts();
       if (!mounted) return;
-      setState(() => _applyProducts(list));
+      setState(() => _products = list);
     } catch (e) {
       setState(() => _productErr = '$e');
     } finally {
@@ -773,18 +772,11 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   void _applyProducts(List<DfsProduct> list) {
-    _products = List.unmodifiable(list);
-    _productIndex = {
-      for (final p in _products)
-        if (p.articleNumber.trim().isNotEmpty) p.articleNumber.trim(): p,
-    };
+    _productLookup.setProducts(list);
+    _products = _productLookup.products;
   }
 
-  DfsProduct? _productByArticle(String? article) {
-    final key = (article ?? '').trim();
-    if (key.isEmpty) return null;
-    return _productIndex[key];
-  }
+  DfsProduct? _productByArticle(String? article) => _productLookup.byArticle(article);
 
   void _syncComplaint(AdminComplaint updated) {
     setState(() {
