@@ -485,6 +485,13 @@
   "product_area_medical": "Producto sanitario",
   "product_area_lab": "Producto de laboratorio",
   "article": "N.º de artículo*",
+  "article_match_prefix": "Artículo: {productName}",
+  "@article_match_prefix": {
+    "description": "Texto auxiliar que aparece bajo el campo de artículo cuando se encuentra un producto",
+    "placeholders": {
+      "productName": { "type": "String" }
+    }
+  },
   "articleNo": "Artículo",
   "batch": "Lote",
   "batch_format_hint": "Introduzca la partida en el formato AAAA-MM-DD o AAAA-MM-DD + letra (p. ej., 2025-11-23 o 2025-11-23A).",

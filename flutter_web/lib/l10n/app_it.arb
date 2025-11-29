@@ -473,6 +473,13 @@
   "product_area_medical": "Dispositivo medico",
   "product_area_lab": "Prodotto da laboratorio",
   "article": "Numero articolo*",
+  "article_match_prefix": "Articolo: {productName}",
+  "@article_match_prefix": {
+    "description": "Testo di supporto sotto il campo articolo quando viene trovato un prodotto",
+    "placeholders": {
+      "productName": { "type": "String" }
+    }
+  },
   "articleNo": "Articolo",
   "batch": "Lotto",
   "batch_format_hint": "Inserire il lotto nel formato AAAA-MM-GG oppure AAAA-MM-GG + lettera (es. 2025-11-23 o 2025-11-23A).",

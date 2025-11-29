@@ -1,4 +1,5 @@
 // lib/pages/complaint_form_page.dart
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -12,6 +13,8 @@ import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 import '../data/knowledge_base_data.dart';
 import '../models/complaint_attachment.dart';
+import '../models/dfs_product.dart';
+import '../services/product_lookup.dart';
 import '../utils/attachment_preview.dart';
 import '../utils/charge_input_formatter.dart';
 import 'knowledge_base_page.dart';
@@ -66,6 +69,10 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   final injuryDesc = TextEditingController();
   String returned = 'Nein';
   String handling = 'Ersatz';
+  final ProductLookup _productLookup = ProductLookup();
+  DfsProduct? _articleProduct;
+  Timer? _articleLookupDebounce;
+  bool _productLoading = false;
   bool privacy = false;
 
   // Wichtig: exakt dieser Record-Typ (Name, Bytes, Mime)
@@ -102,9 +109,43 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     _updateAutoHelp();
   }
 
+  void _handleArticleChanged() {
+    _markDirty();
+    _articleLookupDebounce?.cancel();
+    _articleLookupDebounce = Timer(const Duration(milliseconds: 180), _updateArticleProduct);
+  }
+
+  Future<void> _ensureProductsLoaded() async {
+    if (_productLoading || _productLookup.hasProducts) return;
+    setState(() => _productLoading = true);
+
+    try {
+      await _productLookup.loadProducts();
+    } catch (e) {
+      debugPrint('Produktliste konnte nicht geladen werden: $e');
+    } finally {
+      if (!mounted) return;
+      setState(() => _productLoading = false);
+    }
+  }
+
+  Future<void> _updateArticleProduct() async {
+    final value = article.text.trim();
+    if (value.isEmpty) {
+      if (_articleProduct != null) setState(() => _articleProduct = null);
+      return;
+    }
+
+    await _ensureProductsLoaded();
+    if (!mounted) return;
+    setState(() => _articleProduct = _productLookup.byArticle(value));
+  }
+
   @override
   void dispose() {
     for (final c in _ctrls) { c.removeListener(_markDirty); }
+    article.removeListener(_handleArticleChanged);
+    _articleLookupDebounce?.cancel();
     desc.removeListener(_handleDescriptionChanged);
     _scrollCtrl.dispose();
     _busyNotifier.dispose();
@@ -262,10 +303,12 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   void initState() {
     super.initState();
     _ctrls.addAll([article, batch, qty, expiry, injuryDesc]);
+    article.addListener(_handleArticleChanged);
     for (final c in _ctrls) { c.addListener(_markDirty); }
     desc.addListener(_handleDescriptionChanged);
     _loadAccount();
     _loadHelpPref();
+    _ensureProductsLoaded();
   }
 
   Future<void> pickFiles() async {
@@ -937,6 +980,17 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
         compact: compact,
         children: [
           TextField(controller: article, decoration: _dec(context, t.article, compact: compact)),
+          if (_articleProduct != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                t.articleMatchPrefix(_articleProduct!.productName),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.outline,
+                      fontSize: compact ? 12 : 13,
+                    ),
+              ),
+            ),
           const SizedBox(height: 10),
           TextField(
             controller: batch,

@@ -473,6 +473,13 @@
   "product_area_medical": "Medizinprodukt",
   "product_area_lab": "Laborprodukt",
   "article": "Artikelnummer*",
+  "article_match_prefix": "Artikel: {productName}",
+  "@article_match_prefix": {
+    "description": "Zusatzanzeige unter dem Artikelfeld, wenn ein Artikel gefunden wurde",
+    "placeholders": {
+      "productName": { "type": "String" }
+    }
+  },
   "articleNo": "Artikel",
   "batch": "Charge",
   "batch_format_hint": "Bitte geben Sie die Charge im Format JJJJ-MM-TT oder JJJJ-MM-TT + Buchstabe ein (z. B. 2025-11-23 oder 2025-11-23A).",
