@@ -487,6 +487,13 @@
   "product_area_medical": "Dispositif médical",
   "product_area_lab": "Produit de laboratoire",
   "article": "Numéro d’article*",
+  "article_match_prefix": "Article : {productName}",
+  "@article_match_prefix": {
+    "description": "Texte d'aide sous le champ article lorsqu'un produit est trouvé",
+    "placeholders": {
+      "productName": { "type": "String" }
+    }
+  },
   "articleNo": "Article",
   "batch": "Lot",
   "batch_format_hint": "Veuillez saisir la charge au format AAAA-MM-JJ ou AAAA-MM-JJ + lettre (p. ex. 2025-11-23 ou 2025-11-23A).",
