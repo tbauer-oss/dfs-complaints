@@ -984,7 +984,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
-                t.articleMatchPrefix(_articleProduct!.productName),
+                t.article_match_prefix(_articleProduct!.productName),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.outline,
                       fontSize: compact ? 12 : 13,
