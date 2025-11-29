@@ -492,6 +492,13 @@
       "productName": { "type": "String" }
     }
   },
+  "gs1_scan_button": "Escanear código GS1",
+  "gs1_scan_instruction": "Alinea el código GS1 DataMatrix con la cámara.",
+  "gs1_scan_not_datamatrix": "No se reconoció un GS1 DataMatrix",
+  "gs1_scan_invalid_gtin": "No se pudo interpretar el GTIN",
+  "gs1_scan_missing_lot": "No se pudo leer el lote",
+  "gs1_scan_no_product": "No se encontró un producto DFS coincidente",
+  "gs1_scan_success": "Datos importados del código GS1",
   "articleNo": "Artículo",
   "batch": "Lote",
   "batch_format_hint": "Introduzca la partida en el formato AAAA-MM-DD o AAAA-MM-DD + letra (p. ej., 2025-11-23 o 2025-11-23A).",
