@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/client.dart';
@@ -17,6 +18,7 @@ import '../models/dfs_product.dart';
 import '../services/product_lookup.dart';
 import '../utils/attachment_preview.dart';
 import '../utils/charge_input_formatter.dart';
+import '../utils/gs1_data_matrix_parser.dart';
 import 'knowledge_base_page.dart';
 import 'complaint_summary_page.dart';
 
@@ -360,6 +362,50 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _handleScanGs1() async {
+    await _ensureProductsLoaded();
+    if (!mounted) return;
+
+    final result = await showModalBottomSheet<Gs1DataMatrixData>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _Gs1ScannerSheet(t: context.t),
+    );
+
+    if (!mounted || result == null) return;
+
+    final t = context.t;
+    final messages = <String>[];
+
+    final product = _productLookup.byGtin(result.gtin);
+
+    setState(() {
+      if (product != null) {
+        article.text = product.articleNumber;
+        _articleProduct = product;
+      } else {
+        article.clear();
+        _articleProduct = null;
+        messages.add(t.gs1_scan_no_product);
+      }
+
+      if (result.lot != null && result.lot!.isNotEmpty) {
+        batch.text = result.lot!;
+      } else {
+        messages.add(t.gs1_scan_missing_lot);
+      }
+
+      info = messages.isEmpty ? t.gs1_scan_success : messages.join(' • ');
+      err = null;
+      _dirty = true;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(t.gs1_scan_success)),
     );
   }
 
@@ -991,6 +1037,15 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                     ),
               ),
             ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.qr_code_scanner_outlined),
+              label: Text(t.gs1_scan_button),
+              onPressed: _handleScanGs1,
+            ),
+          ),
           const SizedBox(height: 10),
           TextField(
             controller: batch,
@@ -1736,6 +1791,93 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                 ],
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Gs1ScannerSheet extends StatefulWidget {
+  final AppLocalizations t;
+  const _Gs1ScannerSheet({required this.t});
+
+  @override
+  State<_Gs1ScannerSheet> createState() => _Gs1ScannerSheetState();
+}
+
+class _Gs1ScannerSheetState extends State<_Gs1ScannerSheet> {
+  final MobileScannerController _controller = MobileScannerController(
+    formats: const [BarcodeFormat.dataMatrix],
+    detectionSpeed: DetectionSpeed.noDuplicates,
+  );
+
+  String? _status;
+  bool _handled = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onDetect(BarcodeCapture capture) {
+    if (_handled) return;
+    final barcodes = capture.barcodes.where((b) => (b.rawValue?.isNotEmpty ?? false)).toList();
+    if (barcodes.isEmpty) return;
+
+    final barcode = barcodes.first;
+
+    if (barcode.format != BarcodeFormat.dataMatrix) {
+      setState(() => _status = widget.t.gs1_scan_not_datamatrix);
+      return;
+    }
+
+    final parsed = Gs1DataMatrixParser.parse(barcode.rawValue);
+    if (parsed == null) {
+      setState(() => _status = widget.t.gs1_scan_invalid_gtin);
+      return;
+    }
+
+    _handled = true;
+    Navigator.of(context).pop(parsed);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.t;
+    final theme = Theme.of(context);
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(t.gs1_scan_instruction, style: const TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 12),
+            AspectRatio(
+              aspectRatio: 3 / 4,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: MobileScanner(
+                  controller: _controller,
+                  onDetect: _onDetect,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            if (_status != null)
+              Text(
+                _status!,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.secondary),
+              ),
+            TextButton.icon(
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.close),
+              label: Text(t.cancel),
+            ),
           ],
         ),
       ),
