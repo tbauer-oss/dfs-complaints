@@ -110,7 +110,7 @@ class Gs1DataMatrixParser {
   static String? normalizeGtin(String? value) {
     if (value == null) return null;
     final digits = digitsOnly(value);
-    if (digits.isEmpty) return null;
+    if (digits == null || digits.isEmpty) return null;
     if (![8, 12, 13, 14].contains(digits.length)) return null;
     return digits.padLeft(14, '0');
   }
