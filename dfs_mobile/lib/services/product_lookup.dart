@@ -31,8 +31,15 @@ class ProductLookup {
 
     void addGtin(String raw, DfsProduct product) {
       final normalized = Gs1DataMatrixParser.normalizeGtin(raw);
-      if (normalized != null && !gtinIndex.containsKey(normalized)) {
-        gtinIndex[normalized] = product;
+      if (normalized != null) {
+        gtinIndex.putIfAbsent(normalized, () => product);
+
+        // Some scanners drop leading zeros on GTIN-14. Index an unpadded
+        // variant as well to tolerate both forms.
+        final unpadded = normalized.replaceFirst(RegExp('^0+'), '');
+        if (unpadded.isNotEmpty) {
+          gtinIndex.putIfAbsent(unpadded, () => product);
+        }
       }
     }
 
@@ -51,8 +58,25 @@ class ProductLookup {
   }
 
   DfsProduct? byGtin(String? gtin) {
-    final key = Gs1DataMatrixParser.normalizeGtin(gtin);
-    if (key == null) return null;
-    return _gtinIndex[key];
+    final digits = Gs1DataMatrixParser.digitsOnly(gtin);
+    if (digits == null || digits.isEmpty) return null;
+
+    final normalized = Gs1DataMatrixParser.normalizeGtin(digits);
+    if (normalized != null) {
+      final product = _gtinIndex[normalized];
+      if (product != null) return product;
+    }
+
+    final unpadded = digits.replaceFirst(RegExp('^0+'), '');
+    if (unpadded.isNotEmpty) {
+      final fallbackNormalized = Gs1DataMatrixParser.normalizeGtin(unpadded);
+      if (fallbackNormalized != null) {
+        final product = _gtinIndex[fallbackNormalized];
+        if (product != null) return product;
+      }
+      return _gtinIndex[unpadded];
+    }
+
+    return null;
   }
 }
