@@ -497,6 +497,13 @@
       "productName": { "type": "String" }
     }
   },
+  "gs1_scan_button": "Scan GS1 code",
+  "gs1_scan_instruction": "Align the GS1 DataMatrix with the camera.",
+  "gs1_scan_not_datamatrix": "No GS1 DataMatrix detected",
+  "gs1_scan_invalid_gtin": "GTIN could not be interpreted",
+  "gs1_scan_missing_lot": "Batch could not be read",
+  "gs1_scan_no_product": "No matching DFS product found",
+  "gs1_scan_success": "Data imported from GS1 code",
   "articleNo": "Article",
   "batch": "Batch",
   "batch_format_hint": "Please enter the batch in the format YYYY-MM-DD or YYYY-MM-DD + letter (e.g. 2025-11-23 or 2025-11-23A).",
