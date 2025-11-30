@@ -109,10 +109,17 @@ class Gs1DataMatrixParser {
 
   static String? normalizeGtin(String? value) {
     if (value == null) return null;
-    final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+    final digits = digitsOnly(value);
     if (digits.isEmpty) return null;
     if (![8, 12, 13, 14].contains(digits.length)) return null;
     return digits.padLeft(14, '0');
+  }
+
+  /// Returns the numeric characters of [value] or `null` when the input is
+  /// null.
+  static String? digitsOnly(String? value) {
+    if (value == null) return null;
+    return value.replaceAll(RegExp(r'[^0-9]'), '');
   }
 
   static String? _cleanVariable(String? value) {
