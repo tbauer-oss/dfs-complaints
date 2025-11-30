@@ -500,6 +500,13 @@
       "productName": { "type": "String" }
     }
   },
+  "gs1_scan_button": "GS1-Code scannen",
+  "gs1_scan_instruction": "Halte den GS1 DataMatrix vor die Kamera.",
+  "gs1_scan_not_datamatrix": "Kein GS1 DataMatrix erkannt",
+  "gs1_scan_invalid_gtin": "GTIN nicht interpretierbar",
+  "gs1_scan_missing_lot": "Charge konnte nicht gelesen werden",
+  "gs1_scan_no_product": "Kein passender DFS-Artikel gefunden",
+  "gs1_scan_success": "Daten aus GS1-Code übernommen",
   "articleNo": "Artikel",
   "batch": "Charge",
   "batch_format_hint": "Bitte geben Sie die Charge im Format JJJJ-MM-TT oder JJJJ-MM-TT + Buchstabe ein (z. B. 2025-11-23 oder 2025-11-23A).",
