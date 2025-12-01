@@ -9,6 +9,7 @@ const { ok: mailOk, missing: missingMailEnv } = mailConfigOk(MAIL);
 const FALLBACK_FROM = MAIL.from || 'DFS Complaints <no-reply_dfs-complaints@gmx.net>';
 
 let transporter = null;
+let transporterHealthy = true;
 if (mailOk) {
   transporter = nodemailer.createTransport({
     host: MAIL.host,
@@ -44,6 +45,14 @@ export async function sendMail({ to, subject, html, text, cc }) {
     };
   }
 
+  if (!transporterHealthy) {
+    return {
+      ok: false,
+      reason: 'transporter-disabled',
+      userMessage: 'Maildienst aktuell deaktiviert wegen eines früheren Fehlers.',
+    };
+  }
+
   try {
     const info = await transporter.sendMail({
       from: FALLBACK_FROM,
@@ -57,6 +66,9 @@ export async function sendMail({ to, subject, html, text, cc }) {
   } catch (err) {
     const isStackOverflow = err instanceof RangeError && /stack size/i.test(err.message || '');
     const message = err?.message || String(err);
+    if (isStackOverflow) {
+      transporterHealthy = false;
+    }
     return {
       ok: false,
       reason: isStackOverflow ? 'stack-overflow' : err?.code || 'send-error',
