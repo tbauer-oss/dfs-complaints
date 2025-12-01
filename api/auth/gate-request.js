@@ -56,6 +56,7 @@ export default async function handler(req, res) {
 
     let mailSent = false;
     let mailError = null;
+    let mailDiagnostics = null;
     try {
       const html = `
         <p>Neue Gate-Code Anfrage:</p>
@@ -88,6 +89,7 @@ export default async function handler(req, res) {
         html,
         text,
       });
+      mailDiagnostics = result?.diagnostics || null;
       mailSent = !!result?.ok;
       if (!mailSent) {
         const raw = result?.message || result?.reason || 'send failed';
@@ -108,10 +110,11 @@ export default async function handler(req, res) {
         ok: false,
         mailSent,
         mailError: mailError || 'mail send failed',
+        mailDiagnostics,
       });
     }
 
-    return ok(res, { ok: true, mailSent, mailError: null });
+    return ok(res, { ok: true, mailSent, mailError: null, mailDiagnostics });
   } catch (err) {
     console.error('gate-request fatal:', err);
     const stackOverflow = err instanceof RangeError && /stack size/i.test(err.message || '');
