@@ -101,15 +101,11 @@ export default async function handler(req, res) {
     }
 
     if (!mailSent) {
-      return bad(
-        res,
-        {
-          ok: false,
-          mailSent,
-          mailError: mailError || 'mail send failed',
-        },
-        502,
-      );
+      return ok(res, {
+        ok: false,
+        mailSent,
+        mailError: mailError || 'mail send failed',
+      });
     }
 
     return ok(res, { ok: true, mailSent, mailError: null });
