@@ -50,10 +50,14 @@ export async function sendMail({ to, subject, html, text, cc }) {
     return { ok: true, id: info.messageId };
   } catch (err) {
     const isStackOverflow = err instanceof RangeError && /stack size/i.test(err.message || '');
+    const message = err?.message || String(err);
     return {
       ok: false,
       reason: isStackOverflow ? 'stack-overflow' : err?.code || 'send-error',
-      message: err?.message || String(err),
+      message,
+      userMessage: isStackOverflow
+        ? 'Mailer stack overflow – please check SMTP/test-mode routing configuration.'
+        : undefined,
     };
   }
 }

@@ -91,9 +91,11 @@ export default async function handler(req, res) {
       if (!mailSent) {
         const raw = result?.message || result?.reason || 'send failed';
         const stackOverflow = /stack size/i.test(raw || '');
-        mailError = stackOverflow
-          ? 'Mailer stack overflow – check SMTP/test-mode routing configuration'
-          : raw;
+        mailError =
+          result?.userMessage ||
+          (stackOverflow
+            ? 'Mailer stack overflow – check SMTP/test-mode routing configuration'
+            : raw);
       }
     } catch (err) {
       mailError = err?.message || String(err);
