@@ -88,7 +88,13 @@ export default async function handler(req, res) {
         text,
       });
       mailSent = !!result?.ok;
-      if (!mailSent) mailError = result?.reason || 'send failed';
+      if (!mailSent) {
+        const raw = result?.message || result?.reason || 'send failed';
+        const stackOverflow = /stack size/i.test(raw || '');
+        mailError = stackOverflow
+          ? 'Mailer stack overflow – check SMTP/test-mode routing configuration'
+          : raw;
+      }
     } catch (err) {
       mailError = err?.message || String(err);
       console.error('gate-request mail failed:', mailError);

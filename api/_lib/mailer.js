@@ -38,13 +38,22 @@ export async function sendMail({ to, subject, html, text, cc }) {
     return { ok: false, reason: 'test-mode-suppressed', skipped: true };
   }
 
-  const info = await transporter.sendMail({
-    from: FALLBACK_FROM,
-    to: toList,
-    cc: ccList,
-    subject: subjectOut,
-    html,
-    text,
-  });
-  return { ok: true, id: info.messageId };
+  try {
+    const info = await transporter.sendMail({
+      from: FALLBACK_FROM,
+      to: toList,
+      cc: ccList,
+      subject: subjectOut,
+      html,
+      text,
+    });
+    return { ok: true, id: info.messageId };
+  } catch (err) {
+    const isStackOverflow = err instanceof RangeError && /stack size/i.test(err.message || '');
+    return {
+      ok: false,
+      reason: isStackOverflow ? 'stack-overflow' : err?.code || 'send-error',
+      message: err?.message || String(err),
+    };
+  }
 }
