@@ -66,6 +66,20 @@ class SimpleResult {
       SimpleResult(ok: false, statusCode: statusCode, message: message);
 }
 
+class GateRequestResult {
+  final bool ok;
+  final int statusCode;
+  final String? body;
+  final String? message;
+
+  const GateRequestResult({
+    required this.ok,
+    required this.statusCode,
+    this.body,
+    this.message,
+  });
+}
+
 String _extractMessage(String body) {
   try {
     final j = jsonDecode(body);
@@ -951,17 +965,32 @@ class ApiClient {
     }
   }
 
-  Future<String?> gateRequestPassword(String email, {String? company}) async {
+  Future<GateRequestResult> gateRequestPassword(String email, {String? company}) async {
     final body = <String, String>{'email': email.trim()};
     final co = company?.trim();
     if (co != null && co.isNotEmpty) body['company'] = co;
     final r = await _post('/api/gate/request', body);
-    if (_ok2xx(r.statusCode)) return null;
-    try {
-      final body = r.body;
-      if (body.isNotEmpty) return body;
-    } catch (_) {}
-    return 'gate request failed: ${r.statusCode}';
+    final responseBody = r.body;
+    String? message;
+    bool? ok;
+    if (responseBody.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(responseBody);
+        if (decoded is Map<String, dynamic>) {
+          ok = decoded['ok'] is bool ? decoded['ok'] as bool : null;
+          if (decoded['mailError'] is String) message = decoded['mailError'] as String;
+          message ??= decoded['error'] is String ? decoded['error'] as String : null;
+          message ??= decoded['message'] is String ? decoded['message'] as String : null;
+        }
+      } catch (_) {}
+      message ??= responseBody;
+    }
+    return GateRequestResult(
+      ok: ok ?? _ok2xx(r.statusCode),
+      statusCode: r.statusCode,
+      body: responseBody.isNotEmpty ? responseBody : null,
+      message: message,
+    );
   }
 
   // ---------- Auth (Kunden) ----------
