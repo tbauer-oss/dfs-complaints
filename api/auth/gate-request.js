@@ -1,6 +1,6 @@
 export const config = { runtime: 'nodejs' };
 
-import { handlePreflight, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
+import { handlePreflight, ok, bad, methodNotAllowed, readJson, setCors } from '../_lib/http.js';
 import { randomGateCode, hashGateCode } from '../_lib/gate.js';
 import { gateStoreSet, userByEmail } from '../_lib/store.js';
 import { sendMail } from '../_lib/mailer.js';
@@ -14,6 +14,7 @@ function normalizeString(value) {
 }
 
 export default async function handler(req, res) {
+  setCors(req, res);
   if (handlePreflight(req, res)) return;
   if (req.method !== 'POST') return methodNotAllowed(res);
 
