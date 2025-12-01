@@ -985,6 +985,10 @@ class ApiClient {
       } catch (_) {}
       message ??= responseBody;
     }
+    if (message != null && message.toLowerCase().contains('stack overflow')) {
+      message =
+          'E-Mail-Versand fehlgeschlagen (Mailer-Stack-Overflow). Bitte SMTP/Testmodus-Konfiguration prüfen oder Support kontaktieren.';
+    }
     return GateRequestResult(
       ok: ok ?? _ok2xx(r.statusCode),
       statusCode: r.statusCode,
