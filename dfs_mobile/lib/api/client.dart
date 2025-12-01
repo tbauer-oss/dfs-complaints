@@ -66,6 +66,18 @@ class SimpleResult {
       SimpleResult(ok: false, statusCode: statusCode, message: message);
 }
 
+class GateRequestResult {
+  final bool ok;
+  final int statusCode;
+  final String? body;
+
+  const GateRequestResult({
+    required this.ok,
+    required this.statusCode,
+    this.body,
+  });
+}
+
 String _extractMessage(String body) {
   try {
     final j = jsonDecode(body);
@@ -951,17 +963,17 @@ class ApiClient {
     }
   }
 
-  Future<String?> gateRequestPassword(String email, {String? company}) async {
+  Future<GateRequestResult> gateRequestPassword(String email, {String? company}) async {
     final body = <String, String>{'email': email.trim()};
     final co = company?.trim();
     if (co != null && co.isNotEmpty) body['company'] = co;
     final r = await _post('/api/gate/request', body);
-    if (_ok2xx(r.statusCode)) return null;
-    try {
-      final body = r.body;
-      if (body.isNotEmpty) return body;
-    } catch (_) {}
-    return 'gate request failed: ${r.statusCode}';
+    final responseBody = r.body;
+    return GateRequestResult(
+      ok: _ok2xx(r.statusCode),
+      statusCode: r.statusCode,
+      body: responseBody.isNotEmpty ? responseBody : null,
+    );
   }
 
   // ---------- Auth (Kunden) ----------
