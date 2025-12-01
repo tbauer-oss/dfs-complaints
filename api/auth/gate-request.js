@@ -113,7 +113,12 @@ export default async function handler(req, res) {
     return ok(res, { ok: true, mailSent, mailError: null });
   } catch (err) {
     console.error('gate-request fatal:', err);
-    const msg = isPreview ? err?.message || String(err) : 'internal error';
-    return bad(res, msg, 500);
+    const stackOverflow = err instanceof RangeError && /stack size/i.test(err.message || '');
+    const msg = isPreview
+      ? err?.message || String(err)
+      : stackOverflow
+          ? 'Mailer stack overflow – bitte Maildienst prüfen.'
+          : 'Maildienst aktuell nicht erreichbar.';
+    return ok(res, { ok: false, mailSent: false, mailError: msg });
   }
 }
