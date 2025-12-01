@@ -972,10 +972,12 @@ class ApiClient {
     final r = await _post('/api/gate/request', body);
     final responseBody = r.body;
     String? message;
+    bool? ok;
     if (responseBody.isNotEmpty) {
       try {
         final decoded = jsonDecode(responseBody);
         if (decoded is Map<String, dynamic>) {
+          ok = decoded['ok'] is bool ? decoded['ok'] as bool : null;
           if (decoded['mailError'] is String) message = decoded['mailError'] as String;
           message ??= decoded['error'] is String ? decoded['error'] as String : null;
           message ??= decoded['message'] is String ? decoded['message'] as String : null;
@@ -984,7 +986,7 @@ class ApiClient {
       message ??= responseBody;
     }
     return GateRequestResult(
-      ok: _ok2xx(r.statusCode),
+      ok: ok ?? _ok2xx(r.statusCode),
       statusCode: r.statusCode,
       body: responseBody.isNotEmpty ? responseBody : null,
       message: message,
