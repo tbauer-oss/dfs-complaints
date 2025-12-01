@@ -70,11 +70,13 @@ class GateRequestResult {
   final bool ok;
   final int statusCode;
   final String? body;
+  final String? message;
 
   const GateRequestResult({
     required this.ok,
     required this.statusCode,
     this.body,
+    this.message,
   });
 }
 
@@ -969,10 +971,23 @@ class ApiClient {
     if (co != null && co.isNotEmpty) body['company'] = co;
     final r = await _post('/api/gate/request', body);
     final responseBody = r.body;
+    String? message;
+    if (responseBody.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(responseBody);
+        if (decoded is Map<String, dynamic>) {
+          if (decoded['mailError'] is String) message = decoded['mailError'] as String;
+          message ??= decoded['error'] is String ? decoded['error'] as String : null;
+          message ??= decoded['message'] is String ? decoded['message'] as String : null;
+        }
+      } catch (_) {}
+      message ??= responseBody;
+    }
     return GateRequestResult(
       ok: _ok2xx(r.statusCode),
       statusCode: r.statusCode,
       body: responseBody.isNotEmpty ? responseBody : null,
+      message: message,
     );
   }
 
