@@ -21,11 +21,17 @@ if (mailOk) {
 
 export async function sendMail({ to, subject, html, text, cc }) {
   try {
+    const diagnosticsBase = {
+      host: MAIL.host,
+      port: MAIL.port,
+      userPresent: !!MAIL.user,
+    };
     if (!transporter) {
       return {
         ok: false,
         reason: 'missing-smtp-config',
         missing: missingMailEnv,
+        diagnostics: { ...diagnosticsBase, missing: missingMailEnv },
         userMessage: 'Maildienst nicht konfiguriert – SMTP-Zugangsdaten prüfen.',
       };
     }
@@ -33,6 +39,12 @@ export async function sendMail({ to, subject, html, text, cc }) {
     let meta = null;
     try { meta = await loadAppMeta(); } catch (_) {}
     const routing = applyTestMailRouting(meta, { to, cc, subject });
+    const diagnostics = {
+      ...diagnosticsBase,
+      testMode: !!meta?.testMode,
+      testEmailConfigured: !!meta?.testEmail,
+      suppressed: !!routing.suppressed,
+    };
     const toList = routing.to && routing.to.length > 0 ? routing.to : to;
     const ccList = routing.cc && routing.cc.length > 0 ? routing.cc : undefined;
     const subjectOut = routing.subject || subject;
@@ -43,6 +55,7 @@ export async function sendMail({ to, subject, html, text, cc }) {
         ok: false,
         reason: 'test-mode-suppressed',
         skipped: true,
+        diagnostics,
         userMessage: 'Testmodus aktiv – Mailversand wurde unterdrückt.',
       };
     }
@@ -51,6 +64,7 @@ export async function sendMail({ to, subject, html, text, cc }) {
       return {
         ok: false,
         reason: 'transporter-disabled',
+        diagnostics,
         userMessage: 'Maildienst aktuell deaktiviert wegen eines früheren Fehlers.',
       };
     }
@@ -64,7 +78,7 @@ export async function sendMail({ to, subject, html, text, cc }) {
         html,
         text,
       });
-      return { ok: true, id: info.messageId };
+      return { ok: true, id: info.messageId, diagnostics };
     } catch (err) {
       const isStackOverflow = err instanceof RangeError && /stack size/i.test(err.message || '');
       const message = err?.message || String(err);
@@ -75,11 +89,12 @@ export async function sendMail({ to, subject, html, text, cc }) {
         ok: false,
         reason: isStackOverflow ? 'stack-overflow' : err?.code || 'send-error',
         message,
+        diagnostics,
         userMessage:
           err?.response?.code === 'EAUTH'
             ? 'SMTP-Authentifizierung fehlgeschlagen – Zugangsdaten prüfen.'
             : isStackOverflow
-                ? 'Mailer stack overflow – please check SMTP/test-mode routing configuration.'
+                ? 'Mailer stack overflow – bitte SMTP/Testmodus/Routing-Konfiguration prüfen (Host/Port/User).'
                 : 'Maildienst nicht erreichbar – SMTP-Verbindung oder Quota prüfen.',
       };
     }
@@ -93,6 +108,11 @@ export async function sendMail({ to, subject, html, text, cc }) {
       ok: false,
       reason: isStackOverflow ? 'stack-overflow' : err?.code || 'send-error',
       message,
+      diagnostics: {
+        host: MAIL.host,
+        port: MAIL.port,
+        userPresent: !!MAIL.user,
+      },
       userMessage: isStackOverflow
         ? 'Mailer stack overflow – bitte Maildienst-Konfiguration prüfen.'
         : 'Mailversand fehlgeschlagen – Bitte SMTP/Testmodus-Konfiguration prüfen.',
