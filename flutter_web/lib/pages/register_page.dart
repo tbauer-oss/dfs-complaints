@@ -405,8 +405,10 @@ class _RegisterPageState extends State<RegisterPage> {
         company: company,
       );
       if (!mounted) return;
-      final statusInfo = 'HTTP ${result.statusCode}' +
-          (result.body != null ? ': ${result.body}' : '');
+      final msg = result.message?.trim();
+      final statusInfo = msg == null || msg.isEmpty
+          ? 'HTTP ${result.statusCode}'
+          : 'HTTP ${result.statusCode} – $msg';
       if (result.ok) {
         setState(() => _gateInfo = '${t.gateRequestInfo}\n$statusInfo');
       } else {
