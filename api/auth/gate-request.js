@@ -88,16 +88,37 @@ export default async function handler(req, res) {
         text,
       });
       mailSent = !!result?.ok;
-      if (!mailSent) mailError = result?.reason || 'send failed';
+      if (!mailSent) {
+        const raw = result?.message || result?.reason || 'send failed';
+        const stackOverflow = /stack size/i.test(raw || '');
+        mailError =
+          result?.userMessage ||
+          (stackOverflow
+            ? 'Mailer stack overflow – check SMTP/test-mode routing configuration'
+            : raw);
+      }
     } catch (err) {
       mailError = err?.message || String(err);
       console.error('gate-request mail failed:', mailError);
     }
 
-    return ok(res, { ok: true, mailSent, mailError });
+    if (!mailSent) {
+      return ok(res, {
+        ok: false,
+        mailSent,
+        mailError: mailError || 'mail send failed',
+      });
+    }
+
+    return ok(res, { ok: true, mailSent, mailError: null });
   } catch (err) {
     console.error('gate-request fatal:', err);
-    const msg = isPreview ? err?.message || String(err) : 'internal error';
-    return bad(res, msg, 500);
+    const stackOverflow = err instanceof RangeError && /stack size/i.test(err.message || '');
+    const msg = isPreview
+      ? err?.message || String(err)
+      : stackOverflow
+          ? 'Mailer stack overflow – bitte Maildienst prüfen.'
+          : 'Maildienst aktuell nicht erreichbar.';
+    return ok(res, { ok: false, mailSent: false, mailError: msg });
   }
 }
