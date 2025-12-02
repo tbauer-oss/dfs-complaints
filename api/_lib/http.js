@@ -1,41 +1,15 @@
 // api/_lib/http.js  (ESM, shared CORS helpers)
 
 // --- Erlaubte Frontend-Origins ---
-export const PROD_FE       = 'https://dfs-complaints-web.vercel.app';
-export const PROD_ADMIN_FE = process.env.ADMIN_ORIGIN || 'https://dfs-complaints-admin.vercel.app';
-export const ADMIN_FE      = PROD_ADMIN_FE;
+export const PROD_FE  = 'https://dfs-complaints-web.vercel.app';
 export const LOCAL_FE = 'http://localhost:8080';
-const PREVIEW_WEB   = /^https:\/\/dfs-complaints-web-[a-z0-9-]+(?:-[a-z0-9-]+)?\.vercel\.app$/i;
-const PREVIEW_ADMIN = /^https:\/\/dfs-complaints-admin-[a-z0-9-]+(?:-[a-z0-9-]+)?\.vercel\.app$/i;
-const DIAMON_DOMAIN = /^https:\/\/([a-z0-9-]+\.)?dfs-diamon\.com$/i;
-
-const LOCAL_PATTERN = /^http:\/\/localhost(?::\d+)?$/i;
-
-function extraOrigins() {
-  return (process.env.CORS_EXTRA_ORIGINS || '')
-    .split(',')
-    .map((o) => o.trim())
-    .filter(Boolean);
-}
+const PREVIEW  = /^https:\/\/dfs-complaints-web-[a-z0-9-]+(?:-[a-z0-9-]+)?\.vercel\.app$/i;
 
 // --- Origin prüfen ---
 export function isAllowedOrigin(origin = '') {
   if (!origin) return false;
-
-  const normalized = origin.trim();
-  const lowered    = normalized.toLowerCase();
-
-  if ([PROD_FE, PROD_ADMIN_FE, ADMIN_FE, LOCAL_FE].map((o) => o.toLowerCase()).includes(lowered)) return true;
-
-  if (
-    LOCAL_PATTERN.test(lowered) ||
-    PREVIEW_WEB.test(lowered) ||
-    PREVIEW_ADMIN.test(lowered) ||
-    DIAMON_DOMAIN.test(lowered) ||
-    extraOrigins().map((o) => o.toLowerCase()).includes(lowered)
-  ) return true;
-
-  return false;
+  if (origin === PROD_FE || origin === LOCAL_FE) return true;
+  return PREVIEW.test(origin);
 }
 
 // --- CORS setzen (immer am Handler-Anfang aufrufen!) ---
