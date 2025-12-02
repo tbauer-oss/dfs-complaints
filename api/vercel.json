@@ -3,5 +3,8 @@
   "functions": {
     "api/**/*.js": { "runtime": "nodejs" }
   },
-  "headers": []
+  "headers": [],
+  "routes": [
+    { "src": "/api/(.*)", "methods": ["OPTIONS"], "dest": "/api/_options.js" }
+  ]
 }
