@@ -1,6 +1,7 @@
 // api/_lib/cors.js
 const PROD_FE = 'https://dfs-complaints-web.vercel.app';
 const PREVIEW = /^https:\/\/dfs-complaints-web-[a-z0-9-]+(?:-[a-z0-9-]+)?\.vercel\.app$/i;
+const DIAMON_DOMAIN = /^https:\/\/([a-z0-9-]+\.)?dfs-diamon\.com$/i;
 
 /**
  * Einheitliche CORS-Konfiguration für alle API-Routen
@@ -19,7 +20,7 @@ export function setCors(
   // Zulässige Origins: Prod + Preview + lokales Testing (optional)
   const allow =
     origin &&
-    (origin === PROD_FE || PREVIEW.test(origin) || origin.startsWith('http://localhost'))
+    (origin === PROD_FE || PREVIEW.test(origin) || DIAMON_DOMAIN.test(origin) || origin.startsWith('http://localhost'))
       ? origin
       : (process.env.WEB_ORIGIN || PROD_FE);
 
