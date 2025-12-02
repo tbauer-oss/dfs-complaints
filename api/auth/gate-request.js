@@ -5,7 +5,7 @@ import { randomGateCode, hashGateCode } from '../_lib/gate.js';
 import { gateStoreSet, userByEmail } from '../_lib/store.js';
 import { sendMail } from '../_lib/mailer.js';
 
-const INTERNAL_GATE_EMAIL = process.env.GATE_NOTIFY_EMAIL || 'complaint@dfs-diamon.de';
+const INTERNAL_GATE_EMAIL = process.env.GATE_NOTIFY_EMAIL || 'noreply@dfs-diamon.com';
 
 const isPreview = process.env.VERCEL_ENV !== 'production';
 
