@@ -11,9 +11,15 @@ const primaryPort = MAIL.port;
 const isSecure = primaryPort === 465;
 const fallbackPort = isSecure ? 587 : null;
 
-let transporter = null;
-if (mailOk) {
-  transporter = buildTransport(primaryPort);
+const transports = new Map();
+
+function getTransport(port = primaryPort) {
+  if (!mailOk) return null;
+  const cached = transports.get(port);
+  if (cached) return cached;
+  const tx = buildTransport(port);
+  transports.set(port, tx);
+  return tx;
 }
 
 function buildTransport(port) {
@@ -41,7 +47,8 @@ function shouldFallback(err) {
 }
 
 export async function sendMail({ to, subject, html, text, cc }) {
-  if (!transporter) {
+  const primaryTransport = getTransport(primaryPort);
+  if (!primaryTransport) {
     return {
       ok: false,
       reason: 'missing-smtp-config',
@@ -71,28 +78,28 @@ export async function sendMail({ to, subject, html, text, cc }) {
   };
 
   try {
-    const info = await transporter.sendMail(sendOptions);
+    const info = await primaryTransport.sendMail(sendOptions);
     return { ok: true, id: info.messageId };
   } catch (err) {
-    if (fallbackPort && shouldFallback(err)) {
-      console.warn('[mail] primary SMTP port failed, retrying with STARTTLS', {
-        port: primaryPort,
-        fallbackPort,
-        code: err?.code,
-        responseCode: err?.responseCode,
-        command: err?.command,
-      });
-      transporter = buildTransport(fallbackPort);
-      const info = await transporter.sendMail(sendOptions);
-      return { ok: true, id: info.messageId, fallback: true };
-    }
-
-    console.error('[mail] send failed', {
+    const shouldTryFallback = fallbackPort && shouldFallback(err);
+    const fallbackDetails = {
+      portTried: primaryPort,
+      fallbackPort,
       code: err?.code,
       responseCode: err?.responseCode,
       command: err?.command,
       message: err?.message,
-    });
+    };
+
+    if (shouldTryFallback) {
+      console.warn('[mail] primary SMTP port failed, retrying with STARTTLS', fallbackDetails);
+      const fallbackTransport = getTransport(fallbackPort) || buildTransport(fallbackPort);
+      transports.set(fallbackPort, fallbackTransport);
+      const info = await fallbackTransport.sendMail(sendOptions);
+      return { ok: true, id: info.messageId, fallback: true };
+    }
+
+    console.error('[mail] send failed', fallbackDetails);
     throw err;
   }
 }

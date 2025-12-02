@@ -6,11 +6,32 @@ function clean(value) {
 }
 
 export function resolveMailConfig(env = process.env) {
-  const host = clean(env.SMTP_HOST) || clean(env.MAIL_HOST);
-  const portRaw = clean(env.SMTP_PORT) || clean(env.MAIL_PORT);
+  const host =
+    clean(env.SMTP_HOST) ||
+    clean(env.MAIL_HOST) ||
+    clean(env.SMTP_SERVER) ||
+    clean(env.MAIL_SERVER);
+
+  const portRaw =
+    clean(env.SMTP_PORT) ||
+    clean(env.MAIL_PORT) ||
+    clean(env.SMTP_SERVER_PORT) ||
+    clean(env.MAIL_SERVER_PORT);
   const port = Number(portRaw) || 587;
-  const user = clean(env.SMTP_USER) || clean(env.MAIL_USER);
-  const pass = clean(env.SMTP_PASS) || clean(env.MAIL_PASS);
+
+  const user =
+    clean(env.SMTP_USER) ||
+    clean(env.SMTP_LOGIN) ||
+    clean(env.SMTP_EMAIL) ||
+    clean(env.MAIL_USER) ||
+    clean(env.MAIL_LOGIN) ||
+    clean(env.MAIL_EMAIL);
+
+  const pass =
+    clean(env.SMTP_PASS) ||
+    clean(env.SMTP_PASSWORD) ||
+    clean(env.MAIL_PASS) ||
+    clean(env.MAIL_PASSWORD);
   const from = clean(env.SMTP_FROM) || clean(env.MAIL_FROM) || user;
   const replyTo = clean(env.MAIL_REPLY_TO) || clean(env.SMTP_REPLY_TO);
   const qm = clean(env.MAIL_QM);
