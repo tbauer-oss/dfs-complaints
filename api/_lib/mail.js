@@ -16,6 +16,7 @@ const SMTP_HOST = MAIL.host;                // z.B. mail.gmx.net
 const SMTP_PORT = MAIL.port; // 587=STARTTLS, 465=SMTPS
 const SMTP_USER = MAIL.user;                // z.B. no-reply_dfs-complaints@gmx.net
 const SMTP_PASS = MAIL.pass;
+const IS_SECURE = SMTP_PORT === 465;
 
 let _transporter = null;
 
@@ -38,8 +39,16 @@ function getTransport() {
   _transporter = nodemailer.createTransport({
     host: SMTP_HOST,
     port: SMTP_PORT,
-    secure: SMTP_PORT === 465,
+    secure: IS_SECURE,
+    name: SMTP_HOST,
     auth: { user: SMTP_USER, pass: SMTP_PASS },
+    tls: {
+      servername: SMTP_HOST,
+      minVersion: 'TLSv1.2',
+      rejectUnauthorized: true,
+    },
+    connectionTimeout: 15000,
+    greetingTimeout: 8000,
   });
   return _transporter;
 }
@@ -574,6 +583,12 @@ export async function send(
   const senderAddress = cleanAddress(SMTP_USER);
   if (senderAddress && senderAddress.includes('@') && senderAddress !== fromAddress) {
     mailOptions.sender = senderAddress;
+  }
+
+  if (senderAddress && senderAddress.includes('@')) {
+    const envelope = { from: senderAddress, to: toList };
+    if (ccList.length) envelope.cc = ccList;
+    mailOptions.envelope = envelope;
   }
 
   if (replyToAddress) {
