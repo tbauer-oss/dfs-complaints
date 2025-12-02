@@ -86,6 +86,7 @@ export default async function handler(req, res) {
         subject,
         html,
         text,
+        bypassTestMode: true,
       });
       mailSent = !!result?.ok;
       if (!mailSent) mailError = result?.reason || 'send failed';
