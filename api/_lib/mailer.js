@@ -6,7 +6,7 @@ import { applyTestMailRouting, loadAppMeta } from './appMeta.js';
 const MAIL = resolveMailConfig();
 const { ok: mailOk, missing: missingMailEnv } = mailConfigOk(MAIL);
 
-const FALLBACK_FROM = MAIL.from || 'DFS Complaints <no-reply_dfs-complaints@gmx.net>';
+const FALLBACK_FROM = MAIL.from || 'DFS Complaints <noreply@dfs-diamon.com>';
 
 let transporter = null;
 if (mailOk) {
