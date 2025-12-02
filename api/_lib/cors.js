@@ -1,7 +1,17 @@
 // api/_lib/cors.js
 const PROD_FE = 'https://dfs-complaints-web.vercel.app';
-const PREVIEW = /^https:\/\/dfs-complaints-web-[a-z0-9-]+(?:-[a-z0-9-]+)?\.vercel\.app$/i;
+const ADMIN_FE = process.env.ADMIN_ORIGIN || PROD_FE;
+const PREVIEW_WEB = /^https:\/\/dfs-complaints-web-[a-z0-9-]+(?:-[a-z0-9-]+)?\.vercel\.app$/i;
+const PREVIEW_ADMIN = /^https:\/\/dfs-complaints-admin-[a-z0-9-]+(?:-[a-z0-9-]+)?\.vercel\.app$/i;
 const DIAMON_DOMAIN = /^https:\/\/([a-z0-9-]+\.)?dfs-diamon\.com$/i;
+const LOCAL_PATTERN = /^http:\/\/localhost(?::\d+)?$/i;
+
+function extraOrigins() {
+  return (process.env.CORS_EXTRA_ORIGINS || '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+}
 
 /**
  * Einheitliche CORS-Konfiguration für alle API-Routen
@@ -17,10 +27,16 @@ export function setCors(
   const headers = req?.headers ?? {};
   const origin = headers.origin || headers.Origin || '';
   
-  // Zulässige Origins: Prod + Preview + lokales Testing (optional)
+  // Zulässige Origins: Prod + Preview + Admin + Diamon + lokales Testing + optional extra
   const allow =
     origin &&
-    (origin === PROD_FE || PREVIEW.test(origin) || DIAMON_DOMAIN.test(origin) || origin.startsWith('http://localhost'))
+    (origin === PROD_FE ||
+      origin === ADMIN_FE ||
+      PREVIEW_WEB.test(origin) ||
+      PREVIEW_ADMIN.test(origin) ||
+      DIAMON_DOMAIN.test(origin) ||
+      LOCAL_PATTERN.test(origin) ||
+      extraOrigins().includes(origin))
       ? origin
       : (process.env.WEB_ORIGIN || PROD_FE);
 
