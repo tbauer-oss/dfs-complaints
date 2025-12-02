@@ -1,12 +1,15 @@
 // /api/gate/index.js
 export const config = { runtime: 'nodejs' };
 
-import { handlePreflight, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
+import { handlePreflight, ok, bad, methodNotAllowed, readJson, setCors } from '../_lib/http.js';
 import { consumeGateCodeOnce, issueGateToken, GateError } from '../_lib/gate-auth.js';
 
 const isPreview = process.env.VERCEL_ENV !== 'production';
 
 export default async function handler(req, res) {
+  // Immer zuerst CORS setzen – auch bei regulären Requests
+  // (handlePreflight kümmert sich um OPTIONS)
+  setCors(req, res);
   if (handlePreflight(req, res)) return;
 
   if (req.method === 'GET') {
