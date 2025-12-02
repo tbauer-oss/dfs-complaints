@@ -7,14 +7,23 @@ const MAIL = resolveMailConfig();
 const { ok: mailOk, missing: missingMailEnv } = mailConfigOk(MAIL);
 
 const FALLBACK_FROM = MAIL.from || 'DFS Complaints <noreply@dfs-diamon.com>';
+const isSecure = MAIL.port === 465;
 
 let transporter = null;
 if (mailOk) {
   transporter = nodemailer.createTransport({
     host: MAIL.host,
     port: MAIL.port,
-    secure: MAIL.port === 465,
+    secure: isSecure,
+    name: MAIL.host,
     auth: MAIL.user && MAIL.pass ? { user: MAIL.user, pass: MAIL.pass } : undefined,
+    tls: {
+      servername: MAIL.host,
+      minVersion: 'TLSv1.2',
+      rejectUnauthorized: true,
+    },
+    connectionTimeout: 15000,
+    greetingTimeout: 8000,
   });
 }
 
@@ -40,6 +49,7 @@ export async function sendMail({ to, subject, html, text, cc }) {
 
   const info = await transporter.sendMail({
     from: FALLBACK_FROM,
+    envelope: MAIL.user ? { from: MAIL.user, to: toList, cc: ccList } : undefined,
     to: toList,
     cc: ccList,
     subject: subjectOut,
