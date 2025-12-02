@@ -16,8 +16,10 @@ const SMTP_HOST = MAIL.host;                // z.B. mail.gmx.net
 const SMTP_PORT = MAIL.port; // 587=STARTTLS, 465=SMTPS
 const SMTP_USER = MAIL.user;                // z.B. no-reply_dfs-complaints@gmx.net
 const SMTP_PASS = MAIL.pass;
+const IS_SECURE = SMTP_PORT === 465;
+const FALLBACK_PORT = IS_SECURE ? 587 : null;
 
-let _transporter = null;
+const transports = new Map();
 
 const { ok: mailOk, missing: missingMailEnv } = mailConfigOk(MAIL);
 
@@ -27,21 +29,37 @@ function ensureEnv() {
   }
 }
 
-function getTransport() {
-  if (_transporter) return _transporter;
+function getTransport(port = SMTP_PORT) {
+  const cached = transports.get(port);
+  if (cached) return cached;
   ensureEnv();
 
   // Brevo/Smtp2Go mögen keinen Verbindungs-Pool; halte die Config daher bewusst
   // schlank wie in api/_lib/mailer.js, das aktuell zuverlässig Gate-/Support-Post
   // versendet. Durch das Weglassen von pool und den TLS-Tweaks wird der Versand
   // robuster bei SMTP-Providern mit strikteren Limits.
-  _transporter = nodemailer.createTransport({
+  const transport = createTransport(port);
+  transports.set(port, transport);
+  return transport;
+}
+
+function createTransport(port) {
+  const secure = port === 465;
+  return nodemailer.createTransport({
     host: SMTP_HOST,
-    port: SMTP_PORT,
-    secure: SMTP_PORT === 465,
+    port,
+    secure,
+    requireTLS: !secure,
+    name: SMTP_HOST,
     auth: { user: SMTP_USER, pass: SMTP_PASS },
+    tls: {
+      servername: SMTP_HOST,
+      minVersion: 'TLSv1.2',
+      rejectUnauthorized: true,
+    },
+    connectionTimeout: 15000,
+    greetingTimeout: 8000,
   });
-  return _transporter;
 }
 
 export async function verifyTransport() {
@@ -576,6 +594,12 @@ export async function send(
     mailOptions.sender = senderAddress;
   }
 
+  if (senderAddress && senderAddress.includes('@')) {
+    const envelope = { from: senderAddress, to: toList };
+    if (ccList.length) envelope.cc = ccList;
+    mailOptions.envelope = envelope;
+  }
+
   if (replyToAddress) {
     mailOptions.replyTo = replyToAddress;
   }
@@ -603,24 +627,45 @@ export async function notifyQM(msg) {
 
 async function sendWithRetry(mailOptions, { attempts = 3, baseDelayMs = 1000 } = {}) {
   let lastError;
-  for (let attempt = 1; attempt <= attempts; attempt++) {
-    try {
-      return await getTransport().sendMail(mailOptions);
-    } catch (err) {
-      lastError = err;
-      if (!isTemporarySmtpError(err) || attempt === attempts) {
+  const portsToTry = [SMTP_PORT, ...(FALLBACK_PORT ? [FALLBACK_PORT] : [])];
+
+  for (let portIndex = 0; portIndex < portsToTry.length; portIndex++) {
+    const port = portsToTry[portIndex];
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        return await getTransport(port).sendMail(mailOptions);
+      } catch (err) {
+        lastError = err;
+        const temporary = isTemporarySmtpError(err);
+        const canRetry = temporary && attempt < attempts;
+        if (canRetry) {
+          const delay = baseDelayMs * attempt;
+          console.warn('mail: temporary SMTP error, retrying', {
+            port,
+            attempt,
+            delay,
+            code: err?.code,
+            responseCode: err?.responseCode,
+            command: err?.command,
+          });
+          await wait(delay);
+          continue;
+        }
+
+        const canFallback = portIndex < portsToTry.length - 1 && shouldFallbackTransport(err);
+        if (canFallback) {
+          console.warn('mail: primary SMTP port failed, switching to fallback', {
+            port,
+            nextPort: portsToTry[portIndex + 1],
+            code: err?.code,
+            responseCode: err?.responseCode,
+            command: err?.command,
+          });
+          break; // move to next port
+        }
+
         throw err;
       }
-
-      const delay = baseDelayMs * attempt;
-      console.warn('mail: temporary SMTP error, retrying', {
-        attempt,
-        delay,
-        code: err?.code,
-        responseCode: err?.responseCode,
-        command: err?.command,
-      });
-      await wait(delay);
     }
   }
 
@@ -635,6 +680,15 @@ function isTemporarySmtpError(err) {
 
   const smtpCode = parseInt(String(err?.code ?? ''), 10);
   return smtpCode >= 400 && smtpCode < 500;
+}
+
+function shouldFallbackTransport(err) {
+  const code = (err?.code || '').toString();
+  if (['ESOCKET', 'ECONNECTION', 'ETIMEDOUT', 'ECONNRESET', 'EPROTO'].includes(code)) {
+    return true;
+  }
+  const responseCode = typeof err?.responseCode === 'number' ? err.responseCode : null;
+  return responseCode === 421 || responseCode === 454 || responseCode === 530;
 }
 
 function wait(ms) {
