@@ -66,22 +66,6 @@ class SimpleResult {
       SimpleResult(ok: false, statusCode: statusCode, message: message);
 }
 
-class GateRequestResult {
-  final bool ok;
-  final int statusCode;
-  final String? body;
-  final String? message;
-  final Map<String, dynamic>? diagnostics;
-
-  const GateRequestResult({
-    required this.ok,
-    required this.statusCode,
-    this.body,
-    this.message,
-    this.diagnostics,
-  });
-}
-
 String _extractMessage(String body) {
   try {
     final j = jsonDecode(body);
@@ -919,68 +903,17 @@ class ApiClient {
     }
   }
 
-String _formatMailDiagnostics(Map<String, dynamic>? diag) {
-  if (diag == null) return '';
-  final parts = <String>[];
-  if (diag['host'] is String && (diag['host'] as String).isNotEmpty) {
-    parts.add('Host=${diag['host']}');
-  }
-  if (diag['port'] != null) parts.add('Port=${diag['port']}');
-  parts.add('User=${diag['userPresent'] == true ? 'gesetzt' : 'fehlend'}');
-  if (diag['testMode'] != null) {
-    parts.add('Testmodus=${diag['testMode'] == true ? 'an' : 'aus'}');
-  }
-  if (diag['testEmailConfigured'] != null) {
-    parts.add(
-        'Test-E-Mail=${diag['testEmailConfigured'] == true ? 'gesetzt' : 'nicht gesetzt'}');
-  }
-  if (diag['suppressed'] == true) parts.add('Send unterdrückt');
-  if (diag['missing'] is List && (diag['missing'] as List).isNotEmpty) {
-    parts.add('Fehlende Variablen: ${(diag['missing'] as List).join(', ')}');
-  }
-  return parts.isEmpty ? '' : 'Konfiguration: ${parts.join(', ')}';
-}
-
-  Future<GateRequestResult> gateRequestPassword(String email,
-      {String? company}) async {
+  Future<String?> gateRequestPassword(String email, {String? company}) async {
     final body = <String, String>{'email': email.trim()};
     final co = company?.trim();
     if (co != null && co.isNotEmpty) body['company'] = co;
     final r = await _post('/api/gate/request', body);
-    final responseBody = r.body;
-    String? message;
-    bool? ok;
-    Map<String, dynamic>? diagnostics;
-    if (responseBody.isNotEmpty) {
-      try {
-        final decoded = jsonDecode(responseBody);
-        if (decoded is Map<String, dynamic>) {
-          ok = decoded['ok'] is bool ? decoded['ok'] as bool : null;
-          if (decoded['mailError'] is String) message = decoded['mailError'] as String;
-          message ??= decoded['error'] is String ? decoded['error'] as String : null;
-          message ??= decoded['message'] is String ? decoded['message'] as String : null;
-          if (decoded['mailDiagnostics'] is Map<String, dynamic>) {
-            diagnostics = decoded['mailDiagnostics'] as Map<String, dynamic>;
-          }
-        }
-      } catch (_) {}
-      message ??= responseBody;
-    }
-    if (message != null && message.toLowerCase().contains('stack overflow')) {
-      message =
-          'E-Mail-Versand fehlgeschlagen (Mailer-Stack-Overflow). Bitte SMTP/Testmodus-Konfiguration prüfen oder Support kontaktieren.';
-    }
-    final diagText = _formatMailDiagnostics(diagnostics);
-    if (diagText.isNotEmpty) {
-      message = message == null ? diagText : '$message ($diagText)';
-    }
-    return GateRequestResult(
-      ok: ok ?? _ok2xx(r.statusCode),
-      statusCode: r.statusCode,
-      body: responseBody.isNotEmpty ? responseBody : null,
-      message: message,
-      diagnostics: diagnostics,
-    );
+    if (_ok2xx(r.statusCode)) return null;
+    try {
+      final body = r.body;
+      if (body.isNotEmpty) return body;
+    } catch (_) {}
+    return 'gate request failed: ${r.statusCode}';
   }
 
   // ---------- Auth (Kunden) ----------
