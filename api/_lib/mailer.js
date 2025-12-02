@@ -6,18 +6,19 @@ import { applyTestMailRouting, loadAppMeta } from './appMeta.js';
 const MAIL = resolveMailConfig();
 const { ok: mailOk, missing: missingMailEnv } = mailConfigOk(MAIL);
 
-const FALLBACK_FROM = MAIL.from || 'DFS Complaints <no-reply_dfs-complaints@gmx.net>';
+const FALLBACK_FROM = MAIL.from || 'DFS Complaints <noreply@dfs-diamon.com>';
 
-let transporter = null;
-let transporterHealthy = true;
-if (mailOk) {
-  transporter = nodemailer.createTransport({
+function createTransporter() {
+  return nodemailer.createTransport({
     host: MAIL.host,
     port: MAIL.port,
     secure: MAIL.port === 465,
     auth: MAIL.user && MAIL.pass ? { user: MAIL.user, pass: MAIL.pass } : undefined,
   });
 }
+
+let transporter = mailOk ? createTransporter() : null;
+let transporterHealthy = true;
 
 export async function sendMail({ to, subject, html, text, cc }) {
   try {
@@ -69,35 +70,61 @@ export async function sendMail({ to, subject, html, text, cc }) {
       };
     }
 
-    try {
-      const info = await transporter.sendMail({
-        from: FALLBACK_FROM,
-        to: toList,
-        cc: ccList,
-        subject: subjectOut,
-        html,
-        text,
-      });
-      return { ok: true, id: info.messageId, diagnostics };
-    } catch (err) {
-      const isStackOverflow = err instanceof RangeError && /stack size/i.test(err.message || '');
-      const message = err?.message || String(err);
-      if (isStackOverflow) {
-        transporterHealthy = false;
+    const attemptSend = async ({ allowRebuild = false } = {}) => {
+      try {
+        const info = await transporter.sendMail({
+          from: FALLBACK_FROM,
+          to: toList,
+          cc: ccList,
+          subject: subjectOut,
+          html,
+          text,
+        });
+        transporterHealthy = true;
+        return { ok: true, info, rebuilt: allowRebuild };
+      } catch (err) {
+        const isStackOverflow = err instanceof RangeError && /stack size/i.test(err.message || '');
+        const message = err?.message || String(err);
+        if (isStackOverflow) {
+          transporterHealthy = false;
+          if (allowRebuild && mailOk) {
+            try {
+              transporter = createTransporter();
+              const retry = await attemptSend({ allowRebuild: false });
+              return { ...retry, rebuilt: true };
+            } catch (retryErr) {
+              return { ok: false, err: retryErr, message: retryErr?.message || String(retryErr), stackOverflow: true };
+            }
+          }
+        }
+
+        return { ok: false, err, message, stackOverflow: isStackOverflow };
       }
-      return {
-        ok: false,
-        reason: isStackOverflow ? 'stack-overflow' : err?.code || 'send-error',
-        message,
-        diagnostics,
-        userMessage:
-          err?.response?.code === 'EAUTH'
-            ? 'SMTP-Authentifizierung fehlgeschlagen – Zugangsdaten prüfen.'
-            : isStackOverflow
-                ? 'Mailer stack overflow – bitte SMTP/Testmodus/Routing-Konfiguration prüfen (Host/Port/User).'
-                : 'Maildienst nicht erreichbar – SMTP-Verbindung oder Quota prüfen.',
-      };
+    };
+
+    const outcome = await attemptSend({ allowRebuild: true });
+    if (outcome.ok) {
+      const { info, rebuilt } = outcome;
+      return { ok: true, id: info.messageId, diagnostics: { ...diagnostics, rebuiltTransport: rebuilt } };
     }
+
+    const err = outcome.err;
+    const isStackOverflow = outcome.stackOverflow;
+    const message = outcome.message || err?.message || String(err);
+
+    return {
+      ok: false,
+      reason: isStackOverflow ? 'stack-overflow' : err?.code || 'send-error',
+      message,
+      diagnostics: { ...diagnostics, rebuiltTransport: outcome.rebuilt === true },
+      userMessage:
+        err?.response?.code === 'EAUTH'
+          ? 'SMTP-Authentifizierung fehlgeschlagen – Zugangsdaten prüfen.'
+          : isStackOverflow
+              ? 'Mailer stack overflow – bitte SMTP/Testmodus/Routing-Konfiguration prüfen (Host/Port/User).'
+              : 'Maildienst nicht erreichbar – SMTP-Verbindung oder Quota prüfen.',
+    };
+  }
   } catch (err) {
     const isStackOverflow = err instanceof RangeError && /stack size/i.test(err.message || '');
     const message = err?.message || String(err);
