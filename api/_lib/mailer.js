@@ -49,6 +49,7 @@ function shouldFallback(err) {
 export async function sendMail({ to, subject, html, text, cc }) {
   const primaryTransport = getTransport(primaryPort);
   if (!primaryTransport) {
+    console.error('[mail] missing SMTP config', { missingMailEnv });
     return {
       ok: false,
       reason: 'missing-smtp-config',
