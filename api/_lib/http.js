@@ -2,7 +2,7 @@
 
 // --- Erlaubte Frontend-Origins ---
 export const PROD_FE  = 'https://dfs-complaints-web.vercel.app';
-export const ADMIN_FE = process.env.ADMIN_ORIGIN || 'https://dfs-complaints-admin.vercel.app';
+export const ADMIN_FE = process.env.ADMIN_ORIGIN || PROD_FE;
 export const LOCAL_FE = 'http://localhost:8080';
 const PREVIEW_WEB   = /^https:\/\/dfs-complaints-web-[a-z0-9-]+(?:-[a-z0-9-]+)?\.vercel\.app$/i;
 const PREVIEW_ADMIN = /^https:\/\/dfs-complaints-admin-[a-z0-9-]+(?:-[a-z0-9-]+)?\.vercel\.app$/i;
