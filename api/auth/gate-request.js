@@ -94,7 +94,11 @@ export default async function handler(req, res) {
       console.error('gate-request mail failed:', mailError);
     }
 
-    return ok(res, { ok: true, mailSent, mailError });
+    if (!mailSent) {
+      return bad(res, mailError || 'mail not sent', 502);
+    }
+
+    return ok(res, { ok: true, mailSent, mailError: null });
   } catch (err) {
     console.error('gate-request fatal:', err);
     const msg = isPreview ? err?.message || String(err) : 'internal error';
