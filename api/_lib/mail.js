@@ -7,9 +7,9 @@ import { applyTestMailRouting, loadAppMeta } from './appMeta.js';
 
 // ==== Absender / QM (via ENV übersteuerbar) ====
 const MAIL = resolveMailConfig();
-const FROM     = MAIL.from || 'DFS Complaints <no-reply_dfs-complaints@gmx.net>';
-const REPLY_TO = MAIL.replyTo || 'complaint@dfs-diamon.de';
-const QM       = MAIL.qm || 'complaint@dfs-diamon.de';
+const FROM     = MAIL.from || 'DFS Complaints <noreply@dfs-diamon.com>';
+const REPLY_TO = MAIL.replyTo || 'noreply@dfs-diamon.com';
+const QM       = MAIL.qm || 'noreply@dfs-diamon.com';
 
 // ==== SMTP-ENV ====
 const SMTP_HOST = MAIL.host;                // z.B. mail.gmx.net
