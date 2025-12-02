@@ -7,14 +7,14 @@ import { applyTestMailRouting, loadAppMeta } from './appMeta.js';
 
 // ==== Absender / QM (via ENV übersteuerbar) ====
 const MAIL = resolveMailConfig();
-const FROM     = MAIL.from || 'DFS Complaints <no-reply_dfs-complaints@gmx.net>';
+const FROM     = MAIL.from || 'DFS Complaints <noreply@dfs-diamon.com>';
 const REPLY_TO = MAIL.replyTo || 'complaint@dfs-diamon.de';
 const QM       = MAIL.qm || 'complaint@dfs-diamon.de';
 
 // ==== SMTP-ENV ====
-const SMTP_HOST = MAIL.host;                // z.B. mail.gmx.net
+const SMTP_HOST = MAIL.host;                // z.B. w010c5b0.kasserver.com
 const SMTP_PORT = MAIL.port; // 587=STARTTLS, 465=SMTPS
-const SMTP_USER = MAIL.user;                // z.B. no-reply_dfs-complaints@gmx.net
+const SMTP_USER = MAIL.user;                // z.B. noreply@dfs-diamon.com
 const SMTP_PASS = MAIL.pass;
 
 let _transporter = null;

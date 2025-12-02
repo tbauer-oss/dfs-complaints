@@ -6,6 +6,7 @@ export const ADMIN_FE = process.env.ADMIN_ORIGIN || 'https://dfs-complaints-admi
 export const LOCAL_FE = 'http://localhost:8080';
 const PREVIEW_WEB   = /^https:\/\/dfs-complaints-web-[a-z0-9-]+(?:-[a-z0-9-]+)?\.vercel\.app$/i;
 const PREVIEW_ADMIN = /^https:\/\/dfs-complaints-admin-[a-z0-9-]+(?:-[a-z0-9-]+)?\.vercel\.app$/i;
+const DIAMON_DOMAIN = /^https:\/\/([a-z0-9-]+\.)?dfs-diamon\.com$/i;
 
 const LOCAL_PATTERN = /^http:\/\/localhost(?::\d+)?$/i;
 
@@ -26,6 +27,7 @@ export function isAllowedOrigin(origin = '') {
     LOCAL_PATTERN.test(origin) ||
     PREVIEW_WEB.test(origin) ||
     PREVIEW_ADMIN.test(origin) ||
+    DIAMON_DOMAIN.test(origin) ||
     extraOrigins().includes(origin)
   ) return true;
   return false;
