@@ -2,14 +2,33 @@
 
 // --- Erlaubte Frontend-Origins ---
 export const PROD_FE  = 'https://dfs-complaints-web.vercel.app';
+export const ADMIN_FE = process.env.ADMIN_ORIGIN || 'https://dfs-complaints-admin.vercel.app';
 export const LOCAL_FE = 'http://localhost:8080';
-const PREVIEW  = /^https:\/\/dfs-complaints-web-[a-z0-9-]+(?:-[a-z0-9-]+)?\.vercel\.app$/i;
+const PREVIEW_WEB   = /^https:\/\/dfs-complaints-web-[a-z0-9-]+(?:-[a-z0-9-]+)?\.vercel\.app$/i;
+const PREVIEW_ADMIN = /^https:\/\/dfs-complaints-admin-[a-z0-9-]+(?:-[a-z0-9-]+)?\.vercel\.app$/i;
+
+const LOCAL_PATTERN = /^http:\/\/localhost(?::\d+)?$/i;
+
+function extraOrigins() {
+  return (process.env.CORS_EXTRA_ORIGINS || '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+}
 
 // --- Origin prüfen ---
 export function isAllowedOrigin(origin = '') {
   if (!origin) return false;
-  if (origin === PROD_FE || origin === LOCAL_FE) return true;
-  return PREVIEW.test(origin);
+  if (
+    origin === PROD_FE ||
+    origin === ADMIN_FE ||
+    origin === LOCAL_FE ||
+    LOCAL_PATTERN.test(origin) ||
+    PREVIEW_WEB.test(origin) ||
+    PREVIEW_ADMIN.test(origin) ||
+    extraOrigins().includes(origin)
+  ) return true;
+  return false;
 }
 
 // --- CORS setzen (immer am Handler-Anfang aufrufen!) ---
