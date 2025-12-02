@@ -46,7 +46,24 @@ function shouldFallback(err) {
   return ['ESOCKET', 'ECONNECTION', 'ETIMEDOUT', 'ECONNRESET', 'EPROTO'].includes(code);
 }
 
-export async function sendMail({ to, subject, html, text, cc }) {
+function normalizeRecipients(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value
+      .flatMap((v) => normalizeRecipients(v))
+      .filter((v) => typeof v === 'string' && v.trim())
+      .map((v) => v.trim());
+  }
+  if (typeof value === 'string') {
+    return value
+      .split(/[;,\n]/g)
+      .map((v) => v.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+export async function sendMail({ to, subject, html, text, cc, bypassTestMode = false }) {
   const primaryTransport = getTransport(primaryPort);
   if (!primaryTransport) {
     console.error('[mail] missing SMTP config', { missingMailEnv });
@@ -58,7 +75,12 @@ export async function sendMail({ to, subject, html, text, cc }) {
   }
   let meta = null;
   try { meta = await loadAppMeta(); } catch (_) {}
-  const routing = applyTestMailRouting(meta, { to, cc, subject });
+
+  const routing =
+    bypassTestMode || !meta?.testMode
+      ? { to: normalizeRecipients(to), cc: normalizeRecipients(cc), subject }
+      : applyTestMailRouting(meta, { to, cc, subject });
+
   const toList = routing.to && routing.to.length > 0 ? routing.to : to;
   const ccList = routing.cc && routing.cc.length > 0 ? routing.cc : undefined;
   const subjectOut = routing.subject || subject;
