@@ -21,17 +21,20 @@ function extraOrigins() {
 // --- Origin prüfen ---
 export function isAllowedOrigin(origin = '') {
   if (!origin) return false;
+
+  const normalized = origin.trim();
+  const lowered    = normalized.toLowerCase();
+
+  if ([PROD_FE, PROD_ADMIN_FE, ADMIN_FE, LOCAL_FE].map((o) => o.toLowerCase()).includes(lowered)) return true;
+
   if (
-    origin === PROD_FE ||
-    origin === PROD_ADMIN_FE ||
-    origin === ADMIN_FE ||
-    origin === LOCAL_FE ||
-    LOCAL_PATTERN.test(origin) ||
-    PREVIEW_WEB.test(origin) ||
-    PREVIEW_ADMIN.test(origin) ||
-    DIAMON_DOMAIN.test(origin) ||
-    extraOrigins().includes(origin)
+    LOCAL_PATTERN.test(lowered) ||
+    PREVIEW_WEB.test(lowered) ||
+    PREVIEW_ADMIN.test(lowered) ||
+    DIAMON_DOMAIN.test(lowered) ||
+    extraOrigins().map((o) => o.toLowerCase()).includes(lowered)
   ) return true;
+
   return false;
 }
 
