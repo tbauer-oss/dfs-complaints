@@ -400,19 +400,15 @@ class _RegisterPageState extends State<RegisterPage> {
 
     setState(() => _gateRequestBusy = true);
     try {
-      final result = await widget.api.gateRequestPassword(
+      final err = await widget.api.gateRequestPassword(
         email,
         company: company,
       );
       if (!mounted) return;
-      final msg = result.message?.trim();
-      final statusInfo = msg == null || msg.isEmpty
-          ? 'HTTP ${result.statusCode}'
-          : 'HTTP ${result.statusCode} – $msg';
-      if (result.ok) {
-        setState(() => _gateInfo = '${t.gateRequestInfo}\n$statusInfo');
+      if (err == null) {
+        setState(() => _gateInfo = t.gateRequestInfo);
       } else {
-        setState(() => _gateErr = t.gateRequestError(statusInfo));
+        setState(() => _gateErr = t.gateRequestError(err));
       }
     } catch (e) {
       if (!mounted) return;
