@@ -1,6 +1,6 @@
 export const config = { runtime: 'nodejs' };
 
-import { handlePreflight, ok, bad, methodNotAllowed, readJson, setCors } from '../_lib/http.js';
+import { handlePreflight, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { randomGateCode, hashGateCode } from '../_lib/gate.js';
 import { gateStoreSet, userByEmail } from '../_lib/store.js';
 import { sendMail } from '../_lib/mailer.js';
@@ -14,7 +14,6 @@ function normalizeString(value) {
 }
 
 export default async function handler(req, res) {
-  setCors(req, res);
   if (handlePreflight(req, res)) return;
   if (req.method !== 'POST') return methodNotAllowed(res);
 
@@ -56,7 +55,6 @@ export default async function handler(req, res) {
 
     let mailSent = false;
     let mailError = null;
-    let mailDiagnostics = null;
     try {
       const html = `
         <p>Neue Gate-Code Anfrage:</p>
@@ -89,40 +87,17 @@ export default async function handler(req, res) {
         html,
         text,
       });
-      mailDiagnostics = result?.diagnostics || null;
       mailSent = !!result?.ok;
-      if (!mailSent) {
-        const raw = result?.message || result?.reason || 'send failed';
-        const stackOverflow = /stack size/i.test(raw || '');
-        mailError =
-          result?.userMessage ||
-          (stackOverflow
-            ? 'Mailer stack overflow – check SMTP/test-mode routing configuration'
-            : raw);
-      }
+      if (!mailSent) mailError = result?.reason || 'send failed';
     } catch (err) {
       mailError = err?.message || String(err);
       console.error('gate-request mail failed:', mailError);
     }
 
-    if (!mailSent) {
-      return ok(res, {
-        ok: false,
-        mailSent,
-        mailError: mailError || 'mail send failed',
-        mailDiagnostics,
-      });
-    }
-
-    return ok(res, { ok: true, mailSent, mailError: null, mailDiagnostics });
+    return ok(res, { ok: true, mailSent, mailError });
   } catch (err) {
     console.error('gate-request fatal:', err);
-    const stackOverflow = err instanceof RangeError && /stack size/i.test(err.message || '');
-    const msg = isPreview
-      ? err?.message || String(err)
-      : stackOverflow
-          ? 'Mailer stack overflow – bitte Maildienst prüfen.'
-          : 'Maildienst aktuell nicht erreichbar.';
-    return ok(res, { ok: false, mailSent: false, mailError: msg });
+    const msg = isPreview ? err?.message || String(err) : 'internal error';
+    return bad(res, msg, 500);
   }
 }
