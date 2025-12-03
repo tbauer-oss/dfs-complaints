@@ -135,6 +135,34 @@ export default async function handler(req, res) {
       });
     } catch (mailErr) {
       const mapped = mapMailError(mailErr);
+
+      // Wenn der Versand an den Vertreter scheitert, einmalig an QM fallbacken
+      // und den technischen Hinweis mitschicken.
+      if (repValid) {
+        const fallbackNote = [
+          fullText,
+          '',
+          '--- Technischer Hinweis ---',
+          'Die Nachricht konnte nicht an den Vertreter zugestellt werden und wurde an QM weitergeleitet.',
+          `Fehlermeldung: ${mailErr?.message || mailErr}`,
+        ].join('\n');
+
+        try {
+          await send(fallbackQM, {
+            subject: `[Rep-Kontakt] ${subjectRaw}`,
+            text: fallbackNote,
+            lang: 'de',
+          });
+          return res.status(200).json({ ok: true, fallback: 'qm' });
+        } catch (fallbackErr) {
+          const mappedFallback = mapMailError(fallbackErr);
+          if (mappedFallback) {
+            return res.status(mappedFallback.status).json(mappedFallback.body);
+          }
+          console.error('rep/contact fallback to QM failed', fallbackErr);
+        }
+      }
+
       if (mapped) {
         return res.status(mapped.status).json(mapped.body);
       }

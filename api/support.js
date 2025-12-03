@@ -4,9 +4,35 @@ export const config = { runtime: 'nodejs' };
 import { setCors, ok, bad, noContent, methodNotAllowed } from './_lib/http.js';
 import { getAuthUser } from './_lib/auth.js';
 import { getRepOf } from './_lib/repsStore.js';
+import { mailConfigOk, resolveMailConfig } from './_lib/mail-config.js';
 import { send, tpl } from './_lib/mail.js';
 
-const QM_MAIL = process.env.MAIL_QM || 'complaint@dfs-diamon.de';
+const MAIL = resolveMailConfig();
+const { ok: mailOk, missing: missingMailEnv } = mailConfigOk(MAIL);
+const QM_MAIL = MAIL.qm || process.env.MAIL_QM || 'complaint@dfs-diamon.de';
+
+function mapMailError(err) {
+  const message = err?.message || '';
+  const responseCode = err?.responseCode;
+  const code = err?.code;
+
+  if (message.includes('SMTP env missing')) {
+    return { status: 503, body: { error: 'smtp_config_missing', missing: missingMailEnv } };
+  }
+
+  const smtpError =
+    code === 'EAUTH' ||
+    code === 'ECONNECTION' ||
+    code === 'ETIMEDOUT' ||
+    code === 'ESOCKET' ||
+    (typeof responseCode === 'number' && responseCode >= 400 && responseCode < 600);
+
+  if (smtpError) {
+    return { status: 503, body: { error: 'smtp_unavailable', code: code || responseCode || 'smtp_error' } };
+  }
+
+  return null;
+}
 
 const LANGS = new Set(['de', 'en', 'fr', 'it', 'es']);
 function normLang(x) {
@@ -25,6 +51,10 @@ export default async function handler(req, res) {
   setCors(req, res);
   if (req.method === 'OPTIONS') return noContent(res);
   if (req.method !== 'POST') return methodNotAllowed(res);
+
+  if (!mailOk) {
+    return bad(res, { error: 'smtp_config_missing', missing: missingMailEnv }, 503);
+  }
 
   const user = getAuthUser(req);
   if (!user) return bad(res, 'unauthorized', 401);
@@ -67,11 +97,18 @@ export default async function handler(req, res) {
   lines.push('');
   lines.push(text);
 
-  await send(target, {
-    subject,
-    text: lines.join('\n'),
-    lang: 'de',
-  });
+  try {
+    await send(target, {
+      subject,
+      text: lines.join('\n'),
+      lang: 'de',
+    });
+  } catch (mailErr) {
+    const mapped = mapMailError(mailErr);
+    if (mapped) return bad(res, mapped.body, mapped.status);
+    console.error('[support] mail send failed', mailErr);
+    return bad(res, 'support_send_failed', 500);
+  }
 
   if (user?.email) {
     try {
@@ -85,10 +122,16 @@ export default async function handler(req, res) {
         lang,
       );
 
-      await send(user.email, {
-        ...confirmation,
-        lang,
-      });
+      try {
+        await send(user.email, {
+          ...confirmation,
+          lang,
+        });
+      } catch (mailErr) {
+        const mapped = mapMailError(mailErr);
+        if (mapped) return bad(res, mapped.body, mapped.status);
+        throw mailErr;
+      }
     } catch (err) {
       console.error('support confirmation mail failed', err);
     }
