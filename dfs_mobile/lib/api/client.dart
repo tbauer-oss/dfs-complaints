@@ -1148,14 +1148,30 @@ class ApiClient {
   Future<void> repContactQM({
     required String subject,
     required String message,
+    String? repEmail,
+    String? repFirstName,
+    String? repLastName,
+    String? repRegion,
   }) async {
+    final payload = <String, dynamic>{
+      'subject': subject,
+      'message': message,
+    };
+
+    void addIfPresent(String key, String? value) {
+      final v = value?.trim() ?? '';
+      if (v.isNotEmpty) payload[key] = v;
+    }
+
+    addIfPresent('email', repEmail);
+    addIfPresent('firstName', repFirstName);
+    addIfPresent('lastName', repLastName);
+    addIfPresent('region', repRegion);
+
     final r = await http.post(
       _u('/api/rep/contact-qm'),
       headers: _repHeaders(),
-      body: jsonEncode({
-        'subject': subject,
-        'message': message,
-      }),
+      body: jsonEncode(payload),
     );
 
     if (!_ok2xx(r.statusCode)) {

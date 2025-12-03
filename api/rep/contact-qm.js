@@ -25,11 +25,6 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'unauthorized' });
     }
 
-    const rep = await loadRepById(auth.repId);
-    if (!rep || !rep.email || !rep.email.includes('@')) {
-      return res.status(400).json({ error: 'rep_email_missing' });
-    }
-
     let body = {};
     try {
       if (typeof req.body === 'string') {
@@ -41,6 +36,22 @@ export default async function handler(req, res) {
       body = {};
     }
 
+    let rep = null;
+    try {
+      rep = await loadRepById(auth.repId);
+    } catch (err) {
+      console.warn('[rep/contact-qm] loadRepById failed, falling back to body data', err);
+    }
+
+    const repEmail     = asString(rep?.email)     || asString(body.email);
+    const repFirstName = asString(rep?.firstName) || asString(body.firstName);
+    const repLastName  = asString(rep?.lastName)  || asString(body.lastName);
+    const repRegion    = asString(rep?.region)    || asString(body.region);
+
+    if (!repEmail || !repEmail.includes('@')) {
+      return res.status(400).json({ error: 'rep_email_missing' });
+    }
+
     const subjectRaw = asString(body.subject);
     const messageRaw = asString(body.message).replace(/\r\n/g, '\n');
     const phone      = asString(body.phone);
@@ -50,7 +61,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'subject_or_message_required' });
     }
 
-    const repName = [asString(rep.firstName), asString(rep.lastName)]
+    const repName = [repFirstName, repLastName]
       .filter((s) => s.length > 0)
       .join(' ')
       .trim();
@@ -59,9 +70,9 @@ export default async function handler(req, res) {
     lines.push('Kontakt eines DFS-Vertreters an QM / Support');
     lines.push('');
     lines.push(`Vertreter: ${repName || '–'}`);
-    lines.push(`E-Mail: ${rep.email}`);
-    if (asString(rep.region)) {
-      lines.push(`Region: ${asString(rep.region)}`);
+    lines.push(`E-Mail: ${repEmail}`);
+    if (repRegion) {
+      lines.push(`Region: ${repRegion}`);
     }
     if (company) {
       lines.push(`Firma: ${company}`);
@@ -75,11 +86,6 @@ export default async function handler(req, res) {
     lines.push(messageRaw);
 
     const textBody = lines.join('\n');
-    const displayName = repName || rep.email;
-    const fromHeader = displayName && rep.email
-      ? `${displayName} <${rep.email}>`
-      : rep.email;
-
     const mailPayload = {
       subject: `[Rep-Support] ${subjectRaw}`,
       text: textBody,
@@ -89,8 +95,7 @@ export default async function handler(req, res) {
     try {
       await send(QM_MAIL, {
         ...mailPayload,
-        from: fromHeader,
-        replyTo: rep.email,
+        replyTo: repEmail,
       });
     } catch (primaryError) {
       console.warn('[rep/contact-qm] primary send failed, retrying with default sender', primaryError);
@@ -100,14 +105,15 @@ export default async function handler(req, res) {
         '',
         '--- Technischer Hinweis ---',
         'Versand über die Absenderadresse des Vertreters war nicht möglich.',
-        `E-Mail des Vertreters: ${rep.email}`,
+        `E-Mail des Vertreters: ${repEmail}`,
         repName ? `Name des Vertreters: ${repName}` : null,
+        repRegion ? `Region des Vertreters: ${repRegion}` : null,
       ].filter(Boolean);
 
       await send(QM_MAIL, {
         ...mailPayload,
         text: fallbackLines.join('\n'),
-        replyTo: rep.email,
+        replyTo: repEmail,
       });
     }
 
