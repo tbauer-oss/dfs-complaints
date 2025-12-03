@@ -8,7 +8,7 @@ function asString(v) {
   return (typeof v === 'string' ? v : '').trim();
 }
 
-const QM_MAIL = asString(process.env.MAIL_QM) || 'complaint@dfs-diamon.de';
+const QM_MAIL = asString(process.env.MAIL_QM) || 'noreply@dfs-diamon.com';
 
 export default async function handler(req, res) {
   setCors(req, res, 'Content-Type, Authorization, X-Gate');

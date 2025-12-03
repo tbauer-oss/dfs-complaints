@@ -2485,10 +2485,10 @@ class _RepSupportContactFormState extends State<_RepSupportContactForm> {
     final t = AppLocalizations.of(context)!;
     final subject = _subject.text.trim();
     final message = _message.text.trim();
-    final firstName = (_me?['firstName'] ?? '').toString().trim();
-    final lastName  = (_me?['lastName']  ?? '').toString().trim();
-    final region    = (_me?['region']    ?? '').toString().trim();
-
+    final firstName = widget.repFirstName.trim();
+    final lastName  = widget.repLastName.trim();
+    final region    = widget.repRegion.trim();
+    
     if (subject.isEmpty || message.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(t.rep_contact_validation)),
