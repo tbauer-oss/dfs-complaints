@@ -92,14 +92,18 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        colorScheme.primary.withOpacity(isDark ? 0.58 : 0.82),
-        Color.lerp(colorScheme.tertiary, colorScheme.secondary, 0.35)!
-            .withOpacity(isDark ? 0.42 : 0.68),
+        colorScheme.primary.withOpacity(isDark ? 0.65 : 0.78),
+        Color.lerp(colorScheme.secondary, colorScheme.tertiary, 0.4)!
+            .withOpacity(isDark ? 0.36 : 0.52),
       ],
     );
     final textColor = colorScheme.onPrimaryContainer;
-    final mutedText = textColor.withOpacity(0.8);
-    final highlightLabels = [t.newsCatProduct, t.newsCatApp, t.newsCatRegulatory];
+    final mutedText = textColor.withOpacity(0.82);
+    final highlightLabels = [
+      t.newsCatProduct,
+      t.newsCatApp,
+      t.newsCatRegulatory,
+    ];
     final pinnedCount = entries.where((e) => e.pinned).length;
     final recentCount = entries
         .where((e) => e.publishedAt.isAfter(DateTime.now().subtract(const Duration(days: 30))))
@@ -154,13 +158,13 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
 
     Widget buildHeroVisual(double size, bool isCompact) {
       final accent = isDark
-          ? colorScheme.primaryContainer.withOpacity(0.55)
-          : Colors.white.withOpacity(0.92);
-      final overlay = colorScheme.onPrimaryContainer.withOpacity(0.12);
+          ? colorScheme.primaryContainer.withOpacity(0.6)
+          : Colors.white.withOpacity(0.9);
+      final overlay = colorScheme.onPrimaryContainer.withOpacity(0.15);
       return TweenAnimationBuilder<double>(
-        tween: Tween<double>(begin: 0.96, end: 1.0),
-        duration: const Duration(milliseconds: 900),
-        curve: Curves.easeOutBack,
+        tween: Tween<double>(begin: 0.94, end: 1.0),
+        duration: const Duration(milliseconds: 700),
+        curve: Curves.easeOut,
         builder: (context, value, _) {
           final effectiveSize = size * value;
           return Container(
@@ -170,20 +174,20 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
               shape: BoxShape.circle,
               gradient: RadialGradient(
                 colors: [accent, overlay],
-                stops: const [0.55, 1],
+                stops: const [0.6, 1],
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(isDark ? 0.22 : 0.12),
-                  blurRadius: isCompact ? 10 : 14,
-                  offset: const Offset(0, 10),
+                  color: Colors.black.withOpacity(isDark ? 0.2 : 0.12),
+                  blurRadius: isCompact ? 8 : 12,
+                  offset: const Offset(0, 8),
                 ),
               ],
             ),
             child: Icon(
-              Icons.bolt_rounded,
+              Icons.auto_awesome_rounded,
               color: isDark ? colorScheme.onPrimary : colorScheme.primary,
-              size: effectiveSize * 0.4,
+              size: effectiveSize * 0.36,
             ),
           );
         },
@@ -194,18 +198,18 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
       builder: (context, constraints) {
         final isCompact = constraints.maxWidth < 420;
         final isTight = constraints.maxWidth < 360;
-        final heroSize = isCompact ? 78.0 : 96.0;
+        final heroSize = isCompact ? 64.0 : 76.0;
 
         return Container(
-          margin: EdgeInsets.fromLTRB(12, 12, 12, isCompact ? 8 : 14),
+          margin: EdgeInsets.fromLTRB(12, 8, 12, isCompact ? 6 : 10),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(isCompact ? 16 : 20),
             gradient: gradient,
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(isDark ? 0.22 : 0.14),
-                blurRadius: 18,
-                offset: const Offset(0, 10),
+                blurRadius: 14,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
@@ -242,8 +246,8 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
               ),
               Padding(
                 padding: EdgeInsets.symmetric(
-                  horizontal: isCompact ? 12 : 16,
-                  vertical: isCompact ? 12 : 16,
+                  horizontal: isCompact ? 12 : 14,
+                  vertical: isCompact ? 10 : 12,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -285,7 +289,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                               const SizedBox(height: 10),
                               Text(
                                 t.customerNewsSubtitle,
-                                maxLines: 2,
+                                maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   color: textColor,
@@ -294,19 +298,19 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                                   letterSpacing: -0.2,
                                 ),
                               ),
-                              const SizedBox(height: 6),
+                              const SizedBox(height: 4),
                               Text(
                                 t.customerNewsHeroLead,
-                                maxLines: 2,
+                                maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.bodyMedium?.copyWith(
                                   color: mutedText,
                                   height: 1.35,
                                 ),
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 10),
                               SizedBox(
-                                height: isCompact ? 32 : 34,
+                                height: isCompact ? 30 : 32,
                                 child: ListView.separated(
                                   scrollDirection: Axis.horizontal,
                                   physics: const BouncingScrollPhysics(),
@@ -316,12 +320,12 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                                     final label = highlightLabels[index];
                                     return Container(
                                       padding: EdgeInsets.symmetric(
-                                        horizontal: isCompact ? 10 : 12,
-                                        vertical: isCompact ? 7 : 8,
+                                        horizontal: isCompact ? 9 : 11,
+                                        vertical: isCompact ? 6 : 7,
                                       ),
                                       decoration: BoxDecoration(
                                         borderRadius: BorderRadius.circular(16),
-                                        color: Colors.white.withOpacity(isDark ? 0.12 : 0.18),
+                                        color: Colors.white.withOpacity(isDark ? 0.12 : 0.2),
                                         border: Border.all(
                                           color: Colors.white.withOpacity(0.26),
                                         ),
@@ -416,10 +420,10 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
     IconData? icon,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(18),
+        color: color.withOpacity(0.16),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -432,8 +436,9 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
             label,
             style: theme.textTheme.labelMedium?.copyWith(
               color: color,
-              fontWeight: FontWeight.w600,
-              fontSize: (theme.textTheme.labelMedium?.fontSize ?? 12) * 0.94,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.1,
+              fontSize: (theme.textTheme.labelMedium?.fontSize ?? 12) * 0.9,
             ),
           ),
         ],
@@ -453,7 +458,6 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
     final colorScheme = theme.colorScheme;
     final isCompact = MediaQuery.of(context).size.width < 420;
     final accentColor = entry.pinned ? colorScheme.primary : colorScheme.secondary;
-    final listDate = DateFormat.MMMd(t.localeName).format(entry.publishedAt);
     final publishedLabel = _formatDate(t, entry.publishedAt);
     final updatedLabel = _formatDate(t, entry.updatedAt);
     final backgroundGradient = LinearGradient(
@@ -466,7 +470,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
     );
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         gradient: backgroundGradient,
@@ -527,12 +531,6 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                         children: [
                           _buildPill(
                             theme,
-                            t.customerNewsNewSince(listDate),
-                            accentColor,
-                            icon: Icons.event,
-                          ),
-                          _buildPill(
-                            theme,
                             _categoryLabel(t, entry.category),
                             accentColor,
                             icon: Icons.sell_outlined,
@@ -544,20 +542,20 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                               colorScheme.primary,
                               icon: Icons.push_pin_outlined,
                             ),
+                          if (entry.updatedAt.isAfter(
+                            entry.publishedAt.add(const Duration(minutes: 1)),
+                          ))
+                            _buildPill(
+                              theme,
+                              t.customerNewsUpdateLabel,
+                              accentColor.withOpacity(0.92),
+                              icon: Icons.bolt_rounded,
+                            ),
                         ],
                       ),
                     ],
                   ),
                 ),
-                if (entry.updatedAt.isAfter(
-                  entry.publishedAt.add(const Duration(minutes: 1)),
-                ))
-                  _buildPill(
-                    theme,
-                    t.customerNewsUpdateLabel,
-                    accentColor.withOpacity(0.9),
-                    icon: Icons.bolt_rounded,
-                  ),
               ],
             ),
           ),
@@ -597,20 +595,10 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                           overflow: TextOverflow.ellipsis,
                           style: textTheme.bodyLarge?.copyWith(
                             fontWeight: FontWeight.w800,
-                            height: 1.32,
+                            height: 1.24,
                           ),
                         ),
-                        SizedBox(height: isCompact ? 8 : 10),
-                        Text(
-                          entry.summary,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: textTheme.bodyMedium?.copyWith(
-                            color: textTheme.bodyMedium?.color?.withOpacity(0.85),
-                            height: 1.4,
-                          ),
-                        ),
-                        SizedBox(height: isCompact ? 12 : 14),
+                        SizedBox(height: isCompact ? 10 : 12),
                         Row(
                           children: [
                             Flexible(
@@ -663,30 +651,16 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            publishedLabel,
+                            entry.updatedAt.isAfter(
+                              entry.publishedAt.add(const Duration(minutes: 1)),
+                            )
+                                ? '${t.customerNewsUpdateLabel}: $updatedLabel'
+                                : publishedLabel,
                             style: textTheme.bodyMedium,
                           ),
                         ),
                       ],
                     ),
-                    if (entry.updatedAt.isAfter(
-                      entry.publishedAt.add(const Duration(minutes: 1)),
-                    ))
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Row(
-                          children: [
-                            Icon(Icons.auto_awesome, size: 18, color: accentColor),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                updatedLabel,
-                                style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     if (entry.linkUrl != null) ...[
                       const SizedBox(height: 12),
                       Align(
