@@ -3,8 +3,10 @@ export const config = { runtime: 'nodejs' };
 
 import { setCors, ok, bad, noContent, methodNotAllowed } from './_lib/http.js';
 import { getAuthUser } from './_lib/auth.js';
-import { sendMail } from './_lib/mailer.js';
+import { getRepOf } from './_lib/repsStore.js';
 import { send, tpl } from './_lib/mail.js';
+
+const QM_MAIL = process.env.MAIL_QM || 'complaint@dfs-diamon.de';
 
 const LANGS = new Set(['de', 'en', 'fr', 'it', 'es']);
 function normLang(x) {
@@ -37,13 +39,38 @@ export default async function handler(req, res) {
   if (!consent) return bad(res, 'consent required', 400);
 
   const lang = normLang(user?.lang || req.headers['accept-language']);
-  const contactName = asString(user?.contact || user?.contactName || user?.name);
 
-  await sendMail({
-    to: 'complaint@dfs-diamon.de',
-    cc: user.email,
-    subject: `[DFS Support] ${cat} von ${user.email}`,
-    html: `<p>${text.replace(/\n/g,'<br/>')}</p>`
+  let rep = null;
+  try {
+    rep = await getRepOf(user.email);
+  } catch (err) {
+    console.warn('[support] failed to load rep', err?.message || err);
+  }
+
+  const repEmail = asString(rep?.email);
+  const hasRep = repEmail.includes('@');
+  const target = hasRep ? repEmail : QM_MAIL;
+  const contactName = asString(user?.contact || user?.contactName || user?.name);
+  const company = asString(user?.company || user?.customer || user?.customerName);
+  const subject = `[DFS Support] ${cat} von ${user.email}`;
+
+  const lines = [
+    'Kontakt über das DFS Kundenportal – Support',
+    '',
+    `Kategorie: ${cat}`,
+    `Kunden-E-Mail: ${user.email}`,
+  ];
+  if (company) lines.push(`Kunde: ${company}`);
+  if (contactName) lines.push(`Kontaktperson: ${contactName}`);
+  lines.push('');
+  lines.push('--- Nachricht ---');
+  lines.push('');
+  lines.push(text);
+
+  await send(target, {
+    subject,
+    text: lines.join('\n'),
+    lang: 'de',
   });
 
   if (user?.email) {
@@ -51,9 +78,9 @@ export default async function handler(req, res) {
       const confirmation = tpl.messageConfirmation(
         {
           name: contactName,
-          subject: '',
+          subject,
           message: text,
-          channel: 'support',
+          channel: hasRep ? 'rep' : 'support',
         },
         lang,
       );
