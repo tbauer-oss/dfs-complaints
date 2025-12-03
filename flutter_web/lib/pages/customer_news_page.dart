@@ -85,19 +85,13 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
     final gradient = LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: isDark
-          ? [
-              colorScheme.surface,
-              colorScheme.surfaceVariant.withOpacity(0.9),
-            ]
-          : [
-              Color.lerp(colorScheme.primary, Colors.black, 0.25)!,
-              colorScheme.primary,
-            ],
+      colors: [
+        Color.lerp(colorScheme.primary, colorScheme.tertiary, 0.35)!
+            .withOpacity(isDark ? 0.75 : 1),
+        colorScheme.primaryContainer.withOpacity(isDark ? 0.65 : 0.95),
+      ],
     );
-    final borderColor = isDark
-        ? colorScheme.outline.withOpacity(0.35)
-        : Colors.white.withOpacity(0.4);
+    final borderColor = colorScheme.outlineVariant.withOpacity(isDark ? 0.4 : 0.25);
     final textColor = isDark ? colorScheme.onSurface : Colors.white;
     final secondaryTextColor =
         isDark ? colorScheme.onSurfaceVariant : Colors.white.withOpacity(0.92);
@@ -117,93 +111,89 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
         .length;
     final totalCount = entries.length;
 
-    Widget statTile(String value, String label) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            value,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              color: textColor,
-              fontWeight: FontWeight.w800,
-              shadows: headerShadows,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: textColor.withOpacity(0.95),
-              letterSpacing: 0.3,
-              shadows: headerShadows,
-            ),
-          ),
-        ],
-      );
-    }
-
-    Widget buildHeroVisual(double height) {
-      final accent = isDark
-          ? colorScheme.primary.withOpacity(0.25)
-          : Colors.white.withOpacity(0.25);
-      final largeCircle = height * 0.75;
-      final mediumCircle = height * 0.6;
-      final smallCircle = height * 0.45;
-      return SizedBox(
-        height: height,
-        child: Stack(
+    Widget statTile(String value, String label, IconData icon) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(isDark ? 0.06 : 0.18),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withOpacity(isDark ? 0.1 : 0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Align(
-              alignment: Alignment.center,
-              child: Container(
-                width: largeCircle,
-                height: largeCircle,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: accent,
-                ),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(isDark ? 0.08 : 0.2),
+                shape: BoxShape.circle,
               ),
+              child: Icon(icon, size: 16, color: textColor),
             ),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Container(
-                width: mediumCircle,
-                height: mediumCircle,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: accent.withOpacity(0.6),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: textColor,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.2,
+                    shadows: headerShadows,
+                  ),
                 ),
-              ),
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Container(
-                width: smallCircle,
-                height: smallCircle,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: textColor.withOpacity(0.35), width: 2),
+                Text(
+                  label,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: textColor.withOpacity(0.9),
+                    letterSpacing: 0.3,
+                  ),
                 ),
-              ),
-            ),
-            Align(
-              alignment: Alignment.center,
-              child: Icon(
-                Icons.auto_awesome,
-                color: textColor,
-                size: 64,
-              ),
+              ],
             ),
           ],
         ),
       );
     }
 
+    Widget buildHeroVisual(double size) {
+      final accent = isDark
+          ? colorScheme.primaryContainer.withOpacity(0.5)
+          : Colors.white.withOpacity(0.85);
+      final overlay = isDark
+          ? colorScheme.onPrimary.withOpacity(0.1)
+          : colorScheme.primary.withOpacity(0.1);
+      return Container(
+        height: size,
+        width: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [accent, overlay],
+            stops: const [0.55, 1],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.25 : 0.15),
+              blurRadius: 18,
+              offset: const Offset(0, 14),
+            ),
+          ],
+        ),
+        child: Icon(
+          Icons.local_fire_department_rounded,
+          color: isDark ? colorScheme.onPrimaryContainer : colorScheme.primary,
+          size: size * 0.4,
+        ),
+      );
+    }
+
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      margin: const EdgeInsets.fromLTRB(16, 14, 16, 10),
       padding: EdgeInsets.symmetric(
-        horizontal: 24,
-        vertical: isDark ? 20 : 22,
+        horizontal: 20,
+        vertical: isDark ? 18 : 20,
       ),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(28),
@@ -307,13 +297,13 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                     .toList(),
               ),
               const SizedBox(height: 16),
-              Row(
+              Wrap(
+                spacing: 12,
+                runSpacing: 10,
                 children: [
-                  Expanded(child: statTile('${totalCount.clamp(0, 999)}+', t.customerNewsTitle)),
-                  const SizedBox(width: 12),
-                  Expanded(child: statTile('$pinnedCount', t.customerNewsPinned)),
-                  const SizedBox(width: 12),
-                  Expanded(child: statTile('$recentCount', t.customerNewsHeroFreshLabel)),
+                  statTile('${totalCount.clamp(0, 999)}+', t.customerNewsTitle, Icons.auto_awesome_motion),
+                  statTile('$pinnedCount', t.customerNewsPinned, Icons.push_pin),
+                  statTile('$recentCount', t.customerNewsHeroFreshLabel, Icons.flash_on),
                 ],
               ),
             ],
@@ -324,8 +314,8 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 content,
-                const SizedBox(height: 20),
-                buildHeroVisual(120),
+                const SizedBox(height: 18),
+                buildHeroVisual(110),
               ],
             );
           }
@@ -333,8 +323,8 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
           return Row(
             children: [
               Expanded(child: content),
-              const SizedBox(width: 32),
-              Expanded(child: buildHeroVisual(140)),
+              const SizedBox(width: 28),
+              Expanded(child: buildHeroVisual(130)),
             ],
           );
         },
