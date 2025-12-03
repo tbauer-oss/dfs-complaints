@@ -1,6 +1,7 @@
 // api/rep/contact.js
 import { setCors } from '../_lib/cors.js';
 import { send, tpl } from '../_lib/mail.js'; // Pfad wie bei deinen anderen Routen
+import { mailConfigOk, resolveMailConfig } from '../_lib/mail-config.js';
 
 function asString(v) {
   return (typeof v === 'string' ? v : '').trim();
@@ -13,6 +14,9 @@ function normLang(x) {
   return LANGS.has(two) ? two : 'de';
 }
 
+const MAIL = resolveMailConfig();
+const { ok: mailOk, missing: missingMailEnv } = mailConfigOk(MAIL);
+
 export default async function handler(req, res) {
   setCors(req, res, 'Content-Type, Authorization, X-Gate');
   if (req.method === 'OPTIONS') {
@@ -23,6 +27,10 @@ export default async function handler(req, res) {
   }
 
   try {
+    if (!mailOk) {
+      return res.status(503).json({ error: 'smtp_config_missing', missing: missingMailEnv });
+    }
+
     const body = req.body || {};
 
     const repEmail        = asString(body.repEmail);
