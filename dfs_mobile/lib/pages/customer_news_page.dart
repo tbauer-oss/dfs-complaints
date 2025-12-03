@@ -92,13 +92,14 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        colorScheme.primary.withOpacity(isDark ? 0.22 : 0.18),
-        colorScheme.surfaceVariant.withOpacity(isDark ? 0.55 : 0.32),
+        Color.lerp(colorScheme.primary, colorScheme.tertiary, 0.35)!
+            .withOpacity(isDark ? 0.7 : 1),
+        colorScheme.primaryContainer.withOpacity(isDark ? 0.55 : 0.9),
       ],
     );
-    final borderColor = colorScheme.outlineVariant.withOpacity(0.5);
+    final borderColor = colorScheme.outlineVariant.withOpacity(0.35);
     final textColor = theme.colorScheme.onSurface;
-    final mutedText = textColor.withOpacity(0.75);
+    final mutedText = textColor.withOpacity(0.8);
     final headerShadows = isDark
         ? null
         : [
@@ -115,87 +116,84 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
         .length;
     final totalCount = entries.length;
 
-    Text statNumber(String value, double scale) {
-      return Text(
-        value,
-        textAlign: TextAlign.center,
-        style: theme.textTheme.titleLarge?.copyWith(
-          color: textColor,
-          fontWeight: FontWeight.w800,
-          fontSize: (theme.textTheme.titleMedium?.fontSize ?? 18) * scale,
-          height: 1.05,
-          letterSpacing: -0.2,
-          shadows: headerShadows,
+    Widget statTile({required IconData icon, required String value, required String label, required bool isCompact}) {
+      return Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: isCompact ? 10 : 12,
+          vertical: isCompact ? 8 : 10,
         ),
-      );
-    }
-
-    Text statLabel(String label, double scale) {
-      return Text(
-        label,
-        textAlign: TextAlign.center,
-        style: theme.textTheme.bodySmall?.copyWith(
-          color: mutedText,
-          fontSize: (theme.textTheme.bodySmall?.fontSize ?? 12) * scale,
-          height: 1.05,
-          letterSpacing: 0.1,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(isDark ? 0.05 : 0.15),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withOpacity(isDark ? 0.05 : 0.2)),
         ),
-      );
-    }
-
-    Widget buildHeroVisual(double height) {
-      final accent = isDark
-          ? colorScheme.primaryContainer.withOpacity(0.35)
-          : colorScheme.primary.withOpacity(0.18);
-      final largeCircle = height * 0.72;
-      final mediumCircle = height * 0.54;
-      final smallCircle = height * 0.38;
-      return SizedBox(
-        height: height,
-        child: Stack(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Align(
-              alignment: Alignment.center,
-              child: Container(
-                width: largeCircle,
-                height: largeCircle,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: accent,
-                ),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(isDark ? 0.08 : 0.2),
+                shape: BoxShape.circle,
               ),
+              child: Icon(icon, size: 16, color: textColor),
             ),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Container(
-                width: mediumCircle,
-                height: mediumCircle,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: accent.withOpacity(0.6),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: textColor,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.2,
+                    shadows: headerShadows,
+                  ),
                 ),
-              ),
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Container(
-                width: smallCircle,
-                height: smallCircle,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: textColor.withOpacity(0.35), width: 2),
+                Text(
+                  label,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: mutedText,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.2,
+                  ),
                 ),
-              ),
-            ),
-            Align(
-              alignment: Alignment.center,
-              child: Icon(
-                Icons.auto_awesome,
-                color: colorScheme.onPrimaryContainer,
-                size: 46,
-              ),
+              ],
             ),
           ],
+        ),
+      );
+    }
+
+    Widget buildHeroVisual(double size, bool isCompact) {
+      final accent = isDark
+          ? colorScheme.primaryContainer.withOpacity(0.5)
+          : Colors.white.withOpacity(0.85);
+      final overlay = isDark
+          ? colorScheme.onPrimary.withOpacity(0.1)
+          : colorScheme.primary.withOpacity(0.1);
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [accent, overlay],
+            stops: const [0.55, 1],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.25 : 0.15),
+              blurRadius: isCompact ? 12 : 14,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Icon(
+          Icons.local_fire_department_rounded,
+          color: isDark ? colorScheme.onPrimaryContainer : colorScheme.primary,
+          size: size * 0.42,
         ),
       );
     }
@@ -204,23 +202,21 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
       builder: (context, constraints) {
         final isCompact = constraints.maxWidth < 420;
         final double compactScale = isCompact ? 0.92 : 1.0;
-        final double statNumberScale = isCompact ? 0.96 : 1.0;
-        final double statLabelScale = isCompact ? 0.94 : 0.98;
 
         return Container(
-          margin: EdgeInsets.fromLTRB(12, 12, 12, isCompact ? 8 : 12),
+          margin: EdgeInsets.fromLTRB(12, 10, 12, isCompact ? 6 : 10),
           padding: EdgeInsets.symmetric(
-            horizontal: isCompact ? 14 : 16,
-            vertical: isCompact ? 12 : 14,
+            horizontal: isCompact ? 14 : 18,
+            vertical: isCompact ? 12 : 16,
           ),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(isCompact ? 16 : 18),
+            borderRadius: BorderRadius.circular(isCompact ? 16 : 20),
             gradient: gradient,
             border: Border.all(color: borderColor),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.28 : 0.08),
-                blurRadius: isCompact ? 10 : 14,
+                color: Colors.black.withOpacity(isDark ? 0.25 : 0.12),
+                blurRadius: isCompact ? 12 : 18,
                 offset: Offset(0, isCompact ? 8 : 12),
               ),
             ],
@@ -228,195 +224,116 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              isCompact
-                  ? Row(
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: colorScheme.primaryContainer.withOpacity(isDark ? 0.3 : 0.4),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.campaign_outlined,
-                                  color: colorScheme.onPrimaryContainer,
-                                  size: 16,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                t.customerNewsSubtitle,
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  color: textColor,
-                                  fontWeight: FontWeight.w800,
-                                  height: 1.15,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                t.customerNewsHeroLead,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: mutedText,
-                                  height: 1.4,
-                                ),
-                              ),
-                            ],
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(isDark ? 0.08 : 0.2),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.campaign_outlined,
+                            color: textColor,
+                            size: isCompact ? 16 : 18,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        buildHeroVisual(52),
-                      ],
-                    )
-                  : Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: colorScheme.primaryContainer.withOpacity(isDark ? 0.3 : 0.4),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.campaign_outlined,
-                                  color: colorScheme.onPrimaryContainer,
-                                  size: 20,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                t.customerNewsSubtitle,
-                                style: theme.textTheme.headlineSmall?.copyWith(
-                                  color: textColor,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: -0.2,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                t.customerNewsHeroLead,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: mutedText,
-                                  height: 1.5,
-                                ),
-                              ),
-                            ],
+                        const SizedBox(height: 8),
+                        Text(
+                          t.customerNewsSubtitle,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: textColor,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.2,
+                            height: 1.18,
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        buildHeroVisual(60),
+                        const SizedBox(height: 4),
+                        Text(
+                          t.customerNewsHeroLead,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: mutedText,
+                            height: 1.4,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: isCompact ? 6 : 8,
+                          runSpacing: 6,
+                          children: highlightLabels
+                              .map(
+                                (label) => Container(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: isCompact ? 8 : 10,
+                                    vertical: isCompact ? 5 : 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(18),
+                                    color: Colors.white.withOpacity(isDark ? 0.06 : 0.22),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(isDark ? 0.12 : 0.4),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.auto_graph,
+                                        size: 14,
+                                        color: textColor,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        label,
+                                        style: theme.textTheme.labelLarge?.copyWith(
+                                          color: textColor,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: (theme.textTheme.labelLarge?.fontSize ?? 14) *
+                                              (compactScale * 0.98),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        ),
                       ],
                     ),
-              SizedBox(height: isCompact ? 6 : 8),
-              Wrap(
-                spacing: isCompact ? 6 : 8,
-                runSpacing: 3,
-                children: highlightLabels
-                    .map(
-                      (label) => Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: isCompact ? 8 : 10,
-                          vertical: isCompact ? 4 : 5,
-                        ),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(18),
-                          color: isDark
-                              ? colorScheme.surfaceVariant.withOpacity(0.5)
-                              : Colors.white.withOpacity(0.2),
-                          border: Border.all(
-                            color: isDark
-                                ? textColor.withOpacity(0.2)
-                                : Colors.white.withOpacity(0.65),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.auto_graph,
-                              size: 14,
-                              color: textColor.withOpacity(0.95),
-                              shadows: headerShadows,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              label,
-                              style: theme.textTheme.labelLarge?.copyWith(
-                                color: textColor,
-                                fontWeight: FontWeight.w600,
-                                fontSize: (theme.textTheme.labelLarge?.fontSize ?? 14) *
-                                    (compactScale * 0.96),
-                                shadows: headerShadows,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                    .toList(),
+                  ),
+                  const SizedBox(width: 10),
+                  buildHeroVisual(isCompact ? 86 : 96, isCompact),
+                ],
               ),
-              SizedBox(height: isCompact ? 6 : 8),
-              LayoutBuilder(
-                builder: (context, _) {
-                  final stats = [
-                    (
-                      value: '${totalCount.clamp(0, 999)}+',
-                      label: t.customerNewsTitle,
-                    ),
-                    (
-                      value: '$pinnedCount',
-                      label: t.customerNewsPinned,
-                    ),
-                    (
-                      value: '$recentCount',
-                      label: t.customerNewsHeroFreshLabel,
-                    ),
-                  ];
-
-                  final gap = SizedBox(width: isCompact ? 6 : 8);
-
-                  Widget buildRow(List<Widget> children) {
-                    return Row(
-                      children: [
-                        for (final child in children) ...[child, gap],
-                      ]
-                        ..removeLast(),
-                    );
-                  }
-
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      buildRow(
-                        stats
-                            .map(
-                              (stat) => Expanded(
-                                child: statNumber(stat.value, statNumberScale),
-                              ),
-                            )
-                            .toList(),
-                      ),
-                      const SizedBox(height: 3),
-                      buildRow(
-                        stats
-                            .map(
-                              (stat) => Expanded(
-                                child: statLabel(stat.label, statLabelScale),
-                              ),
-                            )
-                            .toList(),
-                      ),
-                    ],
-                  );
-                },
+              SizedBox(height: isCompact ? 10 : 12),
+              Wrap(
+                spacing: isCompact ? 8 : 10,
+                runSpacing: isCompact ? 8 : 10,
+                children: [
+                  statTile(
+                    icon: Icons.auto_awesome_motion,
+                    value: '${totalCount.clamp(0, 999)}+',
+                    label: t.customerNewsTitle,
+                    isCompact: isCompact,
+                  ),
+                  statTile(
+                    icon: Icons.push_pin,
+                    value: '$pinnedCount',
+                    label: t.customerNewsPinned,
+                    isCompact: isCompact,
+                  ),
+                  statTile(
+                    icon: Icons.flash_on,
+                    value: '$recentCount',
+                    label: t.customerNewsHeroFreshLabel,
+                    isCompact: isCompact,
+                  ),
+                ],
               ),
             ],
           ),
