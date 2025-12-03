@@ -313,8 +313,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     final theme = Theme.of(context);
     final t     = AppLocalizations.of(context)!;
     final r     = _myRep;
-    final cs    = theme.colorScheme;
-    final company = (_customerName ?? '').trim();
 
     // Kein Vertreter hinterlegt → Hinweis + Kontakt & Refresh
     if (r == null) {
@@ -330,7 +328,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     final first  = r.firstName.trim();
     final last   = r.lastName.trim();
     final email  = r.email.trim();
-    final region = r.region.trim();
     final name   = [first, last].where((s) => s.isNotEmpty).join(' ');
     final title  = name.isNotEmpty ? t.rep_banner_title(name)
                                    : t.rep_banner_title(email.isNotEmpty ? email : '—');
@@ -412,10 +409,10 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
 
   // --- GROSSE Variante (wie früher, optisch präsenter) ---
   Widget _buildRepCardLarge(BuildContext context) {
+    final theme  = Theme.of(context);
     final t      = AppLocalizations.of(context)!;
     final r      = _myRep;
-    final cs = Theme.of(context).colorScheme;
-    final company = (_customerName ?? '').trim();
+    final cs     = theme.colorScheme;
 
     if (r == null) {
       if (_repLoading) {
@@ -430,71 +427,81 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     final first  = r.firstName.trim();
     final last   = r.lastName.trim();
     final email  = r.email.trim();
-    final region = r.region.trim();
     final name   = [first, last].where((s) => s.isNotEmpty).join(' ');
     final bannerTitle = name.isNotEmpty ? t.rep_banner_title(name)
                                         : t.rep_banner_title(email.isNotEmpty ? email : '—');
     final hasContact = _repForContact().email.trim().isNotEmpty;
 
     return Card(
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      elevation: 1.5,
+      margin: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+      elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              const Color(0xFF1976D2).withOpacity(0.14),
-              const Color(0xFF42A5F5).withOpacity(0.10),
-            ],
-          ),
-          border: Border.all(color: const Color(0xFF1976D2).withOpacity(0.5), width: 1),
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
+      color: cs.surfaceVariant.withOpacity(0.65),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 38, height: 38,
-              decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF1976D2)),
-              child: const Icon(Icons.handshake_outlined, color: Colors.white, size: 22),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: cs.primary.withOpacity(0.15),
+                  ),
+                  child: Icon(Icons.handshake_outlined, color: cs.primary, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        bannerTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      if (email.isNotEmpty)
+                        Text(
+                          email,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: t.refresh,
+                  onPressed: _initRep,
+                  icon: const Icon(Icons.refresh),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(bannerTitle, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-                  const SizedBox(height: 2),
-                  if (email.isNotEmpty || region.isNotEmpty)
-                    Text(
-                      [if (email.isNotEmpty) email, if (region.isNotEmpty) region].join(' • '),
-                      style: TextStyle(color: Colors.grey[800], fontSize: 13),
-                    ),
-                ],
-              ),
-            ),
-            if (hasContact)
-              Tooltip(
-                message: t.rep_contact_form,
+            if (hasContact) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
                 child: TextButton.icon(
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    visualDensity: VisualDensity.compact,
+                  ),
                   onPressed: () => _openRepContactForm(context),
-                  icon: const Icon(Icons.email_outlined),
-                  label: Text(t.rep_contact_form),
+                  icon: const Icon(Icons.email_outlined, size: 18),
+                  label: Text(
+                    t.rep_contact_form,
+                    style: theme.textTheme.labelLarge,
+                  ),
                 ),
               ),
-            IconButton(
-              tooltip: t.refresh,
-              onPressed: _initRep,
-              icon: const Icon(Icons.refresh),
-            ),
+            ],
           ],
         ),
       ),
@@ -613,7 +620,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                     ),
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+                      padding: const EdgeInsets.fromLTRB(14, 4, 14, 8),
                       child: _CustomerNewsSpotlight(
                         title: t.customerNewsTitle,
                         subtitle: t.customerNewsSubtitle,
@@ -856,165 +863,117 @@ class _CustomerNewsSpotlight extends StatelessWidget {
     final textTheme = theme.textTheme;
     final cs = theme.colorScheme;
     final isPhone = MediaQuery.of(context).size.width < 640;
+    final trimmedLead = lead.trim();
+
+    final chip = showIndicator
+        ? Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: cs.primaryContainer.withOpacity(.8),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.brightness_1, size: 8),
+                const SizedBox(width: 6),
+                Text(
+                  freshLabel,
+                  style: textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: cs.onPrimaryContainer,
+                    letterSpacing: .1,
+                  ),
+                ),
+              ],
+            ),
+          )
+        : null;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(14),
         child: Ink(
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF4A148C), Color(0xFF7E57C2), Color(0xFFFF8F00)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.08),
-                blurRadius: 12,
-                offset: const Offset(0, 6),
-              ),
-            ],
+            color: cs.surfaceVariant.withOpacity(.65),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: cs.outlineVariant.withOpacity(.55)),
           ),
           padding: EdgeInsets.symmetric(
-            horizontal: isPhone ? 14 : 18,
-            vertical: isPhone ? 12 : 14,
+            horizontal: isPhone ? 12 : 14,
+            vertical: isPhone ? 10 : 12,
           ),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Stack(
-                children: [
-                  Container(
-                    width: isPhone ? 46 : 52,
-                    height: isPhone ? 46 : 52,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.18),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Icon(
-                      Icons.campaign_outlined,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                  ),
-                  if (showIndicator)
-                    Positioned(
-                      right: 4,
-                      top: 4,
-                      child: Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          color: Colors.orangeAccent.shade100,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.25),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
+              Container(
+                width: isPhone ? 38 : 44,
+                height: isPhone ? 38 : 44,
+                decoration: BoxDecoration(
+                  color: cs.primary.withOpacity(.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.campaign_outlined,
+                  color: cs.primary,
+                  size: isPhone ? 22 : 24,
+                ),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        title,
-                        style: textTheme.titleMedium?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          height: 1.1,
-                        ),
-                      ),
-                    ),
-                    if (showIndicator) ...[
-                      const SizedBox(height: 6),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.14),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.24),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              height: 1.1,
                             ),
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.fiber_new,
-                                  size: 16, color: Colors.white),
-                              const SizedBox(width: 6),
-                              Text(
-                                freshLabel,
-                                style: textTheme.bodySmall?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
+                        ),
+                        if (chip != null) chip,
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: cs.onSurfaceVariant,
+                        height: 1.25,
+                      ),
+                    ),
+                    if (trimmedLead.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        trimmedLead,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.bodySmall?.copyWith(
+                          color: cs.onSurfaceVariant.withOpacity(.9),
+                          height: 1.2,
                         ),
                       ),
                     ],
-                    const SizedBox(height: 6),
-                    Text(
-                      subtitle,
-                      style: textTheme.bodyMedium?.copyWith(
-                        color: Colors.white.withOpacity(0.92),
-                        height: 1.35,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      lead,
-                      style: textTheme.bodySmall?.copyWith(
-                        color: Colors.white.withOpacity(0.94),
-                        height: 1.3,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: ElevatedButton.icon(
-                        onPressed: onTap,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: cs.primary,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 10,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        icon:
-                            const Icon(Icons.arrow_outward_rounded, size: 18),
-                        label: Text(
-                          ctaLabel,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                    ),
                   ],
                 ),
+              ),
+              const SizedBox(width: 10),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: isPhone ? 18 : 20,
+                color: cs.primary,
               ),
             ],
           ),
