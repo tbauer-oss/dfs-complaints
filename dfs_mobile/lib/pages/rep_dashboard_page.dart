@@ -2485,6 +2485,9 @@ class _RepSupportContactFormState extends State<_RepSupportContactForm> {
     final t = AppLocalizations.of(context)!;
     final subject = _subject.text.trim();
     final message = _message.text.trim();
+    final firstName = (_me?['firstName'] ?? '').toString().trim();
+    final lastName  = (_me?['lastName']  ?? '').toString().trim();
+    final region    = (_me?['region']    ?? '').toString().trim();
 
     if (subject.isEmpty || message.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2506,7 +2509,14 @@ class _RepSupportContactFormState extends State<_RepSupportContactForm> {
     setState(() => _sending = true);
 
     try {
-      await widget.api.repContactQM(subject: subject, message: message);
+      await widget.api.repContactQM(
+        subject: subject,
+        message: message,
+        repEmail: email,
+        repFirstName: firstName,
+        repLastName: lastName,
+        repRegion: region,
+      );
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
