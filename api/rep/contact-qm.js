@@ -86,11 +86,6 @@ export default async function handler(req, res) {
     lines.push(messageRaw);
 
     const textBody = lines.join('\n');
-    const displayName = repName || repEmail;
-    const fromHeader = displayName && repEmail
-      ? `${displayName} <${repEmail}>`
-      : repEmail;
-
     const mailPayload = {
       subject: `[Rep-Support] ${subjectRaw}`,
       text: textBody,
@@ -100,7 +95,6 @@ export default async function handler(req, res) {
     try {
       await send(QM_MAIL, {
         ...mailPayload,
-        from: fromHeader,
         replyTo: repEmail,
       });
     } catch (primaryError) {
