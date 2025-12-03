@@ -41,7 +41,11 @@ const normalizeList = (value) => {
     );
   }
   if (typeof value === 'string') {
-    return normalizeList(value.split(/[;,\n]/g));
+    const tokens = value
+      .split(/[;,\n]/g)
+      .map((v) => v.trim())
+      .filter(Boolean);
+    return Array.from(new Set(tokens));
   }
   return [];
 };
