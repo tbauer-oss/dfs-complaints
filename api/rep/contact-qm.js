@@ -13,6 +13,35 @@ const MAIL = resolveMailConfig();
 const { ok: mailOk, missing: missingMailEnv } = mailConfigOk(MAIL);
 const QM_MAIL = asString(MAIL.qm) || asString(process.env.MAIL_QM) || 'noreply@dfs-diamon.com';
 
+function mapMailError(err) {
+  const message = err && err.message ? err.message : '';
+  const responseCode = err && err.responseCode;
+  const code = err && err.code;
+
+  if (message.includes('SMTP env missing')) {
+    return { status: 503, body: { error: 'smtp_config_missing', missing: missingMailEnv } };
+  }
+
+  const smtpError =
+    code === 'EAUTH' ||
+    code === 'ECONNECTION' ||
+    code === 'ETIMEDOUT' ||
+    code === 'ESOCKET' ||
+    (typeof responseCode === 'number' && responseCode >= 400 && responseCode < 600);
+
+  if (smtpError) {
+    return {
+      status: 503,
+      body: {
+        error: 'smtp_unavailable',
+        code: code || responseCode || 'smtp_error',
+      },
+    };
+  }
+
+  return null;
+}
+
 export default async function handler(req, res) {
   setCors(req, res, 'Content-Type, Authorization, X-Gate');
   if (req.method === 'OPTIONS') {
@@ -105,6 +134,11 @@ export default async function handler(req, res) {
         replyTo: repEmail,
       });
     } catch (primaryError) {
+      const mapped = mapMailError(primaryError);
+      if (mapped && mapped.body?.error === 'smtp_config_missing') {
+        return res.status(mapped.status).json(mapped.body);
+      }
+
       console.warn('[rep/contact-qm] primary send failed, retrying with default sender', primaryError);
 
       const fallbackLines = [
@@ -117,11 +151,19 @@ export default async function handler(req, res) {
         repRegion ? `Region des Vertreters: ${repRegion}` : null,
       ].filter(Boolean);
 
-      await send(QM_MAIL, {
-        ...mailPayload,
-        text: fallbackLines.join('\n'),
-        replyTo: repEmail,
-      });
+      try {
+        await send(QM_MAIL, {
+          ...mailPayload,
+          text: fallbackLines.join('\n'),
+          replyTo: repEmail,
+        });
+      } catch (fallbackError) {
+        const mappedFallback = mapMailError(fallbackError);
+        if (mappedFallback) {
+          return res.status(mappedFallback.status).json(mappedFallback.body);
+        }
+        throw fallbackError;
+      }
     }
 
     return res.status(200).json({ ok: true });
