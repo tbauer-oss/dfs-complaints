@@ -17,6 +17,35 @@ function normLang(x) {
 const MAIL = resolveMailConfig();
 const { ok: mailOk, missing: missingMailEnv } = mailConfigOk(MAIL);
 
+function mapMailError(err) {
+  const message = err && err.message ? err.message : '';
+  const responseCode = err && err.responseCode;
+  const code = err && err.code;
+
+  if (message.includes('SMTP env missing')) {
+    return { status: 503, body: { error: 'smtp_config_missing', missing: missingMailEnv } };
+  }
+
+  const smtpError =
+    code === 'EAUTH' ||
+    code === 'ECONNECTION' ||
+    code === 'ETIMEDOUT' ||
+    code === 'ESOCKET' ||
+    (typeof responseCode === 'number' && responseCode >= 400 && responseCode < 600);
+
+  if (smtpError) {
+    return {
+      status: 503,
+      body: {
+        error: 'smtp_unavailable',
+        code: code || responseCode || 'smtp_error',
+      },
+    };
+  }
+
+  return null;
+}
+
 export default async function handler(req, res) {
   setCors(req, res, 'Content-Type, Authorization, X-Gate');
   if (req.method === 'OPTIONS') {
@@ -98,11 +127,19 @@ export default async function handler(req, res) {
       ? overrideTo
       : normalTo;
 
-    await send(toAddress, {
-      subject: `[Rep-Kontakt] ${subjectRaw}`,
-      text: fullText,
-      lang: 'de',
-    });
+    try {
+      await send(toAddress, {
+        subject: `[Rep-Kontakt] ${subjectRaw}`,
+        text: fullText,
+        lang: 'de',
+      });
+    } catch (mailErr) {
+      const mapped = mapMailError(mailErr);
+      if (mapped) {
+        return res.status(mapped.status).json(mapped.body);
+      }
+      throw mailErr;
+    }
 
     const hasCompanyEmail = companyEmail && companyEmail.includes('@');
     if (hasCompanyEmail) {
@@ -116,10 +153,18 @@ export default async function handler(req, res) {
         lang,
       );
 
-      await send(companyEmail, {
-        ...confirmation,
-        lang,
-      });
+      try {
+        await send(companyEmail, {
+          ...confirmation,
+          lang,
+        });
+      } catch (mailErr) {
+        const mapped = mapMailError(mailErr);
+        if (mapped) {
+          return res.status(mapped.status).json(mapped.body);
+        }
+        throw mailErr;
+      }
     }
 
     return res.status(200).json({ ok: true });
