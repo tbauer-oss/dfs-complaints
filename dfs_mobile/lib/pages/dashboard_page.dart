@@ -313,8 +313,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     final theme = Theme.of(context);
     final t     = AppLocalizations.of(context)!;
     final r     = _myRep;
-    final cs    = theme.colorScheme;
-    final company = (_customerName ?? '').trim();
 
     // Kein Vertreter hinterlegt → Hinweis + Kontakt & Refresh
     if (r == null) {
@@ -330,7 +328,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     final first  = r.firstName.trim();
     final last   = r.lastName.trim();
     final email  = r.email.trim();
-    final region = r.region.trim();
     final name   = [first, last].where((s) => s.isNotEmpty).join(' ');
     final title  = name.isNotEmpty ? t.rep_banner_title(name)
                                    : t.rep_banner_title(email.isNotEmpty ? email : '—');
@@ -412,10 +409,10 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
 
   // --- GROSSE Variante (wie früher, optisch präsenter) ---
   Widget _buildRepCardLarge(BuildContext context) {
+    final theme  = Theme.of(context);
     final t      = AppLocalizations.of(context)!;
     final r      = _myRep;
-    final cs = Theme.of(context).colorScheme;
-    final company = (_customerName ?? '').trim();
+    final cs     = theme.colorScheme;
 
     if (r == null) {
       if (_repLoading) {
@@ -430,71 +427,81 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     final first  = r.firstName.trim();
     final last   = r.lastName.trim();
     final email  = r.email.trim();
-    final region = r.region.trim();
     final name   = [first, last].where((s) => s.isNotEmpty).join(' ');
     final bannerTitle = name.isNotEmpty ? t.rep_banner_title(name)
                                         : t.rep_banner_title(email.isNotEmpty ? email : '—');
     final hasContact = _repForContact().email.trim().isNotEmpty;
 
     return Card(
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      elevation: 1.5,
+      margin: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+      elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              const Color(0xFF1976D2).withOpacity(0.14),
-              const Color(0xFF42A5F5).withOpacity(0.10),
-            ],
-          ),
-          border: Border.all(color: const Color(0xFF1976D2).withOpacity(0.5), width: 1),
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
+      color: cs.surfaceVariant.withOpacity(0.65),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 38, height: 38,
-              decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF1976D2)),
-              child: const Icon(Icons.handshake_outlined, color: Colors.white, size: 22),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: cs.primary.withOpacity(0.15),
+                  ),
+                  child: Icon(Icons.handshake_outlined, color: cs.primary, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        bannerTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      if (email.isNotEmpty)
+                        Text(
+                          email,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: t.refresh,
+                  onPressed: _initRep,
+                  icon: const Icon(Icons.refresh),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(bannerTitle, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-                  const SizedBox(height: 2),
-                  if (email.isNotEmpty || region.isNotEmpty)
-                    Text(
-                      [if (email.isNotEmpty) email, if (region.isNotEmpty) region].join(' • '),
-                      style: TextStyle(color: Colors.grey[800], fontSize: 13),
-                    ),
-                ],
-              ),
-            ),
-            if (hasContact)
-              Tooltip(
-                message: t.rep_contact_form,
+            if (hasContact) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
                 child: TextButton.icon(
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    visualDensity: VisualDensity.compact,
+                  ),
                   onPressed: () => _openRepContactForm(context),
-                  icon: const Icon(Icons.email_outlined),
-                  label: Text(t.rep_contact_form),
+                  icon: const Icon(Icons.email_outlined, size: 18),
+                  label: Text(
+                    t.rep_contact_form,
+                    style: theme.textTheme.labelLarge,
+                  ),
                 ),
               ),
-            IconButton(
-              tooltip: t.refresh,
-              onPressed: _initRep,
-              icon: const Icon(Icons.refresh),
-            ),
+            ],
           ],
         ),
       ),
