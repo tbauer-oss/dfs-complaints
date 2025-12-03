@@ -2,13 +2,16 @@
 import { setCors } from '../_lib/cors.js';
 import { getRepFromAuthHeader } from '../_lib/repAuth.js';
 import { loadRepById } from '../_lib/repsStore.js';
+import { mailConfigOk, resolveMailConfig } from '../_lib/mail-config.js';
 import { send } from '../_lib/mail.js';
 
 function asString(v) {
   return (typeof v === 'string' ? v : '').trim();
 }
 
-const QM_MAIL = asString(process.env.MAIL_QM) || 'noreply@dfs-diamon.com';
+const MAIL = resolveMailConfig();
+const { ok: mailOk, missing: missingMailEnv } = mailConfigOk(MAIL);
+const QM_MAIL = asString(MAIL.qm) || asString(process.env.MAIL_QM) || 'noreply@dfs-diamon.com';
 
 export default async function handler(req, res) {
   setCors(req, res, 'Content-Type, Authorization, X-Gate');
@@ -20,6 +23,10 @@ export default async function handler(req, res) {
   }
 
   try {
+    if (!mailOk) {
+      return res.status(503).json({ error: 'smtp_config_missing', missing: missingMailEnv });
+    }
+
     const auth = getRepFromAuthHeader(req);
     if (!auth) {
       return res.status(401).json({ error: 'unauthorized' });
