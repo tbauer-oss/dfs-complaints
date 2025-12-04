@@ -36,6 +36,8 @@ enum _CustPasswordMode { adminSecret, generated }
 
 class _AdminPageState extends State<AdminPage> {
   late final AdminApi _api;
+  late final bool _adminReadOnly;
+  late final bool _adminInternalOnly;
 
   // Ladeflags / Fehler
   bool _loadPending = false;
@@ -129,6 +131,11 @@ class _AdminPageState extends State<AdminPage> {
       secret = html.window.localStorage['dfs_admin'] ?? '';
     }
     _api.setSecret(secret);
+
+    final secretHint = secret.toLowerCase();
+    _adminReadOnly = secretHint.contains('readonly') || secretHint.contains('read-only');
+    _adminInternalOnly =
+        _adminReadOnly || secretHint.contains('internalonly') || secretHint.contains('internal-only');
 
     if (secret.isEmpty) {
       _fatalErr =
@@ -2117,6 +2124,8 @@ Widget _buildUsersPanel() {
                               c: c,
                               companyHint: _companyByEmail(c.email),
                               hasRep: _customerHasRep(c.email),
+                              readOnlyUser: _adminReadOnly,
+                              internalOnlyUser: _adminInternalOnly,
                               onClosed: () {
                                 setState(() {
                                   _openComplaints.removeWhere((x) => x.ticket == c.ticket);
@@ -3949,6 +3958,8 @@ class _ComplaintsDetailList extends StatelessWidget {
                     hasRep: (c.email.isNotEmpty)
                         ? (parent?._customerHasRep(c.email) ?? false)
                         : false,
+                    readOnlyUser: parent?._adminReadOnly ?? false,
+                    internalOnlyUser: parent?._adminInternalOnly ?? false,
                   ))
               .toList(),
         ],
@@ -4579,7 +4590,9 @@ class _ComplaintEditor extends StatefulWidget {
   final VoidCallback onClosed;
   final String? companyHint;
   final bool hasRep;
-  
+  final bool readOnlyUser;
+  final bool internalOnlyUser;
+
   const _ComplaintEditor({
     super.key,
     required this.api,
@@ -4587,6 +4600,8 @@ class _ComplaintEditor extends StatefulWidget {
     required this.onClosed,
     this.companyHint,
     this.hasRep = false,
+    this.readOnlyUser = false,
+    this.internalOnlyUser = false,
   });
 
   @override
@@ -4603,6 +4618,13 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
 
   int? _status; // 1..6
   String? _decision;
+
+  bool get _isReadOnly => widget.readOnlyUser;
+  bool get _isInternalOnly => widget.internalOnlyUser;
+  bool get _canEditNotes => !_isReadOnly && !_isInternalOnly;
+  bool get _canEditStatus => !_isReadOnly && !_isInternalOnly;
+  bool get _canEditDecision => !_isReadOnly;
+  bool get _canEditMetaFields => !_isReadOnly && !_isInternalOnly;
   
   // ---- Details-Helper (nur lesend, keine Kollisionen dank Präfix) ----
   String _detPick(Map<String, dynamic>? p, List<String> keys) {
@@ -4717,7 +4739,17 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     });
   }
 
+  void _showPermissionInfo([String? message]) {
+    if (!mounted) return;
+    final text = message ?? 'Keine Berechtigung für diese Aktion.';
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+
   Future<void> _saveNotes() async {
+    if (!_canEditNotes) {
+      _showPermissionInfo('Nur interne Bewertung erlaubt.');
+      return;
+    }
     if (_busy) return;
     setState(() => _busy = true);
     try {
@@ -4750,6 +4782,10 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   }
 
   Future<void> _saveReportLink() async {
+    if (!_canEditMetaFields) {
+      _showPermissionInfo('Keine Berechtigung zum Bearbeiten.');
+      return;
+    }
     setState(() => _busy = true);
     try {
       final link = _reportCtrl.text.trim();
@@ -4779,6 +4815,10 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   }
 
   Future<void> _saveInternalNo() async {
+    if (!_canEditMetaFields) {
+      _showPermissionInfo('Keine Berechtigung zum Bearbeiten.');
+      return;
+    }
     if (_busy) return;
     setState(() => _busy = true);
 
@@ -4824,6 +4864,10 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   }
 
   Future<void> _clearInternalNo() async {
+    if (!_canEditMetaFields) {
+      _showPermissionInfo('Keine Berechtigung zum Bearbeiten.');
+      return;
+    }
     if (_busy) return;
     setState(() => _busy = true);
 
@@ -4859,6 +4903,10 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   }
 
   Future<void> _clearReportLink() async {
+    if (!_canEditMetaFields) {
+      _showPermissionInfo('Keine Berechtigung zum Bearbeiten.');
+      return;
+    }
     setState(() => _busy = true);
     try {
       await widget.api.adminComplaintUpdate(ticket: widget.c.ticket, reportLink: '');
@@ -4878,7 +4926,13 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   }
 
   Future<void> _saveStatusDecision() async {
-    if (_status == null) {
+    if (_isReadOnly) {
+      _showPermissionInfo('Nur Lesen erlaubt.');
+      return;
+    }
+
+    final targetStatus = _canEditStatus ? _status : widget.c.status;
+    if (targetStatus == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bitte Status auswählen.')));
       return;
     }
@@ -4886,7 +4940,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     try {
       final updated = await widget.api.adminComplaintUpdate(
         ticket: widget.c.ticket,
-        status: _status,
+        status: targetStatus,
         decision: _decision ?? '',
       );
       widget.c.status = updated.status;
@@ -4911,6 +4965,10 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   }
 
   Future<void> _deleteComplaint() async {
+    if (_isReadOnly || _isInternalOnly) {
+      _showPermissionInfo('Keine Berechtigung zum Löschen.');
+      return;
+    }
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -5341,7 +5399,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                                 );
 
                                 final saveButton = FilledButton.icon(
-                                  onPressed: (_busy || !noteChanged) ? null : _saveNotes,
+                                  onPressed:
+                                      (_busy || !noteChanged || !_canEditNotes) ? null : _saveNotes,
                                   icon: const Icon(Icons.save_outlined),
                                   label: const Text('Notiz speichern'),
                                 );
@@ -5455,7 +5514,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                                             scrollPadding: EdgeInsets.only(
                                               bottom: MediaQuery.of(ctx).viewInsets.bottom + 80,
                                             ),
-                                            enabled: !_busy,
+                                            enabled: _canEditNotes && !_busy,
+                                            readOnly: !_canEditNotes,
                                             onChanged: (_) => setState(() {}),
                                             decoration: const InputDecoration(
                                               border: InputBorder.none,
@@ -5721,10 +5781,38 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                 ),
               ),
 
-              // ====== Editor-Bereich (unverändert inhaltlich) ======                        
+              // ====== Editor-Bereich (unverändert inhaltlich) ======
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if (_isReadOnly || _isInternalOnly) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.only(bottom: 10),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surfaceVariant,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Theme.of(context).dividerColor),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            _isReadOnly ? Icons.visibility_outlined : Icons.lock_outline,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              _isReadOnly
+                                  ? 'Nur Lesezugriff: Alle Eingaben sind deaktiviert.'
+                                  : 'Nur interne Bewertung erlaubt. Alle anderen Aktionen sind gesperrt.',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   if (isNarrow) ...[
                     DropdownButtonFormField<int>(
                       value: currentStatus,
@@ -5738,7 +5826,9 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                                 child: Text(e['label'] as String),
                               ))
                           .toList(),
-                      onChanged: (v) => setState(() => _status = v),
+                      onChanged: (_canEditStatus && !_busy)
+                          ? (v) => setState(() => _status = v)
+                          : null,
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
@@ -5753,13 +5843,15 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                                 child: Text(e['label']!),
                               ))
                           .toList(),
-                      onChanged: (v) => setState(() => _decision = (v == null || v.isEmpty) ? null : v),
+                      onChanged: (_canEditDecision && !_busy)
+                          ? (v) => setState(() => _decision = (v == null || v.isEmpty) ? null : v)
+                          : null,
                     ),
                     const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton(
-                        onPressed: _busy ? null : _saveStatusDecision,
+                        onPressed: (_busy || !_canEditDecision) ? null : _saveStatusDecision,
                         child: const Text('Speichern'),
                       ),
                     ),
@@ -5779,7 +5871,9 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                                       child: Text(e['label'] as String),
                                     ))
                                 .toList(),
-                            onChanged: (v) => setState(() => _status = v),
+                            onChanged: (_canEditStatus && !_busy)
+                                ? (v) => setState(() => _status = v)
+                                : null,
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -5796,13 +5890,14 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                                       child: Text(e['label']!),
                                     ))
                                 .toList(),
-                            onChanged: (v) =>
-                                setState(() => _decision = (v == null || v.isEmpty) ? null : v),
+                            onChanged: (_canEditDecision && !_busy)
+                                ? (v) => setState(() => _decision = (v == null || v.isEmpty) ? null : v)
+                                : null,
                           ),
                         ),
                         const SizedBox(width: 12),
                         FilledButton(
-                          onPressed: _busy ? null : _saveStatusDecision,
+                          onPressed: (_busy || !_canEditDecision) ? null : _saveStatusDecision,
                           child: const Text('Speichern'),
                         ),
                       ],
@@ -5818,18 +5913,21 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                       prefixIcon: const Icon(Icons.tag),
                       suffixIcon: IconButton(
                         tooltip: 'Interne Nummer entfernen',
-                        onPressed: _busy ? null : _clearInternalNo,
+                        onPressed:
+                            (_busy || !_canEditMetaFields) ? null : _clearInternalNo,
                         icon: const Icon(Icons.delete_outline),
                       ),
                     ),
-                    onSubmitted: (_) => _busy ? null : _saveInternalNo(), // ← NEU
+                    enabled: _canEditMetaFields && !_busy,
+                    readOnly: !_canEditMetaFields,
+                    onSubmitted: _canEditMetaFields && !_busy ? (_) => _saveInternalNo() : null,
                   ),
 
                   const SizedBox(height: 8),
                   Align(
                     alignment: Alignment.centerLeft,
                     child: OutlinedButton.icon(
-                      onPressed: _busy ? null : _saveInternalNo,
+                      onPressed: (_busy || !_canEditMetaFields) ? null : _saveInternalNo,
                       icon: const Icon(Icons.save_outlined),
                       label: const Text('Interne Nummer speichern'),
                     ),
@@ -5844,16 +5942,18 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                       border: const OutlineInputBorder(),
                       suffixIcon: IconButton(
                         tooltip: 'Link entfernen',
-                        onPressed: _busy ? null : _clearReportLink,
+                        onPressed: (_busy || !_canEditMetaFields) ? null : _clearReportLink,
                         icon: const Icon(Icons.delete_outline),
                       ),
                     ),
+                    enabled: _canEditMetaFields && !_busy,
+                    readOnly: !_canEditMetaFields,
                   ),
                   const SizedBox(height: 8),
                   Align(
                     alignment: Alignment.centerLeft,
                     child: OutlinedButton.icon(
-                      onPressed: _busy ? null : _saveReportLink,
+                      onPressed: (_busy || !_canEditMetaFields) ? null : _saveReportLink,
                       icon: const Icon(Icons.save_outlined),
                       label: const Text('Link speichern'),
                     ),
@@ -5863,7 +5963,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton.icon(
-                      onPressed: _busy ? null : _deleteComplaint,
+                      onPressed:
+                          (_busy || _isReadOnly || _isInternalOnly) ? null : _deleteComplaint,
                       icon: const Icon(Icons.delete_outline),
                       label: const Text('Ticket löschen'),
                     ),

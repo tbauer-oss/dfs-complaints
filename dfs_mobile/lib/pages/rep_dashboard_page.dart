@@ -3316,18 +3316,21 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     );
   }
 
-  Widget _decisionButtons(AppLocalizations t, String ticket) {
-    final t = context.t;
+  Widget _decisionButtons(AppLocalizations t, String ticket,
+      {required bool enabled}) {
+    final localT = context.t;
     if (widget.onDecision == null) return const SizedBox.shrink();
 
     Widget buildButton({required IconData icon, required Color color, required bool approve}) {
       return IconButton(
-        onPressed: () => widget.onDecision!(ticket, approve),
+        onPressed: enabled ? () => widget.onDecision!(ticket, approve) : null,
         icon: Icon(icon, size: 22),
-        tooltip: approve ? t.decision_accepted : t.decision_rejected,
+        tooltip: approve ? localT.decision_accepted : localT.decision_rejected,
         style: IconButton.styleFrom(
-          backgroundColor: color.withOpacity(0.12),
-          foregroundColor: color,
+          backgroundColor: color.withOpacity(enabled ? 0.12 : 0.06),
+          foregroundColor: enabled ? color : color.withOpacity(.45),
+          disabledBackgroundColor: color.withOpacity(0.06),
+          disabledForegroundColor: color.withOpacity(.35),
           minimumSize: const Size(48, 48),
           padding: const EdgeInsets.all(12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -3388,6 +3391,22 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     final status   = (widget.data['status'] ?? '').toString();
     final decision = (widget.data['decision'] ?? '').toString();
     final repDecision = (widget.data['repDecision'] ?? '').toString();
+
+    bool _truthy(dynamic v) {
+      if (v == null) return false;
+      if (v is bool) return v;
+      if (v is num) return v != 0;
+      if (v is String) {
+        final s = v.trim().toLowerCase();
+        return s == 'true' || s == '1' || s == 'yes' || s == 'y' || s == 'on';
+      }
+      return false;
+    }
+
+    final readOnlyUser = _truthy(
+      widget.data['readOnly'] ?? widget.data['readonly'] ?? widget.data['isReadOnly'],
+    );
+    final decisionLocked = _truthy(widget.data['decisionLocked']) || readOnlyUser;
 
     final created   = widget.createdOverride ?? (widget.data['createdAt'] ?? widget.data['created'] ?? '').toString();
     final customer  = widget.customerOverride ?? (widget.data['customerEmail'] ?? widget.data['email'] ?? '').toString();
@@ -3703,9 +3722,49 @@ class _ComplaintTileState extends State<_ComplaintTile> {
                     !widget.isClosed &&
                     repDecision.isEmpty) ...[
                   const SizedBox(height: 18),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: _decisionButtons(t, ticket),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(.6),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.verified_user_outlined,
+                                color: Theme.of(context).colorScheme.primary),
+                            const SizedBox(width: 8),
+                            Text(
+                              t.my_decision ?? 'Interne Bewertung',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w800),
+                            ),
+                            const Spacer(),
+                            if (decisionLocked)
+                              Chip(
+                                label: const Text('Read-only'),
+                                labelStyle: const TextStyle(fontWeight: FontWeight.w700),
+                                backgroundColor: Colors.grey.shade200,
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        _decisionButtons(t, ticket, enabled: !decisionLocked),
+                        if (decisionLocked) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            'Du hast keine Berechtigung für weitere Aktionen.',
+                            style: TextStyle(color: Theme.of(context).colorScheme.error),
+                          ),
+                        ]
+                      ],
+                    ),
                   ),
                 ],
                 if (!widget.isClosed &&
@@ -3724,10 +3783,12 @@ class _ComplaintTileState extends State<_ComplaintTile> {
                       icon: const Icon(Icons.undo),
                       label:
                           Text(t.decision_withdraw ?? 'Entscheidung zurücknehmen'),
-                      onPressed: () async {
-                        final ok = await showDialog<bool>(
-                              context: context,
-                              builder: (ctx) => AlertDialog(
+                      onPressed: decisionLocked
+                          ? null
+                          : () async {
+                            final ok = await showDialog<bool>(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
                                 title: Text(
                                     t.decision_withdraw ?? 'Entscheidung zurücknehmen'),
                                 content: DialogContentScroll(
