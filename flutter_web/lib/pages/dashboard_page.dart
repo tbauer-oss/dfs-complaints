@@ -1,9 +1,10 @@
 // lib/pages/dashboard_page.dart
-import 'dart:html' as html; // für mailto
-import 'dart:ui' as ui show platformViewRegistry; // nur für Web
-import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_web/web_compat/html_stub.dart'
+  if (dart.library.html) 'package:flutter_web/web_compat/html_web.dart' as html;
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
@@ -12,31 +13,43 @@ import 'complaint_form_page.dart';
 import 'my_complaints_page.dart';
 import 'account_page.dart';
 import 'support_page.dart';
-import 'rep_contact_page.dart';
 import 'customer_news_page.dart';
 import 'knowledge_base_page.dart';
+import '../widgets/pdf_view_stub.dart'
+  if (dart.library.html) '../widgets/pdf_view_web.dart';
 
-// const _pdfLabUrl  = 'pdfs/DFS-Labor-DE-US-2025-26_1.pdf';
-// const _pdfDentUrl = 'pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf';
+const _labCatalogLinks = [
+  _CatalogLink(
+    label: 'DE / EN',
+    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Labor-DE-US-2025-26_1.pdf',
+    locales: {'de', 'en', 'it'},
+  ),
+  _CatalogLink(
+    label: 'ES / FR',
+    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-LaborES-FR-2025-26_0.pdf',
+    locales: {'es', 'fr'},
+  ),
+];
 
-// Sprachabhängige Pfadwahl (relativ zum Web-Root, ohne führenden Slash!)
-String _pdfLabFor(BuildContext context) {
-  final lc = Localizations.localeOf(context).languageCode.toLowerCase();
-  final esFr = lc == 'es' || lc == 'fr';
+const _dentCatalogLinks = [
+  _CatalogLink(
+    label: 'DE / EN',
+    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf',
+    locales: {'de', 'en', 'it'},
+  ),
+  _CatalogLink(
+    label: 'ES / FR',
+    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Praxis-ES-FR-2025-2026_1.pdf',
+    locales: {'es', 'fr'},
+  ),
+];
 
-  // Dateien liegen unter flutter_web/web/pdfs
-  return esFr
-      ? 'pdfs/DFS-Labor-ES-FR-2025-26_1.pdf'
-      : 'pdfs/DFS-Labor-DE-US-2025-26_1.pdf';
-}
-
-String _pdfDentFor(BuildContext context) {
-  final lc = Localizations.localeOf(context).languageCode.toLowerCase();
-  final esFr = lc == 'es' || lc == 'fr';
-
-  return esFr
-      ? 'pdfs/DFS-Praxis-ES-FR-2025-2026_1.pdf'
-      : 'pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf';
+_CatalogLink _catalogLinkForLocale(List<_CatalogLink> links, String localeCode) {
+  final normalized = localeCode.toLowerCase();
+  return links.firstWhere(
+    (link) => link.matches(normalized),
+    orElse: () => links.first,
+  );
 }
 
 class DashboardPage extends StatefulWidget {
@@ -55,6 +68,7 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserver {
   static const _newsLastSeenKey = 'customer_news_last_seen';
+
   static const _fallbackRep = MyRep(
     firstName: 'DFS-Diamon',
     lastName: 'GmbH',
@@ -81,25 +95,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     });
     _initRep();
     _refreshNewsIndicator();
-  }
-
-  bool _isStandaloneWebApp() {
-    if (!kIsWeb) return false;
-    try {
-      // Chrome/Edge: display-mode
-      final mm = html.window.matchMedia('(display-mode: standalone)');
-      if (mm != null && mm.matches) return true;
-    } catch (_) {}
-    try {
-      // iOS Safari PWA
-      final nav = (html.window.navigator as dynamic);
-      if (nav != null && nav.standalone == true) return true;
-    } catch (_) {}
-    try {
-      // TWA / Spezialfälle
-      if (html.document.referrer.contains('android-app://')) return true;
-    } catch (_) {}
-    return false;
   }
 
   @override
@@ -132,20 +127,22 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     Map<String, dynamic>? profile;
 
     try {
-      // Session sicherstellen, damit accountGet funktioniert
+      // sicherstellen, dass eine Session existiert (Token aus LocalStorage holen)
       if (widget.api.token == null || widget.api.token!.isEmpty) {
         await widget.api.restoreSession();
       }
 
+      // sauber über deine ApiClient-Methode
       profile = await widget.api.accountGet();
     } catch (_) {
-      profile = null; // Fallback greift unten
+      profile = null; // im Fehlerfall einfach leer lassen → Fallback greift
     }
 
     String? company;
     String? email;
 
     if (profile != null) {
+      // typische Firmenschlüssel
       const companyKeys = [
         'company',
         'companyName',
@@ -171,6 +168,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
         }
       }
 
+      // typische E-Mail-Schlüssel
       const emailKeys = [
         'email',
         'mail',
@@ -178,7 +176,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
         'email_address',
         'contactEmail',
         'customer_email',
-        'companyEmail',
       ];
 
       for (final k in emailKeys) {
@@ -195,7 +192,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
 
     if (mounted) {
       setState(() {
-        _customerName = company;
+        _customerName  = company;
         _customerEmail = email;
       });
     }
@@ -277,7 +274,17 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     }
   }
 
-  // --- HILFSFUNKTION: mailto an Vertreter öffnen (mit Betreff + Body aus i18n) ---
+  Future<void> _openMail(String email, String subject, String body) async {
+    final uri = Uri(
+      scheme: 'mailto',
+      path: email,
+      queryParameters: {'subject': subject, 'body': body},
+    );
+    if (!await launchUrl(uri, mode: LaunchMode.platformDefault)) {
+      // Fallback
+    }
+  }
+
   MyRep _repForContact() {
     final rep = _myRep;
     if (rep == null || rep.email.trim().isEmpty) {
@@ -301,294 +308,200 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     );
   }
 
-  // --- KOMPAKTE Variante (eingeklappbar) ---
+  // --- KOMPAKTE Variante (handy-optimiert, Name immer sichtbar) ---
   Widget _buildRepCardCompact(BuildContext context) {
-    final theme  = Theme.of(context);
-    final t      = AppLocalizations.of(context)!;
-    final r      = _myRep;
-    final name   = (r == null) ? '' : [r.firstName.trim(), r.lastName.trim()].where((s) => s.isNotEmpty).join(' ');
-    final email  = (r?.email ?? '').trim();
-    final region = (r?.region ?? '').trim();
-    final cs = theme.colorScheme;
-    final company = (_customerName ?? '').trim();
-    final hasContact = _repForContact().email.trim().isNotEmpty;
+    final theme = Theme.of(context);
+    final t     = AppLocalizations.of(context)!;
+    final r     = _myRep;
 
     // Kein Vertreter hinterlegt → Hinweis + Kontakt & Refresh
     if (r == null) {
-      return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.grey.withOpacity(.35)),
-            color: Colors.grey.withOpacity(.07),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.business_outlined, size: 20),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Zeige den Kundennamen (statt "DFS-Diamon GmbH")
-                    Text(
-                      company.isNotEmpty ? company : t.we_are_here_for_you,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        height: 1.1,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    // Hinweis + Kontaktmöglichkeit
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Text(
-                          AppLocalizations.of(context)!.rep_not_assigned,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: cs.onSurface.withOpacity(.70),
-                            height: 1.15,
-                          ),
-                        ),
-                        if (hasContact)
-                          TextButton.icon(
-                            style: TextButton.styleFrom(
-                              visualDensity: const VisualDensity(horizontal: -2, vertical: -3),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            ),
-                            onPressed: () => _openRepContactForm(context),
-                            icon: const Icon(Icons.mail_outline, size: 18),
-                            label: Text(
-                              t.rep_contact_form,
-                              style: theme.textTheme.labelMedium,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                tooltip: AppLocalizations.of(context)!.refresh,
-                onPressed: () {
-                  _initRep();
-                  _initCustomerName(); // falls sich was ändert
-                },
-                icon: const Icon(Icons.refresh),
-              ),
-            ],
-          ),
+      if (_repLoading) {
+        return const SizedBox(
+          height: 72,
+          child: Center(child: CircularProgressIndicator(strokeWidth: 2.5)),
         );
       }
+      return const SizedBox.shrink();
+    }
 
+    final first  = r.firstName.trim();
+    final last   = r.lastName.trim();
+    final email  = r.email.trim();
+    final name   = [first, last].where((s) => s.isNotEmpty).join(' ');
+    final title  = name.isNotEmpty ? t.rep_banner_title(name)
+                                   : t.rep_banner_title(email.isNotEmpty ? email : '—');
+    final hasContact = _repForContact().email.trim().isNotEmpty;
+
+    // Handy-optimiertes Layout: 1) Avatar + Textblock, 2) Aktionszeile darunter
     return Card(
       margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: ExpansionTile(
-        initiallyExpanded: false,
-        tilePadding: const EdgeInsets.symmetric(horizontal: 12),
-        childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-        leading: const CircleAvatar(child: Icon(Icons.handshake_outlined)),
-        title: Text(
-          t.rep_banner_title(name.isNotEmpty ? name : email),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-        ),
-        subtitle: Text(
-          [if (email.isNotEmpty) email, if (region.isNotEmpty) region].join(' • '),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.bodySmall,
-        ),
-        trailing: Wrap(
-          spacing: 4,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (hasContact)
-              IconButton(
-                tooltip: t.rep_contact_form,
-                icon: const Icon(Icons.mail_outline),
-                onPressed: () => _openRepContactForm(context),
-              ),
-            IconButton(
-              tooltip: t.refresh,
-              icon: const Icon(Icons.refresh),
-              onPressed: _initRep,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // kompakter Avatar
+                const CircleAvatar(
+                  radius: 18,
+                  child: Icon(Icons.handshake_outlined, size: 18),
+                ),
+                const SizedBox(width: 10),
+                // Textblock darf platz fressen: 2 Zeilen Titel, 1 Zeile Sub
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Titel mit 2 Zeilen und Ellipsis
+                      Text(
+                        title,
+                        maxLines: 2,
+                        softWrap: true,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          height: 1.1, // engere Zeilenhöhe
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            // Aktionen unter dem Textblock → spart Breite, nichts schneidet ab
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                if (hasContact)
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      visualDensity: const VisualDensity(horizontal: -2, vertical: -3),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    ),
+                    onPressed: () => _openRepContactForm(context),
+                    icon: const Icon(Icons.mail_outline, size: 18),
+                    label: Text(
+                      t.rep_contact_form,
+                      style: theme.textTheme.labelMedium,
+                    ),
+                  ),
+                const SizedBox(width: 6),
+                IconButton(
+                  tooltip: t.refresh,
+                  visualDensity: const VisualDensity(horizontal: -2, vertical: -3),
+                  padding: const EdgeInsets.all(6),
+                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                  onPressed: _initRep,
+                  icon: const Icon(Icons.refresh, size: 20),
+                ),
+              ],
             ),
           ],
         ),
-        // Optional: Details im aufgeklappten Bereich
-        children: [
-          if (region.isNotEmpty)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text(region, style: theme.textTheme.bodySmall),
-              ),
-            ),
-        ],
       ),
     );
   }
 
   // --- GROSSE Variante (wie früher, optisch präsenter) ---
   Widget _buildRepCardLarge(BuildContext context) {
+    final theme  = Theme.of(context);
     final t      = AppLocalizations.of(context)!;
     final r      = _myRep;
-    final cs = Theme.of(context).colorScheme;
-    final company = (_customerName ?? '').trim();
-    final hasContact = _repForContact().email.trim().isNotEmpty;
+    final cs     = theme.colorScheme;
 
     if (r == null) {
-      // wie oben: Null-Hinweis
-      return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [const Color(0xFF1976D2).withOpacity(0.14), const Color(0xFF42A5F5).withOpacity(0.10)],
-            ),
-            border: Border.all(color: const Color(0xFF1976D2).withOpacity(0.5), width: 1),
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 10, offset: const Offset(0, 4))],
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 38, height: 38,
-                decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF1976D2)),
-                child: const Icon(Icons.business_outlined, color: Colors.white, size: 22),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      company.isNotEmpty ? company : t.we_are_here_for_you,
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                      maxLines: 2, overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Text(
-                          t.rep_not_assigned,
-                          style: TextStyle(color: cs.onSurface.withOpacity(.75), fontSize: 13),
-                        ),
-                        if (hasContact)
-                          TextButton.icon(
-                            onPressed: () => _openRepContactForm(context),
-                            icon: const Icon(Icons.mail_outline),
-                            label: Text(t.rep_contact_form),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                tooltip: t.refresh,
-                onPressed: () {
-                  _initRep();
-                  _initCustomerName();
-                },
-                icon: const Icon(Icons.refresh),
-              ),
-            ],
-          ),
+      if (_repLoading) {
+        return const SizedBox(
+          height: 80,
+          child: Center(child: CircularProgressIndicator(strokeWidth: 2.5)),
         );
       }
-
+      return const SizedBox.shrink();
+    }
+    
     final first  = r.firstName.trim();
     final last   = r.lastName.trim();
     final email  = r.email.trim();
-    final region = r.region.trim();
     final name   = [first, last].where((s) => s.isNotEmpty).join(' ');
     final bannerTitle = name.isNotEmpty ? t.rep_banner_title(name)
-                                       : t.rep_banner_title(email.isNotEmpty ? email : '—');
-
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final titleColor = isDark ? Colors.white : Colors.black.withOpacity(.87);
-    final detailColor = isDark ? Colors.white.withOpacity(.9) : Colors.grey[800];
+                                        : t.rep_banner_title(email.isNotEmpty ? email : '—');
+    final hasContact = _repForContact().email.trim().isNotEmpty;
 
     return Card(
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      elevation: 1.5,
+      margin: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+      elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              const Color(0xFF1976D2).withOpacity(0.14),
-              const Color(0xFF42A5F5).withOpacity(0.10),
-            ],
-          ),
-          border: Border.all(color: const Color(0xFF1976D2).withOpacity(0.5), width: 1),
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
+      color: cs.surfaceVariant.withOpacity(0.65),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 38, height: 38,
-              decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF1976D2)),
-              child: const Icon(Icons.handshake_outlined, color: Colors.white, size: 22),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    bannerTitle,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
-                      color: titleColor,
-                    ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: cs.primary.withOpacity(0.15),
                   ),
-                  const SizedBox(height: 2),
-                  if (email.isNotEmpty || region.isNotEmpty)
-                    Text(
-                      [if (email.isNotEmpty) email, if (region.isNotEmpty) region].join(' • '),
-                      style: TextStyle(color: detailColor, fontSize: 13),
-                    ),
-                ],
-              ),
+                  child: Icon(Icons.handshake_outlined, color: cs.primary, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        bannerTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      if (email.isNotEmpty)
+                        Text(
+                          email,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: t.refresh,
+                  onPressed: _initRep,
+                  icon: const Icon(Icons.refresh),
+                ),
+              ],
             ),
-            if (hasContact)
-              Tooltip(
-                message: t.rep_contact_form,
+            if (hasContact) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
                 child: TextButton.icon(
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    visualDensity: VisualDensity.compact,
+                  ),
                   onPressed: () => _openRepContactForm(context),
-                  icon: const Icon(Icons.email_outlined),
-                  label: Text(t.rep_contact_form),
+                  icon: const Icon(Icons.email_outlined, size: 18),
+                  label: Text(
+                    t.rep_contact_form,
+                    style: theme.textTheme.labelLarge,
+                  ),
                 ),
               ),
-            IconButton(
-              tooltip: t.refresh,
-              onPressed: _initRep,
-              icon: const Icon(Icons.refresh),
-            ),
+            ],
           ],
         ),
       ),
@@ -596,7 +509,9 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
   }
 
   // --- RESPONSIVE Umschalter: mobil kompakt, Desktop groß ---
-  Widget _buildRepHeaderResponsive(BuildContext context) {
+  Widget? _buildRepHeaderResponsive(BuildContext context) {
+    if (!_repLoading && _myRep == null) return null;
+
     // Breakpoint beliebig – 900px ist ein guter Desktop-Schwellenwert
     final isWide = MediaQuery.of(context).size.width >= 900;
     return isWide ? _buildRepCardLarge(context)
@@ -616,20 +531,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
         onTap: () {
           Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => ComplaintFormPage(api: widget.api),
-          ));
-        },
-      ),
-      _Entry(
-        label: t.complaintWizardTile ?? 'Reklamations-Assistent',
-        icon: Icons.auto_awesome_outlined,
-        colorA: const Color(0xFF673AB7),
-        colorB: const Color(0xFF9575CD),
-        onTap: () {
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => ComplaintFormPage(
-              api: widget.api,
-              wizardMode: true,
-            ),
           ));
         },
       ),
@@ -667,14 +568,16 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
         },
       ),
       _Entry(
-        label: t.knowledgeBaseTile,
-        icon: Icons.psychology_alt_outlined,
-        colorA: const Color(0xFF00695C),
-        colorB: const Color(0xFF26A69A),
+        label: t.knowledgeBaseTile ?? 'Knowledge base (FAQ)',
+        icon: Icons.menu_book_outlined,
+        colorA: const Color(0xFF1E3A8A),
+        colorB: const Color(0xFF3B82F6),
         onTap: () {
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => KnowledgeBasePage(api: widget.api),
-          ));
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => KnowledgeBasePage(api: widget.api),
+            ),
+          );
         },
       ),
     ];
@@ -683,37 +586,41 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
       child: LayoutBuilder(
         builder: (ctx, constraints) {
           final size = MediaQuery.of(ctx).size;
-          final isPortrait = MediaQuery.of(ctx).orientation == Orientation.portrait;
+          final orientation = MediaQuery.of(ctx).orientation;
+          final isPortrait = orientation == Orientation.portrait;
           final isPhone = size.width < 600;
-          final isAppView = _isStandaloneWebApp(); // PWA installiert = true
+          final bool compressedHeight = constraints.maxHeight < (isPhone ? 620 : 540);
 
           final double maxExtent = isPhone
-              ? (isPortrait ? (isAppView ? 150 : 180) : (isAppView ? 170 : 200))
-              : (size.width < 1024 ? (isAppView ? 220 : 240) : (isAppView ? 240 : 260));
+              ? (isPortrait ? 160 : 200)
+              : (size.width < 1024 ? 240 : 260);
 
-          final double iconSize = isPhone
-              ? (isAppView ? 26 : 32)
-              : (isAppView ? 36 : 40);
+          final double iconSize = isPhone ? 28 : 40;
+          final double fontSize = isPhone ? 13.0 : 14.5;
+          final double aspectRatio;
+          if (compressedHeight) {
+            aspectRatio = isPhone ? 1.18 : 1.15;
+          } else {
+            aspectRatio = isPhone ? 1.06 : 1.1;
+          }
 
-          final double fontSize = isPhone
-              ? (isAppView ? 12.5 : 14.0)
-              : (isAppView ? 14.0 : 14.5);
+          final repHeader = _buildRepHeaderResponsive(context);
 
           return Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 1080),
               child: CustomScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
                 slivers: [
-                  SliverToBoxAdapter(
-                    child: Padding(
+                  if (repHeader != null)
+                    SliverPadding(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-                      child: _buildRepHeaderResponsive(context),
+                      sliver: SliverToBoxAdapter(
+                        child: repHeader,
+                      ),
                     ),
-                  ),
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
                       child: _CustomerNewsSpotlight(
                         title: t.customerNewsTitle,
                         subtitle: t.customerNewsSubtitle,
@@ -730,14 +637,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                     sliver: SliverGrid(
-                      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                        maxCrossAxisExtent: maxExtent,
-                        mainAxisSpacing: 16,
-                        crossAxisSpacing: 16,
-                        childAspectRatio: isAppView
-                            ? (isPhone ? 1.12 : 1.15)
-                            : (isPhone ? 1.06 : 1.10),
-                      ),
                       delegate: SliverChildBuilderDelegate(
                         (context, i) {
                           final e = tiles[i];
@@ -757,20 +656,30 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                                 fontSize: fontSize,
                                 onTap: e.onTap,
                                 showIndicator: e.showIndicator,
+                                hovered: hovered,
                               ),
                             ),
                           );
                         },
                         childCount: tiles.length,
                       ),
+                      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                        maxCrossAxisExtent: maxExtent,
+                        mainAxisSpacing: 16,
+                        crossAxisSpacing: 16,
+                        childAspectRatio: aspectRatio,
+                      ),
                     ),
                   ),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                      child: isAppView
-                          ? const _CatalogChips()
-                          : _CatalogStrip(),
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      0,
+                      16,
+                      16 + MediaQuery.of(ctx).padding.bottom,
+                    ),
+                    sliver: SliverToBoxAdapter(
+                      child: const _CatalogButtons(),
                     ),
                   ),
                 ],
@@ -784,206 +693,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
 }
 
 // ---------------- Komponenten ----------------
-
-class _CustomerNewsSpotlight extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final String lead;
-  final String freshLabel;
-  final String ctaLabel;
-  final bool showIndicator;
-  final VoidCallback onTap;
-
-  const _CustomerNewsSpotlight({
-    required this.title,
-    required this.subtitle,
-    required this.lead,
-    required this.freshLabel,
-    required this.ctaLabel,
-    required this.showIndicator,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final textTheme = theme.textTheme;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Ink(
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF4A148C), Color(0xFF7E57C2), Color(0xFFFF8F00)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.10),
-                blurRadius: 16,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final isNarrow = constraints.maxWidth < 720;
-
-              final leadStyle = textTheme.bodyMedium?.copyWith(
-                color: Colors.white.withOpacity(0.94),
-              );
-
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Stack(
-                        children: [
-                          Container(
-                            width: 50,
-                            height: 50,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.18),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: const Icon(
-                              Icons.campaign_outlined,
-                              color: Colors.white,
-                              size: 30,
-                            ),
-                          ),
-                          if (showIndicator)
-                            Positioned(
-                              right: 4,
-                              top: 4,
-                              child: Container(
-                                width: 12,
-                                height: 12,
-                                decoration: BoxDecoration(
-                                  color: Colors.orangeAccent.shade100,
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.25),
-                                      blurRadius: 6,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    title,
-                                    style: textTheme.titleLarge?.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ),
-                                if (showIndicator) ...[
-                                  const SizedBox(width: 10),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 6,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.16),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: Colors.white.withOpacity(0.25),
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(Icons.fiber_new,
-                                            size: 16, color: Colors.white),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          freshLabel,
-                                          style: textTheme.bodySmall?.copyWith(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              subtitle,
-                              style: textTheme.bodyMedium?.copyWith(
-                                color: Colors.white.withOpacity(0.92),
-                                height: 1.4,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              lead,
-                              style: leadStyle,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment:
-                        isNarrow ? Alignment.centerLeft : Alignment.centerRight,
-                    child: ElevatedButton.icon(
-                      onPressed: onTap,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: const Color(0xFF4A148C),
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 18,
-                          vertical: 10,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      icon:
-                          const Icon(Icons.arrow_outward_rounded, size: 20),
-                      label: Text(
-                        ctaLabel,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 // (Optional weiterhin vorhanden – falls du sie anderswo nutzt.
 // In dieser Datei wird _RepBanner jetzt nicht mehr verwendet.)
@@ -1107,10 +816,15 @@ class _RepBanner extends StatelessWidget {
                   final subject = Uri.encodeComponent(t.mail_subject_rep);
                   final body    = Uri.encodeComponent(t.mail_body_rep(name));
                   final mailto  = 'mailto:$email?subject=$subject&body=$body';
-                  html.window.open(mailto, '_self');
+                  if (kIsWeb) {
+                    html.window.open(mailto, '_self');
+                   } else {
+                    // Vorläufig: nichts tun oder Snackbar anzeigen
+                    // Besser: url_launcher benutzen (siehe unten)
+                  }
                 },
                 icon: const Icon(Icons.email_outlined),
-                label: Text(t.rep_email_button),
+                label: Text(t.rep_contact_form),
               ),
             ),
           IconButton(
@@ -1124,276 +838,322 @@ class _RepBanner extends StatelessWidget {
   }
 }
 
-class _CatalogStrip extends StatelessWidget {
+class _CustomerNewsSpotlight extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final String lead;
+  final String freshLabel;
+  final String ctaLabel;
+  final bool showIndicator;
+  final VoidCallback onTap;
+
+  const _CustomerNewsSpotlight({
+    required this.title,
+    required this.subtitle,
+    required this.lead,
+    required this.freshLabel,
+    required this.ctaLabel,
+    required this.showIndicator,
+    required this.onTap,
+  });
+
   @override
   Widget build(BuildContext context) {
-    final t = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
     final cs = theme.colorScheme;
-    final isPhone = MediaQuery.of(context).size.width < 700;
-    final labUrl  = _pdfLabFor(context);
-    final dentUrl = _pdfDentFor(context);
+    final isPhone = MediaQuery.of(context).size.width < 640;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: cs.surfaceVariant.withOpacity(0.35),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: cs.outlineVariant.withOpacity(0.6)),
-      ),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF4A148C), Color(0xFF7E57C2), Color(0xFFFF8F00)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          padding: EdgeInsets.symmetric(
+            horizontal: isPhone ? 14 : 18,
+            vertical: isPhone ? 12 : 14,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.menu_book_outlined, size: 18, color: cs.onSurface.withOpacity(0.7)),
-              const SizedBox(width: 8),
-              Text(
-                t.catalogs_title,
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: cs.onSurface.withOpacity(0.8),
-                  letterSpacing: .2,
-                  fontWeight: FontWeight.w600,
+              Stack(
+                children: [
+                  Container(
+                    width: isPhone ? 46 : 52,
+                    height: isPhone ? 46 : 52,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.18),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(
+                      Icons.campaign_outlined,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                  ),
+                  if (showIndicator)
+                    Positioned(
+                      right: 4,
+                      top: 4,
+                      child: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: Colors.orangeAccent.shade100,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.25),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        title,
+                        style: textTheme.titleMedium?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          height: 1.1,
+                        ),
+                      ),
+                    ),
+                    if (showIndicator) ...[
+                      const SizedBox(height: 6),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.14),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.24),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.fiber_new,
+                                  size: 16, color: Colors.white),
+                              const SizedBox(width: 6),
+                              Text(
+                                freshLabel,
+                                style: textTheme.bodySmall?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 6),
+                    Text(
+                      subtitle,
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: Colors.white.withOpacity(0.92),
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      lead,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: Colors.white.withOpacity(0.94),
+                        height: 1.3,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: ElevatedButton.icon(
+                        onPressed: onTap,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: cs.primary,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        icon:
+                            const Icon(Icons.arrow_outward_rounded, size: 18),
+                        label: Text(
+                          ctaLabel,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const Spacer(),
             ],
           ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            alignment: isPhone ? WrapAlignment.center : WrapAlignment.start,
-            children: [
-              _CatalogTile(
-                title: t.catalog_lab_title,
-                subtitle: t.catalog_lab_desc,
-                icon: Icons.biotech_outlined,
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => PdfInAppPage(url: labUrl,  title: t.catalog_lab_title),
-                    ),
-                  );
-                },
-              ),
-              _CatalogTile(
-                title: t.catalog_dent_title,
-                subtitle: t.catalog_dent_desc,
-                icon: Icons.medical_services_outlined,
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => PdfInAppPage(url: dentUrl, title: t.catalog_dent_title),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _CatalogChips extends StatelessWidget {
-  const _CatalogChips();
+// Dezente Katalog-Leiste: kompakte Darstellung mit nur einer passenden Sprache
+// Dezente Katalog-Leiste: kompaktere Abstände & geringere Zeilenhöhe
+class _CatalogButtons extends StatelessWidget {
+  const _CatalogButtons();
 
   @override
   Widget build(BuildContext context) {
-    final t  = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
-    final isPhone = MediaQuery.of(context).size.width < 700;
-    final labUrl  = _pdfLabFor(context);
-    final dentUrl = _pdfDentFor(context);
+    final t = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isPhone = MediaQuery.of(context).size.width < 600;
+    final localeCode = Localizations.localeOf(context).languageCode.toLowerCase();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // winzige, sehr zurückhaltende Überschrift
-        Row(
-          mainAxisSize: MainAxisSize.min,
+    Widget buildCard({
+      required String title,
+      required IconData icon,
+      String? description,
+      required List<_CatalogLink> links,
+    }) {
+      final link = _catalogLinkForLocale(links, localeCode);
+
+      // etwas straffer gepolstert
+      final padding = EdgeInsets.fromLTRB(
+        isPhone ? 12 : 14,
+        isPhone ? 8 : 10,
+        isPhone ? 12 : 14,
+        isPhone ? 10 : 12,
+      );
+
+      // engere Zeilenhöhen
+      final titleStyle = theme.textTheme.titleSmall?.copyWith(
+        fontWeight: FontWeight.w600,
+        letterSpacing: .2,
+        height: 1.05, // straffer
+      );
+      final descStyle = theme.textTheme.bodySmall?.copyWith(
+        color: cs.onSurface.withOpacity(.75),
+        height: 1.15, // weniger Zeilenabstand
+      );
+      final langStyle = theme.textTheme.bodySmall?.copyWith(
+        color: cs.onSurface.withOpacity(.6),
+        fontStyle: FontStyle.italic,
+        height: 1.10, // dezent
+      );
+
+      return Container(
+        margin: const EdgeInsets.symmetric(vertical: 4), // war 6
+        padding: padding,
+        decoration: BoxDecoration(
+          color: cs.surfaceVariant.withOpacity(0.16),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: cs.outlineVariant.withOpacity(0.40)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(Icons.menu_book_outlined, size: 16, color: cs.onSurface.withOpacity(.65)),
-            const SizedBox(width: 6),
-            Text(
-              t.catalogs_title, // "Kataloge"
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: cs.onSurface.withOpacity(.75),
-                    fontWeight: FontWeight.w600,
+            Icon(icon, size: isPhone ? 18 : 20, color: cs.onSurface.withOpacity(0.70)),
+            const SizedBox(width: 10), // war 12
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: titleStyle),
+                  const SizedBox(height: 2), // war 6
+                  Text(link.label, style: langStyle),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            TextButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => PdfInAppPage(url: link.url, title: title),
                   ),
+                );
+              },
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isPhone ? 10 : 12, // etwas kompakter
+                  vertical: 6, // war 8
+                ),
+                textStyle: theme.textTheme.labelMedium,
+                visualDensity: const VisualDensity(horizontal: -1, vertical: -2),
+              ),
+              icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+              label: Text(t.catalog_open),
             ),
           ],
         ),
-        const SizedBox(height: 6),
-        // zwei „Chip“-Links nebeneinander, umbrechend
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          alignment: isPhone ? WrapAlignment.center : WrapAlignment.start,
-          children: [
-            _ChipLink(
-              icon: Icons.science_outlined,
-              label: t.catalog_lab_title, // „Dentallabor Katalog“
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => PdfInAppPage(url: labUrl,  title: t.catalog_lab_title),
-                  ),
-                );
-              },
-            ),
-            _ChipLink(
-              icon: Icons.medical_information_outlined,
-              label: t.catalog_dent_title, // „Zahnmedizin Katalog“
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => PdfInAppPage(url: dentUrl, title: t.catalog_dent_title),
-                  ),
-                );
-              },
-            ),
-          ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        buildCard(
+          title: t.catalog_lab_title,
+          icon: Icons.biotech_outlined,
+          links: _labCatalogLinks,
+        ),
+        buildCard(
+          title: t.catalog_dent_title,
+          icon: Icons.medical_services_outlined,
+          links: _dentCatalogLinks,
         ),
       ],
     );
   }
 }
 
-class _ChipLink extends StatelessWidget {
-  final IconData icon;
+class _CatalogLink {
   final String label;
-  final VoidCallback onTap;
-  const _ChipLink({required this.icon, required this.label, required this.onTap});
+  final String url;
+  final Set<String> locales;
 
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return OutlinedButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon, size: 18),
-      label: Text(label, overflow: TextOverflow.ellipsis),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: cs.primary,
-        side: BorderSide(color: cs.outlineVariant),
-        backgroundColor: Colors.transparent,
-        minimumSize: const Size(0, 32),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      ),
-    );
-  }
-}
-
-class _CatalogTile extends StatefulWidget {
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _CatalogTile({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.onTap,
+  const _CatalogLink({
+    required this.label,
+    required this.url,
+    required this.locales,
   });
 
-  @override
-  State<_CatalogTile> createState() => _CatalogTileState();
-}
-
-class _CatalogTileState extends State<_CatalogTile> {
-  bool _hover = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final isNarrow = MediaQuery.of(context).size.width < 700;
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit:  (_) => setState(() => _hover = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 140),
-        curve: Curves.easeOut,
-        width: isNarrow ? 360 : 400,
-        constraints: const BoxConstraints(minHeight: 84),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: cs.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _hover ? cs.primary.withOpacity(.45) : cs.outlineVariant),
-          boxShadow: _hover
-              ? [BoxShadow(color: Colors.black.withOpacity(.06), blurRadius: 10, offset: const Offset(0, 4))]
-              : const [],
-        ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: widget.onTap,
-          child: Row(
-            children: [
-              Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(
-                  color: cs.primary.withOpacity(0.10),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: cs.primary.withOpacity(0.25)),
-                ),
-                child: Icon(widget.icon, size: 24, color: cs.primary.withOpacity(0.90)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: .2,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      widget.subtitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: cs.onSurface.withOpacity(.7),
-                        height: 1.15,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              TextButton.icon(
-                onPressed: widget.onTap,
-                style: TextButton.styleFrom(
-                  foregroundColor: cs.primary,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                ),
-                icon: const Icon(Icons.open_in_new, size: 18),
-                label: Text(
-                  AppLocalizations.of(context)!.catalog_open,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: cs.primary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  bool matches(String localeCode) => locales.contains(localeCode);
 }
 
 class _Entry {
@@ -1422,6 +1182,7 @@ class _FancyTile extends StatelessWidget {
   final double iconSize;
   final double fontSize;
   final bool showIndicator;
+  final bool hovered;
 
   const _FancyTile({
     required this.label,
@@ -1432,140 +1193,272 @@ class _FancyTile extends StatelessWidget {
     required this.iconSize,
     required this.fontSize,
     this.showIndicator = false,
+    this.hovered = false,
     super.key,
   });
 
   @override
   Widget build(BuildContext context) {
     final borderRadius = BorderRadius.circular(22);
-    final gradient = LinearGradient(
+    final baseGradient = LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        Color.lerp(colorA, Colors.white, 0.04)!.withOpacity(.98),
-        Color.lerp(colorB, Colors.black, 0.02)!.withOpacity(.95),
+        Color.lerp(colorA, Colors.white, hovered ? 0.14 : 0.08)!.withOpacity(.97),
+        Color.lerp(colorB, Colors.black, hovered ? 0.08 : 0.03)!.withOpacity(.93),
       ],
     );
 
-    return Material(
-      color: Colors.transparent,
-      borderRadius: borderRadius,
-      child: InkWell(
+    final haloGradient = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        colorA.withOpacity(.45),
+        colorB.withOpacity(.38),
+      ],
+    );
+
+    final List<BoxShadow> shadow = [
+      BoxShadow(
+        color: Colors.black.withOpacity(hovered ? 0.24 : 0.18),
+        blurRadius: hovered ? 28 : 20,
+        spreadRadius: -4,
+        offset: Offset(0, hovered ? 16 : 12),
+      ),
+      BoxShadow(
+        color: colorB.withOpacity(0.22),
+        blurRadius: hovered ? 32 : 26,
+        spreadRadius: -6,
+        offset: const Offset(0, 8),
+      ),
+    ];
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+      transform: hovered
+          ? (Matrix4.identity()..translate(0.0, -2.5))
+          : Matrix4.identity(),
+      decoration: BoxDecoration(
         borderRadius: borderRadius,
-        onTap: onTap,
-        child: Ink(
-          decoration: BoxDecoration(
+        boxShadow: shadow,
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: borderRadius,
+          gradient: haloGradient,
+        ),
+        padding: const EdgeInsets.all(1.6),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: borderRadius,
+          child: InkWell(
             borderRadius: borderRadius,
-            gradient: gradient,
-            border: Border.all(color: Colors.white.withOpacity(0.08), width: 1.2),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.16),
-                blurRadius: 22,
-                spreadRadius: -4,
-                offset: const Offset(0, 12),
+            onTap: onTap,
+            child: Ink(
+              decoration: BoxDecoration(
+                borderRadius: borderRadius,
+                gradient: baseGradient,
+                border: Border.all(color: Colors.white.withOpacity(0.12), width: 1.4),
               ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: borderRadius,
-            child: Stack(
-              children: [
-                // Soft highlight at the top
-                Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.white.withOpacity(.20),
-                          Colors.white.withOpacity(.02),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                // Decorative orbs
-                Positioned(
-                  top: -26,
-                  right: -6,
-                  child: Container(
-                    width: 90,
-                    height: 90,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withOpacity(0.12),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  bottom: -36,
-                  left: -20,
-                  child: Container(
-                    width: 130,
-                    height: 130,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.black.withOpacity(0.08),
-                    ),
-                  ),
-                ),
-                if (showIndicator)
-                  const Positioned(
-                    top: 14,
-                    right: 14,
-                    child: _BlinkingDot(),
-                  ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: iconSize + 30,
-                        height: iconSize + 30,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(18),
-                          color: Colors.white.withOpacity(0.18),
-                          border: Border.all(color: Colors.white.withOpacity(0.28)),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.18),
-                              blurRadius: 18,
-                              offset: const Offset(0, 10),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxHeight < 160;
+                  final shellSize = compact ? iconSize + 18 : iconSize + 30;
+                  final paddingV = compact ? 14.0 : 20.0;
+                  final spacing = compact ? 10.0 : 16.0;
+                  final accentWidth = compact ? 28.0 : 36.0;
+                  final resolvedFontSize = compact ? fontSize : fontSize + 1;
+
+                  return ClipRRect(
+                    borderRadius: borderRadius,
+                    child: Stack(
+                      children: [
+                        // soft glass shine
+                        Positioned.fill(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                stops: const [0, .36, 1],
+                                colors: [
+                                  Colors.white.withOpacity(.16),
+                                  Colors.white.withOpacity(.04),
+                                  Colors.black.withOpacity(.08),
+                                ],
+                              ),
                             ),
-                          ],
+                          ),
                         ),
-                        child: Icon(icon, size: iconSize, color: Colors.white),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        label,
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: fontSize + 1,
-                          letterSpacing: .2,
-                          height: 1.2,
+                        // spotlight rings
+                        Positioned(
+                          top: -32,
+                          right: -14,
+                          child: AnimatedOpacity(
+                            duration: const Duration(milliseconds: 200),
+                            opacity: hovered ? 1 : .7,
+                            child: Container(
+                              width: 120,
+                              height: 120,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: RadialGradient(
+                                  colors: [
+                                    Colors.white.withOpacity(.28),
+                                    Colors.white.withOpacity(.03),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 6),
-                      Container(
-                        width: 36,
-                        height: 2,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.35),
-                          borderRadius: BorderRadius.circular(2),
+                        Positioned(
+                          bottom: -40,
+                          left: -24,
+                          child: Container(
+                            width: 150,
+                            height: 150,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: RadialGradient(
+                                colors: [
+                                  colorB.withOpacity(.18),
+                                  Colors.transparent,
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                        // Diagonal glow stripe
+                        Positioned(
+                          top: -70,
+                          left: -10,
+                          right: -40,
+                          child: Transform.rotate(
+                            angle: -0.35,
+                            child: Container(
+                              height: 120,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.white.withOpacity(.12),
+                                    Colors.white.withOpacity(.02),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (showIndicator)
+                          const Positioned(
+                            top: 14,
+                            right: 14,
+                            child: _BlinkingDot(),
+                          ),
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 18, vertical: paddingV),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(
+                                child: Center(
+                                  child: Container(
+                                    width: shellSize,
+                                    height: shellSize,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(18),
+                                      gradient: RadialGradient(
+                                        colors: [
+                                          Colors.white.withOpacity(.32),
+                                          Colors.white.withOpacity(.10),
+                                        ],
+                                      ),
+                                      border: Border.all(
+                                        color: Colors.white.withOpacity(hovered ? 0.65 : 0.45),
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.18),
+                                          blurRadius: hovered ? 24 : 18,
+                                          offset: const Offset(0, 12),
+                                        ),
+                                        BoxShadow(
+                                          color: colorA.withOpacity(.25),
+                                          blurRadius: hovered ? 26 : 18,
+                                          spreadRadius: -4,
+                                          offset: const Offset(0, 6),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(16),
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                          colors: [
+                                            Colors.white.withOpacity(.28),
+                                            Colors.white.withOpacity(.12),
+                                          ],
+                                        ),
+                                      ),
+                                      child: Center(
+                                        child: Icon(
+                                          icon,
+                                          size: iconSize,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: spacing),
+                              Flexible(
+                                child: Text(
+                                  label,
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: resolvedFontSize,
+                                    letterSpacing: .3,
+                                    height: 1.22,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                width: accentWidth,
+                                height: 3,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      Colors.white.withOpacity(.75),
+                                      Colors.white.withOpacity(.25),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(3),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.white.withOpacity(.24),
+                                      blurRadius: 8,
+                                      spreadRadius: 1,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
             ),
           ),
         ),
@@ -1618,52 +1511,268 @@ class _BlinkingDotState extends State<_BlinkingDot>
   }
 }
 
-// ---------------- In-App PDF Viewer (pdf.js) ----------------
-class PdfInAppPage extends StatefulWidget {
-  final String url;
-  final String title;
-  const PdfInAppPage({super.key, required this.url, required this.title});
+class RepContactPage extends StatefulWidget {
+  final ApiClient api;
+  final MyRep rep;
+  final String? customerCompany;
+  final String? customerEmail;
+
+  const RepContactPage({
+    super.key,
+    required this.api,
+    required this.rep,
+    this.customerCompany,
+    this.customerEmail,
+  });
 
   @override
-  State<PdfInAppPage> createState() => _PdfInAppPageState();
+  State<RepContactPage> createState() => _RepContactPageState();
 }
 
-class _PdfInAppPageState extends State<PdfInAppPage> {
-  late final String _viewType;
+class _RepContactPageState extends State<RepContactPage> {
+  final _firstName = TextEditingController();
+  final _lastName  = TextEditingController();
+  final _subject   = TextEditingController();
+  final _message   = TextEditingController();
+
+  bool _sending = false;
+  bool _dirty   = false;
 
   @override
   void initState() {
     super.initState();
+    for (final c in [_firstName, _lastName, _subject, _message]) {
+      c.addListener(_onChanged);
+    }
+  }
 
-    // 1) PDF-URL relativ zum aktuellen Base-Pfad auflösen
-    final pdfUrl = Uri.base.resolve(widget.url).toString();
+  void _onChanged() {
+    if (!_dirty &&
+        (_firstName.text.isNotEmpty ||
+         _lastName.text.isNotEmpty ||
+         _subject.text.isNotEmpty ||
+         _message.text.isNotEmpty)) {
+      setState(() => _dirty = true);
+    }
+  }
 
-    // 2) Lokalen pdf.js-Viewer RELATIV aufrufen (kein führender Slash!)
-    final viewerPath = 'pdfjs/web/viewer.html'
-        '?file=${Uri.encodeComponent(pdfUrl)}#zoom=page-width&pagemode=none';
+  @override
+  void dispose() {
+    for (final c in [_firstName, _lastName, _subject, _message]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
 
-    // 3) Auch den Viewer relativ auflösen (deckt Unterpfade ab)
-    final viewerUrl = Uri.base.resolve(viewerPath).toString();
+  Future<bool> _confirmLeaveIfDirty() async {
+    if (!_dirty) return true;
+    final t = AppLocalizations.of(context)!;
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(t.rep_contact_discard_title),
+        content: Text(t.rep_contact_discard_text),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(t.no),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(t.yes),
+          ),
+        ],
+      ),
+    );
+    return res ?? false;
+  }
 
-    _viewType = 'pdfjs-${DateTime.now().millisecondsSinceEpoch}';
+  Future<void> _handleCancel() async {
+    final ok = await _confirmLeaveIfDirty();
+    if (ok && mounted) {
+      Navigator.of(context).pop(); // zurück zum Dashboard
+    }
+  }
 
-    // ignore: undefined_prefixed_name
-    ui.platformViewRegistry.registerViewFactory(_viewType, (int viewId) {
-      final frame = html.IFrameElement()
-        ..src = viewerUrl
-        ..style.border = '0'
-        ..style.width = '100%'
-        ..style.height = '100%';
-      return frame;
-    });
+  Future<void> _handleSend() async {
+    final t = AppLocalizations.of(context)!;
+    final subject = _subject.text.trim();
+    final msg     = _message.text.trim();
+
+    if (subject.isEmpty || msg.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.rep_contact_validation)),
+      );
+      return;
+    }
+
+    final repEmail = widget.rep.email.trim();
+    if (repEmail.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.rep_contact_no_rep_email)),
+      );
+      return;
+    }
+
+    setState(() => _sending = true);
+    try {
+      final company      = (widget.customerCompany ?? '').trim();
+      final companyEmail = (widget.customerEmail ?? '').trim();
+
+      final payload = <String, dynamic>{
+        'repEmail'        : repEmail,
+        'repFirstName'    : widget.rep.firstName,
+        'repLastName'     : widget.rep.lastName,
+        'company'         : company,
+        'companyEmail'    : companyEmail,
+        'contactFirstName': _firstName.text.trim(),
+        'contactLastName' : _lastName.text.trim(),
+        'subject'         : subject,
+        'message'         : msg,
+        'lang'            : Localizations.localeOf(context).languageCode,
+      };
+
+      // 🔴 Jetzt: Versand über dein Backend mit Kunden-Bearer-Token
+      await widget.api.sendRepContact(payload);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.rep_contact_sent)),
+      );
+      Navigator.of(context).pop(); // zurück zum Dashboard
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${t.rep_contact_error} (${e.message})')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.rep_contact_error)),
+      );
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.title, overflow: TextOverflow.ellipsis)),
-      body: SizedBox.expand(
-        child: HtmlElementView(viewType: _viewType),
+    final t     = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final cs    = theme.colorScheme;
+
+    final company      = (widget.customerCompany ?? '').trim();
+    final companyEmail = (widget.customerEmail ?? '').trim();
+    final firstRep     = widget.rep.firstName.trim();
+    final lastRep      = widget.rep.lastName.trim();
+
+    return WillPopScope(
+      onWillPop: _confirmLeaveIfDirty,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(t.rep_contact_title),
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                t.rep_contact_intro(firstRep, lastRep),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: cs.onSurface.withOpacity(.8),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Firmenname (read-only)
+              TextFormField(
+                initialValue: company.isNotEmpty ? company : t.yourCompany,
+                enabled: false,
+                decoration: InputDecoration(
+                  labelText: t.rep_contact_company_label,
+                  prefixIcon: const Icon(Icons.business),
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Firmen-E-Mail (read-only)
+              TextFormField(
+                initialValue: companyEmail,
+                enabled: false,
+                decoration: InputDecoration(
+                  labelText: t.rep_contact_company_email_label,
+                  prefixIcon: const Icon(Icons.alternate_email),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _firstName,
+                      decoration: InputDecoration(
+                        labelText: t.firstName,
+                        prefixIcon: const Icon(Icons.person_outline),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _lastName,
+                      decoration: InputDecoration(
+                        labelText: t.lastName,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _subject,
+                decoration: InputDecoration(
+                  labelText: t.rep_contact_subject_label,
+                  prefixIcon: const Icon(Icons.subject),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _message,
+                minLines: 5,
+                maxLines: 10,
+                decoration: InputDecoration(
+                  labelText: t.rep_contact_message_label,
+                  alignLabelWithHint: true,
+                  prefixIcon: const Icon(Icons.message_outlined),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _sending ? null : _handleCancel,
+                      child: Text(t.cancel),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _sending ? null : _handleSend,
+                      icon: _sending
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.send_outlined),
+                      label: Text(t.send),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

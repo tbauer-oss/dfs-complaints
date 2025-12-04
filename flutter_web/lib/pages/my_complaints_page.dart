@@ -1,17 +1,16 @@
 // lib/pages/my_complaints_page.dart
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:typed_data';
-import 'dart:html' as html; // nur Web – für Link-Öffnen & mailto
+import 'package:flutter_web/web_compat/html_stub.dart'
+  if (dart.library.html) 'package:flutter_web/web_compat/html_web.dart' as html;
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../models/complaint.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/attachment_preview.dart';
-import '../utils/image_optimizer.dart';
-import '../utils/upload_limits.dart';
 import '../widgets/legal_footer.dart';
 
 const _kComplaintMail = 'complaint@dfs-diamon.de';
@@ -28,6 +27,8 @@ enum _SortBy { updated, created }
 
 class _MyComplaintsPageState extends State<MyComplaintsPage> {
   bool _busy = false;
+  bool _loading = false;
+  bool _uploading = false;
   String? _err;
   List<Complaint> _items = const [];
   List<Complaint> _allItems = const [];
@@ -66,6 +67,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     if (!silent) {
       setState(() {
         _busy = true;
+        _loading = true;
         _err = null;
       });
     }
@@ -87,7 +89,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
       }
     } finally {
       if (!mounted) return;
-      if (!silent) setState(() => _busy = false);
+      if (!silent) setState(() { _busy = false; _loading = false; });
     }
   }
 
@@ -174,6 +176,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     return '$size B';
   }
 
+  // Lokalisierte Status-Texte
   String _statusTextLocalized(AppLocalizations t, int s) {
     switch (s) {
       case 1: return t.status_sent;
@@ -279,48 +282,27 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     final res = await FilePicker.platform.pickFiles(allowMultiple: true, withData: true);
     if (res == null || res.files.isEmpty) return;
 
-    final selected = <ComplaintFilePayload>[];
-    var totalBytes = 0;
-    var totalPayload = 0;
+    const limit = 8 * 1024 * 1024;
+    int totalBytes = 0;
+    final selected = <({String name, List<int> bytes, String mime, String? preview})>[];
 
     for (final file in res.files) {
       final data = file.bytes;
       if (data == null || data.isEmpty) continue;
-      var name = file.name;
-      var bytes = List<int>.from(data);
-      var mime = _guessMime(name);
-
-      if (kIsWeb) {
-        final optimized = optimizeImageForUpload(bytes, mime, originalName: name);
-        bytes = optimized.bytes;
-        mime = optimized.mime;
-        if ((optimized.suggestedName ?? '').isNotEmpty) {
-          name = optimized.suggestedName!;
-        }
-        totalPayload += estimateBase64Size(bytes.length);
-        if (totalPayload > kWebUploadPayloadBudgetBytes) {
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('${t.attachments_too_large} (Web-Limit 4MB)')),
-          );
-          return;
-        }
-      } else {
-        totalBytes += bytes.length;
-        if (totalBytes > kMobileAttachmentLimitBytes) {
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(t.attachments_too_large)),
-          );
-          return;
-        }
+      totalBytes += data.length;
+      if (totalBytes > limit) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(t.attachments_too_large)),
+        );
+        return;
       }
-
+      final mime = _guessMime(file.name);
       selected.add((
-        name: name,
-        bytes: bytes,
+        name: file.name,
+        bytes: List<int>.from(data),
         mime: mime,
-        preview: createAttachmentPreview(bytes, mime),
+        preview: createAttachmentPreview(data, mime),
       ));
     }
 
@@ -332,15 +314,9 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
       return;
     }
 
-    setState(() => _busy = true);
+    setState(() { _busy = true; _uploading = true; });
     try {
-      if (kIsWeb) {
-        await sendInChunks(selected, (chunk) async {
-          await widget.api.complaintUploadFiles(c.ticket, chunk);
-        });
-      } else {
-        await widget.api.complaintUploadFiles(c.ticket, selected);
-      }
+      await widget.api.complaintUploadFiles(c.ticket, selected);
       await _load(silent: true);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -355,16 +331,13 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
         SnackBar(content: Text(errMsg)),
       );
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() { _busy = false; _uploading = false; });
     }
   }
 
   Future<void> _openComplaintContactForm(Complaint c) async {
     final t = AppLocalizations.of(context)!;
-    final internal = (c.internalNo ?? '').trim();
-    final initialSubject = internal.isNotEmpty
-        ? '${t.complaint_contact_subject_prefill(c.ticket)} – Intern $internal'
-        : t.complaint_contact_subject_prefill(c.ticket);
+    final initialSubject = t.complaint_contact_subject_prefill(c.ticket);
 
     final sent = await showDialog<bool>(
       context: context,
@@ -453,10 +426,6 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                           Text(t.rep_banner_title(repName.isEmpty ? '—' : repName),
                               style: const TextStyle(fontWeight: FontWeight.w600)),
                           const SizedBox(height: 2),
-                          Text([
-                            if (repEmail.isNotEmpty) repEmail,
-                            if (repRegion.isNotEmpty) repRegion,
-                          ].join(' • ')),
                         ],
                       ),
                     ),
@@ -477,39 +446,50 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                   ],
                 ),
               ),
-            ),
+          ),
 
           // Filter
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-            child: _FilterBar(
-              tickets: _optionsFrom(_allItems.map((c) => (c.ticket).trim())),
-              internalNos:
-                  _optionsFrom(_allItems.map((c) => (c.internalNo ?? '').trim())),
-              statuses: _statusOptions(_allItems),
-              decisions: _optionsFrom(_allItems.map((c) => (c.decision ?? '').trim())),
-              selectedTicket: _filterTicket,
-              selectedInternal: _filterInternalNo,
-              selectedStatus: _filterStatus,
-              selectedDecision: _filterDecision,
-              statusLabel: (s) => _statusTextLocalized(t, s),
-              decisionLabel: (d) => _decisionText(t, d),
-              onChanged: (
-                  {String? ticket, String? internal, int? status, String? decision}) {
-                setState(() {
-                  _filterTicket = ticket;
-                  _filterInternalNo = internal;
-                  _filterStatus = status;
-                  _filterDecision = decision;
-                });
-                _refreshFilteredItems();
-              },
+            child: Card(
+              elevation: 0,
+              color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(.4),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 12, 10, 8),
+                child: _FilterBar(
+                  tickets: _optionsFrom(_allItems.map((c) => (c.ticket).trim())),
+                  internalNos:
+                      _optionsFrom(_allItems.map((c) => (c.internalNo ?? '').trim())),
+                  statuses: _statusOptions(_allItems),
+                  decisions: _optionsFrom(_allItems.map((c) => (c.decision ?? '').trim())),
+                  selectedTicket: _filterTicket,
+                  selectedInternal: _filterInternalNo,
+                  selectedStatus: _filterStatus,
+                  selectedDecision: _filterDecision,
+                  statusLabel: (s) => _statusTextLocalized(t, s),
+                  decisionLabel: (d) => _decisionText(t, d),
+                  onChanged: (
+                      {String? ticket, String? internal, int? status, String? decision}) {
+                    setState(() {
+                      _filterTicket = ticket;
+                      _filterInternalNo = internal;
+                      _filterStatus = status;
+                      _filterDecision = decision;
+                    });
+                    _refreshFilteredItems();
+                  },
+                ),
+              ),
             ),
           ),
 
+          if (_uploading)
+            const LinearProgressIndicator(minHeight: 4),
+
           // Liste der Reklamationen
           Expanded(
-            child: _busy
+            child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _err != null
                     ? Center(child: Text(_err!))
@@ -519,9 +499,9 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                             onRefresh: () => _load(silent: false),
                             child: ListView.separated(
                               physics: const AlwaysScrollableScrollPhysics(),
-                              padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+                              padding: const EdgeInsets.fromLTRB(10, 10, 10, 14),
                               itemCount: _items.length,
-                              separatorBuilder: (_, __) => const SizedBox(height: 10),
+                              separatorBuilder: (_, __) => const SizedBox(height: 8),
                               itemBuilder: (_, i) {
                                 final c = _items[i];
                                 final ticket = (c.ticket).toString();
@@ -541,72 +521,91 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                 final hasInternalNo = internalNo.isNotEmpty;
 
                                 // HEADER: Status, Artikelnummer, Produkttyp sofort sichtbar
-                                final attachmentsButton = TextButton.icon(
+                                final attachmentsButton = _ActionButton(
+                                  icon: Icons.attach_file_outlined,
+                                  label: t.attachments_add,
                                   onPressed: _busy ? null : () => _addAttachments(c),
-                                  icon: const Icon(Icons.attach_file_outlined),
-                                  label: Text(t.attachments_add),
                                 );
 
-                                final contactButton = TextButton.icon(
+                                final contactButton = _ActionButton(
+                                  icon: Icons.mail_outline,
+                                  label: t.complaint_contact_button,
                                   onPressed:
                                       _busy ? null : () => _openComplaintContactForm(c),
-                                  icon: const Icon(Icons.mail_outline),
-                                  label: Text(t.complaint_contact_button),
                                 );
 
-                                final actionButtons = Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  alignment: WrapAlignment.end,
-                                  children: [
-                                    attachmentsButton,
-                                    contactButton,
-                                  ],
-                                );
-
-                                final infoWrap = Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
+                                final statusWrap = Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
                                   crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
                                     _StatusPill(text: decisionText, color: decisionColor),
                                     _StatusPill(text: statusText, color: statusColor),
+                                  ],
+                                );
+
+                                final metaWrap = Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
                                     if (articleNo.isNotEmpty && !hasInternalNo)
                                       _KeyValuePill(
-                                          icon: Icons.handyman_outlined,
-                                          label: (t.articleNo ?? t.article),
-                                          value: articleNo),
+                                        icon: Icons.handyman_outlined,
+                                        label: (t.articleNo ?? t.article),
+                                        value: articleNo,
+                                      ),
                                     if (productType.isNotEmpty)
                                       _KeyValuePill(
-                                          icon: Icons.category_outlined,
-                                          label: t.product_type ?? 'Produkttyp',
-                                          value: productType),
+                                        icon: Icons.category_outlined,
+                                        label: t.product_type ?? 'Produkttyp',
+                                        value: productType,
+                                      ),
+                                  ],
+                                );
+
+                                final headerInfo = Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    statusWrap,
+                                    if (metaWrap.children.isNotEmpty) ...[
+                                      const SizedBox(height: 10),
+                                      metaWrap,
+                                    ],
                                   ],
                                 );
 
                                 final headerLine = LayoutBuilder(
                                   builder: (context, constraints) {
-                                    if (constraints.maxWidth < 520) {
+                                    final isCompact = constraints.maxWidth < 620;
+                                    final actionRow = SizedBox(
+                                      width: math.min(constraints.maxWidth, 380),
+                                      child: Row(
+                                        children: [
+                                          Expanded(child: attachmentsButton),
+                                          const SizedBox(width: 10),
+                                          Expanded(child: contactButton),
+                                        ],
+                                      ),
+                                    );
+
+                                    if (isCompact) {
                                       return Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          infoWrap,
-                                          const SizedBox(height: 8),
-                                          Align(
-                                            alignment: Alignment.centerRight,
-                                            child: actionButtons,
-                                          ),
+                                          headerInfo,
+                                          const SizedBox(height: 12),
+                                          actionRow,
                                         ],
                                       );
                                     }
 
                                     return Row(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment: CrossAxisAlignment.center,
                                       children: [
-                                        Expanded(child: infoWrap),
+                                        Expanded(child: headerInfo),
                                         const SizedBox(width: 12),
-                                        actionButtons,
+                                        actionRow,
                                       ],
                                     );
                                   },
@@ -615,12 +614,12 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                 // EXPANSION: alle Details
                                 return Card(
                                   elevation: 2,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                   child: Theme(
                                     data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
                                     child: ExpansionTile(
-                                      tilePadding: const EdgeInsets.fromLTRB(14, 6, 14, 6),
-                                      childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                                      tilePadding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+                                      childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                                       title: Row(
                                         children: [
                                           const Icon(Icons.description_outlined, size: 20),
@@ -634,10 +633,8 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                                     ticket.isEmpty ? '—' : ticket,
                                                     maxLines: 1,
                                                     overflow: TextOverflow.ellipsis,
-                                                    style: const TextStyle(
-                                                      fontWeight: FontWeight.w700,
-                                                      fontSize: 16,
-                                                    ),
+                                                    style:
+                                                        const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
                                                   ),
                                                 );
 
@@ -646,15 +643,24 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                                 return Column(
                                                   crossAxisAlignment: CrossAxisAlignment.start,
                                                   children: [
-                                                    ticketText,
-                                                    const SizedBox(height: 6),
-                                                    _internalNoPill(t, internalNo),
+                                                    Wrap(
+                                                      spacing: 8,
+                                                      runSpacing: 6,
+                                                      crossAxisAlignment: WrapCrossAlignment.center,
+                                                      children: [
+                                                        ticketText,
+                                                        _internalNoPill(t, internalNo),
+                                                      ],
+                                                    ),
                                                     if (articleNo.isNotEmpty) ...[
                                                       const SizedBox(height: 6),
-                                                      _KeyValuePill(
-                                                        icon: Icons.handyman_outlined,
-                                                        label: (t.articleNo ?? t.article),
-                                                        value: articleNo,
+                                                      Align(
+                                                        alignment: Alignment.centerLeft,
+                                                        child: _KeyValuePill(
+                                                          icon: Icons.handyman_outlined,
+                                                          label: (t.articleNo ?? t.article),
+                                                          value: articleNo,
+                                                        ),
                                                       ),
                                                     ],
                                                   ],
@@ -757,29 +763,16 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                           ),
 
                                         // Aktionen
-                                        Row(
-                                          children: [
-                                            if (canOpenReport)
+                                        if (canOpenReport)
+                                          Row(
+                                            children: [
                                               TextButton.icon(
                                                 onPressed: () => html.window.open(reportLink, '_blank'),
                                                 icon: const Icon(Icons.open_in_new),
                                                 label: Text(t.report_open),
                                               ),
-                                            if (canOpenReport)
-                                              const SizedBox(width: 8),
-                                            const Spacer(),
-                                            TextButton.icon(
-                                              onPressed: () async {
-                                                await showDialog(
-                                                  context: context,
-                                                  builder: (_) => _MyComplaintDetailsDialog(c: c),
-                                                );
-                                              },
-                                              icon: const Icon(Icons.info_outline),
-                                              label: Text(t.details),
-                                            ),
-                                          ],
-                                        ),
+                                            ],
+                                          ),
                                       ],
                                     ),
                                   ),
@@ -800,7 +793,14 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 180, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
+          Flexible(
+            flex: 0,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 180),
+              child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+            ),
+          ),
+          const SizedBox(width: 8),
           Expanded(child: Text(value.isEmpty ? '—' : value)),
         ],
       ),
@@ -810,7 +810,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
   Widget _internalNoPill(AppLocalizations t, String value) {
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceVariant,
         borderRadius: BorderRadius.circular(8),
@@ -819,11 +819,12 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.tag, size: 14),
-          const SizedBox(width: 4),
+          const Icon(Icons.tag, size: 13),
+          const SizedBox(width: 3),
           Text(
             '${t.internal_no_label}: $value',
             style: TextStyle(
+              fontSize: 13,
               fontWeight: FontWeight.w600,
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -871,16 +872,21 @@ class _FilterBar extends StatelessWidget {
       required T? value,
       required List<DropdownMenuItem<T?>> items,
       required void Function(T?) onChanged,
+      required double width,
     }) {
-      return ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 230),
+      return SizedBox(
+        width: width,
         child: DropdownButtonFormField<T?>(
           value: value,
           isDense: true,
           decoration: InputDecoration(
             labelText: label,
             isDense: true,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            labelStyle: Theme.of(context)
+                .textTheme
+                .bodyMedium
+                ?.copyWith(fontWeight: FontWeight.w600, fontSize: 13),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
           ),
           items: items,
@@ -889,51 +895,67 @@ class _FilterBar extends StatelessWidget {
       );
     }
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Wrap(
-        spacing: 12,
-        runSpacing: 12,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          buildDropdown<String>(
-            label: t.ticket,
-            value: selectedTicket,
-            items: [
-              DropdownMenuItem<String?>(value: null, child: Text(t.rep_overview_all)),
-              ...tickets.map((v) => DropdownMenuItem<String?>(value: v, child: Text(v))),
-            ],
-            onChanged: (v) => onChanged(ticket: v, internal: selectedInternal, status: selectedStatus, decision: selectedDecision),
-          ),
-          buildDropdown<String>(
-            label: t.internal_no_label,
-            value: selectedInternal,
-            items: [
-              DropdownMenuItem<String?>(value: null, child: Text(t.rep_overview_all)),
-              ...internalNos.map((v) => DropdownMenuItem<String?>(value: v, child: Text(v))),
-            ],
-            onChanged: (v) => onChanged(ticket: selectedTicket, internal: v, status: selectedStatus, decision: selectedDecision),
-          ),
-          buildDropdown<int>(
-            label: t.status,
-            value: selectedStatus,
-            items: [
-              DropdownMenuItem<int?>(value: null, child: Text(t.allStatus)),
-              ...statuses.map((v) => DropdownMenuItem<int?>(value: v, child: Text(statusLabel(v)))),
-            ],
-            onChanged: (v) => onChanged(ticket: selectedTicket, internal: selectedInternal, status: v, decision: selectedDecision),
-          ),
-          buildDropdown<String>(
-            label: t.decision,
-            value: selectedDecision,
-            items: [
-              DropdownMenuItem<String?>(value: null, child: Text(t.allDecisions)),
-              ...decisions.map((v) => DropdownMenuItem<String?>(value: v, child: Text(decisionLabel(v)))),
-            ],
-            onChanged: (v) => onChanged(ticket: selectedTicket, internal: selectedInternal, status: selectedStatus, decision: v),
-          ),
-        ],
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        final compact = maxWidth < 560;
+        final fieldWidth = compact
+            ? maxWidth
+            : math.min<double>(260, (maxWidth - 16) / 2);
+
+        return Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          crossAxisAlignment: WrapCrossAlignment.start,
+          alignment: compact ? WrapAlignment.start : WrapAlignment.spaceBetween,
+          children: [
+            buildDropdown<String>(
+              label: t.ticket,
+              value: selectedTicket,
+              width: fieldWidth,
+              items: [
+                DropdownMenuItem<String?>(value: null, child: Text(t.rep_overview_all)),
+                ...tickets.map((v) => DropdownMenuItem<String?>(value: v, child: Text(v))),
+              ],
+              onChanged: (v) =>
+                  onChanged(ticket: v, internal: selectedInternal, status: selectedStatus, decision: selectedDecision),
+            ),
+            buildDropdown<String>(
+              label: t.internal_no_label,
+              value: selectedInternal,
+              width: fieldWidth,
+              items: [
+                DropdownMenuItem<String?>(value: null, child: Text(t.rep_overview_all)),
+                ...internalNos.map((v) => DropdownMenuItem<String?>(value: v, child: Text(v))),
+              ],
+              onChanged: (v) =>
+                  onChanged(ticket: selectedTicket, internal: v, status: selectedStatus, decision: selectedDecision),
+            ),
+            buildDropdown<int>(
+              label: t.status,
+              value: selectedStatus,
+              width: fieldWidth,
+              items: [
+                DropdownMenuItem<int?>(value: null, child: Text(t.allStatus)),
+                ...statuses.map((v) => DropdownMenuItem<int?>(value: v, child: Text(statusLabel(v)))),
+              ],
+              onChanged: (v) =>
+                  onChanged(ticket: selectedTicket, internal: selectedInternal, status: v, decision: selectedDecision),
+            ),
+            buildDropdown<String>(
+              label: t.decision,
+              value: selectedDecision,
+              width: fieldWidth,
+              items: [
+                DropdownMenuItem<String?>(value: null, child: Text(t.allDecisions)),
+                ...decisions.map((v) => DropdownMenuItem<String?>(value: v, child: Text(decisionLabel(v)))),
+              ],
+              onChanged: (v) =>
+                  onChanged(ticket: selectedTicket, internal: selectedInternal, status: selectedStatus, decision: v),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -975,119 +997,36 @@ class _SortControls extends StatelessWidget {
   }
 }
 
-// ---- Details-Dialog (optionaler Deep-Dive, unverändert in der Logik) ----
-class _MyComplaintDetailsDialog extends StatelessWidget {
-  final Complaint c;
-  const _MyComplaintDetailsDialog({required this.c});
+// ------------------- kleine UI-Helfer (darstellungs-only) -------------------
+
+class _ActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onPressed;
+  const _ActionButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final t = AppLocalizations.of(context)!;
-    final Map<String, dynamic> payload = c.payload ?? const <String, dynamic>{};
-
-    String _segLabel(String raw) {
-      final v = raw.trim().toLowerCase();
-      if (v == 'zahnarzt' || v == t.segment_dentist.toLowerCase()) return t.segment_dentist;
-      if (v == 'zahntechnik' || v == t.segment_lab.toLowerCase()) return t.segment_lab;
-      return raw;
-    }
-
-    String _safeStr(dynamic v) => (v ?? '').toString();
-
-    Widget row(String l, String v) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 3),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(width: 170, child: Text(l, style: const TextStyle(fontWeight: FontWeight.w600))),
-              Expanded(child: Text(v.isEmpty ? '—' : v)),
-            ],
-          ),
-        );
-
-    return AlertDialog(
-      title: Text('${t.details} – ${c.ticket}'),
-      content: SizedBox(
-        width: 600,
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (payload.isEmpty) ...[
-                Text(t.no_details),
-              ] else ...[
-                if (_safeStr(payload['segment']).isNotEmpty)
-                  row(t.segment, _segLabel(_safeStr(payload['segment']))),
-                row(t.article, _safeStr(payload['article'])),
-                row(t.batch, _safeStr(payload['batch'])),
-                row(t.quantity, _safeStr(payload['qty'])),
-                row(t.expiry, _safeStr(payload['expiry'])),
-                row(t.description, _safeStr(payload['desc'])),
-                if (_safeStr(payload['returned']).isNotEmpty)
-                  row((t.returned ?? t.returned_question), _safeStr(payload['returned'])),
-                if (_safeStr(payload['handling']).isNotEmpty)
-                  row(t.handling, _safeStr(payload['handling'])),
-                if (_safeStr(payload['applied']).isNotEmpty)
-                  row(t.applied, _safeStr(payload['applied'])),
-                if (_safeStr(payload['injury']).isNotEmpty)
-                  row(t.injury, _safeStr(payload['injury'])),
-                if (_safeStr(payload['injuryDesc']).trim().isNotEmpty)
-                  row(t.injury_desc, _safeStr(payload['injuryDesc'])),
-                if (_safeStr(payload['customerName']).isNotEmpty)
-                  row(t.customer_label, _safeStr(payload['customerName'])),
-                if (_safeStr(payload['country']).isNotEmpty)
-                  row(t.country_label, _safeStr(payload['country'])),
-              ],
-            if (c.uploads.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(t.attachments_existing, style: const TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 4),
-              ...c.uploads.map((upload) => _AttachmentPreviewTile(
-                    upload: upload,
-                    formatBytes: _formatBytes,
-                    formatDate: _fmtLocal,
-                    fallbackName: t.attachments_file_unknown,
-                  )),
-            ],
-            const SizedBox(height: 8),
-            row(t.created, _fmtLocal(c.createdAt)),
-            if (c.updatedAt.millisecondsSinceEpoch > 0)
-              row(t.updated, _fmtLocal(c.updatedAt)),
-            if ((c.internalNo ?? '').toString().isNotEmpty)
-              row(t.internal_no_label, c.internalNo!),
-            ],
-          ),
-        ),
+    return FilledButton.tonalIcon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 16),
+      label: Text(
+        label,
+        textAlign: TextAlign.center,
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: Text(t.close)),
-      ],
+      style: FilledButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        visualDensity: const VisualDensity(horizontal: -1, vertical: -1),
+      ),
     );
   }
-
-  String _fmtLocal(DateTime dt) {
-    final l = dt.toLocal();
-    String two(int x) => x < 10 ? '0$x' : '$x';
-    return '${l.year}-${two(l.month)}-${two(l.day)} ${two(l.hour)}:${two(l.minute)}';
-  }
-
-  String _formatBytes(int size) {
-    if (size <= 0) return '0 B';
-    const kb = 1024;
-    const mb = kb * 1024;
-    if (size >= mb) {
-      final value = size / mb;
-      return value >= 10 ? '${value.toStringAsFixed(0)} MB' : '${value.toStringAsFixed(1)} MB';
-    }
-    if (size >= kb) {
-      final value = size / kb;
-      return value >= 10 ? '${value.toStringAsFixed(0)} KB' : '${value.toStringAsFixed(1)} KB';
-    }
-    return '$size B';
-  }
 }
-
-// ------------------- kleine UI-Helfer (darstellungs-only) -------------------
 
 class _StatusPill extends StatelessWidget {
   final String text;
@@ -1098,7 +1037,7 @@ class _StatusPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final safe = text.isEmpty ? '—' : text;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
         color: color.withOpacity(.12),
         border: Border.all(color: color, width: 1),
@@ -1106,150 +1045,8 @@ class _StatusPill extends StatelessWidget {
       ),
       child: Text(
         safe,
-        style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12.5),
+        style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12),
       ),
-    );
-  }
-}
-
-class _ComplaintContactDialog extends StatefulWidget {
-  final ApiClient api;
-  final Complaint complaint;
-  final MyRep? rep;
-  final String initialSubject;
-
-  const _ComplaintContactDialog({
-    required this.api,
-    required this.complaint,
-    required this.initialSubject,
-    this.rep,
-  });
-
-  @override
-  State<_ComplaintContactDialog> createState() => _ComplaintContactDialogState();
-}
-
-class _ComplaintContactDialogState extends State<_ComplaintContactDialog> {
-  late final TextEditingController _subjectCtrl;
-  final TextEditingController _messageCtrl = TextEditingController();
-  bool _sending = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _subjectCtrl = TextEditingController(text: widget.initialSubject);
-  }
-
-  @override
-  void dispose() {
-    _subjectCtrl.dispose();
-    _messageCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _send() async {
-    final t = AppLocalizations.of(context)!;
-    final subject = _subjectCtrl.text.trim();
-    final message = _messageCtrl.text.trim();
-
-    if (subject.isEmpty || message.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.rep_contact_validation)),
-      );
-      return;
-    }
-
-    setState(() => _sending = true);
-    try {
-      await widget.api.complaintContact(
-        ticket: widget.complaint.ticket,
-        subject: subject,
-        message: message,
-      );
-      if (!mounted) return;
-      Navigator.of(context).pop(true);
-    } catch (e) {
-      if (!mounted) return;
-      final errText = (e is ApiError && e.message.isNotEmpty)
-          ? '${t.rep_contact_error} (${e.message})'
-          : t.rep_contact_error;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errText)),
-      );
-    } finally {
-      if (mounted) setState(() => _sending = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = AppLocalizations.of(context)!;
-    final rep = widget.rep;
-    final repEmail = (rep?.email ?? '').trim();
-    final hasRep = repEmail.isNotEmpty;
-    final displayName = (rep?.displayName ?? '').trim();
-    final repName = displayName.isNotEmpty ? displayName : repEmail;
-
-    final infoText = hasRep
-        ? t.complaint_contact_intro_rep(repName, repEmail)
-        : t.complaint_contact_intro_qm(_kComplaintMail);
-
-    return AlertDialog(
-      title: Text(t.complaint_contact_title(widget.complaint.ticket)),
-      content: SizedBox(
-        width: 520,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                infoText,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: Theme.of(context).colorScheme.onSurface.withOpacity(.8)),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _subjectCtrl,
-                decoration: InputDecoration(
-                  labelText: t.rep_contact_subject_label,
-                  prefixIcon: const Icon(Icons.subject),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _messageCtrl,
-                minLines: 5,
-                maxLines: 10,
-                decoration: InputDecoration(
-                  labelText: t.rep_contact_message_label,
-                  alignLabelWithHint: true,
-                  prefixIcon: const Icon(Icons.message_outlined),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: _sending ? null : () => Navigator.of(context).pop(false),
-          child: Text(t.cancel),
-        ),
-        ElevatedButton.icon(
-          onPressed: _sending ? null : _send,
-          icon: _sending
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.send_outlined),
-          label: Text(t.send),
-        ),
-      ],
     );
   }
 }
@@ -1264,10 +1061,10 @@ class _KeyValuePill extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
         color: cs.surfaceVariant.withOpacity(.55),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(9),
         border: Border.all(color: cs.outlineVariant),
       ),
       child: Row(
@@ -1275,7 +1072,7 @@ class _KeyValuePill extends StatelessWidget {
         children: [
           Icon(icon, size: 16),
           const SizedBox(width: 6),
-          Text('$label: ', style: const TextStyle(fontWeight: FontWeight.w600)),
+          Text('$label: ', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5)),
           Flexible(child: Text(value, overflow: TextOverflow.ellipsis, maxLines: 1)),
         ],
       ),
@@ -1446,6 +1243,148 @@ class _AttachmentPreviewTileState extends State<_AttachmentPreviewTile> {
             ),
         ],
       ),
+    );
+  }
+}
+
+class _ComplaintContactDialog extends StatefulWidget {
+  final ApiClient api;
+  final Complaint complaint;
+  final MyRep? rep;
+  final String initialSubject;
+  const _ComplaintContactDialog({
+    required this.api,
+    required this.complaint,
+    required this.rep,
+    required this.initialSubject,
+  });
+
+  @override
+  State<_ComplaintContactDialog> createState() => _ComplaintContactDialogState();
+}
+
+class _ComplaintContactDialogState extends State<_ComplaintContactDialog> {
+  late final TextEditingController _subjectCtrl;
+  final TextEditingController _messageCtrl = TextEditingController();
+  bool _sending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _subjectCtrl = TextEditingController(text: widget.initialSubject);
+  }
+
+  @override
+  void dispose() {
+    _subjectCtrl.dispose();
+    _messageCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    final t = AppLocalizations.of(context)!;
+    final subject = _subjectCtrl.text.trim();
+    final message = _messageCtrl.text.trim();
+
+    if (subject.isEmpty || message.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.rep_contact_validation)),
+      );
+      return;
+    }
+
+    setState(() => _sending = true);
+    try {
+      await widget.api.complaintContact(
+        ticket: widget.complaint.ticket,
+        subject: subject,
+        message: message,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      final errText = (e is ApiError && e.message.isNotEmpty)
+          ? '${t.rep_contact_error} (${e.message})'
+          : t.rep_contact_error;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(errText)),
+      );
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    final rep = widget.rep;
+    final repEmail = (rep?.email ?? '').trim();
+    final hasRep = repEmail.isNotEmpty;
+    final displayName = (rep?.displayName ?? '').trim();
+    final repName = displayName.isNotEmpty ? displayName : repEmail;
+
+    final infoText = hasRep
+        ? t.complaint_contact_intro_rep(repName, repEmail)
+        : t.complaint_contact_intro_qm(_kComplaintMail);
+
+    return AlertDialog(
+      title: Text(t.complaint_contact_title(widget.complaint.ticket)),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                infoText,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(color: Theme.of(context).colorScheme.onSurface.withOpacity(.8)),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _subjectCtrl,
+                textInputAction: TextInputAction.next,
+                decoration: InputDecoration(
+                  labelText: t.rep_contact_subject_label,
+                  prefixIcon: const Icon(Icons.subject),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _messageCtrl,
+                minLines: 5,
+                maxLines: 10,
+                decoration: InputDecoration(
+                  labelText: t.rep_contact_message_label,
+                  alignLabelWithHint: true,
+                  prefixIcon: const Icon(Icons.message_outlined),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _sending ? null : () => Navigator.of(context).pop(false),
+          child: Text(t.cancel),
+        ),
+        ElevatedButton.icon(
+          onPressed: _sending ? null : _send,
+          icon: _sending
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.send_outlined),
+          label: Text(t.send),
+        ),
+      ],
     );
   }
 }

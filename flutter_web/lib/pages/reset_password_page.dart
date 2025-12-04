@@ -30,10 +30,10 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
   void initState() {
     super.initState();
     final params = Uri.base.queryParameters;
-    final presetEmail = params['email'];
-    if (presetEmail != null && presetEmail.isNotEmpty) {
-      _requestEmail.text = presetEmail;
-      _confirmEmail.text = presetEmail;
+    final email = params['email'];
+    if (email != null && email.isNotEmpty) {
+      _requestEmail.text = email;
+      _confirmEmail.text = email;
     }
   }
 
@@ -47,7 +47,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
     super.dispose();
   }
 
-  Future<void> _sendResetMail() async {
+  Future<void> _requestReset() async {
     final t = AppLocalizations.of(context)!;
     final email = _requestEmail.text.trim();
     if (email.isEmpty || !email.contains('@')) {
@@ -57,16 +57,13 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
       });
       return;
     }
-
     setState(() {
       _requestBusy = true;
       _requestError = null;
       _requestMessage = null;
     });
-
     final result = await widget.api.requestPasswordReset(email);
     if (!mounted) return;
-
     setState(() {
       _requestBusy = false;
       if (result.ok) {
@@ -151,6 +148,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
 
   Widget _sectionCard({required String title, required List<Widget> children}) {
     return Card(
+      margin: const EdgeInsets.symmetric(vertical: 12),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -175,106 +173,87 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
       child: Scaffold(
         appBar: AppBar(title: Text(t.reset_password_page_title)),
         body: SafeArea(
-          child: LayoutBuilder(
-            builder: (ctx, constraints) {
-              return Align(
-                alignment: Alignment.topCenter,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 640),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640),
+                child: Column(
+                  children: [
+                    _sectionCard(
+                      title: t.reset_password_request_title,
                       children: [
-                        _sectionCard(
-                          title: t.reset_password_request_title,
-                          children: [
-                            Text(t.forgot_password_instructions),
-                            const SizedBox(height: 12),
-                            TextField(
-                              controller: _requestEmail,
-                              keyboardType: TextInputType.emailAddress,
-                              decoration: InputDecoration(labelText: t.email),
-                              onSubmitted: (_) => _sendResetMail(),
-                            ),
-                            const SizedBox(height: 12),
-                            if (_requestError != null)
-                              Text(
-                                _requestError!,
-                                style: TextStyle(color: theme.colorScheme.error),
-                              ),
-                            if (_requestMessage != null)
-                              Text(
-                                _requestMessage!,
-                                style: TextStyle(color: theme.colorScheme.tertiary),
-                              ),
-                            const SizedBox(height: 12),
-                            FilledButton(
-                              onPressed: _requestBusy ? null : _sendResetMail,
-                              child: _requestBusy
-                                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                                  : Text(t.reset_password_request_action),
-                            ),
-                          ],
+                        Text(t.forgot_password_instructions),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _requestEmail,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: InputDecoration(labelText: t.email),
+                          onSubmitted: (_) => _requestReset(),
                         ),
-                        const SizedBox(height: 24),
-                        _sectionCard(
-                          title: t.reset_password_unlock_title,
-                          children: [
-                            Text(t.reset_password_unlock_info),
-                            const SizedBox(height: 12),
-                            TextField(
-                              controller: _confirmEmail,
-                              keyboardType: TextInputType.emailAddress,
-                              decoration: InputDecoration(labelText: t.email),
-                            ),
-                            const SizedBox(height: 12),
-                            PasswordField(
-                              controller: _tempPassword,
-                              decoration: InputDecoration(labelText: t.reset_password_temp_label),
-                            ),
-                            const SizedBox(height: 12),
-                            PasswordField(
-                              controller: _newPassword1,
-                              decoration: InputDecoration(
-                                labelText: t.newPassword,
-                                helperText: t.password_requirements,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            PasswordField(
-                              controller: _newPassword2,
-                              decoration: InputDecoration(
-                                labelText: t.newPasswordRepeat,
-                                helperText: t.password_requirements,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            if (_completeError != null)
-                              Text(
-                                _completeError!,
-                                style: TextStyle(color: theme.colorScheme.error),
-                              ),
-                            if (_completeMessage != null)
-                              Text(
-                                _completeMessage!,
-                                style: TextStyle(color: theme.colorScheme.tertiary),
-                              ),
-                            const SizedBox(height: 12),
-                            FilledButton(
-                              onPressed: _completeBusy ? null : _completeReset,
-                              child: _completeBusy
-                                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                                  : Text(t.reset_password_submit),
-                            ),
-                          ],
+                        const SizedBox(height: 12),
+                        if (_requestError != null)
+                          Text(_requestError!, style: TextStyle(color: theme.colorScheme.error)),
+                        if (_requestMessage != null)
+                          Text(_requestMessage!, style: TextStyle(color: theme.colorScheme.tertiary)),
+                        const SizedBox(height: 12),
+                        FilledButton(
+                          onPressed: _requestBusy ? null : _requestReset,
+                          child: _requestBusy
+                              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                              : Text(t.reset_password_request_action),
                         ),
                       ],
                     ),
-                  ),
+                    _sectionCard(
+                      title: t.reset_password_unlock_title,
+                      children: [
+                        Text(t.reset_password_unlock_info),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _confirmEmail,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: InputDecoration(labelText: t.email),
+                        ),
+                        const SizedBox(height: 12),
+                        PasswordField(
+                          controller: _tempPassword,
+                          decoration: InputDecoration(labelText: t.reset_password_temp_label),
+                        ),
+                        const SizedBox(height: 12),
+                        PasswordField(
+                          controller: _newPassword1,
+                          decoration: InputDecoration(
+                            labelText: t.newPassword,
+                            helperText: t.password_requirements,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        PasswordField(
+                          controller: _newPassword2,
+                          decoration: InputDecoration(
+                            labelText: t.newPasswordRepeat,
+                            helperText: t.password_requirements,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        if (_completeError != null)
+                          Text(_completeError!, style: TextStyle(color: theme.colorScheme.error)),
+                        if (_completeMessage != null)
+                          Text(_completeMessage!, style: TextStyle(color: theme.colorScheme.tertiary)),
+                        const SizedBox(height: 12),
+                        FilledButton(
+                          onPressed: _completeBusy ? null : _completeReset,
+                          child: _completeBusy
+                              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                              : Text(t.reset_password_submit),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-              );
-            },
+              ),
+            ),
           ),
         ),
         bottomNavigationBar: LegalFooter(api: widget.api),
