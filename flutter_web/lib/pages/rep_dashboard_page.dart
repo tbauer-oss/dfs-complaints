@@ -1883,6 +1883,9 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
       final runSpacing = isPhone ? 18.0 : 26.0;
       final compact = isPhone;
       final sections = _menuSections.isEmpty ? _defaultMenuSections() : _menuSections;
+      final visibleSections = _menuEditMode
+          ? sections
+          : sections.where((s) => s.tiles.any((tile) => tile.visible)).toList();
       final hidden = _hiddenTiles();
 
       return CustomScrollView(
@@ -1950,18 +1953,18 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
               ),
             ),
           if (_menuEditMode) _buildSectionDropZone(index: 0),
-          for (var i = 0; i < sections.length; i++) ...[
+          for (var i = 0; i < visibleSections.length; i++) ...[
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
-                child: _buildSectionHeader(sections[i], i),
+                child: _buildSectionHeader(visibleSections[i], i),
               ),
             ),
             SliverToBoxAdapter(
               child: Padding(
-                padding: EdgeInsets.fromLTRB(16, 0, 16, i == sections.length - 1 ? 24 : 10),
+                padding: EdgeInsets.fromLTRB(16, 0, 16, i == visibleSections.length - 1 ? 24 : 10),
                 child: _buildSectionGrid(
-                  section: sections[i],
+                  section: visibleSections[i],
                   sectionIndex: i,
                   baseWidth: baseWidth,
                   baseHeight: baseHeight,
