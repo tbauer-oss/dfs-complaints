@@ -8,6 +8,8 @@ import bcrypt from 'bcryptjs';
 import { getAuthUser } from './auth.js';
 import { userByEmail, userSave } from './store.js';
 
+// Die Portal-Rolle wird direkt am User-Objekt unter `user.role` gespeichert.
+// Gültige Werte sind unten definiert und werden in den Guards/Handlers geprüft.
 export const PORTAL_ROLES = {
   superuser: 'superuser',
   user: 'user',

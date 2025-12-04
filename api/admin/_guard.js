@@ -9,6 +9,7 @@ export async function requirePortalAccess(req, res, { write = false } = {}) {
     return null;
   }
 
+  // Rollenprüfung (Superuser/User dürfen schreiben, Readonly nur lesen)
   if (write && !canWrite(actor.role)) {
     bad(res, 'forbidden', 403);
     return null;
