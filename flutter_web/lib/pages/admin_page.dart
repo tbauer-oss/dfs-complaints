@@ -15224,11 +15224,30 @@ class AdminApi {
     return html.window.location.origin;
   }
 
-  Map<String, String> _headersJson() => {
-        'Content-Type': 'application/json; charset=utf-8',
-        if (_portalToken.isNotEmpty) 'Authorization': 'Bearer $_portalToken',
-        if (_secret.isNotEmpty) 'X-Admin-Secret': _secret,
-      };
+  Map<String, String> _headersJson() {
+    // Greife bevorzugt auf das aktuelle Portal-JWT zu, falle aber
+    // auf lokale Speicherung zurück, falls die Instanz noch nicht
+    // synchronisiert ist (z.B. nach einem Seiten-Reload).
+    final storedPortal = (_portalToken.isNotEmpty
+            ? _portalToken
+            : (html.window.localStorage['dfs_portal_token'] ?? ''))
+        .trim();
+    final storedSecret = (_secret.isNotEmpty
+            ? _secret
+            : (html.window.localStorage['dfs_admin'] ?? ''))
+        .trim();
+
+    // Aktualisiere die lokalen Kopien, damit spätere Requests nicht
+    // von leeren Feldern abhängen.
+    _portalToken = storedPortal;
+    _secret = storedSecret;
+
+    return {
+      'Content-Type': 'application/json; charset=utf-8',
+      if (storedPortal.isNotEmpty) 'Authorization': 'Bearer $storedPortal',
+      if (storedSecret.isNotEmpty) 'X-Admin-Secret': storedSecret,
+    };
+  }
 
   Uri _u(String path, [Map<String, String>? q]) {
     final uri = Uri.parse('$baseUrl$path');
