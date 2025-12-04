@@ -207,6 +207,27 @@ class _AdminPageState extends State<AdminPage> {
   bool get _canWrite => _portalRole != 'readonly';
   bool get _isSuperuser => _portalRole == 'superuser';
 
+  String get _portalDisplayName {
+    String s(Object? v) => (v ?? '').toString().trim();
+    final profile = widget.portalProfile ?? widget.api.portalProfile;
+    if (profile != null) {
+      final fullName = [s(profile['firstName']), s(profile['lastName'])]
+          .where((p) => p.isNotEmpty)
+          .join(' ')
+          .trim();
+
+      for (final candidate in [
+        s(profile['displayName']),
+        fullName,
+        s(profile['name']),
+        s(profile['email']),
+      ]) {
+        if (candidate.isNotEmpty) return candidate;
+      }
+    }
+    return '';
+  }
+
   // Ladeflags / Fehler
   bool _loadPending = false;
   bool _loadUsers = false;
@@ -3719,6 +3740,7 @@ class _AdminPageState extends State<AdminPage> {
   PreferredSizeWidget _buildTopBar(String title, {required bool isNarrow}) {
     final theme = Theme.of(context);
     final t = AppLocalizations.of(context)!;
+    final displayName = _portalDisplayName;
     final onSurfaceMuted = theme.textTheme.labelMedium?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
       fontWeight: FontWeight.w500,
@@ -3743,7 +3765,7 @@ class _AdminPageState extends State<AdminPage> {
               icon: _navCollapsed ? Icons.chevron_right : Icons.chevron_left,
               tooltip: _navCollapsed ? 'Sidebar erweitern' : 'Sidebar einklappen',
               onPressed: () => setState(() => _navCollapsed = !_navCollapsed),
-            ),
+      ),
       titleSpacing: isNarrow ? 0 : 12,
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3754,6 +3776,25 @@ class _AdminPageState extends State<AdminPage> {
         ],
       ),
       actions: [
+        if (displayName.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.person_outline, color: theme.colorScheme.onSurfaceVariant),
+                const SizedBox(width: 6),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 240),
+                  child: Text(
+                    'Hallo $displayName',
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ),
         IconButton(
           tooltip: 'Zurück zum Admin-Dashboard',
           onPressed: () => setState(() => _view = _AdminView.menu),
