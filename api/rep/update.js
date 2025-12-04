@@ -15,7 +15,7 @@ export default async function handler(req, res) {
   const rep = await loadRepById(auth.repId);
   if (!rep) return res.status(404).json({ error: 'not found' });
 
-  const { firstName, lastName, region, lang } = req.body || {};
+  const { firstName, lastName, region, lang, country, countryCode } = req.body || {};
   try {
     const updated = await upsertRep({
       id: rep.id,
@@ -23,6 +23,8 @@ export default async function handler(req, res) {
       lastName:  lastName  ?? rep.lastName,
       email:     rep.email,
       region:    region    ?? rep.region,
+      country:   country   ?? rep.country,
+      countryCode: countryCode ?? rep.countryCode,
       lang:      lang      ?? rep.lang,
       active:    rep.active,
     });

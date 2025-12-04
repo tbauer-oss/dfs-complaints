@@ -39,13 +39,15 @@ export default async function handler(req, res) {
     const customers = await repCustomers(rep.id);
 
     return res.status(200).end(JSON.stringify({
-      id:        rep.id,
-      firstName: rep.firstName,
-      lastName:  rep.lastName,
-      email:     rep.email,
-      region:    rep.region,
-      lang:      rep.lang || 'de',
-      customers: customers || [],
+      id:          rep.id,
+      firstName:   rep.firstName,
+      lastName:    rep.lastName,
+      email:       rep.email,
+      region:      rep.region,
+      country:     rep.country || '',
+      countryCode: rep.countryCode || '',
+      lang:        rep.lang || 'de',
+      customers:   customers || [],
     }));
   } catch (err) {
     console.error('[rep/me] verify failed:', err);

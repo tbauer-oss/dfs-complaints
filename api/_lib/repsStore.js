@@ -115,6 +115,8 @@ function normalizeRep(rep) {
   ).toLowerCase();
 
   const region = pick(rep.region, rep.area, rep.territory, rep.regionName, rep.regions);
+  const country = pick(rep.country, rep.countryName, rep.country_name, rep.countryLabel);
+  const countryCode = pick(rep.countryCode, rep.country_code, rep.countryIso, rep.countryISO);
   const lang = normalizeLang(pick(rep.lang, rep.language, rep.locale, rep.langCode));
   const lastLoginAt = rep.lastLoginAt || rep.lastLogin || null;
   const lastLoginAppVersion = pick(rep.lastLoginAppVersion, rep.appVersion, rep.version);
@@ -127,6 +129,8 @@ function normalizeRep(rep) {
     email,
     region,
     lang,
+    country,
+    countryCode,
     passHash: rep.passHash || null,
     mustChangePw: !!rep.mustChangePw,
     active: (rep.active === undefined ? true : !!rep.active),
@@ -223,13 +227,25 @@ export async function getAllRepsWithCustomers() {
   return withCus;
 }
 
-export async function upsertRep({ id, firstName, lastName, email, region, lang, active }) {
+export async function upsertRep({
+  id,
+  firstName,
+  lastName,
+  email,
+  region,
+  lang,
+  country,
+  countryCode,
+  active,
+}) {
   await requireRedis();
 
   firstName = S(firstName);
   lastName  = S(lastName);
   email     = S(email).toLowerCase();
   region    = S(region);
+  country   = S(country);
+  countryCode = S(countryCode).toUpperCase();
   lang      = normalizeLang(lang);
   const activeFlag = (active === undefined ? true : !!active);
 
@@ -259,6 +275,8 @@ export async function upsertRep({ id, firstName, lastName, email, region, lang, 
       lastName,
       email,
       region,
+      country: country || rep.country,
+      countryCode: countryCode || rep.countryCode,
       lang: normalizeLang(lang, rep.lang),
       active: activeFlag,
       passHash: rep.passHash ?? null,
@@ -280,6 +298,8 @@ export async function upsertRep({ id, firstName, lastName, email, region, lang, 
       lastName,
       email,
       region,
+      country,
+      countryCode,
       lang: normalizeLang(lang, 'de'),
       passHash: null,
       mustChangePw: true,
