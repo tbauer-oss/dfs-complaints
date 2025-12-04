@@ -4,22 +4,14 @@ export const config = { runtime: 'nodejs' };
 import { setCors, handlePreflight, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { translateTexts } from '../_lib/translate.js';
 import { normalizeLangValue } from '../_lib/store.js';
-
-function requireAdmin(req, res) {
-  const sec = (req.headers?.['x-admin-secret'] || '').toString().trim();
-  const expected = (process.env.ADMIN_SECRET || '').toString().trim();
-  if (!sec || !expected || sec !== expected) {
-    bad(res, 'unauthorized', 401);
-    return false;
-  }
-  return true;
-}
+import { requirePortalAccess } from './_guard.js';
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
-  if (!requireAdmin(req, res)) return;
-
+  const actor = await requirePortalAccess(req, res, { write: true });
+  if (!actor) return;
+  
   if (req.method !== 'POST') {
     return methodNotAllowed(res);
   }
