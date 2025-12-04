@@ -68,7 +68,7 @@ class _RepProfilePageState extends State<RepProfilePage> {
       _last.text   = me.lastName;
       _region.text = me.region;
       _lang = normalizeLangCode(me.lang.isEmpty ? 'de' : me.lang);
-      _countrySel = _resolveCountry(me.countryCode, me.country) ?? _countrySel ?? kCountries.first;
+      _countrySel = _resolveCountry(me.countryCode, me.country) ?? _countrySel;
 
       if (mounted) setState(() {});
     } catch (e) {
@@ -257,7 +257,7 @@ class _RepProfilePageState extends State<RepProfilePage> {
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<Country>(
-                      value: _countrySel ?? kCountries.first,
+                      value: _countrySel,
                       decoration: InputDecoration(
                         labelText: t.country_label,
                         border: const OutlineInputBorder(),
