@@ -926,5 +926,19 @@
   "adminWikiFilterStatusInactive": "Inactivo",
   "adminWikiFilterSearchLabel": "Buscar título/teaser/etiquetas",
   "adminWikiFilterTooltip": "Filtrar",
-  "adminWikiFilterColumnsWidth": "Ancho de columna"
+  "adminWikiFilterColumnsWidth": "Ancho de columna",
+
+  "gs1_scan_no_product": "No se encontró un producto para este GTIN.",
+  "gs1_scan_missing_lot": "El código no contiene número de lote.",
+  "gs1_scan_success": "Código escaneado correctamente.",
+  "gs1_scan_button": "Escanear código GS1",
+  "complaint_assist": "Asistente de reclamaciones",
+  "gs1_scan_not_datamatrix": "Solo se admiten códigos GS1 DataMatrix.",
+  "gs1_scan_invalid_gtin": "GTIN no válido.",
+  "gs1_scan_instruction": "Coloca el GS1 DataMatrix dentro del marco.",
+
+  "customerNewsHeroNewLabel": "Nuevo",
+  "customerNewsHeroDateLabel": "Fecha",
+  "customerNewsUpdateLabel": "Actualización",
+  "customerNewsMarketingHook": "Las últimas novedades de productos y empresa de un vistazo."
 }

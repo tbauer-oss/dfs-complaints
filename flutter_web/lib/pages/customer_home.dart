@@ -3,8 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 // Bedingter Web-Compat-Import statt 'dart:html', damit Android/iOS Builds nicht brechen
-import 'package:flutter_web/web_compat/html_stub.dart'
-  if (dart.library.html) 'package:flutter_web/web_compat/html_web.dart' as html;
+import '../web_compat/html_stub.dart'
+  if (dart.library.html) '../web_compat/html_web.dart' as html;
 
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';

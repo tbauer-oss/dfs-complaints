@@ -150,7 +150,7 @@ class _AccountPageState extends State<AccountPage> {
       await FileSaver.instance.saveFile(
         name: _exportFileName(),
         bytes: bytes,
-        fileExtension: 'txt',       // statt ext: und statt positional 'txt'
+        ext: 'txt',
         mimeType: MimeType.text,
       );
 

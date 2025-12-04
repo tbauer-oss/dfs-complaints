@@ -3,8 +3,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
-import 'package:flutter_web/web_compat/html_stub.dart'
-  if (dart.library.html) 'package:flutter_web/web_compat/html_web.dart' as html;
+import '../web_compat/html_stub.dart'
+  if (dart.library.html) '../web_compat/html_web.dart' as html;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../api/client.dart';

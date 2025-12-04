@@ -9,8 +9,8 @@ import 'dashboard_page.dart';
 import '../widgets/password_field.dart';
 
 // **KEIN direkter dart:html-Import mehr**
-import 'package:flutter_web/web_compat/html_stub.dart'
-  if (dart.library.html) 'package:flutter_web/web_compat/html_web.dart' as html;
+import '../web_compat/html_stub.dart'
+  if (dart.library.html) '../web_compat/html_web.dart' as html;
 
 /// Kleiner Helper, damit du überall bequem auf t zugreifen kannst
 extension _L10nX on BuildContext {

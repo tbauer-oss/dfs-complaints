@@ -7,6 +7,7 @@ class ProductLookup {
 
   final DfsProductService _service;
   List<DfsProduct> _products = const [];
+  Map<String, DfsProduct> _gtinIndex = const {};
   Map<String, DfsProduct> _index = const {};
 
   List<DfsProduct> get products => _products;
@@ -20,9 +21,23 @@ class ProductLookup {
 
   void setProducts(List<DfsProduct> list) {
     _products = List.unmodifiable(list);
+    String normalize(String value) =>
+        value.replaceAll(RegExp(r'[^0-9A-Za-z]'), '').toLowerCase();
+
     _index = {
       for (final p in _products)
         if (p.articleNumber.trim().isNotEmpty) p.articleNumber.trim(): p,
+    };
+
+    _gtinIndex = {
+      for (final p in _products)
+        for (final id in [
+          p.basicUdiDi,
+          p.udiSingleUnit,
+          p.udiVe,
+          p.articleNumber,
+        ])
+          if (normalize(id).isNotEmpty) normalize(id): p,
     };
   }
 
@@ -30,5 +45,11 @@ class ProductLookup {
     final key = (articleNumber ?? '').trim();
     if (key.isEmpty) return null;
     return _index[key];
+  }
+
+  DfsProduct? byGtin(String? gtin) {
+    final key = (gtin ?? '').replaceAll(RegExp(r'[^0-9A-Za-z]'), '').toLowerCase();
+    if (key.isEmpty) return null;
+    return _gtinIndex[key];
   }
 }
