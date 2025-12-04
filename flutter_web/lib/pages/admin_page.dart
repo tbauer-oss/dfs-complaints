@@ -4125,17 +4125,17 @@ class _AdminPageState extends State<AdminPage> {
             view: _AdminView.all,
             badge: _allComplaints.isNotEmpty ? '${_allComplaints.length}' : null,
           ),
+        ],
+      ),
+      _AdminNavSection(
+        title: 'Kunden',
+        items: [
           _AdminNavItem(
-            label: 'Pending / Review',
+            label: 'Anträge / Pending',
             icon: Icons.hourglass_bottom_outlined,
             view: _AdminView.pending,
             badge: _pending.isNotEmpty ? '${_pending.length}' : null,
           ),
-        ],
-      ),
-      _AdminNavSection(
-        title: 'Kunden & Reps',
-        items: [
           _AdminNavItem(
             label: 'Kundendatenbank',
             icon: Icons.people_outline,
@@ -4147,6 +4147,11 @@ class _AdminPageState extends State<AdminPage> {
             icon: Icons.person_add_alt_1_outlined,
             view: _AdminView.createCustomer,
           ),
+        ],
+      ),
+      _AdminNavSection(
+        title: 'Vertreter',
+        items: [
           _AdminNavItem(
             label: 'Vertreterverwaltung',
             icon: Icons.support_agent_outlined,
@@ -4154,9 +4159,14 @@ class _AdminPageState extends State<AdminPage> {
             badge: _reps.isNotEmpty ? '${_reps.length}' : null,
           ),
           _AdminNavItem(
-            label: 'Aktivität',
-            icon: Icons.query_stats_outlined,
-            view: _AdminView.activity,
+            label: 'Downloads',
+            icon: Icons.download_outlined,
+            view: _AdminView.downloads,
+          ),
+          _AdminNavItem(
+            label: 'Vertreter-Wiki',
+            icon: Icons.menu_book_rounded,
+            view: _AdminView.wiki,
           ),
         ],
       ),
@@ -4167,11 +4177,6 @@ class _AdminPageState extends State<AdminPage> {
             label: 'News & Infos',
             icon: Icons.campaign_outlined,
             view: _AdminView.news,
-          ),
-          _AdminNavItem(
-            label: 'Downloads',
-            icon: Icons.download_outlined,
-            view: _AdminView.downloads,
           ),
           _AdminNavItem(
             label: 'FAQ / Wissen',
@@ -4196,26 +4201,6 @@ class _AdminPageState extends State<AdminPage> {
             badge: _pushResult?.totalTokens != null && _pushResult!.totalTokens! > 0
                 ? '${_pushResult!.totalTokens}'
                 : null,
-          ),
-        ],
-      ),
-      _AdminNavSection(
-        title: 'Vertreter-Wiki',
-        items: [
-          _AdminNavItem(
-            label: 'Vertreter-Wiki',
-            icon: Icons.menu_book_rounded,
-            view: _AdminView.wiki,
-          ),
-          _AdminNavItem(
-            label: 'Kategorien verwalten',
-            icon: Icons.category_outlined,
-            view: _AdminView.wikiCategories,
-          ),
-          _AdminNavItem(
-            label: 'Artikel verwalten',
-            icon: Icons.menu_book_outlined,
-            view: _AdminView.wikiArticles,
           ),
         ],
       ),
@@ -4391,14 +4376,19 @@ class _AdminPageState extends State<AdminPage> {
         tileIds: ['open', 'all', 'stats'],
       ),
       const _AdminMenuSectionState(
-        title: 'Kunden & Vertreter',
-        subtitle: 'Anträge prüfen, Accounts und Teams steuern',
-        tileIds: ['pending', 'users', 'createCustomer', 'reps'],
+        title: 'Kunden',
+        subtitle: 'Anträge prüfen und Kunden anlegen',
+        tileIds: ['pending', 'users', 'createCustomer'],
+      ),
+      const _AdminMenuSectionState(
+        title: 'Vertreter',
+        subtitle: 'Teams steuern und Wissen bereitstellen',
+        tileIds: ['reps', 'downloads', 'wiki'],
       ),
       const _AdminMenuSectionState(
         title: 'Kommunikation & Inhalte',
         subtitle: 'Informationen und Push-Kanäle pflegen',
-        tileIds: ['news', 'downloads', 'faq', 'wiki', 'products', 'push'],
+        tileIds: ['news', 'faq', 'products', 'push'],
       ),
       const _AdminMenuSectionState(
         title: 'System & Konfiguration',
