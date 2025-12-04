@@ -11949,6 +11949,9 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
         return 'Interne Nummer';
       case 'notes':
         return 'Notiz';
+      case 'contact':
+      case 'message':
+        return 'Kunden-Nachricht';
       default:
         return raw.trim().isEmpty ? 'Aktualisierung' : raw;
     }
@@ -11969,6 +11972,18 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
         }
       }
       return parts.join(' | ');
+    }
+
+    if (entry.type == 'contact' || data.containsKey('subject') || data.containsKey('message') || data.containsKey('text')) {
+      final subject = (data['subject'] ?? '').toString().trim();
+      final body = (data['message'] ?? data['text'] ?? '').toString().trim();
+      final preview = body.length > 160 ? '${body.substring(0, 160)}…' : body;
+      final parts = <String>[];
+
+      if (subject.isNotEmpty) parts.add('Betreff: $subject');
+      if (preview.isNotEmpty) parts.add('Nachricht: $preview');
+
+      if (parts.isNotEmpty) return parts.join(' • ');
     }
 
     if (data['link'] != null) return data['link'].toString();
@@ -12021,6 +12036,39 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     final url = 'mailto:$to'
         '?subject=${Uri.encodeComponent(subject)}'
         '&body=${Uri.encodeComponent(body)}';
+
+    html.window.open(url, '_self');
+  }
+
+  void _composeReplyToCustomerMessage(ComplaintHistoryEntry entry) {
+    final to = widget.c.email.trim();
+    if (to.isEmpty) return;
+
+    final data = entry.data ?? const <String, dynamic>{};
+    final subjectRaw = (data['subject'] ?? '').toString().trim();
+    final messageRaw = (data['message'] ?? data['text'] ?? '').toString().trim();
+    final subject = subjectRaw.isNotEmpty ? 'Re: $subjectRaw' : _buildMailSubject(widget.c);
+
+    final body = StringBuffer()
+      ..writeln('Ticket: ${widget.c.ticket}')
+      ..writeln()
+      ..writeln('Hallo,')
+      ..writeln();
+
+    if (messageRaw.isNotEmpty) {
+      body
+        ..writeln('Ihre ursprüngliche Nachricht:')
+        ..writeln(messageRaw)
+        ..writeln();
+    }
+
+    body
+      ..writeln('Vielen Dank!')
+      ..writeln('DFS QM');
+
+    final url = 'mailto:$to'
+        '?subject=${Uri.encodeComponent(subject)}'
+        '&body=${Uri.encodeComponent(body.toString())}';
 
     html.window.open(url, '_self');
   }
@@ -12999,6 +13047,10 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                           else
                             ...history.map((entry) {
                               final details = _historyDetails(entry);
+                              final data = entry.data ?? const <String, dynamic>{};
+                              final messageSubject = (data['subject'] ?? '').toString().trim();
+                              final canReplyToCustomerMessage =
+                                  (entry.type == 'contact' || entry.type == 'message') && widget.c.email.trim().isNotEmpty;
                               return Padding(
                                 padding: const EdgeInsets.symmetric(vertical: 8),
                                 child: Row(
@@ -13031,6 +13083,28 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                                               details,
                                               style: textTheme.bodySmall?.copyWith(color: secondaryTextColor),
                                             ),
+                                          if (canReplyToCustomerMessage) ...[
+                                            const SizedBox(height: 6),
+                                            Align(
+                                              alignment: Alignment.centerLeft,
+                                              child: TextButton.icon(
+                                                onPressed: _busy
+                                                    ? null
+                                                    : () => _composeReplyToCustomerMessage(entry),
+                                                style: TextButton.styleFrom(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                                  minimumSize: const Size(0, 0),
+                                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                                ),
+                                                icon: const Icon(Icons.mail_outline, size: 18),
+                                                label: Text(
+                                                  messageSubject.isNotEmpty
+                                                      ? 'Antworten (Re: $messageSubject)'
+                                                      : 'Antworten',
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ],
                                       ),
                                     ),
