@@ -1,5 +1,6 @@
 // lib/pages/complaint_form_page.dart
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -49,6 +50,7 @@ class ComplaintFormPage extends StatefulWidget {
 class _ComplaintFormPageState extends State<ComplaintFormPage> {
   static const _uploadLimit = 8 * 1024 * 1024;
   static const _helpPrefKey = 'dfs_complaint_help_collapsed';
+  static const _draftPrefKey = 'dfs_complaint_draft_v1';
   static const _keywordHints = {
     'gebrochen': ['bruch', 'gebroch', 'sturz', 'verbieg', 'unbrauchbar'],
     'abgebrochen': ['bruch', 'gebroch', 'sturz', 'verbieg'],
@@ -90,6 +92,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   bool _helpCollapsed = true;
 
   bool _dirty = false;
+  bool _suppressDirty = false;
   final List<TextEditingController> _ctrls = [];
   KnowledgeItem? _autoHelpItem;
   final ScrollController _scrollCtrl = ScrollController();
@@ -104,7 +107,10 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     'privacy': GlobalKey(),
   };
 
-  void _markDirty() { if (!_dirty) setState(() => _dirty = true); }
+  void _markDirty() {
+    if (_suppressDirty || _dirty) return;
+    setState(() => _dirty = true);
+  }
 
   void _handleDescriptionChanged() {
     _markDirty();
@@ -311,6 +317,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     _loadAccount();
     _loadHelpPref();
     _ensureProductsLoaded();
+    _restoreDraft();
   }
 
   Future<void> pickFiles() async {
@@ -540,6 +547,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     final optReturnedNo = t.no;
     final optHandlingRep = t.handling_replacement;
 
+    _suppressDirty = true;
     setState(() {
       segment = optDentist;           // Standard: Zahnarzt
       article.clear();
@@ -560,6 +568,8 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
       _autoHelpItem = null;
       _wizardStep = 0;
     });
+    _suppressDirty = false;
+    unawaited(_clearDraft(silent: true));
   }
 
   Future<void> _loadAccount() async {
@@ -592,6 +602,162 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     final next = !_helpCollapsed;
     setState(() => _helpCollapsed = next);
     _persistHelpPref(next);
+  }
+
+  List<({String name, List<int> bytes, String mime, String? preview})> _decodeDraftFiles(dynamic raw) {
+    if (raw is! List) return const [];
+    final out = <({String name, List<int> bytes, String mime, String? preview})>[];
+
+    for (final entry in raw) {
+      if (entry is! Map) continue;
+      final map = <String, dynamic>{};
+      entry.forEach((key, value) => map['$key'] = value);
+
+      final encoded = map['bytes']?.toString();
+      if (encoded == null || encoded.isEmpty) continue;
+
+      try {
+        final bytes = base64Decode(encoded);
+        final mime = map['mime']?.toString() ?? 'application/octet-stream';
+        final preview = (map['preview']?.toString().isNotEmpty ?? false)
+            ? map['preview'].toString()
+            : createAttachmentPreview(bytes, mime);
+        out.add((
+          name: map['name']?.toString() ?? 'Attachment',
+          bytes: bytes,
+          mime: mime,
+          preview: preview,
+        ));
+      } catch (_) {}
+    }
+
+    return out;
+  }
+
+  Map<String, dynamic> _buildDraftSnapshot(AppLocalizations t) {
+    final optDentist = t.segment_dentist, optLab = t.segment_lab;
+    final optYes = t.yes, optNo = t.no;
+    final optReturnedYes = t.yes, optReturnedNo = t.no;
+    final optHandlingRep = t.handling_replacement,
+        optHandlingCredit = t.handling_credit,
+        optHandlingRework = t.handling_rework;
+
+    final handlingKey = handling == optHandlingCredit
+        ? 'credit'
+        : handling == optHandlingRework
+            ? 'rework'
+            : 'replacement';
+
+    return {
+      'segmentKey': segment == optLab ? 'lab' : 'dentist',
+      'article': article.text.trim(),
+      'batch': batch.text.trim(),
+      'qty': qty.text.trim(),
+      'expiry': expiry.text.trim(),
+      'desc': desc.text.trim(),
+      'applied': applied == optYes,
+      'injury': injury == optYes,
+      'injuryDesc': injuryDesc.text.trim(),
+      'returned': returned == optReturnedYes,
+      'handlingKey': handlingKey,
+      'privacy': privacy,
+      'files': files
+          .map((f) => {
+                'name': f.name,
+                'mime': f.mime,
+                'bytes': base64Encode(f.bytes),
+                if ((f.preview ?? '').isNotEmpty) 'preview': f.preview,
+              })
+          .toList(growable: false),
+      'updatedAt': DateTime.now().toIso8601String(),
+    };
+  }
+
+  Future<void> _saveDraft() async {
+    final t = context.t;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_draftPrefKey, jsonEncode(_buildDraftSnapshot(t)));
+      if (!mounted) return;
+      setState(() {
+        info = t.draftSaved;
+        err = null;
+        _dirty = false;
+      });
+    } catch (e) {
+      debugPrint('Draft could not be saved: $e');
+      if (!mounted) return;
+      setState(() => err = t.draftSaveFailed);
+    }
+  }
+
+  Future<void> _clearDraft({bool silent = false}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_draftPrefKey);
+      if (!mounted || silent) return;
+      setState(() => info = context.t.draftCleared);
+    } catch (e) {
+      debugPrint('Draft could not be cleared: $e');
+    }
+  }
+
+  Future<void> _restoreDraft() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_draftPrefKey);
+      if (raw == null || raw.isEmpty) return;
+
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return;
+
+      final map = <String, dynamic>{};
+      decoded.forEach((key, value) => map['$key'] = value);
+
+      if (!mounted) return;
+
+      final t = context.t;
+      final optDentist = t.segment_dentist, optLab = t.segment_lab;
+      final optYes = t.yes, optNo = t.no;
+      final optReturnedYes = t.yes, optReturnedNo = t.no;
+      final optHandlingRep = t.handling_replacement,
+          optHandlingCredit = t.handling_credit,
+          optHandlingRework = t.handling_rework;
+
+      final handlingKey = map['handlingKey']?.toString();
+      final handlingValue = switch (handlingKey) {
+        'credit' => optHandlingCredit,
+        'rework' => optHandlingRework,
+        _ => optHandlingRep,
+      };
+
+      _suppressDirty = true;
+      setState(() {
+        segment = map['segmentKey'] == 'lab' ? optLab : optDentist;
+        article.text = (map['article'] ?? '').toString();
+        batch.text = (map['batch'] ?? '').toString();
+        qty.text = (map['qty'] ?? '').toString();
+        expiry.text = (map['expiry'] ?? '').toString();
+        desc.text = (map['desc'] ?? '').toString();
+        applied = (map['applied'] == true) ? optYes : optNo;
+        injury = (map['injury'] == true) ? optYes : optNo;
+        injuryDesc.text = (map['injuryDesc'] ?? '').toString();
+        returned = (map['returned'] == true) ? optReturnedYes : optReturnedNo;
+        handling = handlingValue;
+        files = _decodeDraftFiles(map['files']);
+        privacy = map['privacy'] == true;
+        err = null;
+        info = t.draftRestored;
+        _dirty = false;
+      });
+      _suppressDirty = false;
+
+      _updateAutoHelp();
+      unawaited(_updateArticleProduct());
+    } catch (e) {
+      debugPrint('Draft could not be restored: $e');
+      _suppressDirty = false;
+    }
   }
 
   void _openHelpLink() {
@@ -911,6 +1077,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
       } else {
         setState(() { busy = false; _dirty = false; info = null; });
         _busyNotifier.value = false;
+        await _clearDraft(silent: true);
         onSuccess?.call();
         await _showSummary(ticket, payload);
       }
@@ -1565,6 +1732,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
           busyListenable: _busyNotifier,
           validateStep: _validateWizardStep,
           errorListenable: _wizardError,
+          onSaveDraft: _saveDraft,
           onSubmit: () => _submitComplaint(onSuccess: () => Navigator.of(context).pop()),
           t: t,
         ),
@@ -1697,7 +1865,14 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                 alignment: Alignment.centerRight,
                 child: Wrap(
                   spacing: 12,
+                  runSpacing: 10,
+                  alignment: WrapAlignment.end,
                   children: [
+                    OutlinedButton.icon(
+                      onPressed: busy ? null : _saveDraft,
+                      icon: const Icon(Icons.save_outlined),
+                      label: Text(t.saveDraft),
+                    ),
                     OutlinedButton(onPressed: _handleCancel, child: Text(t.cancel)),
                     ElevatedButton.icon(
                       onPressed: busy ? null : () => _submitComplaint(),
@@ -1892,6 +2067,7 @@ class _ComplaintWizardOverlay extends StatefulWidget {
   final ValueListenable<bool> busyListenable;
   final ValueNotifier<String?>? errorListenable;
   final String? Function(String stepId)? validateStep;
+  final Future<void> Function()? onSaveDraft;
   final Future<void> Function() onSubmit;
   final AppLocalizations t;
   const _ComplaintWizardOverlay({
@@ -1901,6 +2077,7 @@ class _ComplaintWizardOverlay extends StatefulWidget {
     required this.busyListenable,
     this.errorListenable,
     this.validateStep,
+    this.onSaveDraft,
     required this.onSubmit,
     required this.t,
     super.key,
@@ -2187,6 +2364,7 @@ class _ComplaintWizardOverlayState extends State<_ComplaintWizardOverlay> {
                         valueListenable: widget.busyListenable,
                         builder: (_, busy, __) {
                           final primaryLabel = isLast ? t.send : (isIntro ? t.complaint_wizard_next : t.complaint_wizard_next);
+                          final onSaveDraft = widget.onSaveDraft;
                           return Row(
                             children: [
                               OutlinedButton.icon(
@@ -2195,6 +2373,14 @@ class _ComplaintWizardOverlayState extends State<_ComplaintWizardOverlay> {
                                 label: Text(t.complaint_wizard_prev),
                               ),
                               const SizedBox(width: 10),
+                              if (onSaveDraft != null) ...[
+                                TextButton.icon(
+                                  onPressed: busy ? null : onSaveDraft,
+                                  icon: const Icon(Icons.save_outlined),
+                                  label: Text(t.saveDraft),
+                                ),
+                                const SizedBox(width: 10),
+                              ],
                               Expanded(
                                 child: FilledButton.icon(
                                   style: FilledButton.styleFrom(
