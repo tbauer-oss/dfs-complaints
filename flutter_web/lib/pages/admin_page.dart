@@ -126,6 +126,7 @@ String _ensureInternalNumberPrefix(String value) {
 
 class _AdminPageState extends State<AdminPage> {
   static const int _repReminderDefaultDelayDays = 4;
+  static const String _customerContactSeenKey = 'dfs_admin_seen_customer_contact_v1';
   late final AdminApi _api;
 
   // Ladeflags / Fehler
@@ -178,6 +179,7 @@ class _AdminPageState extends State<AdminPage> {
   List<ActiveUser> _users = [];
   List<AdminComplaint> _allComplaints = [];
   List<AdminComplaint> _openComplaints = [];
+  final Map<String, int> _customerContactSeen = {};
   List<Rep> _reps = [];
   final Map<String, bool> _repAssignmentBusy = {};
   List<CustomerNewsEntry> _newsEntries = [];
@@ -205,6 +207,46 @@ class _AdminPageState extends State<AdminPage> {
 
   // Email -> detaillierte Reklamationen (für Users/Pending)
   final Map<String, _ComplaintsResult> _complaints = {};
+
+  // Gesehene Kunden-Nachrichten (Ticket -> Timestamp)
+  void _loadCustomerContactSeen() {
+    try {
+      final raw = html.window.localStorage[_customerContactSeenKey];
+      if (raw == null || raw.isEmpty) return;
+      final decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        decoded.forEach((key, value) {
+          final ticket = key.toString().trim();
+          final ts = int.tryParse(value.toString());
+          if (ticket.isNotEmpty && ts != null) {
+            _customerContactSeen[ticket] = ts;
+          }
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _persistCustomerContactSeen() {
+    try {
+      html.window.localStorage[_customerContactSeenKey] = jsonEncode(_customerContactSeen);
+    } catch (_) {}
+  }
+
+  bool _hasNewCustomerMessage(AdminComplaint c) {
+    final lastContact = c.lastCustomerContactAt;
+    if (lastContact == null) return false;
+    final seen = _customerContactSeen[c.ticket] ?? 0;
+    return lastContact.millisecondsSinceEpoch > seen;
+  }
+
+  void _markCustomerMessageSeen(AdminComplaint c) {
+    final lastContact = c.lastCustomerContactAt;
+    if (lastContact == null) return;
+    final ms = lastContact.millisecondsSinceEpoch;
+    if ((_customerContactSeen[c.ticket] ?? 0) >= ms) return;
+    setState(() => _customerContactSeen[c.ticket] = ms);
+    _persistCustomerContactSeen();
+  }
 
   // Firmenfilter (Offene Reklamationen)
   String _filterCompany = 'Alle Firmen';
@@ -353,6 +395,7 @@ class _AdminPageState extends State<AdminPage> {
     _bulkInternalOpenCtrl.text = _internalNumberPrefix();
     _guardInternalNumberPrefix(_bulkInternalAllCtrl);
     _guardInternalNumberPrefix(_bulkInternalOpenCtrl);
+    _loadCustomerContactSeen();
 
     // Secret zuerst aus der API (wenn über Admin-Button gekommen),
     // sonst aus LocalStorage (dfs_admin).
@@ -7646,11 +7689,13 @@ class _AdminPageState extends State<AdminPage> {
                           productLookup: _productByArticle,
                           companyHint: _companyByEmail(c.email),
                           hasRep: _customerHasRep(c.email),
+                          hasNewCustomerMessage: _hasNewCustomerMessage(c),
                           selectable: true,
                           selected: _selectedAllTickets.contains(c.ticket),
                           onSelected: (v) =>
                               _toggleTicketSelection(c.ticket, v ?? false, isOpenList: false),
                           onChanged: _syncComplaint,
+                          onCustomerMessageSeen: () => _markCustomerMessageSeen(c),
                           onClosed: () {
                             _syncComplaint(c);
                             setState(() {
@@ -7746,11 +7791,13 @@ class _AdminPageState extends State<AdminPage> {
                           productLookup: _productByArticle,
                           companyHint: _companyByEmail(c.email),
                           hasRep: _customerHasRep(c.email), // ← NEU
+                          hasNewCustomerMessage: _hasNewCustomerMessage(c),
                           selectable: true,
                           selected: _selectedOpenTickets.contains(c.ticket),
                           onSelected: (v) =>
                               _toggleTicketSelection(c.ticket, v ?? false, isOpenList: true),
                           onChanged: _syncComplaint,
+                          onCustomerMessageSeen: () => _markCustomerMessageSeen(c),
                           onClosed: () {
                             _syncComplaint(c);
                             setState(() {
@@ -9690,6 +9737,11 @@ class _ComplaintsDetailList extends StatelessWidget {
                     hasRep: (c.email.isNotEmpty)
                         ? (parent?._customerHasRep(c.email) ?? false)
                         : false,
+                    hasNewCustomerMessage:
+                        parent == null ? false : parent._hasNewCustomerMessage(c),
+                    onCustomerMessageSeen: parent == null
+                        ? null
+                        : () => parent._markCustomerMessageSeen(c),
                   ))
               .toList(),
         ],
@@ -9841,6 +9893,21 @@ class AdminComplaint {
   final String? repId; // z. B. Rep-UID oder E-Mail
 
   bool get hasRep => (repId ?? '').trim().isNotEmpty;
+
+  DateTime? get lastCustomerContactAt {
+    DateTime? latest;
+    for (final entry in history) {
+      final actor = entry.actor.toLowerCase();
+      final type = entry.type.toLowerCase();
+      final isCustomer = actor == 'customer';
+      final isContact = type == 'contact' || type == 'message';
+      if (!isCustomer || !isContact) continue;
+      if (latest == null || entry.at.isAfter(latest)) {
+        latest = entry.at;
+      }
+    }
+    return latest;
+  }
 
   // Wunsch/Handling lesbar (für UI/E-Mail)
   String get handlingLabel {
@@ -10664,6 +10731,8 @@ class _ComplaintEditor extends StatefulWidget {
   final bool selected;
   final ValueChanged<bool?>? onSelected;
   final void Function(AdminComplaint c)? onChanged;
+  final bool hasNewCustomerMessage;
+  final VoidCallback? onCustomerMessageSeen;
 
   const _ComplaintEditor({
     super.key,
@@ -10677,13 +10746,16 @@ class _ComplaintEditor extends StatefulWidget {
     this.selected = false,
     this.onSelected,
     this.onChanged,
+    this.hasNewCustomerMessage = false,
+    this.onCustomerMessageSeen,
   });
 
   @override
   State<_ComplaintEditor> createState() => _ComplaintEditorState();
 }
 
-class _ComplaintEditorState extends State<_ComplaintEditor> {
+class _ComplaintEditorState extends State<_ComplaintEditor>
+    with SingleTickerProviderStateMixin {
   final _reportCtrl = TextEditingController();
   final _internalCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
@@ -10698,6 +10770,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   bool _descAutoDetectSource = true;
   String _descSourceLang = 'en';
   String? _payloadLang;
+  late final AnimationController _blinkCtrl;
+  late final Animation<double> _blinkAnim;
 
   static const Map<String, List<String>> _payloadKeyMap = {
     'segment': ['segment', 'customer_segment', 'segment_code'],
@@ -10935,9 +11009,25 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
     widget.onChanged?.call(widget.c);
   }
 
+  void _handleCustomerMessageSeen() {
+    if (!widget.hasNewCustomerMessage) return;
+    _blinkCtrl.stop();
+    widget.onCustomerMessageSeen?.call();
+  }
+
   @override
   void initState() {
     super.initState();
+    _blinkCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+    _blinkAnim = Tween<double>(begin: 0.35, end: 1).animate(
+      CurvedAnimation(parent: _blinkCtrl, curve: Curves.easeInOut),
+    );
+    if (widget.hasNewCustomerMessage) {
+      _blinkCtrl.repeat(reverse: true);
+    }
     _reportCtrl.text = widget.c.reportLink ?? '';
     _internalCtrl.text =
         (widget.c.internalNo == null || widget.c.internalNo!.trim().isEmpty)
@@ -10955,10 +11045,22 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
   }
 
   @override
+  void didUpdateWidget(covariant _ComplaintEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final shouldBlink = widget.hasNewCustomerMessage;
+    if (shouldBlink && !_blinkCtrl.isAnimating) {
+      _blinkCtrl.repeat(reverse: true);
+    } else if (!shouldBlink && _blinkCtrl.isAnimating) {
+      _blinkCtrl.stop();
+    }
+  }
+
+  @override
   void dispose() {
     _reportCtrl.dispose();
     _internalCtrl.dispose();
     _notesCtrl.dispose();
+    _blinkCtrl.dispose();
 
     super.dispose();
   }
@@ -12186,6 +12288,28 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                                 color: Colors.amber.shade800,
                               ),
                             ),
+                          if (widget.hasNewCustomerMessage)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 8),
+                              child: AnimatedBuilder(
+                                animation: _blinkAnim,
+                                builder: (_, __) => Container(
+                                  width: 12,
+                                  height: 12,
+                                  decoration: BoxDecoration(
+                                    color: scheme.error.withOpacity(_blinkAnim.value.clamp(0, 1)),
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: scheme.error.withOpacity(_blinkAnim.value * 0.7),
+                                        blurRadius: 6,
+                                        spreadRadius: 0,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
                           const SizedBox(width: 10),
                           if ((c.internalNo ?? '').trim().isNotEmpty)
                             Container(
@@ -12485,7 +12609,10 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                     Expanded(child: left),
                     // rechts: Bearbeiten-Button wie gehabt
                     TextButton.icon(
-                      onPressed: () => setState(() => _expanded = !_expanded),
+                      onPressed: () {
+                        setState(() => _expanded = !_expanded);
+                        if (_expanded) _handleCustomerMessageSeen();
+                      },
                       icon: Icon(_expanded ? Icons.expand_less : Icons.edit),
                       label: Text(_expanded ? 'Bearbeiten schließen' : 'Bearbeiten'),
                     ),
