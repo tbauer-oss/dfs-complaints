@@ -19,7 +19,7 @@
   "theme_dark": "Dark",
 
   "rep_dashboard_sub": "All important information at a glance",
-
+  "filter": "Filters",
   "ticket": "Ticket number",
   "customer_knowledge": "Customer knowledge & product information",
   "repwiki": "Representative Wiki",
