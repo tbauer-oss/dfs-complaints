@@ -1011,16 +1011,30 @@ export async function nextTicket() {
 }
 
 /* ============== Users ============== */
-export async function userByEmail(email) {
+async function _loadUserRecord(email) {
   if (!email) return null;
   const key = `${P}user:${String(email).toLowerCase()}`;
   const r = getRedis();
   const raw = r ? await rget(key) : mem.users.get(String(email).toLowerCase()) ?? null;
-  if (raw && typeof raw === 'object') {
-    const normalized = normalizePushTokens(raw.pushTokens);
-    if (normalized.length > 0) raw.pushTokens = normalized; else delete raw.pushTokens;
-    raw.lang = normLang(raw.lang || '');
+  if (!raw || typeof raw !== 'object') return raw;
+  const normalized = normalizePushTokens(raw.pushTokens);
+  if (normalized.length > 0) raw.pushTokens = normalized; else delete raw.pushTokens;
+  raw.lang = normLang(raw.lang || '');
+  return raw;
+}
+
+export async function userByEmail(email) {
+  const raw = await _loadUserRecord(email);
+  if (!raw) return raw;
+
+  if (hasPortalMarker(raw)) {
+    try { await migratePortalLikeUser(raw); }
+    catch (e) { console.error('[store] portal migration failed (userByEmail):', e); }
+    return null;
   }
+
+  if (!raw.type) raw.type = 'customer';
+  if (!raw.kind) raw.kind = 'customer';
   return raw;
 }
 
@@ -1030,6 +1044,8 @@ export async function userSave(u) {
   const key = `${P}user:${email}`;
   const r = getRedis();
   const toSave = { ...u, email };
+  if (!toSave.type) toSave.type = 'customer';
+  if (!toSave.kind) toSave.kind = 'customer';
   if (Array.isArray(toSave.pushTokens)) {
     const normalized = normalizePushTokens(toSave.pushTokens);
     if (normalized.length > 0) toSave.pushTokens = normalized;
@@ -1094,29 +1110,62 @@ export async function userDelete(email) {
 
 export async function usersList() {
   const r = getRedis();
-  if (r) {
-    const keys = await rkeys(`${P}user:*`);
-    const vals = await Promise.all(keys.map(k => rget(k)));
-    return vals
-      .filter(Boolean)
-      .map(u => {
-        if (u && typeof u === 'object') {
-          const normalized = normalizePushTokens(u.pushTokens);
-          if (normalized.length > 0) u.pushTokens = normalized; else delete u.pushTokens;
-          u.lang = normLang(u.lang || '');
-        }
-        return u;
-      });
+  const rawList = r
+    ? await Promise.all((await rkeys(`${P}user:*`)).map(k => rget(k)))
+    : Array.from(mem.users.values());
+
+  const customers = [];
+  for (const u of rawList) {
+    if (!u || typeof u !== 'object') continue;
+    if (hasPortalMarker(u)) {
+      try { await migratePortalLikeUser(u); }
+      catch (e) { console.error('[store] portal migration failed (usersList):', e); }
+      continue;
+    }
+
+    if (!isCustomerUser(u)) continue;
+
+    const normalized = normalizePushTokens(u.pushTokens);
+    if (normalized.length > 0) u.pushTokens = normalized; else delete u.pushTokens;
+    u.lang = normLang(u.lang || '');
+    if (!u.type) u.type = 'customer';
+    if (!u.kind) u.kind = 'customer';
+    customers.push(u);
   }
-  return Array.from(mem.users.values());
+
+  return customers;
 }
 
 /* ============== Portal Users (Mitarbeiter) ============== */
-const hasPortalMarker = (u) => !!u && (Object.prototype.hasOwnProperty.call(u, 'portalStatus') || Object.prototype.hasOwnProperty.call(u, 'role'));
+const hasPortalMarker = (u) => !!u && (
+  Object.prototype.hasOwnProperty.call(u, 'portalStatus') ||
+  Object.prototype.hasOwnProperty.call(u, 'role') ||
+  ['portal', 'staff'].includes(String(u?.kind || u?.type || '').toLowerCase())
+);
+
+// Portal-Accounts sollen nie in der Kundendatenbank landen – diese Helper trennen strikt
+// nach Kundendaten (users:customer) und Portal-Mitarbeitern (portalUsers:staff).
+const isCustomerUser = (u) => {
+  if (!u || typeof u !== 'object') return false;
+  const type = String(u.type || u.kind || '').toLowerCase();
+  if (type === 'portal' || type === 'staff') return false;
+  if (hasPortalMarker(u)) return false;
+  return true;
+};
+
+async function migratePortalLikeUser(u) {
+  const email = String(u?.email || '').toLowerCase();
+  if (!email) return null;
+  const migrated = normalizePortalUser({ ...u, email });
+  if (!migrated) return null;
+  await portalUserSave(migrated);
+  await userDelete(email);
+  return migrated;
+}
 
 function normalizePortalUser(u) {
   if (!u || typeof u !== 'object') return null;
-  const normalized = { ...u, kind: u.kind || 'portal' };
+  const normalized = { ...u, kind: u.kind || 'portal', type: u.type || 'staff' };
   if (Array.isArray(normalized.pushTokens)) {
     const tokens = normalizePushTokens(normalized.pushTokens);
     if (tokens.length > 0) normalized.pushTokens = tokens; else delete normalized.pushTokens;
@@ -1134,12 +1183,10 @@ export async function portalUserByEmail(email) {
   if (raw && typeof raw === 'object') return normalizePortalUser(raw);
 
   // Legacy-Migration: Portal-User aus der Kundendatenbank holen und verschieben
-  const legacy = await userByEmail(normalizedEmail);
+  const legacy = await _loadUserRecord(normalizedEmail);
   if (hasPortalMarker(legacy)) {
-    const migrated = normalizePortalUser({ ...legacy, kind: legacy?.kind || 'portal' });
-    await portalUserSave(migrated);
-    await userDelete(normalizedEmail);
-    return migrated;
+    const migrated = await migratePortalLikeUser(legacy);
+    if (migrated) return migrated;
   }
 
   return null;
