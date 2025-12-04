@@ -107,10 +107,12 @@ class ApiClient {
   // ---------- Konfiguration ----------
   static final String _apiBase = _resolveApiBase();
 
-  String? token;        // JWT (Kundenportal)
-  String? gate;         // optionales Gate-Token
-  String? adminSecret;  // für X-Admin-Secret
-  String? repToken;     // JWT für Vertreter-Login
+  String? token;            // JWT (Kundenportal)
+  String? gate;             // optionales Gate-Token
+  String? adminSecret;      // für X-Admin-Secret (Legacy)
+  String? repToken;         // JWT für Vertreter-Login
+  String? portalToken;      // JWT für DFS Portal
+  Map<String, dynamic>? portalProfile; // Rolle & Status fürs DFS Portal
 
   // Merker für Vertreter-Login-Flow
   String? _repEmail;    // zuletzt geprüfte/benutzte Vertreter-E-Mail
@@ -118,6 +120,7 @@ class ApiClient {
   bool _persistCustomerSession = true;
   bool _persistRepSession = true;
   bool _persistAdminSession = true;
+  bool _persistPortalSession = true;
 
   // ---------- Session persistieren ----------
   void _saveSession() {
@@ -135,6 +138,17 @@ class ApiClient {
       ls['dfs_admin'] = adminSecret!;
     } else {
       ls.remove('dfs_admin');
+    }
+
+    // DFS Portal Session
+    if (_persistPortalSession && portalToken != null) {
+      ls['dfs_portal_token'] = portalToken!;
+      if (portalProfile != null) {
+        ls['dfs_portal_profile'] = jsonEncode(portalProfile);
+      }
+    } else {
+      ls.remove('dfs_portal_token');
+      ls.remove('dfs_portal_profile');
     }
 
     // Gate
@@ -166,9 +180,18 @@ class ApiClient {
     gate        = ls['dfs_gate'];
     repToken    = ls['dfs_rep_token'];
     _repEmail   = ls['dfs_rep_email'];
+    portalToken = ls['dfs_portal_token'];
+    final storedProfile = ls['dfs_portal_profile'];
+    if (storedProfile != null && storedProfile.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(storedProfile);
+        if (decoded is Map) portalProfile = decoded.cast<String, dynamic>();
+      } catch (_) {}
+    }
 
     _persistCustomerSession = (token ?? '').isNotEmpty || (gate ?? '').isNotEmpty;
     _persistAdminSession = (adminSecret ?? '').isNotEmpty;
+    _persistPortalSession = (portalToken ?? '').isNotEmpty;
     _persistRepSession = (repToken ?? '').isNotEmpty || (_repEmail ?? '').isNotEmpty;
   }
 
@@ -176,6 +199,8 @@ class ApiClient {
     token = null;
     adminSecret = null;
     gate = null;
+    portalToken = null;
+    portalProfile = null;
     _saveSession();
   }
 
@@ -195,6 +220,24 @@ class ApiClient {
 
   void clearAdminSecret() {
     adminSecret = null;
+    _saveSession();
+  }
+
+  void setPortalSession({
+    required String token,
+    required Map<String, dynamic> profile,
+    bool persist = true,
+  }) {
+    portalToken = token.trim();
+    portalProfile = profile;
+    _persistPortalSession = persist && portalToken!.isNotEmpty;
+    _saveSession();
+  }
+
+  void clearPortalSession() {
+    portalToken = null;
+    portalProfile = null;
+    _persistPortalSession = false;
     _saveSession();
   }
 
@@ -235,8 +278,11 @@ class ApiClient {
 
   Map<String, String> _adminHeaders({bool auth = false, Map<String, String>? extra}) {
     final h = _headers(auth: auth, extra: extra);
-    if (adminSecret != null && adminSecret!.isNotEmpty) {
-      h['X-Admin-Secret'] = adminSecret!;
+    if (portalToken != null && portalToken!.isNotEmpty) {
+      h['Authorization'] = 'Bearer $portalToken';
+    }
+    if ((portalToken == null || portalToken!.isEmpty) && adminSecret != null && adminSecret!.isNotEmpty) {
+      h['X-Admin-Secret'] = adminSecret!; // Legacy Fallback
     }
     return h;
   }
@@ -1255,6 +1301,41 @@ class ApiClient {
     } catch (_) {
       return false;
     }
+  }
+
+  // ---------- DFS Portal Login (E-Mail + Passwort) ----------
+  Future<LoginResult> portalLogin({
+    required String email,
+    required String password,
+    bool persist = true,
+  }) async {
+    final body = {'email': email.trim(), 'password': password};
+    try {
+      final r = await http.post(
+        _u('/api/portal/login'),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
+        body: jsonEncode(body),
+      );
+      if (!_ok2xx(r.statusCode)) {
+        return LoginResult.failure(
+          statusCode: r.statusCode,
+          message: _extractMessage(r.body),
+        );
+      }
+
+      final decoded = jsonDecode(r.body);
+      if (decoded is Map) {
+        final tok = (decoded['token'] ?? '').toString();
+        final profile = (decoded['profile'] is Map)
+            ? (decoded['profile'] as Map).cast<String, dynamic>()
+            : <String, dynamic>{};
+        if (tok.isNotEmpty) {
+          setPortalSession(token: tok, profile: profile, persist: persist);
+          return LoginResult.success();
+        }
+      }
+    } catch (_) {}
+    return LoginResult.failure(statusCode: 0, message: 'Login fehlgeschlagen');
   }
 
   Future<Map<String, dynamic>> adminStats({DateTime? from, DateTime? to}) async {

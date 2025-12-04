@@ -216,7 +216,7 @@ class _MyAppState extends State<MyApp> {
 
   bool _bootDone = false;
   bool _loggedIn = false; // Kundenlogin (token) steuert den Kunden-Flow
-  bool _rememberAdmin = true;
+  bool _rememberPortal = true;
   Map<String, dynamic>? _appMeta;
 
   // ---- Helpers ----
@@ -244,8 +244,9 @@ class _MyAppState extends State<MyApp> {
 
   Future<void> _openAdmin(BuildContext context) async {
     final t = AppLocalizations.of(context)!;
-    final ctrl = TextEditingController(text: api.adminSecret ?? '');
-    var remember = _rememberAdmin;
+    final emailCtrl = TextEditingController(text: api.portalProfile?['email']?.toString() ?? '');
+    final pwCtrl = TextEditingController();
+    var remember = _rememberPortal;
     final wantOpen = await showDialog<bool>(
       context: context,
       builder: (_) => StatefulBuilder(
@@ -254,10 +255,19 @@ class _MyAppState extends State<MyApp> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              PasswordField(
-                controller: ctrl,
+              TextField(
+                controller: emailCtrl,
                 decoration: const InputDecoration(
-                  labelText: 'Admin Passwort',
+                  labelText: 'E-Mail',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.emailAddress,
+              ),
+              const SizedBox(height: 12),
+              PasswordField(
+                controller: pwCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Passwort',
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -280,30 +290,32 @@ class _MyAppState extends State<MyApp> {
     );
 
     if (wantOpen != true) return;
-    _rememberAdmin = remember;
+    _rememberPortal = remember;
 
-    final secret = ctrl.text.trim();
-    if (secret.isEmpty) {
+    final email = emailCtrl.text.trim();
+    final pw = pwCtrl.text;
+    if (email.isEmpty || pw.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(t.required_fields)),
       );
       return;
     }
 
-    final ok = await api.validateAdminSecret(secret);
-    if (!ok) {
+    final res = await api.portalLogin(email: email, password: pw, persist: _rememberPortal);
+    if (!res.ok) {
+      final msg = res.message ?? t.errorGeneric('Portal Login');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.errorGeneric('Admin Passwort'))),
+        SnackBar(content: Text(msg)),
       );
       return;
     }
 
-    api.setAdminSecret(secret, persist: _rememberAdmin);
     if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => AdminPage(
           api: api,
+          portalProfile: api.portalProfile,
           onMetaUpdated: (meta) => setState(() => _appMeta = meta),
         ),
       ),
@@ -634,7 +646,7 @@ class _MyAppState extends State<MyApp> {
                                                         child: Row(
                                                           mainAxisSize: MainAxisSize.min,
                                                           children: [
-                                                            Text(t.admin_area ?? 'Adminbereich'),
+                                                            Text(t.admin_area ?? 'DFS Portal'),
                                                             const SizedBox(width: 8),
                                                             Icon(Icons.arrow_outward_rounded, color: scheme.primary, size: 20),
                                                           ],
@@ -666,14 +678,17 @@ class _MyAppState extends State<MyApp> {
               '/rep': (_) => RepDashboardPage(api: api),
               '/admin/wiki': (_) => AdminPage.wiki(
                     api: api,
+                    portalProfile: api.portalProfile,
                     onMetaUpdated: (meta) => setState(() => _appMeta = meta),
                   ),
               '/admin/wiki/categories': (_) => AdminPage.wikiCategories(
                     api: api,
+                    portalProfile: api.portalProfile,
                     onMetaUpdated: (meta) => setState(() => _appMeta = meta),
                   ),
               '/admin/wiki/articles': (_) => AdminPage.wikiArticles(
                     api: api,
+                    portalProfile: api.portalProfile,
                     onMetaUpdated: (meta) => setState(() => _appMeta = meta),
                   ),
               '/reset-password': (_) => ResetPasswordPage(api: api),
