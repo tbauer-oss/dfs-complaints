@@ -462,7 +462,8 @@
   "customerNewsHeroNewLabel": "Neu im Monat",
   "customerNewsHeroDateLabel": "Stand",
   "customerNewsMarketingHook": "Neueste Produkt- und Unternehmensupdates auf einen Blick.",
-  "loading": "Wird geladen..."  "customerNewsReadMore": "Mehr erfahren",
+  "loading": "Wird geladen...",
+  "customerNewsReadMore": "Mehr erfahren",
   "customerNewsEmpty": "Aktuell liegen keine Neuigkeiten vor.",
   "customerNewsError": "Neuigkeiten konnten nicht geladen werden: {msg}",
   "@customerNewsError": {
