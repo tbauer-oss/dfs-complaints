@@ -11,6 +11,20 @@ import {
 } from '../_lib/http.js';
 import { sendMail } from '../_lib/mailer.js';
 import { requirePortalAccess } from './_guard.js';
+import { normalizeRole, PORTAL_ROLES } from '../_lib/portalAuth.js';
+import {
+  DEFAULT_INTERNAL_DEPARTMENTS,
+  hasDepartmentOverlap,
+  INTERNAL_EVALUATION_CAUSES,
+  ALLOWED_EVALUATION_TRANSLATION_LANGS,
+  normalizeDepartments,
+  normalizeEvaluationText,
+  normalizeInternalEvaluationCause,
+  normalizeEvaluationTranslations,
+  normalizeReportLinksMap,
+} from '../_lib/departments.js';
+import { translateTexts } from '../_lib/translate.js';
+import { generateReportsForComplaint } from '../_lib/reporting.js';
 
 // -------- Status-Mapping ----------
 const STATUS_LABEL = {
@@ -115,6 +129,22 @@ function resolveLang(input, fallback = 'en') {
   return normalizeLangValue(input) || fallback;
 }
 
+function normalizeRoleSafe(actor) {
+  return normalizeRole(actor?.role || actor?.portalRole || '');
+}
+
+function actorDepartments(actor) {
+  return normalizeDepartments(actor?.assignedDepartments || []);
+}
+
+function filterByDepartments(list = [], actor) {
+  const role = normalizeRoleSafe(actor);
+  if (role === PORTAL_ROLES.superuser || role === PORTAL_ROLES.readonly) return list;
+  const deps = actorDepartments(actor);
+  if (deps.length === 0) return [];
+  return list.filter((c) => hasDepartmentOverlap(deps, c?.internalDepartments));
+}
+
 function detectCustomerLang(user, complaint) {
   const candidates = [
     user?.lang,
@@ -203,6 +233,8 @@ const decorateForAdmin = (c) => ({
   ...c,
   history: normalizeHistory(c?.history),
   statusLabel: STATUS_LABEL[c.status] || STATUS_LABEL[1],
+  internalDepartmentOptions: DEFAULT_INTERNAL_DEPARTMENTS,
+  internalEvaluationCauseOptions: INTERNAL_EVALUATION_CAUSES,
 });
 
 const EDITABLE_PAYLOAD_FIELDS = {
@@ -385,6 +417,10 @@ export default async function handler(req, res) {
   // 3) Admin-Auth prüfen (immer noch ohne schwere Imports)
   const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET' });
   if (!actor) return;
+  const role = normalizeRoleSafe(actor);
+  const deps = actorDepartments(actor);
+  const isSuperuser = role === PORTAL_ROLES.superuser;
+  const isNormalUser = role === PORTAL_ROLES.user;
 
   // 4) Schwere Imports NACH Preflight/Admin laden (verhindert 500 bei OPTIONS)
   const {
@@ -415,21 +451,28 @@ export default async function handler(req, res) {
       if (ticket) {
         const c = await complaintByTicket(ticket);
         if (!c) return bad(res, 'not found', 404);
+        if (isNormalUser && !hasDepartmentOverlap(deps, c.internalDepartments)) {
+          return bad(res, 'forbidden', 403);
+        }
+        if (isSuperuser && c.internalEvaluationNewForAdmin) {
+          const cleared = await complaintSave({ ...c, internalEvaluationNewForAdmin: false });
+          return ok(res, decorateForAdmin(cleared));
+        }
         return ok(res, decorateForAdmin(c));
       }
 
       if (email) {
-        const list = await complaintsByEmail(email);
+        const list = filterByDepartments(await complaintsByEmail(email), actor);
         list.sort(sortDescByDate);
         return ok(res, details === '1' ? list.map(decorateForAdmin) : list.map((c) => c.ticket));
       }
 
       if (open === '1') {
-        const list = await complaintsOpen();
+        const list = filterByDepartments(await complaintsOpen(), actor);
         return ok(res, list.map(decorateForAdmin));
       }
 
-      const all = await complaintsAll();
+      const all = filterByDepartments(await complaintsAll(), actor);
       const out = (Array.isArray(all) ? all : []).sort(sortDescByDate).map(decorateForAdmin);
       return ok(res, out);
     }
@@ -452,6 +495,10 @@ export default async function handler(req, res) {
       const rawInternal = hasInternal ? body.internalNo : undefined;
       const hasNotes    = Object.prototype.hasOwnProperty.call(body, 'notes');
       const rawNotes    = hasNotes ? body.notes : undefined;
+      const internalDepartmentsInput = body?.internalDepartments;
+      const internalEvalText = body?.internalEvaluationText_de;
+      const internalEvalCause = body?.internalEvaluationCause;
+      const translateEval = body?.translateInternalEvaluation;
       const payloadInput = normalizePayloadInput(body?.payload);
       const sendPushFlag =
         body?.sendPush === true ||
@@ -464,11 +511,64 @@ export default async function handler(req, res) {
       const c = await complaintByTicket(ticket);
       if (!c) return bad(res, 'not found', 404);
 
+      if (isNormalUser && !hasDepartmentOverlap(deps, c.internalDepartments)) {
+        return bad(res, 'forbidden', 403);
+      }
+
+      if (isNormalUser) {
+        const allowedKeys = new Set(['ticket', 'internalEvaluationText_de', 'internalEvaluationCause']);
+        const forbidden = Object.keys(body || {}).filter((key) => !allowedKeys.has(key));
+        if (forbidden.length > 0) return bad(res, 'forbidden for role', 403);
+
+        const prevEval = normalizeEvaluationText(c.internalEvaluationText_de);
+        const prevCause = normalizeInternalEvaluationCause(c.internalEvaluationCause);
+        const nextEval = normalizeEvaluationText(body.internalEvaluationText_de ?? prevEval);
+        const nextCause = normalizeInternalEvaluationCause(body.internalEvaluationCause ?? prevCause);
+
+        let changed = false;
+        c.history = normalizeHistory(c.history);
+
+        if (nextEval !== prevEval) {
+          c.internalEvaluationText_de = nextEval;
+          c.internalEvaluationNewForAdmin = Boolean(nextEval);
+          changed = true;
+        }
+
+        if (nextCause !== prevCause) {
+          c.internalEvaluationCause = nextCause;
+          changed = true;
+        }
+
+        if (changed) {
+          pushHistory(c, {
+            actor: 'user',
+            type: 'internal-eval',
+            message: 'Interne Bewertung aktualisiert',
+            data: { cause: c.internalEvaluationCause || null },
+          });
+          c.updatedAt = Date.now();
+          await complaintSave(c);
+        }
+
+        return ok(res, decorateForAdmin(c));
+      }
+
+      let account = null;
+      const normalizedEmail = normEmail(c.email || '');
+      if (normalizedEmail) {
+        try { account = await userByEmail(normalizedEmail); }
+        catch (err) { console.error('admin/complaints user lookup failed', err?.message || err); }
+      }
+
       const prevStatus = Number(c.status ?? 1);
       const prevDecision = (c.decision ?? null);
       const prevReportLink = (c.reportLink ?? '').toString().trim();
       const prevInternal = (c.internalNo ?? '').toString().trim();
       const prevNotes = (c.adminNotes ?? '').toString();
+      const prevDepartments = normalizeDepartments(c.internalDepartments);
+      const prevEvalText = normalizeEvaluationText(c.internalEvaluationText_de);
+      const prevEvalCause = normalizeInternalEvaluationCause(c.internalEvaluationCause);
+      const prevTranslations = normalizeEvaluationTranslations(c.internalEvaluationTranslations);
       let statusChanged = false;
       let payloadChanged = false;
       let payloadChanges = [];
@@ -476,8 +576,77 @@ export default async function handler(req, res) {
       let reportChanged = false;
       let internalChanged = false;
       let notesChanged = false;
+      let departmentsChanged = false;
+      let evalTextChanged = false;
+      let evalCauseChanged = false;
+      let evalTranslationChanged = false;
 
       c.history = normalizeHistory(c.history);
+
+      if (internalDepartmentsInput !== undefined) {
+        const normalizedDeps = normalizeDepartments(internalDepartmentsInput);
+        const prevKey = prevDepartments.map((d) => d.toLowerCase()).sort().join('|');
+        const nextKey = normalizedDeps.map((d) => d.toLowerCase()).sort().join('|');
+        if (prevKey !== nextKey) {
+          c.internalDepartments = normalizedDeps;
+          departmentsChanged = true;
+          pushHistory(c, {
+            actor: 'admin',
+            type: 'departments',
+            message: 'Interne Abteilungen aktualisiert',
+            data: { departments: normalizedDeps },
+          });
+        }
+      }
+
+      if (internalEvalText !== undefined) {
+        const nextText = normalizeEvaluationText(internalEvalText);
+        if (nextText !== prevEvalText) {
+          c.internalEvaluationText_de = nextText;
+          evalTextChanged = true;
+          c.internalEvaluationNewForAdmin = Boolean(nextText);
+        }
+      }
+
+      if (internalEvalCause !== undefined) {
+        const nextCause = normalizeInternalEvaluationCause(internalEvalCause);
+        if (nextCause !== prevEvalCause) {
+          c.internalEvaluationCause = nextCause;
+          evalCauseChanged = true;
+        }
+      }
+
+      if (translateEval) {
+        const requested = normalizeLangValue(
+          translateEval?.targetLang || translateEval?.lang || translateEval,
+        ) || 'en';
+        if (!ALLOWED_EVALUATION_TRANSLATION_LANGS.has(requested)) {
+          return bad(res, 'unsupported translation target', 400);
+        }
+        const sourceText = normalizeEvaluationText(
+          internalEvalText !== undefined ? internalEvalText : c.internalEvaluationText_de,
+        );
+        if (!sourceText) return bad(res, 'no internal evaluation to translate', 400);
+        try {
+          const result = await translateTexts({
+            textByKey: { text: sourceText },
+            sourceLang: 'de',
+            targetLangs: [requested],
+          });
+          const translated = result?.translations?.[requested]?.text;
+          if (translated) {
+            const nextTranslations = {
+              ...prevTranslations,
+              ...normalizeEvaluationTranslations(c.internalEvaluationTranslations),
+              [requested]: translated,
+            };
+            c.internalEvaluationTranslations = nextTranslations;
+            evalTranslationChanged = true;
+          }
+        } catch (err) {
+          return bad(res, err?.message || 'translation failed', 400);
+        }
+      }
 
       if (payloadInput) {
         const currentPayload = (c.payload && typeof c.payload === 'object') ? { ...c.payload } : {};
@@ -612,24 +781,56 @@ export default async function handler(req, res) {
         });
       }
 
+      if (evalTextChanged || evalCauseChanged) {
+        pushHistory(c, {
+          actor: 'admin',
+          type: 'internal-eval',
+          message: 'Interne Bewertung angepasst (Admin)',
+          data: {
+            cause: c.internalEvaluationCause || null,
+            hasText: Boolean(c.internalEvaluationText_de),
+          },
+        });
+      }
+
+      if (evalTranslationChanged) {
+        pushHistory(c, {
+          actor: 'admin',
+          type: 'internal-eval-translation',
+          message: 'Übersetzung der internen Bewertung gespeichert',
+          data: { translations: c.internalEvaluationTranslations || {} },
+        });
+      }
+
+      if ((statusChanged || c.status === Status.CLOSED) && c.status === Status.CLOSED) {
+        const preferredLang = detectCustomerLang(account, c) || 'de';
+        const targetLangs = preferredLang === 'en' ? ['en'] : ['de'];
+        if (!targetLangs.includes('de') && !targetLangs.includes('en')) targetLangs.push('de');
+        try {
+          const generated = await generateReportsForComplaint(c, { targetLangs });
+          if (generated && Object.keys(generated).length > 0) {
+            const merged = normalizeReportLinksMap({ ...(c.reportLinks || {}), ...generated });
+            c.reportLinks = merged;
+            const defaultLink = merged[preferredLang] || merged.en || merged.de;
+            if (defaultLink) c.reportLink = defaultLink;
+            reportChanged = true;
+          }
+        } catch (err) {
+          console.error('admin/complaints report generation failed', err?.message || err);
+        }
+      }
+
       c.updatedAt = Date.now();
       if (statusChanged) c.statusUpdatedAt = Date.now();
 
       // robust persistieren
-      try { await complaintSave(ticket, c); }
+      try { await complaintSave(c); }
       catch { await complaintSave({ ...c }); }
 
       if ((payloadChanged && payloadChanges.length > 0) || statusChanged) {
         const recipient = (c.email || '').toString().trim();
         const normalized = normEmail(recipient);
         if (recipient && normalized) {
-          let account = null;
-          try {
-            account = await userByEmail(normalized);
-          } catch (err) {
-            console.error('admin/complaints user lookup failed', err);
-          }
-
           const lang = detectCustomerLang(account, c) || 'de';
           const hasStatusChange = statusChanged;
           const hasPayloadChanges = payloadChanged && payloadChanges.length > 0;

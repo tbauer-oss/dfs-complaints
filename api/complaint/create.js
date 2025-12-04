@@ -101,6 +101,12 @@ export default async function handler(req, res) {
       status: 1,
       decision: null,
       reportLink: null,
+      reportLinks: {},
+      internalDepartments: [],
+      internalEvaluationText_de: null,
+      internalEvaluationCause: null,
+      internalEvaluationTranslations: {},
+      internalEvaluationNewForAdmin: false,
       payload,
       uploads,
       history: [

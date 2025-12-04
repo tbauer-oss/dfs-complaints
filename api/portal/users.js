@@ -4,6 +4,7 @@ export const config = { runtime: 'nodejs' };
 import bcrypt from 'bcryptjs';
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { portalUsersList, portalUserSave, portalUserDelete } from '../_lib/store.js';
+import { normalizeDepartments } from '../_lib/departments.js';
 import {
   ADMIN_EMAILS,
   canManageUsers,
@@ -21,6 +22,7 @@ function sanitizeUser(u) {
     displayName: u.displayName || u.contact || u.company || '',
     role,
     portalStatus,
+    assignedDepartments: normalizeDepartments(u.assignedDepartments || []),
     createdAt: u.createdAt || null,
   };
 }
@@ -46,6 +48,7 @@ export default async function handler(req, res) {
       const password = String(body.password || '');
       const role = normalizeRole(body.role);
       const displayName = String(body.displayName || '').trim();
+      const assignedDepartments = normalizeDepartments(body.assignedDepartments || []);
       if (!email || !password) return bad(res, 'missing email or password', 400);
 
       const hash = await bcrypt.hash(password, 10);
@@ -55,6 +58,7 @@ export default async function handler(req, res) {
         role: ADMIN_EMAILS.has(email) ? PORTAL_ROLES.superuser : role,
         portalStatus: 'active',
         displayName,
+        assignedDepartments,
         createdAt: Date.now(),
       };
       await portalUserSave(user);
@@ -73,6 +77,7 @@ export default async function handler(req, res) {
       if (body.displayName !== undefined) patch.displayName = String(body.displayName || '').trim();
       if (body.role) patch.role = normalizeRole(body.role);
       if (body.portalStatus) patch.portalStatus = normalizeStatus(body.portalStatus);
+      if (body.assignedDepartments) patch.assignedDepartments = normalizeDepartments(body.assignedDepartments);
       if (body.password) patch.passhash = await bcrypt.hash(String(body.password), 10);
 
       if (ADMIN_EMAILS.has(email)) {

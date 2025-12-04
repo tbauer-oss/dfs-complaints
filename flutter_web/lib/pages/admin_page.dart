@@ -88,6 +88,31 @@ const Map<String, String> PORTAL_ROLES = {
   'readonly': 'readonly',
 };
 
+const List<String> kInternalDepartments = [
+  'Sinterei',
+  'Galvanik',
+  'Galvanik Vor-/Nachbereitung',
+  'Schleiferei',
+  'Bürstenproduktion',
+  'Dreherei',
+  'MP Spezialfertigung',
+  'Chemie / Logistik',
+  'Versand / Lager',
+  'Vertrieb',
+];
+
+const List<String> kInternalEvaluationCauses = [
+  'Produktionsfehler',
+  'Prozessfehler',
+  'Aufmerksamkeitsversagen',
+  'möglicher Anwenderfehler',
+  'Materialproblem',
+  'unvollständige / unklare Arbeitsanweisung',
+  'unzureichende Schulung',
+  'Lieferantenproblem',
+  'sonstige Ursache (bitte im Text spezifizieren)',
+];
+
 const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
   'user': [
     'open',
@@ -247,8 +272,10 @@ class _AdminPageState extends State<AdminPage> {
   final _portalUserEmailCtrl = TextEditingController();
   final _portalUserDisplayNameCtrl = TextEditingController();
   final _portalUserPasswordCtrl = TextEditingController();
+  final _portalUserDepartmentCtrl = TextEditingController();
   String _portalUserRole = PORTAL_ROLES['superuser']!;
   String _portalUserStatus = 'active';
+  final List<String> _portalUserDepartments = [];
   PortalUser? _editingPortalUser;
   final _portalUserFormKey = GlobalKey<FormState>();
 
@@ -583,6 +610,7 @@ class _AdminPageState extends State<AdminPage> {
     _portalUserEmailCtrl.dispose();
     _portalUserDisplayNameCtrl.dispose();
     _portalUserPasswordCtrl.dispose();
+    _portalUserDepartmentCtrl.dispose();
     super.dispose();
   }
 
@@ -7549,8 +7577,11 @@ class _AdminPageState extends State<AdminPage> {
       _portalUserEmailCtrl.clear();
       _portalUserDisplayNameCtrl.clear();
       _portalUserPasswordCtrl.clear();
+      _portalUserDepartmentCtrl.clear();
       _portalUserRole = PORTAL_ROLES['superuser']!;
       _portalUserStatus = 'active';
+      _portalUserDepartments
+        ..clear();
     });
   }
 
@@ -7560,8 +7591,12 @@ class _AdminPageState extends State<AdminPage> {
       _portalUserEmailCtrl.text = user?.email ?? '';
       _portalUserDisplayNameCtrl.text = user?.displayName ?? '';
       _portalUserPasswordCtrl.clear();
+      _portalUserDepartmentCtrl.clear();
       _portalUserRole = user?.role ?? PORTAL_ROLES['superuser']!;
       _portalUserStatus = user?.portalStatus ?? 'active';
+      _portalUserDepartments
+        ..clear()
+        ..addAll(user?.assignedDepartments ?? const <String>[]);
     });
   }
 
@@ -7579,12 +7614,14 @@ class _AdminPageState extends State<AdminPage> {
               role: _portalUserRole,
               displayName: _portalUserDisplayNameCtrl.text.trim(),
               portalStatus: _portalUserStatus,
+              assignedDepartments: _portalUserDepartments,
             )
           : await _api.updatePortalUser(
               email: _editingPortalUser!.email,
               displayName: _portalUserDisplayNameCtrl.text.trim(),
               role: _portalUserRole,
               portalStatus: _portalUserStatus,
+              assignedDepartments: _portalUserDepartments,
               password: _portalUserPasswordCtrl.text.isEmpty
                   ? null
                   : _portalUserPasswordCtrl.text,
@@ -7757,6 +7794,60 @@ class _AdminPageState extends State<AdminPage> {
                             ),
                           ),
                           const SizedBox(height: 10),
+                          Text('Zugeordnete Abteilungen',
+                              style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              ...kInternalDepartments.map(
+                                (dep) => FilterChip(
+                                  label: Text(dep),
+                                  selected: _portalUserDepartments.contains(dep),
+                                  onSelected: _portalUserBusy
+                                      ? null
+                                      : (v) => setState(() {
+                                            if (v == true && !_portalUserDepartments.contains(dep)) {
+                                              _portalUserDepartments.add(dep);
+                                            } else if (v == false) {
+                                              _portalUserDepartments.remove(dep);
+                                            }
+                                          }),
+                                ),
+                              ),
+                              if (_portalUserDepartments.isNotEmpty)
+                                ..._portalUserDepartments
+                                    .where((dep) => !kInternalDepartments.contains(dep))
+                                    .map((dep) => InputChip(
+                                          label: Text(dep),
+                                          onDeleted: _portalUserBusy
+                                              ? null
+                                              : () => setState(() => _portalUserDepartments.remove(dep)),
+                                        )),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          TextField(
+                            controller: _portalUserDepartmentCtrl,
+                            enabled: !_portalUserBusy,
+                            decoration: const InputDecoration(
+                              labelText: 'Weitere Abteilung hinzufügen',
+                              helperText: 'Enter speichert die Eingabe',
+                              prefixIcon: Icon(Icons.playlist_add),
+                            ),
+                            onSubmitted: (v) {
+                              final value = v.trim();
+                              if (value.isEmpty) return;
+                              setState(() {
+                                if (!_portalUserDepartments.contains(value)) {
+                                  _portalUserDepartments.add(value);
+                                }
+                                _portalUserDepartmentCtrl.clear();
+                              });
+                            },
+                          ),
+                          const SizedBox(height: 10),
                           DropdownButtonFormField<String>(
                             value: _portalUserStatus,
                             items: const [
@@ -7825,7 +7916,10 @@ class _AdminPageState extends State<AdminPage> {
                                 child: Icon(isActive ? Icons.check : Icons.pause, color: theme.colorScheme.onSurface),
                               ),
                               title: Text(u.displayName?.isNotEmpty == true ? u.displayName! : u.email),
-                              subtitle: Text('${u.email}\nRolle: ${u.role} — Status: ${u.portalStatus}'),
+                              subtitle: Text(
+                                '${u.email}\nRolle: ${u.role} — Status: ${u.portalStatus}'
+                                '\nAbteilungen: ${u.assignedDepartments.isEmpty ? '—' : u.assignedDepartments.join(', ')}',
+                              ),
                               isThreeLine: true,
                               trailing: Wrap(
                                 spacing: 8,
@@ -8461,6 +8555,7 @@ class _AdminPageState extends State<AdminPage> {
                           key: ValueKey('complaint-${c.ticket}'),
                           api: _api,
                           c: c,
+                          portalRole: _portalRole,
                           productLookup: _productByArticle,
                           companyHint: _companyByEmail(c.email),
                           hasRep: _customerHasRep(c.email),
@@ -8563,6 +8658,7 @@ class _AdminPageState extends State<AdminPage> {
                           key: ValueKey('complaint-${c.ticket}'),
                           api: _api,
                           c: c,
+                          portalRole: _portalRole,
                           productLookup: _productByArticle,
                           companyHint: _companyByEmail(c.email),
                           hasRep: _customerHasRep(c.email), // ← NEU
@@ -10586,6 +10682,7 @@ class PortalUser {
   final String role;
   final String portalStatus;
   final String? createdAt;
+  final List<String> assignedDepartments;
 
   const PortalUser({
     required this.email,
@@ -10593,6 +10690,7 @@ class PortalUser {
     required this.role,
     required this.portalStatus,
     this.createdAt,
+    this.assignedDepartments = const <String>[],
   });
 
   factory PortalUser.fromJson(Map<String, dynamic> j) => PortalUser(
@@ -10601,6 +10699,11 @@ class PortalUser {
         role: j['role'] ?? PORTAL_ROLES['user']!,
         portalStatus: j['portalStatus'] ?? 'inactive',
         createdAt: j['createdAt']?.toString(),
+        assignedDepartments: (j['assignedDepartments'] is List)
+            ? List<String>.from((j['assignedDepartments'] as List).map((e) => e.toString().trim()))
+                .where((e) => e.isNotEmpty)
+                .toList()
+            : const <String>[],
       );
 }
 
@@ -10681,11 +10784,17 @@ class AdminComplaint {
   int status;
   String? decision;
   String? reportLink;
+  Map<String, String>? reportLinks;
   String? internalNo;
   String? adminNotes;
   Map<String, dynamic>? payload;
   final List<ComplaintUpload> uploads;
   List<ComplaintHistoryEntry> history;
+  List<String> internalDepartments;
+  String? internalEvaluationTextDe;
+  String? internalEvaluationCause;
+  Map<String, String>? internalEvaluationTranslations;
+  bool internalEvaluationNewForAdmin;
 
   // Vertreter-Daten
   String? repOpinion; // 'accepted' | 'rejected' | 'pending'
@@ -10725,9 +10834,15 @@ class AdminComplaint {
     required this.status,
     this.decision,
     this.reportLink,
+    this.reportLinks,
     this.internalNo,
     this.adminNotes,
     this.payload,
+    this.internalDepartments = const <String>[],
+    this.internalEvaluationTextDe,
+    this.internalEvaluationCause,
+    this.internalEvaluationTranslations,
+    this.internalEvaluationNewForAdmin = false,
     this.repOpinion,
     this.repId,
     List<ComplaintHistoryEntry>? history,
@@ -10824,6 +10939,20 @@ class AdminComplaint {
     final uploads = _parseUploads(j['uploads'] ?? j['files']);
     final history = _parseHistory(j['history']);
 
+    List<String> _parseDepartments(dynamic value) {
+      if (value is List) {
+        return value.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList();
+      }
+      return const <String>[];
+    }
+
+    Map<String, String>? _parseTranslations(dynamic value) {
+      if (value is Map) {
+        return value.map((k, v) => MapEntry('$k', v.toString()));
+      }
+      return null;
+    }
+
     return AdminComplaint(
       ticket: (j['ticket'] ?? '').toString(),
       email: (j['email'] ?? '').toString(),
@@ -10834,6 +10963,9 @@ class AdminComplaint {
           ? null
           : j['decision']?.toString(),
       reportLink: j['reportLink']?.toString(),
+      reportLinks: (j['reportLinks'] is Map)
+          ? Map<String, String>.from((j['reportLinks'] as Map).map((k, v) => MapEntry('$k', v.toString())))
+          : null,
       internalNo: (j['internalNo']?.toString().trim().isEmpty ?? true)
           ? null
           : j['internalNo']!.toString().trim(),
@@ -10843,6 +10975,26 @@ class AdminComplaint {
       payload: payload,
       repOpinion: _norm(repRaw),
       repId: repIdLocal,
+      internalDepartments: _parseDepartments(j['internalDepartments'] ?? payload?['internalDepartments']),
+      internalEvaluationTextDe:
+          (j['internalEvaluationText_de'] ?? j['internalEvaluationTextDe'] ?? payload?['internalEvaluationText_de'])
+                  ?.toString()
+                  .trim()
+                  .isEmpty ==
+              true
+              ? null
+              : (j['internalEvaluationText_de'] ?? j['internalEvaluationTextDe'] ?? payload?['internalEvaluationText_de'])
+                  ?.toString(),
+      internalEvaluationCause: (j['internalEvaluationCause'] ?? payload?['internalEvaluationCause'])
+                  ?.toString()
+                  .trim()
+                  .isEmpty ==
+              true
+          ? null
+          : (j['internalEvaluationCause'] ?? payload?['internalEvaluationCause'])?.toString(),
+      internalEvaluationTranslations:
+          _parseTranslations(j['internalEvaluationTranslations'] ?? payload?['internalEvaluationTranslations']),
+      internalEvaluationNewForAdmin: j['internalEvaluationNewForAdmin'] == true,
       history: history,
       uploads: uploads,
     );
@@ -10856,6 +11008,13 @@ class AdminComplaint {
         'status': status,
         'decision': decision,
         'reportLink': reportLink,
+        if (reportLinks != null) 'reportLinks': reportLinks,
+        'internalDepartments': internalDepartments,
+        'internalEvaluationText_de': internalEvaluationTextDe,
+        'internalEvaluationCause': internalEvaluationCause,
+        if (internalEvaluationTranslations != null)
+          'internalEvaluationTranslations': internalEvaluationTranslations,
+        'internalEvaluationNewForAdmin': internalEvaluationNewForAdmin,
         'internalNo': internalNo,
         'adminNotes': adminNotes,
         'payload': payload,
@@ -11532,12 +11691,14 @@ class _ComplaintEditor extends StatefulWidget {
   final void Function(AdminComplaint c)? onChanged;
   final bool hasNewCustomerMessage;
   final VoidCallback? onCustomerMessageSeen;
+  final String portalRole;
 
   const _ComplaintEditor({
     super.key,
     required this.api,
     required this.c,
     required this.onClosed,
+    this.portalRole = 'superuser',
     this.productLookup,
     this.companyHint,
     this.hasRep = false,
@@ -11558,6 +11719,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
   final _reportCtrl = TextEditingController();
   final _internalCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
+  final _internalEvalCtrl = TextEditingController();
   bool _busy = false;
   bool _expanded = false;
   bool _historyExpanded = false;
@@ -11569,6 +11731,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
   bool _descAutoDetectSource = true;
   String _descSourceLang = 'en';
   String? _payloadLang;
+  String? _internalEvalCause;
+  List<String> _selectedDepartments = [];
   late final AnimationController _blinkCtrl;
   late final Animation<double> _blinkAnim;
 
@@ -11588,6 +11752,11 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     'injury': ['injury'],
     'injuryDesc': ['injuryDesc'],
   };
+
+  bool get _isPortalSuperuser => widget.portalRole == PORTAL_ROLES['superuser'];
+  bool get _isPortalReadonly => widget.portalRole == PORTAL_ROLES['readonly'];
+  bool get _isPortalUser => widget.portalRole == PORTAL_ROLES['user'];
+  bool get _shouldBlink => widget.hasNewCustomerMessage || (_isPortalSuperuser && widget.c.internalEvaluationNewForAdmin);
 
   int? _status; // 1..6
   String? _decision;
@@ -11824,7 +11993,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     _blinkAnim = Tween<double>(begin: 0.35, end: 1).animate(
       CurvedAnimation(parent: _blinkCtrl, curve: Curves.easeInOut),
     );
-    if (widget.hasNewCustomerMessage) {
+    if (_shouldBlink) {
       _blinkCtrl.repeat(reverse: true);
     }
     _reportCtrl.text = widget.c.reportLink ?? '';
@@ -11837,6 +12006,9 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     _status = widget.c.status;
     _decision = widget.c.decision;
     _payloadLang = _detectPayloadLang(widget.c.payload);
+    _internalEvalCtrl.text = widget.c.internalEvaluationTextDe ?? '';
+    _internalEvalCause = widget.c.internalEvaluationCause;
+    _selectedDepartments = List<String>.from(widget.c.internalDepartments);
     final detected = _payloadLang;
     if (detected != null && deeplLangCodes.contains(detected)) {
       _descSourceLang = detected;
@@ -11846,11 +12018,16 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
   @override
   void didUpdateWidget(covariant _ComplaintEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final shouldBlink = widget.hasNewCustomerMessage;
+    final shouldBlink = _shouldBlink;
     if (shouldBlink && !_blinkCtrl.isAnimating) {
       _blinkCtrl.repeat(reverse: true);
     } else if (!shouldBlink && _blinkCtrl.isAnimating) {
       _blinkCtrl.stop();
+    }
+    if (oldWidget.c.ticket != widget.c.ticket) {
+      _internalEvalCtrl.text = widget.c.internalEvaluationTextDe ?? '';
+      _internalEvalCause = widget.c.internalEvaluationCause;
+      _selectedDepartments = List<String>.from(widget.c.internalDepartments);
     }
   }
 
@@ -11859,6 +12036,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     _reportCtrl.dispose();
     _internalCtrl.dispose();
     _notesCtrl.dispose();
+    _internalEvalCtrl.dispose();
     _blinkCtrl.dispose();
 
     super.dispose();
@@ -11885,6 +12063,63 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Report-Link gespeichert.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _saveDepartments() async {
+    if (_busy || !_isPortalSuperuser) return;
+    setState(() => _busy = true);
+    try {
+      final updated = await widget.api.adminComplaintUpdate(
+        ticket: widget.c.ticket,
+        internalDepartments: _selectedDepartments,
+      );
+      setState(() {
+        widget.c.internalDepartments = List<String>.from(updated.internalDepartments);
+        _selectedDepartments = List<String>.from(updated.internalDepartments);
+        widget.c.history = updated.history;
+      });
+      _notifyChanged();
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Abteilungszuordnung gespeichert.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _saveInternalEvaluation() async {
+    if (_busy || _isPortalReadonly) return;
+    setState(() => _busy = true);
+    try {
+      final updated = await widget.api.adminComplaintUpdate(
+        ticket: widget.c.ticket,
+        internalEvaluationTextDe: _internalEvalCtrl.text.trim(),
+        internalEvaluationCause: _internalEvalCause ?? '',
+      );
+      setState(() {
+        widget.c.internalEvaluationTextDe = updated.internalEvaluationTextDe;
+        widget.c.internalEvaluationCause = updated.internalEvaluationCause;
+        widget.c.internalEvaluationTranslations = updated.internalEvaluationTranslations;
+        widget.c.internalEvaluationNewForAdmin = updated.internalEvaluationNewForAdmin;
+        widget.c.history = updated.history;
+      });
+      _notifyChanged();
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Interne Bewertung gespeichert.')));
       }
     } catch (e) {
       if (mounted) {
@@ -12286,6 +12521,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
   }
 
   Future<void> _saveStatusDecision() async {
+    if (_isPortalUser || _isPortalReadonly) return;
     if (_status == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bitte Status auswählen.')));
       return;
@@ -13109,6 +13345,21 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                                 ),
                               ),
                             ),
+                          if (_isPortalSuperuser && c.internalEvaluationNewForAdmin)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 8),
+                              child: AnimatedBuilder(
+                                animation: _blinkAnim,
+                                builder: (_, __) => Opacity(
+                                  opacity: _blinkAnim.value.clamp(0.35, 1),
+                                  child: Chip(
+                                    label: const Text('Interne Analyse erhalten'),
+                                    avatar: const Icon(Icons.analytics_outlined, size: 16),
+                                    backgroundColor: scheme.tertiaryContainer,
+                                  ),
+                                ),
+                              ),
+                            ),
                           const SizedBox(width: 10),
                           if ((c.internalNo ?? '').trim().isNotEmpty)
                             Container(
@@ -13733,6 +13984,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                           scheme.onSurfaceVariant.withOpacity(0.85);
 
                   Widget buildStatusSection() {
+                    final allowStatusEdit = !_isPortalUser && !_isPortalReadonly;
                     final dropdownStyle = const InputDecoration(
                       border: OutlineInputBorder(),
                     );
@@ -13746,7 +13998,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                                 child: Text(e['label'] as String),
                               ))
                           .toList(),
-                      onChanged: (v) => setState(() => _status = v),
+                      onChanged:
+                          allowStatusEdit ? (v) => setState(() => _status = v) : null,
                     );
 
                     final decisionField = DropdownButtonFormField<String>(
@@ -13758,12 +14011,13 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                                 child: Text(e['label']!),
                               ))
                           .toList(),
-                      onChanged: (v) =>
-                          setState(() => _decision = (v == null || v.isEmpty) ? null : v),
+                      onChanged: allowStatusEdit
+                          ? (v) => setState(() => _decision = (v == null || v.isEmpty) ? null : v)
+                          : null,
                     );
 
                     final saveButton = FilledButton.icon(
-                      onPressed: _busy ? null : _saveStatusDecision,
+                      onPressed: (_busy || !allowStatusEdit) ? null : _saveStatusDecision,
                       icon: const Icon(Icons.save_outlined),
                       label: const Text('Änderungen speichern'),
                       style: FilledButton.styleFrom(
@@ -13839,6 +14093,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                   }
 
                   Widget buildMetaSection() {
+                    final canEditMeta = !_isPortalUser && !_isPortalReadonly;
+                    final canEditDepartments = _isPortalSuperuser;
                     final internalField = TextField(
                       controller: _internalCtrl,
                       decoration: InputDecoration(
@@ -13847,15 +14103,16 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                         prefixIcon: const Icon(Icons.tag),
                         suffixIcon: IconButton(
                           tooltip: 'Interne Nummer entfernen',
-                          onPressed: _busy ? null : _clearInternalNo,
+                          onPressed: _busy || !canEditMeta ? null : _clearInternalNo,
                           icon: const Icon(Icons.delete_outline),
                         ),
                       ),
-                      onSubmitted: (_) => _busy ? null : _saveInternalNo(),
+                      enabled: canEditMeta,
+                      onSubmitted: (_) => _busy || !canEditMeta ? null : _saveInternalNo(),
                     );
 
                     final internalAction = OutlinedButton.icon(
-                      onPressed: _busy ? null : _saveInternalNo,
+                      onPressed: _busy || !canEditMeta ? null : _saveInternalNo,
                       icon: const Icon(Icons.save_outlined),
                       label: const Text('Interne Nummer speichern'),
                     );
@@ -13867,17 +14124,69 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                         border: const OutlineInputBorder(),
                         suffixIcon: IconButton(
                           tooltip: 'Link entfernen',
-                          onPressed: _busy ? null : _clearReportLink,
+                          onPressed: _busy || !canEditMeta ? null : _clearReportLink,
                           icon: const Icon(Icons.delete_outline),
                         ),
                       ),
+                      enabled: canEditMeta,
                     );
 
                     final reportAction = OutlinedButton.icon(
-                      onPressed: _busy ? null : _saveReportLink,
+                      onPressed: _busy || !canEditMeta ? null : _saveReportLink,
                       icon: const Icon(Icons.save_outlined),
                       label: const Text('Link speichern'),
                     );
+
+                    Widget buildDepartmentSelector() {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              ...kInternalDepartments.map(
+                                (dep) => FilterChip(
+                                  label: Text(dep),
+                                  selected: _selectedDepartments.contains(dep),
+                                  onSelected: (!canEditDepartments || _busy)
+                                      ? null
+                                      : (v) => setState(() {
+                                            if (v == true && !_selectedDepartments.contains(dep)) {
+                                              _selectedDepartments.add(dep);
+                                            } else if (v == false) {
+                                              _selectedDepartments.remove(dep);
+                                            }
+                                          }),
+                                ),
+                              ),
+                              ..._selectedDepartments
+                                  .where((dep) => !kInternalDepartments.contains(dep))
+                                  .map(
+                                    (dep) => InputChip(
+                                      label: Text(dep),
+                                      onDeleted: (!canEditDepartments || _busy)
+                                          ? null
+                                          : () => setState(() => _selectedDepartments.remove(dep)),
+                                    ),
+                                  ),
+                            ],
+                          ),
+                          if (canEditDepartments)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Align(
+                                alignment: Alignment.centerRight,
+                                child: OutlinedButton.icon(
+                                  onPressed: _busy ? null : _saveDepartments,
+                                  icon: const Icon(Icons.save_outlined),
+                                  label: const Text('Abteilungen speichern'),
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
+                    }
 
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -13890,11 +14199,18 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                         buildFieldWithAction(field: internalField, action: internalAction),
                         const SizedBox(height: 16),
                         buildFieldWithAction(field: reportField, action: reportAction),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Betroffene interne Abteilungen',
+                          style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 8),
+                        buildDepartmentSelector(),
                         const SizedBox(height: 20),
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton.icon(
-                            onPressed: _busy ? null : _deleteComplaint,
+                            onPressed: (_busy || _isPortalUser || _isPortalReadonly) ? null : _deleteComplaint,
                             style: TextButton.styleFrom(
                               foregroundColor: scheme.error,
                               overlayColor: scheme.error.withOpacity(0.1),
@@ -13903,6 +14219,68 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                             label: const Text('Ticket löschen'),
                           ),
                         ),
+                      ],
+                    );
+                  }
+
+                  Widget buildInternalEvaluationSection() {
+                    final canEditEvaluation = !_isPortalReadonly && (_isPortalUser || _isPortalSuperuser);
+                    final translations = widget.c.internalEvaluationTranslations ?? const <String, String>{};
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Interne Bewertung',
+                          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: _internalEvalCtrl,
+                          minLines: 3,
+                          maxLines: 8,
+                          readOnly: !canEditEvaluation,
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                            labelText: 'Interne Bewertung (DE)',
+                            alignLabelWithHint: true,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        DropdownButtonFormField<String>(
+                          value: (_internalEvalCause ?? '').isEmpty ? null : _internalEvalCause,
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                            labelText: 'Vermutete Ursache',
+                          ),
+                          items: kInternalEvaluationCauses
+                              .map((cause) => DropdownMenuItem(value: cause, child: Text(cause)))
+                              .toList(),
+                          onChanged: canEditEvaluation ? (v) => setState(() => _internalEvalCause = v) : null,
+                        ),
+                        const SizedBox(height: 10),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: FilledButton.icon(
+                            onPressed: (!canEditEvaluation || _busy) ? null : _saveInternalEvaluation,
+                            icon: const Icon(Icons.save_outlined),
+                            label: const Text('Interne Bewertung speichern'),
+                          ),
+                        ),
+                        if (translations.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            'Gespeicherte Übersetzungen',
+                            style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: translations.entries
+                                .map((e) => InputChip(label: Text('${e.key.toUpperCase()}: ${e.value}')))
+                                .toList(),
+                          ),
+                        ],
                       ],
                     );
                   }
@@ -14049,7 +14427,16 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                           children: [
                             Expanded(child: buildStatusSection()),
                             const SizedBox(width: 28),
-                            Expanded(child: buildMetaSection()),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  buildMetaSection(),
+                                  const SizedBox(height: 24),
+                                  buildInternalEvaluationSection(),
+                                ],
+                              ),
+                            ),
                           ],
                         )
                       : Column(
@@ -14058,6 +14445,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                             buildStatusSection(),
                             const SizedBox(height: 24),
                             buildMetaSection(),
+                            const SizedBox(height: 24),
+                            buildInternalEvaluationSection(),
                           ],
                         );
 
@@ -14605,6 +14994,7 @@ class AdminApi {
     required String role,
     String? displayName,
     String portalStatus = 'active',
+    List<String>? assignedDepartments,
   }) async {
     final body = {
       'email': email,
@@ -14612,6 +15002,7 @@ class AdminApi {
       'role': role,
       'portalStatus': portalStatus,
       if (displayName != null) 'displayName': displayName,
+      if (assignedDepartments != null) 'assignedDepartments': assignedDepartments,
     };
     final res = await _request('POST', '/api/portal/users', body: body);
     if (res.status != 200) throw 'portal/users POST: HTTP ${res.status} ${res.responseText}';
@@ -14625,6 +15016,7 @@ class AdminApi {
     String? role,
     String? portalStatus,
     String? password,
+    List<String>? assignedDepartments,
   }) async {
     final body = <String, dynamic>{
       'email': email,
@@ -14632,6 +15024,7 @@ class AdminApi {
       if (role != null) 'role': role,
       if (portalStatus != null) 'portalStatus': portalStatus,
       if (password != null) 'password': password,
+      if (assignedDepartments != null) 'assignedDepartments': assignedDepartments,
     };
     final res = await _request('PATCH', '/api/portal/users', body: body);
     if (res.status != 200) throw 'portal/users PATCH: HTTP ${res.status} ${res.responseText}';
@@ -14679,6 +15072,10 @@ class AdminApi {
     String? internalNo,
     String? notes,
     bool? sendPush,
+    List<String>? internalDepartments,
+    String? internalEvaluationTextDe,
+    String? internalEvaluationCause,
+    String? translateInternalEvaluationLang,
   }) async {
     final body = <String, dynamic>{'ticket': ticket};
     if (status != null) body['status'] = status;
@@ -14687,6 +15084,12 @@ class AdminApi {
     if (internalNo != null) body['internalNo'] = internalNo;
     if (notes != null) body['notes'] = notes;
     if (sendPush != null) body['sendPush'] = sendPush;
+    if (internalDepartments != null) body['internalDepartments'] = internalDepartments;
+    if (internalEvaluationTextDe != null) body['internalEvaluationText_de'] = internalEvaluationTextDe;
+    if (internalEvaluationCause != null) body['internalEvaluationCause'] = internalEvaluationCause;
+    if (translateInternalEvaluationLang != null && translateInternalEvaluationLang.trim().isNotEmpty) {
+      body['translateInternalEvaluation'] = {'targetLang': translateInternalEvaluationLang};
+    }
 
     final res = await _request('POST', '/api/admin/complaints', body: body);
     if (res.status != 200) {

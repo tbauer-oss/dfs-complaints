@@ -38,6 +38,7 @@ function toDto(c) {
     status: c.status ?? 1,
     decision: c.decision ?? null,
     reportLink: c.reportLink ?? null,
+    reportLinks: c.reportLinks || null,
   };
 }
 
@@ -133,6 +134,12 @@ export default async function handler(req, res) {
         status: Status.RECEIVED,
         decision: null,
         reportLink: null,
+        reportLinks: {},
+        internalDepartments: [],
+        internalEvaluationText_de: null,
+        internalEvaluationCause: null,
+        internalEvaluationTranslations: {},
+        internalEvaluationNewForAdmin: false,
         createdAt: now,
         updatedAt: now,
       };

@@ -183,6 +183,43 @@ export async function processIncomingFiles(filesInput, {
   return { uploads, attachments, totalBytes };
 }
 
+export async function storeGeneratedFile(buffer, {
+  ticket,
+  filename,
+  mime = 'application/octet-stream',
+  allowDataUrlFallback = true,
+} = {}) {
+  if (!buffer || !buffer.length) return null;
+
+  const entry = {
+    name: filename || 'file.bin',
+    mime,
+    size: buffer.length,
+    uploadedAt: Date.now(),
+  };
+
+  try {
+    const blob = await uploadBuffer(buffer, { ticket, filename, mime });
+    if (blob?.url) entry.url = blob.url;
+    if (blob?.downloadUrl) entry.downloadUrl = blob.downloadUrl;
+    if (blob?.blobPath) entry.blobPath = blob.blobPath;
+    if (blob?.size != null) entry.size = blob.size;
+    if (blob?.uploadedAt != null) entry.uploadedAt = blob.uploadedAt;
+    if (entry.downloadUrl) return entry;
+  } catch (err) {
+    console.error('[uploads] storeGeneratedFile blob upload failed', err?.message || err);
+    if (!allowDataUrlFallback) return null;
+  }
+
+  if (allowDataUrlFallback) {
+    const base64 = buffer.toString('base64');
+    entry.downloadUrl = `data:${mime};base64,${base64}`;
+    return entry;
+  }
+
+  return null;
+}
+
 export function normalizeProvidedUploads(input) {
   const list = Array.isArray(input) ? input : [];
   const uploads = [];
