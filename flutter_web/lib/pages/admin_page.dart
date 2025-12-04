@@ -113,6 +113,8 @@ const List<String> kInternalEvaluationCauses = [
   'sonstige Ursache (bitte im Text spezifizieren)',
 ];
 
+const List<String> kInternalEvaluationTranslationLangs = ['en', 'de', 'es', 'fr', 'it'];
+
 const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
   'user': [
     'open',
@@ -11885,6 +11887,9 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
   bool _descAutoDetectSource = true;
   String _descSourceLang = 'en';
   String? _payloadLang;
+  String _internalEvalTargetLang = 'en';
+  bool _translatingInternalEval = false;
+  String? _internalEvalTranslationError;
   String? _internalEvalCause;
   List<String> _selectedDepartments = [];
   late final AnimationController _blinkCtrl;
@@ -12281,6 +12286,57 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
       }
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _translateInternalEvaluation() async {
+    final sourceText = _internalEvalCtrl.text.trim();
+    if (sourceText.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Bitte zuerst eine interne Bewertung hinterlegen.')));
+      return;
+    }
+    if (_busy || _translatingInternalEval) return;
+
+    setState(() {
+      _busy = true;
+      _translatingInternalEval = true;
+      _internalEvalTranslationError = null;
+    });
+
+    try {
+      final updated = await widget.api.adminComplaintUpdate(
+        ticket: widget.c.ticket,
+        internalEvaluationTextDe: sourceText,
+        internalEvaluationCause: _internalEvalCause ?? '',
+        translateInternalEvaluationLang: _internalEvalTargetLang,
+      );
+
+      setState(() {
+        widget.c.internalEvaluationTextDe = updated.internalEvaluationTextDe;
+        widget.c.internalEvaluationCause = updated.internalEvaluationCause;
+        widget.c.internalEvaluationTranslations = updated.internalEvaluationTranslations;
+        widget.c.internalEvaluationNewForAdmin = updated.internalEvaluationNewForAdmin;
+        widget.c.history = updated.history;
+      });
+      _notifyChanged();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Übersetzung gespeichert.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _internalEvalTranslationError = e.toString());
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _translatingInternalEval = false;
+        });
+      }
     }
   }
 
@@ -14482,6 +14538,84 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                             onChanged:
                                 canEditEvaluation ? (v) => setState(() => _internalEvalCause = v) : null,
                           ),
+                          if (_isPortalSuperuser) ...[
+                            const SizedBox(height: 14),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: scheme.surface,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: scheme.outlineVariant.withOpacity(0.8)),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.translate_outlined, color: scheme.primary),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Übersetzung interne Bewertung',
+                                        style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Originaltext bleibt auf Deutsch gespeichert. Übersetzungen werden zusätzlich abgelegt.',
+                                    style: textTheme.bodySmall?.copyWith(color: secondaryTextColor),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: DropdownButtonFormField<String>(
+                                          value: _internalEvalTargetLang,
+                                          decoration: const InputDecoration(
+                                            border: OutlineInputBorder(),
+                                            labelText: 'Zielsprache',
+                                          ),
+                                          items: kInternalEvaluationTranslationLangs
+                                              .map((lang) => DropdownMenuItem(
+                                                    value: lang,
+                                                    child: Text('${lang.toUpperCase()} — ${deeplLangLabel(lang)}'),
+                                                  ))
+                                              .toList(),
+                                          onChanged: _translatingInternalEval
+                                              ? null
+                                              : (v) => setState(() => _internalEvalTargetLang = v ?? 'en'),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      FilledButton.icon(
+                                        onPressed: (_busy || _translatingInternalEval)
+                                            ? null
+                                            : _translateInternalEvaluation,
+                                        icon: _translatingInternalEval
+                                            ? SizedBox(
+                                                width: 18,
+                                                height: 18,
+                                                child: CircularProgressIndicator(
+                                                  strokeWidth: 2.2,
+                                                  color: scheme.onPrimary,
+                                                ),
+                                              )
+                                            : const Icon(Icons.g_translate),
+                                        label: Text(_translatingInternalEval ? 'Übersetze…' : 'Übersetzen mit DeepL'),
+                                      ),
+                                    ],
+                                  ),
+                                  if (_internalEvalTranslationError != null) ...[
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      _internalEvalTranslationError!,
+                                      style: textTheme.bodySmall?.copyWith(color: scheme.error),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 14),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -14667,34 +14801,52 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                   final preferColumnLayout =
                       _isPortalUser && !_isPortalSuperuser && !_isPortalReadonly;
 
-                  final editor = (isWide && !preferColumnLayout)
+                  final editor = (isWide && _isPortalSuperuser)
                       ? Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(child: statusSection),
-                            const SizedBox(width: 28),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  metaSection,
+                                  statusSection,
                                   const SizedBox(height: 24),
                                   evalSection,
                                 ],
                               ),
                             ),
+                            const SizedBox(width: 28),
+                            Expanded(child: metaSection),
                           ],
                         )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            statusSection,
-                            const SizedBox(height: 24),
-                            metaSection,
-                            const SizedBox(height: 24),
-                            evalSection,
-                          ],
-                        );
+                      : (isWide && !preferColumnLayout)
+                          ? Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(child: statusSection),
+                                const SizedBox(width: 28),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: [
+                                      metaSection,
+                                      const SizedBox(height: 24),
+                                      evalSection,
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                statusSection,
+                                const SizedBox(height: 24),
+                                metaSection,
+                                const SizedBox(height: 24),
+                                evalSection,
+                              ],
+                            );
 
                   final baseColor = scheme.surface;
                   final overlay = theme.brightness == Brightness.dark
