@@ -462,6 +462,8 @@
   "customerNewsNewSince": "New since {date}",
   "@customerNewsNewSince": { "placeholders": { "date": { "type": "String" } } },
   "customerNewsUpdateLabel": "Latest update",
+  "customerNewsHeroNewLabel": "New this month",
+  "customerNewsHeroDateLabel": "As of",
   "customerNewsMarketingHook": "Marketing highlight for your team — discover now.",
   "customerNewsReadMore": "Learn more",
   "customerNewsEmpty": "There are no news items right now.",
