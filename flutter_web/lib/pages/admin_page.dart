@@ -268,6 +268,7 @@ class _AdminPageState extends State<AdminPage> {
   bool _portalUsersLoaded = false;
   String? _portalUsersErr;
   bool _portalUserBusy = false;
+  bool _showTileVisibilityManager = false;
 
   final _portalUserEmailCtrl = TextEditingController();
   final _portalUserDisplayNameCtrl = TextEditingController();
@@ -4827,82 +4828,6 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
-  Widget _buildRoleVisibilityChips(String role, List<String> tileIds) {
-    final tiles = _visibleTilesForRole(role);
-    final defaults = _defaultTilesForRole(role);
-    final filtered = [
-      for (final id in tileIds)
-        if (defaults.contains(id) || tiles.contains(id)) id,
-    ];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          role == 'readonly' ? 'Read-only Benutzer' : 'Normale Benutzer',
-          style: Theme.of(context).textTheme.titleSmall,
-        ),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final id in filtered)
-              FilterChip(
-                label: Text(_tileLabel(id)),
-                selected: tiles.contains(id),
-                onSelected: (value) {
-                  setState(() => _updateRoleTileVisibility(role, id, value));
-                },
-              ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildRoleVisibilityEditor(List<String> tileIds) {
-    if (!_isSuperuser || !_menuEditMode) return const SizedBox.shrink();
-    final sorted = [...tileIds]..sort();
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        child: Card(
-          margin: EdgeInsets.zero,
-          color: Theme.of(context).colorScheme.surfaceVariant,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: const [
-                    Icon(Icons.visibility_outlined),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Kacheln pro Portal-Rolle steuern',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Hier kannst du festlegen, welche Kacheln normale und read-only Benutzer sehen.',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                const SizedBox(height: 12),
-                _buildRoleVisibilityChips('user', sorted),
-                const SizedBox(height: 16),
-                _buildRoleVisibilityChips('readonly', sorted),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   // ------------------ Kachel-Menü (neues Design) ------------------
   Widget _buildMenu() {
     final w = MediaQuery.of(context).size.width;
@@ -5020,7 +4945,6 @@ class _AdminPageState extends State<AdminPage> {
               ),
             ),
           ),
-        if (_menuEditMode) _buildRoleVisibilityEditor(_menuTileIds.toList()),
         if (_menuEditMode) _buildSectionReorderTarget(index: 0),
         for (var i = 0; i < sections.length; i++) ...[
           SliverToBoxAdapter(child: const SizedBox(height: 4)),
@@ -7674,6 +7598,176 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  List<_AdminMenuSectionState> _tileSelectionSections() {
+    if (_menuSections.isNotEmpty) return _menuSections;
+    return [
+      _AdminMenuSectionState(
+        title: 'Alle Kacheln',
+        subtitle: '',
+        tileIds: _menuTileIds.toList()..sort(),
+      ),
+    ];
+  }
+
+  Widget _buildTileToggle(String role, String tileId) {
+    if (!_menuTileIds.contains(tileId)) return const SizedBox.shrink();
+    final tiles = _visibleTilesForRole(role);
+    final isDefault = _defaultTilesForRole(role).contains(tileId);
+    return SwitchListTile.adaptive(
+      dense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+      value: tiles.contains(tileId),
+      title: Text(_tileLabel(tileId)),
+      subtitle: isDefault ? const Text('Standardmäßig sichtbar') : null,
+      onChanged: (value) {
+        setState(() => _updateRoleTileVisibility(role, tileId, value));
+      },
+    );
+  }
+
+  Widget _buildRoleTileChecklist({
+    required String role,
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
+    final sections = _tileSelectionSections();
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: color.withOpacity(.4)),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: color.withOpacity(.14),
+                  child: Icon(icon, color: color),
+                ),
+                const SizedBox(width: 10),
+                Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ...sections.map((section) {
+              final visibleIds = section.tileIds.where(_menuTileIds.contains).toList();
+              if (visibleIds.isEmpty) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(section.title, style: const TextStyle(fontWeight: FontWeight.w500)),
+                    const SizedBox(height: 6),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(.5),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        children: [
+                          for (final id in visibleIds) _buildTileToggle(role, id),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTileVisibilityManager() {
+    if (!_isSuperuser) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Dashboard-Kacheln nach Portal-Rolle',
+                        style: theme.textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Steuere hier zentral, welche Kacheln normale und Read-only Portal-Nutzer im Dashboard sehen.',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                OutlinedButton.icon(
+                  onPressed: () => setState(() => _showTileVisibilityManager = !_showTileVisibilityManager),
+                  icon: Icon(_showTileVisibilityManager ? Icons.close_fullscreen_outlined : Icons.dashboard_customize_outlined),
+                  label: Text(_showTileVisibilityManager ? 'Auswahl schließen' : 'Kachelauswahl öffnen'),
+                ),
+              ],
+            ),
+            if (_showTileVisibilityManager) ...[
+              const SizedBox(height: 12),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isNarrow = constraints.maxWidth < 960;
+                  final children = [
+                    Expanded(
+                      child: _buildRoleTileChecklist(
+                        role: 'user',
+                        icon: Icons.badge_outlined,
+                        label: 'Normale Benutzer',
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 12, height: 12),
+                    Expanded(
+                      child: _buildRoleTileChecklist(
+                        role: 'readonly',
+                        icon: Icons.visibility_outlined,
+                        label: 'Read-only Benutzer',
+                        color: theme.colorScheme.tertiary,
+                      ),
+                    ),
+                  ];
+
+                  if (isNarrow) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: children,
+                    );
+                  }
+
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: children,
+                  );
+                },
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildPortalUsersPanel() {
     final theme = Theme.of(context);
 
@@ -7704,8 +7798,10 @@ class _AdminPageState extends State<AdminPage> {
             children: [
               const Icon(Icons.admin_panel_settings_outlined),
               const SizedBox(width: 8),
-              const Text('User-Datenbank',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              const Text(
+                'User-Datenbank',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
               const Spacer(),
               IconButton(
                 tooltip: 'Neu laden',
@@ -7715,6 +7811,8 @@ class _AdminPageState extends State<AdminPage> {
             ],
           ),
           const SizedBox(height: 8),
+          _buildTileVisibilityManager(),
+          const SizedBox(height: 12),
           if (_portalUsersErr != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
