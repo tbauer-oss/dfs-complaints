@@ -88,6 +88,41 @@ const Map<String, String> PORTAL_ROLES = {
   'readonly': 'readonly',
 };
 
+const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
+  'user': [
+    'open',
+    'all',
+    'stats',
+    'pending',
+    'users',
+    'reps',
+    'news',
+    'downloads',
+    'faq',
+    'wiki',
+    'products',
+    'push',
+    'catalogs',
+    'appMeta',
+    'testMode',
+    'systemHealth',
+    'activity',
+    'createCustomer',
+    'wikiCategories',
+    'wikiArticles',
+  ],
+  'readonly': [
+    'open',
+    'all',
+    'stats',
+    'pending',
+    'appMeta',
+    'testMode',
+    'activity',
+    'systemHealth',
+  ],
+};
+
 String _internalNumberPrefix({DateTime? now}) {
   final date = now ?? DateTime.now();
   final yy = DateFormat('yy').format(date);
@@ -279,6 +314,59 @@ class _AdminPageState extends State<AdminPage> {
     _persistCustomerContactSeen();
   }
 
+  void _loadRoleTileVisibility() {
+    final raw = html.window.localStorage[_roleTileVisibilityKey];
+    if (raw == null) return;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        decoded.forEach((key, value) {
+          if (value is List) {
+            _roleTileVisibility[key.toString()] =
+                value.whereType<String>().toSet();
+          }
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _persistRoleTileVisibility() {
+    try {
+      html.window.localStorage[_roleTileVisibilityKey] = jsonEncode(
+        _roleTileVisibility.map((key, value) => MapEntry(key, value.toList())),
+      );
+    } catch (_) {}
+  }
+
+  Set<String> _defaultTilesForRole(String role) {
+    if (_DEFAULT_ROLE_TILES.containsKey(role)) {
+      return _DEFAULT_ROLE_TILES[role]!.toSet();
+    }
+    return _DEFAULT_ROLE_TILES['user']!.toSet();
+  }
+
+  Set<String> _visibleTilesForRole(String role) {
+    _roleTileVisibility.putIfAbsent(role, () => _defaultTilesForRole(role));
+    return _roleTileVisibility[role]!;
+  }
+
+  void _updateRoleTileVisibility(
+    String role,
+    String tileId,
+    bool visible,
+  ) {
+    final tiles = _visibleTilesForRole(role);
+    if (visible) {
+      if (tiles.add(tileId)) {
+        _persistRoleTileVisibility();
+      }
+    } else {
+      if (tiles.remove(tileId)) {
+        _persistRoleTileVisibility();
+      }
+    }
+  }
+
   // Firmenfilter (Offene Reklamationen)
   String _filterCompany = 'Alle Firmen';
 
@@ -296,6 +384,9 @@ class _AdminPageState extends State<AdminPage> {
   // Admin-Dashboard-Bearbeitung
   bool _menuEditMode = false;
   final Set<String> _archivedTileIds = <String>{};
+  final Map<String, Set<String>> _roleTileVisibility = {
+    for (final entry in _DEFAULT_ROLE_TILES.entries) entry.key: entry.value.toSet(),
+  };
 
   bool _navCollapsed = true;
   List<_AdminView> _navOrder = const [];
@@ -311,6 +402,7 @@ class _AdminPageState extends State<AdminPage> {
   bool _loadAllComplaints = false;
 
   static const _menuLayoutStorageKey = 'admin_menu_layout_v1';
+  static const _roleTileVisibilityKey = 'admin_role_tiles_v1';
   static const _navOrderStorageKey = 'admin_nav_order_v1';
   static const double _tileScaleMin = 0.6;
   static const double _tileScaleMax = 1.35;
@@ -443,6 +535,7 @@ class _AdminPageState extends State<AdminPage> {
     }
     _api.setSecret(secret);
 
+    _loadRoleTileVisibility();
     _initMenuLayout();
     _applyNavOrder(_defaultNavOrder());
     _loadNavOrder();
@@ -4063,9 +4156,52 @@ class _AdminPageState extends State<AdminPage> {
     return _SidebarTooltip(message: message, child: child);
   }
 
-  bool _isViewAllowed(_AdminView view) {
-    if (_isSuperuser) return true;
-    if (_portalRole == 'readonly') {
+  String? _viewToTileId(_AdminView view) {
+    switch (view) {
+      case _AdminView.menu:
+        return null;
+      case _AdminView.open:
+        return 'open';
+      case _AdminView.all:
+        return 'all';
+      case _AdminView.pending:
+        return 'pending';
+      case _AdminView.portalUsers:
+        return 'portalUsers';
+      case _AdminView.users:
+        return 'users';
+      case _AdminView.reps:
+        return 'reps';
+      case _AdminView.news:
+        return 'news';
+      case _AdminView.downloads:
+        return 'downloads';
+      case _AdminView.faq:
+        return 'faq';
+      case _AdminView.wiki:
+        return 'wiki';
+      case _AdminView.products:
+        return 'products';
+      case _AdminView.catalogs:
+        return 'catalogs';
+      case _AdminView.systemHealth:
+        return 'systemHealth';
+      case _AdminView.activity:
+        return 'activity';
+      case _AdminView.createCustomer:
+        return 'createCustomer';
+      case _AdminView.pushBroadcast:
+        return 'push';
+      case _AdminView.wikiCategories:
+        return 'wikiCategories';
+      case _AdminView.wikiArticles:
+        return 'wikiArticles';
+    }
+  }
+
+  Set<_AdminView> _baseViewsForRole(String role) {
+    if (_isSuperuser) return _AdminView.values.toSet();
+    if (role == 'readonly') {
       return const {
         _AdminView.menu,
         _AdminView.open,
@@ -4073,9 +4209,8 @@ class _AdminPageState extends State<AdminPage> {
         _AdminView.pending,
         _AdminView.activity,
         _AdminView.systemHealth,
-      }.contains(view);
+      };
     }
-    // Normaler User: definierte Teilmenge, keine Benutzerverwaltung für Portal-Accounts
     return const {
       _AdminView.menu,
       _AdminView.open,
@@ -4095,7 +4230,19 @@ class _AdminPageState extends State<AdminPage> {
       _AdminView.pushBroadcast,
       _AdminView.wikiCategories,
       _AdminView.wikiArticles,
-    }.contains(view);
+    };
+  }
+
+  bool _isViewAllowed(_AdminView view) {
+    if (_isSuperuser) return true;
+    final allowed = _baseViewsForRole(_portalRole);
+    if (!allowed.contains(view)) return false;
+
+    final tileId = _viewToTileId(view);
+    if (tileId == null) return true;
+
+    final visibleTiles = _visibleTilesForRole(_portalRole);
+    return visibleTiles.contains(tileId);
   }
 
   List<_AdminNavSection> _defaultNavSections() {
@@ -4363,6 +4510,10 @@ class _AdminPageState extends State<AdminPage> {
     }
 
     bool _tileAllowed(String id) {
+      if (!_isSuperuser) {
+        final visibleTiles = _visibleTilesForRole(_portalRole);
+        if (!visibleTiles.contains(id)) return false;
+      }
       final view = _tileIdToView(id);
       if (view == null) return true;
       return _isViewAllowed(view);
@@ -4599,6 +4750,131 @@ class _AdminPageState extends State<AdminPage> {
     _persistMenuLayout();
   }
 
+  String _tileLabel(String tileId) {
+    switch (tileId) {
+      case 'open':
+        return 'Offene Reklamationen';
+      case 'all':
+        return 'Alle Reklamationen';
+      case 'stats':
+        return 'Statistik & KPIs';
+      case 'pending':
+        return 'Anträge prüfen';
+      case 'users':
+        return 'Kunden';
+      case 'createCustomer':
+        return 'Kunde anlegen';
+      case 'reps':
+        return 'Vertreter';
+      case 'downloads':
+        return 'Downloads';
+      case 'wiki':
+        return 'Vertreter-Wiki';
+      case 'news':
+        return 'News & Infos';
+      case 'faq':
+        return 'FAQ / Wissen';
+      case 'products':
+        return 'Artikelliste';
+      case 'push':
+        return 'Push-Broadcasts';
+      case 'portalUsers':
+        return 'User-Datenbank';
+      case 'catalogs':
+        return 'Kataloge';
+      case 'appMeta':
+        return 'App-Metadaten';
+      case 'testMode':
+        return 'Testmodus';
+      case 'systemHealth':
+        return 'Systemstatus';
+      case 'activity':
+        return 'Aktivitäts-Checks';
+      case 'wikiCategories':
+        return 'Wiki-Kategorien';
+      case 'wikiArticles':
+        return 'Wiki-Artikel';
+      default:
+        return tileId;
+    }
+  }
+
+  Widget _buildRoleVisibilityChips(String role, List<String> tileIds) {
+    final tiles = _visibleTilesForRole(role);
+    final defaults = _defaultTilesForRole(role);
+    final filtered = [
+      for (final id in tileIds)
+        if (defaults.contains(id) || tiles.contains(id)) id,
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          role == 'readonly' ? 'Read-only Benutzer' : 'Normale Benutzer',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final id in filtered)
+              FilterChip(
+                label: Text(_tileLabel(id)),
+                selected: tiles.contains(id),
+                onSelected: (value) {
+                  setState(() => _updateRoleTileVisibility(role, id, value));
+                },
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRoleVisibilityEditor(List<String> tileIds) {
+    if (!_isSuperuser || !_menuEditMode) return const SizedBox.shrink();
+    final sorted = [...tileIds]..sort();
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        child: Card(
+          margin: EdgeInsets.zero,
+          color: Theme.of(context).colorScheme.surfaceVariant,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: const [
+                    Icon(Icons.visibility_outlined),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Kacheln pro Portal-Rolle steuern',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Hier kannst du festlegen, welche Kacheln normale und read-only Benutzer sehen.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 12),
+                _buildRoleVisibilityChips('user', sorted),
+                const SizedBox(height: 16),
+                _buildRoleVisibilityChips('readonly', sorted),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   // ------------------ Kachel-Menü (neues Design) ------------------
   Widget _buildMenu() {
     final w = MediaQuery.of(context).size.width;
@@ -4716,6 +4992,7 @@ class _AdminPageState extends State<AdminPage> {
               ),
             ),
           ),
+        if (_menuEditMode) _buildRoleVisibilityEditor(_menuTileIds.toList()),
         if (_menuEditMode) _buildSectionReorderTarget(index: 0),
         for (var i = 0; i < sections.length; i++) ...[
           SliverToBoxAdapter(child: const SizedBox(height: 4)),
