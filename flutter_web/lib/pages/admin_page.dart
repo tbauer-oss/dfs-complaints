@@ -4833,6 +4833,9 @@ class _AdminPageState extends State<AdminPage> {
     final isPhone = w < 640;
     final compact = isPhone;
     final sections = _menuSections;
+    final visibleSections = _menuEditMode
+        ? sections
+        : sections.where((section) => section.tileIds.isNotEmpty).toList();
     final baseTileWidth = isPhone ? 200.0 : 240.0;
     final aspectRatio = isPhone ? 0.94 : 1.05;
     final tileWidth = baseTileWidth * _menuTileScale;
@@ -4945,21 +4948,21 @@ class _AdminPageState extends State<AdminPage> {
             ),
           ),
         if (_menuEditMode) _buildSectionReorderTarget(index: 0),
-        for (var i = 0; i < sections.length; i++) ...[
+        for (var i = 0; i < visibleSections.length; i++) ...[
           SliverToBoxAdapter(child: const SizedBox(height: 4)),
           SliverToBoxAdapter(
             child: _buildMenuSectionHeader(
-              sections[i],
+              visibleSections[i],
               isFirst: i == 0,
               index: i,
             ),
           ),
           SliverPadding(
-            padding: EdgeInsets.fromLTRB(16, 8, 16, i == sections.length - 1 ? 28 : 12),
+            padding: EdgeInsets.fromLTRB(16, 8, 16, i == visibleSections.length - 1 ? 28 : 12),
             sliver: SliverToBoxAdapter(
               child: _buildSectionGrid(
                 sectionIndex: i,
-                section: sections[i],
+                section: visibleSections[i],
                 compact: compact,
                 tileWidth: tileWidth,
                 tileHeight: tileHeight,
