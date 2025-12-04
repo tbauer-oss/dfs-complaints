@@ -12142,6 +12142,26 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     widget.onCustomerMessageSeen?.call();
   }
 
+  Future<void> _markInternalEvaluationSeenIfNeeded() async {
+    if (!_isPortalSuperuser || !widget.c.internalEvaluationNewForAdmin) return;
+    try {
+      final raw = await widget.api.fetchComplaintRawByTicket(widget.c.ticket);
+      final updated = AdminComplaint.fromJson(raw);
+      if (!mounted) return;
+      setState(() {
+        widget.c.internalEvaluationNewForAdmin = updated.internalEvaluationNewForAdmin;
+        widget.c.history = updated.history;
+        widget.c.internalEvaluationTextDe = updated.internalEvaluationTextDe;
+        widget.c.internalEvaluationCause = updated.internalEvaluationCause;
+        widget.c.internalEvaluationTranslations = updated.internalEvaluationTranslations;
+      });
+      _blinkCtrl.stop();
+      _notifyChanged();
+    } catch (_) {
+      // ignore
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -12172,6 +12192,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     if (detected != null && deeplLangCodes.contains(detected)) {
       _descSourceLang = detected;
     }
+    _markInternalEvaluationSeenIfNeeded();
   }
 
   @override
