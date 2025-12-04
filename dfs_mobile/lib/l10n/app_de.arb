@@ -20,6 +20,7 @@
   "theme_dark": "Dunkel",
   "customer_email": "Kunden-E-Mail",
 
+  "filter": "Filter",
   "ticket": "Ticketnummer",
   "complaint_assist": "Assistent starten",
   "attachments_add": "Anhänge senden",
