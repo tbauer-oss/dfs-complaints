@@ -251,8 +251,11 @@ class ApiClient {
     final h = <String, String>{
       'Content-Type': 'application/json; charset=utf-8',
       if (gate != null) 'X-Gate': gate!,
-      if (auth && token != null) 'Authorization': 'Bearer $token',
-    };
+      if (auth && token != null && token!.isNotEmpty)
+        'Authorization': 'Bearer $token'
+      else if (auth && (token == null || token!.isEmpty) && portalToken != null && portalToken!.isNotEmpty)
+        'Authorization': 'Bearer $portalToken',
+      };
     if (extra != null) h.addAll(extra);
     return h;
   }
