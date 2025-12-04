@@ -18,6 +18,7 @@
   "theme_light": "Chiaro",
   "theme_dark": "Scuro",
 
+  "filter": "Filtri",
   "ticket": "Numero ticket",
   "complaint_assist": "Avviare l'assistente",
 
