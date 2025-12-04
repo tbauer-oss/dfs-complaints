@@ -6,20 +6,15 @@ import {
 } from '../_lib/http.js';
 import { pendingList, pendingDelete, userSave, userDelete } from '../_lib/store.js';
 import { send, tpl } from '../_lib/mail.js';
-
-const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
-function isAdmin(req) {
-  // Header-Keys sind in Node lowercase
-  const hdr = req.headers?.['x-admin-secret'];
-  return typeof hdr === 'string' && !!ADMIN_SECRET && hdr === ADMIN_SECRET;
-}
+import { requirePortalAccess } from './_guard.js';
 
 export default async function handler(req, res) {
   // --- CORS/Preflight zuerst (setzt Header & beantwortet OPTIONS mit 204) ---
   if (handlePreflight(req, res)) return;
   setCors(req, res);
-  
-  if (!isAdmin(req)) return bad(res, 'admin unauthorized', 401);
+
+  const actor = await requirePortalAccess(req, res, { write: true });
+  if (!actor) return;
 
   try {
     // ---- LIST --------------------------------------------------------------

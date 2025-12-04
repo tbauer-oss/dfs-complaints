@@ -18,8 +18,8 @@ import {
   getRepOf,
 } from '../_lib/repsStore.js';
 import { send } from '../_lib/mail.js';
+import { requirePortalAccess } from './_guard.js';
 
-const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 const PORTAL_URL = process.env.REP_PORTAL_URL || 'https://dfs-complaints-web.vercel.app/rep';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const REMINDER_DELAY_DAYS = Number(process.env.REP_DECISION_REMINDER_DAYS || 4) || 4;
@@ -70,11 +70,6 @@ const TEXTS = {
     'acepta o rechaza la reclamación.\n\n' +
     'Muchas gracias.\nSu equipo DFS Complaints',
 };
-
-function isAdmin(req) {
-  const hdr = req.headers?.['x-admin-secret'];
-  return typeof hdr === 'string' && !!ADMIN_SECRET && hdr === ADMIN_SECRET;
-}
 
 function normalizeLang(lang) {
   const lc = lower(lang).split(/[-_]/)[0];
@@ -172,7 +167,8 @@ export default async function handler(req, res) {
   setCors(req, res);
   if (req.method === 'OPTIONS') return noContent(res);
   if (!['GET', 'POST'].includes(req.method || '')) return methodNotAllowed(res);
-  if (!isAdmin(req)) return bad(res, 'admin unauthorized', 401);
+  const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET' });
+  if (!actor) return;
 
   try {
     const now = Date.now();

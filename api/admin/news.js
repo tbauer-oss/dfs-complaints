@@ -8,21 +8,13 @@ import {
   customerNewsDelete,
   CUSTOMER_NEWS_CATEGORY_CODES,
 } from '../_lib/store.js';
+import { requirePortalAccess } from './_guard.js';
 
-function requireAdmin(req, res) {
-  const sec = (req.headers?.['x-admin-secret'] || '').toString().trim();
-  const expected = (process.env.ADMIN_SECRET || '').toString().trim();
-  if (!sec || !expected || sec !== expected) {
-    bad(res, 'unauthorized', 401);
-    return false;
-  }
-  return true;
-}
-
-export default async function handler(req, res) {
+  export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
-  if (!requireAdmin(req, res)) return;
+  const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET' });
+  if (!actor) return;
 
   try {
     if (req.method === 'GET') {

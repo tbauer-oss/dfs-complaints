@@ -11,16 +11,7 @@ import {
 } from '../_lib/http.js';
 import { usersList, pushTokenRemove } from '../_lib/store.js';
 import { sendPushToTokens } from '../_lib/fcm.js';
-
-function requireAdmin(req, res) {
-  const sec = (req.headers?.['x-admin-secret'] || '').toString().trim();
-  const expected = (process.env.ADMIN_SECRET || '').toString().trim();
-  if (!sec || !expected || sec !== expected) {
-    bad(res, 'unauthorized', 401);
-    return false;
-  }
-  return true;
-}
+import { requirePortalAccess } from './_guard.js';
 
 const SUPPORTED_LANGS = new Set(['de', 'en', 'fr', 'it', 'es']);
 const LANG_ALIASES = {
@@ -62,7 +53,8 @@ function isPushConfigured() {
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
-  if (!requireAdmin(req, res)) return;
+  const actor = await requirePortalAccess(req, res, { write: true });
+  if (!actor) return;
 
   if (req.method !== 'POST') {
     return methodNotAllowed(res);

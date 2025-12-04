@@ -30,16 +30,6 @@ function setCors(req, res) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 }
 
-function requireAdmin(req, res) {
-  const sec = (req.headers['x-admin-secret'] || '').toString().trim();
-  if (!sec || sec !== (process.env.ADMIN_SECRET || '')) {
-    res.statusCode = 401;
-    res.end(JSON.stringify({ error: 'unauthorized' }));
-    return false;
-  }
-  return true;
-}
-
 function safeJson(req) {
   try {
     if (!req.body) return {};
@@ -59,12 +49,14 @@ import {
   unassignCustomer,
 } from '../_lib/repsStore.js';
 import { removeRepFromDownloadPermissions } from '../_lib/store.js';
+import { requirePortalAccess } from './_guard.js';
 
 // ---------------- Handler ----------------
 export default async function handler(req, res) {
   setCors(req, res);
   if (req.method === 'OPTIONS') { res.status(204).end(); return; }
-  if (!requireAdmin(req, res)) return;
+  const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET' });
+  if (!actor) return;
 
   try {
     // GET: Liste der Vertreter (optional inkl. Kunden)

@@ -10,17 +10,7 @@ export const config = {
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson, readJsonBody, noContent } from '../_lib/http.js';
 import { downloadsList, downloadsUpsert, downloadsDelete } from '../_lib/store.js';
 import { processIncomingFiles, normalizeProvidedUploads } from '../_lib/uploads.js';
-
-const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
-
-function requireAdmin(req, res) {
-  const hdr = (req.headers?.['x-admin-secret'] || '').toString().trim();
-  if (!ADMIN_SECRET || hdr !== ADMIN_SECRET) {
-    bad(res, 'unauthorized', 401);
-    return false;
-  }
-  return true;
-}
+import { requirePortalAccess } from './_guard.js';
 
 async function parseUpload(body) {
   const provided = normalizeProvidedUploads(body?.uploads || body?.files || []);
@@ -48,7 +38,8 @@ async function parseUpload(body) {
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
-  if (!requireAdmin(req, res)) return;
+  const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET' });
+  if (!actor) return;
 
   try {
     console.log('[admin/downloads] enter', { method: req.method, query: req.query });
