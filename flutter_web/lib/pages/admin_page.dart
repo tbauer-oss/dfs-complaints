@@ -212,7 +212,7 @@ class _AdminPageState extends State<AdminPage> {
   final _portalUserEmailCtrl = TextEditingController();
   final _portalUserDisplayNameCtrl = TextEditingController();
   final _portalUserPasswordCtrl = TextEditingController();
-  String _portalUserRole = PORTAL_ROLES.superuser;
+  String _portalUserRole = PORTAL_ROLES['superuser']!;
   String _portalUserStatus = 'active';
   PortalUser? _editingPortalUser;
   final _portalUserFormKey = GlobalKey<FormState>();
