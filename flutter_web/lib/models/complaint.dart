@@ -8,6 +8,9 @@ class Complaint {
   final String? decision;
   final String? reportLink;
   final Map<String, String>? reportLinks; // neue Mehrsprachigkeit für Reports
+  final Map<String, String>? externalReportLinks;
+  final Map<String, String>? internalReportLinks;
+  final String? qmCustomerSummary;
   final List<String> internalDepartments; // betroffene interne Abteilungen
   final String? internalEvaluationTextDe; // interne Bewertung (Deutsch)
   final String? internalEvaluationCause; // vermutete Ursache
@@ -27,6 +30,9 @@ class Complaint {
     this.decision,
     this.reportLink,
     this.reportLinks,
+    this.externalReportLinks,
+    this.internalReportLinks,
+    this.qmCustomerSummary,
     List<String>? internalDepartments,
     this.internalEvaluationTextDe,
     this.internalEvaluationCause,
@@ -158,6 +164,13 @@ class Complaint {
       reportLinks: (j['reportLinks'] is Map)
           ? Map<String, String>.from((j['reportLinks'] as Map).map((k, v) => MapEntry('$k', v.toString())))
           : null,
+      externalReportLinks: (j['externalReportLinks'] is Map)
+          ? Map<String, String>.from((j['externalReportLinks'] as Map).map((k, v) => MapEntry('$k', v.toString())))
+          : null,
+      internalReportLinks: (j['internalReportLinks'] is Map)
+          ? Map<String, String>.from((j['internalReportLinks'] as Map).map((k, v) => MapEntry('$k', v.toString())))
+          : null,
+      qmCustomerSummary: (j['qmCustomerSummary'] ?? j['qmCustomerSummary_de'])?.toString(),
       internalDepartments: _parseStringList(j['internalDepartments']),
       internalEvaluationTextDe: (j['internalEvaluationText_de'] ?? j['internalEvaluationTextDe'])
               ?.toString()

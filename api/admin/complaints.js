@@ -24,7 +24,7 @@ import {
   normalizeReportLinksMap,
 } from '../_lib/departments.js';
 import { translateTexts } from '../_lib/translate.js';
-import { generateReportsForComplaint } from '../_lib/reporting.js';
+import { generateDualReportsForComplaint } from '../_lib/reporting.js';
 
 // -------- Status-Mapping ----------
 const STATUS_LABEL = {
@@ -804,16 +804,26 @@ export default async function handler(req, res) {
 
       if ((statusChanged || c.status === Status.CLOSED) && c.status === Status.CLOSED) {
         const preferredLang = detectCustomerLang(account, c) || 'de';
-        const targetLangs = preferredLang === 'en' ? ['en'] : ['de'];
-        if (!targetLangs.includes('de') && !targetLangs.includes('en')) targetLangs.push('de');
         try {
-          const generated = await generateReportsForComplaint(c, { targetLangs });
-          if (generated && Object.keys(generated).length > 0) {
-            const merged = normalizeReportLinksMap({ ...(c.reportLinks || {}), ...generated });
-            c.reportLinks = merged;
-            const defaultLink = merged[preferredLang] || merged.en || merged.de;
+          const generated = await generateDualReportsForComplaint(c, { preferredLang });
+          if (generated) {
+            const mergedExternal = normalizeReportLinksMap({ ...(c.externalReportLinks || {}), ...(generated.externalLinks || {}) });
+            const mergedInternal = normalizeReportLinksMap({ ...(c.internalReportLinks || {}), ...(generated.internalLinks || {}) });
+            if (Object.keys(mergedExternal).length > 0) {
+              c.externalReportLinks = mergedExternal;
+              reportChanged = true;
+            }
+            if (Object.keys(mergedInternal).length > 0) {
+              c.internalReportLinks = mergedInternal;
+              reportChanged = true;
+            }
+
+            const defaultLink = mergedExternal[preferredLang]
+              || mergedExternal.de
+              || mergedExternal.en
+              || Object.values(mergedExternal)[0];
             if (defaultLink) c.reportLink = defaultLink;
-            reportChanged = true;
+            c.reportLinks = normalizeReportLinksMap({ ...(c.reportLinks || {}), ...(generated.externalLinks || {}) });
           }
         } catch (err) {
           console.error('admin/complaints report generation failed', err?.message || err);

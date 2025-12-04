@@ -11058,6 +11058,10 @@ class AdminComplaint {
   String? decision;
   String? reportLink;
   Map<String, String>? reportLinks;
+  Map<String, String>? externalReportLinks;
+  Map<String, String>? internalReportLinks;
+  String? qmCustomerSummary;
+  Map<String, String>? qmCustomerSummaryTranslations;
   String? internalNo;
   String? adminNotes;
   Map<String, dynamic>? payload;
@@ -11108,6 +11112,10 @@ class AdminComplaint {
     this.decision,
     this.reportLink,
     this.reportLinks,
+    this.externalReportLinks,
+    this.internalReportLinks,
+    this.qmCustomerSummary,
+    this.qmCustomerSummaryTranslations,
     this.internalNo,
     this.adminNotes,
     this.payload,
@@ -11239,6 +11247,15 @@ class AdminComplaint {
       reportLinks: (j['reportLinks'] is Map)
           ? Map<String, String>.from((j['reportLinks'] as Map).map((k, v) => MapEntry('$k', v.toString())))
           : null,
+      externalReportLinks: (j['externalReportLinks'] is Map)
+          ? Map<String, String>.from((j['externalReportLinks'] as Map).map((k, v) => MapEntry('$k', v.toString())))
+          : null,
+      internalReportLinks: (j['internalReportLinks'] is Map)
+          ? Map<String, String>.from((j['internalReportLinks'] as Map).map((k, v) => MapEntry('$k', v.toString())))
+          : null,
+      qmCustomerSummary: (j['qmCustomerSummary'] ?? j['qmCustomerSummary_de'])?.toString(),
+      qmCustomerSummaryTranslations:
+          _parseTranslations(j['qmCustomerSummaryTranslations'] ?? payload?['qmCustomerSummaryTranslations']),
       internalNo: (j['internalNo']?.toString().trim().isEmpty ?? true)
           ? null
           : j['internalNo']!.toString().trim(),
@@ -11282,6 +11299,11 @@ class AdminComplaint {
         'decision': decision,
         'reportLink': reportLink,
         if (reportLinks != null) 'reportLinks': reportLinks,
+        if (externalReportLinks != null) 'externalReportLinks': externalReportLinks,
+        if (internalReportLinks != null) 'internalReportLinks': internalReportLinks,
+        if (qmCustomerSummary != null) 'qmCustomerSummary': qmCustomerSummary,
+        if (qmCustomerSummaryTranslations != null)
+          'qmCustomerSummaryTranslations': qmCustomerSummaryTranslations,
         'internalDepartments': internalDepartments,
         'internalEvaluationText_de': internalEvaluationTextDe,
         'internalEvaluationCause': internalEvaluationCause,
@@ -14502,6 +14524,43 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                       label: const Text('Link speichern'),
                     );
 
+                    Widget _linkBadges(String title, Map<String, String>? links, {bool highlight = false}) {
+                      final map = links ?? const <String, String>{};
+                      if (map.isEmpty) return const SizedBox.shrink();
+                      final scheme = Theme.of(context).colorScheme;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Text(
+                              title,
+                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: highlight ? scheme.primary : null,
+                                  ),
+                            ),
+                          ),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: map.entries
+                                .map(
+                                  (e) => ActionChip(
+                                    avatar: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                                    label: Text('${e.key.toUpperCase()}'),
+                                    onPressed: () => html.window.open(e.value, '_blank'),
+                                    backgroundColor:
+                                        highlight ? scheme.primaryContainer : scheme.surfaceVariant,
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
+                      );
+                    }
+
                     Widget buildDepartmentSelector() {
                       final availableDepartments = kInternalDepartments
                           .where((dep) => !_selectedDepartments.contains(dep))
@@ -14575,6 +14634,12 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                         buildFieldWithAction(field: internalField, action: internalAction),
                         const SizedBox(height: 16),
                         buildFieldWithAction(field: reportField, action: reportAction),
+                        const SizedBox(height: 10),
+                        if ((widget.c.externalReportLinks?.isNotEmpty ?? false) ||
+                            (widget.c.internalReportLinks?.isNotEmpty ?? false)) ...[
+                          _linkBadges('Externe Reports', widget.c.externalReportLinks, highlight: true),
+                          _linkBadges('Interne Reports', widget.c.internalReportLinks),
+                        ],
                         const SizedBox(height: 16),
                         Text(
                           'Betroffene interne Abteilungen',

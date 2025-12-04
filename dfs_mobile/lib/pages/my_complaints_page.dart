@@ -346,9 +346,37 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     );
   }
 
-  bool _canOpenReportLink(Complaint c) {
-    final link = (c.reportLink ?? '').trim();
-    return link.isNotEmpty;
+  String _preferredReportLink(AppLocalizations t, Complaint c) {
+    final locale = t.localeName;
+    final lang = locale.contains('_') ? locale.split('_').first : locale;
+    Map<String, String> _mapOrEmpty(Map<String, String>? input) => input ?? const <String, String>{};
+
+    final external = _mapOrEmpty(c.externalReportLinks);
+    final mapped = _mapOrEmpty(c.reportLinks);
+    String? pick(Map<String, String> map, String key) {
+      final v = (map[key] ?? '').trim();
+      return v.isNotEmpty ? v : null;
+    }
+
+    final candidates = <String?>[
+      pick(external, lang),
+      pick(external, 'de'),
+      pick(external, 'en'),
+      pick(mapped, lang),
+      pick(mapped, 'de'),
+      pick(mapped, 'en'),
+      (c.reportLink ?? '').trim(),
+    ];
+
+    for (final candidate in candidates) {
+      if (candidate != null && candidate.isNotEmpty) return candidate;
+    }
+    return '';
+  }
+
+  bool _canOpenReportLink(AppLocalizations t, Complaint c) {
+    final link = _preferredReportLink(t, c);
+    return link.trim().isNotEmpty;
   }
 
   String _segmentLabel(AppLocalizations t, String raw) {
@@ -714,8 +742,8 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                 final statusColor = _statusColor(c.status);
                                 final decisionText = _decisionText(t, c.decision);
                                 final decisionColor = _decisionColor(c.decision);
-                                final reportLink = (c.reportLink ?? '').trim();
-                                final canOpenReport = _canOpenReportLink(c);
+                                final reportLink = _preferredReportLink(t, c).trim();
+                                final canOpenReport = _canOpenReportLink(t, c);
 
                                 final p = c.payload ?? const <String, dynamic>{};
                                 final segRaw = (p['segment'] ?? '').toString();

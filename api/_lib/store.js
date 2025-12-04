@@ -1636,9 +1636,24 @@ function normalizeComplaintRecord(c = {}) {
   if (Object.keys(translations).length > 0) normalized.internalEvaluationTranslations = translations; else delete normalized.internalEvaluationTranslations;
   normalized.internalEvaluationNewForAdmin = c.internalEvaluationNewForAdmin ? true : false;
 
-  const reportLinks = normalizeReportLinkFallback(c.reportLinks, c.reportLink);
-  if (Object.keys(reportLinks).length > 0) normalized.reportLinks = reportLinks; else delete normalized.reportLinks;
-  if (!normalized.reportLink && reportLinks.en) normalized.reportLink = reportLinks.en;
+  const qmSummary = normalizeEvaluationText(c.qmCustomerSummary);
+  if (qmSummary) normalized.qmCustomerSummary = qmSummary; else delete normalized.qmCustomerSummary;
+  const qmTranslations = normalizeEvaluationTranslations(c.qmCustomerSummaryTranslations);
+  if (Object.keys(qmTranslations).length > 0) normalized.qmCustomerSummaryTranslations = qmTranslations; else delete normalized.qmCustomerSummaryTranslations;
+
+  const internalReportLinks = normalizeReportLinksMap(c.internalReportLinks);
+  if (Object.keys(internalReportLinks).length > 0) normalized.internalReportLinks = internalReportLinks; else delete normalized.internalReportLinks;
+
+  const mergedReportLinks = normalizeReportLinksMap(c.reportLinks);
+  const externalReportLinks = normalizeReportLinkFallback(
+    c.externalReportLinks || mergedReportLinks,
+    c.reportLink,
+  );
+  if (Object.keys(externalReportLinks).length > 0) normalized.externalReportLinks = externalReportLinks; else delete normalized.externalReportLinks;
+  if (Object.keys(mergedReportLinks).length > 0) normalized.reportLinks = mergedReportLinks; else delete normalized.reportLinks;
+  if (!normalized.reportLink) {
+    normalized.reportLink = externalReportLinks.de || externalReportLinks.en || Object.values(externalReportLinks)[0];
+  }
   return normalized;
 }
 
