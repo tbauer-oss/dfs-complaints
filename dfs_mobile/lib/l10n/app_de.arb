@@ -459,6 +459,8 @@
     }
   },
   "customerNewsUpdateLabel": "Aktuelles Update",
+  "customerNewsHeroNewLabel": "Neu im Monat",
+  "customerNewsHeroDateLabel": "Stand",
   "customerNewsMarketingHook": "Marketing-Highlight für Ihr Team – jetzt entdecken.",
   "customerNewsReadMore": "Mehr erfahren",
   "customerNewsEmpty": "Aktuell liegen keine Neuigkeiten vor.",

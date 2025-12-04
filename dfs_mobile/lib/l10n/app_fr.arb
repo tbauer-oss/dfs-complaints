@@ -459,6 +459,8 @@
   "customerNewsNewSince": "Nouveau depuis {date}",
   "@customerNewsNewSince": { "placeholders": { "date": { "type": "String" } } },
   "customerNewsUpdateLabel": "Mise à jour récente",
+  "customerNewsHeroNewLabel": "Nouveautés du mois",
+  "customerNewsHeroDateLabel": "Mise à jour au",
   "customerNewsMarketingHook": "Coup de cœur marketing pour votre équipe – à découvrir.",
   "customerNewsReadMore": "En savoir plus",
   "customerNewsEmpty": "Aucune actualité pour le moment.",
