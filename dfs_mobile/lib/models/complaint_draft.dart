@@ -58,11 +58,11 @@ class ComplaintDraftStore {
   Future<List<ComplaintDraft>> loadAll() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(draftListPrefKey);
-    if (raw == null || raw.isEmpty) return const [];
+    if (raw == null || raw.isEmpty) return <ComplaintDraft>[];
 
     try {
       final decoded = jsonDecode(raw);
-      if (decoded is! List) return const [];
+      if (decoded is! List) return <ComplaintDraft>[];
       final list = <ComplaintDraft>[];
       for (final entry in decoded) {
         if (entry is Map) {
@@ -72,7 +72,7 @@ class ComplaintDraftStore {
       list.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
       return list;
     } catch (_) {
-      return const [];
+      return <ComplaintDraft>[];
     }
   }
 
