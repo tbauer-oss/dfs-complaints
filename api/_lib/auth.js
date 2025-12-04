@@ -1,6 +1,10 @@
 // api/_lib/auth.js
 import jwt from 'jsonwebtoken';
-const JWT_SECRET = process.env.JWT_SECRET || '';
+import { normalizeRole, normalizeStatus } from './portalAuth.js';
+
+// Verwende denselben Fallback wie bei der Token-Erstellung, damit Portal-Logins
+// auch ohne gesetzte Umgebungsevariable überprüft werden können.
+const JWT_SECRET = process.env.JWT_SECRET || 'devsecret';
 
 export function getAuthUser(req) {
   // Erwartet "Authorization: Bearer <token>"
@@ -9,8 +13,11 @@ export function getAuthUser(req) {
   if (!m) return null;
   try {
     const payload = jwt.verify(m[1], JWT_SECRET);
-    // payload: { email, company, ... }
-    return (payload && payload.email) ? payload : null;
+    if (!payload?.email) return null;
+    // payload: { email, role, portalStatus, ... }
+    const role = normalizeRole(payload.role);
+    const portalStatus = normalizeStatus(payload.portalStatus);
+    return { ...payload, role, portalStatus };
   } catch {
     return null;
   }

@@ -461,7 +461,7 @@
   "customer_login": "Kundenlogin",
   "customer_label": "Kunde",
   "quick_access_title": "DFS-interne Zugänge",
-  "quick_access_subtitle": "Direkt zum Vertreter- oder Adminbereich wechseln.",
+  "quick_access_subtitle": "Direkt zum Vertreter-Login oder DFS Portal wechseln.",
   "opening_rep_area": "Öffne Vertreterbereich…",
 
   "tab_complaint": "Reklamation melden",
@@ -602,10 +602,10 @@
   "applied": "angewandt",
   "returned": "zurückgegeben",
 
-  "adminTitle": "Adminbereich – DFS Customer Complaint",
-  "adminArea": "Adminbereich",
-  "@adminArea": { "description": "Button zum Adminbereich" },
-  "admin_area": "Adminbereich",
+  "adminTitle": "DFS Portal – DFS Customer Complaint",
+  "adminArea": "DFS Portal",
+  "@adminArea": { "description": "Button zum DFS Portal" },
+  "admin_area": "DFS Portal",
 
   "supportTitle": "DFS Support",
   "knowledgeBaseTile": "Wissensdatenbank (FAQ)",

@@ -10,10 +10,7 @@ import {
   readJson,
 } from '../_lib/http.js';
 import { sendMail } from '../_lib/mailer.js';
-
-// -------- Admin-Auth ----------
-const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
-const isAdmin = (req) => ADMIN_SECRET && req.headers?.['x-admin-secret'] === ADMIN_SECRET;
+import { requirePortalAccess } from './_guard.js';
 
 // -------- Status-Mapping ----------
 const STATUS_LABEL = {
@@ -386,7 +383,8 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return noContent(res);
 
   // 3) Admin-Auth prüfen (immer noch ohne schwere Imports)
-  if (!isAdmin(req)) return bad(res, 'admin unauthorized', 401);
+  const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET' });
+  if (!actor) return;
 
   // 4) Schwere Imports NACH Preflight/Admin laden (verhindert 500 bei OPTIONS)
   const {

@@ -1,0 +1,116 @@
+// api/_lib/portalAuth.js
+// Zentrale Portal-Auth (DFS Portal / vormals Adminbereich)
+//  - Hinterlegte Admin-E-Mails
+//  - Initialpasswort = ADMIN_SECRET (aus Umgebung)
+//  - Rollenprüfung für Portal-Endpunkte
+
+import bcrypt from 'bcryptjs';
+import { getAuthUser } from './auth.js';
+import { userByEmail, userSave } from './store.js';
+
+export const PORTAL_ROLES = {
+  superuser: 'superuser',
+  user: 'user',
+  readonly: 'readonly',
+};
+
+// Hinterlegte Admin-E-Mails (Superuser) – Initialpasswort = ADMIN_SECRET
+export const ADMIN_EMAILS = new Set([
+  'tobias.bauer@dfs-diamon.de',
+  'elisabeth.kersjes@dfs-diamon.de',
+]);
+
+const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
+
+export function normalizeRole(role) {
+  const lc = String(role || '').trim().toLowerCase();
+  if (lc === PORTAL_ROLES.superuser) return PORTAL_ROLES.superuser;
+  if (lc === PORTAL_ROLES.readonly) return PORTAL_ROLES.readonly;
+  return PORTAL_ROLES.user;
+}
+
+export function normalizeStatus(status, revoked = false) {
+  if (revoked) return 'inactive';
+  const lc = String(status || '').trim().toLowerCase();
+  return lc === 'inactive' ? 'inactive' : 'active';
+}
+
+export function canWrite(role) {
+  const r = normalizeRole(role);
+  return r === PORTAL_ROLES.superuser || r === PORTAL_ROLES.user;
+}
+
+export function canManageUsers(role) {
+  return normalizeRole(role) === PORTAL_ROLES.superuser;
+}
+
+async function ensureInitialAdmin(email) {
+  const mail = String(email || '').trim().toLowerCase();
+  if (!mail) return null;
+  const existing = await userByEmail(mail).catch(() => null);
+  const passhash = ADMIN_SECRET ? await bcrypt.hash(ADMIN_SECRET, 10) : '';
+  const base = {
+    email: mail,
+    passhash,
+    portalStatus: 'active',
+    role: PORTAL_ROLES.superuser,
+    displayName: mail.split('@')[0],
+    createdAt: Date.now(),
+  };
+
+  if (!existing) {
+    await userSave(base);
+    return base;
+  }
+
+  const toSave = { ...existing };
+  if (!toSave.passhash && passhash) toSave.passhash = passhash;
+  if (!toSave.role) toSave.role = PORTAL_ROLES.superuser;
+  if (!toSave.portalStatus) toSave.portalStatus = 'active';
+  await userSave(toSave);
+  return toSave;
+}
+
+export async function ensureInitialAdmins() {
+  for (const mail of ADMIN_EMAILS) {
+    await ensureInitialAdmin(mail);
+  }
+}
+
+export async function portalUserFromRequest(req, { allowSecretFallback = true } = {}) {
+  const tokenUser = getAuthUser(req);
+  if (tokenUser?.email) {
+    const stored = await userByEmail(tokenUser.email).catch(() => null);
+    if (stored) {
+      const role = normalizeRole(stored.role);
+      const status = normalizeStatus(stored.portalStatus, stored.revoked);
+      if (status === 'active') {
+        return { ...stored, role, portalStatus: status };
+      }
+    }
+  }
+
+  if (allowSecretFallback) {
+    const hdr = req.headers?.['x-admin-secret'];
+    if (hdr && ADMIN_SECRET && hdr === ADMIN_SECRET) {
+      // Legacy Secret bleibt Superuser
+      return {
+        email: 'admin-secret',
+        role: PORTAL_ROLES.superuser,
+        portalStatus: 'active',
+        via: 'secret',
+      };
+    }
+  }
+  return null;
+}
+
+export async function requirePortalRole(req, res, { minRole = PORTAL_ROLES.user, allowSecretFallback = true } = {}) {
+  const user = await portalUserFromRequest(req, { allowSecretFallback });
+  if (!user) return false;
+
+  const role = normalizeRole(user.role);
+  if (minRole === PORTAL_ROLES.superuser && role !== PORTAL_ROLES.superuser) return false;
+  return true;
+}
+

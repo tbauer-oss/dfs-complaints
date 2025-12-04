@@ -5,21 +5,15 @@ import {
   handlePreflight, setCors, ok, bad, methodNotAllowed, readJson
 } from '../_lib/http.js';
 import { usersList, userSave, userDelete, pendingDelete } from '../_lib/store.js';
-
-const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
-
-function isAdmin(req) {
-  // Node normalisiert Header-Keys zu lowercase
-  const hdr = req.headers?.['x-admin-secret'];
-  return typeof hdr === 'string' && !!ADMIN_SECRET && hdr === ADMIN_SECRET;
-}
+import { requirePortalAccess } from './_guard.js';
 
 export default async function handler(req, res) {
   // CORS-Header setzen + OPTIONS (Preflight) direkt beantworten
   if (handlePreflight(req, res)) return;
   setCors(req, res);
 
-  if (!isAdmin(req)) return bad(res, 'admin unauthorized', 401);
+  const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET' });
+  if (!actor) return;
 
   try {
     // ---- LIST ----

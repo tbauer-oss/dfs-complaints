@@ -3,19 +3,14 @@ export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, ok, bad, methodNotAllowed } from '../_lib/http.js';
 import { activityForRep, activityForUser, isPushTokenFresh } from '../_lib/store.js';
-
-const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
-
-function isAdmin(req) {
-  const hdr = req.headers?.['x-admin-secret'];
-  return typeof hdr === 'string' && !!ADMIN_SECRET && hdr === ADMIN_SECRET;
-}
+import { requirePortalAccess } from './_guard.js';
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
 
-  if (!isAdmin(req)) return bad(res, 'admin unauthorized', 401);
+  const actor = await requirePortalAccess(req, res, { write: false });
+  if (!actor) return;
   if (req.method !== 'GET') return methodNotAllowed(res);
 
   const email = (req.query?.email || '').toString().trim().toLowerCase();
