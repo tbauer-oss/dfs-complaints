@@ -14309,39 +14309,50 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                     );
 
                     Widget buildDepartmentSelector() {
+                      final availableDepartments = kInternalDepartments
+                          .where((dep) => !_selectedDepartments.contains(dep))
+                          .toList(growable: false);
+
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          DropdownButtonFormField<String>(
+                            value: null,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                              labelText: 'Abteilung auswählen',
+                            ),
+                            hint: const Text('Abteilung hinzufügen'),
+                            items: availableDepartments
+                                .map(
+                                  (dep) => DropdownMenuItem<String>(
+                                    value: dep,
+                                    child: Text(dep),
+                                  ),
+                                )
+                                .toList(growable: false),
+                            onChanged: (!canEditDepartments || _busy || availableDepartments.isEmpty)
+                                ? null
+                                : (value) {
+                                    if (value == null) return;
+                                    setState(() => _selectedDepartments.add(value));
+                                  },
+                          ),
+                          const SizedBox(height: 10),
                           Wrap(
                             spacing: 8,
                             runSpacing: 8,
-                            children: [
-                              ...kInternalDepartments.map(
-                                (dep) => FilterChip(
-                                  label: Text(dep),
-                                  selected: _selectedDepartments.contains(dep),
-                                  onSelected: (!canEditDepartments || _busy)
-                                      ? null
-                                      : (v) => setState(() {
-                                            if (v == true && !_selectedDepartments.contains(dep)) {
-                                              _selectedDepartments.add(dep);
-                                            } else if (v == false) {
-                                              _selectedDepartments.remove(dep);
-                                            }
-                                          }),
-                                ),
-                              ),
-                              ..._selectedDepartments
-                                  .where((dep) => !kInternalDepartments.contains(dep))
-                                  .map(
-                                    (dep) => InputChip(
-                                      label: Text(dep),
-                                      onDeleted: (!canEditDepartments || _busy)
-                                          ? null
-                                          : () => setState(() => _selectedDepartments.remove(dep)),
-                                    ),
+                            children: _selectedDepartments
+                                .map(
+                                  (dep) => InputChip(
+                                    label: Text(dep),
+                                    onDeleted: (!canEditDepartments || _busy)
+                                        ? null
+                                        : () => setState(() => _selectedDepartments.remove(dep)),
                                   ),
-                            ],
+                                )
+                                .toList(),
                           ),
                           if (canEditDepartments)
                             Padding(
@@ -14653,7 +14664,10 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                   final evalSection =
                       _lockForPortal(buildInternalEvaluationSection(), allowPortalUser: true);
 
-                  final editor = isWide
+                  final preferColumnLayout =
+                      _isPortalUser && !_isPortalSuperuser && !_isPortalReadonly;
+
+                  final editor = (isWide && !preferColumnLayout)
                       ? Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -15312,7 +15326,7 @@ class AdminApi {
   }) async {
     final body = <String, dynamic>{'ticket': ticket};
     if (status != null) body['status'] = status;
-    body['decision'] = decision ?? '';
+    if (decision != null) body['decision'] = decision;
     if (reportLink != null) body['reportLink'] = reportLink;
     if (internalNo != null) body['internalNo'] = internalNo;
     if (notes != null) body['notes'] = notes;
