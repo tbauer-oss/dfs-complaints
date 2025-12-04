@@ -15,6 +15,7 @@ import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 import '../data/knowledge_base_data.dart';
 import '../models/complaint_attachment.dart';
+import '../models/complaint_draft.dart';
 import '../models/dfs_product.dart';
 import '../services/product_lookup.dart';
 import '../utils/attachment_preview.dart';
@@ -42,7 +43,8 @@ extension _L10nX on BuildContext {
 class ComplaintFormPage extends StatefulWidget {
   final ApiClient api;
   final bool wizardMode;
-  const ComplaintFormPage({super.key, required this.api, this.wizardMode = false});
+  final String? draftId;
+  const ComplaintFormPage({super.key, required this.api, this.wizardMode = false, this.draftId});
   @override
   State<ComplaintFormPage> createState() => _ComplaintFormPageState();
 }
@@ -50,7 +52,6 @@ class ComplaintFormPage extends StatefulWidget {
 class _ComplaintFormPageState extends State<ComplaintFormPage> {
   static const _uploadLimit = 8 * 1024 * 1024;
   static const _helpPrefKey = 'dfs_complaint_help_collapsed';
-  static const _draftPrefKey = 'dfs_complaint_draft_v1';
   static const _keywordHints = {
     'gebrochen': ['bruch', 'gebroch', 'sturz', 'verbieg', 'unbrauchbar'],
     'abgebrochen': ['bruch', 'gebroch', 'sturz', 'verbieg'],
@@ -78,6 +79,8 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   Timer? _articleLookupDebounce;
   bool _productLoading = false;
   bool privacy = false;
+  String? _draftId;
+  final ComplaintDraftStore _draftStore = ComplaintDraftStore();
 
   // Wichtig: exakt dieser Record-Typ (Name, Bytes, Mime)
   List<({String name, List<int> bytes, String mime, String? preview})> files = [];
@@ -676,12 +679,14 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   Future<void> _saveDraft() async {
     final t = context.t;
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_draftPrefKey, jsonEncode(_buildDraftSnapshot(t)));
+      final snapshot = _buildDraftSnapshot(t);
+      final id = _draftId ?? ComplaintDraft.newId();
+      await _draftStore.save(ComplaintDraft(id: id, data: snapshot));
       if (!mounted) return;
       setState(() {
         info = t.draftSaved;
         err = null;
+        _draftId = id;
         _dirty = false;
       });
     } catch (e) {
@@ -691,12 +696,20 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     }
   }
 
-  Future<void> _clearDraft({bool silent = false}) async {
+  Future<void> _clearDraft({bool silent = false, String? id}) async {
+    final targetId = id ?? _draftId;
+    if (targetId == null) return;
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_draftPrefKey);
-      if (!mounted || silent) return;
-      setState(() => info = context.t.draftCleared);
+      await _draftStore.delete(targetId);
+      if (!mounted) return;
+      if (silent) {
+        _draftId = null;
+        return;
+      }
+      setState(() {
+        info = context.t.draftCleared;
+        _draftId = null;
+      });
     } catch (e) {
       debugPrint('Draft could not be cleared: $e');
     }
@@ -704,15 +717,17 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
 
   Future<void> _restoreDraft() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_draftPrefKey);
-      if (raw == null || raw.isEmpty) return;
+      ComplaintDraft? draft;
 
-      final decoded = jsonDecode(raw);
-      if (decoded is! Map) return;
+      if (widget.draftId != null) {
+        draft = await _draftStore.findById(widget.draftId!);
+      }
+      draft ??= await _draftStore.latest();
+      draft ??= await _draftStore.migrateLegacy();
+      if (draft == null) return;
 
       final map = <String, dynamic>{};
-      decoded.forEach((key, value) => map['$key'] = value);
+      draft.data.forEach((key, value) => map['$key'] = value);
 
       if (!mounted) return;
 
@@ -733,6 +748,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
 
       _suppressDirty = true;
       setState(() {
+        _draftId = draft!.id;
         segment = map['segmentKey'] == 'lab' ? optLab : optDentist;
         article.text = (map['article'] ?? '').toString();
         batch.text = (map['batch'] ?? '').toString();
