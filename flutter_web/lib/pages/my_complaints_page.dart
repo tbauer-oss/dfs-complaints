@@ -32,6 +32,8 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
   bool _loading = false;
   bool _loadingDrafts = false;
   bool _uploading = false;
+  bool _draftsExpanded = false;
+  bool _filtersExpanded = false;
   String? _err;
   String? _draftErr;
   List<Complaint> _items = const [];
@@ -586,42 +588,101 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
 
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-            child: _buildDraftSection(t),
+            child: Column(
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: Icon(_draftsExpanded
+                        ? Icons.expand_less
+                        : Icons.expand_more),
+                    label: Text(_draftsExpanded
+                        ? '${t.draftSectionTitle} ausblenden'
+                        : '${t.draftSectionTitle} anzeigen'),
+                    onPressed: () => setState(() => _draftsExpanded = !_draftsExpanded),
+                  ),
+                ),
+                AnimatedCrossFade(
+                  firstChild: const SizedBox.shrink(),
+                  secondChild: Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: _buildDraftSection(t),
+                  ),
+                  crossFadeState: _draftsExpanded
+                      ? CrossFadeState.showSecond
+                      : CrossFadeState.showFirst,
+                  duration: const Duration(milliseconds: 200),
+                ),
+              ],
+            ),
           ),
 
           // Filter
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-            child: Card(
-              elevation: 0,
-              color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(.4),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(10, 12, 10, 8),
-                child: _FilterBar(
-                  tickets: _optionsFrom(_allItems.map((c) => (c.ticket).trim())),
-                  internalNos:
-                      _optionsFrom(_allItems.map((c) => (c.internalNo ?? '').trim())),
-                  statuses: _statusOptions(_allItems),
-                  decisions: _optionsFrom(_allItems.map((c) => (c.decision ?? '').trim())),
-                  selectedTicket: _filterTicket,
-                  selectedInternal: _filterInternalNo,
-                  selectedStatus: _filterStatus,
-                  selectedDecision: _filterDecision,
-                  statusLabel: (s) => _statusTextLocalized(t, s),
-                  decisionLabel: (d) => _decisionText(t, d),
-                  onChanged: (
-                      {String? ticket, String? internal, int? status, String? decision}) {
-                    setState(() {
-                      _filterTicket = ticket;
-                      _filterInternalNo = internal;
-                      _filterStatus = status;
-                      _filterDecision = decision;
-                    });
-                    _refreshFilteredItems();
-                  },
+            child: Column(
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon:
+                        Icon(_filtersExpanded ? Icons.filter_list_off : Icons.filter_list),
+                    label: Text(_filtersExpanded
+                        ? '${t.filter} ausblenden'
+                        : '${t.filter} anzeigen'),
+                    onPressed: () => setState(() => _filtersExpanded = !_filtersExpanded),
+                  ),
                 ),
-              ),
+                AnimatedCrossFade(
+                  firstChild: const SizedBox.shrink(),
+                  secondChild: Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Card(
+                      elevation: 0,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceVariant
+                          .withOpacity(.4),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 12, 10, 8),
+                        child: _FilterBar(
+                          tickets:
+                              _optionsFrom(_allItems.map((c) => (c.ticket).trim())),
+                          internalNos: _optionsFrom(
+                              _allItems.map((c) => (c.internalNo ?? '').trim())),
+                          statuses: _statusOptions(_allItems),
+                          decisions: _optionsFrom(
+                              _allItems.map((c) => (c.decision ?? '').trim())),
+                          selectedTicket: _filterTicket,
+                          selectedInternal: _filterInternalNo,
+                          selectedStatus: _filterStatus,
+                          selectedDecision: _filterDecision,
+                          statusLabel: (s) => _statusTextLocalized(t, s),
+                          decisionLabel: (d) => _decisionText(t, d),
+                          onChanged: ({String? ticket,
+                              String? internal,
+                              int? status,
+                              String? decision}) {
+                            setState(() {
+                              _filterTicket = ticket;
+                              _filterInternalNo = internal;
+                              _filterStatus = status;
+                              _filterDecision = decision;
+                            });
+                            _refreshFilteredItems();
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                  crossFadeState: _filtersExpanded
+                      ? CrossFadeState.showSecond
+                      : CrossFadeState.showFirst,
+                  duration: const Duration(milliseconds: 200),
+                ),
+              ],
             ),
           ),
 
@@ -1239,14 +1300,15 @@ class _DraftTile extends StatelessWidget {
             style: TextStyle(color: Theme.of(context).hintColor),
           ),
           const SizedBox(height: 8),
-          Row(
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
             children: [
               FilledButton.icon(
                 onPressed: onResume,
                 icon: const Icon(Icons.edit_outlined),
                 label: Text(t.draftResume),
               ),
-              const SizedBox(width: 10),
               TextButton.icon(
                 onPressed: onDelete,
                 icon: const Icon(Icons.delete_outline),
