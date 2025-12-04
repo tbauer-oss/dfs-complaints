@@ -6,7 +6,7 @@
 
 import bcrypt from 'bcryptjs';
 import { getAuthUser } from './auth.js';
-import { userByEmail, userSave } from './store.js';
+import { portalUserByEmail, portalUserSave } from './store.js';
 
 // Die Portal-Rolle wird direkt am User-Objekt unter `user.role` gespeichert.
 // Gültige Werte sind unten definiert und werden in den Guards/Handlers geprüft.
@@ -49,7 +49,7 @@ export function canManageUsers(role) {
 async function ensureInitialAdmin(email) {
   const mail = String(email || '').trim().toLowerCase();
   if (!mail) return null;
-  const existing = await userByEmail(mail).catch(() => null);
+  const existing = await portalUserByEmail(mail).catch(() => null);
   const passhash = ADMIN_SECRET ? await bcrypt.hash(ADMIN_SECRET, 10) : '';
   const base = {
     email: mail,
@@ -61,7 +61,7 @@ async function ensureInitialAdmin(email) {
   };
 
   if (!existing) {
-    await userSave(base);
+    await portalUserSave(base);
     return base;
   }
 
@@ -69,7 +69,7 @@ async function ensureInitialAdmin(email) {
   if (!toSave.passhash && passhash) toSave.passhash = passhash;
   if (!toSave.role) toSave.role = PORTAL_ROLES.superuser;
   if (!toSave.portalStatus) toSave.portalStatus = 'active';
-  await userSave(toSave);
+  await portalUserSave(toSave);
   return toSave;
 }
 
@@ -82,7 +82,7 @@ export async function ensureInitialAdmins() {
 export async function portalUserFromRequest(req, { allowSecretFallback = true } = {}) {
   const tokenUser = getAuthUser(req);
   if (tokenUser?.email) {
-    const stored = await userByEmail(tokenUser.email).catch(() => null);
+    const stored = await portalUserByEmail(tokenUser.email).catch(() => null);
     if (stored) {
       const role = normalizeRole(stored.role);
       const status = normalizeStatus(stored.portalStatus, stored.revoked);

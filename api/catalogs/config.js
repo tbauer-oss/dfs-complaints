@@ -9,14 +9,8 @@ import {
   methodNotAllowed,
   readJson,
 } from '../_lib/http.js';
+import { requirePortalAccess } from '../admin/_guard.js';
 import { catalogConfigGet, catalogConfigSet } from '../_lib/store.js';
-
-const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
-
-function isAdmin(req) {
-  const hdr = req.headers?.['x-admin-secret'];
-  return typeof hdr === 'string' && !!ADMIN_SECRET && hdr === ADMIN_SECRET;
-}
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
@@ -29,7 +23,8 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'PUT') {
-      if (!isAdmin(req)) return bad(res, 'admin unauthorized', 401);
+      const actor = await requirePortalAccess(req, res, { write: true });
+      if (!actor) return;
       const body = readJson(req) || {};
       const next = await catalogConfigSet(body);
       return ok(res, { ok: true, config: next });

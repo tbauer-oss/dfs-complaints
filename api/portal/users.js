@@ -3,7 +3,7 @@ export const config = { runtime: 'nodejs' };
 
 import bcrypt from 'bcryptjs';
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
-import { usersList, userSave, userDelete } from '../_lib/store.js';
+import { portalUsersList, portalUserSave, portalUserDelete } from '../_lib/store.js';
 import {
   ADMIN_EMAILS,
   canManageUsers,
@@ -35,7 +35,7 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-      const list = await usersList();
+      const list = await portalUsersList();
       const portalUsers = list.filter(u => normalizeRole(u.role) !== PORTAL_ROLES.user || u.portalStatus);
       return ok(res, portalUsers.map(sanitizeUser));
     }
@@ -57,7 +57,7 @@ export default async function handler(req, res) {
         displayName,
         createdAt: Date.now(),
       };
-      await userSave(user);
+      await portalUserSave(user);
       return ok(res, sanitizeUser(user));
     }
 
@@ -65,7 +65,7 @@ export default async function handler(req, res) {
       const body = readJson(req) || {};
       const email = String(body.email || '').trim().toLowerCase();
       if (!email) return bad(res, 'missing email', 400);
-      const list = await usersList();
+      const list = await portalUsersList();
       const existing = list.find(u => String(u.email || '').toLowerCase() === email);
       if (!existing) return bad(res, 'not found', 404);
 
@@ -80,7 +80,7 @@ export default async function handler(req, res) {
         patch.portalStatus = 'active';
       }
 
-      await userSave(patch);
+      await portalUserSave(patch);
       return ok(res, sanitizeUser(patch));
     }
 
@@ -89,7 +89,7 @@ export default async function handler(req, res) {
       const email = String(body.email || '').trim().toLowerCase();
       if (!email) return bad(res, 'missing email', 400);
       if (ADMIN_EMAILS.has(email)) return bad(res, 'cannot delete initial admins', 400);
-      await userDelete(email);
+      await portalUserDelete(email);
       return ok(res, { deleted: email });
     }
 

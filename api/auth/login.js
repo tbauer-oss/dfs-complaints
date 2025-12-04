@@ -6,7 +6,7 @@ import jwt from 'jsonwebtoken';
 import {
   handlePreflight, ok, bad, methodNotAllowed, readJson
 } from '../_lib/http.js';
-import { recordUserLogin, userByEmail, userSave } from '../_lib/store.js';
+import { portalUserByEmail, portalUserSave, recordUserLogin, userByEmail } from '../_lib/store.js';
 import {
   ADMIN_EMAILS,
   ensureInitialAdmins,
@@ -33,7 +33,22 @@ export default async function handler(req, res) {
 
     await ensureInitialAdmins();
 
-    let u = await userByEmail(email);
+    const preferPortal = ADMIN_EMAILS.has(email);
+    let u = preferPortal ? await portalUserByEmail(email) : null;
+    let isPortalAccount = preferPortal && !!u;
+
+    if (!u && !preferPortal) {
+      u = await userByEmail(email);
+    }
+
+    if (!u) {
+      const portal = await portalUserByEmail(email);
+      if (portal) {
+        u = portal;
+        isPortalAccount = true;
+      }
+    }
+
     // Auto-Provision der hinterlegten Admin-E-Mails (Passwort = ADMIN_SECRET)
     if (!u && ADMIN_EMAILS.has(email)) {
       const passhash = ADMIN_SECRET ? await bcrypt.hash(ADMIN_SECRET, 10) : '';
@@ -45,7 +60,8 @@ export default async function handler(req, res) {
         displayName: email.split('@')[0],
         createdAt: Date.now(),
       };
-      await userSave(u);
+      await portalUserSave(u);
+      isPortalAccount = true;
     }
 
     if (!u) return bad(res, 'invalid credentials', 401);
@@ -70,7 +86,9 @@ export default async function handler(req, res) {
 
     // Meta protokollieren (letzter Login + evtl. App-Version)
     try {
-      await recordUserLogin(email, { appVersion: body?.appVersion, appBuild: body?.appBuild });
+      if (!isPortalAccount) {
+        await recordUserLogin(email, { appVersion: body?.appVersion, appBuild: body?.appBuild });
+      }
     } catch (e) {
       console.warn('[auth/login] recordUserLogin failed:', e?.message || e);
     }

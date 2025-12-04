@@ -1,5 +1,6 @@
 // api/admin/meta.js
 import { loadAppMeta, sanitizeAppMeta, updateAppMeta } from '../_lib/appMeta.js';
+import { requirePortalAccess } from './_guard.js';
 
 export const config = { runtime: 'nodejs' };
 
@@ -19,19 +20,13 @@ function setCors(req, res) {
 }
 function isOptions(req) { return req.method === 'OPTIONS'; }
 
-// --- Auth (Admin) ---
-function checkAdmin(req) {
-  const header = String(req.headers['x-admin-secret'] || '');
-  const env = String(process.env.ADMIN_SECRET || '');
-  return env && header && header === env;
-}
-
 export default async function handler(req, res) {
   setCors(req, res);
   if (isOptions(req)) return res.status(204).end();
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
 
-  if (!checkAdmin(req)) return json(res, 401, { error: 'Unauthorized' });
+  const actor = await requirePortalAccess(req, res, { write: true });
+  if (!actor) return;
 
   try {
     const data = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
