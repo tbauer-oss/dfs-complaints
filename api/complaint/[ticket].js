@@ -26,6 +26,8 @@ import {
 import { sendMail } from "../_lib/mailer.js";
 import { blobUploadsEnabled, processIncomingFiles } from "../_lib/uploads.js";
 import { sendComplaintStatusPush } from '../_lib/push.js';
+import { generateDualReportsForComplaint } from '../_lib/reporting.js';
+import { normalizeReportLinksMap } from '../_lib/departments.js';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "";
 
@@ -216,6 +218,41 @@ export default async function handler(req, res) {
       newStatus !== undefined &&
       oldStatus !== undefined &&
       newStatus !== oldStatus;
+
+    const preferredLang = body?.reportLang || body?.reportLanguage;
+
+    if (newStatus === Status.CLOSED) {
+      try {
+        const generated = await generateDualReportsForComplaint(updated, { preferredLang });
+        if (generated) {
+          const mergedExternal = normalizeReportLinksMap({
+            ...(updated.externalReportLinks || {}),
+            ...(generated.externalLinks || {}),
+          });
+          const mergedInternal = normalizeReportLinksMap({
+            ...(updated.internalReportLinks || {}),
+            ...(generated.internalLinks || {}),
+          });
+          const mergedReportLinks = normalizeReportLinksMap({
+            ...(updated.reportLinks || {}),
+            ...(generated.externalLinks || {}),
+          });
+          const defaultLink = mergedExternal[generated.lang]
+            || mergedExternal.de
+            || mergedExternal.en
+            || Object.values(mergedExternal)[0];
+
+          updated = await complaintUpdate(ticket, {
+            externalReportLinks: mergedExternal,
+            internalReportLinks: mergedInternal,
+            reportLinks: mergedReportLinks,
+            reportLink: defaultLink || updated.reportLink || null,
+          });
+        }
+      } catch (err) {
+        console.error('[complaint][ticket] report generation failed', err?.message || err);
+      }
+    }
 
     // NEU: nur wenn Status geändert UND sendPushFlag gesetzt → Push
     if (statusChanged && sendPushFlag) {
