@@ -367,6 +367,55 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  bool _tileAllowed(String id) {
+    if (!_isSuperuser) {
+      final visibleTiles = _visibleTilesForRole(_portalRole);
+      if (!visibleTiles.contains(id)) return false;
+    }
+    final view = _tileIdToView(id);
+    if (view == null) return true;
+    return _isViewAllowed(view);
+  }
+
+  _AdminView? _tileIdToView(String id) {
+    switch (id) {
+      case 'open':
+        return _AdminView.open;
+      case 'all':
+        return _AdminView.all;
+      case 'pending':
+        return _AdminView.pending;
+      case 'portalUsers':
+        return _AdminView.portalUsers;
+      case 'users':
+        return _AdminView.users;
+      case 'createCustomer':
+        return _AdminView.createCustomer;
+      case 'reps':
+        return _AdminView.reps;
+      case 'news':
+        return _AdminView.news;
+      case 'downloads':
+        return _AdminView.downloads;
+      case 'faq':
+        return _AdminView.faq;
+      case 'wiki':
+        return _AdminView.wiki;
+      case 'products':
+        return _AdminView.products;
+      case 'push':
+        return _AdminView.pushBroadcast;
+      case 'catalogs':
+        return _AdminView.catalogs;
+      case 'systemHealth':
+        return _AdminView.systemHealth;
+      case 'activity':
+        return _AdminView.activity;
+      default:
+        return null;
+    }
+  }
+
   List<_AdminMenuSectionState> _filteredMenuSections() {
     return _menuSections
         .map(
@@ -4483,55 +4532,6 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   List<_AdminMenuSectionState> _baseMenuSections() {
-    _AdminView? _tileIdToView(String id) {
-      switch (id) {
-        case 'open':
-          return _AdminView.open;
-        case 'all':
-          return _AdminView.all;
-        case 'pending':
-          return _AdminView.pending;
-        case 'portalUsers':
-          return _AdminView.portalUsers;
-        case 'users':
-          return _AdminView.users;
-        case 'createCustomer':
-          return _AdminView.createCustomer;
-        case 'reps':
-          return _AdminView.reps;
-        case 'news':
-          return _AdminView.news;
-        case 'downloads':
-          return _AdminView.downloads;
-        case 'faq':
-          return _AdminView.faq;
-        case 'wiki':
-          return _AdminView.wiki;
-        case 'products':
-          return _AdminView.products;
-        case 'push':
-          return _AdminView.pushBroadcast;
-        case 'catalogs':
-          return _AdminView.catalogs;
-        case 'systemHealth':
-          return _AdminView.systemHealth;
-        case 'activity':
-          return _AdminView.activity;
-        default:
-          return null;
-      }
-    }
-
-    bool _tileAllowed(String id) {
-      if (!_isSuperuser) {
-        final visibleTiles = _visibleTilesForRole(_portalRole);
-        if (!visibleTiles.contains(id)) return false;
-      }
-      final view = _tileIdToView(id);
-      if (view == null) return true;
-      return _isViewAllowed(view);
-    }
-
     final sections = [
       // Neue Kachel "User-Datenbank" im DFS Portal Startscreen (nur für Superuser sichtbar)
       const _AdminMenuSectionState(
