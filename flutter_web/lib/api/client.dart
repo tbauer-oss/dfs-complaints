@@ -1517,7 +1517,7 @@ class ApiClient {
 
     final r = await http.post(
       _u('/api/admin/translate'),
-      headers: _adminHeaders(),
+      headers: _adminHeaders(auth: true),
       body: jsonEncode(payload),
     );
 
