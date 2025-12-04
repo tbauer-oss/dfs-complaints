@@ -5411,6 +5411,27 @@ class _AdminPageState extends State<AdminPage> {
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
+      case 'portalUsers':
+        return AdminTilePro(
+          label: 'Benutzer & Rollen',
+          subtitle: 'Portal-Accounts verwalten',
+          icon: Icons.admin_panel_settings_outlined,
+          colorA: AdminPalette.blueA,
+          colorB: AdminPalette.blueB,
+          compact: compact,
+          count: _portalUsers.length,
+          onTap: isPreview
+              ? () {}
+              : () {
+                  setState(() => _view = _AdminView.portalUsers);
+                  if (!_portalUsersLoaded && !_portalUsersLoading) {
+                    _refreshPortalUsers();
+                  }
+                },
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
+        );
       case 'appMeta':
         return AdminTilePro(
           label: 'App-Version',
