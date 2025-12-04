@@ -268,6 +268,7 @@ class _AdminPageState extends State<AdminPage> {
   bool _portalUsersLoaded = false;
   String? _portalUsersErr;
   bool _portalUserBusy = false;
+  bool _showTileVisibilityManager = false;
 
   final _portalUserEmailCtrl = TextEditingController();
   final _portalUserDisplayNameCtrl = TextEditingController();
@@ -4833,9 +4834,6 @@ class _AdminPageState extends State<AdminPage> {
     final isPhone = w < 640;
     final compact = isPhone;
     final sections = _menuSections;
-    final visibleSections = _menuEditMode
-        ? sections
-        : sections.where((section) => section.tileIds.isNotEmpty).toList();
     final baseTileWidth = isPhone ? 200.0 : 240.0;
     final aspectRatio = isPhone ? 0.94 : 1.05;
     final tileWidth = baseTileWidth * _menuTileScale;
@@ -4948,21 +4946,21 @@ class _AdminPageState extends State<AdminPage> {
             ),
           ),
         if (_menuEditMode) _buildSectionReorderTarget(index: 0),
-        for (var i = 0; i < visibleSections.length; i++) ...[
+        for (var i = 0; i < sections.length; i++) ...[
           SliverToBoxAdapter(child: const SizedBox(height: 4)),
           SliverToBoxAdapter(
             child: _buildMenuSectionHeader(
-              visibleSections[i],
+              sections[i],
               isFirst: i == 0,
               index: i,
             ),
           ),
           SliverPadding(
-            padding: EdgeInsets.fromLTRB(16, 8, 16, i == visibleSections.length - 1 ? 28 : 12),
+            padding: EdgeInsets.fromLTRB(16, 8, 16, i == sections.length - 1 ? 28 : 12),
             sliver: SliverToBoxAdapter(
               child: _buildSectionGrid(
                 sectionIndex: i,
-                section: visibleSections[i],
+                section: sections[i],
                 compact: compact,
                 tileWidth: tileWidth,
                 tileHeight: tileHeight,
@@ -7692,57 +7690,81 @@ class _AdminPageState extends State<AdminPage> {
     if (!_isSuperuser) return const SizedBox.shrink();
     final theme = Theme.of(context);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Dashboard-Kacheln nach Portal-Rolle',
-          style: theme.textTheme.titleMedium,
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'Steuere hier zentral, welche Kacheln normale und Read-only Portal-Nutzer im Dashboard sehen. '
-          'Änderungen werden sofort gespeichert und gelten für alle Benutzer in der Datenbank.',
-          style: theme.textTheme.bodySmall,
-        ),
-        const SizedBox(height: 12),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final isNarrow = constraints.maxWidth < 960;
-            final children = [
-              Expanded(
-                child: _buildRoleTileChecklist(
-                  role: 'user',
-                  icon: Icons.badge_outlined,
-                  label: 'Normale Benutzer',
-                  color: theme.colorScheme.primary,
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Dashboard-Kacheln nach Portal-Rolle',
+                        style: theme.textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Steuere hier zentral, welche Kacheln normale und Read-only Portal-Nutzer im Dashboard sehen.',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12, height: 12),
-              Expanded(
-                child: _buildRoleTileChecklist(
-                  role: 'readonly',
-                  icon: Icons.visibility_outlined,
-                  label: 'Read-only Benutzer',
-                  color: theme.colorScheme.tertiary,
+                const SizedBox(width: 12),
+                OutlinedButton.icon(
+                  onPressed: () => setState(() => _showTileVisibilityManager = !_showTileVisibilityManager),
+                  icon: Icon(_showTileVisibilityManager ? Icons.close_fullscreen_outlined : Icons.dashboard_customize_outlined),
+                  label: Text(_showTileVisibilityManager ? 'Auswahl schließen' : 'Kachelauswahl öffnen'),
                 ),
+              ],
+            ),
+            if (_showTileVisibilityManager) ...[
+              const SizedBox(height: 12),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isNarrow = constraints.maxWidth < 960;
+                  final children = [
+                    Expanded(
+                      child: _buildRoleTileChecklist(
+                        role: 'user',
+                        icon: Icons.badge_outlined,
+                        label: 'Normale Benutzer',
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 12, height: 12),
+                    Expanded(
+                      child: _buildRoleTileChecklist(
+                        role: 'readonly',
+                        icon: Icons.visibility_outlined,
+                        label: 'Read-only Benutzer',
+                        color: theme.colorScheme.tertiary,
+                      ),
+                    ),
+                  ];
+
+                  if (isNarrow) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: children,
+                    );
+                  }
+
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: children,
+                  );
+                },
               ),
-            ];
-
-            if (isNarrow) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: children,
-              );
-            }
-
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: children,
-            );
-          },
+            ],
+          ],
         ),
-      ],
+      ),
     );
   }
 
