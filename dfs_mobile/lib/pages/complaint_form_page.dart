@@ -2381,46 +2381,102 @@ class _ComplaintWizardOverlayState extends State<_ComplaintWizardOverlay> {
                         builder: (_, busy, __) {
                           final primaryLabel = isLast ? t.send : (isIntro ? t.complaint_wizard_next : t.complaint_wizard_next);
                           final onSaveDraft = widget.onSaveDraft;
-                          return Row(
-                            children: [
-                              OutlinedButton.icon(
-                                onPressed: (busy || isIntro || _active == 0) ? null : () => _goTo(_active - 1),
-                                icon: const Icon(Icons.chevron_left),
-                                label: Text(t.complaint_wizard_prev),
-                              ),
-                              const SizedBox(width: 10),
-                              if (onSaveDraft != null) ...[
-                                TextButton.icon(
-                                  onPressed: busy ? null : onSaveDraft,
-                                  icon: const Icon(Icons.save_outlined),
-                                  label: Text(t.saveDraft),
-                                ),
-                                const SizedBox(width: 10),
-                              ],
-                              Expanded(
-                                child: FilledButton.icon(
-                                  style: FilledButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
-                                    textStyle: const TextStyle(fontWeight: FontWeight.w700),
-                                    elevation: 2,
-                                    shadowColor: theme.colorScheme.primary.withOpacity(0.25),
+
+                          return LayoutBuilder(
+                            builder: (_, constraints) {
+                              final compactActions = constraints.maxWidth < 520;
+                              final spacing = compactActions ? 8.0 : 10.0;
+
+                              Widget buildPrimaryButton({required bool expanded}) => expanded
+                                  ? FilledButton.icon(
+                                      style: FilledButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(vertical: 14),
+                                        textStyle: const TextStyle(fontWeight: FontWeight.w700),
+                                        elevation: 2,
+                                        shadowColor: theme.colorScheme.primary.withOpacity(0.25),
+                                      ),
+                                      onPressed: busy
+                                          ? null
+                                          : (isLast
+                                              ? () {
+                                                  if (_validateActiveStep()) widget.onSubmit();
+                                                }
+                                              : () {
+                                                  if (_validateActiveStep()) _goTo(_active + 1);
+                                                }),
+                                      icon: busy
+                                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                                          : Icon(isLast ? Icons.send_outlined : Icons.navigate_next),
+                                      label: Text(primaryLabel),
+                                    )
+                                  : SizedBox(
+                                      width: double.infinity,
+                                      child: FilledButton.icon(
+                                        style: FilledButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+                                          elevation: 2,
+                                          shadowColor: theme.colorScheme.primary.withOpacity(0.25),
+                                        ),
+                                        onPressed: busy
+                                            ? null
+                                            : (isLast
+                                                ? () {
+                                                    if (_validateActiveStep()) widget.onSubmit();
+                                                  }
+                                                : () {
+                                                    if (_validateActiveStep()) _goTo(_active + 1);
+                                                  }),
+                                        icon: busy
+                                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                                            : Icon(isLast ? Icons.send_outlined : Icons.navigate_next),
+                                        label: Text(primaryLabel),
+                                      ),
+                                    );
+
+                              final secondaryButtons = <Widget>[
+                                SizedBox(
+                                  width: compactActions ? double.infinity : null,
+                                  child: OutlinedButton.icon(
+                                    onPressed: (busy || isIntro || _active == 0) ? null : () => _goTo(_active - 1),
+                                    icon: const Icon(Icons.chevron_left),
+                                    label: Text(t.complaint_wizard_prev),
                                   ),
-                                  onPressed: busy
-                                      ? null
-                                      : (isLast
-                                          ? () {
-                                              if (_validateActiveStep()) widget.onSubmit();
-                                            }
-                                          : () {
-                                              if (_validateActiveStep()) _goTo(_active + 1);
-                                            }),
-                                  icon: busy
-                                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                                      : Icon(isLast ? Icons.send_outlined : Icons.navigate_next),
-                                  label: Text(primaryLabel),
                                 ),
-                              ),
-                            ],
+                                SizedBox(width: spacing, height: spacing),
+                              ];
+
+                              if (onSaveDraft != null) {
+                                secondaryButtons.addAll([
+                                  SizedBox(
+                                    width: compactActions ? double.infinity : null,
+                                    child: TextButton.icon(
+                                      onPressed: busy ? null : onSaveDraft,
+                                      icon: const Icon(Icons.save_outlined),
+                                      label: Text(t.saveDraft),
+                                    ),
+                                  ),
+                                  SizedBox(width: spacing, height: spacing),
+                                ]);
+                              }
+
+                              if (compactActions) {
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    ...secondaryButtons,
+                                    buildPrimaryButton(expanded: false),
+                                  ],
+                                );
+                              }
+
+                              return Row(
+                                children: [
+                                  ...secondaryButtons,
+                                  Expanded(child: buildPrimaryButton(expanded: true)),
+                                ],
+                              );
+                            },
                           );
                         },
                       ),
