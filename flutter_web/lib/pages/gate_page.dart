@@ -205,7 +205,7 @@ class _GatePageState extends State<GatePage> {
                                 textStyle: theme.textTheme.labelLarge,
                               ),
                               icon: const Icon(Icons.admin_panel_settings),
-                              label: const Text('Adminbereich'),
+                              label: Text(t.admin_area ?? 'DFS Portal'),
                               onPressed: _openAdmin,
                             ),
                           ),

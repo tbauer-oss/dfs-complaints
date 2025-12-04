@@ -464,7 +464,7 @@
   "customer_login": "Customer login",
   "customer_label": "Customer",
   "quick_access_title": "DFS internal access",
-  "quick_access_subtitle": "Jump straight into the representative or admin area.",
+  "quick_access_subtitle": "Jump straight into the representative area or DFS Portal.",
   "opening_rep_area": "Opening representative area…",
 
   "tab_complaint": "Report complaint",
@@ -605,10 +605,10 @@
   "applied": "applied",
   "returned": "returned",
 
-  "adminTitle": "Admin area – DFS Customer Complaint",
-  "adminArea": "Admin area",
-  "@adminArea": { "description": "Button to admin area" },
-  "admin_area": "Admin area",
+  "adminTitle": "DFS Portal – DFS Customer Complaint",
+  "adminArea": "DFS Portal",
+  "@adminArea": { "description": "Button to DFS Portal" },
+  "admin_area": "DFS Portal",
 
   "supportTitle": "DFS Support",
   "knowledgeBaseTile": "Knowledge base (FAQ)",

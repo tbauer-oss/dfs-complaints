@@ -33,17 +33,24 @@ import 'admin_downloads_page.dart';
 // ===================================================================
 class AdminPage extends StatefulWidget {
   final ApiClient api;
+  final Map<String, dynamic>? portalProfile;
   final void Function(Map<String, dynamic> meta)? onMetaUpdated;
   final _AdminView initialView;
-  const AdminPage({super.key, required this.api, this.onMetaUpdated, this.initialView = _AdminView.menu});
+  const AdminPage({
+    super.key,
+    required this.api,
+    this.portalProfile,
+    this.onMetaUpdated,
+    this.initialView = _AdminView.menu,
+  });
 
-  const AdminPage.wiki({super.key, required this.api, this.onMetaUpdated})
+  const AdminPage.wiki({super.key, required this.api, this.portalProfile, this.onMetaUpdated})
       : initialView = _AdminView.wiki;
 
-  const AdminPage.wikiCategories({super.key, required this.api, this.onMetaUpdated})
+  const AdminPage.wikiCategories({super.key, required this.api, this.portalProfile, this.onMetaUpdated})
       : initialView = _AdminView.wikiCategories;
 
-  const AdminPage.wikiArticles({super.key, required this.api, this.onMetaUpdated})
+  const AdminPage.wikiArticles({super.key, required this.api, this.portalProfile, this.onMetaUpdated})
       : initialView = _AdminView.wikiArticles;
 
   @override
@@ -128,6 +135,9 @@ class _AdminPageState extends State<AdminPage> {
   static const int _repReminderDefaultDelayDays = 4;
   static const String _customerContactSeenKey = 'dfs_admin_seen_customer_contact_v1';
   late final AdminApi _api;
+  String _portalRole = 'superuser';
+  bool get _canWrite => _portalRole != 'readonly';
+  bool get _isSuperuser => _portalRole == 'superuser';
 
   // Ladeflags / Fehler
   bool _loadPending = false;
@@ -390,6 +400,10 @@ class _AdminPageState extends State<AdminPage> {
   void initState() {
     super.initState();
     _api = AdminApi(onNewsChanged: widget.api.clearCustomerNewsCache);
+    final profileRole = widget.portalProfile?['role'] ?? widget.api.portalProfile?['role'];
+    if (profileRole is String && profileRole.trim().isNotEmpty) {
+      _portalRole = profileRole.trim();
+    }
     _custCountry = _defaultCountry;
     _bulkInternalAllCtrl.text = _internalNumberPrefix();
     _bulkInternalOpenCtrl.text = _internalNumberPrefix();
@@ -397,8 +411,11 @@ class _AdminPageState extends State<AdminPage> {
     _guardInternalNumberPrefix(_bulkInternalOpenCtrl);
     _loadCustomerContactSeen();
 
-    // Secret zuerst aus der API (wenn über Admin-Button gekommen),
-    // sonst aus LocalStorage (dfs_admin).
+    // Portal-JWT bevorzugen, Legacy-Secret bleibt als Fallback
+    final portalTok = widget.api.portalToken ?? '';
+    if (portalTok.isNotEmpty) {
+      _api.setPortalToken(portalTok);
+    }
     String secret = widget.api.adminSecret ?? '';
     if (secret.isEmpty) {
       secret = html.window.localStorage['dfs_admin'] ?? '';
@@ -410,10 +427,9 @@ class _AdminPageState extends State<AdminPage> {
     _loadNavOrder();
     _view = widget.initialView;
 
-    if (secret.isEmpty) {
+    if (portalTok.isEmpty && secret.isEmpty) {
       _fatalErr =
-          'Kein Admin-Secret gefunden. Bitte den Adminbereich über den Start-Button öffnen '
-          'oder im Browser-Storage dfs_admin setzen.';
+          'Keine DFS Portal Session gefunden. Bitte über den Start-Button anmelden.';
       return;
     }
 
@@ -3410,7 +3426,7 @@ class _AdminPageState extends State<AdminPage> {
     if (_fatalErr != null) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('Adminbereich – DFS Customer Complaint'),
+          title: const Text('DFS Portal – DFS Customer Complaint'),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () => Navigator.of(context).pop(),
@@ -3439,7 +3455,7 @@ class _AdminPageState extends State<AdminPage> {
 
     final theme = Theme.of(context);
     final title = switch (_view) {
-      _AdminView.menu           => 'Adminbereich – DFS Customer Complaint',
+      _AdminView.menu           => 'DFS Portal – DFS Customer Complaint',
       _AdminView.all            => 'Alle Reklamationen',
       _AdminView.pending        => 'Pending (Freigabe ausstehend)',
       _AdminView.users          => 'Kundendatenbank',
@@ -3559,7 +3575,7 @@ class _AdminPageState extends State<AdminPage> {
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Adminbereich', style: onSurfaceMuted),
+          Text('DFS Portal', style: onSurfaceMuted),
           const SizedBox(height: 2),
           Text(title, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
         ],
@@ -3996,8 +4012,24 @@ class _AdminPageState extends State<AdminPage> {
     return _SidebarTooltip(message: message, child: child);
   }
 
+  bool _isViewAllowed(_AdminView view) {
+    if (_isSuperuser) return true;
+    if (_portalRole == 'readonly') {
+      return const {
+        _AdminView.menu,
+        _AdminView.open,
+        _AdminView.all,
+        _AdminView.pending,
+        _AdminView.activity,
+        _AdminView.systemHealth,
+      }.contains(view);
+    }
+    // Normal und Superuser dürfen alles (Superuser zusätzlich Benutzerverwaltung über API)
+    return true;
+  }
+
   List<_AdminNavSection> _defaultNavSections() {
-    return [
+    final sections = [
       _AdminNavSection(
         title: 'Dashboard',
         items: [
@@ -4133,6 +4165,14 @@ class _AdminPageState extends State<AdminPage> {
         ],
       ),
     ];
+
+    return sections
+        .map((section) => _AdminNavSection(
+              title: section.title,
+              items: section.items.where((i) => _isViewAllowed(i.view)).toList(),
+            ))
+        .where((s) => s.items.isNotEmpty)
+        .toList();
   }
 
   List<_AdminNavItem> _flattenNavItems(List<_AdminNavSection> sections) => [
@@ -4223,7 +4263,50 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   List<_AdminMenuSectionState> _baseMenuSections() {
-    return [
+    _AdminView? _tileIdToView(String id) {
+      switch (id) {
+        case 'open':
+          return _AdminView.open;
+        case 'all':
+          return _AdminView.all;
+        case 'pending':
+          return _AdminView.pending;
+        case 'users':
+          return _AdminView.users;
+        case 'createCustomer':
+          return _AdminView.createCustomer;
+        case 'reps':
+          return _AdminView.reps;
+        case 'news':
+          return _AdminView.news;
+        case 'downloads':
+          return _AdminView.downloads;
+        case 'faq':
+          return _AdminView.faq;
+        case 'wiki':
+          return _AdminView.wiki;
+        case 'products':
+          return _AdminView.products;
+        case 'push':
+          return _AdminView.pushBroadcast;
+        case 'catalogs':
+          return _AdminView.catalogs;
+        case 'systemHealth':
+          return _AdminView.systemHealth;
+        case 'activity':
+          return _AdminView.activity;
+        default:
+          return null;
+      }
+    }
+
+    bool _tileAllowed(String id) {
+      final view = _tileIdToView(id);
+      if (view == null) return true;
+      return _isViewAllowed(view);
+    }
+
+    final sections = [
       const _AdminMenuSectionState(
         title: 'Reklamationen',
         subtitle: 'Offene Fälle, Suche und Kennzahlen',
@@ -4245,6 +4328,15 @@ class _AdminPageState extends State<AdminPage> {
         tileIds: ['catalogs', 'appMeta', 'testMode', 'systemHealth', 'activity'],
       ),
     ];
+
+    return sections
+        .map((s) => _AdminMenuSectionState(
+              title: s.title,
+              subtitle: s.subtitle,
+              tileIds: s.tileIds.where(_tileAllowed).toList(),
+            ))
+        .where((s) => s.tileIds.isNotEmpty)
+        .toList();
   }
 
   void _initMenuLayout() {
@@ -12529,7 +12621,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                               Expanded(
                                 child: Text(
                                   hasNote
-                                      ? 'Notizen sind nur im Adminbereich sichtbar.'
+                                      ? 'Notizen sind nur im DFS Portal sichtbar.'
                                       : 'Noch keine Notiz gespeichert – alles bleibt intern.',
                                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                         color: const Color(0xFF6D4C41),
@@ -13627,7 +13719,9 @@ class AdminApi {
 
   final VoidCallback? onNewsChanged;
   String _secret = '';
+  String _portalToken = '';
   void setSecret(String s) => _secret = s;
+  void setPortalToken(String s) => _portalToken = s;
 
   String get baseUrl {
     final b = const String.fromEnvironment('API_BASE', defaultValue: '');
@@ -13637,6 +13731,7 @@ class AdminApi {
 
   Map<String, String> _headersJson() => {
         'Content-Type': 'application/json; charset=utf-8',
+        if (_portalToken.isNotEmpty) 'Authorization': 'Bearer $_portalToken',
         if (_secret.isNotEmpty) 'X-Admin-Secret': _secret,
       };
 

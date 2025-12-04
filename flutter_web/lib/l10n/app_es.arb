@@ -460,7 +460,7 @@
   "customer_login": "Inicio de sesión de clientes",
   "customer_label": "Cliente",
   "quick_access_title": "Accesos internos de DFS",
-  "quick_access_subtitle": "Accede de inmediato al área de representantes o administración.",
+  "quick_access_subtitle": "Accede de inmediato al área de representantes o al DFS Portal.",
   "opening_rep_area": "Abriendo el área del representante…",
 
   "tab_complaint": "Reportar reclamación",
@@ -601,10 +601,10 @@
   "applied": "aplicado",
   "returned": "devuelto",
 
-  "adminTitle": "Área de administración – DFS Customer Complaint",
-  "adminArea": "Área de administración",
-  "@adminArea": { "description": "Botón hacia el área de administración" },
-  "admin_area": "Área de administración",
+  "adminTitle": "DFS Portal – DFS Customer Complaint",
+  "adminArea": "DFS Portal",
+  "@adminArea": { "description": "Botón hacia el DFS Portal" },
+  "admin_area": "DFS Portal",
 
   "supportTitle": "Soporte DFS",
   "knowledgeBaseTile": "Base de conocimientos (FAQ)",
