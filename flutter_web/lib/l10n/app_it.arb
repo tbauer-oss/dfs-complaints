@@ -955,5 +955,7 @@
   "customerNewsHeroNewLabel": "Nuovo",
   "customerNewsHeroDateLabel": "Data",
   "customerNewsUpdateLabel": "Aggiornamento",
-  "customerNewsMarketingHook": "Le ultime novità su prodotti e azienda a colpo d'occhio."
+  "customerNewsMarketingHook": "Le ultime novità su prodotti e azienda a colpo d'occhio.",
+
+  "loading": "Caricamento..."
 }

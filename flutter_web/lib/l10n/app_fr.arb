@@ -955,5 +955,7 @@
   "customerNewsHeroNewLabel": "Nouveau",
   "customerNewsHeroDateLabel": "Date",
   "customerNewsUpdateLabel": "Mise à jour",
-  "customerNewsMarketingHook": "Toutes les dernières actualités produits et entreprise en un coup d'œil."
+  "customerNewsMarketingHook": "Toutes les dernières actualités produits et entreprise en un coup d'œil.",
+
+  "loading": "Chargement..."
 }
