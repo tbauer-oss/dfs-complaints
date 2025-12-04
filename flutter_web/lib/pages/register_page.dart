@@ -6,9 +6,9 @@ import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 import '../models/country.dart';
 import '../widgets/lang_action.dart';
+import '../utils/lang_utils.dart';
 import '../services/app_prefs.dart';
 import '../services/app_prefs_scope.dart';
-import '../utils/lang_utils.dart';
 import '../widgets/gate_code_input.dart';
 import '../widgets/theme_action.dart' as w;
 import '../widgets/legal_footer.dart';
@@ -305,11 +305,11 @@ class _RegisterPageState extends State<RegisterPage> {
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
-          backgroundColor: scheme.error.withOpacity(0.08),
+          backgroundColor: scheme.error.withOpacity(0.08), // leichter roter Hintergrund
           content: Text(
             context.t.human_check_incorrect,
             style: TextStyle(
-              color: scheme.error,
+              color: scheme.error,          // Error-Rot aus Theme
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -318,7 +318,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
     _rollHumanChallenge();
   }
-  
+
   Future<void> _unlockGate() async {
     final t = context.t;
     final email = _gateEmail.text.trim();
@@ -818,7 +818,7 @@ class _RegisterPageState extends State<RegisterPage> {
               gradient: _humanVerified
                   ? LinearGradient(
                       colors: [
-                        Colors.green.withOpacity(0.20),
+                        Colors.green.withOpacity(0.18),
                         Colors.green.withOpacity(0.10),
                       ],
                       begin: Alignment.topLeft,
@@ -828,8 +828,8 @@ class _RegisterPageState extends State<RegisterPage> {
               borderRadius: BorderRadius.circular(18),
               border: Border.all(
                 color: _humanVerified
-                    ? Colors.green.withOpacity(0.5)
-                    : scheme.secondary.withOpacity(0.1),
+                  ? Colors.green.withOpacity(0.5)
+                  : scheme.secondary.withOpacity(0.1),
               ),
               boxShadow: _humanVerified
                   ? [

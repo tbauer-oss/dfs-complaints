@@ -8,7 +8,6 @@ import 'package:printing/printing.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/complaint_attachment.dart';
-import '../utils/pdf_print.dart';
 
 enum ComplaintSummaryResult { dashboard, newComplaint }
 
@@ -41,10 +40,9 @@ class _ComplaintSummaryPageState extends State<ComplaintSummaryPage> {
   String _payloadValue(String key) => (widget.payload[key] ?? '').toString().trim();
   String _accountValue(String key) => (widget.account?[key] ?? '').toString().trim();
 
-  String _formatDate() {
+  String _formattedDate() {
     final locale = Localizations.localeOf(context);
-    final tag = locale.toLanguageTag();
-    final formatter = DateFormat.yMMMMd(tag).add_Hm();
+    final formatter = DateFormat.yMMMMd(locale.toLanguageTag()).add_Hm();
     return formatter.format(widget.createdAt.toLocal());
   }
 
@@ -54,14 +52,6 @@ class _ComplaintSummaryPageState extends State<ComplaintSummaryPage> {
   Future<Uint8List> _buildPdfBytes() async {
     final doc = pw.Document();
     final attachments = _imageAttachments;
-    final company = _accountValue('company');
-    final contact = _accountValue('contact');
-    final street = _accountValue('street');
-    final zip = _accountValue('zip');
-    final city = _accountValue('city');
-    final country = _accountValue('country');
-    final phone = _accountValue('phone');
-    final email = _accountValue('email');
 
     final details = <String, String>{
       _t.segment: _payloadValue('segment'),
@@ -74,64 +64,68 @@ class _ComplaintSummaryPageState extends State<ComplaintSummaryPage> {
 
     doc.addPage(
       pw.MultiPage(
-        build: (ctx) => [
-          pw.Text(_t.complaint_summary_title, style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
-          pw.SizedBox(height: 8),
+        build: (_) => [
+          pw.Text(
+            _t.complaint_summary_title,
+            style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.SizedBox(height: 6),
           pw.Text(_t.complaint_summary_subtitle),
-          pw.SizedBox(height: 16),
+          pw.SizedBox(height: 14),
           pw.Row(children: [
             pw.Expanded(
               child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                pw.Text('${_t.complaint_summary_ticket_label}:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                pw.Text('${_t.complaint_summary_ticket_label}:',
+                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
                 pw.Text(widget.ticket),
               ]),
             ),
             pw.SizedBox(width: 16),
             pw.Expanded(
               child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                pw.Text('${_t.complaint_summary_date_label}:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                pw.Text(_formatDate()),
+                pw.Text('${_t.complaint_summary_date_label}:',
+                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                pw.Text(_formattedDate()),
               ]),
             ),
           ]),
           pw.SizedBox(height: 16),
-          pw.Text(_t.complaint_summary_customer_label, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+          pw.Text(_t.complaint_summary_customer_label,
+              style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
           pw.SizedBox(height: 6),
-          if (company.isNotEmpty) pw.Text(company),
-          if (contact.isNotEmpty) pw.Text('${_t.complaint_summary_customer_contact}: $contact'),
-          if (street.isNotEmpty) pw.Text(street),
-          if (zip.isNotEmpty || city.isNotEmpty) pw.Text('${zip.isNotEmpty ? '$zip ' : ''}$city'.trim()),
-          if (country.isNotEmpty) pw.Text(country),
-          if (phone.isNotEmpty) pw.Text(phone),
-          if (email.isNotEmpty) pw.Text(email),
+          for (final line in _customerLines())
+            if (line.isNotEmpty) pw.Text(line),
           pw.SizedBox(height: 16),
-          pw.Text(_t.complaint_summary_article_label, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+          pw.Text(_t.complaint_summary_article_label,
+              style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
           pw.SizedBox(height: 4),
           pw.Text(_payloadValue('article')),
           pw.SizedBox(height: 8),
           pw.Wrap(
-            spacing: 12,
-            runSpacing: 6,
+            spacing: 10,
+            runSpacing: 8,
             children: [
               for (final entry in details.entries)
                 if (entry.value.isNotEmpty)
                   pw.Container(
-                    padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: pw.BoxDecoration(
-                      borderRadius: pw.BorderRadius.circular(6),
                       border: pw.Border.all(width: 0.4),
+                      borderRadius: pw.BorderRadius.circular(6),
                     ),
                     child: pw.Text('${entry.key}: ${entry.value}'),
-                  ),
+                  )
             ],
           ),
-          pw.SizedBox(height: 16),
-          pw.Text(_t.complaint_summary_description_label, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+          pw.SizedBox(height: 14),
+          pw.Text(_t.complaint_summary_description_label,
+              style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
           pw.SizedBox(height: 4),
           pw.Text(_payloadValue('desc')),
           if (attachments.isNotEmpty) ...[
-            pw.SizedBox(height: 16),
-            pw.Text(_t.complaint_summary_images_label, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 14),
+            pw.Text(_t.complaint_summary_images_label,
+                style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
             pw.SizedBox(height: 8),
             pw.Wrap(
               spacing: 12,
@@ -139,8 +133,8 @@ class _ComplaintSummaryPageState extends State<ComplaintSummaryPage> {
               children: attachments
                   .map(
                     (a) => pw.Container(
-                      width: 120,
-                      height: 120,
+                      width: 110,
+                      height: 110,
                       decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.4)),
                       child: pw.Image(pw.MemoryImage(a.bytes), fit: pw.BoxFit.cover),
                     ),
@@ -155,6 +149,27 @@ class _ComplaintSummaryPageState extends State<ComplaintSummaryPage> {
     return Uint8List.fromList(await doc.save());
   }
 
+  List<String> _customerLines() {
+    final company = _accountValue('company');
+    final contact = _accountValue('contact');
+    final street = _accountValue('street');
+    final zip = _accountValue('zip');
+    final city = _accountValue('city');
+    final country = _accountValue('country');
+    final phone = _accountValue('phone');
+    final email = _accountValue('email');
+    final lines = <String>[];
+    if (company.isNotEmpty) lines.add(company);
+    if (contact.isNotEmpty) lines.add('${_t.complaint_summary_customer_contact}: $contact');
+    if (street.isNotEmpty) lines.add(street);
+    final place = '${zip.isNotEmpty ? '$zip ' : ''}$city'.trim();
+    if (place.isNotEmpty) lines.add(place);
+    if (country.isNotEmpty) lines.add(country);
+    if (phone.isNotEmpty) lines.add(phone);
+    if (email.isNotEmpty) lines.add(email);
+    return lines;
+  }
+
   Future<void> _handleSavePdf() async {
     setState(() => _savingPdf = true);
     try {
@@ -163,7 +178,7 @@ class _ComplaintSummaryPageState extends State<ComplaintSummaryPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(_t.complaint_summary_pdf_ready)));
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(_t.complaint_summary_pdf_error)));
@@ -175,9 +190,8 @@ class _ComplaintSummaryPageState extends State<ComplaintSummaryPage> {
   Future<void> _handlePrint() async {
     setState(() => _printing = true);
     try {
-      final bytes = await _buildPdfBytes();
-      await printPdf(bytes);
-    } catch (e) {
+      await Printing.layoutPdf(onLayout: (_) => _buildPdfBytes());
+    } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(_t.complaint_summary_print_error)));
@@ -187,30 +201,34 @@ class _ComplaintSummaryPageState extends State<ComplaintSummaryPage> {
   }
 
   Widget _infoRow(String label, String value, {TextStyle? style}) {
-    final effective = value.isEmpty ? '-' : value;
+    final displayValue = value.trim().isEmpty ? '-' : value.trim();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: style ?? const TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 4),
-        Text(effective),
+        Text(displayValue),
       ],
+    );
+  }
+
+  Widget _chip(String label, String value) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: theme.colorScheme.surfaceVariant.withOpacity(.45),
+      ),
+      child: Text('$label: $value'),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final company = _accountValue('company');
-    final contact = _accountValue('contact');
-    final street = _accountValue('street');
-    final zip = _accountValue('zip');
-    final city = _accountValue('city');
-    final country = _accountValue('country');
-    final phone = _accountValue('phone');
-    final email = _accountValue('email');
-    final desc = _payloadValue('desc');
     final article = _payloadValue('article');
+    final desc = _payloadValue('desc');
     final images = _imageAttachments;
 
     return WillPopScope(
@@ -241,8 +259,6 @@ class _ComplaintSummaryPageState extends State<ComplaintSummaryPage> {
                     ),
                     const SizedBox(height: 16),
                     Card(
-                      elevation: 1,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
                         child: Column(
@@ -257,33 +273,34 @@ class _ComplaintSummaryPageState extends State<ComplaintSummaryPage> {
                                     style: theme.textTheme.titleSmall,
                                   ),
                                 ),
-                                const SizedBox(width: 20),
+                                const SizedBox(width: 16),
                                 Expanded(
                                   child: _infoRow(
                                     _t.complaint_summary_date_label,
-                                    _formatDate(),
+                                    _formattedDate(),
                                     style: theme.textTheme.titleSmall,
                                   ),
                                 ),
                               ],
                             ),
                             const SizedBox(height: 20),
-                            Text(_t.complaint_summary_customer_label,
-                                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                            Text(
+                              _t.complaint_summary_customer_label,
+                              style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                            ),
                             const SizedBox(height: 8),
-                            if (company.isNotEmpty) Text(company, style: theme.textTheme.titleMedium),
-                            if (contact.isNotEmpty)
-                              Text('${_t.complaint_summary_customer_contact}: $contact'),
-                            if (street.isNotEmpty) Text(street),
-                            if (zip.isNotEmpty || city.isNotEmpty)
-                              Text('${zip.isNotEmpty ? '$zip ' : ''}$city'.trim()),
-                            if (country.isNotEmpty) Text(country),
-                            if (phone.isNotEmpty) Text(phone),
-                            if (email.isNotEmpty) Text(email),
-                            const SizedBox(height: 20),
-                            Text(_t.complaint_summary_article_label,
-                                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-                            const SizedBox(height: 8),
+                            for (final line in _customerLines())
+                              if (line.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 2),
+                                  child: Text(line),
+                                ),
+                            const SizedBox(height: 18),
+                            Text(
+                              _t.complaint_summary_article_label,
+                              style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 6),
                             Text(article.isEmpty ? '-' : article, style: theme.textTheme.titleMedium),
                             const SizedBox(height: 8),
                             Wrap(
@@ -291,31 +308,35 @@ class _ComplaintSummaryPageState extends State<ComplaintSummaryPage> {
                               runSpacing: 10,
                               children: [
                                 if (_payloadValue('batch').isNotEmpty)
-                                  _Chip(label: _t.batch, value: _payloadValue('batch')),
+                                  _chip(_t.batch, _payloadValue('batch')),
                                 if (_payloadValue('qty').isNotEmpty)
-                                  _Chip(label: _t.qty, value: _payloadValue('qty')),
+                                  _chip(_t.qty, _payloadValue('qty')),
                                 if (_payloadValue('handling').isNotEmpty)
-                                  _Chip(label: _t.handling, value: _payloadValue('handling')),
+                                  _chip(_t.handling, _payloadValue('handling')),
                                 if (_payloadValue('segment').isNotEmpty)
-                                  _Chip(label: _t.segment, value: _payloadValue('segment')),
+                                  _chip(_t.segment, _payloadValue('segment')),
                               ],
                             ),
                             const SizedBox(height: 20),
-                            Text(_t.complaint_summary_description_label,
-                                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                            Text(
+                              _t.complaint_summary_description_label,
+                              style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                            ),
                             const SizedBox(height: 8),
                             Container(
                               width: double.infinity,
                               padding: const EdgeInsets.all(14),
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(12),
-                                color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+                                color: theme.colorScheme.surfaceVariant.withOpacity(.3),
                               ),
                               child: SelectableText(desc.isEmpty ? '-' : desc),
                             ),
                             const SizedBox(height: 20),
-                            Text(_t.complaint_summary_images_label,
-                                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                            Text(
+                              _t.complaint_summary_images_label,
+                              style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                            ),
                             const SizedBox(height: 12),
                             if (images.isEmpty)
                               Text(
@@ -332,8 +353,8 @@ class _ComplaintSummaryPageState extends State<ComplaintSummaryPage> {
                                         borderRadius: BorderRadius.circular(12),
                                         child: Image.memory(
                                           a.bytes,
-                                          width: 120,
-                                          height: 120,
+                                          width: 110,
+                                          height: 110,
                                           fit: BoxFit.cover,
                                         ),
                                       ),
@@ -401,25 +422,6 @@ class _ComplaintSummaryPageState extends State<ComplaintSummaryPage> {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _Chip extends StatelessWidget {
-  final String label;
-  final String value;
-  const _Chip({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        color: theme.colorScheme.surfaceVariant.withOpacity(0.4),
-      ),
-      child: Text('$label: $value'),
     );
   }
 }
