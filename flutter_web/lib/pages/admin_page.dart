@@ -15228,24 +15228,25 @@ class AdminApi {
     // Greife bevorzugt auf das aktuelle Portal-JWT zu, falle aber
     // auf lokale Speicherung zurück, falls die Instanz noch nicht
     // synchronisiert ist (z.B. nach einem Seiten-Reload).
-    final storedPortal = (_portalToken.isNotEmpty
-            ? _portalToken
-            : (html.window.localStorage['dfs_portal_token'] ?? ''))
-        .trim();
-    final storedSecret = (_secret.isNotEmpty
-            ? _secret
-            : (html.window.localStorage['dfs_admin'] ?? ''))
-        .trim();
+    final storedPortal = (html.window.localStorage['dfs_portal_token'] ?? '').trim();
+    final storedSecret = (html.window.localStorage['dfs_admin'] ?? '').trim();
+
+    // Bevorzugt immer die frischesten Werte aus dem LocalStorage, damit ein
+    // erneuertes Portal-JWT oder Admin-Secret sofort für alle Requests
+    // greift. Fällt auf die in-memory Kopien zurück, wenn nichts gespeichert
+    // ist (z.B. während des allerersten Logins).
+    final portalHeader = storedPortal.isNotEmpty ? storedPortal : _portalToken.trim();
+    final secretHeader = storedSecret.isNotEmpty ? storedSecret : _secret.trim();
 
     // Aktualisiere die lokalen Kopien, damit spätere Requests nicht
     // von leeren Feldern abhängen.
-    _portalToken = storedPortal;
-    _secret = storedSecret;
+    _portalToken = portalHeader;
+    _secret = secretHeader;
 
     return {
       'Content-Type': 'application/json; charset=utf-8',
-      if (storedPortal.isNotEmpty) 'Authorization': 'Bearer $storedPortal',
-      if (storedSecret.isNotEmpty) 'X-Admin-Secret': storedSecret,
+      if (portalHeader.isNotEmpty) 'Authorization': 'Bearer $portalHeader',
+      if (secretHeader.isNotEmpty) 'X-Admin-Secret': secretHeader,
     };
   }
 
