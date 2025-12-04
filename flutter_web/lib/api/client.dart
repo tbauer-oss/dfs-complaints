@@ -645,8 +645,7 @@ class ApiClient {
     String? testEmail,
     List<String>? testPushTokens,
   }) async {
-    final base = _apiBase.isEmpty ? '' : _apiBase;
-    final uri = Uri.parse('$base/api/admin/meta');
+    final uri = _u('/api/admin/meta');
     final body = jsonEncode({
       'version': version,
       if (build != null) 'build': build,
@@ -656,12 +655,11 @@ class ApiClient {
       if (testPushTokens != null) 'testPushTokens': testPushTokens,
     });
 
-    final headers = {
-      'Content-Type': 'application/json',
-      if (adminSecret != null && adminSecret!.isNotEmpty) 'X-Admin-Secret': adminSecret!,
-    };
-
-    final r = await http.post(uri, headers: headers, body: body);
+    final r = await http.post(
+      uri,
+      headers: _adminHeaders(auth: true),
+      body: body,
+    );
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
