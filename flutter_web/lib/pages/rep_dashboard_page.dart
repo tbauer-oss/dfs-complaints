@@ -166,6 +166,26 @@ class RepDashboardPage extends StatefulWidget {
 class _RepDashboardPageState extends State<RepDashboardPage> {
   Map<String, dynamic>? _me;
 
+  String get _displayName {
+    String s(Object? v) => (v ?? '').toString().trim();
+    final data = _me ?? const <String, dynamic>{};
+    final fullName = [s(data['firstName']), s(data['lastName'])]
+        .where((p) => p.isNotEmpty)
+        .join(' ')
+        .trim();
+
+    for (final candidate in [
+      s(data['displayName']),
+      fullName,
+      s(data['name']),
+      s(data['contact']),
+      s(data['email']),
+    ]) {
+      if (candidate.isNotEmpty) return candidate;
+    }
+    return '';
+  }
+
   /// Kundenliste (aus Backend normalisiert) – zugewiesene Kunden dieses Vertreters
   List<Map<String, Object?>> _customers = <Map<String, Object?>>[];
 
@@ -1763,6 +1783,7 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
   Widget build(BuildContext context) {
     final t = context.t;
     final prefs = AppPrefsScope.of(context);
+    final displayName = _displayName;
     final allCount      = _complaints.length;
     final openCount     = _complaints.where((c) => !_isClosed(c)).length;
     final rejectedCount = _complaints.where(_isRejected).length;
@@ -1823,6 +1844,25 @@ Future<List<Map<String, Object?>>> _fetchAssignableCustomers() async {
                 )
               : null,
           actions: [
+            if (displayName.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.person_outline, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    const SizedBox(width: 6),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 200),
+                      child: Text(
+                        'Hallo $displayName',
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             IconButton(
               tooltip: t.newLoad,
               onPressed: _loading ? null : _loadAll,
