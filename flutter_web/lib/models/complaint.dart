@@ -7,6 +7,11 @@ class Complaint {
   final int status;
   final String? decision;
   final String? reportLink;
+  final Map<String, String>? reportLinks; // neue Mehrsprachigkeit für Reports
+  final List<String> internalDepartments; // betroffene interne Abteilungen
+  final String? internalEvaluationTextDe; // interne Bewertung (Deutsch)
+  final String? internalEvaluationCause; // vermutete Ursache
+  final Map<String, String>? internalEvaluationTranslations; // gespeicherte Übersetzungen
   final Map<String, dynamic>? payload;
 
   // ⬇️ NEU: interne Reklamationsnummer
@@ -21,10 +26,16 @@ class Complaint {
     required this.status,
     this.decision,
     this.reportLink,
+    this.reportLinks,
+    List<String>? internalDepartments,
+    this.internalEvaluationTextDe,
+    this.internalEvaluationCause,
+    this.internalEvaluationTranslations,
     this.payload,
     this.internalNo, // ⬅️ NEU
     List<ComplaintUpload>? uploads,
-  }) : uploads = List.unmodifiable(uploads ?? const <ComplaintUpload>[]);
+  })  : internalDepartments = List.unmodifiable(internalDepartments ?? const <String>[]),
+        uploads = List.unmodifiable(uploads ?? const <ComplaintUpload>[]);
 
   String get articleLabel {
     final p = payload;
@@ -144,10 +155,36 @@ class Complaint {
       reportLink: (j['reportLink']?.toString().trim().isEmpty ?? true)
           ? null
           : j['reportLink']!.toString().trim(),
+      reportLinks: (j['reportLinks'] is Map)
+          ? Map<String, String>.from((j['reportLinks'] as Map).map((k, v) => MapEntry('$k', v.toString())))
+          : null,
+      internalDepartments: _parseStringList(j['internalDepartments']),
+      internalEvaluationTextDe: (j['internalEvaluationText_de'] ?? j['internalEvaluationTextDe'])
+              ?.toString()
+              .trim()
+              .isEmpty ==
+          true
+          ? null
+          : (j['internalEvaluationText_de'] ?? j['internalEvaluationTextDe'])?.toString(),
+      internalEvaluationCause: (j['internalEvaluationCause'] ?? '').toString().trim().isEmpty
+          ? null
+          : j['internalEvaluationCause']?.toString(),
+      internalEvaluationTranslations: (j['internalEvaluationTranslations'] is Map)
+          ? Map<String, String>.from(
+              (j['internalEvaluationTranslations'] as Map).map((k, v) => MapEntry('$k', v.toString())),
+            )
+          : null,
       payload: _parsePayload(j['payload']),
       internalNo: _parseInternal(j), // ⬅️ NEU
       uploads: _parseUploads(j['uploads']),
     );
+  }
+
+  static List<String> _parseStringList(dynamic value) {
+    if (value is List) {
+      return value.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList(growable: false);
+    }
+    return const <String>[];
   }
 }
 
