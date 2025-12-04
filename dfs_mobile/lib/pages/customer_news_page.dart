@@ -88,52 +88,55 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
   ) {
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-    final gradient = LinearGradient(
+    final baseGradient = LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        colorScheme.primary.withOpacity(isDark ? 0.65 : 0.78),
-        Color.lerp(colorScheme.secondary, colorScheme.tertiary, 0.4)!
-            .withOpacity(isDark ? 0.36 : 0.52),
+        colorScheme.primary.withOpacity(isDark ? 0.55 : 0.72),
+        colorScheme.secondary.withOpacity(isDark ? 0.38 : 0.54),
       ],
     );
-    final textColor = colorScheme.onPrimaryContainer;
-    final mutedText = textColor.withOpacity(0.82);
-    final highlightLabels = [
-      t.newsCatProduct,
-      t.newsCatApp,
-      t.newsCatRegulatory,
-    ];
+    final accentGlow = colorScheme.tertiary.withOpacity(isDark ? 0.22 : 0.26);
+    final textColor = colorScheme.onPrimary;
+    final mutedText = textColor.withOpacity(0.84);
     final pinnedCount = entries.where((e) => e.pinned).length;
     final recentCount = entries
         .where((e) => e.publishedAt.isAfter(DateTime.now().subtract(const Duration(days: 30))))
         .length;
     final totalCount = entries.length;
 
-    Widget statTile({
+    Widget statPill({
       required IconData icon,
-      required String value,
       required String label,
-      required bool isCompact,
+      required String value,
+      required bool compact,
     }) {
       return AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: const Duration(milliseconds: 240),
         padding: EdgeInsets.symmetric(
-          horizontal: isCompact ? 10 : 12,
-          vertical: isCompact ? 7 : 9,
+          horizontal: compact ? 10 : 12,
+          vertical: compact ? 8 : 9,
         ),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          color: Colors.white.withOpacity(isDark ? 0.12 : 0.18),
-          border: Border.all(color: Colors.white.withOpacity(0.3)),
+          borderRadius: BorderRadius.circular(16),
+          color: Colors.white.withOpacity(isDark ? 0.12 : 0.2),
+          border: Border.all(color: Colors.white.withOpacity(0.24)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.18 : 0.08),
+              blurRadius: compact ? 8 : 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: isCompact ? 14 : 16, color: textColor),
-            const SizedBox(width: 6),
+            Icon(icon, size: compact ? 16 : 18, color: textColor),
+            const SizedBox(width: 8),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   value,
@@ -156,60 +159,29 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
       );
     }
 
-    Widget buildHeroVisual(double size, bool isCompact) {
-      final accent = isDark
-          ? colorScheme.primaryContainer.withOpacity(0.6)
-          : Colors.white.withOpacity(0.9);
-      final overlay = colorScheme.onPrimaryContainer.withOpacity(0.15);
-      return TweenAnimationBuilder<double>(
-        tween: Tween<double>(begin: 0.94, end: 1.0),
-        duration: const Duration(milliseconds: 700),
-        curve: Curves.easeOut,
-        builder: (context, value, _) {
-          final effectiveSize = size * value;
-          return Container(
-            width: effectiveSize,
-            height: effectiveSize,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
-                colors: [accent, overlay],
-                stops: const [0.6, 1],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(isDark ? 0.2 : 0.12),
-                  blurRadius: isCompact ? 8 : 12,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Icon(
-              Icons.auto_awesome_rounded,
-              color: isDark ? colorScheme.onPrimary : colorScheme.primary,
-              size: effectiveSize * 0.36,
-            ),
-          );
-        },
-      );
-    }
-
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isCompact = constraints.maxWidth < 420;
-        final isTight = constraints.maxWidth < 360;
-        final heroSize = isCompact ? 64.0 : 76.0;
+        final compact = constraints.maxWidth < 420;
+        final tight = constraints.maxWidth < 360;
+        // Provide a taller hero on compact widths to avoid overflow from
+        // localized text wrapping across multiple lines.
+        final heroHeight = tight
+            ? 204.0
+            : compact
+                ? 188.0
+                : 200.0;
 
         return Container(
-          margin: EdgeInsets.fromLTRB(12, 8, 12, isCompact ? 6 : 10),
+          margin: EdgeInsets.fromLTRB(12, 10, 12, compact ? 6 : 10),
+          constraints: BoxConstraints(minHeight: heroHeight),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(isCompact ? 16 : 20),
-            gradient: gradient,
+            borderRadius: BorderRadius.circular(compact ? 18 : 22),
+            gradient: baseGradient,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.22 : 0.14),
-                blurRadius: 14,
-                offset: const Offset(0, 8),
+                color: Colors.black.withOpacity(isDark ? 0.24 : 0.14),
+                blurRadius: 16,
+                offset: const Offset(0, 10),
               ),
             ],
           ),
@@ -217,37 +189,39 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
             children: [
               Positioned(
                 right: -30,
-                top: -14,
+                top: -36,
                 child: Container(
-                  width: heroSize * 1.4,
-                  height: heroSize * 1.4,
+                  width: heroHeight * 0.9,
+                  height: heroHeight * 0.9,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(isDark ? 0.08 : 0.14),
+                    color: accentGlow,
+                    boxShadow: [
+                      BoxShadow(
+                        color: accentGlow.withOpacity(0.4),
+                        blurRadius: 30,
+                        spreadRadius: 8,
+                      ),
+                    ],
                   ),
                 ),
               ),
               Positioned(
-                left: 16,
-                bottom: 10,
-                child: Row(
-                  children: List.generate(
-                    4,
-                    (i) => Padding(
-                      padding: EdgeInsets.only(right: isCompact ? 6 : 8),
-                      child: Icon(
-                        Icons.auto_awesome,
-                        color: Colors.white.withOpacity(0.35 - (i * 0.05)),
-                        size: isCompact ? 14 : 16,
-                      ),
-                    ),
+                left: -14,
+                bottom: -20,
+                child: Container(
+                  width: heroHeight * 0.7,
+                  height: heroHeight * 0.7,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withOpacity(isDark ? 0.08 : 0.15),
                   ),
                 ),
               ),
               Padding(
                 padding: EdgeInsets.symmetric(
-                  horizontal: isCompact ? 12 : 14,
-                  vertical: isCompact ? 10 : 12,
+                  horizontal: compact ? 14 : 18,
+                  vertical: compact ? 12 : 16,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -261,20 +235,18 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                             children: [
                               Container(
                                 padding: EdgeInsets.symmetric(
-                                  horizontal: isCompact ? 9 : 10,
-                                  vertical: 6,
+                                  horizontal: compact ? 9 : 11,
+                                  vertical: compact ? 6 : 7,
                                 ),
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(14),
-                                  color: Colors.white.withOpacity(isDark ? 0.16 : 0.22),
-                                  border: Border.all(
-                                    color: Colors.white.withOpacity(0.28),
-                                  ),
+                                  color: Colors.white.withOpacity(isDark ? 0.14 : 0.2),
+                                  border: Border.all(color: Colors.white.withOpacity(0.28)),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(Icons.campaign_rounded, size: 16, color: textColor),
+                                    const Icon(Icons.campaign_rounded, size: 16, color: Colors.white),
                                     const SizedBox(width: 6),
                                     Text(
                                       t.customerNewsTitle,
@@ -289,119 +261,101 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                               const SizedBox(height: 10),
                               Text(
                                 t.customerNewsSubtitle,
-                                maxLines: 1,
+                                maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   color: textColor,
                                   fontWeight: FontWeight.w900,
-                                  height: 1.2,
+                                  height: 1.25,
                                   letterSpacing: -0.2,
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 6),
                               Text(
                                 t.customerNewsHeroLead,
-                                maxLines: 1,
+                                maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.bodyMedium?.copyWith(
                                   color: mutedText,
                                   height: 1.35,
                                 ),
                               ),
-                              const SizedBox(height: 10),
-                              SizedBox(
-                                height: isCompact ? 30 : 32,
-                                child: ListView.separated(
-                                  scrollDirection: Axis.horizontal,
-                                  physics: const BouncingScrollPhysics(),
-                                  itemCount: highlightLabels.length,
-                                  separatorBuilder: (_, __) => const SizedBox(width: 8),
-                                  itemBuilder: (context, index) {
-                                    final label = highlightLabels[index];
-                                    return Container(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: isCompact ? 9 : 11,
-                                        vertical: isCompact ? 6 : 7,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(16),
-                                        color: Colors.white.withOpacity(isDark ? 0.12 : 0.2),
-                                        border: Border.all(
-                                          color: Colors.white.withOpacity(0.26),
-                                        ),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(Icons.local_fire_department, size: 14, color: textColor),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            label,
-                                            style: theme.textTheme.labelMedium?.copyWith(
-                                              color: textColor,
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
                             ],
                           ),
                         ),
-                        if (!isTight) ...[
-                          const SizedBox(width: 10),
-                          buildHeroVisual(heroSize, isCompact),
+                        if (!tight) ...[
+                          const SizedBox(width: 14),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white.withOpacity(isDark ? 0.12 : 0.2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(isDark ? 0.18 : 0.1),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.auto_awesome_rounded,
+                              color: textColor,
+                              size: compact ? 28 : 32,
+                            ),
+                          ),
                         ],
                       ],
                     ),
-                    if (isTight) ...[
-                      const SizedBox(height: 12),
-                      Align(
-                        alignment: Alignment.center,
-                        child: buildHeroVisual(heroSize * 0.9, isCompact),
+                    const Spacer(),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      child: Row(
+                        children: [
+                          statPill(
+                            icon: Icons.auto_awesome_motion,
+                            label: t.customerNewsHeroFreshLabel,
+                            value: '${totalCount.clamp(0, 999)}+',
+                            compact: compact,
+                          ),
+                          const SizedBox(width: 8),
+                          statPill(
+                            icon: Icons.push_pin_outlined,
+                            label: t.customerNewsPinned,
+                            value: '$pinnedCount',
+                            compact: compact,
+                          ),
+                          const SizedBox(width: 8),
+                          statPill(
+                            icon: Icons.new_releases_outlined,
+                            label: t.customerNewsHeroNewLabel,
+                            value: '$recentCount',
+                            compact: compact,
+                          ),
+                          const SizedBox(width: 8),
+                          statPill(
+                            icon: Icons.history_toggle_off_outlined,
+                            label: t.customerNewsHeroDateLabel,
+                            value: DateFormat.MMMd().format(DateTime.now()),
+                            compact: compact,
+                          ),
+                          const SizedBox(width: 8),
+                          FilledButton.tonalIcon(
+                            style: FilledButton.styleFrom(
+                              foregroundColor: textColor,
+                              backgroundColor: Colors.white.withOpacity(isDark ? 0.16 : 0.26),
+                              padding: EdgeInsets.symmetric(
+                                horizontal: compact ? 12 : 14,
+                                vertical: compact ? 8 : 9,
+                              ),
+                            ),
+                            onPressed: () => _load(refresh: true),
+                            icon: const Icon(Icons.refresh),
+                            label: Text(t.refresh),
+                          ),
+                        ],
                       ),
-                    ],
-                    SizedBox(height: isCompact ? 10 : 12),
-                    Wrap(
-                      spacing: isCompact ? 8 : 10,
-                      runSpacing: isCompact ? 8 : 10,
-                      children: [
-                        statTile(
-                          icon: Icons.auto_awesome_motion,
-                          value: '${totalCount.clamp(0, 999)}+',
-                          label: t.customerNewsHeroFreshLabel,
-                          isCompact: isCompact,
-                        ),
-                        statTile(
-                          icon: Icons.push_pin,
-                          value: '$pinnedCount',
-                          label: t.customerNewsPinned,
-                          isCompact: isCompact,
-                        ),
-                        statTile(
-                          icon: Icons.flash_on,
-                          value: '$recentCount',
-                          label: t.customerNewsTitle,
-                          isCompact: isCompact,
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: isCompact ? 10 : 12),
-                    FilledButton.tonalIcon(
-                      style: FilledButton.styleFrom(
-                        minimumSize: Size(isCompact ? double.infinity : 0, 44),
-                        backgroundColor: Colors.white.withOpacity(isDark ? 0.14 : 0.2),
-                        foregroundColor: textColor,
-                        padding: EdgeInsets.symmetric(
-                          horizontal: isCompact ? 12 : 16,
-                        ),
-                      ),
-                      onPressed: () => _load(refresh: true),
-                      icon: const Icon(Icons.refresh),
-                      label: Text(t.refresh),
                     ),
                   ],
                 ),
@@ -412,7 +366,6 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
       },
     );
   }
-
   Widget _buildPill(
     ThemeData theme,
     String label,
@@ -464,15 +417,18 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        colorScheme.surfaceBright.withOpacity(theme.brightness == Brightness.dark ? 0.32 : 0.14),
+        colorScheme.surfaceBright
+            .withOpacity(theme.brightness == Brightness.dark ? 0.28 : 0.12),
         colorScheme.surface,
+        colorScheme.surfaceVariant
+            .withOpacity(theme.brightness == Brightness.dark ? 0.16 : 0.1),
       ],
     );
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(22),
         gradient: backgroundGradient,
         border: Border.all(color: accentColor.withOpacity(0.2)),
         boxShadow: [
@@ -490,11 +446,18 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
           Container(
             decoration: BoxDecoration(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-              color: accentColor.withOpacity(theme.brightness == Brightness.dark ? 0.2 : 0.12),
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [
+                  accentColor.withOpacity(theme.brightness == Brightness.dark ? 0.26 : 0.2),
+                  accentColor.withOpacity(theme.brightness == Brightness.dark ? 0.18 : 0.12),
+                ],
+              ),
             ),
             padding: EdgeInsets.symmetric(
               horizontal: isCompact ? 12 : 16,
-              vertical: isCompact ? 8 : 10,
+              vertical: isCompact ? 10 : 12,
             ),
             child: Row(
               children: [
@@ -502,12 +465,13 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                   padding: EdgeInsets.all(isCompact ? 8 : 10),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: accentColor.withOpacity(theme.brightness == Brightness.dark ? 0.26 : 0.18),
+                    color: Colors.white
+                        .withOpacity(theme.brightness == Brightness.dark ? 0.18 : 0.22),
                   ),
                   child: Icon(
                     entry.pinned ? Icons.star_rounded : Icons.campaign_outlined,
                     size: isCompact ? 18 : 20,
-                    color: colorScheme.onPrimaryContainer,
+                    color: accentColor,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -518,8 +482,8 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
                       Text(
                         entry.title,
                         style: textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          height: 1.18,
+                          fontWeight: FontWeight.w900,
+                          height: 1.16,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,

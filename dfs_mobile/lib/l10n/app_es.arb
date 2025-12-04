@@ -457,6 +457,8 @@
   "customerNewsNewSince": "Nuevo desde {date}",
   "@customerNewsNewSince": { "placeholders": { "date": { "type": "String" } } },
   "customerNewsUpdateLabel": "Actualización destacada",
+  "customerNewsHeroNewLabel": "Novedades del mes",
+  "customerNewsHeroDateLabel": "Actualizado el",
   "customerNewsMarketingHook": "Destacado para tu equipo: ¡descúbrelo ahora!",
   "customerNewsReadMore": "Más información",
   "customerNewsEmpty": "Por el momento no hay novedades.",
