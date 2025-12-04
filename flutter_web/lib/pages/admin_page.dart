@@ -367,6 +367,19 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  List<_AdminMenuSectionState> _filteredMenuSections() {
+    return _menuSections
+        .map(
+          (s) => _AdminMenuSectionState(
+            title: s.title,
+            subtitle: s.subtitle,
+            tileIds: s.tileIds.where(_tileAllowed).toList(),
+          ),
+        )
+        .where((s) => s.tileIds.isNotEmpty)
+        .toList();
+  }
+
   // Firmenfilter (Offene Reklamationen)
   String _filterCompany = 'Alle Firmen';
 
@@ -4875,12 +4888,50 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  Widget _buildPortalRoleVisibilityCard() {
+    if (!_isSuperuser) return const SizedBox.shrink();
+    final sorted = _menuTileIds.toList()..sort();
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: const [
+                Icon(Icons.visibility_outlined),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Menü-Sichtbarkeit pro Rolle',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Hier steuerst du, welche Kacheln normale und read-only Benutzer im Admin-Bereich sehen.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            _buildRoleVisibilityChips('user', sorted),
+            const SizedBox(height: 16),
+            _buildRoleVisibilityChips('readonly', sorted),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ------------------ Kachel-Menü (neues Design) ------------------
   Widget _buildMenu() {
     final w = MediaQuery.of(context).size.width;
     final isPhone = w < 640;
     final compact = isPhone;
-    final sections = _menuSections;
+    final sections = _filteredMenuSections();
     final baseTileWidth = isPhone ? 200.0 : 240.0;
     final aspectRatio = isPhone ? 0.94 : 1.05;
     final tileWidth = baseTileWidth * _menuTileScale;
@@ -7683,6 +7734,7 @@ class _AdminPageState extends State<AdminPage> {
               padding: const EdgeInsets.only(bottom: 8),
               child: Text(_portalUsersErr!, style: TextStyle(color: theme.colorScheme.error)),
             ),
+          _buildPortalRoleVisibilityCard(),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
