@@ -15264,9 +15264,17 @@ class AdminApi {
     _portalToken = portalHeader;
     _secret = secretHeader;
 
+    // Falls ein Admin-Secret vorhanden ist, setze es ohne das (möglicherweise
+    // abgelaufene) Portal-JWT zu senden. Einige Browser behalten alte Portal-
+    // Sessions länger im LocalStorage; würde dann ein ungültiges JWT im
+    // Authorization-Header landen, schlägt der Request trotz gültigem
+    // Admin-Secret mit 401 fehl. Ohne Authorization-Header greifen Admin-
+    // Secrets zuverlässig als Fallback.
+    final usePortalHeader = portalHeader.isNotEmpty && secretHeader.isEmpty;
+
     return {
       'Content-Type': 'application/json; charset=utf-8',
-      if (portalHeader.isNotEmpty) 'Authorization': 'Bearer $portalHeader',
+      if (usePortalHeader) 'Authorization': 'Bearer $portalHeader',
       if (secretHeader.isNotEmpty) 'X-Admin-Secret': secretHeader,
     };
   }
