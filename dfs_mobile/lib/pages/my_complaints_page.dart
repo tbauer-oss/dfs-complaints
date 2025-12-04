@@ -9,9 +9,11 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../models/complaint.dart';
+import '../models/complaint_draft.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/attachment_preview.dart';
 import '../widgets/legal_footer.dart';
+import 'complaint_form_page.dart';
 
 const _kComplaintMail = 'complaint@dfs-diamon.de';
 
@@ -28,11 +30,16 @@ enum _SortBy { updated, created }
 class _MyComplaintsPageState extends State<MyComplaintsPage> {
   bool _busy = false;
   bool _loading = false;
+  bool _loadingDrafts = false;
   bool _uploading = false;
   String? _err;
+  String? _draftErr;
   List<Complaint> _items = const [];
   List<Complaint> _allItems = const [];
+  List<ComplaintDraft> _drafts = const [];
   MyRep? _myRep;
+
+  final ComplaintDraftStore _draftStore = ComplaintDraftStore();
 
   String? _filterTicket;
   String? _filterInternalNo;
@@ -49,6 +56,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
   void initState() {
     super.initState();
     _load(); // initial
+    _loadDrafts();
     widget.api.getMyRep().then((rep) {
       if (!mounted) return;
       setState(() => _myRep = rep);
@@ -93,10 +101,65 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     }
   }
 
+  Future<void> _loadDrafts() async {
+    setState(() { _loadingDrafts = true; _draftErr = null; });
+    try {
+      await _draftStore.migrateLegacy();
+      final drafts = await _draftStore.loadAll();
+      if (!mounted) return;
+      setState(() => _drafts = drafts);
+    } catch (e) {
+      if (mounted) setState(() => _draftErr = '$e');
+    } finally {
+      if (mounted) setState(() => _loadingDrafts = false);
+    }
+  }
+
   void _refreshFilteredItems() {
     final filtered = _applyFilters(List<Complaint>.from(_allItems));
     _applySort(filtered);
     if (mounted) setState(() => _items = filtered);
+  }
+
+  Future<void> _resumeDraft(ComplaintDraft draft) async {
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => ComplaintFormPage(api: widget.api, draftId: draft.id),
+    ));
+    if (!mounted) return;
+    await _loadDrafts();
+    await _load(silent: true);
+  }
+
+  Future<void> _deleteDraft(String id) async {
+    try {
+      await _draftStore.delete(id);
+      await _loadDrafts();
+    } catch (e) {
+      if (mounted) {
+        final t = AppLocalizations.of(context)!;
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(t.draftDeleteFailed)));
+      }
+    }
+  }
+
+  Future<void> _confirmDeleteDraft(ComplaintDraft draft) async {
+    final t = AppLocalizations.of(context)!;
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(t.draftDeleteTitle),
+        content: Text(t.draftDeleteConfirm),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(t.cancel)),
+          FilledButton.tonal(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(t.draftDelete),
+          ),
+        ],
+      ),
+    );
+    if (res == true) await _deleteDraft(draft.id);
   }
 
   List<Complaint> _applyFilters(List<Complaint> list) {
@@ -211,6 +274,74 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     if (normalized == 'accepted') return Colors.green.shade600;
     if (normalized == 'rejected') return Colors.red.shade600;
     return Colors.grey.shade600;
+  }
+
+  Widget _buildDraftSection(AppLocalizations t) {
+    final title = Row(
+      children: [
+        const Icon(Icons.edit_note_outlined),
+        const SizedBox(width: 8),
+        Text(t.draftSectionTitle, style: const TextStyle(fontWeight: FontWeight.w700)),
+        const Spacer(),
+        if (_loadingDrafts) const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+      ],
+    );
+
+    if (_draftErr != null) {
+      return Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [title, const SizedBox(height: 8), Text(_draftErr!)],
+          ),
+        ),
+      );
+    }
+
+    final items = _drafts;
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            title,
+            const SizedBox(height: 8),
+            if (_loadingDrafts)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(t.loading),
+              )
+            else if (items.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(t.noneDrafts),
+              )
+            else
+              Column(
+                children: [
+                  for (final draft in items)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: _DraftTile(
+                        draft: draft,
+                        formatDate: _fmt,
+                        onResume: () => _resumeDraft(draft),
+                        onDelete: () => _confirmDeleteDraft(draft),
+                        t: t,
+                      ),
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   bool _canOpenReportLink(Complaint c) {
@@ -397,7 +528,12 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: t.refresh,
-            onPressed: _busy ? null : () => _load(silent: false),
+            onPressed: _busy
+                ? null
+                : () {
+                    _load(silent: false);
+                    _loadDrafts();
+                  },
           ),
         ],
       ),
@@ -448,6 +584,11 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
               ),
           ),
 
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+            child: _buildDraftSection(t),
+          ),
+
           // Filter
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
@@ -496,7 +637,10 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                     : _items.isEmpty
                         ? Center(child: Text(t.none_complaints))
                         : RefreshIndicator(
-                            onRefresh: () => _load(silent: false),
+                            onRefresh: () async {
+                              await _load(silent: false);
+                              await _loadDrafts();
+                            },
                             child: ListView.separated(
                               physics: const AlwaysScrollableScrollPhysics(),
                               padding: const EdgeInsets.fromLTRB(10, 10, 10, 14),
@@ -1046,6 +1190,71 @@ class _StatusPill extends StatelessWidget {
       child: Text(
         safe,
         style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _DraftTile extends StatelessWidget {
+  final ComplaintDraft draft;
+  final String Function(DateTime dt) formatDate;
+  final VoidCallback onResume;
+  final VoidCallback onDelete;
+  final AppLocalizations t;
+
+  const _DraftTile({
+    required this.draft,
+    required this.formatDate,
+    required this.onResume,
+    required this.onDelete,
+    required this.t,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final article = draft.article.trim();
+    final desc = draft.description.trim();
+    final batch = draft.batch.trim();
+    final headline = article.isNotEmpty
+        ? article
+        : (desc.isNotEmpty ? desc : t.draftFallbackTitle);
+    final subtitleParts = <String>[];
+    if (batch.isNotEmpty) subtitleParts.add('${t.batch}: $batch');
+    subtitleParts.add('${t.updated}: ${formatDate(draft.updatedAt)}');
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(.35),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(headline, style: const TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text(
+            subtitleParts.join(' • '),
+            style: TextStyle(color: Theme.of(context).hintColor),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              FilledButton.icon(
+                onPressed: onResume,
+                icon: const Icon(Icons.edit_outlined),
+                label: Text(t.draftResume),
+              ),
+              const SizedBox(width: 10),
+              TextButton.icon(
+                onPressed: onDelete,
+                icon: const Icon(Icons.delete_outline),
+                label: Text(t.draftDelete),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
