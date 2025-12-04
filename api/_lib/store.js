@@ -3,6 +3,13 @@
 // =======================================================
 import { Redis } from '@upstash/redis';
 import { loadRepByEmail, loadRepById, repCustomers } from './repsStore.js';
+import {
+  normalizeDepartments,
+  normalizeEvaluationText,
+  normalizeInternalEvaluationCause,
+  normalizeEvaluationTranslations,
+  normalizeReportLinksMap,
+} from './departments.js';
 
 /* =========================================================
    KV / Redis – ENV robust erkennen (Upstash & Vercel KV)
@@ -1170,6 +1177,7 @@ function normalizePortalUser(u) {
     const tokens = normalizePushTokens(normalized.pushTokens);
     if (tokens.length > 0) normalized.pushTokens = tokens; else delete normalized.pushTokens;
   }
+  normalized.assignedDepartments = normalizeDepartments(normalized.assignedDepartments);
   normalized.lang = normLang(normalized.lang || '');
   return normalized;
 }
@@ -1607,12 +1615,40 @@ function _scrubValue(value, placeholderEmail) {
   return out;
 }
 
+function normalizeReportLinkFallback(reportLinks = {}, fallback) {
+  const normalized = normalizeReportLinksMap(reportLinks);
+  if (fallback && !normalized.de && !normalized.en) {
+    const url = (fallback ?? '').toString().trim();
+    if (url && (/^https?:\/\//i.test(url) || url.startsWith('data:'))) {
+      normalized.en = url;
+    }
+  }
+  return normalized;
+}
+
+function normalizeComplaintRecord(c = {}) {
+  const normalized = { ...c };
+  normalized.internalDepartments = normalizeDepartments(c.internalDepartments);
+  const evalText = normalizeEvaluationText(c.internalEvaluationText_de);
+  normalized.internalEvaluationText_de = evalText;
+  normalized.internalEvaluationCause = normalizeInternalEvaluationCause(c.internalEvaluationCause);
+  const translations = normalizeEvaluationTranslations(c.internalEvaluationTranslations);
+  if (Object.keys(translations).length > 0) normalized.internalEvaluationTranslations = translations; else delete normalized.internalEvaluationTranslations;
+  normalized.internalEvaluationNewForAdmin = c.internalEvaluationNewForAdmin ? true : false;
+
+  const reportLinks = normalizeReportLinkFallback(c.reportLinks, c.reportLink);
+  if (Object.keys(reportLinks).length > 0) normalized.reportLinks = reportLinks; else delete normalized.reportLinks;
+  if (!normalized.reportLink && reportLinks.en) normalized.reportLink = reportLinks.en;
+  return normalized;
+}
+
 export async function complaintSave(c) {
   if (!c?.ticket) c.ticket = await nextTicket();
-  const key = `${P}complaint:${c.ticket}`;
+  const normalized = normalizeComplaintRecord(c);
+  const key = `${P}complaint:${normalized.ticket}`;
   const r = getRedis();
-  if (r) await rset(key, c); else mem.complaints.set(c.ticket, c);
-  return c;
+  if (r) await rset(key, normalized); else mem.complaints.set(normalized.ticket, normalized);
+  return normalized;
 }
 
 export async function complaintDelete(ticket) {
@@ -1634,8 +1670,9 @@ export async function complaintUpdate(ticket, patch) {
   const cur = await complaintGet(ticket);
   if (!cur) return null;
   const updated = { ...cur, ...patch, updatedAt: Date.now() };
-  await complaintSave(updated);
-  return updated;
+  const normalized = normalizeComplaintRecord(updated);
+  await complaintSave(normalized);
+  return normalized;
 }
 
 /* ============== Mail-Normalisierung ============== */
