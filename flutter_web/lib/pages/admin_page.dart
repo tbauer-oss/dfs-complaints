@@ -394,68 +394,6 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
-  bool _tileAllowed(String id) {
-    if (!_isSuperuser) {
-      final visibleTiles = _visibleTilesForRole(_portalRole);
-      if (!visibleTiles.contains(id)) return false;
-    }
-    final view = _tileIdToView(id);
-    if (view == null) return true;
-    return _isViewAllowed(view);
-  }
-
-  _AdminView? _tileIdToView(String id) {
-    switch (id) {
-      case 'open':
-        return _AdminView.open;
-      case 'all':
-        return _AdminView.all;
-      case 'pending':
-        return _AdminView.pending;
-      case 'portalUsers':
-        return _AdminView.portalUsers;
-      case 'users':
-        return _AdminView.users;
-      case 'createCustomer':
-        return _AdminView.createCustomer;
-      case 'reps':
-        return _AdminView.reps;
-      case 'news':
-        return _AdminView.news;
-      case 'downloads':
-        return _AdminView.downloads;
-      case 'faq':
-        return _AdminView.faq;
-      case 'wiki':
-        return _AdminView.wiki;
-      case 'products':
-        return _AdminView.products;
-      case 'push':
-        return _AdminView.pushBroadcast;
-      case 'catalogs':
-        return _AdminView.catalogs;
-      case 'systemHealth':
-        return _AdminView.systemHealth;
-      case 'activity':
-        return _AdminView.activity;
-      default:
-        return null;
-    }
-  }
-
-  List<_AdminMenuSectionState> _filteredMenuSections() {
-    return _menuSections
-        .map(
-          (s) => _AdminMenuSectionState(
-            title: s.title,
-            subtitle: s.subtitle,
-            tileIds: s.tileIds.where(_tileAllowed).toList(),
-          ),
-        )
-        .where((s) => s.tileIds.isNotEmpty)
-        .toList();
-  }
-
   // Firmenfilter (Offene Reklamationen)
   String _filterCompany = 'Alle Firmen';
 
@@ -673,7 +611,6 @@ class _AdminPageState extends State<AdminPage> {
     _portalUserDisplayNameCtrl.dispose();
     _portalUserPasswordCtrl.dispose();
     _portalUserDepartmentCtrl.dispose();
-    _internalEvalCtrl.dispose();
     super.dispose();
   }
 
@@ -4561,6 +4498,55 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   List<_AdminMenuSectionState> _baseMenuSections() {
+    _AdminView? _tileIdToView(String id) {
+      switch (id) {
+        case 'open':
+          return _AdminView.open;
+        case 'all':
+          return _AdminView.all;
+        case 'pending':
+          return _AdminView.pending;
+        case 'portalUsers':
+          return _AdminView.portalUsers;
+        case 'users':
+          return _AdminView.users;
+        case 'createCustomer':
+          return _AdminView.createCustomer;
+        case 'reps':
+          return _AdminView.reps;
+        case 'news':
+          return _AdminView.news;
+        case 'downloads':
+          return _AdminView.downloads;
+        case 'faq':
+          return _AdminView.faq;
+        case 'wiki':
+          return _AdminView.wiki;
+        case 'products':
+          return _AdminView.products;
+        case 'push':
+          return _AdminView.pushBroadcast;
+        case 'catalogs':
+          return _AdminView.catalogs;
+        case 'systemHealth':
+          return _AdminView.systemHealth;
+        case 'activity':
+          return _AdminView.activity;
+        default:
+          return null;
+      }
+    }
+
+    bool _tileAllowed(String id) {
+      if (!_isSuperuser) {
+        final visibleTiles = _visibleTilesForRole(_portalRole);
+        if (!visibleTiles.contains(id)) return false;
+      }
+      final view = _tileIdToView(id);
+      if (view == null) return true;
+      return _isViewAllowed(view);
+    }
+
     final sections = [
       // Neue Kachel "User-Datenbank" im DFS Portal Startscreen (nur für Superuser sichtbar)
       const _AdminMenuSectionState(
@@ -4917,50 +4903,12 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  Widget _buildPortalRoleVisibilityCard() {
-    if (!_isSuperuser) return const SizedBox.shrink();
-    final sorted = _menuTileIds.toList()..sort();
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: const [
-                Icon(Icons.visibility_outlined),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Menü-Sichtbarkeit pro Rolle',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Hier steuerst du, welche Kacheln normale und read-only Benutzer im Admin-Bereich sehen.',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 12),
-            _buildRoleVisibilityChips('user', sorted),
-            const SizedBox(height: 16),
-            _buildRoleVisibilityChips('readonly', sorted),
-          ],
-        ),
-      ),
-    );
-  }
-
   // ------------------ Kachel-Menü (neues Design) ------------------
   Widget _buildMenu() {
     final w = MediaQuery.of(context).size.width;
     final isPhone = w < 640;
     final compact = isPhone;
-    final sections = _filteredMenuSections();
+    final sections = _menuSections;
     final baseTileWidth = isPhone ? 200.0 : 240.0;
     final aspectRatio = isPhone ? 0.94 : 1.05;
     final tileWidth = baseTileWidth * _menuTileScale;
@@ -7772,7 +7720,6 @@ class _AdminPageState extends State<AdminPage> {
               padding: const EdgeInsets.only(bottom: 8),
               child: Text(_portalUsersErr!, style: TextStyle(color: theme.colorScheme.error)),
             ),
-          _buildPortalRoleVisibilityCard(),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -12089,6 +12036,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     _reportCtrl.dispose();
     _internalCtrl.dispose();
     _notesCtrl.dispose();
+    _internalEvalCtrl.dispose();
     _blinkCtrl.dispose();
 
     super.dispose();
