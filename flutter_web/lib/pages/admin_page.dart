@@ -1,4 +1,5 @@
 // lib/pages/admin_page.dart
+import 'dart:async';
 import 'dart:convert';
 import 'dart:html' as html;
 import 'dart:typed_data';
@@ -61,6 +62,7 @@ enum _AdminView {
   menu,
   all,
   pending,
+  portalUsers,
   users,
   open,
   reps,
@@ -79,6 +81,12 @@ enum _AdminView {
 }
 
 enum _CustPasswordMode { adminSecret, generated }
+
+const Map<String, String> PORTAL_ROLES = {
+  'superuser': 'superuser',
+  'user': 'user',
+  'readonly': 'readonly',
+};
 
 String _internalNumberPrefix({DateTime? now}) {
   final date = now ?? DateTime.now();
@@ -187,6 +195,7 @@ class _AdminPageState extends State<AdminPage> {
   // Daten
   List<PendingUser> _pending = [];
   List<ActiveUser> _users = [];
+  List<PortalUser> _portalUsers = [];
   List<AdminComplaint> _allComplaints = [];
   List<AdminComplaint> _openComplaints = [];
   final Map<String, int> _customerContactSeen = {};
@@ -195,6 +204,18 @@ class _AdminPageState extends State<AdminPage> {
   List<CustomerNewsEntry> _newsEntries = [];
   bool _newsLoading = false;
   String? _newsErr;
+  bool _portalUsersLoading = false;
+  bool _portalUsersLoaded = false;
+  String? _portalUsersErr;
+  bool _portalUserBusy = false;
+
+  final _portalUserEmailCtrl = TextEditingController();
+  final _portalUserDisplayNameCtrl = TextEditingController();
+  final _portalUserPasswordCtrl = TextEditingController();
+  String _portalUserRole = PORTAL_ROLES.superuser;
+  String _portalUserStatus = 'active';
+  PortalUser? _editingPortalUser;
+  final _portalUserFormKey = GlobalKey<FormState>();
 
   // Artikelliste (CSV)
   final ProductLookup _productLookup = ProductLookup();
@@ -440,6 +461,7 @@ class _AdminPageState extends State<AdminPage> {
     _loadCatalogConfigAdmin();
     _loadProducts();
     _refreshFaq();
+    if (_isSuperuser) _refreshPortalUsers();
   }
 
   @override
@@ -465,6 +487,9 @@ class _AdminPageState extends State<AdminPage> {
     _activityEmailCtrl.dispose();
     _bulkInternalAllCtrl.dispose();
     _bulkInternalOpenCtrl.dispose();
+    _portalUserEmailCtrl.dispose();
+    _portalUserDisplayNameCtrl.dispose();
+    _portalUserPasswordCtrl.dispose();
     super.dispose();
   }
 
@@ -765,6 +790,31 @@ class _AdminPageState extends State<AdminPage> {
         _loadPending = false;
         _loadUsers = false;
       });
+    }
+  }
+
+  Future<void> _refreshPortalUsers() async {
+    if (!_isSuperuser) return;
+    setState(() {
+      _portalUsersLoading = true;
+      _portalUsersErr = null;
+    });
+    try {
+      final list = await _api.fetchPortalUsers();
+      if (!mounted) return;
+      setState(() {
+        _portalUsers = list;
+        _portalUsersLoaded = true;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _portalUsersErr = '$e';
+        _portalUsersLoaded = true;
+      });
+    } finally {
+      if (!mounted) return;
+      setState(() => _portalUsersLoading = false);
     }
   }
 
@@ -3458,6 +3508,7 @@ class _AdminPageState extends State<AdminPage> {
       _AdminView.menu           => 'DFS Portal – DFS Customer Complaint',
       _AdminView.all            => 'Alle Reklamationen',
       _AdminView.pending        => 'Pending (Freigabe ausstehend)',
+      _AdminView.portalUsers    => 'Benutzer & Rollen',
       _AdminView.users          => 'Kundendatenbank',
       _AdminView.open           => 'Offene Reklamationen',
       _AdminView.reps           => 'Vertreterverwaltung',
@@ -4024,8 +4075,27 @@ class _AdminPageState extends State<AdminPage> {
         _AdminView.systemHealth,
       }.contains(view);
     }
-    // Normal und Superuser dürfen alles (Superuser zusätzlich Benutzerverwaltung über API)
-    return true;
+    // Normaler User: definierte Teilmenge, keine Benutzerverwaltung für Portal-Accounts
+    return const {
+      _AdminView.menu,
+      _AdminView.open,
+      _AdminView.all,
+      _AdminView.pending,
+      _AdminView.users,
+      _AdminView.reps,
+      _AdminView.news,
+      _AdminView.downloads,
+      _AdminView.faq,
+      _AdminView.wiki,
+      _AdminView.products,
+      _AdminView.catalogs,
+      _AdminView.systemHealth,
+      _AdminView.activity,
+      _AdminView.createCustomer,
+      _AdminView.pushBroadcast,
+      _AdminView.wikiCategories,
+      _AdminView.wikiArticles,
+    }.contains(view);
   }
 
   List<_AdminNavSection> _defaultNavSections() {
@@ -4153,6 +4223,11 @@ class _AdminPageState extends State<AdminPage> {
         title: 'System',
         items: [
           _AdminNavItem(
+            label: 'Benutzer & Rollen',
+            icon: Icons.admin_panel_settings_outlined,
+            view: _AdminView.portalUsers,
+          ),
+          _AdminNavItem(
             label: 'Systemstatus',
             icon: Icons.health_and_safety_outlined,
             view: _AdminView.systemHealth,
@@ -4271,6 +4346,8 @@ class _AdminPageState extends State<AdminPage> {
           return _AdminView.all;
         case 'pending':
           return _AdminView.pending;
+        case 'portalUsers':
+          return _AdminView.portalUsers;
         case 'users':
           return _AdminView.users;
         case 'createCustomer':
@@ -4307,6 +4384,7 @@ class _AdminPageState extends State<AdminPage> {
     }
 
     final sections = [
+      // Neue Kachel "Benutzer & Rollen" im DFS Portal Startscreen (nur für Superuser sichtbar)
       const _AdminMenuSectionState(
         title: 'Reklamationen',
         subtitle: 'Offene Fälle, Suche und Kennzahlen',
@@ -4325,7 +4403,7 @@ class _AdminPageState extends State<AdminPage> {
       const _AdminMenuSectionState(
         title: 'System & Konfiguration',
         subtitle: 'Kataloge, Versionen, Testmodus und Monitoring',
-        tileIds: ['catalogs', 'appMeta', 'testMode', 'systemHealth', 'activity'],
+        tileIds: ['portalUsers', 'catalogs', 'appMeta', 'testMode', 'systemHealth', 'activity'],
       ),
     ];
 
@@ -4350,6 +4428,7 @@ class _AdminPageState extends State<AdminPage> {
     // Ensure newly added tiles (e.g. Downloads) appear even if an older
     // layout is stored without them.
     _ensureMenuTilePresent('downloads');
+    _ensureMenuTilePresent('portalUsers');
   }
 
   void _ensureMenuTilePresent(String tileId) {
@@ -5660,6 +5739,8 @@ class _AdminPageState extends State<AdminPage> {
         return _buildAllComplaintsPanel();
       case _AdminView.pending:
         return _buildPendingPanel();
+      case _AdminView.portalUsers:
+        return _buildPortalUsersPanel();
       case _AdminView.users:
         return _buildUsersPanel();
       case _AdminView.open:
@@ -7170,6 +7251,320 @@ class _AdminPageState extends State<AdminPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _resetPortalUserForm() {
+    setState(() {
+      _editingPortalUser = null;
+      _portalUserEmailCtrl.clear();
+      _portalUserDisplayNameCtrl.clear();
+      _portalUserPasswordCtrl.clear();
+      _portalUserRole = PORTAL_ROLES['superuser']!;
+      _portalUserStatus = 'active';
+    });
+  }
+
+  void _startPortalUserEdit(PortalUser? user) {
+    setState(() {
+      _editingPortalUser = user;
+      _portalUserEmailCtrl.text = user?.email ?? '';
+      _portalUserDisplayNameCtrl.text = user?.displayName ?? '';
+      _portalUserPasswordCtrl.clear();
+      _portalUserRole = user?.role ?? PORTAL_ROLES['superuser']!;
+      _portalUserStatus = user?.portalStatus ?? 'active';
+    });
+  }
+
+  Future<void> _savePortalUser() async {
+    if (!_isSuperuser) return;
+    if (!(_portalUserFormKey.currentState?.validate() ?? false)) return;
+
+    final isNew = _editingPortalUser == null;
+    setState(() => _portalUserBusy = true);
+    try {
+      final saved = isNew
+          ? await _api.createPortalUser(
+              email: _portalUserEmailCtrl.text.trim(),
+              password: _portalUserPasswordCtrl.text,
+              role: _portalUserRole,
+              displayName: _portalUserDisplayNameCtrl.text.trim(),
+              portalStatus: _portalUserStatus,
+            )
+          : await _api.updatePortalUser(
+              email: _editingPortalUser!.email,
+              displayName: _portalUserDisplayNameCtrl.text.trim(),
+              role: _portalUserRole,
+              portalStatus: _portalUserStatus,
+              password: _portalUserPasswordCtrl.text.isEmpty
+                  ? null
+                  : _portalUserPasswordCtrl.text,
+            );
+
+      setState(() {
+        _portalUsersErr = null;
+        final idx = _portalUsers.indexWhere((p) => p.email == saved.email);
+        if (idx >= 0) {
+          _portalUsers[idx] = saved;
+        } else {
+          _portalUsers.add(saved);
+        }
+        _portalUsersLoaded = true;
+      });
+
+      _startPortalUserEdit(saved);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(isNew ? 'Benutzer angelegt' : 'Benutzer aktualisiert')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _portalUsersErr = '$e');
+    } finally {
+      if (mounted) setState(() => _portalUserBusy = false);
+    }
+  }
+
+  Future<void> _togglePortalUserStatus(PortalUser user) async {
+    if (!_isSuperuser) return;
+    final nextStatus = user.portalStatus == 'active' ? 'inactive' : 'active';
+    setState(() => _portalUserBusy = true);
+    try {
+      final updated = await _api.updatePortalUser(
+        email: user.email,
+        portalStatus: nextStatus,
+      );
+
+      setState(() {
+        final idx = _portalUsers.indexWhere((p) => p.email == updated.email);
+        if (idx >= 0) _portalUsers[idx] = updated;
+        if (_editingPortalUser?.email == updated.email) {
+          _startPortalUserEdit(updated);
+        }
+      });
+    } catch (e) {
+      if (mounted) setState(() => _portalUsersErr = '$e');
+    } finally {
+      if (mounted) setState(() => _portalUserBusy = false);
+    }
+  }
+
+  Widget _buildPortalUsersPanel() {
+    final theme = Theme.of(context);
+
+    if (!_isSuperuser) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text('Nur Superuser dürfen Benutzer & Rollen verwalten.',
+              style: theme.textTheme.titleMedium),
+        ),
+      );
+    }
+
+    if (!_portalUsersLoaded && !_portalUsersLoading) {
+      scheduleMicrotask(_refreshPortalUsers);
+    }
+
+    final statusColor = (String status) => status == 'active'
+        ? theme.colorScheme.secondaryContainer
+        : theme.colorScheme.errorContainer;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.admin_panel_settings_outlined),
+              const SizedBox(width: 8),
+              const Text('Benutzer & Rollen',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              const Spacer(),
+              IconButton(
+                tooltip: 'Neu laden',
+                onPressed: _portalUsersLoading ? null : _refreshPortalUsers,
+                icon: const Icon(Icons.refresh),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (_portalUsersErr != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(_portalUsersErr!, style: TextStyle(color: theme.colorScheme.error)),
+            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 2,
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Form(
+                      key: _portalUserFormKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _editingPortalUser == null
+                                ? 'Neuen Portal-Benutzer anlegen'
+                                : 'Portal-Benutzer bearbeiten',
+                            style: theme.textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _portalUserEmailCtrl,
+                            enabled: _editingPortalUser == null,
+                            decoration: const InputDecoration(
+                              labelText: 'E-Mail (Login)',
+                              prefixIcon: Icon(Icons.mail_outline),
+                            ),
+                            keyboardType: TextInputType.emailAddress,
+                            validator: (v) {
+                              final value = v?.trim() ?? '';
+                              if (value.isEmpty) return 'E-Mail erforderlich';
+                              if (!value.contains('@')) return 'E-Mail prüfen';
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 10),
+                          TextFormField(
+                            controller: _portalUserDisplayNameCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Anzeigename (optional)',
+                              prefixIcon: Icon(Icons.badge_outlined),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          TextFormField(
+                            controller: _portalUserPasswordCtrl,
+                            obscureText: true,
+                            decoration: InputDecoration(
+                              labelText:
+                                  _editingPortalUser == null ? 'Passwort festlegen' : 'Neues Passwort (optional)',
+                              prefixIcon: const Icon(Icons.lock_outline),
+                            ),
+                            validator: (v) {
+                              if (_editingPortalUser != null) return null;
+                              return (v ?? '').isEmpty ? 'Passwort erforderlich' : null;
+                            },
+                          ),
+                          const SizedBox(height: 10),
+                          DropdownButtonFormField<String>(
+                            value: _portalUserRole,
+                            items: const [
+                              DropdownMenuItem(value: 'superuser', child: Text('Superuser (Admin)')),
+                              DropdownMenuItem(value: 'user', child: Text('Normaler User')),
+                              DropdownMenuItem(value: 'readonly', child: Text('Nur lesen')),
+                            ],
+                            onChanged: _portalUserBusy
+                                ? null
+                                : (v) => setState(() => _portalUserRole = v ?? PORTAL_ROLES['user']!),
+                            decoration: const InputDecoration(
+                              labelText: 'Rolle',
+                              prefixIcon: Icon(Icons.security_outlined),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          DropdownButtonFormField<String>(
+                            value: _portalUserStatus,
+                            items: const [
+                              DropdownMenuItem(value: 'active', child: Text('Aktiv')),
+                              DropdownMenuItem(value: 'inactive', child: Text('Inaktiv')),
+                            ],
+                            onChanged: _portalUserBusy
+                                ? null
+                                : (v) => setState(() => _portalUserStatus = v ?? 'active'),
+                            decoration: const InputDecoration(
+                              labelText: 'Status',
+                              prefixIcon: Icon(Icons.verified_user_outlined),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              ElevatedButton.icon(
+                                onPressed: _portalUserBusy ? null : _savePortalUser,
+                                icon: const Icon(Icons.save_outlined),
+                                label: Text(_editingPortalUser == null ? 'Benutzer anlegen' : 'Änderungen speichern'),
+                              ),
+                              const SizedBox(width: 12),
+                              TextButton(
+                                onPressed: _portalUserBusy ? null : _resetPortalUserForm,
+                                child: const Text('Formular zurücksetzen'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 3,
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text('Bestehende Portal-Benutzer (${_portalUsers.length})',
+                                style: theme.textTheme.titleMedium),
+                            if (_portalUsersLoading) ...[
+                              const SizedBox(width: 12),
+                              const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        if (_portalUsers.isEmpty && !_portalUsersLoading)
+                          const Text('Keine Portal-Benutzer vorhanden.'),
+                        ..._portalUsers.map((u) {
+                          final isActive = u.portalStatus == 'active';
+                          return Card(
+                            margin: const EdgeInsets.symmetric(vertical: 6),
+                            color: theme.colorScheme.surfaceVariant.withOpacity(0.2),
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: statusColor(u.portalStatus),
+                                child: Icon(isActive ? Icons.check : Icons.pause, color: theme.colorScheme.onSurface),
+                              ),
+                              title: Text(u.displayName?.isNotEmpty == true ? u.displayName! : u.email),
+                              subtitle: Text('${u.email}\nRolle: ${u.role} — Status: ${u.portalStatus}'),
+                              isThreeLine: true,
+                              trailing: Wrap(
+                                spacing: 8,
+                                children: [
+                                  IconButton(
+                                    tooltip: 'Bearbeiten',
+                                    onPressed: _portalUserBusy ? null : () => _startPortalUserEdit(u),
+                                    icon: const Icon(Icons.edit_outlined),
+                                  ),
+                                  IconButton(
+                                    tooltip: isActive ? 'Deaktivieren' : 'Reaktivieren',
+                                    onPressed: _portalUserBusy ? null : () => _togglePortalUserStatus(u),
+                                    icon: Icon(isActive ? Icons.pause_circle_outline : Icons.play_circle_outline),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -9894,6 +10289,30 @@ class PendingUser {
         phone: '',
         lang: 'de',
         createdAt: '',
+      );
+}
+
+class PortalUser {
+  final String email;
+  final String? displayName;
+  final String role;
+  final String portalStatus;
+  final String? createdAt;
+
+  const PortalUser({
+    required this.email,
+    required this.displayName,
+    required this.role,
+    required this.portalStatus,
+    this.createdAt,
+  });
+
+  factory PortalUser.fromJson(Map<String, dynamic> j) => PortalUser(
+        email: j['email'] ?? '',
+        displayName: (j['displayName'] ?? '').toString(),
+        role: j['role'] ?? PORTAL_ROLES['user']!,
+        portalStatus: j['portalStatus'] ?? 'inactive',
+        createdAt: j['createdAt']?.toString(),
       );
 }
 
@@ -13880,6 +14299,56 @@ class AdminApi {
     if (txt.trim().isEmpty) return <ActiveUser>[];
     final List data = jsonDecode(txt);
     return data.map((e) => ActiveUser.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  // Portal Users (DFS Portal)
+  Future<List<PortalUser>> fetchPortalUsers() async {
+    final res = await _request('GET', '/api/portal/users');
+    if (res.status != 200) throw 'portal/users GET: HTTP ${res.status} ${res.responseText}';
+    final txt = res.responseText ?? '';
+    if (txt.trim().isEmpty) return const <PortalUser>[];
+    final List data = jsonDecode(txt);
+    return data.map((e) => PortalUser.fromJson((e as Map).cast<String, dynamic>())).toList();
+  }
+
+  Future<PortalUser> createPortalUser({
+    required String email,
+    required String password,
+    required String role,
+    String? displayName,
+    String portalStatus = 'active',
+  }) async {
+    final body = {
+      'email': email,
+      'password': password,
+      'role': role,
+      'portalStatus': portalStatus,
+      if (displayName != null) 'displayName': displayName,
+    };
+    final res = await _request('POST', '/api/portal/users', body: body);
+    if (res.status != 200) throw 'portal/users POST: HTTP ${res.status} ${res.responseText}';
+    final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
+    return PortalUser.fromJson(j);
+  }
+
+  Future<PortalUser> updatePortalUser({
+    required String email,
+    String? displayName,
+    String? role,
+    String? portalStatus,
+    String? password,
+  }) async {
+    final body = <String, dynamic>{
+      'email': email,
+      if (displayName != null) 'displayName': displayName,
+      if (role != null) 'role': role,
+      if (portalStatus != null) 'portalStatus': portalStatus,
+      if (password != null) 'password': password,
+    };
+    final res = await _request('PATCH', '/api/portal/users', body: body);
+    if (res.status != 200) throw 'portal/users PATCH: HTTP ${res.status} ${res.responseText}';
+    final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
+    return PortalUser.fromJson(j);
   }
 
   // Complaints (by email / open)

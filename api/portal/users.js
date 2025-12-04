@@ -4,7 +4,14 @@ export const config = { runtime: 'nodejs' };
 import bcrypt from 'bcryptjs';
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { usersList, userSave, userDelete } from '../_lib/store.js';
-import { canManageUsers, normalizeRole, normalizeStatus, portalUserFromRequest, PORTAL_ROLES } from '../_lib/portalAuth.js';
+import {
+  ADMIN_EMAILS,
+  canManageUsers,
+  normalizeRole,
+  normalizeStatus,
+  portalUserFromRequest,
+  PORTAL_ROLES,
+} from '../_lib/portalAuth.js';
 
 function sanitizeUser(u) {
   const role = normalizeRole(u.role);
@@ -45,7 +52,7 @@ export default async function handler(req, res) {
       const user = {
         email,
         passhash: hash,
-        role,
+        role: ADMIN_EMAILS.has(email) ? PORTAL_ROLES.superuser : role,
         portalStatus: 'active',
         displayName,
         createdAt: Date.now(),
@@ -68,6 +75,11 @@ export default async function handler(req, res) {
       if (body.portalStatus) patch.portalStatus = normalizeStatus(body.portalStatus);
       if (body.password) patch.passhash = await bcrypt.hash(String(body.password), 10);
 
+      if (ADMIN_EMAILS.has(email)) {
+        patch.role = PORTAL_ROLES.superuser;
+        patch.portalStatus = 'active';
+      }
+
       await userSave(patch);
       return ok(res, sanitizeUser(patch));
     }
@@ -76,6 +88,7 @@ export default async function handler(req, res) {
       const body = readJson(req) || {};
       const email = String(body.email || '').trim().toLowerCase();
       if (!email) return bad(res, 'missing email', 400);
+      if (ADMIN_EMAILS.has(email)) return bad(res, 'cannot delete initial admins', 400);
       await userDelete(email);
       return ok(res, { deleted: email });
     }
