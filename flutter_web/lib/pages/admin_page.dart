@@ -3508,7 +3508,7 @@ class _AdminPageState extends State<AdminPage> {
       _AdminView.menu           => 'DFS Portal – DFS Customer Complaint',
       _AdminView.all            => 'Alle Reklamationen',
       _AdminView.pending        => 'Pending (Freigabe ausstehend)',
-      _AdminView.portalUsers    => 'Benutzer & Rollen',
+      _AdminView.portalUsers    => 'User-Datenbank',
       _AdminView.users          => 'Kundendatenbank',
       _AdminView.open           => 'Offene Reklamationen',
       _AdminView.reps           => 'Vertreterverwaltung',
@@ -4208,7 +4208,7 @@ class _AdminPageState extends State<AdminPage> {
         title: 'System',
         items: [
           _AdminNavItem(
-            label: 'Benutzer & Rollen',
+            label: 'User-Datenbank',
             icon: Icons.admin_panel_settings_outlined,
             view: _AdminView.portalUsers,
           ),
@@ -4369,7 +4369,7 @@ class _AdminPageState extends State<AdminPage> {
     }
 
     final sections = [
-      // Neue Kachel "Benutzer & Rollen" im DFS Portal Startscreen (nur für Superuser sichtbar)
+      // Neue Kachel "User-Datenbank" im DFS Portal Startscreen (nur für Superuser sichtbar)
       const _AdminMenuSectionState(
         title: 'Reklamationen',
         subtitle: 'Offene Fälle, Suche und Kennzahlen',
@@ -5403,8 +5403,8 @@ class _AdminPageState extends State<AdminPage> {
         );
       case 'portalUsers':
         return AdminTilePro(
-          label: 'Benutzer & Rollen',
-          subtitle: 'Portal-Accounts verwalten',
+          label: 'User-Datenbank',
+          subtitle: 'Mitarbeiter & User verwalten',
           icon: Icons.admin_panel_settings_outlined,
           colorA: AdminPalette.blueA,
           colorB: AdminPalette.blueB,
@@ -7367,7 +7367,7 @@ class _AdminPageState extends State<AdminPage> {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Text('Nur Superuser dürfen Benutzer & Rollen verwalten.',
+          child: Text('Nur Superuser dürfen die User-Datenbank verwalten.',
               style: theme.textTheme.titleMedium),
         ),
       );
@@ -7390,7 +7390,7 @@ class _AdminPageState extends State<AdminPage> {
             children: [
               const Icon(Icons.admin_panel_settings_outlined),
               const SizedBox(width: 8),
-              const Text('Benutzer & Rollen',
+              const Text('User-Datenbank',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
               const Spacer(),
               IconButton(
@@ -7421,8 +7421,8 @@ class _AdminPageState extends State<AdminPage> {
                         children: [
                           Text(
                             _editingPortalUser == null
-                                ? 'Neuen Portal-Benutzer anlegen'
-                                : 'Portal-Benutzer bearbeiten',
+                                ? 'Neuen Mitarbeiter-User anlegen'
+                                : 'Mitarbeiter-User bearbeiten',
                             style: theme.textTheme.titleMedium,
                           ),
                           const SizedBox(height: 12),
@@ -7526,7 +7526,7 @@ class _AdminPageState extends State<AdminPage> {
                       children: [
                         Row(
                           children: [
-                            Text('Bestehende Portal-Benutzer (${_portalUsers.length})',
+                            Text('User-Datenbank (${_portalUsers.length})',
                                 style: theme.textTheme.titleMedium),
                             if (_portalUsersLoading) ...[
                               const SizedBox(width: 12),
@@ -7536,7 +7536,7 @@ class _AdminPageState extends State<AdminPage> {
                         ),
                         const SizedBox(height: 8),
                         if (_portalUsers.isEmpty && !_portalUsersLoading)
-                          const Text('Keine Portal-Benutzer vorhanden.'),
+                          const Text('Keine Mitarbeiter-/Portal-User vorhanden.'),
                         ..._portalUsers.map((u) {
                           final isActive = u.portalStatus == 'active';
                           return Card(
