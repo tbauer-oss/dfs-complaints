@@ -3,22 +3,14 @@ export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { addDownloadCategory, deleteDownloadCategory, downloadCategoriesWithCounts } from '../_lib/store.js';
-
-const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
-
-function requireAdmin(req, res) {
-  const hdr = (req.headers?.['x-admin-secret'] || '').toString().trim();
-  if (!ADMIN_SECRET || hdr !== ADMIN_SECRET) {
-    bad(res, 'unauthorized', 401);
-    return false;
-  }
-  return true;
-}
+import { requirePortalAccess } from './_guard.js';
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
-  if (!requireAdmin(req, res)) return;
+
+  const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET' });
+  if (!actor) return;
 
   try {
     if (req.method === 'GET') {

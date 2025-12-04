@@ -4,7 +4,7 @@ export const config = { runtime: 'nodejs' };
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { handlePreflight, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
-import { userByEmail, userSave } from '../_lib/store.js';
+import { portalUserByEmail, portalUserSave } from '../_lib/store.js';
 import {
   ADMIN_EMAILS,
   ensureInitialAdmins,
@@ -28,7 +28,7 @@ export default async function handler(req, res) {
     const pw = String(body?.password || '');
     if (!email || !pw) return bad(res, 'missing credentials', 400);
 
-    let u = await userByEmail(email);
+    let u = await portalUserByEmail(email);
     if (!u && ADMIN_EMAILS.has(email)) {
       const passhash = ADMIN_SECRET ? await bcrypt.hash(ADMIN_SECRET, 10) : '';
       u = {
@@ -39,7 +39,7 @@ export default async function handler(req, res) {
         displayName: email.split('@')[0],
         createdAt: Date.now(),
       };
-      await userSave(u);
+      await portalUserSave(u);
     }
 
     if (!u) return bad(res, 'invalid credentials', 401);

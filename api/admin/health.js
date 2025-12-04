@@ -12,6 +12,7 @@ import { redis } from '../_lib/redis.js';
 import { verifyTransport } from '../_lib/mail.js';
 import { mailConfigOk, resolveMailConfig } from '../_lib/mail-config.js';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
+import { portalUserFromRequest } from '../_lib/portalAuth.js';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 const hasRedisUrl = !!process.env.UPSTASH_REDIS_REST_URL;
@@ -27,11 +28,6 @@ const STATUS_ORDER = {
   warn: 1,
   critical: 2,
 };
-
-function isAdmin(req) {
-  const hdr = req.headers?.['x-admin-secret'];
-  return typeof hdr === 'string' && !!ADMIN_SECRET && hdr === ADMIN_SECRET;
-}
 
 function randomId() {
   return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
@@ -454,8 +450,9 @@ export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
 
+  const actor = await portalUserFromRequest(req);
   const adminSecretCheck = checkAdminSecret(req);
-  if (ADMIN_SECRET && !isAdmin(req)) return bad(res, 'admin unauthorized', 401);
+  if (ADMIN_SECRET && !actor) return bad(res, 'admin unauthorized', 401);
   if (req.method !== 'GET') return methodNotAllowed(res);
 
   try {

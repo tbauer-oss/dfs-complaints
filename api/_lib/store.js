@@ -47,11 +47,14 @@ async function withRedisTimeout(promise, label = 'redis op') {
 
 const P = 'dfs:';
 const KEY_REP_PUSH = (repId) => `${P}rep:${repId}:pushTokens`;
+const KEY_PORTAL_USER = (email) => `${P}portal:user:${email}`;
+const KEY_PORTAL_USERS = `${P}portal:users`;
 const KEY_DOWNLOAD_CATEGORIES = `${P}downloads:categories`;
 
 // ===== In-Memory Fallback (Preview / Dev) =====
 const mem = {
   users: new Map(),
+  portalUsers: new Map(),
   pending: new Map(),
   complaints: new Map(),
   counters: { ticket: 1 },
@@ -1106,6 +1109,75 @@ export async function usersList() {
       });
   }
   return Array.from(mem.users.values());
+}
+
+/* ============== Portal Users (Mitarbeiter) ============== */
+const hasPortalMarker = (u) => !!u && (Object.prototype.hasOwnProperty.call(u, 'portalStatus') || Object.prototype.hasOwnProperty.call(u, 'role'));
+
+function normalizePortalUser(u) {
+  if (!u || typeof u !== 'object') return null;
+  const normalized = { ...u, kind: u.kind || 'portal' };
+  if (Array.isArray(normalized.pushTokens)) {
+    const tokens = normalizePushTokens(normalized.pushTokens);
+    if (tokens.length > 0) normalized.pushTokens = tokens; else delete normalized.pushTokens;
+  }
+  normalized.lang = normLang(normalized.lang || '');
+  return normalized;
+}
+
+export async function portalUserByEmail(email) {
+  if (!email) return null;
+  const normalizedEmail = String(email).toLowerCase();
+  const key = KEY_PORTAL_USER(normalizedEmail);
+  const r = getRedis();
+  const raw = r ? await rget(key) : mem.portalUsers.get(normalizedEmail) ?? null;
+  if (raw && typeof raw === 'object') return normalizePortalUser(raw);
+
+  // Legacy-Migration: Portal-User aus der Kundendatenbank holen und verschieben
+  const legacy = await userByEmail(normalizedEmail);
+  if (hasPortalMarker(legacy)) {
+    const migrated = normalizePortalUser({ ...legacy, kind: legacy?.kind || 'portal' });
+    await portalUserSave(migrated);
+    await userDelete(normalizedEmail);
+    return migrated;
+  }
+
+  return null;
+}
+
+export async function portalUserSave(u) {
+  const email = String(u?.email || '').toLowerCase();
+  if (!email) return false;
+  const key = KEY_PORTAL_USER(email);
+  const r = getRedis();
+  const toSave = normalizePortalUser({ ...u, email });
+  if (!toSave) return false;
+  if (r) await rset(key, toSave); else mem.portalUsers.set(email, toSave);
+  return true;
+}
+
+export async function portalUserDelete(email) {
+  email = String(email || '').toLowerCase();
+  if (!email) return true;
+  const key = KEY_PORTAL_USER(email);
+  const r = getRedis();
+  if (r) await rdel(key); else mem.portalUsers.delete(email);
+  return true;
+}
+
+export async function portalUsersList() {
+  const r = getRedis();
+  if (r) {
+    const keys = await rkeys(`${P}portal:user:*`);
+    const vals = await Promise.all(keys.map(k => rget(k)));
+    return vals
+      .filter(Boolean)
+      .map(normalizePortalUser)
+      .filter(Boolean);
+  }
+  return Array.from(mem.portalUsers.values())
+    .map(normalizePortalUser)
+    .filter(Boolean);
 }
 
 export async function pushTokensForEmail(email) {
