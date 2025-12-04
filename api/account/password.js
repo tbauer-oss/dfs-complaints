@@ -3,7 +3,12 @@ export const config = { runtime: 'nodejs' };
 
 import { setCors, ok, bad, noContent, methodNotAllowed } from '../_lib/http.js';
 import { getAuthUser } from '../_lib/auth.js';
-import { userByEmail, userSave } from '../_lib/store.js';
+import {
+  portalUserByEmail,
+  portalUserSave,
+  userByEmail,
+  userSave,
+} from '../_lib/store.js';
 import { isStrongPassword } from '../_lib/passwords.js';
 import bcrypt from 'bcryptjs';
 import { sendMail } from '../_lib/mailer.js';
@@ -20,7 +25,7 @@ export default async function handler(req, res) {
   const oldPw = body?.oldPassword || '';
   const newPw = body?.newPassword || '';
 
-  const u = await userByEmail(auth.email);
+  const u = (await userByEmail(auth.email)) || (await portalUserByEmail(auth.email));
   if (!u) return bad(res, 'not found', 404);
 
   const okOld = await bcrypt.compare(oldPw, u.passhash);
@@ -31,8 +36,12 @@ export default async function handler(req, res) {
   }
 
   const passhash = await bcrypt.hash(newPw, 10);
-  await userSave({ ...u, passhash });
-
+  if (u.type === 'portal' || u.kind === 'staff') {
+    await portalUserSave({ ...u, passhash });
+  } else {
+    await userSave({ ...u, passhash });
+  }
+  
   await sendMail({
     to: auth.email, cc: 'complaint@dfs-diamon.de',
     subject: '[DFS Complaint] Passwort geändert',
