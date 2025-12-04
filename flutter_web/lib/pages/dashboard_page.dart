@@ -21,12 +21,12 @@ import '../widgets/pdf_view_stub.dart'
 const _labCatalogLinks = [
   _CatalogLink(
     label: 'DE / EN',
-    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Labor-DE-US-2025-26_1.pdf',
+    url: 'pdfs/DFS-Labor-DE-US-2025-26_1.pdf',
     locales: {'de', 'en', 'it'},
   ),
   _CatalogLink(
     label: 'ES / FR',
-    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-LaborES-FR-2025-26_0.pdf',
+    url: 'pdfs/DFS-Labor-ES-FR-2025-26_1.pdf',
     locales: {'es', 'fr'},
   ),
 ];
@@ -34,12 +34,12 @@ const _labCatalogLinks = [
 const _dentCatalogLinks = [
   _CatalogLink(
     label: 'DE / EN',
-    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf',
+    url: 'pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf',
     locales: {'de', 'en', 'it'},
   ),
   _CatalogLink(
     label: 'ES / FR',
-    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Praxis-ES-FR-2025-2026_1.pdf',
+    url: 'pdfs/DFS-Praxis-ES-FR-2025-2026_1.pdf',
     locales: {'es', 'fr'},
   ),
 ];
