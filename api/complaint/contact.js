@@ -3,7 +3,7 @@ export const config = { runtime: 'nodejs' };
 
 import { setCors, noContent, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { getAuthUser } from '../_lib/auth.js';
-import { complaintGet, userByEmail } from '../_lib/store.js';
+import { complaintGet, complaintSave, userByEmail } from '../_lib/store.js';
 import { getRepOf } from '../_lib/repsStore.js';
 import { send, tpl } from '../_lib/mail.js';
 
@@ -49,6 +49,30 @@ function sanitizeSubject(value) {
 
 function normalizeMessage(value) {
   return S(value).replace(/\r\n/g, '\n');
+}
+
+function normalizeHistoryEntry(entry = {}) {
+  const at = Number(entry?.at);
+  const actor = (entry?.actor || 'system').toString().trim() || 'system';
+  const type = (entry?.type || 'info').toString().trim() || 'info';
+  const message = (entry?.message || '').toString();
+  const data = (entry?.data && typeof entry.data === 'object') ? entry.data : undefined;
+
+  return {
+    at: Number.isFinite(at) && at > 0 ? at : Date.now(),
+    actor,
+    type,
+    message,
+    ...(data ? { data } : {}),
+  };
+}
+
+function pushHistory(comp = {}, entry = {}) {
+  const existing = Array.isArray(comp.history) ? comp.history.slice() : [];
+  existing.push(normalizeHistoryEntry(entry));
+  existing.sort((a, b) => (a.at || 0) - (b.at || 0));
+  comp.history = existing;
+  return comp.history;
 }
 
 export default async function handler(req, res) {
@@ -154,6 +178,27 @@ export default async function handler(req, res) {
       lang: 'de',
       cc,
     });
+
+    const now = Date.now();
+    pushHistory(comp, {
+      at: now,
+      actor: 'customer',
+      type: 'contact',
+      message: hasRep
+        ? 'Kunden-Nachricht an Ansprechpartner'
+        : 'Kunden-Nachricht an QM',
+      data: {
+        subject,
+        message,
+        channel: hasRep ? 'rep' : 'qm',
+      },
+    });
+
+    try {
+      await complaintSave({ ...comp, updatedAt: now });
+    } catch (err) {
+      console.error('[complaint/contact] history save failed', err);
+    }
 
     if (user.email) {
       try {
