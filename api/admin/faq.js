@@ -10,16 +10,7 @@ import {
   faqDeleteEntry,
   FAQ_AUDIENCE_CODES,
 } from '../_lib/store.js';
-
-function requireAdmin(req, res) {
-  const sec = (req.headers?.['x-admin-secret'] || '').toString().trim();
-  const expected = (process.env.ADMIN_SECRET || '').toString().trim();
-  if (!sec || !expected || sec !== expected) {
-    bad(res, 'unauthorized', 401);
-    return false;
-  }
-  return true;
-}
+import { requirePortalAccess } from './_guard.js';
 
 function normalizeType(raw) {
   const t = (raw ?? '').toString().trim().toLowerCase();
@@ -31,7 +22,8 @@ function normalizeType(raw) {
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
-  if (!requireAdmin(req, res)) return;
+  const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET' });
+  if (!actor) return;
 
   try {
     if (req.method === 'GET') {
