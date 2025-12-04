@@ -8289,8 +8289,9 @@ class _AdminPageState extends State<AdminPage> {
     final selected = isOpenList ? _selectedOpenTickets : _selectedAllTickets;
     final busy = isOpenList ? _bulkAssigningOpen : _bulkAssigningAll;
     final expanded = isOpenList ? _showBulkAssignOpen : _showBulkAssignAll;
+    final canBulkAssign = _portalRole == 'superuser';
 
-    return Container(
+    final content = Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
@@ -8398,6 +8399,10 @@ class _AdminPageState extends State<AdminPage> {
         ],
       ),
     );
+
+    return canBulkAssign
+        ? content
+        : Opacity(opacity: 0.5, child: IgnorePointer(ignoring: true, child: content));
   }
 
   Widget _buildAllComplaintsPanel() {
@@ -8658,10 +8663,15 @@ class _AdminPageState extends State<AdminPage> {
                           companyHint: _companyByEmail(c.email),
                           hasRep: _customerHasRep(c.email),
                           hasNewCustomerMessage: _hasNewCustomerMessage(c),
-                          selectable: true,
+                          selectable: _portalRole == 'superuser',
                           selected: _selectedAllTickets.contains(c.ticket),
-                          onSelected: (v) =>
-                              _toggleTicketSelection(c.ticket, v ?? false, isOpenList: false),
+                          onSelected: _portalRole == 'superuser'
+                              ? (v) => _toggleTicketSelection(
+                                    c.ticket,
+                                    v ?? false,
+                                    isOpenList: false,
+                                  )
+                              : null,
                           onChanged: _syncComplaint,
                           onCustomerMessageSeen: () => _markCustomerMessageSeen(c),
                           onClosed: () {
@@ -8761,10 +8771,15 @@ class _AdminPageState extends State<AdminPage> {
                           companyHint: _companyByEmail(c.email),
                           hasRep: _customerHasRep(c.email), // ← NEU
                           hasNewCustomerMessage: _hasNewCustomerMessage(c),
-                          selectable: true,
+                          selectable: _portalRole == 'superuser',
                           selected: _selectedOpenTickets.contains(c.ticket),
-                          onSelected: (v) =>
-                              _toggleTicketSelection(c.ticket, v ?? false, isOpenList: true),
+                          onSelected: _portalRole == 'superuser'
+                              ? (v) => _toggleTicketSelection(
+                                    c.ticket,
+                                    v ?? false,
+                                    isOpenList: true,
+                                  )
+                              : null,
                           onChanged: _syncComplaint,
                           onCustomerMessageSeen: () => _markCustomerMessageSeen(c),
                           onClosed: () {
@@ -13379,6 +13394,15 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
       return '${two(d.day)}.${two(d.month)}.${d.year}';
     }
 
+    Widget _lockForPortal(Widget child, {bool allowPortalUser = false}) {
+      final locked = _isPortalReadonly || (_isPortalUser && !allowPortalUser);
+      final opacity = locked ? 0.55 : 1.0;
+      return Opacity(
+        opacity: opacity,
+        child: IgnorePointer(ignoring: locked, child: child),
+      );
+    }
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
       child: Padding(
@@ -13397,7 +13421,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                     padding: const EdgeInsets.only(right: 12, top: 2),
                     child: Checkbox(
                       value: widget.selected,
-                      onChanged: widget.onSelected,
+                      onChanged: (_isPortalUser || _isPortalReadonly) ? null : widget.onSelected,
                     ),
                   ),
                 // Linke Seite: Ticket + Interne Nr. + Datum + Status-Chip
@@ -13538,7 +13562,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                           IconButton(
                             tooltip: hasNote ? 'Notiz anzeigen/bearbeiten' : 'Notiz hinzufügen',
                             icon: Icon(_noteOpen ? Icons.sticky_note_2 : Icons.sticky_note_2_outlined),
-                            onPressed: _busy ? null : _toggleNotes,
+                            onPressed:
+                                (_busy || _isPortalUser || _isPortalReadonly) ? null : _toggleNotes,
                           ),
                           if (hasNote)
                             Positioned(
@@ -13583,7 +13608,9 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                         IconButton(
                           tooltip: 'E-Mail an Kunden verfassen',
                           icon: const Icon(Icons.email_outlined),
-                          onPressed: _busy ? null : _composeMailToCustomer,
+                          onPressed: (_busy || _isPortalUser || _isPortalReadonly)
+                              ? null
+                              : _composeMailToCustomer,
                         ),
                       ],
                     );
@@ -13597,7 +13624,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
               transitionBuilder: (child, anim) => SizeTransition(sizeFactor: anim, axisAlignment: -1, child: child),
               child: !_noteOpen
                   ? const SizedBox.shrink()
-                  : Container(
+                  : _lockForPortal(
+                      Container(
                       key: const ValueKey('admin-note'),
                       width: double.infinity,
                       margin: const EdgeInsets.only(top: 12),
@@ -13661,7 +13689,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                                 controller: _notesCtrl,
                                 minLines: 4,
                                 maxLines: 10,
-                                enabled: !_busy,
+                                enabled: !_busy && !_isPortalUser && !_isPortalReadonly,
                                 onChanged: (_) => setState(() {}),
                                 decoration: const InputDecoration(
                                   border: InputBorder.none,
@@ -13685,19 +13713,23 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                                 ),
                               ),
                               TextButton.icon(
-                                onPressed: _busy ? null : _closeNotes,
+                                onPressed:
+                                    (_busy || _isPortalUser || _isPortalReadonly) ? null : _closeNotes,
                                 icon: const Icon(Icons.close),
                                 label: const Text('Schließen'),
                               ),
                               const SizedBox(width: 8),
                               FilledButton.icon(
-                                onPressed: (_busy || !noteChanged) ? null : _saveNotes,
+                                onPressed: (_busy || !noteChanged || _isPortalUser || _isPortalReadonly)
+                                    ? null
+                                    : _saveNotes,
                                 icon: const Icon(Icons.save_outlined),
                                 label: const Text('Notiz speichern'),
                               ),
                             ],
                           ),
                         ],
+                      ),
                       ),
                     ),
             ),
@@ -14324,62 +14356,116 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                   Widget buildInternalEvaluationSection() {
                     final canEditEvaluation = !_isPortalReadonly && (_isPortalUser || _isPortalSuperuser);
                     final translations = widget.c.internalEvaluationTranslations ?? const <String, String>{};
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          'Interne Bewertung',
-                          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 10),
-                        TextField(
-                          controller: _internalEvalCtrl,
-                          minLines: 3,
-                          maxLines: 8,
-                          readOnly: !canEditEvaluation,
-                          decoration: const InputDecoration(
-                            border: OutlineInputBorder(),
-                            labelText: 'Interne Bewertung (DE)',
-                            alignLabelWithHint: true,
+                    return Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: scheme.surfaceVariant.withOpacity(0.35),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: scheme.outlineVariant.withOpacity(0.8)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 18,
+                                backgroundColor: scheme.primary.withOpacity(0.15),
+                                child: Icon(Icons.fact_check_outlined, color: scheme.primary),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Interne Bewertung',
+                                      style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Kompakt bewerten und die vermutete Ursache dokumentieren. Nur intern sichtbar.',
+                                      style: textTheme.bodySmall?.copyWith(color: secondaryTextColor),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (_isPortalReadonly)
+                                Chip(
+                                  label: const Text('Nur Lesen'),
+                                  avatar: const Icon(Icons.visibility_off_outlined, size: 18),
+                                  backgroundColor: scheme.surface,
+                                )
+                              else if (_isPortalUser)
+                                Chip(
+                                  label: const Text('Nur Bewertung'),
+                                  avatar: const Icon(Icons.lock_clock_outlined, size: 18),
+                                  backgroundColor: scheme.surface,
+                                ),
+                            ],
                           ),
-                        ),
-                        const SizedBox(height: 10),
-                        DropdownButtonFormField<String>(
-                          value: (_internalEvalCause ?? '').isEmpty ? null : _internalEvalCause,
-                          decoration: const InputDecoration(
-                            border: OutlineInputBorder(),
-                            labelText: 'Vermutete Ursache',
+                          const SizedBox(height: 14),
+                          TextField(
+                            controller: _internalEvalCtrl,
+                            minLines: 3,
+                            maxLines: 8,
+                            readOnly: !canEditEvaluation,
+                            decoration: InputDecoration(
+                              border: const OutlineInputBorder(),
+                              labelText: 'Interne Bewertung (DE)',
+                              alignLabelWithHint: true,
+                              helperText: 'Beschreibe kurz die interne Einschätzung und geplante Maßnahmen.',
+                            ),
                           ),
-                          items: kInternalEvaluationCauses
-                              .map((cause) => DropdownMenuItem(value: cause, child: Text(cause)))
-                              .toList(),
-                          onChanged: canEditEvaluation ? (v) => setState(() => _internalEvalCause = v) : null,
-                        ),
-                        const SizedBox(height: 10),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: FilledButton.icon(
-                            onPressed: (!canEditEvaluation || _busy) ? null : _saveInternalEvaluation,
-                            icon: const Icon(Icons.save_outlined),
-                            label: const Text('Interne Bewertung speichern'),
-                          ),
-                        ),
-                        if (translations.isNotEmpty) ...[
                           const SizedBox(height: 12),
-                          Text(
-                            'Gespeicherte Übersetzungen',
-                            style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                          const SizedBox(height: 6),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: translations.entries
-                                .map((e) => InputChip(label: Text('${e.key.toUpperCase()}: ${e.value}')))
+                          DropdownButtonFormField<String>(
+                            value: (_internalEvalCause ?? '').isEmpty ? null : _internalEvalCause,
+                            decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                              labelText: 'Vermutete Ursache',
+                            ),
+                            items: kInternalEvaluationCauses
+                                .map((cause) => DropdownMenuItem(value: cause, child: Text(cause)))
                                 .toList(),
+                            onChanged:
+                                canEditEvaluation ? (v) => setState(() => _internalEvalCause = v) : null,
                           ),
+                          const SizedBox(height: 14),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                canEditEvaluation
+                                    ? 'Nur dieser Bereich ist für dich freigeschaltet.'
+                                    : 'Keine Änderungen möglich – nur Ansicht.',
+                                style: textTheme.bodySmall?.copyWith(color: secondaryTextColor),
+                              ),
+                              FilledButton.icon(
+                                onPressed: (!canEditEvaluation || _busy) ? null : _saveInternalEvaluation,
+                                icon: const Icon(Icons.save_outlined),
+                                label: const Text('Bewertung sichern'),
+                              ),
+                            ],
+                          ),
+                          if (translations.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            Divider(color: scheme.outlineVariant.withOpacity(0.7)),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Gespeicherte Übersetzungen',
+                              style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 6),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: translations.entries
+                                  .map((e) => InputChip(label: Text('${e.key.toUpperCase()}: ${e.value}')))
+                                  .toList(),
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     );
                   }
 
@@ -14433,7 +14519,9 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                               ),
                             ),
                             OutlinedButton.icon(
-                              onPressed: history.isEmpty ? null : _exportHistoryCsv,
+                              onPressed: (history.isEmpty || _isPortalUser || _isPortalReadonly)
+                                  ? null
+                                  : _exportHistoryCsv,
                               icon: const Icon(Icons.download_outlined),
                               label: const Text('Exportieren'),
                             ),
@@ -14490,7 +14578,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                                             Align(
                                               alignment: Alignment.centerLeft,
                                               child: TextButton.icon(
-                                                onPressed: _busy
+                                                onPressed: (_busy || _isPortalUser || _isPortalReadonly)
                                                     ? null
                                                     : () => _composeReplyToCustomerMessage(entry),
                                                 style: TextButton.styleFrom(
@@ -14519,19 +14607,24 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                     );
                   }
 
+                  final statusSection = _lockForPortal(buildStatusSection());
+                  final metaSection = _lockForPortal(buildMetaSection());
+                  final evalSection =
+                      _lockForPortal(buildInternalEvaluationSection(), allowPortalUser: true);
+
                   final editor = isWide
                       ? Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(child: buildStatusSection()),
+                            Expanded(child: statusSection),
                             const SizedBox(width: 28),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  buildMetaSection(),
+                                  metaSection,
                                   const SizedBox(height: 24),
-                                  buildInternalEvaluationSection(),
+                                  evalSection,
                                 ],
                               ),
                             ),
@@ -14540,11 +14633,11 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                       : Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            buildStatusSection(),
+                            statusSection,
                             const SizedBox(height: 24),
-                            buildMetaSection(),
+                            metaSection,
                             const SizedBox(height: 24),
-                            buildInternalEvaluationSection(),
+                            evalSection,
                           ],
                         );
 
@@ -14598,7 +14691,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                                 ),
                                 const SizedBox(width: 12),
                                 TextButton.icon(
-                                  onPressed: _busy ? null : _openEditDialog,
+                                  onPressed:
+                                      (_busy || _isPortalUser || _isPortalReadonly) ? null : _openEditDialog,
                                   icon: const Icon(Icons.edit_note_outlined),
                                   label: const Text('Reklamation ändern'),
                                 ),
