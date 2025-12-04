@@ -163,7 +163,13 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 420;
         final tight = constraints.maxWidth < 360;
-        final heroHeight = compact ? 150.0 : 170.0;
+        // Provide a taller hero on compact widths to avoid overflow from
+        // localized text wrapping across multiple lines.
+        final heroHeight = tight
+            ? 204.0
+            : compact
+                ? 188.0
+                : 200.0;
 
         return Container(
           margin: EdgeInsets.fromLTRB(12, 10, 12, compact ? 6 : 10),
