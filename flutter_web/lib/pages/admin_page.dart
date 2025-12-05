@@ -4170,10 +4170,9 @@ class _AdminPageState extends State<AdminPage> {
           icon: const Icon(Icons.refresh),
         ),
         TextButton.icon(
-          tooltip: t.logoutTitle,
           onPressed: _logoutAdmin,
           icon: const Icon(Icons.logout),
-          label: Text(t.logout),
+          label: const Text('Abmelden'),
         ),
         const SizedBox(width: 6),
       ],
