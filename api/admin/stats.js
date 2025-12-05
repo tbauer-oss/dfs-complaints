@@ -8,14 +8,25 @@ import {
   noContent,
   methodNotAllowed,
 } from '../_lib/http.js';
+import { normalizeRole, PORTAL_ROLES, portalUserFromRequest } from '../_lib/portalAuth.js';
 import {
   countryLabelFromCode,
   normalizeCountryName,
   resolveCountryCode,
 } from '../_lib/countryNames.js';
 
-const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
-const isAdmin = (req) => ADMIN_SECRET && req.headers?.['x-admin-secret'] === ADMIN_SECRET;
+async function requireSuperuser(req, res) {
+  const actor = await portalUserFromRequest(req);
+  if (!actor) {
+    bad(res, 'admin unauthorized', 401);
+    return null;
+  }
+  if (normalizeRole(actor.role) !== PORTAL_ROLES.superuser) {
+    bad(res, 'forbidden', 403);
+    return null;
+  }
+  return actor;
+}
 
 function defaultRange() {
   const to = new Date();
@@ -773,7 +784,8 @@ export default async function handler(req, res) {
   setCors(req, res);
   if (req.method === 'OPTIONS') return noContent(res);
   if (req.method !== 'GET') return methodNotAllowed(res);
-  if (!isAdmin(req)) return bad(res, 'admin unauthorized', 401);
+  const actor = await requireSuperuser(req, res);
+  if (!actor) return;
 
   try {
     const { complaintsAll, usersList } = await import('../_lib/store.js');

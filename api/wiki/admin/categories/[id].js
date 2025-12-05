@@ -4,21 +4,26 @@ export const config = { runtime: 'nodejs' };
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson, noContent } from '../../../_lib/http.js';
 import { wikiSaveCategory, wikiDeleteCategory, wikiSetCategoryStatus } from '../../../_lib/wikiStore.js';
 import { validateCategoryPayload, validateCategoryStatusPayload } from '../../../_lib/wikiValidation.js';
+import { normalizeRole, PORTAL_ROLES, portalUserFromRequest } from '../../../_lib/portalAuth.js';
 
-function requireAdmin(req, res) {
-  const sec = (req.headers?.['x-admin-secret'] || '').toString().trim();
-  const expected = (process.env.ADMIN_SECRET || '').toString().trim();
-  if (!sec || !expected || sec !== expected) {
+async function requireSuperuser(req, res) {
+  const actor = await portalUserFromRequest(req);
+  if (!actor) {
     bad(res, 'unauthorized', 401);
-    return false;
+    return null;
   }
-  return true;
+  if (normalizeRole(actor.role) !== PORTAL_ROLES.superuser) {
+    bad(res, 'forbidden', 403);
+    return null;
+  }
+  return actor;
 }
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
-  if (!requireAdmin(req, res)) return;
+  const actor = await requireSuperuser(req, res);
+  if (!actor) return;
 
   const id = (req.query?.id ?? '').toString().trim();
   if (!id) return bad(res, 'id required', 400);
