@@ -22,6 +22,7 @@ function sanitizeUser(u) {
     displayName: u.displayName || u.contact || u.company || '',
     role,
     portalStatus,
+    isSales: u.isSales === true,
     assignedDepartments: normalizeDepartments(u.assignedDepartments || []),
     createdAt: u.createdAt || null,
     tilePermissions: sanitizeTilePermissions(u.tilePermissions || {}),
@@ -49,6 +50,7 @@ export default async function handler(req, res) {
       const password = String(body.password || '');
       const role = normalizeRole(body.role);
       const displayName = String(body.displayName || '').trim();
+      const isSales = body.isSales === true || body.isSales === 'true' || body.isSales === 1 || body.isSales === '1';
       const assignedDepartments = normalizeDepartments(body.assignedDepartments || []);
       const tilePermissions = sanitizeTilePermissions(body.tilePermissions || {});
       if (!email || !password) return bad(res, 'missing email or password', 400);
@@ -60,6 +62,7 @@ export default async function handler(req, res) {
         role: ADMIN_EMAILS.has(email) ? PORTAL_ROLES.superuser : role,
         portalStatus: 'active',
         displayName,
+        isSales,
         assignedDepartments,
         createdAt: Date.now(),
         tilePermissions,
@@ -80,6 +83,7 @@ export default async function handler(req, res) {
       if (body.displayName !== undefined) patch.displayName = String(body.displayName || '').trim();
       if (body.role) patch.role = normalizeRole(body.role);
       if (body.portalStatus) patch.portalStatus = normalizeStatus(body.portalStatus);
+      if (body.isSales !== undefined) patch.isSales = body.isSales === true || body.isSales === 'true' || body.isSales === 1 || body.isSales === '1';
       if (body.assignedDepartments) patch.assignedDepartments = normalizeDepartments(body.assignedDepartments);
       if (body.tilePermissions !== undefined) patch.tilePermissions = sanitizeTilePermissions(body.tilePermissions || {});
       if (body.password) patch.passhash = await bcrypt.hash(String(body.password), 10);

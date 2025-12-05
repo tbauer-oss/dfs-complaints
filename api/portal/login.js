@@ -58,6 +58,7 @@ export default async function handler(req, res) {
       email: u.email,
       role,
       portalStatus,
+      isSales: u.isSales === true,
     }, JWT_SECRET, { expiresIn: '12h' });
 
     return ok(res, {
@@ -69,6 +70,7 @@ export default async function handler(req, res) {
         role,
         portalStatus,
         tilePermissions,
+        isSales: u.isSales === true,
       },
     });
   } catch (err) {
