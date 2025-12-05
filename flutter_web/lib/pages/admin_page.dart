@@ -15676,7 +15676,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
               final wantsCredit = handling == 'gutschrift';
               final isClosed = c.status == 5;
               final showSalesSection = isClosed || c.salesCompleted || _isPortalSales || _isPortalSuperuser;
-              final canEditSales = _isPortalSales && _isPortalUser && isClosed;
+              final canEditSales = _isPortalSales && isClosed;
               if (!showSalesSection) return const SizedBox.shrink();
 
               Widget _readonlyRow(String label, String value) {
