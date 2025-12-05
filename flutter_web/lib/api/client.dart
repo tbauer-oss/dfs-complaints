@@ -269,6 +269,18 @@ class ApiClient {
   DateTime? _faqLoadedAt;
   static const Duration _faqCacheTtl = Duration(minutes: 1);
 
+  bool get _portalHasAdminPrivileges {
+    final profile = portalProfile ?? const {};
+    final role = profile['role']?.toString().toLowerCase() ?? '';
+    final isAdminFlag = profile['isAdmin'] == true ||
+        profile['admin'] == true ||
+        profile['superuser'] == true;
+    return role == 'admin' ||
+        role == 'superuser' ||
+        role.contains('admin') ||
+        isAdminFlag;
+  }
+  
   void _invalidateNewsCache() {
     _newsCache = null;
     _newsLoadedAt = null;
@@ -280,12 +292,19 @@ class ApiClient {
   String get appVersion => _appMeta?['version']?.toString() ?? '';
 
   Map<String, String> _adminHeaders({bool auth = false, Map<String, String>? extra}) {
-    final h = _headers(auth: auth, extra: extra);
-    if (portalToken != null && portalToken!.isNotEmpty) {
-      h['Authorization'] = 'Bearer $portalToken';
-    }
-    if ((portalToken == null || portalToken!.isEmpty) && adminSecret != null && adminSecret!.isNotEmpty) {
-      h['X-Admin-Secret'] = adminSecret!; // Legacy Fallback
+    final h = _headers(auth: false, extra: extra);
+    if (auth) {
+      if (portalToken != null &&
+          portalToken!.isNotEmpty &&
+          _portalHasAdminPrivileges) {
+        h['Authorization'] = 'Bearer $portalToken';
+      } else if (adminSecret != null && adminSecret!.isNotEmpty) {
+        h['X-Admin-Secret'] = adminSecret!; // Legacy Fallback
+      } else if (repToken != null && repToken!.isNotEmpty) {
+        h['Authorization'] = 'Bearer $repToken';
+      } else if (token != null && token!.isNotEmpty) {
+        h['Authorization'] = 'Bearer $token';
+      }
     }
     return h;
   }
