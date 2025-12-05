@@ -9178,6 +9178,7 @@ class _AdminPageState extends State<AdminPage> {
         products: _products,
         loading: _productsLoading,
         error: _productErr,
+        canWrite: _canWriteTile('products'),
         onReload: _productsLoading ? null : _loadProducts,
         onProductsChanged: (items) => setState(() => _applyProducts(items)),
       ),
@@ -16402,6 +16403,9 @@ class AdminApi {
           final st = t.status;
           final txt = t.responseText ?? '';
           final stx = t.statusText ?? '';
+          if (st == 403) {
+            throw 'Keine Berechtigung: Diese Aktion ist mit den aktuellen Kachel-Rechten nicht erlaubt.';
+          }
           throw 'HTTP $st $stx — ${txt.isEmpty ? "Request fehlgeschlagen" : txt}';
         }
       }
