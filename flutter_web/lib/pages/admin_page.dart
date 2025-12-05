@@ -8236,8 +8236,20 @@ class _AdminPageState extends State<AdminPage> {
                         SwitchListTile.adaptive(
                           contentPadding: const EdgeInsets.only(left: 8),
                           title: const Text('Sales-Bearbeitung erlaubt'),
-                          subtitle: const Text('Für Auftrags- oder Rechnungsnummern nach Abschluss'),
+                          subtitle: Text(
+                            _portalUserCanEditSales
+                                ? 'Aktiviert – kann Auftrags-/Rechnungsnummern nach Abschluss pflegen'
+                                : 'Deaktiviert – nur Ticketabschluss ohne Sales-Bearbeitung',
+                          ),
                           value: _portalUserCanEditSales,
+                          activeColor: theme.colorScheme.onPrimary,
+                          activeTrackColor: theme.colorScheme.primary,
+                          inactiveThumbColor: theme.colorScheme.onSurfaceVariant,
+                          inactiveTrackColor: theme.colorScheme.surfaceVariant,
+                          thumbIcon: MaterialStateProperty.resolveWith((states) {
+                            final selected = states.contains(MaterialState.selected);
+                            return Icon(selected ? Icons.check : Icons.close, size: 18);
+                          }),
                           onChanged: _portalUserBusy
                               ? null
                               : (v) => setState(() => _portalUserCanEditSales = v),
@@ -8257,18 +8269,45 @@ class _AdminPageState extends State<AdminPage> {
                                 ? null
                                 : (selected) => _updateDepartmentSelection('Alle', selected),
                             showCheckmark: true,
+                            checkmarkColor: theme.colorScheme.onPrimaryContainer,
                             selectedColor: theme.colorScheme.primaryContainer,
+                            side: BorderSide(
+                              color: _portalUserHasAllDepartments
+                                  ? theme.colorScheme.primary
+                                  : theme.colorScheme.outlineVariant,
+                              width: _portalUserHasAllDepartments ? 2 : 1,
+                            ),
+                            labelStyle: TextStyle(
+                              fontWeight:
+                                  _portalUserHasAllDepartments ? FontWeight.w700 : FontWeight.w500,
+                            ),
                           ),
                           ...kInternalDepartments.map(
-                            (dep) => FilterChip(
-                              label: Text(dep),
-                              selected: _portalUserDepartments.contains(dep),
-                              onSelected: _portalUserBusy
-                                  ? null
-                                  : (v) => _updateDepartmentSelection(dep, v),
-                              showCheckmark: true,
-                              selectedColor: theme.colorScheme.primaryContainer,
-                            ),
+                            (dep) {
+                              final selected = _portalUserDepartments.contains(dep);
+                              return FilterChip(
+                                label: Text(dep),
+                                selected: selected,
+                                onSelected: _portalUserBusy
+                                    ? null
+                                    : (v) => _updateDepartmentSelection(dep, v),
+                                showCheckmark: true,
+                                checkmarkColor: theme.colorScheme.onPrimaryContainer,
+                                selectedColor: theme.colorScheme.primaryContainer,
+                                side: BorderSide(
+                                  color: selected
+                                      ? theme.colorScheme.primary
+                                      : theme.colorScheme.outlineVariant,
+                                  width: selected ? 2 : 1,
+                                ),
+                                labelStyle: TextStyle(
+                                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                                  color: selected
+                                      ? theme.colorScheme.onPrimaryContainer
+                                      : theme.colorScheme.onSurface,
+                                ),
+                              );
+                            },
                           ),
                           if (_portalUserDepartments.isNotEmpty)
                             ..._portalUserDepartments
@@ -8281,7 +8320,16 @@ class _AdminPageState extends State<AdminPage> {
                                           : () => _updateDepartmentSelection(dep, false),
                                       selected: true,
                                       showCheckmark: true,
+                                      checkmarkColor: theme.colorScheme.onPrimaryContainer,
                                       selectedColor: theme.colorScheme.primaryContainer,
+                                      side: BorderSide(
+                                        color: theme.colorScheme.primary,
+                                        width: 2,
+                                      ),
+                                      labelStyle: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        color: theme.colorScheme.onPrimaryContainer,
+                                      ),
                                     )),
                         ],
                       ),
