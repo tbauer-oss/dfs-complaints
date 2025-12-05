@@ -53,11 +53,19 @@ export default async function handler(req, res) {
   const okNew = await bcrypt.compare(newPw, verifySaved.passhash || verifySaved.passwordHash || '');
   if (!okNew) return bad(res, 'could not persist new password', 500);
 
-  await sendMail({
-    to: auth.email, cc: 'complaint@dfs-diamon.de',
-    subject: '[DFS Complaint] Passwort geändert',
-    html: `<p>Ihr Passwort wurde erfolgreich geändert.</p>`
-  });
+  try {
+    const mailResult = await sendMail({
+      to: auth.email, cc: 'complaint@dfs-diamon.de',
+      subject: '[DFS Complaint] Passwort geändert',
+      html: `<p>Ihr Passwort wurde erfolgreich geändert.</p>`
+    });
+
+    if (!mailResult?.ok) {
+      console.warn('[account/password] password change mail not sent', mailResult);
+    }
+  } catch (err) {
+    console.error('[account/password] password change mail failed', err);
+  }
 
   return ok(res, { ok: true });
 }
