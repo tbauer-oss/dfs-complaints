@@ -1,6 +1,8 @@
 // api/_lib/reporting.js
 // PDF-Reporting für Reklamationen (Mehrsprachig erweiterbar)
 
+import fs from 'fs';
+import path from 'path';
 import PDFDocument from 'pdfkit';
 import { storeGeneratedFile } from './uploads.js';
 import { normalizeLangValue } from './store.js';
@@ -141,6 +143,154 @@ const PAYLOAD_LABELS = {
   udiDi: { de: 'UDI-DI', en: 'UDI-DI' },
 };
 
+const DFS_BLUE = '#005AA9';
+const DFS_DARK = '#0B345E';
+const LIGHT_GREY = '#F4F6F9';
+const TEXT_DARK = '#1F2933';
+let cachedLogo;
+
+function resolveLogoPath() {
+  const candidates = [
+    path.resolve(process.cwd(), 'flutter_web', 'assets', 'dfs_logo.png'),
+  ];
+  return candidates.find((p) => fs.existsSync(p));
+}
+
+function loadLogo() {
+  if (cachedLogo === undefined) {
+    const found = resolveLogoPath();
+    cachedLogo = found ? fs.readFileSync(found) : null;
+  }
+  return cachedLogo;
+}
+
+function drawSectionTitle(doc, title) {
+  const startX = doc.page.margins.left;
+  const availableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  doc.moveDown(0.6);
+  doc
+    .save()
+    .fillColor(DFS_BLUE)
+    .font('Helvetica-Bold')
+    .fontSize(12)
+    .text(title, startX + 4, doc.y, { width: availableWidth - 8 });
+  doc
+    .strokeColor(DFS_BLUE)
+    .lineWidth(1)
+    .moveTo(startX, doc.y + 2)
+    .lineTo(startX + availableWidth, doc.y + 2)
+    .stroke();
+  doc.restore();
+  doc.moveDown(0.3);
+}
+
+function drawKeyValueTable(doc, entries, { columns = 2 } = {}) {
+  if (!entries || entries.length === 0) return;
+  const startX = doc.page.margins.left;
+  const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const columnWidth = usableWidth / columns;
+
+  const rows = [];
+  for (let i = 0; i < entries.length; i += columns) {
+    rows.push(entries.slice(i, i + columns));
+  }
+
+  rows.forEach((row) => {
+    const baseY = doc.y;
+    let rowHeight = 0;
+    row.forEach((entry, idx) => {
+      const x = startX + (idx * columnWidth);
+      const label = entry?.label || '';
+      const value = (entry?.value ?? '') || '–';
+      const labelHeight = doc.heightOfString(label, { width: columnWidth });
+      const valueHeight = doc.heightOfString(value, { width: columnWidth });
+      rowHeight = Math.max(rowHeight, labelHeight + valueHeight + 6);
+
+      doc
+        .fillColor(DFS_BLUE)
+        .fontSize(9)
+        .text(label, x, baseY, { width: columnWidth });
+      doc
+        .fillColor(TEXT_DARK)
+        .fontSize(11)
+        .text(value, x, baseY + labelHeight + 2, { width: columnWidth });
+    });
+    doc.y = baseY + rowHeight + 8;
+  });
+}
+
+function drawBadge(doc, text, { color = DFS_BLUE } = {}) {
+  if (!text) return;
+  const paddingX = 8;
+  const paddingY = 4;
+  const width = doc.widthOfString(text, { fontSize: 10 }) + paddingX * 2;
+  const startX = doc.page.width - doc.page.margins.right - width;
+  const startY = doc.y;
+  doc
+    .save()
+    .fillColor(color)
+    .roundedRect(startX, startY, width, 18, 6)
+    .fill();
+  doc
+    .fillColor('#FFFFFF')
+    .fontSize(10)
+    .text(text, startX + paddingX, startY + paddingY - 1, {
+      width: width - paddingX * 2,
+      align: 'center',
+    })
+    .restore();
+  doc.moveDown(1.2);
+}
+
+function drawHeader(doc, { title, ticket, dateLabel, status, logoBuffer }) {
+  const { left, right } = doc.page.margins;
+  const startY = doc.y;
+  const headerHeight = 110;
+  const usableWidth = doc.page.width - left - right;
+
+  doc
+    .save()
+    .rect(left, startY, usableWidth, headerHeight)
+    .fill(LIGHT_GREY)
+    .restore();
+
+  if (logoBuffer) {
+    doc
+      .save()
+      .image(logoBuffer, doc.page.width - right - 140, startY + 12, { fit: [130, 48], align: 'right' })
+      .restore();
+  }
+
+  doc
+    .save()
+    .fillColor(DFS_DARK)
+    .font('Helvetica-Bold')
+    .fontSize(14)
+    .text('DFS-DIAMON GmbH', left + 16, startY + 14);
+  doc
+    .fillColor(TEXT_DARK)
+    .fontSize(10)
+    .text('Reklamation / Complaint Management', left + 16, doc.y + 2);
+
+  doc
+    .fillColor(DFS_DARK)
+    .font('Helvetica-Bold')
+    .fontSize(20)
+    .text(title, left + 16, startY + 42, { width: usableWidth / 1.6 });
+  doc
+    .fillColor(TEXT_DARK)
+    .fontSize(11)
+    .text(ticket, left + 16, doc.y + 6);
+  doc
+    .fontSize(10)
+    .fillColor(TEXT_DARK)
+    .text(dateLabel, left + 16, doc.y + 2);
+  doc.restore();
+
+  doc.y = startY + headerHeight + 12;
+  drawBadge(doc, status);
+}
+
 function labelFor(lang, key, fallback) {
   const lc = REPORT_LANGS[lang] ? lang : 'en';
   return REPORT_LANGS[lc][key] || fallback || key;
@@ -224,6 +374,7 @@ function resolveReportLanguage(complaint, { preferredLang, fallback = 'de' } = {
 
 async function buildPdf(complaint, { lang = 'de', variant = 'internal' } = {}) {
   const labels = REPORT_LANGS[lang] || REPORT_LANGS.en;
+  const logoBuffer = loadLogo();
   const doc = new PDFDocument({ size: 'A4', margin: 50 });
   const chunks = [];
   doc.on('data', (chunk) => chunks.push(chunk));
@@ -233,90 +384,122 @@ async function buildPdf(complaint, { lang = 'de', variant = 'internal' } = {}) {
   const product = describeProduct(complaint);
   const payload = (complaint.payload && typeof complaint.payload === 'object') ? complaint.payload : {};
   const departments = normalizeDepartments(complaint.internalDepartments);
-
   const title = variant === 'external' ? labels.externalTitle : labels.title;
-  doc.fontSize(18).text(`${title} ${complaint.ticket || ''}`);
-  doc.moveDown(1);
 
-  doc.fontSize(12);
-  doc.text(`${labelFor(lang, 'ticket')}: ${complaint.ticket || '-'}`);
-  doc.text(`${labelFor(lang, 'status')}: ${complaint.statusLabel || complaint.status || '-'}`);
-  doc.text(`${labelFor(lang, 'decision')}: ${(complaint.decision || '–')}`);
-  doc.text(`${labelFor(lang, 'created')}: ${formatDate(complaint.createdAt || complaint.updatedAt)}`);
-  doc.moveDown(0.5);
-
-  doc.text(`${labelFor(lang, 'customer')}: ${customer.company || customer.contact || '-'}`);
-  if (customer.customerNo) doc.text(`Kundennummer: ${customer.customerNo}`);
-  if (customer.country) doc.text(`Land: ${customer.country}`);
-  doc.text(`${labelFor(lang, 'email')}: ${(complaint.email || '-')}`);
-  doc.moveDown(0.5);
-
-  doc.fontSize(14).text(labels.product);
-  doc.fontSize(12);
-  if (product.name) doc.text(`${payloadLabel(lang, 'product', 'Produkt')}: ${product.name}`);
-  if (product.articleNo) doc.text(`${payloadLabel(lang, 'article', 'Artikel')}: ${product.articleNo}`);
-  if (product.batch) doc.text(`${labels.batch}: ${product.batch}`);
-  if (product.udi) doc.text(`${labels.udi}: ${product.udi}`);
-  doc.moveDown(0.5);
-
-  doc.fontSize(14).text(labelFor(lang, 'payload'));
-  doc.moveDown(0.3);
-  doc.fontSize(12);
-  for (const [key, val] of Object.entries(payload)) {
-    const rendered = (val ?? '').toString().trim();
-    if (!rendered) continue;
-    doc.text(`${payloadLabel(lang, key, key)}: ${rendered}`);
-  }
-  doc.moveDown(0.5);
-
-  if (departments.length > 0 && variant === 'internal') {
-    doc.fontSize(14).text(labelFor(lang, 'departments'));
-    doc.fontSize(12);
-    departments.forEach((dep) => doc.text(`• ${dep}`));
-    doc.moveDown(0.5);
-  }
+  drawHeader(doc, {
+    title,
+    ticket: `${labelFor(lang, 'ticket')}: ${complaint.ticket || '-'}`,
+    dateLabel: `${labelFor(lang, 'created')}: ${formatDate(complaint.createdAt || complaint.updatedAt)}`,
+    status: `${labelFor(lang, 'status')}: ${complaint.statusLabel || complaint.status || '-'}`,
+    logoBuffer,
+  });
 
   if (variant === 'internal') {
+    const stammdaten = [
+      { label: labelFor(lang, 'ticket'), value: complaint.ticket || '-' },
+      { label: labelFor(lang, 'decision'), value: complaint.decision || '–' },
+      { label: 'Datum / Uhrzeit', value: formatDate(complaint.createdAt || complaint.updatedAt) || '–' },
+      { label: labelFor(lang, 'customer'), value: customer.company || customer.contact || '-' },
+      { label: 'Kontakt', value: customer.contact || '-' },
+      { label: labelFor(lang, 'email'), value: complaint.email || '-' },
+      { label: 'Kundennummer', value: customer.customerNo || '–' },
+      { label: 'Land', value: customer.country || '–' },
+    ];
+
+    drawSectionTitle(doc, '1. Stammdaten');
+    drawKeyValueTable(doc, stammdaten);
+
+    const produktDaten = [
+      { label: payloadLabel(lang, 'product', 'Produkt'), value: product.name || '–' },
+      { label: payloadLabel(lang, 'article', 'Artikelnummer'), value: product.articleNo || '–' },
+      { label: labels.batch, value: product.batch || payload.batch || payload.lot || '–' },
+      { label: labels.udi, value: product.udi || payload.udi || payload.udiDi || '–' },
+      { label: payloadLabel(lang, 'qty', 'Menge'), value: payload.qty || payload.quantity || '–' },
+      { label: payloadLabel(lang, 'expiry', 'Ablaufdatum'), value: payload.expiry || payload.expiration || '–' },
+    ];
+
+    drawSectionTitle(doc, '2. Produktdaten');
+    drawKeyValueTable(doc, produktDaten);
+
+    const descriptionEntries = [];
+    const highlightedKeys = ['desc', 'reason', 'handling', 'error', 'fehlermeldung'];
+    highlightedKeys.forEach((key) => {
+      if (payload[key]) {
+        descriptionEntries.push({
+          label: payloadLabel(lang, key, key),
+          value: payload[key],
+        });
+      }
+    });
+
+    drawSectionTitle(doc, '3. Reklamationsbeschreibung');
+    drawKeyValueTable(doc, descriptionEntries.length > 0 ? descriptionEntries : [{ label: labelFor(lang, 'payload'), value: '–' }]);
+
+    const remainingPayload = Object.entries(payload)
+      .filter(([key]) => !['product', 'productName', 'article', 'articleNumber', 'item', 'lot', 'batch', 'udi', 'udiDi', ...highlightedKeys].includes(key))
+      .map(([key, value]) => ({ label: payloadLabel(lang, key, key), value: (value ?? '').toString() }));
+    if (remainingPayload.length > 0) {
+      drawKeyValueTable(doc, remainingPayload);
+    }
+
+    drawSectionTitle(doc, '4. Interne Analyse');
+    if (departments.length > 0) {
+      drawKeyValueTable(doc, [{ label: labelFor(lang, 'departments'), value: departments.join(', ') }], { columns: 1 });
+    }
     const evalText = textForEvaluation(complaint, lang);
     const cause = complaint.internalEvaluationCause || '';
     if (evalText || cause) {
-      doc.fontSize(14).text(labelFor(lang, 'internalEvaluation'));
-      doc.fontSize(12);
-      if (evalText) doc.text(evalText, { align: 'left' });
-      if (cause) doc.text(`${labelFor(lang, 'internalCause')}: ${cause}`);
-      doc.moveDown(0.5);
+      drawKeyValueTable(doc, [
+        { label: labelFor(lang, 'internalEvaluation'), value: evalText || '–' },
+        { label: labelFor(lang, 'internalCause'), value: cause || '–' },
+      ], { columns: 1 });
     }
 
+    drawSectionTitle(doc, '5. Maßnahmen');
     const actionText = plannedActions(complaint);
-    if (actionText) {
-      doc.fontSize(14).text(labels.actions);
-      doc.fontSize(12).text(actionText);
-      doc.moveDown(0.5);
-    }
+    drawKeyValueTable(doc, [
+      { label: labels.actions, value: actionText || '–' },
+    ], { columns: 1 });
 
     const uploads = Array.isArray(complaint.uploads) ? complaint.uploads : [];
     if (uploads.length > 0) {
-      doc.fontSize(14).text(labelFor(lang, 'uploads'));
-      doc.fontSize(12);
-      uploads.forEach((u) => doc.text(`• ${u.name || u.url || u.downloadUrl || 'Attachment'}`));
-      doc.moveDown(0.5);
+      drawKeyValueTable(doc, [{ label: labelFor(lang, 'uploads'), value: uploads.map((u) => u.name || u.url || u.downloadUrl || 'Attachment').join('\n') }], { columns: 1 });
     }
 
-    if (complaint.adminNotes) {
-      doc.fontSize(14).text(labels.notes);
-      doc.fontSize(12).text(complaint.adminNotes);
-    }
+    drawSectionTitle(doc, '6. Abschluss / Status');
+    drawKeyValueTable(doc, [
+      { label: labelFor(lang, 'status'), value: complaint.statusLabel || complaint.status || '–' },
+      { label: labelFor(lang, 'decision'), value: complaint.decision || '–' },
+      { label: labelFor(lang, 'notes'), value: complaint.adminNotes || '–' },
+    ], { columns: 1 });
   } else {
     const summary = qmSummaryForLang(complaint, lang)
       || 'Zusammenfassung wird bereitgestellt / Summary will be provided soon';
-    doc.fontSize(14).text(labels.qmSummary);
-    doc.fontSize(12).text(summary, { align: 'left' });
-    doc.moveDown(0.5);
+
+    drawSectionTitle(doc, labels.product);
+    drawKeyValueTable(doc, [
+      { label: payloadLabel(lang, 'product', 'Produkt'), value: product.name || '–' },
+      { label: payloadLabel(lang, 'article', 'Artikelnummer'), value: product.articleNo || '–' },
+      { label: labels.batch, value: product.batch || payload.batch || payload.lot || '–' },
+      { label: labels.udi, value: product.udi || payload.udi || payload.udiDi || '–' },
+    ]);
+
+    drawSectionTitle(doc, labelFor(lang, 'customer'));
+    drawKeyValueTable(doc, [
+      { label: labelFor(lang, 'customer'), value: customer.company || customer.contact || '–' },
+      { label: labelFor(lang, 'email'), value: complaint.email || '-' },
+      { label: 'Land', value: customer.country || '–' },
+    ]);
+
+    drawSectionTitle(doc, labels.qmSummary);
+    drawKeyValueTable(doc, [
+      { label: labels.qmSummary, value: summary },
+    ], { columns: 1 });
 
     const actionText = plannedActions(complaint);
     if (actionText) {
-      doc.fontSize(14).text(labels.measures);
-      doc.fontSize(12).text(actionText);
+      drawSectionTitle(doc, labels.measures);
+      drawKeyValueTable(doc, [{ label: labels.measures, value: actionText }], { columns: 1 });
     }
   }
 
