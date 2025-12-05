@@ -6330,11 +6330,13 @@ class _AdminPageState extends State<AdminPage> {
       case _AdminView.wikiCategories:
         return AdminWikiCategoriesPage(
           api: widget.api,
+          canWrite: _canWriteTile('wikiCategories'),
           onBack: () => setState(() => _view = _AdminView.wiki),
         );
       case _AdminView.wikiArticles:
         return AdminWikiArticlesPage(
           api: widget.api,
+          canWrite: _canWriteTile('wikiArticles'),
           onBack: () => setState(() => _view = _AdminView.wiki),
         );
     }
