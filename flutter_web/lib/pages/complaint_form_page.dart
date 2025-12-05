@@ -110,6 +110,18 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     'privacy': GlobalKey(),
   };
 
+  void _jumpToSection(String id) {
+    final target = _sectionKeys[id];
+    if (target == null) return;
+    final ctx = target.currentContext;
+    if (ctx == null) return;
+    Scrollable.ensureVisible(
+      ctx,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeInOut,
+    );
+  }
+
   void _markDirty() {
     if (_suppressDirty || _dirty) return;
     setState(() => _dirty = true);
@@ -1522,6 +1534,69 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     );
   }
 
+  Widget _buildStepNavigator({
+    required List<_WizardStep> steps,
+    required AppLocalizations t,
+    required bool compact,
+  }) {
+    if (steps.isEmpty) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    final realSteps = steps.where((s) => s.id != 'intro').toList(growable: false);
+
+    return Card(
+      elevation: 0,
+      color: theme.colorScheme.surfaceContainerHighest,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(compact ? 12 : 16)),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(compact ? 12 : 14, compact ? 12 : 14, compact ? 12 : 14, compact ? 12 : 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.route_outlined, color: theme.colorScheme.primary),
+                SizedBox(width: compact ? 8 : 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        t.complaint_wizard_step_overview,
+                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: compact ? 15 : 16),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        t.complaint_wizard_hint,
+                        style: TextStyle(fontSize: compact ? 12 : 12.5, color: theme.colorScheme.onSurfaceVariant, height: 1.35),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                for (var i = 0; i < realSteps.length; i++)
+                  _WizardStepPill(
+                    step: realSteps[i],
+                    stepIndex: i + 1,
+                    active: false,
+                    compact: compact,
+                    theme: theme,
+                    onTap: () => _jumpToSection(realSteps[i].id),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildWizardLaunchButton({
     required bool compact,
     required AppLocalizations t,
@@ -1865,6 +1940,8 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                   onTap: () => _openWizardFlow(steps: wizardSteps, t: t, sections: wizardSections),
                 ),
 
+              _buildStepNavigator(steps: wizardSteps, t: t, compact: compact),
+
               _buildHelpBox(compact: compact),
 
               Column(
@@ -2161,6 +2238,29 @@ class _ComplaintWizardOverlayState extends State<_ComplaintWizardOverlay> {
     final progress = totalWithoutIntro == 0 ? 0.0 : completed / totalWithoutIntro;
     final isIntro = step.id == 'intro';
     final isLast = _active == widget.steps.length - 1;
+    final realSteps = widget.steps.where((s) => s.id != 'intro').toList(growable: false);
+
+    Widget buildStepper() {
+      if (realSteps.isEmpty) return const SizedBox.shrink();
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.only(top: 10, bottom: 2),
+        child: Row(
+          children: [
+            for (var i = 0; i < realSteps.length; i++) ...[
+              _WizardStepPill(
+                step: realSteps[i],
+                stepIndex: widget.steps.indexOf(realSteps[i]),
+                active: _active == widget.steps.indexOf(realSteps[i]),
+                compact: false,
+                theme: theme,
+              ),
+              if (i != realSteps.length - 1) const SizedBox(width: 10),
+            ],
+          ],
+        ),
+      );
+    }
 
     Widget buildPage(_WizardStep s) {
       if (s.id == 'intro') {
@@ -2324,6 +2424,7 @@ class _ComplaintWizardOverlayState extends State<_ComplaintWizardOverlay> {
                                   ),
                                 ],
                               ),
+                              buildStepper(),
                               const SizedBox(height: 8),
                               ValueListenableBuilder<String?>(
                                 valueListenable: _errorNotifier,
@@ -2430,6 +2531,90 @@ class _ComplaintWizardOverlayState extends State<_ComplaintWizardOverlay> {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WizardStepPill extends StatelessWidget {
+  final _WizardStep step;
+  final int stepIndex;
+  final bool active;
+  final bool compact;
+  final ThemeData theme;
+  final VoidCallback? onTap;
+  final bool showHint;
+  const _WizardStepPill({
+    required this.step,
+    required this.stepIndex,
+    required this.active,
+    required this.compact,
+    required this.theme,
+    this.onTap,
+    this.showHint = true,
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final baseColor = active
+        ? theme.colorScheme.primary.withOpacity(0.14)
+        : theme.colorScheme.surfaceVariant.withOpacity(0.55);
+    final borderColor = active
+        ? theme.colorScheme.primary
+        : theme.colorScheme.outlineVariant.withOpacity(0.8);
+    final textColor = active ? theme.colorScheme.onSurface : theme.colorScheme.onSurfaceVariant;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 12, vertical: compact ? 8 : 10),
+        decoration: BoxDecoration(
+          color: baseColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: borderColor, width: active ? 1.4 : 1),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 4)),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              backgroundColor: active ? theme.colorScheme.primary : theme.colorScheme.primary.withOpacity(0.16),
+              foregroundColor: active ? theme.colorScheme.onPrimary : theme.colorScheme.primary,
+              radius: compact ? 13 : 14,
+              child: Text('$stepIndex', style: TextStyle(fontWeight: FontWeight.w800, fontSize: compact ? 12 : 13)),
+            ),
+            SizedBox(width: compact ? 8 : 10),
+            Icon(step.icon, size: compact ? 18 : 19, color: textColor),
+            SizedBox(width: compact ? 6 : 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  step.title,
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: compact ? 12.5 : 13.5, color: textColor),
+                ),
+                if (showHint && step.hint.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      step.hint,
+                      style: TextStyle(
+                        fontSize: compact ? 11.5 : 12,
+                        color: theme.colorScheme.onSurfaceVariant,
+                        height: 1.25,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
         ),
       ),
     );
