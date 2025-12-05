@@ -1201,6 +1201,7 @@ function normalizePortalUser(u) {
   }
   normalized.assignedDepartments = normalizeDepartments(normalized.assignedDepartments);
   normalized.lang = normLang(normalized.lang || '');
+  normalized.isSales = normalized.isSales === true || normalized.isSales === 'true' || normalized.isSales === 1 || normalized.isSales === '1';
   const tilePermissions = sanitizeTilePermissions(normalized.tilePermissions);
   if (Object.keys(tilePermissions).length > 0) normalized.tilePermissions = tilePermissions; else delete normalized.tilePermissions;
   return normalized;
@@ -1777,6 +1778,27 @@ function normalizeComplaintRecord(c = {}) {
   }
   const rawGoodwill = c.isGoodwill ?? c.goodwill ?? c.isKulanz;
   normalized.isGoodwill = rawGoodwill === true || rawGoodwill === 'true' || rawGoodwill === 1 || rawGoodwill === '1';
+
+  const trim = (v) => {
+    const s = (v ?? '').toString().trim();
+    return s.length > 0 ? s : null;
+  };
+  const parseDate = (v) => {
+    const n = Number(v);
+    if (Number.isFinite(n) && n > 0) return n;
+    const s = (v ?? '').toString().trim();
+    const parsed = Date.parse(s);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  normalized.orderNumber = trim(c.orderNumber);
+  normalized.invoiceNumber = trim(c.invoiceNumber);
+  normalized.salesAgentCode = trim(c.salesAgentCode);
+  normalized.salesCompleted = c.salesCompleted === true || c.salesCompleted === 'true' || c.salesCompleted === 1 || c.salesCompleted === '1';
+  const completedAt = parseDate(c.salesCompletedAt);
+  if (completedAt) normalized.salesCompletedAt = completedAt; else delete normalized.salesCompletedAt;
+  const completedBy = trim(c.salesCompletedBy);
+  if (completedBy) normalized.salesCompletedBy = completedBy; else delete normalized.salesCompletedBy;
   return normalized;
 }
 

@@ -82,6 +82,7 @@ export default async function handler(req, res) {
       email: u.email,
       role,
       portalStatus,
+      isSales: u.isSales === true,
     }, JWT_SECRET, { expiresIn: '12h' });
 
     // Meta protokollieren (letzter Login + evtl. App-Version)
@@ -107,6 +108,7 @@ export default async function handler(req, res) {
         phone: u.phone || '',
         role,
         portalStatus,
+        isSales: u.isSales === true,
       }
     });
   } catch (e) {

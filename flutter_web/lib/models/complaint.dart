@@ -18,6 +18,14 @@ class Complaint {
   final Map<String, String>? internalEvaluationTranslations; // gespeicherte Übersetzungen
   final Map<String, dynamic>? payload;
 
+  // Sales-Bereich
+  final String? orderNumber;
+  final String? invoiceNumber;
+  final String? salesAgentCode;
+  final bool salesCompleted;
+  final DateTime? salesCompletedAt;
+  final String? salesCompletedBy;
+
   // ⬇️ NEU: interne Reklamationsnummer
   final String? internalNo;
   final List<ComplaintUpload> uploads;
@@ -40,6 +48,12 @@ class Complaint {
     this.internalEvaluationCause,
     this.internalEvaluationTranslations,
     this.payload,
+    this.orderNumber,
+    this.invoiceNumber,
+    this.salesAgentCode,
+    this.salesCompleted = false,
+    this.salesCompletedAt,
+    this.salesCompletedBy,
     this.internalNo, // ⬅️ NEU
     List<ComplaintUpload>? uploads,
   })  : internalDepartments = List.unmodifiable(internalDepartments ?? const <String>[]),
@@ -195,6 +209,12 @@ class Complaint {
             )
           : null,
       payload: _parsePayload(j['payload']),
+      orderNumber: (j['orderNumber'] ?? j['order_number'])?.toString(),
+      invoiceNumber: (j['invoiceNumber'] ?? j['invoice_number'])?.toString(),
+      salesAgentCode: (j['salesAgentCode'] ?? j['sales_agent_code'])?.toString(),
+      salesCompleted: _parseBool(j['salesCompleted']),
+      salesCompletedAt: _parseDate(j['salesCompletedAt']),
+      salesCompletedBy: j['salesCompletedBy']?.toString(),
       internalNo: _parseInternal(j), // ⬅️ NEU
       uploads: _parseUploads(j['uploads']),
     );

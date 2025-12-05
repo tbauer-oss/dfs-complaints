@@ -242,6 +242,7 @@ class _AdminPageState extends State<AdminPage> {
   static const String _customerContactSeenKey = 'dfs_admin_seen_customer_contact_v1';
   late final AdminApi _api;
   String _portalRole = 'superuser';
+  bool _portalIsSales = false;
   final Map<String, String> _portalTilePermissions = {};
   bool get _canWrite => _canWriteTile(_viewToTileId(_view));
   bool get _isSuperuser => _portalRole == 'superuser';
@@ -340,6 +341,7 @@ class _AdminPageState extends State<AdminPage> {
   final _portalUserDepartmentCtrl = TextEditingController();
   String _portalUserRole = PORTAL_ROLES['superuser']!;
   String _portalUserStatus = 'active';
+  bool _portalUserIsSales = false;
   final List<String> _portalUserDepartments = [];
   final Map<String, String> _portalUserTilePermissions = {};
   PortalUser? _editingPortalUser;
@@ -673,6 +675,8 @@ class _AdminPageState extends State<AdminPage> {
     if (profileRole is String && profileRole.trim().isNotEmpty) {
       _portalRole = profileRole.trim();
     }
+    final profileIsSales = widget.portalProfile?['isSales'] ?? widget.api.portalProfile?['isSales'];
+    _portalIsSales = profileIsSales == true;
     final profileTilePermissions =
         widget.portalProfile?['tilePermissions'] ?? widget.api.portalProfile?['tilePermissions'];
     _portalTilePermissions
@@ -7885,6 +7889,7 @@ class _AdminPageState extends State<AdminPage> {
       _portalUserDepartmentCtrl.clear();
       _portalUserRole = PORTAL_ROLES['superuser']!;
       _portalUserStatus = 'active';
+      _portalUserIsSales = false;
       _portalUserDepartments
         ..clear();
       _portalUserTilePermissions.clear();
@@ -7900,6 +7905,7 @@ class _AdminPageState extends State<AdminPage> {
       _portalUserDepartmentCtrl.clear();
       _portalUserRole = user?.role ?? PORTAL_ROLES['superuser']!;
       _portalUserStatus = user?.portalStatus ?? 'active';
+      _portalUserIsSales = user?.isSales ?? false;
       _portalUserDepartments
         ..clear()
         ..addAll(user?.assignedDepartments ?? const <String>[]);
@@ -7925,6 +7931,7 @@ class _AdminPageState extends State<AdminPage> {
               portalStatus: _portalUserStatus,
               assignedDepartments: _portalUserDepartments,
               tilePermissions: _portalUserTilePermissions,
+              isSales: _portalUserIsSales,
             )
           : await _api.updatePortalUser(
               email: _editingPortalUser!.email,
@@ -7933,6 +7940,7 @@ class _AdminPageState extends State<AdminPage> {
               portalStatus: _portalUserStatus,
               assignedDepartments: _portalUserDepartments,
               tilePermissions: _portalUserTilePermissions,
+              isSales: _portalUserIsSales,
               password: _portalUserPasswordCtrl.text.isEmpty
                   ? null
                   : _portalUserPasswordCtrl.text,
@@ -8443,6 +8451,16 @@ class _AdminPageState extends State<AdminPage> {
                               labelText: 'Rolle',
                               prefixIcon: Icon(Icons.security_outlined),
                             ),
+                          ),
+                          const SizedBox(height: 6),
+                          SwitchListTile.adaptive(
+                            contentPadding: const EdgeInsets.only(left: 8),
+                            title: const Text('Sales-Bearbeitung erlaubt'),
+                            subtitle: const Text('Für Auftrags- oder Rechnungsnummern nach Abschluss'),
+                            value: _portalUserIsSales,
+                            onChanged: _portalUserBusy
+                                ? null
+                                : (v) => setState(() => _portalUserIsSales = v),
                           ),
                           const SizedBox(height: 10),
                           Text('Zugeordnete Abteilungen',
@@ -9494,6 +9512,7 @@ class _AdminPageState extends State<AdminPage> {
                           api: _api,
                           c: c,
                           portalRole: _portalRole,
+                          portalIsSales: _portalIsSales,
                           productLookup: _productByArticle,
                           companyHint: _companyByEmail(c.email),
                           hasRep: _customerHasRep(c.email),
@@ -9629,6 +9648,7 @@ class _AdminPageState extends State<AdminPage> {
                           api: _api,
                           c: c,
                           portalRole: _portalRole,
+                          portalIsSales: _portalIsSales,
                           productLookup: _productByArticle,
                           companyHint: _companyByEmail(c.email),
                           hasRep: _customerHasRep(c.email), // ← NEU
@@ -11706,6 +11726,7 @@ class PortalUser {
   final String? createdAt;
   final List<String> assignedDepartments;
   final Map<String, String> tilePermissions;
+  final bool isSales;
 
   const PortalUser({
     required this.email,
@@ -11715,6 +11736,7 @@ class PortalUser {
     this.createdAt,
     this.assignedDepartments = const <String>[],
     this.tilePermissions = const <String, String>{},
+    this.isSales = false,
   });
 
   factory PortalUser.fromJson(Map<String, dynamic> j) => PortalUser(
@@ -11731,6 +11753,7 @@ class PortalUser {
         tilePermissions: (j['tilePermissions'] is Map)
             ? (j['tilePermissions'] as Map).map((key, value) => MapEntry(key.toString(), value.toString()))
             : const <String, String>{},
+        isSales: j['isSales'] == true,
       );
 }
 
@@ -11826,6 +11849,12 @@ class AdminComplaint {
   String? internalEvaluationCause;
   Map<String, String>? internalEvaluationTranslations;
   bool internalEvaluationNewForAdmin;
+  String? orderNumber;
+  String? invoiceNumber;
+  String? salesAgentCode;
+  bool salesCompleted;
+  DateTime? salesCompletedAt;
+  String? salesCompletedBy;
 
   // Vertreter-Daten
   String? repOpinion; // 'accepted' | 'rejected' | 'pending'
@@ -11878,6 +11907,12 @@ class AdminComplaint {
     this.internalEvaluationCause,
     this.internalEvaluationTranslations,
     this.internalEvaluationNewForAdmin = false,
+    this.orderNumber,
+    this.invoiceNumber,
+    this.salesAgentCode,
+    this.salesCompleted = false,
+    this.salesCompletedAt,
+    this.salesCompletedBy,
     this.repOpinion,
     this.repId,
     List<ComplaintHistoryEntry>? history,
@@ -12039,6 +12074,12 @@ class AdminComplaint {
       internalEvaluationTranslations:
           _parseTranslations(j['internalEvaluationTranslations'] ?? payload?['internalEvaluationTranslations']),
       internalEvaluationNewForAdmin: j['internalEvaluationNewForAdmin'] == true,
+      orderNumber: j['orderNumber']?.toString(),
+      invoiceNumber: j['invoiceNumber']?.toString(),
+      salesAgentCode: j['salesAgentCode']?.toString(),
+      salesCompleted: j['salesCompleted'] == true,
+      salesCompletedAt: j['salesCompletedAt'] != null ? _dt(j['salesCompletedAt']) : null,
+      salesCompletedBy: j['salesCompletedBy']?.toString(),
       history: history,
       uploads: uploads,
     );
@@ -12064,6 +12105,12 @@ class AdminComplaint {
         if (internalEvaluationTranslations != null)
           'internalEvaluationTranslations': internalEvaluationTranslations,
         'internalEvaluationNewForAdmin': internalEvaluationNewForAdmin,
+        if (orderNumber != null) 'orderNumber': orderNumber,
+        if (invoiceNumber != null) 'invoiceNumber': invoiceNumber,
+        if (salesAgentCode != null) 'salesAgentCode': salesAgentCode,
+        'salesCompleted': salesCompleted,
+        if (salesCompletedAt != null) 'salesCompletedAt': salesCompletedAt!.toIso8601String(),
+        if (salesCompletedBy != null) 'salesCompletedBy': salesCompletedBy,
         'internalNo': internalNo,
         'adminNotes': adminNotes,
         'payload': payload,
@@ -12741,6 +12788,7 @@ class _ComplaintDialogLauncher extends StatelessWidget {
   final bool hasNewCustomerMessage;
   final VoidCallback? onCustomerMessageSeen;
   final String portalRole;
+  final bool portalIsSales;
 
   const _ComplaintDialogLauncher({
     super.key,
@@ -12748,6 +12796,7 @@ class _ComplaintDialogLauncher extends StatelessWidget {
     required this.c,
     required this.onClosed,
     required this.portalRole,
+    this.portalIsSales = false,
     this.productLookup,
     this.companyHint,
     this.hasRep = false,
@@ -12860,6 +12909,8 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                       api: api,
                       c: c,
                       portalRole: portalRole,
+                      portalIsSales: portalIsSales,
+                      portalIsSales: parent?._portalIsSales ?? false,
                       productLookup: productLookup,
                       companyHint: companyHint,
                       hasRep: hasRep,
@@ -13025,6 +13076,7 @@ class _ComplaintEditor extends StatefulWidget {
   final VoidCallback? onCustomerMessageSeen;
   final String portalRole;
   final bool showEditToggle;
+  final bool portalIsSales;
 
   const _ComplaintEditor({
     super.key,
@@ -13043,6 +13095,7 @@ class _ComplaintEditor extends StatefulWidget {
     this.onChanged,
     this.hasNewCustomerMessage = false,
     this.onCustomerMessageSeen,
+    this.portalIsSales = false,
   });
 
   @override
@@ -13057,7 +13110,11 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
   final _internalEvalCtrl = TextEditingController();
   final _qmSummaryCtrl = TextEditingController();
   final _qmSummaryTranslationCtrl = TextEditingController();
+  final _orderNumberCtrl = TextEditingController();
+  final _invoiceNumberCtrl = TextEditingController();
+  final _salesAgentCtrl = TextEditingController();
   bool _busy = false;
+  bool _salesBusy = false;
   late bool _expanded;
   bool _historyExpanded = false;
   bool _showProductInfo = false;
@@ -13097,6 +13154,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
   bool get _isPortalSuperuser => widget.portalRole == PORTAL_ROLES['superuser'];
   bool get _isPortalReadonly => widget.portalRole == PORTAL_ROLES['readonly'];
   bool get _isPortalUser => widget.portalRole == PORTAL_ROLES['user'];
+  bool get _isPortalSales => widget.portalIsSales;
   bool get _shouldBlink => widget.hasNewCustomerMessage || (_isPortalSuperuser && widget.c.internalEvaluationNewForAdmin);
 
   int? _status; // 1..6
@@ -13377,12 +13435,73 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
             : 'en';
     _qmSummaryTranslationCtrl.text =
         widget.c.qmCustomerSummaryTranslations?[_qmSummaryTargetLang] ?? '';
+    _orderNumberCtrl.text = widget.c.orderNumber ?? '';
+    _invoiceNumberCtrl.text = widget.c.invoiceNumber ?? '';
+    _salesAgentCtrl.text = widget.c.salesAgentCode ?? '';
     _selectedDepartments = List<String>.from(widget.c.internalDepartments);
     final detected = _payloadLang;
     if (detected != null && deeplLangCodes.contains(detected)) {
       _descSourceLang = detected;
     }
     _markInternalEvaluationSeenIfNeeded();
+  }
+
+  void _applySalesUpdate(AdminComplaint updated) {
+    setState(() {
+      widget.c.orderNumber = updated.orderNumber;
+      widget.c.invoiceNumber = updated.invoiceNumber;
+      widget.c.salesAgentCode = updated.salesAgentCode;
+      widget.c.salesCompleted = updated.salesCompleted;
+      widget.c.salesCompletedAt = updated.salesCompletedAt;
+      widget.c.salesCompletedBy = updated.salesCompletedBy;
+    });
+    _notifyChanged();
+  }
+
+  Future<void> _submitSalesCompletion({
+    required bool wantsReplacement,
+    required bool wantsCredit,
+  }) async {
+    if (!_isPortalSales || !_isPortalUser || widget.c.salesCompleted) return;
+    final order = _orderNumberCtrl.text.trim();
+    final invoice = _invoiceNumberCtrl.text.trim();
+    final agent = _salesAgentCtrl.text.trim();
+
+    if (wantsReplacement && order.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Bitte Auftragsnummer eingeben (Ersatzlieferung).')));
+      return;
+    }
+    if (wantsCredit && invoice.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Bitte Rechnungsnummer eingeben (Gutschrift).')));
+      return;
+    }
+    if (agent.isEmpty || agent.length < 2 || agent.length > 5) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Bitte Sachbearbeiter-Kürzel eingeben.')));
+      return;
+    }
+
+    setState(() => _salesBusy = true);
+    try {
+      final updated = await widget.api.completeSalesCompletion(
+        ticket: widget.c.ticket,
+        orderNumber: wantsReplacement ? order : null,
+        invoiceNumber: wantsCredit ? invoice : null,
+        salesAgentCode: agent,
+      );
+      if (!mounted) return;
+      _applySalesUpdate(updated);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Sales-Abschluss gespeichert.')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Fehler beim Sales-Abschluss: $e')));
+    } finally {
+      if (mounted) setState(() => _salesBusy = false);
+    }
   }
 
   @override
@@ -13405,6 +13524,9 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
               : 'en';
       _qmSummaryTranslationCtrl.text =
           widget.c.qmCustomerSummaryTranslations?[_qmSummaryTargetLang] ?? '';
+      _orderNumberCtrl.text = widget.c.orderNumber ?? '';
+      _invoiceNumberCtrl.text = widget.c.invoiceNumber ?? '';
+      _salesAgentCtrl.text = widget.c.salesAgentCode ?? '';
     }
   }
 
@@ -13416,6 +13538,9 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     _internalEvalCtrl.dispose();
     _qmSummaryCtrl.dispose();
     _qmSummaryTranslationCtrl.dispose();
+    _orderNumberCtrl.dispose();
+    _invoiceNumberCtrl.dispose();
+    _salesAgentCtrl.dispose();
     _blinkCtrl.dispose();
 
     super.dispose();
@@ -15207,6 +15332,148 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
               },
             ),
 
+            // ===================== Vertrieb / Abrechnung =====================
+            Builder(builder: (_) {
+              final handling = c.handlingLabel.toLowerCase();
+              final wantsReplacement = handling == 'ersatz';
+              final wantsCredit = handling == 'gutschrift';
+              final isClosed = c.status == 5;
+              final showSalesSection = isClosed || c.salesCompleted || _isPortalSales || _isPortalSuperuser;
+              final canEditSales = _isPortalSales && _isPortalUser && isClosed && !c.salesCompleted;
+              if (!showSalesSection) return const SizedBox.shrink();
+
+              Widget _readonlyRow(String label, String value) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 170,
+                        child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      ),
+                      Expanded(child: Text(value.isEmpty ? '—' : value)),
+                    ],
+                  ),
+                );
+              }
+
+              final completionInfo = c.salesCompletedAt != null
+                  ? 'Abgeschlossen am ${_fmtDate(c.salesCompletedAt!.toLocal())}${c.salesCompletedBy != null ? ' durch ${c.salesCompletedBy}' : ''}'
+                  : null;
+
+              return Container(
+                margin: const EdgeInsets.only(top: 10),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.35),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Theme.of(context).dividerColor.withOpacity(0.6)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.account_balance_wallet_outlined),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Vertrieb / Abrechnung',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                        const Spacer(),
+                        if (c.salesCompleted)
+                          Chip(
+                            label: const Text('Sales abgeschlossen'),
+                            avatar: const Icon(Icons.check_circle_outline, color: Colors.green),
+                          )
+                        else if (canEditSales)
+                          Chip(
+                            label: const Text('offen'),
+                            avatar: const Icon(Icons.edit_outlined),
+                          )
+                        else if (!isClosed)
+                          Chip(
+                            label: const Text('wartet auf Abschluss'),
+                            avatar: const Icon(Icons.lock_clock_outlined),
+                          )
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    if (c.salesCompleted) ...[
+                      _readonlyRow('Auftragsnummer', c.orderNumber ?? ''),
+                      _readonlyRow('Rechnungsnummer', c.invoiceNumber ?? ''),
+                      _readonlyRow('Sachbearbeiter-Kürzel', c.salesAgentCode ?? ''),
+                      if (completionInfo != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(completionInfo, style: Theme.of(context).textTheme.bodySmall),
+                        ),
+                    ] else ...[
+                      if (!isClosed)
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 8),
+                          child: Text('Sales-Bearbeitung nur nach abgeschlossenem Ticket möglich.'),
+                        ),
+                      if (wantsReplacement)
+                        TextField(
+                          controller: _orderNumberCtrl,
+                          enabled: canEditSales && !_salesBusy,
+                          decoration: const InputDecoration(
+                            labelText: 'Auftragsnummer (Ersatzlieferung)',
+                            prefixIcon: Icon(Icons.receipt_long_outlined),
+                          ),
+                        ),
+                      if (wantsCredit)
+                        TextField(
+                          controller: _invoiceNumberCtrl,
+                          enabled: canEditSales && !_salesBusy,
+                          decoration: const InputDecoration(
+                            labelText: 'Rechnungsnummer (Gutschrift)',
+                            prefixIcon: Icon(Icons.description_outlined),
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _salesAgentCtrl,
+                        enabled: canEditSales && !_salesBusy,
+                        decoration: const InputDecoration(
+                          labelText: 'Sachbearbeiter-Kürzel',
+                          prefixIcon: Icon(Icons.badge_outlined),
+                        ),
+                      ),
+                      if (canEditSales)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: FilledButton.icon(
+                              onPressed: _salesBusy
+                                  ? null
+                                  : () => _submitSalesCompletion(
+                                        wantsReplacement: wantsReplacement,
+                                        wantsCredit: wantsCredit,
+                                      ),
+                              icon: const Icon(Icons.save_outlined),
+                              label: Text(_salesBusy ? 'Speichern ...' : 'Sales-Abschluss speichern'),
+                            ),
+                          ),
+                        )
+                      else if (isClosed)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 6),
+                          child: Text('Sales-Daten können nur von gekennzeichneten Sales-Usern ergänzt werden.'),
+                        ),
+                    ],
+                    if (!wantsReplacement && !wantsCredit)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 6),
+                        child: Text('Hinweis: Kein bekannter Lösungstyp (Ersatz/Gutschrift) erkannt.'),
+                      ),
+                  ],
+                ),
+              );
+            }),
+
             // KEIN prominenter Wunsch-Banner mehr!
 
             if (_expanded) ...[
@@ -16977,12 +17244,14 @@ class AdminApi {
     String portalStatus = 'active',
     List<String>? assignedDepartments,
     Map<String, String>? tilePermissions,
+    bool isSales = false,
   }) async {
     final body = {
       'email': email,
       'password': password,
       'role': role,
       'portalStatus': portalStatus,
+      'isSales': isSales,
       if (displayName != null) 'displayName': displayName,
       if (assignedDepartments != null) 'assignedDepartments': assignedDepartments,
       if (tilePermissions != null) 'tilePermissions': tilePermissions,
@@ -17001,6 +17270,7 @@ class AdminApi {
     String? password,
     List<String>? assignedDepartments,
     Map<String, String>? tilePermissions,
+    bool? isSales,
   }) async {
     final body = <String, dynamic>{
       'email': email,
@@ -17010,6 +17280,7 @@ class AdminApi {
       if (password != null) 'password': password,
       if (assignedDepartments != null) 'assignedDepartments': assignedDepartments,
       if (tilePermissions != null) 'tilePermissions': tilePermissions,
+      if (isSales != null) 'isSales': isSales,
     };
     final res = await _request('PATCH', '/api/portal/users', body: body);
     if (res.status != 200) throw 'portal/users PATCH: HTTP ${res.status} ${res.responseText}';
@@ -17093,6 +17364,28 @@ class AdminApi {
     final Map<String, dynamic> j =
         (res.responseText ?? '').trim().isEmpty ? <String, dynamic>{} : jsonDecode(res.responseText!);
     return AdminComplaint.fromJson(j);
+  }
+
+  Future<AdminComplaint> completeSalesCompletion({
+    required String ticket,
+    String? orderNumber,
+    String? invoiceNumber,
+    required String salesAgentCode,
+  }) async {
+    final body = <String, dynamic>{
+      'salesAgentCode': salesAgentCode,
+      if (orderNumber != null) 'orderNumber': orderNumber,
+      if (invoiceNumber != null) 'invoiceNumber': invoiceNumber,
+    };
+    final res = await _request('POST', '/api/complaints/$ticket/sales-completion', body: body);
+    if (res.status != 200) {
+      throw 'sales completion failed: HTTP ${res.status} ${res.responseText}';
+    }
+    final decoded = jsonDecode(res.responseText ?? '{}');
+    final payload = (decoded is Map && decoded['complaint'] is Map)
+        ? (decoded['complaint'] as Map).cast<String, dynamic>()
+        : (decoded is Map ? decoded.cast<String, dynamic>() : <String, dynamic>{});
+    return AdminComplaint.fromJson(payload);
   }
 
   Future<AdminComplaint> updateComplaintDetails({
