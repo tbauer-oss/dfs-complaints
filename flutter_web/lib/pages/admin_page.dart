@@ -4156,12 +4156,6 @@ class _AdminPageState extends State<AdminPage> {
           onPressed: _showChangePasswordDialog,
           icon: const Icon(Icons.lock_reset),
         ),
-        TextButton.icon(
-          tooltip: t.logoutTitle,
-          onPressed: _logoutAdmin,
-          icon: const Icon(Icons.logout),
-          label: Text(t.logout),
-        ),
         w.ThemeAction(),
         const SizedBox(width: 2),
         IconButton(
@@ -4174,6 +4168,12 @@ class _AdminPageState extends State<AdminPage> {
             await _refreshFaq();
           },
           icon: const Icon(Icons.refresh),
+        ),
+        TextButton.icon(
+          tooltip: t.logoutTitle,
+          onPressed: _logoutAdmin,
+          icon: const Icon(Icons.logout),
+          label: Text(t.logout),
         ),
         const SizedBox(width: 6),
       ],
