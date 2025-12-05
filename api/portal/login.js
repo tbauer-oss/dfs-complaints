@@ -4,7 +4,7 @@ export const config = { runtime: 'nodejs' };
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { handlePreflight, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
-import { portalUserByEmail, portalUserSave } from '../_lib/store.js';
+import { portalUserByEmail, portalUserSave, sanitizeTilePermissions } from '../_lib/store.js';
 import {
   ADMIN_EMAILS,
   ensureInitialAdmins,
@@ -51,6 +51,7 @@ export default async function handler(req, res) {
     const role = normalizeRole(u.role);
     const portalStatus = normalizeStatus(u.portalStatus, u.revoked);
     if (portalStatus !== 'active') return bad(res, 'inactive', 403);
+    const tilePermissions = sanitizeTilePermissions(u.tilePermissions);
 
     const token = jwt.sign({
       sub: u.email,
@@ -67,6 +68,7 @@ export default async function handler(req, res) {
         displayName: u.displayName || u.contact || u.company,
         role,
         portalStatus,
+        tilePermissions,
       },
     });
   } catch (err) {

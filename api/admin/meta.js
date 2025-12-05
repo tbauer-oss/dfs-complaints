@@ -25,7 +25,7 @@ export default async function handler(req, res) {
   if (isOptions(req)) return res.status(204).end();
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
 
-  const actor = await requirePortalAccess(req, res, { write: true });
+  const actor = await requirePortalAccess(req, res, { write: true, tile: 'appMeta' });
   if (!actor) return;
 
   try {
