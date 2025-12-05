@@ -8744,7 +8744,7 @@ class _AdminPageState extends State<AdminPage> {
                                                   if (hasCustomTiles)
                                                     _PortalBadge(
                                                       icon: Icons.dashboard_customize_outlined,
-                                                      label: 'Individuelle Kacheln: ${u.tilePermissions.length}',
+                                                      label: 'Anzahl vergebener Rechte: ${u.tilePermissions.length}',
                                                       color: theme.colorScheme.tertiaryContainer,
                                                       foreground: theme.colorScheme.onTertiaryContainer,
                                                     ),
