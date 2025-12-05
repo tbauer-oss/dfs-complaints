@@ -190,8 +190,8 @@ function drawSectionTitle(doc, title, { index } = {}) {
   const availableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const label = index ? `${index}. ${title}` : title;
 
-  ensureSpace(doc, 32);
-  doc.moveDown(0.3);
+  ensureSpace(doc, 36);
+  doc.moveDown(0.4);
 
   const barHeight = 18;
   const barWidth = 6;
@@ -219,7 +219,7 @@ function drawSectionTitle(doc, title, { index } = {}) {
     .stroke();
   doc.restore();
 
-  doc.moveDown(0.8);
+  doc.moveDown(1);
 }
 
 function drawKeyValueTable(doc, entries, { columns = 2 } = {}) {
@@ -227,10 +227,10 @@ function drawKeyValueTable(doc, entries, { columns = 2 } = {}) {
 
   const startX = doc.page.margins.left;
   const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-  const gap = 14;
+  const gap = 16;
   const columnWidth = (usableWidth - gap * (columns - 1)) / columns;
-  const padding = 9;
-  const rowSpacing = 12;
+  const padding = 10;
+  const rowSpacing = 14;
 
   const rows = [];
   for (let i = 0; i < entries.length; i += columns) {
@@ -244,7 +244,7 @@ function drawKeyValueTable(doc, entries, { columns = 2 } = {}) {
       const value = ((entry?.value ?? '') || '–').toString();
       const labelHeight = doc.heightOfString(label, { width: columnWidth - padding * 2 });
       const valueHeight = doc.heightOfString(value, { width: columnWidth - padding * 2 });
-      rowHeight = Math.max(rowHeight, labelHeight + valueHeight + padding * 2 + 8);
+      rowHeight = Math.max(rowHeight, labelHeight + valueHeight + padding * 2 + 10);
     });
 
     ensureSpace(doc, rowHeight + rowSpacing);
@@ -274,7 +274,7 @@ function drawKeyValueTable(doc, entries, { columns = 2 } = {}) {
         .fillColor(TEXT_DARK)
         .font('Helvetica')
         .fontSize(11)
-        .text(value, x + padding, baseY + padding + labelHeight + 4, {
+        .text(value, x + padding, baseY + padding + labelHeight + 6, {
           width: columnWidth - padding * 2,
         });
       doc.restore();
@@ -319,7 +319,7 @@ function drawHeader(doc, { title, ticket, dateLabel, status, logoBuffer }) {
 
   const titleHeight = doc.heightOfString(title, { width: textWidth, align: 'left' });
   const metaHeight = doc.heightOfString(dateLabel, { width: textWidth });
-  const headerHeight = Math.max(86, titleHeight + metaHeight + padding * 2 + 10);
+  const headerHeight = Math.max(92, titleHeight + metaHeight + padding * 2 + 18);
 
   doc
     .save()
@@ -361,9 +361,9 @@ function drawHeader(doc, { title, ticket, dateLabel, status, logoBuffer }) {
     .fillColor(DFS_DARK)
     .font('Helvetica-Bold')
     .fontSize(18)
-    .text(title, titleX, doc.y + 8, { width: textWidth });
+    .text(title, titleX, doc.y + 10, { width: textWidth });
 
-  const metaY = doc.y + 6;
+  const metaY = doc.y + 10;
   const badge = drawBadge(doc, status, { color: DFS_BLUE_LIGHT, x: left + usableWidth - logoAreaWidth, y: metaY });
 
   doc
@@ -478,18 +478,22 @@ function describeCustomer(complaint) {
       || complaint.customer?.contact
       || complaint.customer?.contactPerson
       || complaint.account?.contact
+      || p.contactPerson
       || p.contact
+      || p.customerContact
       || '',
     country: complaint.country
       || complaint.customer?.country
       || complaint.customer?.address?.country
       || complaint.account?.country
       || p.country
+      || p.countryName
       || '',
     customerNo: complaint.customerNumber
       || complaint.customer?.customerNumber
       || complaint.account?.customerNumber
       || p.customerNumber
+      || p.customerNo
       || '',
   };
 }
@@ -533,7 +537,7 @@ async function buildPdf(complaint, { lang = 'de', variant = 'internal' } = {}) {
     title,
     ticket: `${labelFor(lang, 'ticket')}: ${complaint.ticket || '-'}`,
     dateLabel: `${labelFor(lang, 'created')}: ${formatDate(complaint.createdAt || complaint.updatedAt)}`,
-    status: `${labelFor(lang, 'status')}: ${statusText}`,
+    status: statusText,
     logoBuffer,
   });
 
@@ -543,7 +547,7 @@ async function buildPdf(complaint, { lang = 'de', variant = 'internal' } = {}) {
     { label: labelFor(lang, 'decision'), value: complaint.decision || '–' },
     { label: 'Datum / Uhrzeit', value: formatDate(complaint.createdAt || complaint.updatedAt) || '–' },
     { label: 'Sprache', value: (lang || '–').toUpperCase() },
-    { label: labelFor(lang, 'customer'), value: customer.company || customer.contact || '–' },
+    { label: labelFor(lang, 'customer'), value: customer.company || '–' },
     { label: 'Kontakt', value: customer.contact || '–' },
     { label: labelFor(lang, 'email'), value: complaint.email || '–' },
     { label: 'Kundennummer', value: customer.customerNo || '–' },
