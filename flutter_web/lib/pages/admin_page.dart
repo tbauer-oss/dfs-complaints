@@ -12910,7 +12910,6 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                       c: c,
                       portalRole: portalRole,
                       portalIsSales: portalIsSales,
-                      portalIsSales: parent?._portalIsSales ?? false,
                       productLookup: productLookup,
                       companyHint: companyHint,
                       hasRep: hasRep,
