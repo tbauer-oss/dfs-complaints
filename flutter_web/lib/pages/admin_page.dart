@@ -4680,10 +4680,8 @@ class _AdminPageState extends State<AdminPage> {
     }
 
     bool _tileAllowed(String id) {
-      if (!_isSuperuser) {
-        final visibleTiles = _visibleTilesForRole(_portalRole);
-        if (!visibleTiles.contains(id)) return false;
-      }
+      final visibleTiles = _visibleTilesForRole(_portalRole);
+      if (!visibleTiles.contains(id)) return false;
       final view = _tileIdToView(id);
       if (view == null) return true;
       return _isViewAllowed(view);
