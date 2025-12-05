@@ -14454,6 +14454,50 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     }
   }
 
+  Future<void> _deleteReports() async {
+    if (_isPortalUser || _isPortalReadonly) return;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reports löschen'),
+        content: Text('Alle Reports zu Ticket ${widget.c.ticket} wirklich löschen?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    setState(() => _busy = true);
+    try {
+      final updated = await widget.api.adminComplaintUpdate(ticket: widget.c.ticket, deleteReports: true);
+      setState(() {
+        widget.c.reportLink = updated.reportLink;
+        widget.c.reportLinks = updated.reportLinks;
+        widget.c.externalReportLinks = updated.externalReportLinks;
+        widget.c.internalReportLinks = updated.internalReportLinks;
+        widget.c.status = updated.status;
+        widget.c.decision = updated.decision;
+        widget.c.history = updated.history;
+        _reportCtrl.text = updated.reportLink ?? '';
+      });
+
+      _notifyChanged();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reports gelöscht.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _saveStatusDecision() async {
     if (_isPortalUser || _isPortalReadonly) return;
     if (_status == null) {
@@ -16189,6 +16233,12 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                   Widget buildMetaSection() {
                     final canEditMeta = !_isPortalUser && !_isPortalReadonly;
                     final canEditDepartments = _isPortalSuperuser;
+                    final hasReports =
+                        (_reportCtrl.text.trim().isNotEmpty) ||
+                            ((widget.c.reportLink?.trim().isNotEmpty ?? false)) ||
+                            ((widget.c.reportLinks?.isNotEmpty ?? false)) ||
+                            ((widget.c.externalReportLinks?.isNotEmpty ?? false)) ||
+                            ((widget.c.internalReportLinks?.isNotEmpty ?? false));
                     final internalField = TextField(
                       controller: _internalCtrl,
                       decoration: InputDecoration(
@@ -16347,6 +16397,18 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                           _linkBadges('Externe Reports', widget.c.externalReportLinks, highlight: true),
                           _linkBadges('Interne Reports', widget.c.internalReportLinks),
                         ],
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            onPressed: (_busy || !canEditMeta || !hasReports) ? null : _deleteReports,
+                            style: TextButton.styleFrom(
+                              foregroundColor: scheme.error,
+                              overlayColor: scheme.error.withOpacity(0.1),
+                            ),
+                            icon: const Icon(Icons.delete_outline),
+                            label: const Text('Reports löschen'),
+                          ),
+                        ),
                         const SizedBox(height: 16),
                         Text(
                           'Betroffene interne Abteilungen',
@@ -17622,6 +17684,7 @@ class AdminApi {
     int? status,
     String? decision,
     String? reportLink,
+    bool? deleteReports,
     String? internalNo,
     String? notes,
     bool? sendPush,
@@ -17637,6 +17700,7 @@ class AdminApi {
     if (status != null) body['status'] = status;
     if (decision != null) body['decision'] = decision;
     if (reportLink != null) body['reportLink'] = reportLink;
+    if (deleteReports == true) body['deleteReports'] = true;
     if (internalNo != null) body['internalNo'] = internalNo;
     if (notes != null) body['notes'] = notes;
     if (sendPush != null) body['sendPush'] = sendPush;
