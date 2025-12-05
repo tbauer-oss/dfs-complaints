@@ -151,6 +151,13 @@ const BORDER_GREY = '#D5DBE5';
 const TEXT_DARK = '#1F2933';
 let cachedLogo;
 
+function ensureSpace(doc, requiredHeight) {
+  const bottomLimit = doc.page.height - doc.page.margins.bottom;
+  if (doc.y + requiredHeight > bottomLimit) {
+    doc.addPage();
+  }
+}
+
 function resolveLogoPath() {
   const candidates = [
     path.resolve(process.cwd(), 'flutter_web', 'assets', 'dfs_logo.png'),
@@ -170,6 +177,8 @@ function drawSectionTitle(doc, title, { index } = {}) {
   const startX = doc.page.margins.left;
   const availableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const label = index ? `${index}. ${title}` : title;
+
+  ensureSpace(doc, 42);
 
   doc.moveDown(0.8);
 
@@ -210,15 +219,23 @@ function drawKeyValueTable(doc, entries, { columns = 2 } = {}) {
   }
 
   rows.forEach((row) => {
-    const baseY = doc.y;
     let rowHeight = 0;
-    row.forEach((entry, idx) => {
-      const x = startX + (idx * columnWidth);
+    row.forEach((entry) => {
       const label = entry?.label || '';
       const value = (entry?.value ?? '') || '–';
       const labelHeight = doc.heightOfString(label, { width: columnWidth - 10 });
       const valueHeight = doc.heightOfString(value, { width: columnWidth - 10 });
       rowHeight = Math.max(rowHeight, labelHeight + valueHeight + 10);
+    });
+
+    ensureSpace(doc, rowHeight + 26);
+
+    const baseY = doc.y;
+    row.forEach((entry, idx) => {
+      const x = startX + (idx * columnWidth);
+      const label = entry?.label || '';
+      const value = (entry?.value ?? '') || '–';
+      const labelHeight = doc.heightOfString(label, { width: columnWidth - 10 });
 
       doc
         .save()
@@ -270,7 +287,7 @@ function drawBadge(doc, text, { color = DFS_BLUE } = {}) {
 function drawHeader(doc, { title, ticket, dateLabel, status, logoBuffer }) {
   const { left, right } = doc.page.margins;
   const startY = doc.y;
-  const headerHeight = 130;
+  const headerHeight = 118;
   const usableWidth = doc.page.width - left - right;
 
   doc
