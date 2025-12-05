@@ -606,6 +606,24 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (!widget.canWrite)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        Icon(Icons.lock_outline,
+                            size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Nur Lesezugriff – Änderungen sind deaktiviert.',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
+                  ),
                 Row(
                   children: [
                     const Icon(Icons.filter_alt_outlined),
@@ -876,21 +894,29 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
           }),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  tooltip: 'Bearbeiten',
-                  icon: const Icon(Icons.edit_outlined),
-                  onPressed: widget.canWrite ? () => _openEditor(product: product) : null,
-                ),
-                IconButton(
-                  tooltip: 'Löschen',
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: widget.canWrite ? () => _deleteProduct(product) : null,
-                ),
-              ],
-            ),
+            child: widget.canWrite
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'Bearbeiten',
+                        icon: const Icon(Icons.edit_outlined),
+                        onPressed: () => _openEditor(product: product),
+                      ),
+                      IconButton(
+                        tooltip: 'Löschen',
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: () => _deleteProduct(product),
+                      ),
+                    ],
+                  )
+                : Text(
+                    'Nur Lesen',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: Theme.of(context).disabledColor),
+                  ),
           ),
         ],
       );
