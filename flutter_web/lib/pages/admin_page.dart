@@ -342,7 +342,7 @@ class _AdminPageState extends State<AdminPage> {
   final _portalUserDepartmentCtrl = TextEditingController();
   String _portalUserRole = PORTAL_ROLES['superuser']!;
   String _portalUserStatus = 'active';
-  bool _portalUserIsSales = false;
+  bool _portalUserCanEditSales = false;
   final List<String> _portalUserDepartments = [];
   final Map<String, String> _portalUserTilePermissions = {};
   PortalUser? _editingPortalUser;
@@ -878,12 +878,14 @@ class _AdminPageState extends State<AdminPage> {
 
   bool get _portalUserHasAllDepartments => _portalUserDepartments.contains('Alle');
 
-  bool get _canShowSalesToggle =>
-      _portalUserDepartments.contains('Vertrieb') || _portalUserHasAllDepartments;
+  bool get _canShowSalesToggle => _portalUserDepartments.any((dep) {
+        final normalized = dep.trim().toLowerCase();
+        return normalized == 'vertrieb' || normalized == 'alle';
+      });
 
   void _ensureSalesFlagValidity() {
-    if (!_canShowSalesToggle && _portalUserIsSales) {
-      _portalUserIsSales = false;
+    if (!_canShowSalesToggle && _portalUserCanEditSales) {
+      _portalUserCanEditSales = false;
     }
   }
 
@@ -7950,6 +7952,7 @@ class _AdminPageState extends State<AdminPage> {
 
   void _resetPortalUserForm() {
     setState(() {
+      _portalUserBusy = false;
       _editingPortalUser = null;
       _portalUserEmailCtrl.clear();
       _portalUserDisplayNameCtrl.clear();
@@ -7958,7 +7961,7 @@ class _AdminPageState extends State<AdminPage> {
       _portalUserDepartmentCtrl.clear();
       _portalUserRole = PORTAL_ROLES['superuser']!;
       _portalUserStatus = 'active';
-      _portalUserIsSales = false;
+      _portalUserCanEditSales = false;
       _portalUserDepartments
         ..clear();
       _portalUserTilePermissions.clear();
@@ -7967,6 +7970,7 @@ class _AdminPageState extends State<AdminPage> {
 
   void _startPortalUserEdit(PortalUser? user) {
     setState(() {
+      _portalUserBusy = false;
       _editingPortalUser = user;
       _portalUserEmailCtrl.text = user?.email ?? '';
       _portalUserDisplayNameCtrl.text = user?.displayName ?? '';
@@ -7975,7 +7979,7 @@ class _AdminPageState extends State<AdminPage> {
       _portalUserDepartmentCtrl.clear();
       _portalUserRole = user?.role ?? PORTAL_ROLES['superuser']!;
       _portalUserStatus = user?.portalStatus ?? 'active';
-      _portalUserIsSales = user?.isSales ?? false;
+      _portalUserCanEditSales = user?.canEditSales ?? false;
       _portalUserDepartments
         ..clear()
         ..addAll(user?.assignedDepartments ?? const <String>[]);
@@ -8002,7 +8006,7 @@ class _AdminPageState extends State<AdminPage> {
               portalStatus: _portalUserStatus,
               assignedDepartments: _portalUserDepartments,
               tilePermissions: _portalUserTilePermissions,
-              isSales: _portalUserIsSales,
+              canEditSales: _portalUserCanEditSales,
             )
           : await _api.updatePortalUser(
               email: _editingPortalUser!.email,
@@ -8011,7 +8015,7 @@ class _AdminPageState extends State<AdminPage> {
               portalStatus: _portalUserStatus,
               assignedDepartments: _portalUserDepartments,
               tilePermissions: _portalUserTilePermissions,
-              isSales: _portalUserIsSales,
+              canEditSales: _portalUserCanEditSales,
               password: _portalUserPasswordCtrl.text.isEmpty
                   ? null
                   : _portalUserPasswordCtrl.text,
@@ -8168,10 +8172,10 @@ class _AdminPageState extends State<AdminPage> {
                           contentPadding: const EdgeInsets.only(left: 8),
                           title: const Text('Sales-Bearbeitung erlaubt'),
                           subtitle: const Text('Für Auftrags- oder Rechnungsnummern nach Abschluss'),
-                          value: _portalUserIsSales,
+                          value: _portalUserCanEditSales,
                           onChanged: _portalUserBusy
                               ? null
-                              : (v) => setState(() => _portalUserIsSales = v),
+                              : (v) => setState(() => _portalUserCanEditSales = v),
                         ),
                       const SizedBox(height: 4),
                       Text('Zugeordnete Abteilungen',
@@ -8433,44 +8437,46 @@ class _AdminPageState extends State<AdminPage> {
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   const SizedBox(height: 12),
-                  ...tiles.map(
-                    (tileId) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Row(
-                        children: [
-                          Expanded(child: Text(_tileLabel(tileId))),
-                          const SizedBox(width: 12),
-                          SizedBox(
-                            width: 200,
-                            child: DropdownButtonFormField<String>(
-                              value: currentValue(tileId),
-                              onChanged: _portalUserBusy
-                                  ? null
-                                  : (value) {
-                                      final normalized = _normalizeTilePermission(value);
-                                      setModalState(() {
-                                        if (normalized == null || value == 'inherit') {
-                                          tempPermissions.remove(tileId);
-                                        } else {
-                                          tempPermissions[tileId] = normalized;
-                                        }
-                                      });
-                                    },
-                              items: const [
-                                DropdownMenuItem(value: 'inherit', child: Text('Standard (Rollen-Layout)')),
-                                DropdownMenuItem(value: 'write', child: Text('Schreiben & lesen')),
-                                DropdownMenuItem(value: 'read', child: Text('Nur lesen')),
-                                DropdownMenuItem(value: 'none', child: Text('Kein Zugriff')),
-                              ],
-                              decoration: const InputDecoration(
-                                labelText: 'Berechtigung',
+                    ...tiles.map(
+                      (tileId) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Row(
+                          children: [
+                            Expanded(child: Text(_tileLabel(tileId))),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 12, right: 16),
+                              child: SizedBox(
+                                width: 200,
+                                child: DropdownButtonFormField<String>(
+                                  value: currentValue(tileId),
+                                  onChanged: _portalUserBusy
+                                      ? null
+                                      : (value) {
+                                          final normalized = _normalizeTilePermission(value);
+                                          setModalState(() {
+                                            if (normalized == null || value == 'inherit') {
+                                              tempPermissions.remove(tileId);
+                                            } else {
+                                              tempPermissions[tileId] = normalized;
+                                            }
+                                          });
+                                        },
+                                  items: const [
+                                    DropdownMenuItem(value: 'inherit', child: Text('Standard (Rollen-Layout)')),
+                                    DropdownMenuItem(value: 'write', child: Text('Schreiben & lesen')),
+                                    DropdownMenuItem(value: 'read', child: Text('Nur lesen')),
+                                    DropdownMenuItem(value: 'none', child: Text('Kein Zugriff')),
+                                  ],
+                                  decoration: const InputDecoration(
+                                    labelText: 'Berechtigung',
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -11866,7 +11872,7 @@ class PortalUser {
   final String? createdAt;
   final List<String> assignedDepartments;
   final Map<String, String> tilePermissions;
-  final bool isSales;
+  final bool canEditSales;
 
   const PortalUser({
     required this.email,
@@ -11876,7 +11882,7 @@ class PortalUser {
     this.createdAt,
     this.assignedDepartments = const <String>[],
     this.tilePermissions = const <String, String>{},
-    this.isSales = false,
+    this.canEditSales = false,
   });
 
   factory PortalUser.fromJson(Map<String, dynamic> j) => PortalUser(
@@ -11893,7 +11899,7 @@ class PortalUser {
         tilePermissions: (j['tilePermissions'] is Map)
             ? (j['tilePermissions'] as Map).map((key, value) => MapEntry(key.toString(), value.toString()))
             : const <String, String>{},
-        isSales: j['isSales'] == true,
+        canEditSales: (j['canEditSales'] ?? j['isSales']) == true,
       );
 }
 
@@ -17383,14 +17389,15 @@ class AdminApi {
     String portalStatus = 'active',
     List<String>? assignedDepartments,
     Map<String, String>? tilePermissions,
-    bool isSales = false,
+    bool canEditSales = false,
   }) async {
     final body = {
       'email': email,
       'password': password,
       'role': role,
       'portalStatus': portalStatus,
-      'isSales': isSales,
+      'canEditSales': canEditSales,
+      'isSales': canEditSales,
       if (displayName != null) 'displayName': displayName,
       if (assignedDepartments != null) 'assignedDepartments': assignedDepartments,
       if (tilePermissions != null) 'tilePermissions': tilePermissions,
@@ -17409,7 +17416,7 @@ class AdminApi {
     String? password,
     List<String>? assignedDepartments,
     Map<String, String>? tilePermissions,
-    bool? isSales,
+    bool? canEditSales,
   }) async {
     final body = <String, dynamic>{
       'email': email,
@@ -17419,7 +17426,10 @@ class AdminApi {
       if (password != null) 'password': password,
       if (assignedDepartments != null) 'assignedDepartments': assignedDepartments,
       if (tilePermissions != null) 'tilePermissions': tilePermissions,
-      if (isSales != null) 'isSales': isSales,
+      if (canEditSales != null) ...{
+        'canEditSales': canEditSales,
+        'isSales': canEditSales,
+      },
     };
     final res = await _request('PATCH', '/api/portal/users', body: body);
     if (res.status != 200) throw 'portal/users PATCH: HTTP ${res.status} ${res.responseText}';
