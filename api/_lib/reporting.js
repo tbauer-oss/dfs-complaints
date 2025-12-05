@@ -178,14 +178,17 @@ function drawSectionTitle(doc, title, { index } = {}) {
   const availableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const label = index ? `${index}. ${title}` : title;
 
-  ensureSpace(doc, 42);
+  ensureSpace(doc, 32);
+  doc.moveDown(0.5);
 
-  doc.moveDown(0.8);
+  const barHeight = 18;
+  const barWidth = 6;
+  const titleY = doc.y;
 
   doc
     .save()
     .fillColor(DFS_BLUE)
-    .rect(startX, doc.y - 2, 6, 18)
+    .rect(startX, titleY - 2, barWidth, barHeight)
     .fill()
     .restore();
 
@@ -194,24 +197,28 @@ function drawSectionTitle(doc, title, { index } = {}) {
     .fillColor(DFS_DARK)
     .font('Helvetica-Bold')
     .fontSize(13)
-    .text(label, startX + 12, doc.y - 2, { width: availableWidth - 12 });
+    .text(label, startX + barWidth + 8, titleY - 1, { width: availableWidth - barWidth - 8 });
 
   doc
     .strokeColor(BORDER_GREY)
-    .lineWidth(1)
-    .moveTo(startX, doc.y + 16)
-    .lineTo(startX + availableWidth, doc.y + 16)
+    .lineWidth(0.8)
+    .moveTo(startX, doc.y + 10)
+    .lineTo(startX + availableWidth, doc.y + 10)
     .stroke();
   doc.restore();
 
-  doc.moveDown(0.6);
+  doc.moveDown(0.8);
 }
 
 function drawKeyValueTable(doc, entries, { columns = 2 } = {}) {
   if (!entries || entries.length === 0) return;
+
   const startX = doc.page.margins.left;
   const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-  const columnWidth = usableWidth / columns;
+  const gap = 12;
+  const columnWidth = (usableWidth - gap * (columns - 1)) / columns;
+  const padding = 10;
+  const rowSpacing = 10;
 
   const rows = [];
   for (let i = 0; i < entries.length; i += columns) {
@@ -221,57 +228,62 @@ function drawKeyValueTable(doc, entries, { columns = 2 } = {}) {
   rows.forEach((row) => {
     let rowHeight = 0;
     row.forEach((entry) => {
-      const label = entry?.label || '';
-      const value = (entry?.value ?? '') || '–';
-      const labelHeight = doc.heightOfString(label, { width: columnWidth - 10 });
-      const valueHeight = doc.heightOfString(value, { width: columnWidth - 10 });
-      rowHeight = Math.max(rowHeight, labelHeight + valueHeight + 10);
+      const label = (entry?.label || '').toString();
+      const value = ((entry?.value ?? '') || '–').toString();
+      const labelHeight = doc.heightOfString(label, { width: columnWidth - padding * 2 });
+      const valueHeight = doc.heightOfString(value, { width: columnWidth - padding * 2 });
+      rowHeight = Math.max(rowHeight, labelHeight + valueHeight + padding * 2 + 6);
     });
 
-    ensureSpace(doc, rowHeight + 26);
-
+    ensureSpace(doc, rowHeight + rowSpacing);
     const baseY = doc.y;
+
     row.forEach((entry, idx) => {
-      const x = startX + (idx * columnWidth);
-      const label = entry?.label || '';
-      const value = (entry?.value ?? '') || '–';
-      const labelHeight = doc.heightOfString(label, { width: columnWidth - 10 });
+      const label = (entry?.label || '').toString();
+      const value = ((entry?.value ?? '') || '–').toString();
+      const x = startX + idx * (columnWidth + gap);
 
       doc
         .save()
-        .lineWidth(0.5)
+        .lineWidth(0.8)
         .strokeColor(BORDER_GREY)
         .fillColor('#FFFFFF')
-        .roundedRect(x + 2, baseY, columnWidth - 6, rowHeight + 10, 6)
+        .roundedRect(x, baseY, columnWidth, rowHeight, 6)
         .fillAndStroke();
 
       doc
         .fillColor(DFS_BLUE)
         .font('Helvetica-Bold')
-        .fontSize(9)
-        .text(label, x + 10, baseY + 8, { width: columnWidth - 24, continued: false });
+        .fontSize(9.5)
+        .text(label, x + padding, baseY + padding, { width: columnWidth - padding * 2 });
+
+      const labelHeight = doc.heightOfString(label, { width: columnWidth - padding * 2 });
       doc
         .fillColor(TEXT_DARK)
         .font('Helvetica')
         .fontSize(11)
-        .text(value, x + 10, baseY + 8 + labelHeight + 2, { width: columnWidth - 24 });
+        .text(value, x + padding, baseY + padding + labelHeight + 4, {
+          width: columnWidth - padding * 2,
+        });
       doc.restore();
     });
-    doc.y = baseY + rowHeight + 18;
+
+    doc.y = baseY + rowHeight + rowSpacing;
   });
 }
 
-function drawBadge(doc, text, { color = DFS_BLUE } = {}) {
-  if (!text) return;
+function drawBadge(doc, text, { color = DFS_BLUE, x, y } = {}) {
+  if (!text) return { width: 0, height: 0 };
   const paddingX = 8;
   const paddingY = 4;
   const width = doc.widthOfString(text, { fontSize: 10 }) + paddingX * 2;
-  const startX = doc.page.width - doc.page.margins.right - width;
-  const startY = doc.y;
+  const height = 20;
+  const startX = typeof x === 'number' ? x : (doc.page.width - doc.page.margins.right - width);
+  const startY = typeof y === 'number' ? y : doc.y;
   doc
     .save()
     .fillColor(color)
-    .roundedRect(startX, startY, width, 20, 8)
+    .roundedRect(startX, startY, width, height, 8)
     .fill();
   doc
     .fillColor('#FFFFFF')
@@ -281,79 +293,81 @@ function drawBadge(doc, text, { color = DFS_BLUE } = {}) {
       align: 'center',
     })
     .restore();
-  doc.moveDown(1.4);
+  return { width, height };
 }
 
 function drawHeader(doc, { title, ticket, dateLabel, status, logoBuffer }) {
   const { left, right } = doc.page.margins;
   const startY = doc.y;
-  const headerHeight = 118;
   const usableWidth = doc.page.width - left - right;
+  const topBar = 6;
+  const padding = 16;
+  const logoAreaWidth = 140;
+  const textWidth = usableWidth - logoAreaWidth - padding * 2;
+
+  const titleHeight = doc.heightOfString(title, { width: textWidth, align: 'left' });
+  const metaHeight = doc.heightOfString(dateLabel, { width: textWidth });
+  const headerHeight = Math.max(86, titleHeight + metaHeight + padding * 2 + 10);
 
   doc
     .save()
     .fillColor(DFS_BLUE)
-    .rect(left, startY, usableWidth, 10)
+    .rect(left, startY, usableWidth, topBar)
     .fill()
     .restore();
 
   doc
     .save()
-    .rect(left, startY + 10, usableWidth, headerHeight - 10)
-    .fill(LIGHT_GREY)
+    .fillColor(LIGHT_GREY)
+    .roundedRect(left, startY + topBar, usableWidth, headerHeight, 8)
+    .fill()
     .restore();
+
+  const contentY = startY + topBar + padding;
+  const titleX = left + padding;
 
   if (logoBuffer) {
     doc
       .save()
-      .image(logoBuffer, doc.page.width - right - 140, startY + 22, { fit: [130, 52], align: 'right' })
+      .image(logoBuffer, left + usableWidth - logoAreaWidth, contentY, { fit: [logoAreaWidth - padding, 50], align: 'right' })
       .restore();
   }
 
-  const metaStartX = left + 16;
   doc
     .save()
     .fillColor(DFS_DARK)
     .font('Helvetica-Bold')
-    .fontSize(14)
-    .text('DFS-DIAMON GmbH', metaStartX, startY + 18);
+    .fontSize(12)
+    .text('DFS-DIAMON GmbH', titleX, contentY);
   doc
     .fillColor(TEXT_DARK)
     .font('Helvetica')
     .fontSize(10)
-    .text('Reklamation / Complaint Management', metaStartX, doc.y + 2);
+    .text('Reklamation / Complaint Management', titleX, doc.y + 2);
 
   doc
     .fillColor(DFS_DARK)
     .font('Helvetica-Bold')
-    .fontSize(21)
-    .text(title, metaStartX, startY + 48, { width: usableWidth / 1.6 });
+    .fontSize(18)
+    .text(title, titleX, doc.y + 8, { width: textWidth });
 
-  const chipY = doc.y + 8;
+  const metaY = doc.y + 6;
+  const badge = drawBadge(doc, status, { color: DFS_BLUE_LIGHT, x: left + usableWidth - logoAreaWidth, y: metaY });
+
   doc
     .save()
-    .fillColor('#FFFFFF')
-    .roundedRect(metaStartX, chipY, usableWidth / 3, 44, 10)
-    .fill()
-    .lineWidth(0.7)
-    .strokeColor(BORDER_GREY)
-    .roundedRect(metaStartX, chipY, usableWidth / 3, 44, 10)
-    .stroke()
-    .restore();
-
-  doc
     .fillColor(DFS_BLUE)
     .font('Helvetica-Bold')
     .fontSize(10)
-    .text(ticket, metaStartX + 12, chipY + 8, { width: usableWidth / 3 - 24 });
+    .text(ticket, titleX, metaY, { width: textWidth - badge.width - 12 });
   doc
     .fillColor(TEXT_DARK)
     .font('Helvetica')
     .fontSize(10)
-    .text(dateLabel, metaStartX + 12, chipY + 24, { width: usableWidth / 3 - 24 });
+    .text(dateLabel, titleX, doc.y + 4, { width: textWidth - badge.width - 12 });
+  doc.restore();
 
-  doc.y = startY + headerHeight;
-  drawBadge(doc, status, { color: DFS_BLUE_LIGHT });
+  doc.y = startY + topBar + headerHeight + 12;
 }
 
 function labelFor(lang, key, fallback) {
@@ -459,72 +473,74 @@ async function buildPdf(complaint, { lang = 'de', variant = 'internal' } = {}) {
     logoBuffer,
   });
 
+  const baseInfoEntries = [
+    { label: labelFor(lang, 'ticket'), value: complaint.ticket || '–' },
+    { label: labelFor(lang, 'status'), value: complaint.statusLabel || complaint.status || '–' },
+    { label: labelFor(lang, 'decision'), value: complaint.decision || '–' },
+    { label: 'Datum / Uhrzeit', value: formatDate(complaint.createdAt || complaint.updatedAt) || '–' },
+    { label: 'Sprache', value: (lang || '–').toUpperCase() },
+    { label: labelFor(lang, 'customer'), value: customer.company || customer.contact || '–' },
+    { label: 'Kontakt', value: customer.contact || '–' },
+    { label: labelFor(lang, 'email'), value: complaint.email || '–' },
+    { label: 'Kundennummer', value: customer.customerNo || '–' },
+    { label: 'Land', value: customer.country || '–' },
+  ];
+
+  const productEntries = [
+    { label: payloadLabel(lang, 'product', 'Produktname'), value: product.name || '–' },
+    { label: payloadLabel(lang, 'article', 'Artikelnummer'), value: product.articleNo || '–' },
+    { label: payloadLabel(lang, 'segment', 'Produktbereich'), value: payload.segment || '–' },
+    { label: payloadLabel(lang, 'productType', 'Produkttyp'), value: payload.productType || '–' },
+    { label: labels.batch, value: product.batch || payload.batch || payload.lot || '–' },
+    { label: payloadLabel(lang, 'qty', 'Menge'), value: payload.qty || payload.quantity || '–' },
+    { label: payloadLabel(lang, 'expiry', 'Ablaufdatum'), value: payload.expiry || payload.expiration || '–' },
+    { label: labels.udi, value: product.udi || payload.udi || payload.udiDi || '–' },
+  ];
+
+  const descriptionKeys = ['desc', 'reason', 'handling', 'error', 'fehlermeldung', 'applied', 'injury', 'returned', 'privacy'];
+  const productKeys = ['product', 'productName', 'article', 'articleNumber', 'item', 'lot', 'batch', 'udi', 'udiDi', 'qty', 'quantity', 'expiry', 'expiration', 'segment', 'productType'];
+  const descriptionEntries = descriptionKeys
+    .filter((key) => payload[key])
+    .map((key) => ({ label: payloadLabel(lang, key, key), value: payload[key] }));
+
+  const remainingPayload = Object.entries(payload)
+    .filter(([key]) => !productKeys.includes(key) && !descriptionKeys.includes(key))
+    .map(([key, value]) => ({ label: payloadLabel(lang, key, key), value: (value ?? '').toString() }));
+
   if (variant === 'internal') {
-    const stammdaten = [
-      { label: labelFor(lang, 'ticket'), value: complaint.ticket || '-' },
-      { label: labelFor(lang, 'decision'), value: complaint.decision || '–' },
-      { label: 'Datum / Uhrzeit', value: formatDate(complaint.createdAt || complaint.updatedAt) || '–' },
-      { label: labelFor(lang, 'customer'), value: customer.company || customer.contact || '-' },
-      { label: 'Kontakt', value: customer.contact || '-' },
-      { label: labelFor(lang, 'email'), value: complaint.email || '-' },
-      { label: 'Kundennummer', value: customer.customerNo || '–' },
-      { label: 'Land', value: customer.country || '–' },
-    ];
-
     drawSectionTitle(doc, 'Stammdaten', { index: 1 });
-    drawKeyValueTable(doc, stammdaten);
-
-    const produktDaten = [
-      { label: payloadLabel(lang, 'product', 'Produkt'), value: product.name || '–' },
-      { label: payloadLabel(lang, 'article', 'Artikelnummer'), value: product.articleNo || '–' },
-      { label: labels.batch, value: product.batch || payload.batch || payload.lot || '–' },
-      { label: labels.udi, value: product.udi || payload.udi || payload.udiDi || '–' },
-      { label: payloadLabel(lang, 'qty', 'Menge'), value: payload.qty || payload.quantity || '–' },
-      { label: payloadLabel(lang, 'expiry', 'Ablaufdatum'), value: payload.expiry || payload.expiration || '–' },
-    ];
+    drawKeyValueTable(doc, baseInfoEntries);
 
     drawSectionTitle(doc, 'Produktdaten', { index: 2 });
-    drawKeyValueTable(doc, produktDaten);
-
-    const descriptionEntries = [];
-    const highlightedKeys = ['desc', 'reason', 'handling', 'error', 'fehlermeldung'];
-    highlightedKeys.forEach((key) => {
-      if (payload[key]) {
-        descriptionEntries.push({
-          label: payloadLabel(lang, key, key),
-          value: payload[key],
-        });
-      }
-    });
+    drawKeyValueTable(doc, productEntries);
 
     drawSectionTitle(doc, 'Reklamationsbeschreibung', { index: 3 });
-    drawKeyValueTable(doc, descriptionEntries.length > 0 ? descriptionEntries : [{ label: labelFor(lang, 'payload'), value: '–' }]);
-
-    const remainingPayload = Object.entries(payload)
-      .filter(([key]) => !['product', 'productName', 'article', 'articleNumber', 'item', 'lot', 'batch', 'udi', 'udiDi', ...highlightedKeys].includes(key))
-      .map(([key, value]) => ({ label: payloadLabel(lang, key, key), value: (value ?? '').toString() }));
-    if (remainingPayload.length > 0) {
-      drawKeyValueTable(doc, remainingPayload);
-    }
+    const complaintEntries = descriptionEntries.concat(remainingPayload);
+    drawKeyValueTable(doc, complaintEntries.length > 0 ? complaintEntries : [{ label: labelFor(lang, 'payload'), value: '–' }], { columns: 1 });
 
     drawSectionTitle(doc, 'Interne Analyse', { index: 4 });
+    const analysisEntries = [];
     if (departments.length > 0) {
-      drawKeyValueTable(doc, [{ label: labelFor(lang, 'departments'), value: departments.join(', ') }], { columns: 1 });
+      analysisEntries.push({ label: labelFor(lang, 'departments'), value: departments.join(', ') });
     }
     const evalText = textForEvaluation(complaint, lang);
-    const cause = complaint.internalEvaluationCause || '';
-    if (evalText || cause) {
-      drawKeyValueTable(doc, [
-        { label: labelFor(lang, 'internalEvaluation'), value: evalText || '–' },
-        { label: labelFor(lang, 'internalCause'), value: cause || '–' },
-      ], { columns: 1 });
+    if (evalText) {
+      analysisEntries.push({ label: labelFor(lang, 'internalEvaluation'), value: evalText });
     }
+    if (complaint.internalEvaluationCause) {
+      analysisEntries.push({ label: labelFor(lang, 'internalCause'), value: complaint.internalEvaluationCause });
+    }
+    drawKeyValueTable(doc, analysisEntries.length > 0 ? analysisEntries : [{ label: labelFor(lang, 'internalEvaluation'), value: '–' }], { columns: 1 });
 
     drawSectionTitle(doc, 'Maßnahmen', { index: 5 });
+    const measuresEntries = [];
     const actionText = plannedActions(complaint);
-    drawKeyValueTable(doc, [
-      { label: labels.actions, value: actionText || '–' },
-    ], { columns: 1 });
+    measuresEntries.push({ label: labels.actions, value: actionText || '–' });
+    const summaryText = qmSummaryForLang(complaint, lang);
+    if (summaryText) {
+      measuresEntries.push({ label: labels.qmSummary, value: summaryText });
+    }
+    drawKeyValueTable(doc, measuresEntries, { columns: 1 });
 
     const uploads = Array.isArray(complaint.uploads) ? complaint.uploads : [];
     if (uploads.length > 0) {
@@ -538,34 +554,26 @@ async function buildPdf(complaint, { lang = 'de', variant = 'internal' } = {}) {
       { label: labelFor(lang, 'notes'), value: complaint.adminNotes || '–' },
     ], { columns: 1 });
   } else {
+    drawSectionTitle(doc, 'Stammdaten', { index: 1 });
+    drawKeyValueTable(doc, baseInfoEntries);
+
+    drawSectionTitle(doc, 'Produktdaten', { index: 2 });
+    drawKeyValueTable(doc, productEntries);
+
+    drawSectionTitle(doc, 'Reklamationsbeschreibung', { index: 3 });
+    const complaintEntries = descriptionEntries.concat(remainingPayload);
+    drawKeyValueTable(doc, complaintEntries.length > 0 ? complaintEntries : [{ label: labelFor(lang, 'payload'), value: '–' }], { columns: 1 });
+
     const summary = qmSummaryForLang(complaint, lang)
       || 'Zusammenfassung wird bereitgestellt / Summary will be provided soon';
-
-    drawSectionTitle(doc, labels.product, { index: 1 });
-    drawKeyValueTable(doc, [
-      { label: payloadLabel(lang, 'product', 'Produkt'), value: product.name || '–' },
-      { label: payloadLabel(lang, 'article', 'Artikelnummer'), value: product.articleNo || '–' },
-      { label: labels.batch, value: product.batch || payload.batch || payload.lot || '–' },
-      { label: labels.udi, value: product.udi || payload.udi || payload.udiDi || '–' },
-    ]);
-
-    drawSectionTitle(doc, labelFor(lang, 'customer'), { index: 2 });
-    drawKeyValueTable(doc, [
-      { label: labelFor(lang, 'customer'), value: customer.company || customer.contact || '–' },
-      { label: labelFor(lang, 'email'), value: complaint.email || '-' },
-      { label: 'Land', value: customer.country || '–' },
-    ]);
-
-    drawSectionTitle(doc, labels.qmSummary, { index: 3 });
-    drawKeyValueTable(doc, [
-      { label: labels.qmSummary, value: summary },
-    ], { columns: 1 });
-
     const actionText = plannedActions(complaint);
-    if (actionText) {
-      drawSectionTitle(doc, labels.measures, { index: 4 });
-      drawKeyValueTable(doc, [{ label: labels.measures, value: actionText }], { columns: 1 });
-    }
+
+    drawSectionTitle(doc, labels.measures, { index: 4 });
+    const measuresEntries = [
+      { label: labels.qmSummary, value: summary },
+      { label: labels.measures, value: actionText || '–' },
+    ];
+    drawKeyValueTable(doc, measuresEntries, { columns: 1 });
   }
 
   doc.end();
