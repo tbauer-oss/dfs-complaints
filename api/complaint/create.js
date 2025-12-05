@@ -111,6 +111,7 @@ export default async function handler(req, res) {
       internalEvaluationCause: null,
       internalEvaluationTranslations: {},
       internalEvaluationNewForAdmin: false,
+      isGoodwill: false,
       payload,
       uploads,
       history: [

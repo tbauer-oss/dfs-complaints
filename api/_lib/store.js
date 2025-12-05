@@ -1753,6 +1753,8 @@ function normalizeComplaintRecord(c = {}) {
   if (!normalized.reportLink) {
     normalized.reportLink = externalReportLinks.de || externalReportLinks.en || Object.values(externalReportLinks)[0];
   }
+  const rawGoodwill = c.isGoodwill ?? c.goodwill ?? c.isKulanz;
+  normalized.isGoodwill = rawGoodwill === true || rawGoodwill === 'true' || rawGoodwill === 1 || rawGoodwill === '1';
   return normalized;
 }
 

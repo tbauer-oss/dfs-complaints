@@ -200,6 +200,7 @@ const sortDescByDate = (a, b) => {
   const tb = b?.updatedAt ?? b?.createdAt ?? 0;
   return (tb || 0) - (ta || 0);
 };
+const parseBool = (v) => v === true || v === 'true' || v === 1 || v === '1';
 function normalizeHistoryEntry(entry = {}) {
   const at = Number(entry?.at);
   const actor = (entry?.actor || 'system').toString().trim() || 'system';
@@ -505,6 +506,12 @@ export default async function handler(req, res) {
         || body?.qmCopyInternalTranslationLang
         || body?.qmCopyInternalTranslation;
       const payloadInput = normalizePayloadInput(body?.payload);
+      const hasGoodwill = ['isGoodwill', 'goodwill', 'isKulanz'].some((key) =>
+        Object.prototype.hasOwnProperty.call(body || {}, key),
+      );
+      const goodwillInput = hasGoodwill
+        ? (body?.isGoodwill ?? body?.goodwill ?? body?.isKulanz)
+        : undefined;
       const sendPushFlag =
         body?.sendPush === true ||
         body?.sendPush === 'true' ||
@@ -576,6 +583,7 @@ export default async function handler(req, res) {
       const prevTranslations = normalizeEvaluationTranslations(c.internalEvaluationTranslations);
       const prevQmSummary = normalizeEvaluationText(c.qmCustomerSummary);
       const prevQmTranslations = normalizeEvaluationTranslations(c.qmCustomerSummaryTranslations);
+      const prevGoodwill = c.isGoodwill === true;
       let statusChanged = false;
       let payloadChanged = false;
       let payloadChanges = [];
@@ -589,6 +597,7 @@ export default async function handler(req, res) {
       let evalTranslationChanged = false;
       let qmSummaryChanged = false;
       let qmSummaryTranslationChanged = false;
+      let goodwillChanged = false;
 
       c.history = normalizeHistory(c.history);
 
@@ -744,6 +753,24 @@ export default async function handler(req, res) {
             c.status = Status.CLOSED;
             statusChanged = true;
           }
+        }
+      }
+
+      if (hasGoodwill) {
+        if (!isSuperuser) return bad(res, 'forbidden for role', 403);
+        const nextGoodwill = parseBool(goodwillInput);
+        if (nextGoodwill && c.decision !== 'accepted') {
+          return bad(res, 'goodwill requires accepted decision', 400);
+        }
+        c.isGoodwill = nextGoodwill;
+        if (nextGoodwill !== prevGoodwill) {
+          goodwillChanged = true;
+          pushHistory(c, {
+            actor: 'admin',
+            type: 'goodwill',
+            message: nextGoodwill ? 'Als Kulanz markiert' : 'Kulanz-Markierung entfernt',
+            data: { isGoodwill: nextGoodwill },
+          });
         }
       }
 

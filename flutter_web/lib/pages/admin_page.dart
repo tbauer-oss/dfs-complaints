@@ -11220,6 +11220,7 @@ class AdminComplaint {
   Map<String, String>? reportLinks;
   Map<String, String>? externalReportLinks;
   Map<String, String>? internalReportLinks;
+  bool isGoodwill;
   String? qmCustomerSummary;
   Map<String, String>? qmCustomerSummaryTranslations;
   String? internalNo;
@@ -11274,6 +11275,7 @@ class AdminComplaint {
     this.reportLinks,
     this.externalReportLinks,
     this.internalReportLinks,
+    this.isGoodwill = false,
     this.qmCustomerSummary,
     this.qmCustomerSummaryTranslations,
     this.internalNo,
@@ -11394,6 +11396,8 @@ class AdminComplaint {
       return null;
     }
 
+    bool _parseBool(dynamic value) => value == true || value == 'true' || value == 1 || value == '1';
+
     return AdminComplaint(
       ticket: (j['ticket'] ?? '').toString(),
       email: (j['email'] ?? '').toString(),
@@ -11413,6 +11417,7 @@ class AdminComplaint {
       internalReportLinks: (j['internalReportLinks'] is Map)
           ? Map<String, String>.from((j['internalReportLinks'] as Map).map((k, v) => MapEntry('$k', v.toString())))
           : null,
+      isGoodwill: _parseBool(j['isGoodwill'] ?? j['goodwill'] ?? j['isKulanz']),
       qmCustomerSummary: (j['qmCustomerSummary'] ?? j['qmCustomerSummary_de'])?.toString(),
       qmCustomerSummaryTranslations:
           _parseTranslations(j['qmCustomerSummaryTranslations'] ?? payload?['qmCustomerSummaryTranslations']),
@@ -12360,6 +12365,17 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                         ),
                       ),
                       _metaPill(child: statusChip),
+                      if (c.isGoodwill)
+                        _metaPill(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Icon(Icons.handshake_outlined, size: 18),
+                              SizedBox(width: 6),
+                              Text('Kulanzfall'),
+                            ],
+                          ),
+                        ),
                       if (hasRep)
                         _metaPill(
                           child: _RepTrafficLight(
@@ -13504,6 +13520,42 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     }
   }
 
+  Future<void> _updateGoodwill(bool value) async {
+    if (_busy || !_isPortalSuperuser) return;
+    if (value && widget.c.decision != 'accepted') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Kulanz ist erst nach Annahme der Reklamation möglich.')),
+      );
+      return;
+    }
+
+    setState(() => _busy = true);
+    try {
+      final updated = await widget.api.adminComplaintUpdate(
+        ticket: widget.c.ticket,
+        isGoodwill: value,
+      );
+
+      setState(() {
+        widget.c.isGoodwill = updated.isGoodwill;
+        widget.c.history = updated.history;
+      });
+      _notifyChanged();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(value ? 'Als Kulanz markiert.' : 'Kulanz-Markierung entfernt.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _deleteComplaint() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -14010,6 +14062,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
         return 'Interne Nummer';
       case 'notes':
         return 'Notiz';
+      case 'goodwill':
+        return 'Kulanz';
       case 'contact':
       case 'message':
         return 'Kunden-Nachricht';
@@ -14927,6 +14981,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
 
                   Widget buildStatusSection() {
                     final allowStatusEdit = !_isPortalUser && !_isPortalReadonly;
+                    final allowGoodwillToggle =
+                        _isPortalSuperuser && (widget.c.decision == 'accepted');
                     final dropdownStyle = const InputDecoration(
                       border: OutlineInputBorder(),
                     );
@@ -14958,6 +15014,19 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                           : null,
                     );
 
+                    final goodwillToggle = SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Kulanzfall'),
+                      subtitle: Text(
+                        widget.c.decision == 'accepted'
+                            ? 'Nur Superuser: Reklamation als Kulanz markieren.'
+                            : 'Erst verfügbar nach Entscheidung "Angenommen".',
+                      ),
+                      value: widget.c.isGoodwill,
+                      onChanged:
+                          (_busy || !allowGoodwillToggle) ? null : (v) => _updateGoodwill(v),
+                    );
+
                     final saveButton = FilledButton.icon(
                       onPressed: (_busy || !allowStatusEdit) ? null : _saveStatusDecision,
                       icon: const Icon(Icons.save_outlined),
@@ -14986,6 +15055,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                               SizedBox(width: 200, child: saveButton),
                             ],
                           ),
+                          goodwillToggle,
                         ],
                       );
                     }
@@ -15006,6 +15076,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                           alignment: Alignment.centerRight,
                           child: SizedBox(width: 220, child: saveButton),
                         ),
+                        goodwillToggle,
                       ],
                     );
                   }
@@ -16456,6 +16527,7 @@ class AdminApi {
     String? internalNo,
     String? notes,
     bool? sendPush,
+    bool? isGoodwill,
     List<String>? internalDepartments,
     String? internalEvaluationTextDe,
     String? internalEvaluationCause,
@@ -16471,6 +16543,7 @@ class AdminApi {
     if (internalNo != null) body['internalNo'] = internalNo;
     if (notes != null) body['notes'] = notes;
     if (sendPush != null) body['sendPush'] = sendPush;
+    if (isGoodwill != null) body['isGoodwill'] = isGoodwill;
     if (internalDepartments != null) body['internalDepartments'] = internalDepartments;
     if (internalEvaluationTextDe != null) body['internalEvaluationText_de'] = internalEvaluationTextDe;
     if (internalEvaluationCause != null) body['internalEvaluationCause'] = internalEvaluationCause;
