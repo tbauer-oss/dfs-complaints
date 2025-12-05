@@ -280,7 +280,7 @@ class ApiClient {
         role.contains('admin') ||
         isAdminFlag;
   }
-  
+
   void _invalidateNewsCache() {
     _newsCache = null;
     _newsLoadedAt = null;
@@ -302,6 +302,9 @@ class ApiClient {
         h['X-Admin-Secret'] = adminSecret!; // Legacy Fallback
       } else if (repToken != null && repToken!.isNotEmpty) {
         h['Authorization'] = 'Bearer $repToken';
+      } else if (portalToken != null && portalToken!.isNotEmpty) {
+        // Wenn wir eine DFS-Portal-Session haben, sollte sie Admin-Aufrufe übernehmen
+        h['Authorization'] = 'Bearer $portalToken';
       } else if (token != null && token!.isNotEmpty) {
         h['Authorization'] = 'Bearer $token';
       }
