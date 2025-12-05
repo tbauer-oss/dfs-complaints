@@ -83,6 +83,18 @@ enum _AdminView {
 
 enum _CustPasswordMode { adminSecret, generated }
 
+class _ProcessingHint {
+  final IconData icon;
+  final String title;
+  final String description;
+
+  const _ProcessingHint({
+    required this.icon,
+    required this.title,
+    required this.description,
+  });
+}
+
 const Map<String, String> PORTAL_ROLES = {
   'superuser': 'superuser',
   'user': 'user',
@@ -8565,6 +8577,87 @@ class _AdminPageState extends State<AdminPage> {
         : Opacity(opacity: 0.5, child: IgnorePointer(ignoring: true, child: content));
   }
 
+  Widget _processingGuide({required bool isOpenList}) {
+    final theme = Theme.of(context);
+    final hints = [
+      const _ProcessingHint(
+        icon: Icons.open_in_new,
+        title: 'Ticket öffnen',
+        description: 'Dialog öffnet alle Details, Status und Kommunikation.',
+      ),
+      const _ProcessingHint(
+        icon: Icons.rule_folder_outlined,
+        title: 'Status & Entscheidung',
+        description: 'Im Ticket oben pflegen, damit der Fortschritt klar bleibt.',
+      ),
+      const _ProcessingHint(
+        icon: Icons.sticky_note_2_outlined,
+        title: 'Interne Notizen',
+        description: 'Kurz halten und die letzten Schritte dokumentieren.',
+      ),
+      if (isOpenList)
+        const _ProcessingHint(
+          icon: Icons.verified_outlined,
+          title: 'Abschließen',
+          description: 'Ticket schließen – wandert automatisch in "Alle Reklamationen".',
+        )
+      else
+        const _ProcessingHint(
+          icon: Icons.history_toggle_off,
+          title: 'Verlauf & Export',
+          description: 'Aktionen im Ticket nutzen, um Verlauf oder Downloads zu öffnen.',
+        ),
+    ];
+
+    Widget chip(_ProcessingHint hint) {
+      return Tooltip(
+        message: hint.description,
+        child: Chip(
+          avatar: Icon(hint.icon, size: 18, color: theme.colorScheme.primary),
+          backgroundColor: theme.colorScheme.surfaceVariant,
+          label: Text(hint.title, style: const TextStyle(fontWeight: FontWeight.w600)),
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Text(
+            'Bearbeitungsschritte auf einen Blick',
+            style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+        ),
+        Wrap(
+          spacing: 10,
+          runSpacing: 8,
+          children: hints.map(chip).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _countBadge({required String label, required int value}) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        '$value $label',
+        style: TextStyle(
+          color: theme.colorScheme.onPrimaryContainer,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
   Widget _buildAllComplaintsPanel() {
     final theme = Theme.of(context);
 
@@ -8773,36 +8866,42 @@ class _AdminPageState extends State<AdminPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                const Icon(Icons.dashboard_customize_outlined),
-                const SizedBox(width: 8),
-                const Text('Alle Reklamationen', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text('${list.length} gefiltert',
-                      style: TextStyle(color: theme.colorScheme.onPrimaryContainer, fontWeight: FontWeight.w700)),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.dashboard_customize_outlined),
+                    const SizedBox(width: 8),
+                    const Text('Alle Reklamationen',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  ],
                 ),
-                const Spacer(),
-                if (_loadAllComplaints)
-                  const Padding(
-                    padding: EdgeInsets.only(right: 8),
-                    child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-                  ),
-                IconButton(
-                  tooltip: 'Neu laden',
-                  onPressed: _loadAllComplaints ? null : _refreshAllComplaints,
-                  icon: const Icon(Icons.refresh),
+                _countBadge(label: 'gefiltert', value: list.length),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_loadAllComplaints)
+                      const Padding(
+                        padding: EdgeInsets.only(right: 8),
+                        child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                      ),
+                    IconButton(
+                      tooltip: 'Neu laden',
+                      onPressed: _loadAllComplaints ? null : _refreshAllComplaints,
+                      icon: const Icon(Icons.refresh),
+                    ),
+                  ],
                 ),
               ],
             ),
             const SizedBox(height: 10),
             buildFilterBar(),
+            const SizedBox(height: 10),
+            _processingGuide(isOpenList: false),
             const SizedBox(height: 10),
             _buildBulkInternalBar(isOpenList: false),
             const SizedBox(height: 6),
@@ -8889,29 +8988,55 @@ class _AdminPageState extends State<AdminPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(children: [
-              const Icon(Icons.receipt_long),
-              const SizedBox(width: 8),
-              const Text('Offene Reklamationen', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-              const Spacer(),
-              DropdownButton<String>(
-                value: _filterCompany,
-                onChanged: (v) => setState(() => _filterCompany = v ?? 'Alle Firmen'),
-                items: companies.map((s) => DropdownMenuItem<String>(value: s, child: Text(s))).toList(),
-              ),
-              const SizedBox(width: 8),
-              if (_loadOpen)
-                const Padding(
-                  padding: EdgeInsets.only(right: 8),
-                  child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.receipt_long),
+                    const SizedBox(width: 8),
+                    const Text('Offene Reklamationen',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  ],
                 ),
-              IconButton(
-                tooltip: 'Neu laden',
-                onPressed: _loadOpen ? null : _refreshOpen,
-                icon: const Icon(Icons.refresh),
-              ),
-            ]),
-            const SizedBox(height: 8),
+                _countBadge(label: 'Tickets', value: list.length),
+                SizedBox(
+                  width: 240,
+                  child: DropdownButtonFormField<String>(
+                    value: _filterCompany,
+                    onChanged: (v) => setState(() => _filterCompany = v ?? 'Alle Firmen'),
+                    items: companies
+                        .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
+                        .toList(),
+                    decoration: const InputDecoration(
+                      labelText: 'Kundenfilter',
+                      prefixIcon: Icon(Icons.apartment_outlined),
+                    ),
+                  ),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_loadOpen)
+                      const Padding(
+                        padding: EdgeInsets.only(right: 8),
+                        child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                      ),
+                    IconButton(
+                      tooltip: 'Neu laden',
+                      onPressed: _loadOpen ? null : _refreshOpen,
+                      icon: const Icon(Icons.refresh),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            _processingGuide(isOpenList: true),
+            const SizedBox(height: 10),
             _buildBulkInternalBar(isOpenList: true),
             const SizedBox(height: 6),
             Expanded(
