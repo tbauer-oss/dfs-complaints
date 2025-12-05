@@ -1350,7 +1350,7 @@ class ApiClient {
           .join('&');
       path = '$path?$query';
     }
-    final r = await http.get(_u(path), headers: _adminHeaders());
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
