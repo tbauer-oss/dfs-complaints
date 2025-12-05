@@ -4100,10 +4100,24 @@ class _AdminPageState extends State<AdminPage> {
       letterSpacing: 0.2,
     );
 
+    final homeButton = FilledButton.icon(
+      style: FilledButton.styleFrom(
+        backgroundColor: theme.colorScheme.primaryContainer,
+        foregroundColor: theme.colorScheme.onPrimaryContainer,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        shape: const StadiumBorder(),
+        elevation: 0,
+      ),
+      icon: const Icon(Icons.home_outlined),
+      label: const Text('Admin-Dashboard'),
+      onPressed: () => setState(() => _view = _AdminView.menu),
+    );
+
     return AppBar(
       backgroundColor: theme.colorScheme.surface,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
+      toolbarHeight: 78,
       automaticallyImplyLeading: false,
       leadingWidth: 56,
       leading: isNarrow
@@ -4120,12 +4134,33 @@ class _AdminPageState extends State<AdminPage> {
               onPressed: () => setState(() => _navCollapsed = !_navCollapsed),
       ),
       titleSpacing: isNarrow ? 0 : 12,
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      title: Row(
         children: [
-          Text('DFS Portal', style: onSurfaceMuted),
-          const SizedBox(height: 2),
-          Text(title, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('DFS Portal', style: onSurfaceMuted),
+              const SizedBox(height: 2),
+              Text(title, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+            ],
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Center(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.colorScheme.primary.withOpacity(0.16),
+                      blurRadius: 18,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: homeButton,
+              ),
+            ),
+          ),
         ],
       ),
       actions: [
@@ -4148,12 +4183,6 @@ class _AdminPageState extends State<AdminPage> {
               ],
             ),
           ),
-        IconButton(
-          tooltip: 'Zurück zum Admin-Dashboard',
-          onPressed: () => setState(() => _view = _AdminView.menu),
-          iconSize: 38,
-          icon: const Icon(Icons.home_outlined),
-        ),
         IconButton(
           tooltip: t.changePassword ?? 'Passwort ändern',
           onPressed: _showChangePasswordDialog,
