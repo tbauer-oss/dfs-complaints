@@ -11,6 +11,7 @@ class Complaint {
   final Map<String, String>? internalReportLinks;
   final Map<String, String>? reportLinks;
   final String? qmCustomerSummary;
+  final Map<String, String>? qmCustomerSummaryTranslations;
   final Map<String, dynamic>? payload;
 
   // ⬇️ NEU: interne Reklamationsnummer
@@ -29,6 +30,7 @@ class Complaint {
     this.internalReportLinks,
     this.reportLinks,
     this.qmCustomerSummary,
+    this.qmCustomerSummaryTranslations,
     this.payload,
     this.internalNo, // ⬅️ NEU
     List<ComplaintUpload>? uploads,
@@ -162,6 +164,10 @@ class Complaint {
           ? Map<String, String>.from((j['reportLinks'] as Map).map((k, v) => MapEntry('$k', v.toString())))
           : null,
       qmCustomerSummary: (j['qmCustomerSummary'] ?? j['qmCustomerSummary_de'])?.toString(),
+      qmCustomerSummaryTranslations: (j['qmCustomerSummaryTranslations'] is Map)
+          ? Map<String, String>.from(
+              (j['qmCustomerSummaryTranslations'] as Map).map((k, v) => MapEntry('$k', v.toString())))
+          : null,
       payload: _parsePayload(j['payload']),
       internalNo: _parseInternal(j), // ⬅️ NEU
       uploads: _parseUploads(j['uploads']),
