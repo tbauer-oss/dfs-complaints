@@ -889,8 +889,13 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
-  void _updateDepartmentSelection(String dep, bool selected) {
-    setState(() {
+  void _syncPortalDialogState(StateSetter? dialogSetState, VoidCallback mutation) {
+    setState(mutation);
+    dialogSetState?.call(() {});
+  }
+
+  void _updateDepartmentSelection(String dep, bool selected, {StateSetter? dialogSetState}) {
+    _syncPortalDialogState(dialogSetState, () {
       if (dep == 'Alle') {
         if (selected) {
           _portalUserDepartments
@@ -912,15 +917,15 @@ class _AdminPageState extends State<AdminPage> {
     });
   }
 
-  void _addPortalDepartment(String value) {
+  void _addPortalDepartment(String value, {StateSetter? dialogSetState}) {
     final dep = value.trim();
     if (dep.isEmpty) return;
     if (dep == 'Alle') {
       _portalUserDepartmentCtrl.clear();
-      _updateDepartmentSelection('Alle', true);
+      _updateDepartmentSelection('Alle', true, dialogSetState: dialogSetState);
       return;
     }
-    setState(() {
+    _syncPortalDialogState(dialogSetState, () {
       final normalized = _canonicalizeDepartments([dep]);
       if (!_portalUserHasAllDepartments && !_portalUserDepartments.contains(normalized.first)) {
         _portalUserDepartments.addAll(normalized);
@@ -8055,12 +8060,14 @@ class _AdminPageState extends State<AdminPage> {
     });
   }
 
-  Future<void> _savePortalUser({BuildContext? dialogContext}) async {
+  Future<void> _savePortalUser({BuildContext? dialogContext, StateSetter? dialogSetState}) async {
     if (!_isSuperuser) return;
     if (!(_portalUserFormKey.currentState?.validate() ?? false)) return;
 
+    void sync(VoidCallback mutation) => _syncPortalDialogState(dialogSetState, mutation);
+
     final isNew = _editingPortalUser == null;
-    setState(() => _portalUserBusy = true);
+    sync(() => _portalUserBusy = true);
     try {
       final saved = isNew
           ? await _api.createPortalUser(
@@ -8086,7 +8093,7 @@ class _AdminPageState extends State<AdminPage> {
                   : _portalUserPasswordCtrl.text,
             );
 
-      setState(() {
+      sync(() {
         _portalUsersErr = null;
         final idx = _portalUsers.indexWhere((p) => p.email == saved.email);
         if (idx >= 0) {
@@ -8105,9 +8112,9 @@ class _AdminPageState extends State<AdminPage> {
       }
     } catch (e) {
       if (!mounted) return;
-      setState(() => _portalUsersErr = '$e');
+      sync(() => _portalUsersErr = '$e');
     } finally {
-      if (mounted) setState(() => _portalUserBusy = false);
+      if (mounted) sync(() => _portalUserBusy = false);
     }
   }
 
@@ -8148,7 +8155,12 @@ class _AdminPageState extends State<AdminPage> {
       context: context,
       builder: (dialogContext) {
         final isNew = user == null;
-        return AlertDialog(
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            void updateForm(VoidCallback mutation) =>
+                _syncPortalDialogState(setDialogState, mutation);
+
+            return AlertDialog(
           title: Text(isNew ? 'Neuen Mitarbeiter anlegen' : 'Mitarbeiter-User bearbeiten'),
           content: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 700, maxHeight: 760),
@@ -8225,7 +8237,8 @@ class _AdminPageState extends State<AdminPage> {
                         ],
                         onChanged: _portalUserBusy
                             ? null
-                            : (v) => setState(() => _portalUserRole = v ?? PORTAL_ROLES['user']!),
+                            : (v) => updateForm(
+                                () => _portalUserRole = v ?? PORTAL_ROLES['user']!),
                         decoration: const InputDecoration(
                           labelText: 'Rolle',
                           prefixIcon: Icon(Icons.security_outlined),
@@ -8252,7 +8265,7 @@ class _AdminPageState extends State<AdminPage> {
                           }),
                           onChanged: _portalUserBusy
                               ? null
-                              : (v) => setState(() => _portalUserCanEditSales = v),
+                              : (v) => updateForm(() => _portalUserCanEditSales = v),
                         ),
                       const SizedBox(height: 4),
                       Text('Zugeordnete Abteilungen',
@@ -8267,7 +8280,8 @@ class _AdminPageState extends State<AdminPage> {
                             selected: _portalUserHasAllDepartments,
                             onSelected: _portalUserBusy
                                 ? null
-                                : (selected) => _updateDepartmentSelection('Alle', selected),
+                                : (selected) => _updateDepartmentSelection('Alle', selected,
+                                    dialogSetState: setDialogState),
                             showCheckmark: true,
                             checkmarkColor: theme.colorScheme.onPrimaryContainer,
                             selectedColor: theme.colorScheme.primaryContainer,
@@ -8290,7 +8304,8 @@ class _AdminPageState extends State<AdminPage> {
                                 selected: selected,
                                 onSelected: _portalUserBusy
                                     ? null
-                                    : (v) => _updateDepartmentSelection(dep, v),
+                                    : (v) => _updateDepartmentSelection(dep, v,
+                                        dialogSetState: setDialogState),
                                 showCheckmark: true,
                                 checkmarkColor: theme.colorScheme.onPrimaryContainer,
                                 selectedColor: theme.colorScheme.primaryContainer,
@@ -8313,11 +8328,12 @@ class _AdminPageState extends State<AdminPage> {
                             ..._portalUserDepartments
                                 .where((dep) =>
                                     !kInternalDepartments.contains(dep) && dep != 'Alle')
-                                .map((dep) => InputChip(
-                                      label: Text(dep),
-                                      onDeleted: _portalUserBusy
-                                          ? null
-                                          : () => _updateDepartmentSelection(dep, false),
+                                    .map((dep) => InputChip(
+                                          label: Text(dep),
+                                          onDeleted: _portalUserBusy
+                                              ? null
+                                              : () => _updateDepartmentSelection(dep, false,
+                                                  dialogSetState: setDialogState),
                                       selected: true,
                                       showCheckmark: true,
                                       checkmarkColor: theme.colorScheme.onPrimaryContainer,
@@ -8342,7 +8358,7 @@ class _AdminPageState extends State<AdminPage> {
                           helperText: 'Enter speichert die Eingabe',
                           prefixIcon: Icon(Icons.playlist_add),
                         ),
-                        onSubmitted: (v) => _addPortalDepartment(v),
+                        onSubmitted: (v) => _addPortalDepartment(v, dialogSetState: setDialogState),
                       ),
                       const SizedBox(height: 10),
                       DropdownButtonFormField<String>(
@@ -8353,7 +8369,7 @@ class _AdminPageState extends State<AdminPage> {
                         ],
                         onChanged: _portalUserBusy
                             ? null
-                            : (v) => setState(() => _portalUserStatus = v ?? 'active'),
+                            : (v) => updateForm(() => _portalUserStatus = v ?? 'active'),
                         decoration: const InputDecoration(
                           labelText: 'Status',
                           prefixIcon: Icon(Icons.verified_user_outlined),
@@ -8374,11 +8390,18 @@ class _AdminPageState extends State<AdminPage> {
             ),
             ElevatedButton.icon(
               onPressed:
-                  _portalUserBusy ? null : () => _savePortalUser(dialogContext: dialogContext),
+                  _portalUserBusy
+                      ? null
+                      : () => _savePortalUser(
+                            dialogContext: dialogContext,
+                            dialogSetState: setDialogState,
+                          ),
               icon: const Icon(Icons.save_outlined),
               label: Text(isNew ? 'Benutzer anlegen' : 'Änderungen speichern'),
             ),
           ],
+            );
+          },
         );
       },
     );
