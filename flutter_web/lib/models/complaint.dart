@@ -10,6 +10,7 @@ class Complaint {
   final Map<String, String>? reportLinks; // neue Mehrsprachigkeit für Reports
   final Map<String, String>? externalReportLinks;
   final Map<String, String>? internalReportLinks;
+  final bool isGoodwill;
   final String? qmCustomerSummary;
   final List<String> internalDepartments; // betroffene interne Abteilungen
   final String? internalEvaluationTextDe; // interne Bewertung (Deutsch)
@@ -32,6 +33,7 @@ class Complaint {
     this.reportLinks,
     this.externalReportLinks,
     this.internalReportLinks,
+    this.isGoodwill = false,
     this.qmCustomerSummary,
     List<String>? internalDepartments,
     this.internalEvaluationTextDe,
@@ -112,6 +114,10 @@ class Complaint {
     return null;
   }
 
+  static bool _parseBool(dynamic v) {
+    return v == true || v == 'true' || v == 1 || v == '1';
+  }
+
   static Map<String, dynamic>? _parsePayload(dynamic v) {
     if (v is Map) {
       try {
@@ -170,6 +176,7 @@ class Complaint {
       internalReportLinks: (j['internalReportLinks'] is Map)
           ? Map<String, String>.from((j['internalReportLinks'] as Map).map((k, v) => MapEntry('$k', v.toString())))
           : null,
+      isGoodwill: _parseBool(j['isGoodwill'] ?? j['goodwill'] ?? j['isKulanz']),
       qmCustomerSummary: (j['qmCustomerSummary'] ?? j['qmCustomerSummary_de'])?.toString(),
       internalDepartments: _parseStringList(j['internalDepartments']),
       internalEvaluationTextDe: (j['internalEvaluationText_de'] ?? j['internalEvaluationTextDe'])
