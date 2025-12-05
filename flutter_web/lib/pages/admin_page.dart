@@ -451,6 +451,8 @@ class _AdminPageState extends State<AdminPage> {
     return _portalRole != 'readonly';
   }
 
+  bool _hasTileAccess(String tileId) => _allowedTilesForActor().contains(tileId);
+
   Set<String> _allowedTilesForActor() {
     final allowed = <String>{};
     final base = _visibleTilesForRole(_portalRole);
@@ -1064,19 +1066,29 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   Future<void> _refreshAll() async {
+    final canPending = _hasTileAccess('pending');
+    final canUsers = _hasTileAccess('users');
+    if (!canPending && !canUsers) return;
+
     setState(() {
       _err = null;
-      _loadPending = true;
-      _loadUsers = true;
+      _loadPending = canPending;
+      _loadUsers = canUsers;
     });
     try {
-      final pF = _api.fetchPending();
-      final uF = _api.fetchUsers();
-      final both = await Future.wait([pF, uF]);
+      final futures = <Future<dynamic>>[];
+      if (canPending) futures.add(_api.fetchPending());
+      if (canUsers) futures.add(_api.fetchUsers());
+      final results = await Future.wait(futures);
+      var idx = 0;
       if (!mounted) return;
       setState(() {
-        _pending = both[0] as List<PendingUser>;
-        _users = both[1] as List<ActiveUser>;
+        if (canPending) {
+          _pending = results[idx++] as List<PendingUser>;
+        }
+        if (canUsers) {
+          _users = results[idx++] as List<ActiveUser>;
+        }
         _syncActivitySelection();
       });
     } catch (e) {
@@ -1084,8 +1096,8 @@ class _AdminPageState extends State<AdminPage> {
     } finally {
       if (!mounted) return;
       setState(() {
-        _loadPending = false;
-        _loadUsers = false;
+        if (canPending) _loadPending = false;
+        if (canUsers) _loadUsers = false;
       });
     }
   }
@@ -1378,6 +1390,7 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   Future<void> _refreshFaq() async {
+    if (!_hasTileAccess('faq')) return;
     if (_faqLoading) return;
     setState(() {
       _faqLoading = true;
@@ -1457,6 +1470,7 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   Future<void> _refreshReps() async {
+    if (!_hasTileAccess('reps')) return;
     setState(() { _err = null; _loadReps = true; });
     try {
       final list = await _api.fetchReps();
