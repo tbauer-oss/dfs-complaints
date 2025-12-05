@@ -8433,45 +8433,46 @@ class _AdminPageState extends State<AdminPage> {
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   const SizedBox(height: 12),
-                  ...tiles.map(
-                    (tileId) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Row(
-                        children: [
-                          Expanded(child: Text(_tileLabel(tileId))),
-                          Padding(
-                            padding: const EdgeInsets.only(left: 12, right: 16),
-                            child: SizedBox(
-                              width: 200,
-                              child: DropdownButtonFormField<String>(
-                              value: currentValue(tileId),
-                              onChanged: _portalUserBusy
-                                  ? null
-                                  : (value) {
-                                      final normalized = _normalizeTilePermission(value);
-                                      setModalState(() {
-                                        if (normalized == null || value == 'inherit') {
-                                          tempPermissions.remove(tileId);
-                                        } else {
-                                          tempPermissions[tileId] = normalized;
-                                        }
-                                      });
-                                    },
-                              items: const [
-                                DropdownMenuItem(value: 'inherit', child: Text('Standard (Rollen-Layout)')),
-                                DropdownMenuItem(value: 'write', child: Text('Schreiben & lesen')),
-                                DropdownMenuItem(value: 'read', child: Text('Nur lesen')),
-                                DropdownMenuItem(value: 'none', child: Text('Kein Zugriff')),
-                              ],
-                              decoration: const InputDecoration(
-                                labelText: 'Berechtigung',
+                    ...tiles.map(
+                      (tileId) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Row(
+                          children: [
+                            Expanded(child: Text(_tileLabel(tileId))),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 12, right: 16),
+                              child: SizedBox(
+                                width: 200,
+                                child: DropdownButtonFormField<String>(
+                                  value: currentValue(tileId),
+                                  onChanged: _portalUserBusy
+                                      ? null
+                                      : (value) {
+                                          final normalized = _normalizeTilePermission(value);
+                                          setModalState(() {
+                                            if (normalized == null || value == 'inherit') {
+                                              tempPermissions.remove(tileId);
+                                            } else {
+                                              tempPermissions[tileId] = normalized;
+                                            }
+                                          });
+                                        },
+                                  items: const [
+                                    DropdownMenuItem(value: 'inherit', child: Text('Standard (Rollen-Layout)')),
+                                    DropdownMenuItem(value: 'write', child: Text('Schreiben & lesen')),
+                                    DropdownMenuItem(value: 'read', child: Text('Nur lesen')),
+                                    DropdownMenuItem(value: 'none', child: Text('Kein Zugriff')),
+                                  ],
+                                  decoration: const InputDecoration(
+                                    labelText: 'Berechtigung',
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
                 ],
               ),
             ),
