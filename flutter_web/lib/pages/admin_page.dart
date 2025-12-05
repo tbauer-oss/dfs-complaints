@@ -12028,31 +12028,6 @@ class _ComplaintDialogLauncher extends StatelessWidget {
 
   String _formatDate(DateTime d) => DateFormat('dd.MM.yyyy').format(d.toLocal());
 
-  String _repLabel(String? v) {
-    switch ((v ?? '').trim()) {
-      case 'accepted':
-        return 'angenommen';
-      case 'rejected':
-        return 'abgelehnt';
-      case 'pending':
-      case '':
-        return 'offen';
-      default:
-        return v!.trim();
-    }
-  }
-
-  Color _repColor(ColorScheme scheme, String? v) {
-    switch ((v ?? '').trim()) {
-      case 'accepted':
-        return const Color(0xFF2E7D32);
-      case 'rejected':
-        return const Color(0xFFB71C1C);
-      default:
-        return const Color(0xFFF9A825);
-    }
-  }
-
   String _labelForDecision(String? d) {
     switch ((d ?? '').trim()) {
       case 'accepted':
@@ -12142,6 +12117,7 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                       hasNewCustomerMessage: hasNewCustomerMessage,
                       onCustomerMessageSeen: onCustomerMessageSeen,
                       initiallyExpanded: true,
+                      showEditToggle: false,
                       onClosed: () {
                         Navigator.of(ctx).pop();
                         onClosed();
@@ -12236,16 +12212,13 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                   ),
                 ),
                 _metaPill(child: statusChip),
-                _metaPill(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.brightness_1, size: 14, color: _repColor(scheme, c.repOpinion)),
-                      const SizedBox(width: 6),
-                      Text('Vertreterentscheidung: ${_repLabel(c.repOpinion)}'),
-                    ],
+                if (hasRep)
+                  _metaPill(
+                    child: _RepTrafficLight(
+                      opinion: ((c.repOpinion ?? '').trim().isEmpty) ? 'pending' : c.repOpinion,
+                      compact: true,
+                    ),
                   ),
-                ),
               ],
             ),
             Padding(
@@ -12293,6 +12266,7 @@ class _ComplaintEditor extends StatefulWidget {
   final bool hasNewCustomerMessage;
   final VoidCallback? onCustomerMessageSeen;
   final String portalRole;
+  final bool showEditToggle;
 
   const _ComplaintEditor({
     super.key,
@@ -12301,6 +12275,7 @@ class _ComplaintEditor extends StatefulWidget {
     required this.onClosed,
     this.initiallyExpanded = false,
     this.portalRole = 'superuser',
+    this.showEditToggle = true,
     this.productLookup,
     this.companyHint,
     this.hasRep = false,
@@ -14460,14 +14435,15 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                     // links: Entscheidung + Wunsch im Wrap (bricht sauber auf kleinen Screens)
                     Expanded(child: left),
                     // rechts: Bearbeiten-Button wie gehabt
-                    TextButton.icon(
-                      onPressed: () {
-                        setState(() => _expanded = !_expanded);
-                        if (_expanded) _handleCustomerMessageSeen();
-                      },
-                      icon: Icon(_expanded ? Icons.expand_less : Icons.edit),
-                      label: Text(_expanded ? 'Bearbeiten schließen' : 'Bearbeiten'),
-                    ),
+                    if (widget.showEditToggle)
+                      TextButton.icon(
+                        onPressed: () {
+                          setState(() => _expanded = !_expanded);
+                          if (_expanded) _handleCustomerMessageSeen();
+                        },
+                        icon: Icon(_expanded ? Icons.expand_less : Icons.edit),
+                        label: Text(_expanded ? 'Bearbeiten schließen' : 'Bearbeiten'),
+                      ),
                   ],
                 );
               },
