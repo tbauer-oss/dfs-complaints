@@ -1392,7 +1392,7 @@ class ApiClient {
     final query = params.entries
         .map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
         .join('&');
-    final r = await http.get(_u('/api/admin/activity?$query'), headers: _adminHeaders());
+    final r = await http.get(_u('/api/admin/activity?$query'), headers: _adminHeaders(auth: true));
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
@@ -1403,7 +1403,7 @@ class ApiClient {
   }
 
   Future<List<RepDownloadItem>> adminDownloads() async {
-    final r = await http.get(_u('/api/admin/downloads'), headers: _adminHeaders());
+    final r = await http.get(_u('/api/admin/downloads'), headers: _adminHeaders(auth: true));
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
@@ -1455,7 +1455,7 @@ class ApiClient {
   }
 
   Future<List<AdminRepSummary>> adminRepSummaries() async {
-    final r = await http.get(_u('/api/admin/reps'), headers: _adminHeaders());
+    final r = await http.get(_u('/api/admin/reps'), headers: _adminHeaders(auth: true));
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
@@ -1479,7 +1479,7 @@ class ApiClient {
   }
 
   Future<List<DownloadCategory>> adminDownloadCategories() async {
-    final r = await http.get(_u('/api/admin/download-categories'), headers: _adminHeaders());
+    final r = await http.get(_u('/api/admin/download-categories'), headers: _adminHeaders(auth: true));
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
