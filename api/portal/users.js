@@ -23,6 +23,8 @@ function sanitizeUser(u) {
     role,
     portalStatus,
     isSales: u.isSales === true,
+    canEditSales: u.isSales === true,
+    salesAllowed: u.isSales === true,
     assignedDepartments: normalizeDepartments(u.assignedDepartments || []),
     createdAt: u.createdAt || null,
     tilePermissions: sanitizeTilePermissions(u.tilePermissions || {}),
@@ -50,7 +52,8 @@ export default async function handler(req, res) {
       const password = String(body.password || '');
       const role = normalizeRole(body.role);
       const displayName = String(body.displayName || '').trim();
-      const isSales = body.isSales === true || body.isSales === 'true' || body.isSales === 1 || body.isSales === '1';
+      const salesFlag = body.isSales ?? body.canEditSales ?? body.salesAllowed;
+      const isSales = salesFlag === true || salesFlag === 'true' || salesFlag === 1 || salesFlag === '1';
       const assignedDepartments = normalizeDepartments(body.assignedDepartments || []);
       const tilePermissions = sanitizeTilePermissions(body.tilePermissions || {});
       if (!email || !password) return bad(res, 'missing email or password', 400);
@@ -83,7 +86,9 @@ export default async function handler(req, res) {
       if (body.displayName !== undefined) patch.displayName = String(body.displayName || '').trim();
       if (body.role) patch.role = normalizeRole(body.role);
       if (body.portalStatus) patch.portalStatus = normalizeStatus(body.portalStatus);
-      if (body.isSales !== undefined) patch.isSales = body.isSales === true || body.isSales === 'true' || body.isSales === 1 || body.isSales === '1';
+      const salesFlag = body.isSales ?? body.canEditSales ?? body.salesAllowed;
+      if (salesFlag !== undefined)
+        patch.isSales = salesFlag === true || salesFlag === 'true' || salesFlag === 1 || salesFlag === '1';
       if (body.assignedDepartments) patch.assignedDepartments = normalizeDepartments(body.assignedDepartments);
       if (body.tilePermissions !== undefined) patch.tilePermissions = sanitizeTilePermissions(body.tilePermissions || {});
       if (body.password) patch.passhash = await bcrypt.hash(String(body.password), 10);

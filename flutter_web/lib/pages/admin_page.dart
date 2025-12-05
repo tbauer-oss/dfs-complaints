@@ -889,8 +889,13 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
-  void _updateDepartmentSelection(String dep, bool selected) {
-    setState(() {
+  void _syncPortalDialogState(StateSetter? dialogSetState, VoidCallback mutation) {
+    setState(mutation);
+    dialogSetState?.call(() {});
+  }
+
+  void _updateDepartmentSelection(String dep, bool selected, {StateSetter? dialogSetState}) {
+    _syncPortalDialogState(dialogSetState, () {
       if (dep == 'Alle') {
         if (selected) {
           _portalUserDepartments
@@ -903,7 +908,7 @@ class _AdminPageState extends State<AdminPage> {
         if (selected) {
           _portalUserDepartments
             ..remove('Alle')
-            ..add(dep);
+            ..addAll(_canonicalizeDepartments([dep]));
         } else {
           _portalUserDepartments.remove(dep);
         }
@@ -912,17 +917,18 @@ class _AdminPageState extends State<AdminPage> {
     });
   }
 
-  void _addPortalDepartment(String value) {
+  void _addPortalDepartment(String value, {StateSetter? dialogSetState}) {
     final dep = value.trim();
     if (dep.isEmpty) return;
     if (dep == 'Alle') {
       _portalUserDepartmentCtrl.clear();
-      _updateDepartmentSelection('Alle', true);
+      _updateDepartmentSelection('Alle', true, dialogSetState: dialogSetState);
       return;
     }
-    setState(() {
-      if (!_portalUserHasAllDepartments && !_portalUserDepartments.contains(dep)) {
-        _portalUserDepartments.add(dep);
+    _syncPortalDialogState(dialogSetState, () {
+      final normalized = _canonicalizeDepartments([dep]);
+      if (!_portalUserHasAllDepartments && !_portalUserDepartments.contains(normalized.first)) {
+        _portalUserDepartments.addAll(normalized);
       }
       _portalUserDepartmentCtrl.clear();
       _ensureSalesFlagValidity();
@@ -7951,6 +7957,24 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  List<String> _canonicalizeDepartments(Iterable<String> departments) {
+    final seen = <String>{};
+    final normalized = <String>[];
+    for (final dep in departments) {
+      final value = dep.trim();
+      if (value.isEmpty) continue;
+      final match = kInternalDepartments.firstWhere(
+        (entry) => entry.toLowerCase() == value.toLowerCase(),
+        orElse: () => value,
+      );
+      final key = match.toLowerCase();
+      if (seen.contains(key)) continue;
+      seen.add(key);
+      normalized.add(match);
+    }
+    return normalized;
+  }
+
   void _resetPortalUserForm() {
     setState(() {
       _portalUserBusy = false;
@@ -7980,10 +8004,10 @@ class _AdminPageState extends State<AdminPage> {
       _portalUserDepartmentCtrl.clear();
       _portalUserRole = user?.role ?? PORTAL_ROLES['superuser']!;
       _portalUserStatus = user?.portalStatus ?? 'active';
-      _portalUserCanEditSales = user?.canEditSales ?? false;
+      _portalUserCanEditSales = user?.canEditSales ?? user?.salesAllowed ?? false;
       _portalUserDepartments
         ..clear()
-        ..addAll(user?.assignedDepartments ?? const <String>[]);
+        ..addAll(_canonicalizeDepartments(user?.assignedDepartments ?? const <String>[]));
       _portalUserTilePermissions
         ..clear()
         ..addAll(_sanitizeTilePermissionMap(user?.tilePermissions));
@@ -7991,12 +8015,14 @@ class _AdminPageState extends State<AdminPage> {
     });
   }
 
-  Future<void> _savePortalUser({BuildContext? dialogContext}) async {
+  Future<void> _savePortalUser({BuildContext? dialogContext, StateSetter? dialogSetState}) async {
     if (!_isSuperuser) return;
     if (!(_portalUserFormKey.currentState?.validate() ?? false)) return;
 
+    void sync(VoidCallback mutation) => _syncPortalDialogState(dialogSetState, mutation);
+
     final isNew = _editingPortalUser == null;
-    setState(() => _portalUserBusy = true);
+    sync(() => _portalUserBusy = true);
     try {
       final saved = isNew
           ? await _api.createPortalUser(
@@ -8022,7 +8048,7 @@ class _AdminPageState extends State<AdminPage> {
                   : _portalUserPasswordCtrl.text,
             );
 
-      setState(() {
+      sync(() {
         _portalUsersErr = null;
         final idx = _portalUsers.indexWhere((p) => p.email == saved.email);
         if (idx >= 0) {
@@ -8041,9 +8067,9 @@ class _AdminPageState extends State<AdminPage> {
       }
     } catch (e) {
       if (!mounted) return;
-      setState(() => _portalUsersErr = '$e');
+      sync(() => _portalUsersErr = '$e');
     } finally {
-      if (mounted) setState(() => _portalUserBusy = false);
+      if (mounted) sync(() => _portalUserBusy = false);
     }
   }
 
@@ -8084,7 +8110,12 @@ class _AdminPageState extends State<AdminPage> {
       context: context,
       builder: (dialogContext) {
         final isNew = user == null;
-        return AlertDialog(
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            void updateForm(VoidCallback mutation) =>
+                _syncPortalDialogState(setDialogState, mutation);
+
+            return AlertDialog(
           title: Text(isNew ? 'Neuen Mitarbeiter anlegen' : 'Mitarbeiter-User bearbeiten'),
           content: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 700, maxHeight: 760),
@@ -8161,7 +8192,8 @@ class _AdminPageState extends State<AdminPage> {
                         ],
                         onChanged: _portalUserBusy
                             ? null
-                            : (v) => setState(() => _portalUserRole = v ?? PORTAL_ROLES['user']!),
+                            : (v) => updateForm(
+                                () => _portalUserRole = v ?? PORTAL_ROLES['user']!),
                         decoration: const InputDecoration(
                           labelText: 'Rolle',
                           prefixIcon: Icon(Icons.security_outlined),
@@ -8172,11 +8204,23 @@ class _AdminPageState extends State<AdminPage> {
                         SwitchListTile.adaptive(
                           contentPadding: const EdgeInsets.only(left: 8),
                           title: const Text('Sales-Bearbeitung erlaubt'),
-                          subtitle: const Text('Für Auftrags- oder Rechnungsnummern nach Abschluss'),
+                          subtitle: Text(
+                            _portalUserCanEditSales
+                                ? 'Aktiviert – kann Auftrags-/Rechnungsnummern nach Abschluss pflegen'
+                                : 'Deaktiviert – nur Ticketabschluss ohne Sales-Bearbeitung',
+                          ),
                           value: _portalUserCanEditSales,
+                          activeColor: theme.colorScheme.onPrimary,
+                          activeTrackColor: theme.colorScheme.primary,
+                          inactiveThumbColor: theme.colorScheme.onSurfaceVariant,
+                          inactiveTrackColor: theme.colorScheme.surfaceVariant,
+                          thumbIcon: MaterialStateProperty.resolveWith((states) {
+                            final selected = states.contains(MaterialState.selected);
+                            return Icon(selected ? Icons.check : Icons.close, size: 18);
+                          }),
                           onChanged: _portalUserBusy
                               ? null
-                              : (v) => setState(() => _portalUserCanEditSales = v),
+                              : (v) => updateForm(() => _portalUserCanEditSales = v),
                         ),
                       const SizedBox(height: 4),
                       Text('Zugeordnete Abteilungen',
@@ -8191,26 +8235,72 @@ class _AdminPageState extends State<AdminPage> {
                             selected: _portalUserHasAllDepartments,
                             onSelected: _portalUserBusy
                                 ? null
-                                : (selected) => _updateDepartmentSelection('Alle', selected),
+                                : (selected) => _updateDepartmentSelection('Alle', selected,
+                                    dialogSetState: setDialogState),
+                            showCheckmark: true,
+                            checkmarkColor: theme.colorScheme.onPrimaryContainer,
+                            selectedColor: theme.colorScheme.primaryContainer,
+                            side: BorderSide(
+                              color: _portalUserHasAllDepartments
+                                  ? theme.colorScheme.primary
+                                  : theme.colorScheme.outlineVariant,
+                              width: _portalUserHasAllDepartments ? 2 : 1,
+                            ),
+                            labelStyle: TextStyle(
+                              fontWeight:
+                                  _portalUserHasAllDepartments ? FontWeight.w700 : FontWeight.w500,
+                            ),
                           ),
                           ...kInternalDepartments.map(
-                            (dep) => FilterChip(
-                              label: Text(dep),
-                              selected: _portalUserDepartments.contains(dep),
-                              onSelected: _portalUserBusy
-                                  ? null
-                                  : (v) => _updateDepartmentSelection(dep, v),
-                            ),
+                            (dep) {
+                              final selected = _portalUserDepartments.contains(dep);
+                              return FilterChip(
+                                label: Text(dep),
+                                selected: selected,
+                                onSelected: _portalUserBusy
+                                    ? null
+                                    : (v) => _updateDepartmentSelection(dep, v,
+                                        dialogSetState: setDialogState),
+                                showCheckmark: true,
+                                checkmarkColor: theme.colorScheme.onPrimaryContainer,
+                                selectedColor: theme.colorScheme.primaryContainer,
+                                side: BorderSide(
+                                  color: selected
+                                      ? theme.colorScheme.primary
+                                      : theme.colorScheme.outlineVariant,
+                                  width: selected ? 2 : 1,
+                                ),
+                                labelStyle: TextStyle(
+                                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                                  color: selected
+                                      ? theme.colorScheme.onPrimaryContainer
+                                      : theme.colorScheme.onSurface,
+                                ),
+                              );
+                            },
                           ),
                           if (_portalUserDepartments.isNotEmpty)
                             ..._portalUserDepartments
                                 .where((dep) =>
                                     !kInternalDepartments.contains(dep) && dep != 'Alle')
-                                .map((dep) => InputChip(
-                                      label: Text(dep),
-                                      onDeleted: _portalUserBusy
-                                          ? null
-                                          : () => _updateDepartmentSelection(dep, false),
+                                    .map((dep) => InputChip(
+                                          label: Text(dep),
+                                          onDeleted: _portalUserBusy
+                                              ? null
+                                              : () => _updateDepartmentSelection(dep, false,
+                                                  dialogSetState: setDialogState),
+                                      selected: true,
+                                      showCheckmark: true,
+                                      checkmarkColor: theme.colorScheme.onPrimaryContainer,
+                                      selectedColor: theme.colorScheme.primaryContainer,
+                                      side: BorderSide(
+                                        color: theme.colorScheme.primary,
+                                        width: 2,
+                                      ),
+                                      labelStyle: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        color: theme.colorScheme.onPrimaryContainer,
+                                      ),
                                     )),
                         ],
                       ),
@@ -8223,7 +8313,7 @@ class _AdminPageState extends State<AdminPage> {
                           helperText: 'Enter speichert die Eingabe',
                           prefixIcon: Icon(Icons.playlist_add),
                         ),
-                        onSubmitted: (v) => _addPortalDepartment(v),
+                        onSubmitted: (v) => _addPortalDepartment(v, dialogSetState: setDialogState),
                       ),
                       const SizedBox(height: 10),
                       DropdownButtonFormField<String>(
@@ -8234,7 +8324,7 @@ class _AdminPageState extends State<AdminPage> {
                         ],
                         onChanged: _portalUserBusy
                             ? null
-                            : (v) => setState(() => _portalUserStatus = v ?? 'active'),
+                            : (v) => updateForm(() => _portalUserStatus = v ?? 'active'),
                         decoration: const InputDecoration(
                           labelText: 'Status',
                           prefixIcon: Icon(Icons.verified_user_outlined),
@@ -8255,11 +8345,18 @@ class _AdminPageState extends State<AdminPage> {
             ),
             ElevatedButton.icon(
               onPressed:
-                  _portalUserBusy ? null : () => _savePortalUser(dialogContext: dialogContext),
+                  _portalUserBusy
+                      ? null
+                      : () => _savePortalUser(
+                            dialogContext: dialogContext,
+                            dialogSetState: setDialogState,
+                          ),
               icon: const Icon(Icons.save_outlined),
               label: Text(isNew ? 'Benutzer anlegen' : 'Änderungen speichern'),
             ),
           ],
+            );
+          },
         );
       },
     );
@@ -11874,6 +11971,7 @@ class PortalUser {
   final List<String> assignedDepartments;
   final Map<String, String> tilePermissions;
   final bool canEditSales;
+  final bool salesAllowed;
 
   const PortalUser({
     required this.email,
@@ -11884,6 +11982,7 @@ class PortalUser {
     this.assignedDepartments = const <String>[],
     this.tilePermissions = const <String, String>{},
     this.canEditSales = false,
+    this.salesAllowed = false,
   });
 
   factory PortalUser.fromJson(Map<String, dynamic> j) => PortalUser(
@@ -11900,7 +11999,8 @@ class PortalUser {
         tilePermissions: (j['tilePermissions'] is Map)
             ? (j['tilePermissions'] as Map).map((key, value) => MapEntry(key.toString(), value.toString()))
             : const <String, String>{},
-        canEditSales: (j['canEditSales'] ?? j['isSales']) == true,
+        canEditSales: (j['canEditSales'] ?? j['salesAllowed'] ?? j['isSales']) == true,
+        salesAllowed: (j['salesAllowed'] ?? j['canEditSales'] ?? j['isSales']) == true,
       );
 }
 
@@ -17398,6 +17498,7 @@ class AdminApi {
       'role': role,
       'portalStatus': portalStatus,
       'canEditSales': canEditSales,
+      'salesAllowed': canEditSales,
       'isSales': canEditSales,
       if (displayName != null) 'displayName': displayName,
       if (assignedDepartments != null) 'assignedDepartments': assignedDepartments,
@@ -17429,6 +17530,7 @@ class AdminApi {
       if (tilePermissions != null) 'tilePermissions': tilePermissions,
       if (canEditSales != null) ...{
         'canEditSales': canEditSales,
+        'salesAllowed': canEditSales,
         'isSales': canEditSales,
       },
     };
