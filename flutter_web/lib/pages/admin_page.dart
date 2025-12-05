@@ -285,6 +285,10 @@ class _AdminPageState extends State<AdminPage> {
   String? _userFilterRepId;
   String _userFilterCompany = 'Alle Firmen';
   String _userFilterCountry = 'Alle Länder';
+  String _portalUserFilterQuery = '';
+  String _portalUserFilterRole = 'Alle Rollen';
+  String _portalUserFilterStatus = 'Alle Stati';
+  String _portalUserFilterDepartment = 'Alle Abteilungen';
 
 
   // Vertreter-Form (persistente Felder)
@@ -818,6 +822,49 @@ class _AdminPageState extends State<AdminPage> {
     }
 
     return list.toList();
+  }
+
+  List<PortalUser> _filterPortalUsers() {
+    final q = _portalUserFilterQuery.trim().toLowerCase();
+    Iterable<PortalUser> list = _portalUsers;
+
+    if (q.isNotEmpty) {
+      bool matches(String? value) => (value ?? '').toLowerCase().contains(q);
+      list = list.where((u) {
+        final departments = u.assignedDepartments.map((d) => d.toLowerCase());
+        return matches(u.displayName) ||
+            matches(u.email) ||
+            matches(u.role) ||
+            departments.any((d) => d.contains(q));
+      });
+    }
+
+    final selRole = _portalUserFilterRole.trim();
+    if (selRole.isNotEmpty && selRole != 'Alle Rollen') {
+      list = list.where((u) => u.role.trim() == selRole);
+    }
+
+    final selStatus = _portalUserFilterStatus.trim();
+    if (selStatus.isNotEmpty && selStatus != 'Alle Stati') {
+      list = list.where((u) => u.portalStatus.trim() == selStatus);
+    }
+
+    final selDept = _portalUserFilterDepartment.trim();
+    if (selDept.isNotEmpty && selDept != 'Alle Abteilungen') {
+      list = list.where((u) => u.assignedDepartments.contains(selDept));
+    }
+
+    final sorted = list.toList()
+      ..sort((a, b) {
+        int statusScore(String status) => status == 'active' ? 0 : 1;
+        final statusDiff = statusScore(a.portalStatus).compareTo(statusScore(b.portalStatus));
+        if (statusDiff != 0) return statusDiff;
+        final nameA = (a.displayName ?? a.email).toLowerCase();
+        final nameB = (b.displayName ?? b.email).toLowerCase();
+        return nameA.compareTo(nameB);
+      });
+
+    return sorted;
   }
 
   String? _repIdForEmail(String email) {
@@ -8014,10 +8061,20 @@ class _AdminPageState extends State<AdminPage> {
 
   Widget _buildPortalUserTilePermissionsEditor() {
     final theme = Theme.of(context);
-    final tiles = _menuTileIds.toList()
-      ..sort((a, b) => _tileLabel(a).toLowerCase().compareTo(_tileLabel(b).toLowerCase()));
+    final overridesCount = _portalUserTilePermissions.length;
 
-    String currentValue(String tileId) => _portalUserTilePermissions[tileId] ?? 'inherit';
+    String permissionLabel(String permission) {
+      switch (permission) {
+        case 'write':
+          return 'Schreiben & lesen';
+        case 'read':
+          return 'Nur lesen';
+        case 'none':
+          return 'Kein Zugriff';
+        default:
+          return 'Standard';
+      }
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -8029,45 +8086,126 @@ class _AdminPageState extends State<AdminPage> {
           style: theme.textTheme.bodySmall,
         ),
         const SizedBox(height: 8),
-        ...tiles.map(
-          (tileId) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(
-              children: [
-                Expanded(child: Text(_tileLabel(tileId))),
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: 180,
-                  child: DropdownButtonFormField<String>(
-                    value: currentValue(tileId),
-                    onChanged: _portalUserBusy
-                        ? null
-                        : (value) {
-                            final normalized = _normalizeTilePermission(value);
-                            setState(() {
-                              if (normalized == null || value == 'inherit') {
-                                _portalUserTilePermissions.remove(tileId);
-                              } else {
-                                _portalUserTilePermissions[tileId] = normalized;
-                              }
-                            });
-                          },
-                    items: const [
-                      DropdownMenuItem(value: 'inherit', child: Text('Standard (Rollen-Layout)')),
-                      DropdownMenuItem(value: 'write', child: Text('Schreiben & lesen')),
-                      DropdownMenuItem(value: 'read', child: Text('Nur lesen')),
-                      DropdownMenuItem(value: 'none', child: Text('Kein Zugriff')),
-                    ],
-                    decoration: const InputDecoration(
-                      labelText: 'Berechtigung',
+        Row(
+          children: [
+            Expanded(
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _portalUserTilePermissions.entries
+                    .take(4)
+                    .map(
+                      (e) => Chip(
+                        label: Text('${_tileLabel(e.key)} • ${permissionLabel(e.value)}'),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.tune_outlined),
+              label: Text(overridesCount == 0
+                  ? 'Kachelrechte bearbeiten'
+                  : 'Bearbeiten (${overridesCount.toString()})'),
+              onPressed: _portalUserBusy ? null : _openPortalTilePermissionsDialog,
+            ),
+          ],
+        ),
+        if (overridesCount > 4) ...[
+          const SizedBox(height: 6),
+          Text('$overridesCount individuelle Berechtigungen ausgewählt', style: theme.textTheme.bodySmall),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _openPortalTilePermissionsDialog() async {
+    final tiles = _menuTileIds.toList()
+      ..sort((a, b) => _tileLabel(a).toLowerCase().compareTo(_tileLabel(b).toLowerCase()));
+    final tempPermissions = Map<String, String>.from(_portalUserTilePermissions);
+
+    String currentValue(String tileId) => tempPermissions[tileId] ?? 'inherit';
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Kachel-Rechte festlegen'),
+        content: SizedBox(
+          width: 520,
+          child: StatefulBuilder(
+            builder: (context, setModalState) => SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Wähle pro Kachel die gewünschte Berechtigungsstufe. Ohne Auswahl gilt automatisch die Rollen-Standardberechtigung.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 12),
+                  ...tiles.map(
+                    (tileId) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        children: [
+                          Expanded(child: Text(_tileLabel(tileId))),
+                          const SizedBox(width: 12),
+                          SizedBox(
+                            width: 200,
+                            child: DropdownButtonFormField<String>(
+                              value: currentValue(tileId),
+                              onChanged: _portalUserBusy
+                                  ? null
+                                  : (value) {
+                                      final normalized = _normalizeTilePermission(value);
+                                      setModalState(() {
+                                        if (normalized == null || value == 'inherit') {
+                                          tempPermissions.remove(tileId);
+                                        } else {
+                                          tempPermissions[tileId] = normalized;
+                                        }
+                                      });
+                                    },
+                              items: const [
+                                DropdownMenuItem(value: 'inherit', child: Text('Standard (Rollen-Layout)')),
+                                DropdownMenuItem(value: 'write', child: Text('Schreiben & lesen')),
+                                DropdownMenuItem(value: 'read', child: Text('Nur lesen')),
+                                DropdownMenuItem(value: 'none', child: Text('Kein Zugriff')),
+                              ],
+                              decoration: const InputDecoration(
+                                labelText: 'Berechtigung',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
-      ],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Abbrechen'),
+          ),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.check),
+            label: const Text('Übernehmen'),
+            onPressed: () {
+              setState(() {
+                _portalUserTilePermissions
+                  ..clear()
+                  ..addAll(tempPermissions);
+              });
+              Navigator.of(ctx).pop();
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -8173,6 +8311,22 @@ class _AdminPageState extends State<AdminPage> {
     final statusColor = (String status) => status == 'active'
         ? theme.colorScheme.secondaryContainer
         : theme.colorScheme.errorContainer;
+    final filteredUsers = _filterPortalUsers();
+    final roleOptions = <String>{
+      'Alle Rollen',
+      ..._portalUsers.map((u) => u.role),
+    }.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    final statusOptions = <String>{
+      'Alle Stati',
+      ..._portalUsers.map((u) => u.portalStatus),
+    }.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    final departmentOptions = <String>{
+      'Alle Abteilungen',
+      ..._portalUsers.expand((u) => u.assignedDepartments),
+    }.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(12),
@@ -8385,48 +8539,238 @@ class _AdminPageState extends State<AdminPage> {
                               const SizedBox(width: 12),
                               const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
                             ],
+                            const SizedBox(width: 12),
+                            if (!_portalUsersLoading)
+                              Chip(
+                                avatar: const Icon(Icons.filter_alt, size: 18),
+                                label: Text('${filteredUsers.length} gefiltert'),
+                                backgroundColor: theme.colorScheme.surfaceVariant.withOpacity(0.6),
+                              ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        if (_portalUsers.isEmpty && !_portalUsersLoading)
-                          const Text('Keine Mitarbeiter-/Portal-User vorhanden.'),
-                        ..._portalUsers.map((u) {
-                          final isActive = u.portalStatus == 'active';
-                          final tileOverrideText =
-                              u.tilePermissions.isEmpty ? '' : '\nKachel-Rechte: ${u.tilePermissions.length} individuell';
-                          return Card(
-                            margin: const EdgeInsets.symmetric(vertical: 6),
-                            color: theme.colorScheme.surfaceVariant.withOpacity(0.2),
-                            child: ListTile(
-                              leading: CircleAvatar(
-                                backgroundColor: statusColor(u.portalStatus),
-                                child: Icon(isActive ? Icons.check : Icons.pause, color: theme.colorScheme.onSurface),
-                              ),
-                              title: Text(u.displayName?.isNotEmpty == true ? u.displayName! : u.email),
-                              subtitle: Text(
-                                '${u.email}\nRolle: ${u.role} — Status: ${u.portalStatus}'
-                                '\nAbteilungen: ${u.assignedDepartments.isEmpty ? '—' : u.assignedDepartments.join(', ')}'
-                                '$tileOverrideText',
-                              ),
-                              isThreeLine: true,
-                              trailing: Wrap(
-                                spacing: 8,
-                                children: [
-                                  IconButton(
-                                    tooltip: 'Bearbeiten',
-                                    onPressed: _portalUserBusy ? null : () => _startPortalUserEdit(u),
-                                    icon: const Icon(Icons.edit_outlined),
-                                  ),
-                                  IconButton(
-                                    tooltip: isActive ? 'Deaktivieren' : 'Reaktivieren',
-                                    onPressed: _portalUserBusy ? null : () => _togglePortalUserStatus(u),
-                                    icon: Icon(isActive ? Icons.pause_circle_outline : Icons.play_circle_outline),
-                                  ),
-                                ],
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 10,
+                          children: [
+                            SizedBox(
+                              width: 280,
+                              child: TextField(
+                                decoration: const InputDecoration(
+                                  labelText: 'Suchen (Name, E-Mail, Rolle, Abteilung)',
+                                  prefixIcon: Icon(Icons.search),
+                                  isDense: true,
+                                ),
+                                onChanged: (v) => setState(() => _portalUserFilterQuery = v),
                               ),
                             ),
-                          );
-                        }),
+                            SizedBox(
+                              width: 180,
+                              child: DropdownButtonFormField<String>(
+                                value: _portalUserFilterRole,
+                                isExpanded: true,
+                                decoration: const InputDecoration(
+                                  labelText: 'Rolle',
+                                  isDense: true,
+                                  prefixIcon: Icon(Icons.badge_outlined),
+                                ),
+                                items: roleOptions
+                                    .map((r) => DropdownMenuItem<String>(value: r, child: Text(r)))
+                                    .toList(),
+                                onChanged: (v) => setState(() => _portalUserFilterRole = v ?? 'Alle Rollen'),
+                              ),
+                            ),
+                            SizedBox(
+                              width: 180,
+                              child: DropdownButtonFormField<String>(
+                                value: _portalUserFilterStatus,
+                                isExpanded: true,
+                                decoration: const InputDecoration(
+                                  labelText: 'Status',
+                                  isDense: true,
+                                  prefixIcon: Icon(Icons.verified_outlined),
+                                ),
+                                items: statusOptions
+                                    .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
+                                    .toList(),
+                                onChanged: (v) => setState(() => _portalUserFilterStatus = v ?? 'Alle Stati'),
+                              ),
+                            ),
+                            SizedBox(
+                              width: 220,
+                              child: DropdownButtonFormField<String>(
+                                value: _portalUserFilterDepartment,
+                                isExpanded: true,
+                                decoration: const InputDecoration(
+                                  labelText: 'Abteilung',
+                                  isDense: true,
+                                  prefixIcon: Icon(Icons.business_outlined),
+                                ),
+                                items: departmentOptions
+                                    .map((d) => DropdownMenuItem<String>(value: d, child: Text(d)))
+                                    .toList(),
+                                onChanged: (v) =>
+                                    setState(() => _portalUserFilterDepartment = v ?? 'Alle Abteilungen'),
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed: () => setState(() {
+                                _portalUserFilterQuery = '';
+                                _portalUserFilterRole = 'Alle Rollen';
+                                _portalUserFilterStatus = 'Alle Stati';
+                                _portalUserFilterDepartment = 'Alle Abteilungen';
+                              }),
+                              icon: const Icon(Icons.clear_all),
+                              label: const Text('Filter zurücksetzen'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        if (filteredUsers.isEmpty && !_portalUsersLoading)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surfaceVariant.withOpacity(0.5),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Text('Keine Mitarbeiter-/Portal-User für die Filter gefunden.'),
+                          ),
+                        if (_portalUsersLoading) const LinearProgressIndicator(),
+                        const SizedBox(height: 8),
+                        if (filteredUsers.isNotEmpty)
+                          ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: filteredUsers.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 10),
+                            itemBuilder: (context, index) {
+                              final u = filteredUsers[index];
+                              final isActive = u.portalStatus == 'active';
+                              final hasCustomTiles = u.tilePermissions.isNotEmpty;
+                              final deptBadges = u.assignedDepartments.isEmpty
+                                  ? [
+                                      _PortalBadge(
+                                        icon: Icons.work_outline,
+                                        label: 'Keine Abteilung',
+                                        color: theme.colorScheme.surfaceVariant,
+                                      ),
+                                    ]
+                                  : u.assignedDepartments
+                                      .map((dep) => _PortalBadge(
+                                            icon: Icons.work_outline,
+                                            label: dep,
+                                            color: theme.colorScheme.surfaceContainerHighest,
+                                          ))
+                                      .toList();
+
+                              return Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.surfaceContainerLowest.withOpacity(0.8),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.6)),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: theme.colorScheme.shadow.withOpacity(0.04),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        CircleAvatar(
+                                          backgroundColor: statusColor(u.portalStatus),
+                                          child: Icon(
+                                            isActive ? Icons.check : Icons.pause,
+                                            color: theme.colorScheme.onSurface,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                u.displayName?.isNotEmpty == true ? u.displayName! : u.email,
+                                                style: theme.textTheme.titleMedium?.copyWith(
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 6),
+                                              Wrap(
+                                                spacing: 8,
+                                                runSpacing: 6,
+                                                children: [
+                                                  _PortalBadge(
+                                                    icon: Icons.email_outlined,
+                                                    label: u.email,
+                                                    color: theme.colorScheme.surfaceVariant,
+                                                    foreground: theme.colorScheme.onSurface,
+                                                  ),
+                                                  _PortalBadge(
+                                                    icon: Icons.badge_outlined,
+                                                    label: u.role,
+                                                    color: theme.colorScheme.primaryContainer,
+                                                    foreground: theme.colorScheme.onPrimaryContainer,
+                                                  ),
+                                                  _PortalBadge(
+                                                    icon: isActive
+                                                        ? Icons.verified_user_outlined
+                                                        : Icons.pause_circle_outline,
+                                                    label: isActive ? 'Aktiv' : 'Inaktiv',
+                                                    color: statusColor(u.portalStatus),
+                                                    foreground: theme.colorScheme.onSecondaryContainer,
+                                                  ),
+                                                  if (hasCustomTiles)
+                                                    _PortalBadge(
+                                                      icon: Icons.dashboard_customize_outlined,
+                                                      label: 'Individuelle Kacheln: ${u.tilePermissions.length}',
+                                                      color: theme.colorScheme.tertiaryContainer,
+                                                      foreground: theme.colorScheme.onTertiaryContainer,
+                                                    ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Wrap(
+                                                spacing: 8,
+                                                runSpacing: 6,
+                                                children: deptBadges,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Wrap(
+                                          spacing: 8,
+                                          children: [
+                                            IconButton(
+                                              tooltip: 'Bearbeiten',
+                                              onPressed: _portalUserBusy ? null : () => _startPortalUserEdit(u),
+                                              icon: const Icon(Icons.edit_outlined),
+                                            ),
+                                            IconButton(
+                                              tooltip: isActive ? 'Deaktivieren' : 'Reaktivieren',
+                                              onPressed: _portalUserBusy ? null : () => _togglePortalUserStatus(u),
+                                              icon: Icon(
+                                                isActive
+                                                    ? Icons.pause_circle_outline
+                                                    : Icons.play_circle_outline,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
                       ],
                     ),
                   ),
@@ -10487,6 +10831,51 @@ class _SystemHealthCheckCard extends StatelessWidget {
       avatar: Icon(icon, size: 16, color: fg),
       label: Text(label, style: TextStyle(color: fg)),
       visualDensity: VisualDensity.compact,
+    );
+  }
+}
+
+class _PortalBadge extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final Color? foreground;
+
+  const _PortalBadge({
+    required this.icon,
+    required this.label,
+    required this.color,
+    this.foreground,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = foreground ??
+        (ThemeData.estimateBrightnessForColor(color) == Brightness.dark
+            ? Colors.white
+            : Colors.black87);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.75),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.9)),
+      ),
+      child: Wrap(
+        spacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Icon(icon, size: 16, color: fg),
+          Text(
+            label,
+            style: TextStyle(
+              color: fg,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.1,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
