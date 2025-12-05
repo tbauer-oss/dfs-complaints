@@ -380,7 +380,7 @@ class _AdminPageState extends State<AdminPage> {
 
   void _loadRoleTileVisibility({Map<String, dynamic>? stored}) {
     final rawData = stored;
-    if (rawData is Map) {
+    if (rawData != null) {
       rawData.forEach((key, value) {
         if (value is List) {
           _roleTileVisibility[key.toString()] = value.whereType<String>().toSet();
