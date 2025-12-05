@@ -12053,6 +12053,26 @@ class _ComplaintDialogLauncher extends StatelessWidget {
     }
   }
 
+  String _labelForDecision(String? d) {
+    switch ((d ?? '').trim()) {
+      case 'accepted':
+        return 'Angenommen';
+      case 'rejected':
+        return 'Abgelehnt';
+      case '':
+        return '—';
+      default:
+        return d!.trim();
+    }
+  }
+
+  Color _decisionColor(String? d) {
+    final v = (d ?? '').trim();
+    if (v == 'accepted') return const Color(0xFF1B5E20);
+    if (v == 'rejected') return const Color(0xFFB71C1C);
+    return Colors.black54;
+  }
+
   Widget _metaPill({required Widget child}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
