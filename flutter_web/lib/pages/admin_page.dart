@@ -14686,11 +14686,78 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                       theme.textTheme.bodySmall?.color?.withOpacity(0.7) ??
                           scheme.onSurfaceVariant.withOpacity(0.85);
 
+                  Widget sectionHeader({
+                    required String title,
+                    required String subtitle,
+                    required IconData icon,
+                  }) {
+                    return Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: scheme.surfaceContainerHighest.withOpacity(0.55),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: scheme.outlineVariant.withOpacity(0.7)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(icon, color: scheme.primary),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  title,
+                                  style: textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  subtitle,
+                                  style: textTheme.bodyMedium?.copyWith(
+                                    color: scheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
                   Widget buildStatusSection() {
                     final allowStatusEdit = !_isPortalUser && !_isPortalReadonly;
                     final dropdownStyle = const InputDecoration(
                       border: OutlineInputBorder(),
                     );
+
+                    Widget statusChip({required String label, required int statusValue}) {
+                      final active = _status == statusValue;
+                      return FilterChip(
+                        label: Text(label),
+                        avatar: Icon(
+                          active ? Icons.check_circle : Icons.push_pin_outlined,
+                          size: 18,
+                          color: active ? scheme.primary : scheme.onSurfaceVariant,
+                        ),
+                        selected: active,
+                        showCheckmark: false,
+                        onSelected: allowStatusEdit && !_busy
+                            ? (_) => setState(() => _status = statusValue)
+                            : null,
+                        shape: StadiumBorder(
+                          side: BorderSide(
+                            color: active
+                                ? scheme.primary
+                                : scheme.outlineVariant.withOpacity(0.8),
+                          ),
+                        ),
+                      );
+                    }
 
                     final statusField = DropdownButtonFormField<int>(
                       value: _status,
@@ -14728,16 +14795,20 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                       ),
                     );
 
-                    if (isWide) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            'Status & Entscheidung',
-                            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
+                    final quickActions = Wrap(
+                      spacing: 10,
+                      runSpacing: 8,
+                      children: [
+                        statusChip(label: 'Eingegangen', statusValue: 1),
+                        statusChip(label: 'In Bearbeitung', statusValue: 2),
+                        statusChip(label: 'Rückfrage', statusValue: 3),
+                        statusChip(label: 'In Nacharbeit', statusValue: 5),
+                        statusChip(label: 'Abgeschlossen', statusValue: 6),
+                      ],
+                    );
+
+                    final fields = isWide
+                        ? Row(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               Expanded(child: statusField),
@@ -14746,27 +14817,33 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                               const SizedBox(width: 12),
                               SizedBox(width: 200, child: saveButton),
                             ],
-                          ),
-                        ],
-                      );
-                    }
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              statusField,
+                              const SizedBox(height: 12),
+                              decisionField,
+                              const SizedBox(height: 12),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: SizedBox(width: 220, child: saveButton),
+                              ),
+                            ],
+                          );
 
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(
-                          'Status & Entscheidung',
-                          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                        sectionHeader(
+                          title: '1. Status & Entscheidung',
+                          subtitle: 'Wählen Sie den aktuellen Bearbeitungsschritt und speichern Sie die Entscheidung.',
+                          icon: Icons.flag_outlined,
                         ),
                         const SizedBox(height: 12),
-                        statusField,
+                        quickActions,
                         const SizedBox(height: 12),
-                        decisionField,
-                        const SizedBox(height: 12),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: SizedBox(width: 220, child: saveButton),
-                        ),
+                        fields,
                       ],
                     );
                   }
@@ -14939,31 +15016,79 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                       );
                     }
 
+                    Widget buildCard({required Widget child}) {
+                      return Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: scheme.surfaceVariant.withOpacity(0.35),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: scheme.outlineVariant.withOpacity(0.6)),
+                        ),
+                        child: child,
+                      );
+                    }
+
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(
-                          'Meta & Aktionen',
-                          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                        sectionHeader(
+                          title: '2. Meta & Aktionen',
+                          subtitle: 'Ergänzen Sie interne Nummern, Reports und betroffene Abteilungen.',
+                          icon: Icons.build_outlined,
                         ),
                         const SizedBox(height: 12),
-                        buildFieldWithAction(field: internalField, action: internalAction),
-                        const SizedBox(height: 16),
-                        buildFieldWithAction(field: reportField, action: reportAction),
-                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: [
+                            SizedBox(
+                              width: isWide ? 420 : double.infinity,
+                              child: buildCard(
+                                child: buildFieldWithAction(
+                                  field: internalField,
+                                  action: internalAction,
+                                ),
+                              ),
+                            ),
+                            SizedBox(
+                              width: isWide ? 420 : double.infinity,
+                              child: buildCard(
+                                child: buildFieldWithAction(
+                                  field: reportField,
+                                  action: reportAction,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
                         if ((widget.c.externalReportLinks?.isNotEmpty ?? false) ||
                             (widget.c.internalReportLinks?.isNotEmpty ?? false)) ...[
-                          _linkBadges('Externe Reports', widget.c.externalReportLinks, highlight: true),
-                          _linkBadges('Interne Reports', widget.c.internalReportLinks),
+                          buildCard(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _linkBadges('Externe Reports', widget.c.externalReportLinks, highlight: true),
+                                _linkBadges('Interne Reports', widget.c.internalReportLinks),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
                         ],
-                        const SizedBox(height: 16),
-                        Text(
-                          'Betroffene interne Abteilungen',
-                          style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                        buildCard(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                'Betroffene interne Abteilungen',
+                                style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: 8),
+                              buildDepartmentSelector(),
+                            ],
+                          ),
                         ),
-                        const SizedBox(height: 8),
-                        buildDepartmentSelector(),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 16),
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton.icon(
