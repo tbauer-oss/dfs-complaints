@@ -10,7 +10,14 @@ export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
 
-  const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET', tile: 'portalUsers' });
+  // Das UI-Layout wird von allen angemeldeten Portal-Nutzern gelesen, daher
+  // darf der GET-Handler nicht an der PortalUsers-Kachel scheitern. Für
+  // Änderungen (POST) bleiben wir streng und koppeln an die tile-Berechtigung
+  // plus Rollen-Prüfung unten.
+  const actor = await requirePortalAccess(req, res, {
+    write: req.method !== 'GET',
+    tile: req.method === 'GET' ? undefined : 'portalUsers',
+  });
   if (!actor) return;
 
   if (req.method === 'GET') {
@@ -33,4 +40,3 @@ export default async function handler(req, res) {
 
   return methodNotAllowed(res);
 }
-
